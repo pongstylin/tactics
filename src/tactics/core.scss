@@ -1,0 +1,372 @@
+HTML,BODY
+{
+	width:100%;
+	height:100%;
+}
+
+BODY
+{
+	box-sizing:border-box;
+	margin:0;
+	padding:0;
+	background-color:black;
+	color:#DED8D5;
+	overflow:hidden;
+	font-family:Verdana;
+	font-size:0.8125em;
+
+	-webkit-text-size-adjust:none;
+}
+
+#splash
+{
+	position:absolute;
+	width:100%;
+	height:100%;
+	color:white;
+	text-align:center;
+}
+#loader
+{
+	position:absolute;
+	visibility:hidden;
+	width:200px;
+}
+#bar
+{
+	margin:10px auto;
+	border:1px solid #808080;
+	width:100px;
+	height:7px;
+}
+#progress
+{
+	background-color:#D4611F;
+	width:0;
+	height:7px;
+}
+
+#app
+{
+	position:relative;
+	margin:0 auto;
+	max-width:836px;
+	visibility:hidden;
+}
+#field
+{
+	position:relative;
+	overflow:hidden;
+}
+#board
+{
+	display:block;
+	margin:0 auto;
+	padding:0;
+}
+#card
+{
+	display:none;
+	position:absolute;
+	top:0;
+	left:0;
+	background-color:rgba(0,0,0,0.5);
+	border:1px solid #AA9977;
+	border-radius:8px;
+}
+
+#app > .buttons
+{
+	display:block;
+	position:absolute;
+	box-sizing:border-box;
+	background-color:transparent;
+	font-size:18px;
+	margin:0;
+	padding:0;
+}
+
+#app > .buttons BUTTON
+{
+	background:none no-repeat center transparent;
+	box-sizing:content-box;
+	color:#DED8D5;
+	width:34px;
+	height:34px;
+	margin:3px;
+	border:0 solid #DED8D5;
+	border-style:solid;
+	padding:0;
+	cursor:pointer;
+	font-size:18px;
+	line-height:34px;
+	text-align:center;
+	vertical-align:bottom;	/* removes bottom spacing */
+}
+#app > .buttons BUTTON:focus
+{
+	outline:none;
+}
+#app > .buttons BUTTON.selected
+{
+	margin:1px;
+	border-width:2px;
+	border-radius:2px 2px 0 0;
+	cursor:default;
+}
+#app > .buttons BUTTON.selected[name=select][value=turn]
+{
+	cursor:pointer;
+}
+
+#app > .buttons BUTTON[name=select][value=move]
+{
+	background-image:url('http://www.taorankings.com/html5/images/move.png');
+	border-color:#0088FF;
+}
+#app > .buttons BUTTON[name=select][value=attack]
+{
+	background-image:url('http://www.taorankings.com/html5/images/attack.png');
+	border-color:#FF8800;
+}
+#app > .buttons BUTTON[name=select][value=turn]
+{
+	background-image:url('http://www.taorankings.com/html5/images/turn.png');
+	border-color:#FFE991;
+}
+#app > .buttons BUTTON[name=pass]
+{
+	background-image:url('http://www.taorankings.com/html5/images/pass.png');
+}
+#app > .buttons BUTTON[name=surrender]
+{
+	background-image:url('http://www.taorankings.com/html5/images/surrender.png');
+	border-color:#FFFFFF;
+}
+
+@-webkit-keyframes glow
+{
+	0%   { box-shadow: none;                 }
+	50%  { box-shadow: 0px 0px 14px 4px #FFFFFF; }
+	100% { box-shadow: none;                 }
+}
+
+@keyframes glow
+{
+	0%   { box-shadow: none;                 }
+	50%  { box-shadow: 0px 0px 14px 4px #FFFFFF; }
+	100% { box-shadow: none;                 }
+}
+
+#app > .buttons BUTTON.ready
+{
+	-webkit-animation:glow ease-in-out 1s infinite;
+	animation:glow ease-in-out 1s infinite;
+}
+
+#app > .buttons BUTTON.hidden
+{
+	display:none;
+}
+
+#app > .buttons BUTTON[name=movebar],#app > .buttons BUTTON[name=swapbar]
+{
+	display:none;
+}
+
+.mouse #app:not(.locked) > .buttons BUTTON:not(.selected):enabled:hover
+{
+	margin:2px;
+	border-width:1px;
+}
+
+#app.locked > #game-play.buttons BUTTON,
+#app.locked > #game-settings.buttons BUTTON[name=rotate],
+#app > .buttons BUTTON[disabled]
+{
+	opacity:0.4;
+	cursor:default;
+}
+
+#overlay
+{
+	display:none;
+	position:absolute;
+	top:0;
+	left:0;
+	width:100%;
+	height:100%;
+	background-color:rgba(0,0,0,0.5);
+}
+
+#popup
+{
+	display:none;
+	position:absolute;
+	background-color:rgba(0,0,0,0.65);
+	box-shadow:6px 8px 10px #000;
+	top:50%;
+	left:50%;
+	width:200px;
+	height:100px;
+	margin-top:-51px;
+	margin-left:-101px;
+	border:1px solid #AA9977;
+	border-radius:4px;
+}
+
+#popup #message
+{
+	padding:8px;
+}
+
+#popup .buttons
+{
+	position:absolute;
+	bottom:0;
+	box-sizing:border-box;
+	width:100%;
+	padding:12px;
+	text-align:center;
+}
+
+#popup BUTTON
+{
+	background:#6f634a;
+	color:#FFEECC;
+	width:50px;
+	height:18px;
+	margin:0 8px;
+	border:1px solid #FFEECC;
+	font-family:Arial;
+	font-size:10px;
+	cursor:pointer;
+}
+.mouse #popup BUTTON:hover,.mouse #popup BUTTON:focus
+{
+	outline:#FFCC00 solid 1px;
+}
+
+@media (min-width:836px) and (min-height:550px)
+{
+	#card
+	{
+		top:20px;
+		left:30px;
+		border:0 none;
+	}
+
+	#app > .buttons
+	{
+		display:inline-block;
+		text-align:right;
+		padding:2px 6px;
+		right:0;
+	}
+	#game-play
+	{
+		top:0;
+	}
+	#game-settings
+	{
+		bottom:0;
+	}
+
+	#popup:not(.error)
+	{
+		background-color:transparent;
+		border:0 none;
+		box-shadow:none;
+		top:48px;
+		left:auto;
+		right:0;
+		width:220px;
+		height:auto;
+		margin:0;
+		padding:2px 6px;
+		text-align:right;
+	}
+	#popup:not(.error) #message
+	{
+		padding:3px;
+	}
+	#popup:not(.error) .buttons
+	{
+		position:relative;
+		text-align:right;
+		padding:10px 3px;
+	}
+	#popup:not(.error) BUTTON
+	{
+		margin:0 0 0 6px;
+	}
+}
+
+@media (max-width:835px) and (orientation:portrait), (max-height:549px) and (orientation:portrait)
+{
+	#app > .buttons
+	{
+		position:relative;
+		padding:6px;
+		height:52px;
+		display:none;
+	}
+	#app > .buttons.active
+	{
+		display:block;
+	}
+
+	#app > .buttons BUTTON[name=swapbar]
+	{
+		display:inline-block;
+		position:absolute;
+		top:6px;
+		right:6px;
+	}
+}
+
+@media (max-width:835px) and (orientation:landscape), (max-height:549px) and (orientation:landscape)
+{
+	#app > .buttons
+	{
+		top:0;
+		width:48px;
+		height:100%;
+		margin:0;
+		padding:4px;
+		display:none;
+	}
+	#app > .buttons.active
+	{
+		display:inline-block;
+	}
+
+	#app.left > .buttons
+	{
+		right:0px;
+	}
+	#app.left #field
+	{
+		margin-right:48px;
+	}
+
+	#app.right > .buttons
+	{
+		left:0px;
+	}
+	#app.right #field
+	{
+		margin-left:48px;
+	}
+
+	#app > .buttons BUTTON[name=movebar],#app > .buttons BUTTON[name=swapbar]
+	{
+		display:inline-block;
+	}
+	#app > .buttons BUTTON[name=swapbar]
+	{
+		position:absolute;
+		bottom:4px;
+		left:4px;
+	}
+}
