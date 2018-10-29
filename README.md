@@ -10,15 +10,15 @@ This project is derivative of the flash-based Tactics Arena Online (TAO) game th
 ## Development
 After checking out the Git repository, run these commands.
 
-```
+```bash
 $ npm install
-$ npm run build
+$ npm run watch
 $ npm start
 ```
 
 The start command will output a URL that can be used to run the game.
 
-After making changes, the build command must be run again to have it reflected on the development URL.
+After making changes, the watch command must be run again to have it reflected on the development URL.
 
 ## Contributing
 Pull requests are encouraged. For major changes, please open an issue first to discuss what you would like to change.
@@ -31,7 +31,7 @@ The `dist` directory contains JavaScript bundles that can be used to publish the
 
 After making changes to the source, the distribution bundles can be rebuilt using this command:
 
-```
+```bash
 $ npm run dist
 ```
 
