@@ -12,13 +12,13 @@ After checking out the Git repository, run these commands.
 
 ```bash
 $ npm install
-$ npm run watch
+$ npm run dev
 $ npm start
 ```
 
 The start command will output a URL that can be used to run the game.
 
-After making changes, the watch command will re-build the changed files and add them to the bundle, reflecting changed in the development URL.
+After making changes, the dev command will re-build the changed files and add them to the bundle, reflecting changed in the development URL.
 
 ## Contributing
 Pull requests are encouraged. For major changes, please open an issue first to discuss what you would like to change.
