@@ -1,6 +1,7 @@
 const path = require('path');
 
 module.exports = {
+  mode: process.env.NODE_ENV,
   entry: {
     tactics: path.resolve(__dirname, 'src', 'tactics.js'),
     'faceoff-app': path.resolve(__dirname, 'src', 'faceoff-app.js'),
@@ -40,4 +41,5 @@ module.exports = {
     }
   },
   devtool: process.env.NODE_ENV === 'production' ? false : 'eval-source-map',
+  performance: { hints: false },
 };
