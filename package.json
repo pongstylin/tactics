@@ -7,10 +7,9 @@
     "lib": "lib"
   },
   "scripts": {
-    "start": "node src/app.js",
+    "start": "NODE_ENV=development webpack --watch --progress --hide-modules & node src/app.js || true",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --mode=development",
-    "dist": "webpack --mode=production"
+    "dist": "NODE_ENV=production webpack --progress --hide-modules"
   },
   "author": "Dave Clark",
   "license": "Unlicense",

@@ -6,4 +6,5 @@ app.use(express.static('static'));
 
 app.listen(port, () => {
   console.log('Tactics now running at URL: http://localhost:'+port);
+  console.log('');
 });

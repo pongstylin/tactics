@@ -1,10 +1,11 @@
 const path = require('path');
 
-module.exports = (env, argv) => ({
+module.exports = {
+  mode: process.env.NODE_ENV,
   entry: {
-    tactics: path.resolve(__dirname, 'src/tactics.js'),
-    'faceoff-app': path.resolve(__dirname, 'src/faceoff-app.js'),
-    'chaos-app': path.resolve(__dirname, 'src/chaos-app.js'),
+    tactics: path.resolve(__dirname, 'src', 'tactics.js'),
+    'faceoff-app': path.resolve(__dirname, 'src', 'faceoff-app.js'),
+    'chaos-app': path.resolve(__dirname, 'src', 'chaos-app.js'),
   },
   module: {
     rules: [
@@ -26,7 +27,7 @@ module.exports = (env, argv) => ({
     ]
   },
   output: {
-    path: path.resolve(__dirname, argv.mode === 'production' ? 'dist' : 'static'),
+    path: path.resolve(__dirname, process.env.NODE_ENV === 'production' ? 'dist' : 'static'),
     filename: '[name].min.js'
   },
   optimization: {
@@ -34,10 +35,11 @@ module.exports = (env, argv) => ({
   },
   resolve: {
     alias: {
-      tactics: path.resolve(__dirname, 'src/tactics'),
-      util: path.resolve(__dirname, 'src/util'),
+      tactics: path.resolve(__dirname, 'src', 'tactics'),
+      util: path.resolve(__dirname, 'src', 'util'),
       lib: path.resolve(__dirname, 'lib'),
     }
   },
-  devtool: argv.mode === 'production' ? false : 'eval-source-map',
-});
+  devtool: process.env.NODE_ENV === 'production' ? false : 'eval-source-map',
+  performance: { hints: false },
+};
