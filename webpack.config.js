@@ -6,6 +6,7 @@ module.exports = {
     tactics: path.resolve(__dirname, 'src', 'tactics.js'),
     'faceoff-app': path.resolve(__dirname, 'src', 'faceoff-app.js'),
     'chaos-app': path.resolve(__dirname, 'src', 'chaos-app.js'),
+    'classic-app': path.resolve(__dirname, 'src', 'classic-app.js'),
   },
   module: {
     rules: [

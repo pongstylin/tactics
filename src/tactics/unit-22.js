@@ -3,7 +3,7 @@
 	Tactics.units[22].extend = function (self)
 	{
 		var data = Tactics.units[self.type];
-		var sounds = $.extend({},Tactics.sounds,data.sounds);
+		var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 		var board = Tactics.board;
 
 		$.each(data.frames,function (i,frame)
@@ -32,9 +32,7 @@
 			title:'Awakened!',
 			banned:[],
 
-			attack:function (target)
-			{
-				var deferred = $.Deferred();
+			attack:function (target) {
 				var anim = new Tactics.Animation({fps:10});
 				var direction = board.getDirection(self.assignment,target);
 				var tunit;
@@ -48,11 +46,10 @@
 				target = self.targetLOS(target);
 				tunit = target.assigned;
 
-				if (tunit)
-				{
+				if (tunit) {
 					calc = self.calcAttack(tunit);
 
-					changes	= {mHealth:tunit.mHealth - calc.damage};
+					changes	= {mHealth:tunit.mHealth + calc.damage};
 					if (changes.mHealth < -tunit.health) changes.mHealth = -tunit.health;
 
 					// jQuery does not extend undefined value
@@ -65,64 +62,48 @@
 					.splice(self.animTurn(direction))
 					.splice(self.animAttack(target,false,changes));
 
-				anim.play(function ()
-				{
+				return anim.play().then(() => {
 					self.attacked = {target:target,block:false,changes:changes};
 					self.origin.adirection = self.direction;
 					self.thaw();
-					deferred.resolve();
 				});
-
-				return deferred.promise();
 			},
-			special:function ()
-			{
-				var deferred = $.Deferred();
+			special: function () {
 				var anim = new Tactics.Animation({fps:12});
 				var target = self.assignment;
 				var tunit = self;
 				var block = data.animations[self.direction].block;
 				var changes;
 
-				if (tunit)
-				{
-					changes = {mHealth:tunit.mHealth + self.power};
-					if (changes.mHealth > 0) changes.mHealth = 0;
+				if (tunit) {
+					changes = {
+            mHealth: Math.max(tunit.mHealth + self.power, 0),
+          };
 
 					// jQuery does not extend undefined value
 					changes.notice = null;
 				}
 
-				self.freeze();
-
 				anim
-					.splice
-					([
-						function () { self.drawFrame(block.s); },
-						function () { self.drawFrame(block.s+1); },
-						function () {},
-						function () { sounds.heal.play(); }
+					.splice([
+						() => self.drawFrame(block.s),
+						() => self.drawFrame(block.s+1),
+						() => {},
 					])
 					.splice(self.animHeal([tunit]))
-					.splice(4,function ()
-					{
-						tunit.change(changes);
-					})
-					.splice
-					([
-						function () { self.drawFrame(block.s+4); },
-						function () { self.drawFrame(block.s+5); }
+					.splice(4, () => tunit.change(changes))
+					.splice([
+						() => self.drawFrame(block.s+4),
+						() => self.drawFrame(block.s+5),
 					]);
 
-				anim.play(function ()
-				{
+				self.freeze();
+
+				return anim.play().then(() => {
 					self.attacked = {target:target,block:false,changes:changes};
 					self.origin.adirection = self.direction;
 					self.thaw();
-					deferred.resolve();
 				});
-
-				return deferred.promise();
 			},
 			phase:function (color)
 			{

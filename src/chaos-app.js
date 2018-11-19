@@ -156,11 +156,10 @@ Tactics.App = (function ($,window,document)
 
 			$(window).trigger('resize');
 
-			$('#loader').css
-			({
-				top:($(window).height()/2)-($('#loader').height()/2)+'px',
-				left:($(window).width()/2)-($('#loader').width()/2)+'px',
-				visibility:'visible'
+			$('#loader').css({
+				top:        ($(window).height()/2)-($('#loader').height()/2)+'px',
+				left:       ($(window).width()/2)-($('#loader').width()/2)+'px',
+				visibility: 'visible'
 			});
 
 			board = Tactics.board;
@@ -296,6 +295,8 @@ Tactics.App = (function ($,window,document)
 		var loader = PIXI.loader;
 		var utypes = [];
 
+		$progress.width(percent);
+
 		function progress()
 		{
 			var percent = (++loaded / resources.length) * 100;
@@ -318,10 +319,6 @@ Tactics.App = (function ($,window,document)
 					})
 					.find('.message')
 						.text(action+' here to play!')
-			}
-			else
-			{
-				$progress.width(percent);
 			}
 		}
 

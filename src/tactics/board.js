@@ -1,27 +1,24 @@
 Tactics.Board = function ()
 {
 	var self = this;
-	var trophy = new Tactics.Unit(19);
-	var seed = new Tactics.Unit(15);
+	var trophy;
 	var units;
-	var card =
-	{
-		renderer:new PIXI.CanvasRenderer(176,100,{transparent:true}),
-		stage:new PIXI.Container(),
-		rendering:false,
-		render:function ()
-		{
+	var card = {
+		renderer:  new PIXI.CanvasRenderer(176,100,{transparent:true}),
+		stage:     new PIXI.Container(),
+		rendering: false,
+		render:    () => {
 			if (card.rendering) return;
 			card.rendering = true;
 
-			requestAnimationFrame(function ()
-			{
+			requestAnimationFrame(() => {
 //console.log('card render',+new Date());
 				card.renderer.render(card.stage);
 				card.rendering = false;
 			});
 		}
 	};
+	var highlighted = [];
 
 	card.$canvas = $(card.renderer.view)
 		.attr('id','card')
@@ -29,17 +26,14 @@ Tactics.Board = function ()
 
 	card.stage.hitArea = new PIXI.Polygon([0,0, 175,0, 175,99, 0,99]);
 	card.stage.interactive = card.stage.buttonMode = true;
-	card.stage.click = card.stage.tap = function ()
-	{
+	card.stage.click = card.stage.tap = function () {
 		var els = card.elements;
 
-		if (els.layer1.visible)
-		{
+		if (els.layer1.visible) {
 			els.layer1.visible = !(els.layer2.visible = true);
 			return card.render();
 		}
-		else if (els.layer2.visible)
-		{
+		else if (els.layer2.visible) {
 			els.layer2.visible = !(els.layer3.visible = true);
 			return card.render();
 		}
@@ -112,24 +106,20 @@ Tactics.Board = function ()
 							mArmor:{type:'T',x:143,y:16              }
 						},
 					},
-					layer2:
-					{
+					layer2: {
 						type:'C',
 						visible:false,
-						children:
-						{
+						children: {
 							yLabel   :{type:'T',x: 0,y: 0,text:'Ability'},
 							ability  :{type:'T',x:55,y: 0},
 							sLabel   :{type:'T',x: 0,y:16,text:'Specialty'},
 							specialty:{type:'T',x:55,y:16},
 						},
 					},
-					layer3:
-					{
+					layer3: {
 						type:'C',
 						visible:false,
-						children:
-						{
+						children: {
 							recovery:{type:'T',x: 0,y: 0},
 							notice1 :{type:'T',x:88,y: 0},
 							notice2 :{type:'T',x: 0,y:16},
@@ -204,35 +194,71 @@ Tactics.Board = function ()
 
 			return neighbors;
 		},
-		getDirection:function (a,b,simple)
-		{
-			var xdist = a.x-b.x;
-			var ydist = a.y-b.y;
+    /*
+     * From the position of tile a, return the direction of tile b.
+     * Consider this matrix:
+     *   NW  NNW  N  NNE  NE
+     *   WNW NW   N   NE ENE
+     *   W   W    A    E   E
+     *   WSW SW   s   SE ESE
+     *   SW  SSW  S  SSE  SE
+     *
+     *   When "simple" is falsey, triple directions are reduced to double
+     *   directions, e.g. NNW = NW.
+     *
+     *   When "simple" is true, triple directions are reduced to the strongest
+     *   direction, e.g. NNW = N.
+     *
+     *   When "simple" is a direction, triple and double directions are
+     *   reduced to a single direction using this priority order:
+     *   1) The strongest direction.
+     *   2) The "simple" direction.
+     *   3) The direction to the right of the "simple" direction.
+     *   4) The direction to the left of the "simple" direction.
+     */
+		getDirection:function (a, b, simple) {
+			let xdist = a.x - b.x;
+			let ydist = a.y - b.y;
 
-			if (Math.abs(xdist) > Math.abs(ydist))
-			{
-				if (ydist === 0 || simple)
-				{
+			if (Math.abs(xdist) > Math.abs(ydist)) {
+        // EW is stronger than NS
+				if (ydist === 0 || simple) {
+          // The only or strongest direction
 					return xdist > 0 ? 'W' : 'E';
 				}
-				else
-				{
+				else {
+          // Triple direction reduced to double direction.
 					return (xdist > 0 ? 'W' : 'E') + (ydist > 0 ? 'N' : 'S');
 				}
 			}
-			else if (Math.abs(ydist) > Math.abs(xdist))
-			{
-				if (xdist === 0 || simple)
-				{
+			else if (Math.abs(ydist) > Math.abs(xdist)) {
+        // NS is stronger than EW
+				if (xdist === 0 || simple) {
+          // The only or strongest direction
 					return ydist > 0 ? 'N' : 'S';
 				}
-				else
-				{
+				else {
+          // Triple direction reduced to double direction.
 					return (ydist > 0 ? 'N' : 'S') + (xdist > 0 ? 'W' : 'E');
 				}
 			}
 
-			return (ydist > 0 ? 'N' : 'S') + (xdist > 0 ? 'W' : 'E');
+      // a and b is the same or at a double direction.
+      let direction
+      if (a === b)
+        direction = 'NSEW';
+      else
+        direction = (ydist > 0 ? 'N' : 'S') + (xdist > 0 ? 'W' : 'E');
+
+      if (simple && typeof simple === 'string')
+        // Reduce direction to a single direction.
+        direction = [
+          simple,
+          self.getRotation(simple, 90),
+          self.getRotation(simple, -90),
+        ].find(d => direction.indexOf(d) > -1);
+
+			return direction;
 		},
 		getRotation:function (direction,deg)
 		{
@@ -280,80 +306,79 @@ Tactics.Board = function ()
 		},
 
 		// Public methods
-		draw:function ()
-		{
+		draw: function () {
 			var pixi = self.pixi = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/board.jpg');
 			var tiles = self.tiles = new Array(11*11);
 			var tile;
-			var selectEvent,focusEvent;
 			var sx = 6-88;       // padding-left, 1 tile  wide
 			var sy = 4+(56*4)+1; // padding-top , 4 tiles tall, tweak
 			var x,y,c;
 
+      // The board itself is interactive since we want to detect a click or tap
+      // on a blank tile to cancel current selection, if sensible.
+      pixi.interactive = true;
+      pixi.click = pixi.tap = () => {
+				if (self.locked) return;
+
+				let selected = self.selected;
+				if (self.viewed || (selected && selected.origin.tile === selected.assignment))
+					self.deselect();
+
+        Tactics.render();
+      };
 			pixi.position = new PIXI.Point(18,38);
 
-			selectEvent = function (event)
-			{
-				var tile = event.target;
-				var selected = self.selected;
-				var assigned;
-
+      /*
+       * A select event occurs when a unit or an action tile is selected.
+       */
+			var selectEvent = event => {
 				if (self.locked) return;
+
+				let tile = event.target;
 				if (tile.action) return;
 
-				if (assigned = tile.assigned)
-				{
-					Tactics.sounds.select.play();
-					self.select(assigned);
-				}
-				else if (self.viewed || (selected && selected.origin.tile === selected.assignment))
-				{
-					self.deselect();
-				}
+				Tactics.sounds.select.play();
+				self.select(tile.assigned);
 			};
 
-			focusEvent = function (event)
-			{
-				var tile = event.target;
-				var assigned = tile.assigned;
-				var selected = self.selected;
-				var focused = self.focused;
-				var viewed;
+			var focusEvent = event => {
+				let assigned = event.target.assigned;
+				let old_focused  = self.focused;
 
-				tile.pixi.buttonMode = !self.locked && (tile.action || assigned);
+ 				if (event.type === 'focus') {
+          if (assigned) {
+				    let selected = self.selected;
+            let view_only = self.locked
+              || assigned.team !== self.turns[0]
+              || assigned.mRecovery > 0
+              || (selected && selected.attacked && selected !== assigned);
 
-				if (!assigned) return;
+   					Tactics.sounds.focus.play();
+   					self.focused = assigned.focus(view_only);
+          }
+          else {
+            self.focused = null;
+          }
+ 				}
+ 				else {
+          if (assigned) {
+ 					  assigned.blur();
+ 					  if (assigned === old_focused)
+ 					  	self.focused = null;
+          }
+ 				}
 
-				if (event.type === 'focus')
-				{
-					Tactics.sounds.focus.play();
-					self.focused = assigned.focus
-					(
-						self.locked ||
-						assigned.team > 0 ||
-						assigned.mRecovery ||
-						(selected && selected.attacked && selected != assigned)
-					);
-				}
-				else
-				{
-					assigned.blur();
-
-					if (assigned === focused)
-						self.focused = null;
-				}
-
-				Tactics.render();
-
-				if (focused != self.focused)
-				{
+				if (old_focused !== self.focused) {
 					self.drawCard();
-					self.emit({type:'focus-change',ovalue:focused,nvalue:self.focused});
+					self.emit({
+            type:   'focus-change',
+            ovalue: old_focused,
+            nvalue: self.focused,
+          });
 				}
 			};
 
-			for (x=0; x<11; x++)
-			{
+			for (x=0; x<11; x++) {
 				y = 0;
 				c = 11;
 				if (x == 0)  { y=2; c=9;  }
@@ -361,15 +386,10 @@ Tactics.Board = function ()
 				if (x == 9)  { y=1; c=10; }
 				if (x == 10) { y=2; c=9;  }
 
-				for (; y<c; y++)
-				{
-					tile = tiles[x+y*11] = new Tactics.Tile();
-					tile.id = x+'x'+y;
-					tile.x = x;
-					tile.y = y;
-					tile.on('select',selectEvent);
-					tile.on('focus',focusEvent);
-					tile.on('blur',focusEvent);
+				for (; y<c; y++) {
+					tile = tiles[x+y*11] = new Tactics.Tile(x, y);
+					tile.on('select',     selectEvent);
+					tile.on('focus blur', focusEvent);
 					tile.draw();
 					tile.pixi.position = new PIXI.Point(sx+(x*44)+(y*44),sy-(x*28)+(y*28));
 
@@ -383,8 +403,7 @@ Tactics.Board = function ()
 			// Required to place units in the correct places.
 			pixi.updateTransform();
 
-			$.each(tiles,function (i,tile)
-			{
+			tiles.forEach((tile, i) => {
 				if (!tile) return;
 
 				// Hack to avoid apparent bug where x/y offsets change
@@ -397,67 +416,68 @@ Tactics.Board = function ()
 			});
 
 			// Make sure units always overlap naturally.
-			Tactics.on('render',function ()
-			{
-				units.children.sort(function (a,b)
-				{
-					return a.y - b.y;
-				});
+			Tactics.on('render', () => {
+				units.children.sort((a, b) => a.y - b.y);
 			});
 
 			return self;
 		},
-		drawCard:function (unit)
-		{
-			var carded = self.carded;
-			var els = card.elements;
-			var mask;
-			var notice;
-			var notices = [];
-			var important = 0;
+    /*
+     * Draw an information card based on these priorities:
+     *   1) The provided 'unit' argument (optional)
+     *   2) The unit that the user is currently focused upon
+     *   3) The unit that the user has selected for viewing.
+     *   4) The unit that the user has selected for control.
+     *   5) The trophy avatar with the board notice.
+     */
+		drawCard: function (unit) {
+			let els = card.elements;
+			let mask;
+			let notice;
+			let notices = [];
+			let important = 0;
 
-			if (carded)
-				carded.off('change',card.listener);
+      if (unit === undefined)
+        unit = self.focused || self.viewed || self.selected;
 
-			if (self.carded = unit = unit || self.focused || self.viewed || self.selected)
-			{
-				unit.on('change',card.listener = function ()
-				{
-					self.drawCard(unit);
-				});
+      let old_carded = self.carded;
+      self.carded = unit || null;
 
+      if (old_carded !== unit) {
+        if (old_carded)
+				  old_carded.off('change', card.listener);
+        if (unit)
+				  unit.on('change', card.listener = () => self.drawCard(unit));
+      }
+
+			if (unit) {
 				mask = new PIXI.Graphics();
 				mask.drawRect(0,0,88,60);
 
 				//
 				//	Status Detection
 				//
-				if (unit.mHealth === -unit.health)
-				{
+				if (unit.mHealth === -unit.health) {
 					notice = 'Dead!';
 				}
-				else
-				{
+				else {
 					notice = unit.notice;
 				}
 
 				if (!notice && unit.mRecovery)
 					notice = 'Wait '+unit.mRecovery+' Turn'+(unit.mRecovery > 1 ? 's' : '')+'!';
 
-				if (unit.poisoned)
-				{
+				if (unit.poisoned) {
 					notices.push('Poisoned!');
 					important++;
 				}
 
-				if (unit.paralyzed)
-				{
+				if (unit.paralyzed) {
 					notices.push('Paralyzed!');
 					important++;
 				}
 
-				if (unit.barriered)
-				{
+				if (unit.barriered) {
 					notices.push('Barriered!');
 					important++;
 				}
@@ -465,21 +485,17 @@ Tactics.Board = function ()
 				if (unit.mBlocking < 0)
 					notices.push('Vulnerable!');
 
-				if (unit.health + unit.mHealth < unit.health * 0.4)
-				{
+				if (unit.health + unit.mHealth < unit.health * 0.4) {
 					notices.push('Dying!');
 				}
-				else if (unit.mHealth < 0)
-				{
+				else if (unit.mHealth < 0) {
 					notices.push('Hurt!');
 				}
-				else
-				{
+				else {
 					notices.push(unit.title || 'Ready!');
 				}
 
-				if (!notice)
-				{
+				if (!notice) {
 					notice = notices.shift();
 					important--;
 				}
@@ -516,19 +532,15 @@ Tactics.Board = function ()
 
 				els.health.text = (unit.health + unit.mHealth)+'/'+unit.health;
 
-				if (unit.blocking)
-				{
-					if (unit.mBlocking)
-					{
+				if (unit.blocking) {
+					if (unit.mBlocking) {
 						els.block.text = unit.blocking;
 
-						if (unit.mBlocking > 0)
-						{
+						if (unit.mBlocking > 0) {
 							els.mBlock.text = '+'+Math.round(unit.mBlocking)+'%';
 							els.mBlock.style.fill = '#00FF00';
 						}
-						else
-						{
+						else {
 							els.mBlock.text = Math.round(unit.mBlocking)+'%';
 							els.mBlock.style.fill = '#FF0000';
 						}
@@ -536,29 +548,24 @@ Tactics.Board = function ()
 						els.block.updateText();
 						els.mBlock.position.x = els.block.position.x + els.block.width;
 					}
-					else
-					{
+					else {
 						els.block.text = unit.blocking+'%';
 						els.mBlock.text = '';
 					}
 				}
-				else
-				{
+				else {
 					els.block.text = '---';
 					els.mBlock.text = '';
 				}
 
 				els.power.text = unit.power || '--';
 
-				if (unit.mPower)
-				{
-					if (unit.mPower > 0)
-					{
+				if (unit.mPower) {
+					if (unit.mPower > 0) {
 						els.mPower.text = '+'+unit.mPower;
 						els.mPower.style.fill = '#00FF00';
 					}
-					else
-					{
+					else {
 						els.mPower.text = unit.mPower;
 						els.mPower.style.fill = '#FF0000';
 					}
@@ -566,22 +573,18 @@ Tactics.Board = function ()
 					els.power.updateText();
 					els.mPower.position.x = els.power.position.x + els.power.width;
 				}
-				else
-				{
+				else {
 					els.mPower.text = '';
 				}
 
 				els.armor.text = unit.armor;
 
-				if (unit.mArmor)
-				{
-					if (unit.mArmor > 0)
-					{
+				if (unit.mArmor) {
+					if (unit.mArmor > 0) {
 						els.mArmor.text = '+'+unit.mArmor;
 						els.mArmor.style.fill = '#00FF00';
 					}
-					else
-					{
+					else {
 						els.mArmor.text = unit.mArmor;
 						els.mArmor.style.fill = '#FF0000';
 					}
@@ -589,8 +592,7 @@ Tactics.Board = function ()
 					els.armor.updateText();
 					els.mArmor.position.x = els.armor.position.x + els.armor.width;
 				}
-				else
-				{
+				else {
 					els.mArmor.text = '';
 				}
 
@@ -615,8 +617,10 @@ Tactics.Board = function ()
 				card.stage.buttonMode = true;
 				card.render();
 			}
-			else if (self.notice)
-			{
+			else if (self.notice) {
+        if (trophy === undefined)
+          trophy = new Tactics.Unit(19);
+
 				unit = trophy;
 				mask = new PIXI.Graphics();
 				mask.drawRect(0,0,88,60);
@@ -641,17 +645,17 @@ Tactics.Board = function ()
 				card.stage.buttonMode = true;
 				card.render();
 			}
-			else if (!carded)
-			{
+			else if (!old_carded) {
 				return self;
 			}
 
-			self.carded = unit || null;
-
-			return self.emit({type:'card-change',ovalue:carded,nvalue:unit});
+			return self.emit({
+        type:   'card-change',
+        ovalue: old_carded,
+        nvalue: unit,
+      });
 		},
-		eraseCard:function ()
-		{
+		eraseCard: function () {
 			card.stage.buttonMode = false;
 
 			if (self.carded) self.carded.off('change',card.listener);
@@ -661,18 +665,18 @@ Tactics.Board = function ()
 			return self;
 		},
 
-		addTeams:function (teams)
-		{
-			$.each(teams,function (i,team)
-			{
+		addTeams: function (teams) {
+			teams.forEach((team, i) => {
 				self.teams.push({color:team.c,units:[],bot:team.b ? new Tactics.Bot(team.b) : null});
 
-				$.each(team.u,function (coords,uData)
-				{
+				Object.keys(team.u).forEach(coords => {
+          var uData = team.u[coords];
 					var x = coords.charCodeAt(0)-97;
 					var y = coords.charCodeAt(1)-97;
 					var degree = self.getDegree('N',self.rotation);
-					var data = $.extend({},uData,self.getUnitRotation(degree,self.getTile(x,y),uData.d));
+					var data = Object.assign({},
+            uData,self.getUnitRotation(degree, self.getTile(x,y), uData.d)
+          );
 
 					self.addUnit(i,data);
 				});
@@ -680,8 +684,7 @@ Tactics.Board = function ()
 
 			return self;
 		},
-		dropTeams:function ()
-		{
+		dropTeams: function () {
 			var teams = self.teams,units;
 			var i,j;
 
@@ -700,8 +703,7 @@ Tactics.Board = function ()
 			return self;
 		},
 
-		addUnit:function (teamId,udata)
-		{
+		addUnit: function (teamId,udata) {
 			var team = self.teams[teamId];
 			var unit = new Tactics.Unit(udata.t);
 			unit.team = teamId;
@@ -721,24 +723,20 @@ Tactics.Board = function ()
 
 			return self;
 		},
-		dropUnit:function (unit)
-		{
+		dropUnit: function (unit) {
 			var tUnits = self.teams[unit.team].units;
 
-			if (unit == self.focused)
-			{
+			if (unit == self.focused) {
 				unit.blur();
 				self.focused = null;
 			}
 
-			if (unit == self.viewed)
-			{
+			if (unit == self.viewed) {
 				unit.deactivate();
 				self.viewed = null;
 			}
 
-			if (unit == self.selected)
-			{
+			if (unit == self.selected) {
 				unit.deactivate();
 				self.selected = null;
 			}
@@ -759,27 +757,19 @@ Tactics.Board = function ()
 			board has rotated.  This means unit coordinates and directions must
 			be translated to an API based on our current rotation.
 		*/
-		rotate:function (rotation)
-		{
+		rotate: function (rotation) {
 			var units = [];
 			var degree = self.getDegree(self.rotation,rotation);
 
-			$.each(self.teams,function (i,team)
-			{
-				Array.prototype.push.apply(units,team.units);
-			});
+			self.teams.forEach(t => Array.prototype.push.apply(units, t.units));
 
 			// First, reset all tiles.
 			if (self.selected && !self.viewed) self.selected.hideMode();
 			if (self.viewed) self.viewed.hideMode();
 
-			$.each(units,function (i,unit)
-			{
-				unit.assignment.dismiss();
-			});
+			units.forEach(u => u.assignment.dismiss());
 
-			$.each(units,function (i,unit)
-			{
+			units.forEach(unit => {
 				var origin = unit.origin;
 				var data = self.getUnitRotation(degree,unit.assignment,unit.direction);
 				var odata = self.getUnitRotation(degree,origin.tile,origin.direction);
@@ -801,24 +791,28 @@ Tactics.Board = function ()
 			return self;
 		},
 
-		setSelectMode:function (mode)
-		{
+		setSelectMode: function (mode) {
 			var team = self.teams[self.turns[0]];
 
-			if (self.viewed)
-				if (!team.bot)
-					self.viewed.activate(mode,true);
-				else
-					self.viewed.activate();
-			else if (self.selected)
-				if (!team.bot)
-					self.selected.activate(mode);
-				else
-					self.selected.activate();
+ 			if (self.viewed)
+ 				if (!team.bot)
+ 					self.viewed.activate(mode, true);
+ 				else
+ 					self.viewed.activate();
+ 			else if (self.selected)
+ 				if (!team.bot)
+ 					self.selected.activate(mode);
+ 				else
+ 					self.selected.activate();
 
 			// I got tired of seeing button borders and glow changes during bot turns.
 			if (!team || !team.bot)
-				self.emit({type:'select-mode-change',ovalue:self.selectMode,nvalue:mode});
+				self.emit({
+          type:   'select-mode-change',
+          ovalue: self.selectMode,
+          nvalue: mode,
+        });
+
 			self.selectMode = mode;
 
 			return self;
@@ -829,39 +823,32 @@ Tactics.Board = function ()
 		//   2) The unit has completely recovered.
 		//   3) Another unit on the same team has not already attacked this turn.
 		//
-		select:function (unit)
-		{
+		select: function (unit) {
 			var selected = self.selected;
 			var viewed = self.viewed;
 			var mode;
 
 			if (unit == viewed) return self.drawCard();
 
-			if (viewed)
-			{
+			if (viewed) {
 				viewed.deactivate();
 				self.viewed = null;
 			}
 
-			if (unit == selected)
-			{
-				if (selected.activated == 'direction')
-				{
+			if (unit == selected) {
+				if (selected.activated == 'direction') {
 					mode = 'turn';
 				}
-				else if (selected.activated == 'target')
-				{
+				else if (selected.activated == 'target') {
 					mode = 'attack';
 				}
-				else
-				{
+				else {
 					mode = selected.activated;
 
 					if (viewed) unit.showMode();
 				}
 			}
-			else
-			{
+			else {
 				mode = self.selectMode;
 
 				if (mode === 'move' && !unit.mRadius)
@@ -878,13 +865,11 @@ Tactics.Board = function ()
 					!unit.mRecovery &&
 					self.turns[0] == unit.team &&
 					(!selected || !selected.attacked)
-				)
-				{
+				) {
 					if (selected) selected.reset();
 					self.selected = unit;
 				}
-				else
-				{
+				else {
 					if (selected && !viewed) selected.hideMode();
 					self.viewed = unit;
 				}
@@ -894,24 +879,20 @@ Tactics.Board = function ()
 
 			return self.drawCard();
 		},
-		deselect:function (reset)
-		{
+		deselect: function (reset) {
 			var selected = self.selected;
 			var viewed = self.viewed;
 			var team = self.teams[self.turns[0]];
 
-			if (reset)
-			{
+			if (reset) {
 				if (selected) selected.deactivate();
 				self.selected = null;
 
 				if (viewed) viewed.deactivate();
 				self.viewed = null;
 			}
-			else if (!team.bot)
-			{
-				if (viewed)
-				{
+			else if (!team.bot) {
+				if (viewed) {
 					viewed.deactivate();
 					self.viewed = null;
 
@@ -925,19 +906,15 @@ Tactics.Board = function ()
 
 					self.setSelectMode(selected ? selected.activated : self.selectMode);
 				}
-				else if (selected && !selected.attacked)
-				{
+				else if (selected && !selected.attacked) {
 					// Cancel any deployment or turning then deselect.
 					selected.reset();
 					self.selected = null;
-
-					Tactics.render();
 				}
 				else
 					return self;
 			}
-			else
-			{
+			else {
 				if (selected) selected.deactivate();
 				self.selected = null;
 			}
@@ -948,36 +925,30 @@ Tactics.Board = function ()
 			return self;
 		},
 
-		startTurn:function ()
-		{
+		startTurn: function () {
 			var teamId = self.turns[0];
 			var bot = self.teams[teamId].bot;
 
-			if (bot)
-			{
+			if (bot) {
 				self.lock();
 
 				// Give the page a chance to render the effect of locking the board.
-				setTimeout(function ()
-				{
-					bot.startTurn(teamId).done(function (record)
-					{
+				setTimeout(() => {
+					bot.startTurn(teamId).then(record => {
 						self.record = record;
 
 						if (Tactics.debug) return;
 						self.endTurn();
 					});
-				},100);
+				}, 100);
 			}
-			else
-			{
+			else {
 				self.unlock();
 				self.notice = 'Your Turn!';
 				self.drawCard();
 			}
 		},
-		endTurn:function ()
-		{
+		endTurn: function () {
 			var turns = self.turns;
 			var teamId = turns[0];
 			var decay,recovery;
@@ -986,20 +957,15 @@ Tactics.Board = function ()
 			self.notice = undefined;
 
 			// First remove dead teams from turn order.
-			$.each(self.teams,function(t,team)
-			{
-				var i;
-
+			self.teams.forEach((team, t) => {
 				if (team.units.length) return;
 				if (turns.indexOf(t) === -1) return;
 
 				turns.splice(turns.indexOf(t),1);
 
 				// If the player team was killed, he can take over for a bot team.
-				if (!self.teams[t].bot)
-				{
-					for (i=0; i<self.teams.length; i++)
-					{
+				if (!self.teams[t].bot) {
+					for (let i = 0; i < self.teams.length; i++) {
 						if (!self.teams[i].units.length) continue;
 						self.teams[i].bot = 0;
 						break;
@@ -1011,21 +977,17 @@ Tactics.Board = function ()
 			decay = self.turns.length;
 			if (self.teams[4] && self.teams[4].units.length) decay--;
 
-			$.each(self.teams,function (t,team)
-			{
-				$.each(team.units,function (u,unit)
-				{
+			self.teams.forEach((team, t) => {
+				team.units.forEach(unit => {
 					if (unit.mRecovery && t == teamId) unit.mRecovery--;
-					if (teamId !== 4 && unit.mBlocking)
-					{
+					if (teamId !== 4 && unit.mBlocking) {
 						unit.mBlocking *= 1 - 0.2/decay;
 						if (Math.abs(unit.mBlocking) < 2) unit.mBlocking = 0;
 					}
 				});
 			});
 
-			if (selected)
-			{
+			if (selected) {
 				recovery = selected.recovery;
 				attacked = selected.attacked;
 				deployed = selected.deployed;
@@ -1051,101 +1013,89 @@ Tactics.Board = function ()
 			return self;
 		},
 
-		lock:function ()
-		{
+		lock: function () {
 			if (self.locked) return;
 			self.locked = true;
 
-			$.each(self.tiles,function (i,tile)
-			{
-				if (!tile) return;
-				tile.pixi.buttonMode = false;
-			});
+			self.tiles.forEach(tile => tile.set_interactive(false));
 
-			self.emit({type:'lock-change',ovalue:false,nvalue:true});
+			self.emit({
+        type:   'lock-change',
+        ovalue: false,
+        nvalue: true,
+      });
 		},
-		unlock:function ()
-		{
+		unlock: function () {
 			if (!self.locked) return;
 			self.locked = false;
 
-			$.each(self.tiles,function (i,tile)
-			{
-				if (!tile || !tile.focused) return;
-				tile.pixi.buttonMode = tile.action || tile.assigned;
-			});
+			self.tiles.forEach(tile => {
+        tile.set_interactive(!!(tile.action || tile.assigned));
 
-			self.emit({type:'lock-change',ovalue:true,nvalue:false});
+        if (tile.focused && tile.assigned) {
+          tile.assigned.focus();
+        }
+      });
+
+			self.emit({
+        type:   'lock-change',
+        ovalue: true,
+        nvalue: false,
+      });
 		},
 
-		calcTeams:function ()
-		{
+		calcTeams: function () {
 			var choices = [];
 
-			$.each(self.teams,function (id,team)
-			{
+			self.teams.forEach((team, id) => {
 				var thp = 50*3,chp = 0;
 				if (id === 4) return; // Team Chaos
 				if (team.units.length === 0) return;
 
-				$.each(team.units,function (i,unit)
-				{
-					chp += unit.health + unit.mHealth;
-				});
+				team.units.forEach(unit => 
+					chp += unit.health + unit.mHealth
+				);
 
-				choices.push
-				({
-					id:id,
-					color:team.color,
-					units:team.units,
-					score:chp / thp,
-					size:team.units.length,
-					random:Math.random()
+				choices.push({
+					id:     id,
+					color:  team.color,
+					units:  team.units,
+					score:  chp / thp,
+					size:   team.units.length,
+					random: Math.random()
 				});
 			});
 
 			return choices;
 		},
-		getWinningTeams:function ()
-		{
+		getWinningTeams: function () {
 			var teams = self.calcTeams();
 
-			teams.sort(function (a,b)
-			{
-				return (b.score - a.score) || (b.size - a.size) || (a.random - b.random);
-			});
+			teams.sort((a, b) => (b.score - a.score) || (b.size - a.size) || (a.random - b.random));
 
 			return teams;
 		},
-		getLosingTeam:function ()
-		{
+		getLosingTeam: function () {
 			var teams = self.calcTeams();
 
-			teams.sort(function (a,b)
-			{
-				return (a.score - b.score) || (a.size - b.size) || (a.random - b.random);
-			});
+			teams.sort((a, b) => (a.score - b.score) || (a.size - b.size) || (a.random - b.random));
 
 			return self.teams[teams[0].id];
 		},
 
-		reset:function ()
-		{
+		reset: function () {
 			self.dropTeams();
 			self.eraseCard();
 
 			return self.setSelectMode('move');
 		},
-		save:function ()
-		{
+		save: function () {
 			var teams = [];
 
-			$.each(self.teams,function (i,team)
-			{
+			self.teams.forEach(team => {
 				var tdata = {c:team.color,b:team.bot ? 1 : 0,u:{}};
 
-				$.each(team.units,function (i,unit)
-				{
+				team.units.forEach(unit => {
 					var udata = {t:unit.type,d:unit.direction};
 					var tile = unit.assignment;
 					var coords = String.fromCharCode(97+tile.x)+String.fromCharCode(97+tile.y);
@@ -1160,7 +1110,137 @@ Tactics.Board = function ()
 				teams.push(tdata);
 			});
 
-			return {teams:teams,turns:self.turns};
+			return {
+        teams: teams,
+        turns: self.turns,
+      };
+		},
+
+    showResults: function (results) {
+      if (!Array.isArray(results))
+        results = [results];
+
+      results.sort((a, b) => a.unit.assignment.y - b.unit.assignment.y || a.unit.assignment.x - b.unit.assignment.x);
+
+      let showResult = result => {
+        let unit = result.unit;
+
+        self.drawCard(unit);
+
+        let change = {notice: null};
+
+        if ('mBlocking' in result)
+          change.mBlocking = result.mBlocking;
+        if ('mRecovery' in result)
+          change.mRecovery = result.mRecovery;
+
+        unit.change(change);
+
+        if (result.miss) {
+          unit.change({notice: 'Miss!'});
+          return unit.animCaption('Miss!').play();
+        }
+        else if ('mHealth' in result) {
+          let increment;
+          let options = {};
+
+          if (result.mHealth > unit.mHealth)
+            options.color = '#00FF00';
+          else if (result.mHealth < unit.mHealth && result.mHealth !== -unit.health)
+            options.color = '#FFBB44';
+
+          let diff = unit.mHealth - result.mHealth;
+          let anim;
+
+          // Die if the unit is dead.
+				  if (result.mHealth === -unit.health) {
+            anim = unit.animCaption('Nooo...', options)
+  				    .splice(unit.animDeath(self));
+          }
+          else {
+            anim = unit.animCaption(Math.abs(diff).toString(), options);
+          }
+
+          // Show a change in health in 1 second
+          if (result.mHealth !== unit.mHealth) {
+            let progress = unit.mHealth;
+
+            anim.splice(0, [
+              {
+                script: () => {
+                  progress += (diff / 8) * -1;
+                  unit.change({
+                    mHealth: Math.round(progress),
+                    notice:  Math.round(unit.health + progress),
+                  });
+                },
+                repeat: 8,
+              },
+              // Pause to reflect upon the new health amount
+              {
+                script: () => {},
+                repeat: 4,
+              },
+            ]);
+          }
+
+          return anim.play();
+        }
+      };
+
+      return results.reduce(
+        (promise, result) => promise.then(() =>
+          showResult(result))
+            .then(() => result.unit.change({notice: null})),
+        Promise.resolve(),
+      ).then(() => self.drawCard());
+    },
+
+    clearHighlight: function () {
+			highlighted.forEach(highlight => {
+				var tile = highlight.tile;
+
+				if (tile.focused && tile.assigned)
+					tile.paint('focus', 0.3);
+				else
+					tile.strip();
+
+        // Only deactivate units that have a mode in case one of them is the attacker.
+				if (tile.action == 'target' && tile.assigned && tile.assigned.activated === true)
+          tile.assigned.deactivate();
+
+        if (tile.action) {
+  				tile.action = '';
+          tile.set_interactive(!!tile.assigned);
+  				tile.off('select', highlight.select);
+  				tile.off('focus',  highlight.focus);
+  				tile.off('blur',   highlight.blur);
+        }
+			});
+
+			highlighted = [];
+		},
+    setHighlight: function (highlight, viewed) {
+			var tile = highlight.tile;
+
+      if (highlighted.find(h => h.tile === tile))
+        throw new Error('Attempt made to highlight highlighted tile');
+
+			tile.paint(
+        highlight.action,
+        viewed ? 0.15 : 0.3,
+        highlight.color,
+      );
+
+			if (!viewed) {
+				tile.action = highlight.action;
+        tile.set_interactive(true);
+				tile.on('select', highlight.select);
+				tile.on('focus',  highlight.focus);
+				tile.on('blur',   highlight.blur);
+			}
+
+			highlighted.push(highlight);
 		}
 	});
 

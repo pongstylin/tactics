@@ -289,9 +289,10 @@ Tactics = (function ()
 		],
 		sounds:
 		{
+			step: 'sound10',
 			focus:'sound15',
 			select:'sound14',
-			strike:'sound6'
+			strike:'sound6',
 		},
 		animations:
 		{
@@ -476,7 +477,21 @@ Tactics = (function ()
 			},
 			{name:'Pyromancer'},
 			{name:'Scout'},
-			{name:'Cleric'},
+			{
+        name:    'Cleric',
+        ability: 'Heal All',
+        power:    12,
+        armor:    0,
+        health:   24,
+        recovery: 5,
+        blocking: 0,
+        aType:    'magic',
+        aRadius:  'all',
+        mRadius:  3,
+				sounds:   {
+					heal: 'sound1203',
+        },
+      },
 			{name:'Barrier Ward'},
 			{name:'Lightning Ward'},
 			{name:'Witch'},
@@ -493,7 +508,6 @@ Tactics = (function ()
 				mRadius:4,
 				sounds:
 				{
-					step:'sound13',
 					attack1:'sound809',
 					attack2:'sound2021',
 					block:'sound12'
@@ -509,7 +523,7 @@ Tactics = (function ()
 				},
         frames:
         [
-					// Junk
+					// Avatar
 					{c:[
 						{id:56,x:0,y:0,a:0},
 						{id:1734,x:-25,y:-64},
@@ -1929,25 +1943,32 @@ Tactics = (function ()
 				aRadius:0,
 				mRadius:0,
 				directional:false,
-				sounds:
-				{
+				sounds: {
 					crack:'crack',
 					block:'sound8',
 					heal:'sound1203',
 					lightning:'sound1370',
-					wind:{file:'chaos',volume:0.25,sprite:
-					{
-						wind1:[   0,1950],
-						wind2:[2150,1950],
-						wind3:[4300,1800],
-						wind4:[6300,2500],
-						wind5:[9000,1725]
-					}},
-					phase:{file:'sound4',rate:0.5},
-					roar:{file:'chaos',sprite:
-					{
-						roar :[10925,1675]
-					}}
+					wind: {
+            file:'chaos',
+            volume:0.25,
+            sprite: {
+  						wind1:[   0,1950],
+  						wind2:[2150,1950],
+  						wind3:[4300,1800],
+  						wind4:[6300,2500],
+  						wind5:[9000,1725]
+  					}
+          },
+					phase: {
+            file:'sound4',
+            rate:0.5
+          },
+					roar: {
+            file:'chaos',
+            sprite: {
+  						roar :[10925,1675]
+  					}
+          }
 				},
 				stills:{S:0},
 				frames:

@@ -12,10 +12,24 @@ Tactics.App = (function ($,window,document)
 	{
 		teams:
 		[
-			{c: 2,b:0,u:{ei:{t:0,d:'N'},fi:{t:0,d:'N'},gi:{t:0,d:'N'}}},
-			{c:10,b:1,u:{ec:{t:0,d:'S'},fc:{t:0,d:'S'},gc:{t:0,d:'S'}}}
+			{
+        c: 10,
+        b: 0,
+        u: {
+          fa:{t:3,d:'S'},
+          ec:{t:0,d:'S'},fc:{t:0,d:'S'},gc:{t:0,d:'S'}
+        }
+      },
+			{
+        c: 2,
+        b: 0,
+        u: {
+          ei:{t:0,d:'N'},fi:{t:0,d:'N'},gi:{t:0,d:'N'},
+          fk:{t:3,d:'N'},
+        }
+      },
 		],
-		turns:[0,1]
+		turns:[0, 1]
 	};
 
 	$(window)
@@ -129,8 +143,7 @@ Tactics.App = (function ($,window,document)
 				}
 			};
 
-			$('#overlay').on('click tap',function ()
-			{
+			$('#overlay').on('click tap', () => {
 				if ($('#popup').hasClass('error')) return;
 				$('#overlay,#popup').hide();
 			});
@@ -271,6 +284,7 @@ Tactics.App = (function ($,window,document)
 					handler($button);
 
 					Tactics.sounds.select.play();
+          Tactics.render();
 				});
 
 			load();
@@ -425,7 +439,53 @@ Tactics.App = (function ($,window,document)
 					});
 				}
 
-				if (units[utype].frames)
+        // Test Unit Render Data
+        if (utype === 3) {
+          let data_url = 'http://www.taorankings.com/html5/units/'+utype+'/data.json';
+          resources.push(data_url);
+
+          $.getJSON(data_url).then(renderData => {
+            Object.assign(Tactics.units[3], renderData);
+            Tactics.units[3].stills = {
+              N: 89,
+              S: 1,
+              E: 133,
+              W: 45,
+            };
+            Tactics.units[3].backSteps = {
+              N: [90, 95],
+              S: [2, 7],
+              E: [134, 139],
+              W: [46, 51],
+            },
+            Tactics.units[3].foreSteps = {
+              N: [96, 99],
+              S: [8, 11],
+              E: [140, 143],
+              W: [52, 55],
+            },
+            Tactics.units[3].walks = {
+              N: [100, 107],
+              S: [12, 19],
+              E: [144, 151],
+              W: [56, 63],
+            };
+            Tactics.units[3].attacks = {
+              N: [108, 131],
+              S: [20, 43],
+              E: [152, 175],
+              W: [64, 87],
+            };
+            Tactics.units[3].turns = {
+              N: 132,
+              S: 44,
+              E: 176,
+              W: 88,
+            };
+            progress();
+          });
+        }
+        else if (units[utype].frames)
 				{
 					$.each(units[utype].frames,function (i,frame)
 					{
@@ -488,10 +548,7 @@ Tactics.App = (function ($,window,document)
 								return;
 
 							resources.push(url);
-							loader.add
-							({
-								url:url
-							});
+							loader.add({url: url});
 						});
 					});
 				}
@@ -503,14 +560,16 @@ Tactics.App = (function ($,window,document)
 			.load();
 	}
 
-	function setupGame()
-	{
+	function setupGame() {
 		board.reset().addTeams(data.teams);
 		board.turns = data.turns.slice().spin();
 
-		Tactics.render();
+    // Give Data URIs a chance to load.
+    setTimeout(() => {
+  		Tactics.render();
 
-		board.startTurn();
+  		board.startTurn();
+    }, 1);
 	}
 
 	return self;

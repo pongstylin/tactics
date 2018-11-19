@@ -156,6 +156,55 @@
 
 				return container;
 			},
+			attack:function (target) {
+        var anim = new Tactics.Animation({fps:12});
+        var direction = board.getDirection(self.assignment,target);
+        var target_unit = target.assigned;
+        var result = self.calcAttackResult(target_unit);
+
+        let attackAnim = self.animAttack(direction);
+
+				if (target_unit) {
+					// Animate the target unit's reaction starting with the 4th attack frame.
+					if (result.blocked) {
+				    let odirection = board.getRotation(direction, 180);
+
+						attackAnim
+							.splice(3, target_unit.animBlock(self, odirection));
+					}
+          else {
+						attackAnim
+							.splice(3, self.animStrike(target_unit))
+							.splice(4, target_unit.animStagger(self));
+					}
+				}
+
+        anim.splice(self.animTurn(direction));
+        anim.splice(attackAnim);
+
+        return anim.play().then(() => result);
+			},
+      calcAttackResult: function (unit) {
+        let result = {unit: unit};
+
+        if (unit.barriered)
+          return Object.assign(result, {miss: true});
+
+        let calc = self.calcAttack(unit);
+        let luck = Math.random() * 100;
+
+        if (luck < calc.block)
+          return Object.assign(result, {
+            miss:      true,
+            blocked:   true,
+            mBlocking: unit.mBlocking - calc.penalty,
+          });
+
+        return Object.assign(result, {
+          mHealth:   Math.max(unit.mHealth - calc.damage, -unit.health),
+          mBlocking: unit.mBlocking + calc.bonus,
+        });
+      },
 			animTurn:function (direction)
 			{
 				var anim = new Tactics.Animation();
@@ -202,6 +251,9 @@
 						self.walk(origin,board.getRotation(self.direction,90),-1);
 					});
 				}
+
+        // Hack until Knight is upgraded to use SWF-exported JSON data.
+        self._step_directions = [];
 
 				$.each(tiles,function (i)
 				{
@@ -253,64 +305,22 @@
 					}
 				]});
 			},
-			animAttack:function (direction,block,changes)
-			{
+			animAttack: function (direction) {
 				var anim = new Tactics.Animation();
-				var tunit = self.assignment[direction].assigned;
-				var odirection = board.getRotation(direction,180);
 				var swing = 0;
 
-				anim.addFrames
-				([
+				anim.addFrames([
 					{
-						script:function (frame)
-						{
+						script: function (frame) {
 							self.drawFrame(attacks[direction][swing++]);
 						},
-						repeat:attacks[direction].length
+						repeat: attacks[direction].length
 					},
-					function ()
-					{
-						self.stand();
-					}
+					() => self.stand(),
 				]);
 
-				anim.splice(0,function ()
-				{
-					sounds.attack1.play();
-				});
-
-				anim.splice(2,function ()
-				{
-					sounds.attack2.play();
-				});
-
-				if (tunit)
-				{
-					// Animate the target unit's reaction starting with the 4th attack frame.
-					if (block)
-					{
-						anim
-							.splice(3,tunit.animBlock(self,odirection));
-					}
-					else
-					{
-						anim
-							.splice(3,tunit.animStrike(self,odirection))
-							.splice(4,tunit.animStagger(self,direction,changes));
-					}
-
-					if (changes)
-					{
-						if (changes.mHealth === -tunit.health)
-							anim.splice(tunit.animDeath(self));
-
-						anim.splice(4,function ()
-						{
-							tunit.change(changes);
-						});
-					}
-				}
+				anim.splice(0, () => sounds.attack1.play());
+				anim.splice(2, () => sounds.attack2.play());
 
 				return anim;
 			},
@@ -348,52 +358,24 @@
 					{
 						self.stand();
 					}
-				]}).splice(self.animCaption('Haha'));
-			},
-			animStrike:function (attacker,direction)
-			{
-				return new Tactics.Animation({frames:
-				[
-					function ()
-					{
-						sounds.strike.play();
-					},
-					function ()
-					{
-						self.shock(direction,0);
-					},
-					function ()
-					{
-						self.shock(direction,1);
-					},
-					function ()
-					{
-						self.shock(direction,2);
-					},
-					function ()
-					{
-						self.shock();
-					}
 				]});
 			},
-			animStagger:function (attacker,direction,changes)
-			{
-				return new Tactics.Animation({frames:
-				[
-					function ()
-					{
-						self.walk(self.assignment,self.direction,-1,0.06,direction);
-					},
-					function ()
-					{
-						self.walk(self.assignment,self.direction,-1,-0.02,direction);
-					},
-					function ()
-					{
-						self.stand();
-					}
-				]}).splice(self.animCaption(changes.mHealth === -self.health ? 'Nooo...' : 'Ouch'));
-			},
+      animStagger:function (attacker)
+      {
+				let anim = new Tactics.Animation({fps:12});
+        let direction = board.getDirection(attacker.assignment, self.assignment, self.direction);
+
+        anim.addFrames([
+					() =>
+            self.walk(self.assignment,self.direction,-1,0.06,direction),
+					() =>
+            self.walk(self.assignment,self.direction,-1,-0.02,direction),
+					() =>
+            self.stand(),
+				]);
+
+        return anim;
+      },
 			stand:function (direction,offset)
 			{
 				var center = self.assignment.getCenter();
@@ -548,18 +530,12 @@
 			});
 
 			if (!ntile)
-			{
-				anim.addFrame(function ()
-				{
-					self.assign(dtile).turn(direction);
-					if (dtile.focused) self.focus();
-				});
-			}
+				anim.addFrame(() => self.assign(dtile).turn(direction));
 
 			// Move the unit behind us back into position.
 			if ((funit = ftile.assigned) && funit !== self)
 			{
-				anim.splice(3,funit.animStepForward());
+				anim.splice(3,funit.animStepForward(self._step_directions.pop()));
 			}
 
 			if (dunit = dtile.assigned)
@@ -582,6 +558,7 @@
 					}
 				});
 
+        self._step_directions.push(ddirection);
 				anim.splice(0,dunit.animStepBack(ddirection));
 			}
 
