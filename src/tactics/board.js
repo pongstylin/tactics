@@ -55,44 +55,47 @@ Tactics.Board = function ()
 	card.mask = new PIXI.Graphics();
 	card.mask.drawRect(0,0,88,46);
 
-	card.elements = Tactics.draw
-	({
-		textStyle:{font:'11px Arial',fill:'white'},
+	card.elements = Tactics.draw({
+		textStyle: {
+      fontFamily: 'Arial',
+      fontSize:   '11px',
+      fill:       'white',
+    },
 		context:card.stage,
-		children:
-		{
-			upper:
-			{
+		children: {
+			upper: {
 				type    :'C',
-				children:
-				{
-					avatar:{type:'C',x:42,y:75},
-					name  :{type:'T',x:88,y:14,style:{font:'bold 11px Arial'}},
-					notice:{type:'T',x:92,y:34}
+				children: {
+					avatar: {type:'C',x:42,y:75},
+					name  : {
+            type: 'T',
+            x:    88,
+            y:    14,
+            style: {
+              fontFamily: 'Arial',
+              fontSize:   '11px',
+              fontWeight: 'bold',
+            },
+          },
+					notice: {type:'T',x:92,y:34}
 				}
 			},
-			divider:
-			{
+			divider: {
 				type:'G',
-				draw:function (pixi)
-				{
+				draw:function (pixi) {
 					pixi.lineStyle(1,0xFFFFFF,1,style);
 					pixi.moveTo(0,60.5);
 					pixi.lineTo(176,60.5);
 				}
 			},
-			lower:
-			{
+			lower: {
 				type    :'C',
 				x       :8,
 				y       :66,
-				children:
-				{
-					layer1:
-					{
+				children: {
+					layer1: {
 						type:'C',
-						children:
-						{
+						children: {
 							hLabel:{type:'T',x:  0,y: 0,text:'Health'},
 							health:{type:'T',x: 39,y: 0              },
 
@@ -496,9 +499,15 @@ Tactics.Board = function ()
 				els.notice.text = notice;
 
 				if (unit.notice)
-					els.notice.style = $.extend(els.notice.style,{font:'13px Arial'});
+					els.notice.style = Object.assign(els.notice.style, {
+            fontFamily: 'Arial',
+            fontSize:   '13px',
+          });
 				else
-					els.notice.style = $.extend(els.notice.style,{font:'11px Arial'});
+					els.notice.style = Object.assign(els.notice.style, {
+            fontFamily: 'Arial',
+            fontSize:   '11px',
+          });
 
 				//
 				//	Draw the first layer of the bottom part of the card.

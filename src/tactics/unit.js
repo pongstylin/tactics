@@ -1512,8 +1512,15 @@ console.log(sprite.width+'-'+child.w+'='+(sprite.width - child.w));
 				return animText
 				(
 					caption,
-					{font:'bold 11px Arial',stroke:0,strokeThickness:1,fill:'white'},
-					options
+					{
+            fontFamily:      'Arial',
+            fontSize:        '12px',
+            fontWeight:      'bold',
+            stroke:          0,
+            strokeThickness: 1,
+            fill:            options.color,
+          },
+					options,
 				);
 			}
 		});

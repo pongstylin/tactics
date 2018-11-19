@@ -5,25 +5,29 @@ Tactics = (function ()
 	var renderer;
 	var stage;
 	var rendering = false;
-	var render = function ()
-	{
+	var render = () => {
 		self.emit({type:'render'});
 
-//console.log('webgl render',+new Date());
+    // This is a hammer.  Without it, the mouse cursor will not change to a
+    // pointer and back when needed without moving the mouse.
+    renderer.plugins.interaction.update();
+
+    //console.log('pixi render',+new Date());
     renderer.render(stage);
 		rendering = false;
 	};
 
 	utils.addEvents.call(self);
 
-	$.extend(self,
-	{
+	$.extend(self, {
 		width:22+(88*9)+22,
 		height:38+4+(56*9)+4,
 		utils:{},
 
-		init:function ($viewport)
-		{
+		init:function ($viewport) {
+      // We don't need an infinite loop, thanks.
+      PIXI.ticker.shared.autoStart = false;
+
 			var $canvas;
 			renderer = PIXI.autoDetectRenderer(bw = self.width,bh = self.height);
 			self.$viewport = $viewport;
@@ -196,8 +200,22 @@ Tactics = (function ()
 
 			return elements;
 		},
-		render:function ()
-		{
+    /*
+     * Most games have a "render loop" that refreshes all display objects on the
+     * stage every time the screen refreshes - about 60 frames per second.  The
+     * animations in this game runs at about 12 frames per second and do not run
+     * at all times.  To improve battery life on mobile devices, it is better to
+     * only render when needed.  Only two things may cause the stage to change:
+     *   1) An animation is being run.
+     *   2) The user interacted with the game.
+     *
+     * So, call this method once per animation frame or once after handling a
+     * user interaction event.  If this causes the render method to be called
+     * more frequently than the screen refresh rate (which is very possible
+     * just by whipping around the mouse over the game board), then the calls
+     * will be throttled thanks to requestAnimationFrame().
+     */
+		render: function () {
 			if (rendering) return;
 			rendering = true;
 
