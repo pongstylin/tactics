@@ -161,20 +161,20 @@
         return container;
       },
       attack:function (target) {
-        var anim = new Tactics.Animation({fps:12});
-        var direction = board.getDirection(self.assignment,target);
-        var target_unit = target.assigned;
-        var result = self.calcAttackResult(target_unit);
+        let anim = new Tactics.Animation({fps:12});
+        let direction = board.getDirection(self.assignment,target);
+        let target_unit = target.assigned;
+        let results = [];
 
         let attackAnim = self.animAttack(direction);
 
         if (target_unit) {
-          // Animate the target unit's reaction starting with the 4th attack frame.
-          if (result.blocked) {
-            let odirection = board.getRotation(direction, 180);
+          results = self.calcAttackResults(target_unit);
 
+          // Animate the target unit's reaction starting with the 4th attack frame.
+          if (results[0].blocked) {
             attackAnim
-              .splice(3, target_unit.animBlock(self, odirection));
+              .splice(3, target_unit.animBlock(self));
           }
           else {
             attackAnim
@@ -186,28 +186,7 @@
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim);
 
-        return anim.play().then(() => result);
-      },
-      calcAttackResult: function (unit) {
-        let result = {unit: unit};
-
-        if (unit.barriered)
-          return Object.assign(result, {miss: true});
-
-        let calc = self.calcAttack(unit);
-        let luck = Math.random() * 100;
-
-        if (luck < calc.block)
-          return Object.assign(result, {
-            miss:      true,
-            blocked:   true,
-            mBlocking: unit.mBlocking - calc.penalty,
-          });
-
-        return Object.assign(result, {
-          mHealth:   Math.max(unit.mHealth - calc.damage, -unit.health),
-          mBlocking: unit.mBlocking + calc.bonus,
-        });
+        return anim.play().then(() => results);
       },
       animTurn:function (direction)
       {
@@ -328,8 +307,9 @@
 
         return anim;
       },
-      animBlock:function (attacker,direction)
-      {
+      animBlock: function (attacker) {
+        let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
+
         return new Tactics.Animation({frames:
         [
           function ()

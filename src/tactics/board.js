@@ -183,17 +183,6 @@ Tactics.Board = function ()
 
       return tiles;
     },
-    getNeighbors:function (a)
-    {
-      var neighbors = {};
-
-      neighbors.N = self.getTile(a.x,a.y-1);
-      neighbors.S = self.getTile(a.x,a.y+1);
-      neighbors.W = self.getTile(a.x-1,a.y);
-      neighbors.E = self.getTile(a.x+1,a.y);
-
-      return neighbors;
-    },
     /*
      * From the position of tile a, return the direction of tile b.
      * Consider this matrix:
@@ -216,7 +205,7 @@ Tactics.Board = function ()
      *   3) The direction to the right of the "simple" direction.
      *   4) The direction to the left of the "simple" direction.
      */
-    getDirection:function (a, b, simple) {
+    getDirection: function (a, b, simple) {
       let xdist = a.x - b.x;
       let ydist = a.y - b.y;
 
@@ -260,8 +249,7 @@ Tactics.Board = function ()
 
       return direction;
     },
-    getRotation:function (direction,deg)
-    {
+    getRotation: function (direction, deg) {
       var directions = ['N','NE','E','SE','S','SW','W','NW'];
       // 90 = 360 / directions.length;
       var index = directions.indexOf(direction) + (deg / 45);
@@ -269,35 +257,28 @@ Tactics.Board = function ()
       // 3 = directions.length-1; 4 = directions.length;
       return directions.slice(index > 7 ? index-8 : index)[0];
     },
-    getDegree:function (direction,rotation)
-    {
+    getDegree: function (direction, rotation) {
       var directions = ['N','NE','E','SE','S','SW','W','NW'];
 
       return (directions.indexOf(rotation) - directions.indexOf(direction)) * 45;
     },
-    getUnitRotation:function (degree,tile,direction)
-    {
+    getUnitRotation: function (degree, tile, direction) {
       var data = {};
 
-      if (degree)
-      {
+      if (degree) {
         data.direction = self.getRotation(direction,degree);
 
-        if (degree == 90 || degree == -270)
-        {
+        if (degree == 90 || degree == -270) {
           data.tile = self.getTile(10-tile.y,tile.x);
         }
-        else if (degree == 180 || degree == -180)
-        {
+        else if (degree == 180 || degree == -180) {
           data.tile = self.getTile(10-tile.x,10-tile.y);
         }
-        else if (degree == 270 || degree == -90)
-        {
+        else if (degree == 270 || degree == -90) {
           data.tile = self.getTile(tile.y,10-tile.x);
         }
       }
-      else
-      {
+      else {
         data.direction = direction;
         data.tile = tile;
       }

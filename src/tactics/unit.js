@@ -314,6 +314,36 @@
 
         return calc;
       },
+      /*
+       * Once player vs player is implemented, this needs to be delegated to the
+       * game server to prevent cheating since luck is involved.
+       */
+      calcAttackResults: function (target_units) {
+        if (!Array.isArray(target_units))
+          target_units = [target_units];
+
+        return target_units.map(unit => {
+          let result = {unit: unit};
+
+          if (unit.barriered)
+            return Object.assign(result, {miss: true});
+
+          let calc = self.calcAttack(unit);
+          let luck = Math.random() * 100;
+
+          if (luck < calc.block)
+            return Object.assign(result, {
+              miss:      true,
+              blocked:   true,
+              mBlocking: unit.mBlocking - calc.penalty,
+            });
+
+          return Object.assign(result, {
+            mHealth:   Math.max(unit.mHealth - calc.damage, -unit.health),
+            mBlocking: unit.mBlocking + calc.bonus,
+          });
+        });
+      },
       // Obtain the maximum threat to the unit before he recovers.
       calcDefense: function (turns) {
         var damages = [],damage = 0,threat;
@@ -506,11 +536,17 @@
         if (!frame) return container;
         container.data = frame;
 
-        if (data.width && data.height)
+        if (data.width && data.height) {
           container.position = new PIXI.Point(
             Math.floor(-(data.width / 2)),
             Math.floor(-(data.height / 2) - HALF_TILE_HEIGHT),
           );
+
+          // Finicky
+          let offset = data.frames_offset || {};
+          container.position.x += offset.x || 0;
+          container.position.y += offset.y || 0;
+        }
         else // Legacy
           container.position = new PIXI.Point(frame.x||0,(frame.y||0)-2);
 
@@ -622,6 +658,11 @@
           if (data.width && data.height) {
             frame.position.x = Math.floor(-(data.width/2));
             frame.position.y = Math.floor(-(data.height/2) - HALF_TILE_HEIGHT);
+
+            // Finicky
+            let offset = data.frames_offset || {};
+            frame.position.x += offset.x || 0;
+            frame.position.y += offset.y || 0;
           }
           else { // Legacy
             frame.position.x = frame.data.x || 0;
@@ -1112,7 +1153,7 @@
         return anim;
       },
       animWalk: function (assignment) {
-        let anim = new Tactics.Animation({fps:12});
+        let anim = new Tactics.Animation({fps: 12});
         let path = self.findPath(assignment);
 
         // Turn frames are not typically required while walking unless the very
@@ -1179,7 +1220,7 @@
         return anim;
       },
       animStepBack: function (direction) {
-        let anim = new Tactics.Animation({fps:12});
+        let anim = new Tactics.Animation({fps: 12});
 
         let indexes = [];
         for (let index = data.backSteps[direction][0]; index <= data.backSteps[direction][1]; index++) {
@@ -1193,7 +1234,7 @@
         return anim;
       },
       animStepForward: function (direction) {
-        let anim = new Tactics.Animation({fps:12});
+        let anim = new Tactics.Animation({fps: 12});
 
         let indexes = [];
         for (let index = data.foreSteps[direction][0]; index <= data.foreSteps[direction][1]; index++) {
@@ -1209,7 +1250,7 @@
         return anim;
       },
       animAttack: function (target) {
-        let anim = new Tactics.Animation({fps:12});
+        let anim = new Tactics.Animation({fps: 12});
         let direction = board.getDirection(self.assignment, target, self.direction);
 
         let indexes = [];
@@ -1220,8 +1261,25 @@
 
         return anim;
       },
+      animBlock: function (attacker) {
+        let anim = new Tactics.Animation({fps: 12});
+        let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
+
+        anim.addFrame(() => self.origin.direction = self.direction = direction);
+        anim.addFrame(() => sounds.block.play());
+
+        let indexes = [];
+        for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
+          indexes.push(index);
+        }
+        indexes.forEach((index, i) => anim.splice(0, () => self.drawFrame(index)));
+
+        anim.addFrame(() => self.drawFrame(stills[direction]));
+
+        return anim;
+      },
       animStagger: function (attacker) {
-        let anim = new Tactics.Animation({fps:12});
+        let anim = new Tactics.Animation({fps: 12});
         let direction = board.getDirection(attacker.assignment, self.assignment, self.direction);
 
         anim.addFrames([
@@ -1240,7 +1298,7 @@
         return anim;
       },
       animStrike: function (defender) {
-        let anim = new Tactics.Animation({fps:12});
+        let anim = new Tactics.Animation({fps: 12});
         let direction = board.getDirection(
           defender.assignment,
           self.assignment,

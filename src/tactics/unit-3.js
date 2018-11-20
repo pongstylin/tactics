@@ -1,5 +1,6 @@
-(function ()
-{
+(function () {
+  'use strict';
+
   Tactics.units[3].extend = function (self) {
     var board = Tactics.board;
     var data = Tactics.units[self.type];
@@ -25,13 +26,13 @@
         return self;
       },
       attack: function (target) {
-        let anim       = new Tactics.Animation({fps:12});
-        let direction  = board.getDirection(self.assignment, target, self.direction);
+        let anim             = new Tactics.Animation({fps: 12});
+        let direction        = board.getDirection(self.assignment, target, self.direction);
         let all_target_units = board.teams[self.team].units;
 
         // The result is required to display the effect of an attack, whether it
         // is a miss or how much health was lost or gained.
-        let result = self.calcAttackResult(all_target_units);
+        let result = self.calcAttackResults(all_target_units);
 
         let attackAnim = self.animAttack(target);
         attackAnim.splice(2, self.animHeal(all_target_units));
@@ -60,7 +61,7 @@
 
         return calc;
       },
-      calcAttackResult: function (target_units) {
+      calcAttackResults: function (target_units) {
         return target_units.map(unit => {
           let result = {unit: unit};
 
