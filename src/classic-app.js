@@ -440,48 +440,12 @@ Tactics.App = (function ($,window,document)
 				}
 
         // Test Unit Render Data
-        if (utype === 3) {
-          let data_url = 'http://www.taorankings.com/html5/units/'+utype+'/data.json';
-          resources.push(data_url);
+        if (units[utype].frames_url) {
+          let frames_url = units[utype].frames_url;
+          resources.push(frames_url);
 
-          $.getJSON(data_url).then(renderData => {
-            Object.assign(Tactics.units[3], renderData);
-            Tactics.units[3].stills = {
-              N: 89,
-              S: 1,
-              E: 133,
-              W: 45,
-            };
-            Tactics.units[3].backSteps = {
-              N: [90, 95],
-              S: [2, 7],
-              E: [134, 139],
-              W: [46, 51],
-            },
-            Tactics.units[3].foreSteps = {
-              N: [96, 99],
-              S: [8, 11],
-              E: [140, 143],
-              W: [52, 55],
-            },
-            Tactics.units[3].walks = {
-              N: [100, 107],
-              S: [12, 19],
-              E: [144, 151],
-              W: [56, 63],
-            };
-            Tactics.units[3].attacks = {
-              N: [108, 131],
-              S: [20, 43],
-              E: [152, 175],
-              W: [64, 87],
-            };
-            Tactics.units[3].turns = {
-              N: 132,
-              S: 44,
-              E: 176,
-              W: 88,
-            };
+          $.getJSON(frames_url).then(renderData => {
+            Object.assign(units[utype], renderData);
             progress();
           });
         }

@@ -89,6 +89,7 @@
 				if (ishadow)
 				{
 					sprite = PIXI.Sprite.fromImage(imageBase+'shadow/image'+ishadow.src+'.png');
+          sprite.data = {name: 'shadow'};
 					sprite.position = new PIXI.Point(ishadow.x-anchor.x,ishadow.y-anchor.y);
 					sprite.scale.x = sprite.scale.y = ishadow.flip ? -1 : 1;
 					sprite.alpha = 0.5;
@@ -97,15 +98,18 @@
 				else
 				{
 					sprite = PIXI.Sprite.fromImage(imageBase+'base/image'+ibase.src+'.png');
+          sprite.data = {name: 'base'};
 					sprite.position = new PIXI.Point(ibase.x-anchor.x,ibase.y-anchor.y);
 				}
 				frame.addChild(sprite);
 
 				sprite = PIXI.Sprite.fromImage(imageBase+'base/image'+ibase.src+'.png');
+        sprite.data = {name: 'base'};
 				sprite.position = new PIXI.Point(ibase.x-anchor.x,ibase.y-anchor.y);
 				frame.addChild(sprite);
 
 				sprite = PIXI.Sprite.fromImage(imageBase+'color/image'+icolor.src+'.png');
+        sprite.data = {name: 'color'};
 				sprite.position = new PIXI.Point(icolor.x-anchor.x,icolor.y-anchor.y);
 				frame.addChild(sprite);
 

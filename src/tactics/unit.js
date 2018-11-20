@@ -522,23 +522,47 @@
         else
           shapes = frame;
 
-        shapes.forEach((shape, i) => {
-          let image_url;
-          if ('i' in shape)
-            image_url = data.images[shape.i];
-          else
-            image_url = 'http://www.taorankings.com/html5/units/'+type+'/image'+shape.id+'.png';
+        shapes.forEach(shape => {
+          /*
+           * Translate short form to long form
+           */
+          if (!('image' in shape)) {
+            if ('i' in shape) {
+              shape.image = data.images[shape.i];
+              delete shape.i;
+            }
+            else if ('id' in shape) {
+              // Legacy
+              shape.image = 'http://www.taorankings.com/html5/units/'+type+'/image'+shape.id+'.png';
+              delete shape.id;
+            }
+            else {
+              console.error('shape', shape);
+              throw new Error('Frames without images are not supported');
+            }
 
-          var sprite = PIXI.Sprite.fromImage(image_url);
+            if (shape.n === 's' || shape.n === 'shadow')
+              shape.name = 'shadow';
+            if (shape.n === 'b' || shape.n === 'base')
+              shape.name = 'base';
+            if (shape.n === 't' || shape.n === 'trim')
+              shape.name = 'trim';
+            delete shape.n;
+
+            // Legacy translation
+            if ('a' in shape) {
+              shape.am = shape.a;
+              delete shape.a;
+            }
+          }
+
+          /*
+           * Configure a sprite using shape data
+           */
+          var sprite = PIXI.Sprite.fromImage(shape.image);
 					sprite.data = shape;
-					sprite.position = new PIXI.Point(shape.x,shape.y);
-
-          if ('am' in shape)
-            sprite.alpha = shape.am;
-          else if ('a' in shape) // Legacy
-            sprite.alpha = shape.a;
-          else
-            sprite.alpha = 1;
+					sprite.position = new PIXI.Point(shape.x, shape.y);
+          sprite.alpha = 'am' in shape ? shape.am : 1;
 
           // Legacy
 					if (shape.f === 'B') {
@@ -555,11 +579,11 @@
 
           if ('s' in shape) {
             // Legacy
-            if ('id' in shape) {
+            if (data.width === undefined) {
 						  sprite.position.x += sprite.width - (sprite.width * shape.s);
 						  sprite.position.y += sprite.height - (sprite.height * shape.s);
             }
-						sprite.scale = new PIXI.Point(shape.s,shape.s);
+						sprite.scale = new PIXI.Point(shape.s, shape.s);
 					}
           else {
             if ('sx' in shape)
@@ -568,11 +592,13 @@
               sprite.scale.y = shape.sy;
           }
 
-					if (shape.n === 'trim')
+					if (shape.name === 'trim')
 						sprite.tint = self.color;
 
-					if (shape.n === 'shadow')
+					if (shape.name === 'shadow') {
+            sprite.alpha = 0.5;
 						sprite.inheritTint = false;
+          }
 
 					container.addChild(sprite);
 				});
@@ -608,10 +634,13 @@
 					frame.children.forEach(sprite => {
 						sprite.filters = null;
 
+            // Legacy
 						if (sprite.data.t)
 							sprite.tint = sprite.data.t;
-						else
-							sprite.tint = sprite.data.n === 'trim' ? self.color : 0xFFFFFF;
+						else if (sprite.data.name === 'trim')
+              sprite.tint = self.color;
+            else
+							sprite.tint = 0xFFFFFF;
 					});
 				}
 
@@ -1345,8 +1374,10 @@
             script: () => {
 						  matrix[3] = matrix[8] += 0.05;
               targets.forEach(target => {
-						    target.pixi.children[0].children[1].filters = [filter];
-    						target.pixi.children[0].children[2].filters = [filter];
+						    target.pixi.children[0].children.forEach(sprite => {
+                  if (sprite.data.name === 'trim' || sprite.data.name === 'base')
+                    sprite.filters = [filter];
+                });
               });
   					},
             repeat: 5,
@@ -1356,16 +1387,20 @@
             script: () => {
 						  matrix[3] = matrix[8] -= 0.05;
               targets.forEach(target => {
-						    target.pixi.children[0].children[1].filters = [filter];
-    						target.pixi.children[0].children[2].filters = [filter];
+  						  target.pixi.children[0].children.forEach(sprite => {
+                  if (sprite.data.name === 'trim' || sprite.data.name === 'base')
+                    sprite.filters = [filter];
+                });
               });
   					},
             repeat: 5,
           },
           // Filters are not always reset, so reset explicitly
           () => targets.forEach(target => {
-						target.pixi.children[0].children[1].filters = null;
-						target.pixi.children[0].children[2].filters = null;
+  					target.pixi.children[0].children.forEach(sprite => {
+              if (sprite.data.name === 'trim' || sprite.data.name === 'base')
+                sprite.filters = null;
+            });
 					}),
 				]);
 
