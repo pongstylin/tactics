@@ -3,53 +3,53 @@ window.utils = window.utils || {};
 (function () {
   'use strict';
 
-	utils.addEvents = function () {
-		var self = this;
-		var events = {};
+  utils.addEvents = function () {
+    var self = this;
+    var events = {};
 
-		$.extend(self, {
+    $.extend(self, {
       hasListeners: function (types) {
-				return !!types.split(' ').find(type => type in events && events[type].length > 0);
+        return !!types.split(' ').find(type => type in events && events[type].length > 0);
       },
 
-			on: function (types, fn) {
-				types.split(' ').forEach(type => {
-					events[type] = events[type] || [];
-					events[type].push(fn);
-				});
+      on: function (types, fn) {
+        types.split(' ').forEach(type => {
+          events[type] = events[type] || [];
+          events[type].push(fn);
+        });
 
-				return self;
-			},
+        return self;
+      },
 
-			emit: function (event) {
-				(events[event.type] || []).forEach(fn => fn.call(self, event));
+      emit: function (event) {
+        (events[event.type] || []).forEach(fn => fn.call(self, event));
 
-				return self;
-			},
+        return self;
+      },
 
-			off: function (types, fn) {
-				if (types) {
-					types.split(' ').forEach(type => {
-						if (!events[type]) return;
+      off: function (types, fn) {
+        if (types) {
+          types.split(' ').forEach(type => {
+            if (!events[type]) return;
 
-						if (fn) {
+            if (fn) {
               let index = events[type].indexOf(fn);
-							if (index > -1)
-								events[type].splice(index, 1);
-						}
-						else {
-							delete events[type];
-						}
-					});
-				}
-				else {
-					events = {};
-				}
+              if (index > -1)
+                events[type].splice(index, 1);
+            }
+            else {
+              delete events[type];
+            }
+          });
+        }
+        else {
+          events = {};
+        }
 
-				return self;
-			}
-		});
+        return self;
+      }
+    });
 
-		return self;
-	};
+    return self;
+  };
 })();
