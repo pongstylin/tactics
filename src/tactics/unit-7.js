@@ -58,6 +58,12 @@
 
         return anim.play().then(() => results);
       },
+      can_special: function () {
+        if (!self.can_attack())
+          return false;
+        else
+          return (self.health + self.mHealth) < 5;
+      },
     });
 
     return self;

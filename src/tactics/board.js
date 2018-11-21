@@ -324,10 +324,12 @@ Tactics.Board = function ()
 
       var focusEvent = event => {
         let assigned = event.target.assigned;
-        let old_focused  = self.focused;
+        let old_focused = self.focused;
 
-         if (event.type === 'focus') {
-          if (assigned) {
+        if (event.type === 'focus') {
+          self.focused = assigned;
+
+          if (assigned && !self.locked) {
             let selected = self.selected;
             let view_only = self.locked
               || assigned.team !== self.turns[0]
@@ -337,17 +339,14 @@ Tactics.Board = function ()
              Tactics.sounds.focus.play();
              self.focused = assigned.focus(view_only);
           }
-          else {
-            self.focused = null;
-          }
-         }
-         else {
+        }
+        else {
           if (assigned) {
-             assigned.blur();
-             if (assigned === old_focused)
-               self.focused = null;
+            assigned.blur();
+            if (assigned === old_focused)
+              self.focused = null;
           }
-         }
+        }
 
         if (old_focused !== self.focused) {
           self.drawCard();
@@ -457,6 +456,9 @@ Tactics.Board = function ()
           notices.push('Paralyzed!');
           important++;
         }
+
+        if (unit.can_special())
+          notices.push('Enraged!');
 
         if (unit.barriered) {
           notices.push('Barriered!');
@@ -902,6 +904,13 @@ Tactics.Board = function ()
 
       if (selected != self.selected || viewed != self.viewed)
         self.drawCard();
+
+      // Technically, the selection mode hasn't changed, but the selection has
+      self.emit({
+        type:   'select-mode-change',
+        ovalue: self.selectMode,
+        nvalue: self.selectMode,
+      });
 
       return self;
     },

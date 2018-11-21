@@ -176,67 +176,51 @@ Tactics.App = (function ($,window,document)
       board = Tactics.board;
 
       board
-        .on('select-mode-change',function (event)
-        {
-          var selected = board.selected;
-          var viewed = board.viewed;
-          var omode = event.ovalue;
-          var nmode = event.nvalue;
-          var move = true,attack = true;
+        .on('select-mode-change', event => {
+          let selected    = board.viewed || board.selected;
+          let old_mode    = event.ovalue;
+          let new_mode    = event.nvalue;
+          let can_move    = !selected || selected.can_move();
+          let can_attack  = !selected || selected.can_attack();
+          let can_special = selected && selected.can_special();
 
-          $('BUTTON[name=select][value='+omode+']').removeClass('selected');
-          $('BUTTON[name=select][value='+nmode+']').addClass('selected');
+          $('BUTTON[name=select][value='+old_mode+']').removeClass('selected');
+          $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
 
-          if (!$('#game-play').hasClass('active'))
-          {
+          if (!$('#game-play').hasClass('active')) {
             $('.buttons').removeClass('active');
             $('#game-play').addClass('active');
           }
 
-          if (viewed)
-          {
-            if (!viewed.mRadius) move = false;
-            if (!viewed.aRadius) attack = false;
-          }
-          else if (selected)
-          {
-            if (selected && selected.attacked)
-            {
-              move = !selected.deployed || !selected.deployed.first;
-              attack = false;
-            }
-            if (!selected.mRadius) move = false;
-            if (!selected.aRadius) attack = false;
-          }
+          $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
+          $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
 
-          $('BUTTON[name=select][value=move]').prop('disabled',!move);
-          $('BUTTON[name=select][value=attack]').prop('disabled',!attack);
+          if (new_mode === 'attack' && can_special)
+            $('BUTton[name=select][value=attack]').addClass('ready');
+          else
+            $('BUTton[name=select][value=attack]').removeClass('ready');
 
-          if (pointer == 'touch' && nmode == 'turn' && selected && !viewed)
+          if (new_mode === 'turn' && pointer === 'touch' && selected && !selected.viewed)
             $('BUTTON[name=select][value=turn]').addClass('ready');
           else
             $('BUTTON[name=select][value=turn]').removeClass('ready');
 
-          if (nmode == 'ready')
+          if (new_mode === 'ready')
             $('BUTTON[name=pass]').addClass('ready');
           else
             $('BUTTON[name=pass]').removeClass('ready');
         })
-        .on('card-change',function (event)
-        {
-          var $card = $('#card');
+        .on('card-change', event => {
+          let $card = $('#card');
 
-          if (event.nvalue && event.ovalue === null)
-          {
+          if (event.nvalue && event.ovalue === null) {
             $card.stop().fadeIn()
           }
-          else if (event.nvalue === null)
-          {
+          else if (event.nvalue === null) {
             $card.stop().fadeOut();
           }
         })
-        .on('lock-change',function (event)
-        {
+        .on('lock-change', event => {
           $('#app').toggleClass('locked');
         });
 

@@ -31,10 +31,8 @@
     var focusEvent = () => {
       self.focused = true;
 
-      if (self.pixi.buttonMode) {
-        self.emit({type: 'focus', target: self});
-        Tactics.render();
-      }
+      self.emit({type: 'focus', target: self});
+      Tactics.render();
     };
     var blurEvent = event => {
       // Chrome has been observed posting "pointerleave" events after a "click".
@@ -45,10 +43,8 @@
 
       self.focused = false;
 
-      if (self.pixi.buttonMode) {
-        self.emit({type: 'blur', target: self});
-        Tactics.render();
-      }
+      self.emit({type: 'blur', target: self});
+      Tactics.render();
     };
 
     utils.addEvents.call(self);
@@ -109,21 +105,19 @@
           Math.floor(bounds.y+bounds.height/2)
         );
       },
-      dismiss:function ()
-      {
-        self.assigned = undefined;
+      dismiss: function () {
+        self.assigned = null;
         self.set_interactive(false);
 
         return self;
       },
-      assign:function (unit)
-      {
+      assign: function (unit) {
         self.assigned = unit;
         self.set_interactive(true);
 
         return self;
       },
-      set_interactive:function (bool) {
+      set_interactive: function (bool) {
         self.pixi.buttonMode = bool;
       },
       paint: function (name, alpha, color) {

@@ -1584,6 +1584,21 @@
         if (!event.target.assigned)
           event.target.pixi.alpha = 0.3;
       },
+      can_move: function () {
+        if (self.viewed)
+          return !!self.mRadius;
+        else
+          return !self.attacked || !self.deployed || !self.deployed.first;
+      },
+      can_attack: function () {
+        if (self.viewed)
+          return !!self.aRadius;
+        else
+          return !self.attacked;
+      },
+      can_special: function () {
+        return false;
+      },
     });
 
     function setFilter(name, type) {
