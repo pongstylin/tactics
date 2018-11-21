@@ -832,27 +832,35 @@ Tactics.Board = function ()
         }
       }
       else {
+        let can_move   = unit.can_move();
+        let can_attack = unit.can_attack();
+
         mode = self.selectMode;
 
-        if (mode === 'move' && !unit.mRadius)
-          mode = unit.aRadius ? 'attack' : null;
-        else if (mode === 'attack' && !unit.aRadius)
-          mode = unit.mRadius ? 'move'   : null;
-        else if (mode === null && unit.mRadius)
-          mode = 'move';
-        else if (mode === null && unit.aRadius)
-          mode = 'attack';
+        if (mode === null) {
+          if (can_move)
+            mode = 'move';
+          else if (can_attack)
+            mode = 'attack';
+        }
+        else {
+          if (mode === 'move' && !can_move)
+            mode = can_attack ? 'attack' : null;
+          else if (mode === 'attack' && !can_attack)
+            mode = can_move   ? 'move'   : null;
+        }
 
-        if
-        (
+        if (
           !unit.mRecovery &&
           self.turns[0] == unit.team &&
           (!selected || !selected.attacked)
         ) {
+          // select mode
           if (selected) selected.reset();
           self.selected = unit;
         }
         else {
+          // view mode
           if (selected && !viewed) selected.hideMode();
           self.viewed = unit;
         }

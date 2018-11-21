@@ -217,9 +217,9 @@
         for (x=cx-r; x<=cx+r; x++) {
           for (y=cy-r; y<=cy+r; y++) {
             if (data.aLinear && x != cx && y != cy) continue;
-            if (!(tile = board.getTile(x,y))) continue;
+            if (!(tile = board.getTile(x, y))) continue;
             if (tile === start) continue;
-            if (board.getDistance(start,tile) > r) continue;
+            if (board.getDistance(start, tile) > r) continue;
 
             tiles.push(tile);
           }
@@ -1585,16 +1585,12 @@
           event.target.pixi.alpha = 0.3;
       },
       can_move: function () {
-        if (self.viewed)
-          return !!self.mRadius;
-        else
-          return !self.attacked || !self.deployed || !self.deployed.first;
+        return !!self.getMoveTiles().length
+          && (!self.attacked || !self.deployed || !self.deployed.first);
       },
       can_attack: function () {
-        if (self.viewed)
-          return !!self.aRadius;
-        else
-          return !self.attacked;
+        return !!self.getAttackTiles().length
+          && !self.attacked;
       },
       can_special: function () {
         return false;
