@@ -348,7 +348,7 @@ Tactics.Board = function ()
           }
         }
 
-        if (old_focused !== self.focused) {
+        if (old_focused !== self.focused && !self.locked) {
           self.drawCard();
           self.emit({
             type:   'focus-change',

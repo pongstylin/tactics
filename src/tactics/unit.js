@@ -110,7 +110,7 @@
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
     var stills = data.stills;
     var shock;
-    var deployEvent = event => {
+    var onDeploySelect = event => {
       board.lock();
       self.deploy(event.target).then(() => {
         board
@@ -118,9 +118,9 @@
           .unlock();
       });
     };
-    var deployFocusEvent  = event => event.target.pixi.alpha = 0.6;
-    var deployBlurEvent   = event => event.target.pixi.alpha = 0.3;
-    var attackSelectEvent = event => {
+    var onDeployFocus  = event => event.target.pixi.alpha = 0.6;
+    var onDeployBlur   = event => event.target.pixi.alpha = 0.3;
+    var onAttackSelect = event => {
       let tile = event.target;
 
       board.clearHighlight();
@@ -721,12 +721,12 @@
             action: 'deploy',
             tile:   tile,
             color:  0x0088FF,
-            select: deployEvent,
-            focus:  deployFocusEvent,
-            blur:   deployBlurEvent
+            select: onDeploySelect,
+            focus:  onDeployFocus,
+            blur:   onDeployBlur,
           }, self.viewed);
 
-          if (tile.focused) deployFocusEvent({target:tile});
+          if (tile.focused) onDeployFocus({target:tile});
         });
 
         return self;
@@ -737,7 +737,7 @@
             action: 'attack',
             tile:   tile,
             color:  0xFF8800,
-            select: attackSelectEvent,
+            select: onAttackSelect,
             focus:  self.onAttackFocus,
             blur:   self.onAttackBlur,
           }, self.viewed);
