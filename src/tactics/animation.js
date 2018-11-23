@@ -1,240 +1,269 @@
 (function ()
 {
-	// Animation class.
-  Tactics.Animation = function (options)
-	{
-		var self = this;
-		var frames = [];
-		var data = $.extend({skipFrames:'run-script'},options);
+  'use strict';
 
-		$.extend(self,
-		{
-			frames:frames,
+  // Animation class.
+  Tactics.Animation = function (options) {
+    let self = this;
+    let frames = [];
 
-			isPlaying:function ()
-			{
-				return data.playing;
-			},
-			addFrame:function ()
-			{
-				var args = $.makeArray(arguments);
-				var index = frames.length;
-				var frame = {scripts:[],duration:1000/data.fps};
-				var repeat;
-				var i;
+    let data = Object.assign({
+      /*
+       * By default, frames are skipped to maintain animation speed on low-end
+       * hardware.  But, all scripts are run to guarantee logical integrity.
+       *
+       * May be set to "true" for skipping scripts as well, which is useful for
+       * animations of idempotent frames (frames that can render correctly even
+       * if previous frames are skipped).
+       *
+       * May be set to "false" for potentially laggy, but complete, animations.
+       */
+      skipFrames:'run-script'
+    }, options);
 
-				if (args.length == 1)
-				{
-					if (typeof args[0] === 'function')
-					{
-						frame.scripts.push(args[0]);
-					}
-					else if (typeof args[0] === 'object')
-					{
-						$.extend(frame,args[0]);
+    Object.assign(self, {
+      frames:frames,
 
-						if (frame.script)
-						{
-							frame.scripts.push(frame.script);
-							delete frame.script;
-						}
-					}
-				}
+      /*
+       * Append a frame to the animation.
+       *
+       * Frame may be a function, which serves as frame script.
+       * The frame may be an object with these members:
+       * {
+       *   duration: (default: 1000 / fps) Length of the frame in milliseconds.
+       *   scripts: Array of functions that are called to render the frame.
+       *   script: A function.  Shorthand for "scripts: [script]".
+       *   repeat: (default: 1) Shorthand for "addFrames([frame, frame, ...])".
+       * }
+       */
+      addFrame: function (frame) {
+        let index = frames.length;
+        let template = {scripts:[],duration:1000/data.fps};
 
-				if (repeat = frame.repeat)
-				{
-					delete frame.repeat;
+        if (typeof frame === 'function') {
+          frame = Object.assign(template, {scripts: [frame]});
+        }
+        else if (typeof frame === 'object') {
+          frame = Object.assign(template, frame);
 
-					for (i=0; i<repeat; i++)
-						frames[frames.length++] = $.extend(true,{},frame,{index:index+i});
-				}
-				else
-				{
-					frames[frames.length++] = $.extend({},frame,{index:index});
-				}
+          if (frame.script) {
+            frame.scripts.push(frame.script);
+            delete frame.script;
+          }
+        }
 
-				return self;
-			},
-			addFrames:function (add)
-			{
-				var base = frames.length;
-				var i;
+        let repeat;
+        if (repeat = frame.repeat) {
+          delete frame.repeat;
 
-				for (i=0; i<add.length; i++)
-					self.addFrame(add[i]);
+          for (let i = 0; i < repeat; i++)
+            frames[frames.length] = $.extend(true, {}, frame, {index: index + i});
+        }
+        else {
+          frames[frames.length] = Object.assign({}, frame, {index: index});
+        }
 
-				return self;
-			},
-			splice:function ()
-			{
-				var args=$.makeArray(arguments),offsets,anim,i;
+        return self;
+      },
+      /*
+       * Append more than one frame to the animation by passing a frame array
+       */
+      addFrames: function (new_frames) {
+        for (let i = 0; i < new_frames.length; i++)
+          self.addFrame(new_frames[i]);
 
-				if (args.length === 2)
-				{
-					offsets = $.isArray(args[0]) ? args[0] : [args[0]];
-					anim = args[1];
-				}
-				else
-				{
-					offsets = [frames.length];
-					anim = args[0];
-				}
+        return self;
+      },
+      /*
+       * Combine (splice) multiple animations in powerful ways.
+       *
+       * Usage: splice([offset,] animation)
+       *   offset: (optional) One or more target animation frame indexes.
+       *   animation: One or more frames and/or animation objects.
+       *
+       * Note: When merging frames, the original frame duration is unchanged.
+       *
+       * Examples:
+       *   // Modify anim1 by appending anim2.
+       *   anim1.splice(anim2);
+       *
+       *   // Modify anim1 by merging (splicing) anim2 from the beginning.
+       *   // Playing anim1 would play the frames from anim1 and anim2 in parallel.
+       *   anim1.splice(0, anim2);
+       *
+       *   // Modify anim1 by duplicating (splicing) anim2 starting at frame offsets 0, 5, and 10.
+       *   // Playing anim1 may show overlapping anim2 frames if anim2 is more than 5 frames in length.
+       *   anim1.splice([0, 5, 10], anim2);
+       *
+       *   // Less idiomatic way of doing anim1.addFrames([frame1, frame2]).
+       *   anim1.splice([frame1, frame2]);
+       *
+       */
+      splice: function () {
+        let args = Array.from(arguments);
+        let offsets;
+        let anim;
 
-				if (!anim) return self;
+        if (args.length === 2) {
+          offsets = Array.isArray(args[0]) ? args[0] : [args[0]];
+          anim = args[1];
+        }
+        else {
+          offsets = [frames.length];
+          anim = args[0];
+        }
 
-				if ($.isArray(anim))
-					anim = new Tactics.Animation({frames:anim});
-				else if (!(anim instanceof Tactics.Animation))
-					anim = new Tactics.Animation({frames:[anim]});
+        if (!anim) return self;
 
-				$.each(offsets,function (i,offset)
-				{
-					if (offset > frames.length) throw 'Start index too high';
+        if (Array.isArray(anim))
+          anim = new Tactics.Animation({frames:anim});
+        else if (!(anim instanceof Tactics.Animation))
+          anim = new Tactics.Animation({frames:[anim]});
 
-					for (i=0; i<anim.frames.length; i++)
-						if (offset+i < frames.length)
-							Array.prototype.push.apply(frames[offset+i].scripts,anim.frames[i].scripts);
-						else
-							self.addFrame(anim.frames[i]);
-				});
+        offsets.forEach((offset, i) => {
+          if (offset > frames.length) throw 'Start index too high';
 
-				return self;
-			},
-			play:function (callback)
-			{
-				var f=0,s;
-				var render;
+          for (let i = 0; i < anim.frames.length; i++)
+            if (offset+i < frames.length)
+              Array.prototype.push.apply(frames[offset+i].scripts, anim.frames[i].scripts);
+            else
+              self.addFrame(anim.frames[i]);
+        });
 
-				data.playing = true;
-				if (callback) data.callback = callback;
+        return self;
+      },
+      /*
+       * The play method accepts an optional callback and returns a promise that
+       * is resolved when the animation ends or is stopped.  If a callback is
+       * supplied it is called first before the promise chain is resolved.
+       *
+       * Note: The callback argument is deprecated.
+       */
+      play: function (callback) {
+        // The cursor points to the current frame index while playing an animation.
+        let cursor = 0;
+        let render;
 
-				if (data.skipFrames === 'run-script')
-				{
-					// Yes, but run scripts for skipped frames.
-					render = function (skip)
-					{
-						var frame;
+        data.playing = true;
 
-						skip++;
-						while (skip-- && f < frames.length)
-						{
-							frame = frames[f++];
+        if (data.skipFrames === 'run-script') {
+          // Frames are skipped, but all scripts are run to maintain logical consistency.
+          render = skip => {
+            var frame;
 
-							for (s=0; s<frame.scripts.length; s++)
-								if (frame.scripts[s].call(self,frame) === false) return false;
-						}
-					};
-				}
-				else if (data.skipFrames)
-				{
-					render = function (skip)
-					{
-						var frame;
+            skip++;
+            while (skip-- && cursor < frames.length) {
+              frame = frames[cursor++];
 
-						f += skip;
+              for (let s = 0; s < frame.scripts.length; s++)
+                if (frame.scripts[s].call(self, frame) === false) return false;
+            }
+          };
+        }
+        else if (data.skipFrames) {
+          // Skip frames and scripts.
+          render = skip => {
+            var frame;
 
-						if (f < frames.length)
-						{
-							frame = frames[f++];
+            cursor += skip;
 
-							for (s=0; s<frame.scripts.length; s++)
-								if (frame.scripts[s].call(self,frame) === false) return false;
-						}
-					};
-				}
-				else
-				{
-					render = function ()
-					{
-						var frame = frames[f++];
+            if (cursor < frames.length) {
+              frame = frames[cursor++];
 
-						for (s=0; s<frame.scripts.length; s++)
-							if (frame.scripts[s].call(self,frame) === false) return false;
-					};
-				}
+              for (let s = 0; s < frame.scripts.length; s++)
+                if (frame.scripts[s].call(self, frame) === false) return false;
+            }
+          };
+        }
+        else {
+          // Skip nothing.
+          render = () => {
+            var frame = frames[cursor++];
 
-				Tactics.renderAnim(function (skip)
-				{
-					if (!data.playing) return false;
-					if (render(skip) === false || (f == frames.length && !data.loop))
-					{
-						if (data.callback) data.callback();
-						return data.playing = false;
-					}
+            for (let s = 0; s < frame.scripts.length; s++)
+              if (frame.scripts[s].call(self, frame) === false) return false;
+          };
+        }
 
-					if (f == frames.length) f = 0;
-				},data.fps);
+        return new Promise((resolve, reject) => {
+          data.resolver = resolve;
 
-				return self;
-			},
-			stop:function ()
-			{
-				data.playing = false;
-				if (data.callback) data.callback();
-			}
-		});
+          Tactics.renderAnim(skip => {
+            if (!data.playing) return false;
+            if (render(skip) === false || (cursor == frames.length && !data.loop)) {
+              data.playing = false;
+              resolve();
+              return;
+            }
 
-		if (data.frames)
-			self.addFrames(data.frames);
+            if (cursor == frames.length) cursor = 0;
+          }, data.fps);
+        }).then(callback);
+      },
+      /*
+       * Stop an animation.  Useful for animations that loop indefinitely.
+       */
+      stop: function () {
+        data.playing = false;
+        if (data.resolver) data.resolver();
+      }
+    });
 
-		return self;
-	};
+    if (data.frames)
+      self.addFrames(data.frames);
 
-	Tactics.Animation.fromData = function (container,framesData,data)
-	{
-		var frames,frame;
+    return self;
+  };
 
-		data = data || {};
+  Tactics.Animation.fromData = function (container, framesData, data) {
+    let frames;
+    let frame;
 
-		frames = $.map(framesData,function (dataObjs)
-		{
-			var frame = new PIXI.Container();
+    data = data || {};
 
-			if (data.x) frame.position.x = data.x;
-			if (data.y) frame.position.y = data.y;
-			if (data.s) frame.scale = new PIXI.Point(data.s,data.s);
-			if (data.a) frame.alpha = data.a;
+    frames = framesData.map(dataObjs => {
+      let frame = new PIXI.Container();
 
-			$.each(dataObjs,function (i,obj)
-			{
-				var sprite = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/'+obj.src);
+      if (data.x) frame.position.x = data.x;
+      if (data.y) frame.position.y = data.y;
+      if (data.s) frame.scale = new PIXI.Point(data.s,data.s);
+      if (data.a) frame.alpha = data.a;
 
-				if (obj.pos)
-				{
-					sprite.position.x = obj.pos.x || 0;
-					sprite.position.y = obj.pos.y || 0;
-				}
+      dataObjs.forEach(obj => {
+        let sprite = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/'+obj.src);
 
-				if (obj.scale)
-				{
-					sprite.pivot.x = (sprite.width  / 2) | 0;
-					sprite.pivot.y = (sprite.height / 2) | 0;
-					sprite.scale.x = obj.scale.x || 1;
-					sprite.scale.y = obj.scale.y || 1;
-				}
+        if (obj.pos) {
+          sprite.position.x = obj.pos.x || 0;
+          sprite.position.y = obj.pos.y || 0;
+        }
 
-				sprite.alpha = obj.alpha || 1;
+        if (obj.scale) {
+          sprite.pivot.x = (sprite.width  / 2) | 0;
+          sprite.pivot.y = (sprite.height / 2) | 0;
+          sprite.scale.x = obj.scale.x || 1;
+          sprite.scale.y = obj.scale.y || 1;
+        }
 
-				frame.addChild(sprite);
-			});
+        sprite.alpha = obj.alpha || 1;
 
-			return frame;
-		});
+        frame.addChild(sprite);
+      });
 
-		return new Tactics.Animation({frames:
-		[
-			{
-				script:function ()
-				{
-					if (frame)
-						container.removeChild(frame);
+      return frame;
+    });
 
-					if (frame = frames.shift())
-						container.addChild(frame);
-				},
-				repeat:frames.length+1
-			}
-		]});
-	};
+    return new Tactics.Animation({frames: [
+      {
+        script: () => {
+          if (frame)
+            container.removeChild(frame);
+
+          if (frame = frames.shift())
+            container.addChild(frame);
+        },
+        repeat:frames.length+1
+      }
+    ]});
+  };
 
 })();

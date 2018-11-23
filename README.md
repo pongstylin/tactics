@@ -7,18 +7,21 @@ This project is derivative of the flash-based Tactics Arena Online (TAO) game th
 ## Requirements
 * Node.js
 
+To install under windows, you also need Git Bash and configure npm to use the Git Bash executable.
+Example:
+```bash
+npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
+```
+
 ## Development
 After checking out the Git repository, run these commands.
 
-```
+```bash
 $ npm install
-$ npm run build
 $ npm start
 ```
 
-The start command will output a URL that can be used to run the game.
-
-After making changes, the build command must be run again to have it reflected on the development URL.
+The start command will output a URL that can be used to run the game and build JavaScript bundles for use by that URL.  The command will continue to monitor source files and rebuild the bundles as changes are made.
 
 ## Contributing
 Pull requests are encouraged. For major changes, please open an issue first to discuss what you would like to change.
@@ -31,7 +34,7 @@ The `dist` directory contains JavaScript bundles that can be used to publish the
 
 After making changes to the source, the distribution bundles can be rebuilt using this command:
 
-```
+```bash
 $ npm run dist
 ```
 

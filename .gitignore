@@ -1,4 +1,3 @@
 node_modules
-static/chaos-app.min.js
-static/faceoff-app.min.js
-static/tactics.min.js
+dist
+static/*.min.js

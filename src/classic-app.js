@@ -12,13 +12,24 @@ Tactics.App = (function ($,window,document)
   {
     teams:
     [
-      {c: 2,b:0,u:{ej:{t:0,d:'N'},fj:{t:0,d:'N'},gj:{t:0,d:'N'}}},
-      {c:10,b:1,u:{eb:{t:0,d:'S'},fb:{t:0,d:'S'},gb:{t:0,d:'S'}}},
-      {c: 8,b:1,u:{be:{t:0,d:'E'},bf:{t:0,d:'E'},bg:{t:0,d:'E'}}},
-      {c: 7,b:1,u:{je:{t:0,d:'W'},jf:{t:0,d:'W'},jg:{t:0,d:'W'}}},
-      {c: 2,b:'Chaos',u:{ff:{t:15,d:'S'}}},
+      {
+        c: 10,
+        b: 0,
+        u: {
+          fa:{t:3,d:'S'},
+          bc:{t:7,d:'S'},ec:{t:0,d:'S'},fc:{t:0,d:'S'},gc:{t:0,d:'S'},
+        }
+      },
+      {
+        c: 2,
+        b: 0,
+        u: {
+          ei:{t:0,d:'N'},fi:{t:0,d:'N'},gi:{t:0,d:'N'},ji:{t:7,d:'N'},
+          fk:{t:3,d:'N'},
+        }
+      },
     ],
-    turns:[0,2,1,3]
+    turns:[0, 1]
   };
 
   $(window)
@@ -132,8 +143,7 @@ Tactics.App = (function ($,window,document)
         }
       };
 
-      $('#overlay').on('click tap',function ()
-      {
+      $('#overlay').on('click tap', () => {
         if ($('#popup').hasClass('error')) return;
         $('#overlay,#popup').hide();
       });
@@ -156,76 +166,61 @@ Tactics.App = (function ($,window,document)
 
       $(window).trigger('resize');
 
-      $('#loader').css({
-        top:        ($(window).height()/2)-($('#loader').height()/2)+'px',
-        left:       ($(window).width()/2)-($('#loader').width()/2)+'px',
-        visibility: 'visible'
+      $('#loader').css
+      ({
+        top:($(window).height()/2)-($('#loader').height()/2)+'px',
+        left:($(window).width()/2)-($('#loader').width()/2)+'px',
+        visibility:'visible'
       });
 
       board = Tactics.board;
 
       board
-        .on('select-mode-change',function (event)
-        {
-          var selected = board.selected;
-          var viewed = board.viewed;
-          var omode = event.ovalue;
-          var nmode = event.nvalue;
-          var move = true,attack = true;
+        .on('select-mode-change', event => {
+          let selected    = board.viewed || board.selected;
+          let old_mode    = event.ovalue;
+          let new_mode    = event.nvalue;
+          let can_move    = !selected || selected.can_move();
+          let can_attack  = !selected || selected.can_attack();
+          let can_special = selected && selected.can_special();
 
-          $('BUTTON[name=select][value='+omode+']').removeClass('selected');
-          $('BUTTON[name=select][value='+nmode+']').addClass('selected');
+          $('BUTTON[name=select][value='+old_mode+']').removeClass('selected');
+          $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
 
-          if (!$('#game-play').hasClass('active'))
-          {
+          if (!$('#game-play').hasClass('active')) {
             $('.buttons').removeClass('active');
             $('#game-play').addClass('active');
           }
 
-          if (viewed)
-          {
-            if (!viewed.mRadius) move = false;
-            if (!viewed.aRadius) attack = false;
-          }
-          else if (selected)
-          {
-            if (selected && selected.attacked)
-            {
-              move = !selected.deployed || !selected.deployed.first;
-              attack = false;
-            }
-            if (!selected.mRadius) move = false;
-            if (!selected.aRadius) attack = false;
-          }
+          $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
+          $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
 
-          $('BUTTON[name=select][value=move]').prop('disabled',!move);
-          $('BUTTON[name=select][value=attack]').prop('disabled',!attack);
+          if (new_mode === 'attack' && can_special)
+            $('BUTton[name=select][value=attack]').addClass('ready');
+          else
+            $('BUTton[name=select][value=attack]').removeClass('ready');
 
-          if (pointer == 'touch' && nmode == 'turn' && selected && !viewed)
+          if (new_mode === 'turn' && pointer === 'touch' && selected && !selected.viewed)
             $('BUTTON[name=select][value=turn]').addClass('ready');
           else
             $('BUTTON[name=select][value=turn]').removeClass('ready');
 
-          if (nmode == 'ready')
+          if (new_mode === 'ready')
             $('BUTTON[name=pass]').addClass('ready');
           else
             $('BUTTON[name=pass]').removeClass('ready');
         })
-        .on('card-change',function (event)
-        {
-          var $card = $('#card');
+        .on('card-change', event => {
+          let $card = $('#card');
 
-          if (event.nvalue && event.ovalue === null)
-          {
+          if (event.nvalue && event.ovalue === null) {
             $card.stop().fadeIn()
           }
-          else if (event.nvalue === null)
-          {
+          else if (event.nvalue === null) {
             $card.stop().fadeOut();
           }
         })
-        .on('lock-change',function (event)
-        {
+        .on('lock-change', event => {
           $('#app').toggleClass('locked');
         });
 
@@ -273,6 +268,7 @@ Tactics.App = (function ($,window,document)
           handler($button);
 
           Tactics.sounds.select.play();
+          Tactics.render();
         });
 
       load();
@@ -295,12 +291,12 @@ Tactics.App = (function ($,window,document)
     var loader = PIXI.loader;
     var utypes = [];
 
-    $progress.width(percent);
-
     function progress()
     {
       var percent = (++loaded / resources.length) * 100;
       var action = pointer === 'mouse' ? 'Click' : 'Tap';
+
+      $progress.width(percent);
 
       if (percent === 100)
       {
@@ -327,6 +323,7 @@ Tactics.App = (function ($,window,document)
       var url = 'http://www.taorankings.com/html5/images/'+image_url;
 
       resources.push(url);
+
       loader.add
       ({
         url:url
@@ -426,7 +423,17 @@ Tactics.App = (function ($,window,document)
           });
         }
 
-        if (units[utype].frames)
+        // Test Unit Render Data
+        if (units[utype].frames_url) {
+          let frames_url = units[utype].frames_url;
+          resources.push(frames_url);
+
+          $.getJSON(frames_url).then(renderData => {
+            Object.assign(units[utype], renderData);
+            progress();
+          });
+        }
+        else if (units[utype].frames)
         {
           $.each(units[utype].frames,function (i,frame)
           {
@@ -489,10 +496,7 @@ Tactics.App = (function ($,window,document)
                 return;
 
               resources.push(url);
-              loader.add
-              ({
-                url:url
-              });
+              loader.add({url: url});
             });
           });
         }
@@ -504,17 +508,16 @@ Tactics.App = (function ($,window,document)
       .load();
   }
 
-  function setupGame()
-  {
-    data.teams[4].c = colors.random();
-
+  function setupGame() {
     board.reset().addTeams(data.teams);
     board.turns = data.turns.slice().spin();
-    board.turns.push(4);
 
-    Tactics.render();
+    // Give Data URIs a chance to load.
+    setTimeout(() => {
+      Tactics.render();
 
-    board.startTurn();
+      board.startTurn();
+    }, 1);
   }
 
   return self;

@@ -6,11 +6,14 @@
   "directories": {
     "lib": "lib"
   },
+  "repository": {
+    "type" : "git",
+    "url" : "git@github.com:pongstylin/tactics.git"
+  },
   "scripts": {
-    "start": "node src/app.js",
+    "start": "NODE_ENV=development webpack --watch --progress --hide-modules & node src/app.js || true",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --mode=development",
-    "dist": "webpack --mode=production"
+    "dist": "NODE_ENV=production webpack --progress --hide-modules"
   },
   "author": "Dave Clark",
   "license": "Unlicense",
@@ -23,6 +26,7 @@
     "webpack-cli": "^3.1.2"
   },
   "dependencies": {
-    "express": "^4.16.4"
+    "express": "^4.16.4",
+    "pixi.js": "^4.8.2"
   }
 }

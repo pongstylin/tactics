@@ -144,28 +144,25 @@ BODY
 	border-color:#FFFFFF;
 }
 
-@-webkit-keyframes glow
-{
+@-webkit-keyframes glow {
 	0%   { box-shadow: none;                 }
 	50%  { box-shadow: 0px 0px 14px 4px #FFFFFF; }
 	100% { box-shadow: none;                 }
 }
 
-@keyframes glow
-{
+@keyframes glow {
 	0%   { box-shadow: none;                 }
 	50%  { box-shadow: 0px 0px 14px 4px #FFFFFF; }
 	100% { box-shadow: none;                 }
 }
 
-#app > .buttons BUTTON.ready
-{
-	-webkit-animation:glow ease-in-out 1s infinite;
-	animation:glow ease-in-out 1s infinite;
+#app > .buttons BUTTON.ready {
+	-webkit-animation: glow ease-in-out 1s infinite;
+	animation: glow ease-in-out 1s infinite;
+  cursor: pointer;
 }
 
-#app > .buttons BUTTON.hidden
-{
+#app > .buttons BUTTON.hidden {
 	display:none;
 }
 
@@ -251,9 +248,9 @@ BODY
 {
 	#card
 	{
-		top:20px;
-		left:30px;
-		border:0 none;
+		top:    20px;
+		left:   0;
+		border: 0 none;
 	}
 
 	#app > .buttons

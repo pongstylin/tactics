@@ -1,495 +1,476 @@
 (function ()
 {
-	Tactics.units[22].extend = function (self)
-	{
-		var data = Tactics.units[self.type];
-		var sounds = $.extend({},Tactics.sounds,data.sounds);
-		var board = Tactics.board;
+  Tactics.units[22].extend = function (self)
+  {
+    var data = Tactics.units[self.type];
+    var sounds = Object.assign({}, Tactics.sounds, data.sounds);
+    var board = Tactics.board;
 
-		$.each(data.frames,function (i,frame)
-		{
-			if (!frame) return;
+    $.each(data.frames,function (i,frame)
+    {
+      if (!frame) return;
 
-			$.each(frame.c,function (j,sprite)
-			{
-				if (j === 0)
-				{
-					sprite.n = 'shadow';
-				}
-				else if (j === 2 && (frame.c.length === 3 || i < 80))
-				{
-					sprite.n = 'trim';
-				}
-				else if (j === 3 && i > 80)
-				{
-					sprite.n = 'trim';
-				}
-			});
-		});
+      $.each(frame.c,function (j,sprite)
+      {
+        if (j === 0)
+        {
+          sprite.n = 'shadow';
+        }
+        else if (j === 2 && (frame.c.length === 3 || i < 80))
+        {
+          sprite.n = 'trim';
+        }
+        else if (j === 3 && i > 80)
+        {
+          sprite.n = 'trim';
+        }
+      });
+    });
 
-		$.extend(self,
-		{
-			title:'Awakened!',
-			banned:[],
+    $.extend(self,
+    {
+      title:'Awakened!',
+      banned:[],
 
-			attack:function (target)
-			{
-				var deferred = $.Deferred();
-				var anim = new Tactics.Animation({fps:10});
-				var direction = board.getDirection(self.assignment,target);
-				var tunit;
-				var calc,changes;
+      attack:function (target) {
+        var anim = new Tactics.Animation({fps:10});
+        var direction = board.getDirection(self.assignment,target);
+        var tunit;
+        var calc,changes;
 
-				if (target === target.assigned)
-					return self.special();
+        if (target === target.assigned)
+          return self.special();
 
-				// LOS might change the actual target.
-				// self.calcAttack(target) should return data on all units affected by the attack as well as the unit being focused.
-				target = self.targetLOS(target);
-				tunit = target.assigned;
+        // LOS might change the actual target.
+        // self.calcAttack(target) should return data on all units affected by the attack as well as the unit being focused.
+        target = self.targetLOS(target);
+        tunit = target.assigned;
 
-				if (tunit)
-				{
-					calc = self.calcAttack(tunit);
+        if (tunit) {
+          calc = self.calcAttack(tunit);
 
-					changes	= {mHealth:tunit.mHealth - calc.damage};
-					if (changes.mHealth < -tunit.health) changes.mHealth = -tunit.health;
+          changes  = {mHealth:tunit.mHealth + calc.damage};
+          if (changes.mHealth < -tunit.health) changes.mHealth = -tunit.health;
 
-					// jQuery does not extend undefined value
-					changes.notice = null;
-				}
+          // jQuery does not extend undefined value
+          changes.notice = null;
+        }
 
-				self.freeze();
+        self.freeze();
 
-				anim
-					.splice(self.animTurn(direction))
-					.splice(self.animAttack(target,false,changes));
+        anim
+          .splice(self.animTurn(direction))
+          .splice(self.animAttack(target,false,changes));
 
-				anim.play(function ()
-				{
-					self.attacked = {target:target,block:false,changes:changes};
-					self.origin.adirection = self.direction;
-					self.thaw();
-					deferred.resolve();
-				});
+        return anim.play().then(() => {
+          self.attacked = {target:target,block:false,changes:changes};
+          self.origin.adirection = self.direction;
+          self.thaw();
+        });
+      },
+      special: function () {
+        var anim = new Tactics.Animation({fps:12});
+        var target = self.assignment;
+        var tunit = self;
+        var block = data.animations[self.direction].block;
+        var changes;
 
-				return deferred.promise();
-			},
-			special:function ()
-			{
-				var deferred = $.Deferred();
-				var anim = new Tactics.Animation({fps:12});
-				var target = self.assignment;
-				var tunit = self;
-				var block = data.animations[self.direction].block;
-				var changes;
+        if (tunit) {
+          changes = {
+            mHealth: Math.max(tunit.mHealth + self.power, 0),
+          };
 
-				if (tunit)
-				{
-					changes = {mHealth:tunit.mHealth + self.power};
-					if (changes.mHealth > 0) changes.mHealth = 0;
+          // jQuery does not extend undefined value
+          changes.notice = null;
+        }
 
-					// jQuery does not extend undefined value
-					changes.notice = null;
-				}
+        anim
+          .splice([
+            () => self.drawFrame(block.s),
+            () => self.drawFrame(block.s+1),
+            () => {},
+          ])
+          .splice(self.animHeal([tunit]))
+          .splice(4, () => tunit.change(changes))
+          .splice([
+            () => self.drawFrame(block.s+4),
+            () => self.drawFrame(block.s+5),
+          ]);
 
-				self.freeze();
+        self.freeze();
 
-				anim
-					.splice
-					([
-						function () { self.drawFrame(block.s); },
-						function () { self.drawFrame(block.s+1); },
-						function () {},
-						function () { sounds.heal.play(); }
-					])
-					.splice(self.animHeal([tunit]))
-					.splice(4,function ()
-					{
-						tunit.change(changes);
-					})
-					.splice
-					([
-						function () { self.drawFrame(block.s+4); },
-						function () { self.drawFrame(block.s+5); }
-					]);
+        return anim.play().then(() => {
+          self.attacked = {target:target,block:false,changes:changes};
+          self.origin.adirection = self.direction;
+          self.thaw();
+        });
+      },
+      phase:function (color)
+      {
+        var deferred = $.Deferred();
+        var teams = board.getWinningTeams();
+        var choices = [];
 
-				anim.play(function ()
-				{
-					self.attacked = {target:target,block:false,changes:changes};
-					self.origin.adirection = self.direction;
-					self.thaw();
-					deferred.resolve();
-				});
+        if (color === undefined)
+        {
+          if (teams.length > 1)
+          {
+            $.each(teams.reverse(),function (i,team)
+            {
+              if (team.units.length === 0) return;
+              if (self.banned.indexOf(i) > -1) return;
+              if (choices.length && team.score > choices[0].score) return false;
 
-				return deferred.promise();
-			},
-			phase:function (color)
-			{
-				var deferred = $.Deferred();
-				var teams = board.getWinningTeams();
-				var choices = [];
+              choices.push(team);
+            });
 
-				if (color === undefined)
-				{
-					if (teams.length > 1)
-					{
-						$.each(teams.reverse(),function (i,team)
-						{
-							if (team.units.length === 0) return;
-							if (self.banned.indexOf(i) > -1) return;
-							if (choices.length && team.score > choices[0].score) return false;
+            color = choices.random().color;
+          }
+          else
+          {
+            color = null;
+          }
+        }
 
-							choices.push(team);
-						});
+        if (color === board.teams[self.team].color)
+          deferred.resolve();
+        else
+          self.animPhase(color).play(function () { deferred.resolve(); });
 
-						color = choices.random().color;
-					}
-					else
-					{
-						color = null;
-					}
-				}
+        return deferred.promise();
+      },
+      animPhase:function (color)
+      {
+        var step = 12;
+        var fcolor = self.color;
+        var tcolor = color === null ? 0xFFFFFF : Tactics.colors[color];
 
-				if (color === board.teams[self.team].color)
-					deferred.resolve();
-				else
-					self.animPhase(color).play(function () { deferred.resolve(); });
+        return new Tactics.Animation({fps:12,frames:
+        [
+          function ()
+          {
+            sounds.phase.play();
+            board.teams[self.team].color = color;
+            self.color = tcolor;
+          },
+          {
+            script:function ()
+            {
+              self.pixi.children[0].children[2].tint = Tactics.utils.getColorStop(fcolor,tcolor,--step / 12);
+            },
+            repeat:12
+          }
+        ]});
+      },
+      animDeploy:function (assignment)
+      {
+        var anim = new Tactics.Animation({fps:10});
+        var origin = self.assignment;
+        var direction = board.getDirection(origin,assignment,1);
+        var odirection = board.getRotation(self.direction,180);
+        var deploy,frame=0;
 
-				return deferred.promise();
-			},
-			animPhase:function (color)
-			{
-				var step = 12;
-				var fcolor = self.color;
-				var tcolor = color === null ? 0xFFFFFF : Tactics.colors[color];
+        if (direction.length === 2)
+          direction = direction.indexOf(self.direction) === -1 ? odirection : self.direction;
 
-				return new Tactics.Animation({fps:12,frames:
-				[
-					function ()
-					{
-						sounds.phase.play();
-						board.teams[self.team].color = color;
-						self.color = tcolor;
-					},
-					{
-						script:function ()
-						{
-							self.pixi.children[0].children[2].tint = Tactics.utils.getColorStop(fcolor,tcolor,--step / 12);
-						},
-						repeat:12
-					}
-				]});
-			},
-			animDeploy:function (assignment)
-			{
-				var anim = new Tactics.Animation({fps:10});
-				var origin = self.assignment;
-				var direction = board.getDirection(origin,assignment,1);
-				var odirection = board.getRotation(self.direction,180);
-				var deploy,frame=0;
+        deploy = data.animations[direction].deploy;
 
-				if (direction.length === 2)
-					direction = direction.indexOf(self.direction) === -1 ? odirection : self.direction;
+        anim
+          .splice(self.animTurn(direction))
+          .splice
+          (
+            new Tactics.Animation({frames:
+            [
+              {
+                script:function ()
+                {
+                  self.drawFrame(deploy.s+frame++);
+                },
+                repeat:deploy.l
+              }
+            ]})
+              .splice(10,function ()
+              {
+                self.assign(assignment);
+              })
+              .splice([2,7,11,16],function ()
+              {
+                sounds.flap.play();
+              })
+          );
 
-				deploy = data.animations[direction].deploy;
+        return anim;
+      },
+      animAttack:function (target,block,changes)
+      {
+        var anim = new Tactics.Animation();
+        var tunit = target.assigned;
+        var direction = board.getDirection(self.assignment,target,1);
+        var attack=data.animations[direction].attack,frame=0;
+        var whiten = [0.25,0.5,0];
+        var source = direction === 'N' || direction === 'E' ?  1 : 3;
+        var adjust = direction === 'N' ? {x:-5,y:0} : direction === 'W' ? {x:-5,y:3} : {x:5,y:3};
+        var container = new PIXI.Container();
+        var filter1 = new PIXI.filters.BlurFilter();
+        var filter2 = new PIXI.filters.BlurFilter();
+        var streaks1 = new PIXI.Graphics;
+        var streaks2 = new PIXI.Graphics;
+        var streaks3 = new PIXI.Graphics;
 
-				anim
-					.splice(self.animTurn(direction))
-					.splice
-					(
-						new Tactics.Animation({frames:
-						[
-							{
-								script:function ()
-								{
-									self.drawFrame(deploy.s+frame++);
-								},
-								repeat:deploy.l
-							}
-						]})
-							.splice(10,function ()
-							{
-								self.assign(assignment);
-							})
-							.splice([2,7,11,16],function ()
-							{
-								sounds.flap.play();
-							})
-					);
+        //filter1.blur = 6;
+        streaks1.filters = [filter1];
+        container.addChild(streaks1);
 
-				return anim;
-			},
-			animAttack:function (target,block,changes)
-			{
-				var anim = new Tactics.Animation();
-				var tunit = target.assigned;
-				var direction = board.getDirection(self.assignment,target,1);
-				var attack=data.animations[direction].attack,frame=0;
-				var whiten = [0.25,0.5,0];
-				var source = direction === 'N' || direction === 'E' ?  1 : 3;
-				var adjust = direction === 'N' ? {x:-5,y:0} : direction === 'W' ? {x:-5,y:3} : {x:5,y:3};
-				var container = new PIXI.Container();
-				var filter1 = new PIXI.filters.BlurFilter();
-				var filter2 = new PIXI.filters.BlurFilter();
-				var streaks1 = new PIXI.Graphics;
-				var streaks2 = new PIXI.Graphics;
-				var streaks3 = new PIXI.Graphics;
+        filter2.blur = 6;
+        streaks2.filters = [filter2];
+        container.addChild(streaks2);
 
-				//filter1.blur = 6;
-				streaks1.filters = [filter1];
-				container.addChild(streaks1);
+        streaks3.filters = [filter2];
+        container.addChild(streaks3);
 
-				filter2.blur = 6;
-				streaks2.filters = [filter2];
-				container.addChild(streaks2);
+        anim
+          .addFrame
+          ({
+            script:function ()
+            {
+              self.drawFrame(attack.s+frame++);
+            },
+            repeat:attack.l
+          })
+          .splice(0,function ()
+          {
+            sounds.charge.play().fade(0,1,500);
+          })
+          .splice(5,tunit.animStagger(self,direction,changes))
+          .splice(5,function ()
+          {
+            sounds.buzz.play();
+            sounds.charge.stop();
+            sounds.impact.play();
+          })
+          .splice(5,
+          {
+            script:function ()
+            {
+              tunit.whiten(whiten.shift());
+            },
+            repeat:3
+          })
+          .splice(5,function ()
+          {
+            self.drawStreaks(container,target,source,adjust);
+            Tactics.stage.addChild(container);
+          })
+          .splice(6,function ()
+          {
+            self.drawStreaks(container,target,source,adjust);
+          })
+          .splice(7,function ()
+          {
+            Tactics.stage.removeChild(container);
+            sounds.buzz.stop();
+          });
 
-				streaks3.filters = [filter2];
-				container.addChild(streaks3);
+        if (changes)
+        {
+          if (changes.mHealth === -tunit.health)
+            anim.splice(tunit.animDeath(self));
 
-				anim
-					.addFrame
-					({
-						script:function ()
-						{
-							self.drawFrame(attack.s+frame++);
-						},
-						repeat:attack.l
-					})
-					.splice(0,function ()
-					{
-						sounds.charge.play().fade(0,1,500);
-					})
-					.splice(5,tunit.animStagger(self,direction,changes))
-					.splice(5,function ()
-					{
-						sounds.buzz.play();
-						sounds.charge.stop();
-						sounds.impact.play();
-					})
-					.splice(5,
-					{
-						script:function ()
-						{
-							tunit.whiten(whiten.shift());
-						},
-						repeat:3
-					})
-					.splice(5,function ()
-					{
-						self.drawStreaks(container,target,source,adjust);
-						Tactics.stage.addChild(container);
-					})
-					.splice(6,function ()
-					{
-						self.drawStreaks(container,target,source,adjust);
-					})
-					.splice(7,function ()
-					{
-						Tactics.stage.removeChild(container);
-						sounds.buzz.stop();
-					});
+          anim.splice(5,function ()
+          {
+            tunit.change(changes);
+          });
+        }
 
-				if (changes)
-				{
-					if (changes.mHealth === -tunit.health)
-						anim.splice(tunit.animDeath(self));
+        return anim;
+      },
+      drawStreaks:function (container,target,source,adjust)
+      {
+        var sprite,bounds,start,end,stops;
+        var streaks1 = container.children[0];
+        var streaks2 = container.children[1];
+        var streaks3 = container.children[2];
 
-					anim.splice(5,function ()
-					{
-						tunit.change(changes);
-					});
-				}
+        // Make sure bounds are set correctly.
+        Tactics.stage.children[1].updateTransform();
 
-				return anim;
-			},
-			drawStreaks:function (container,target,source,adjust)
-			{
-				var sprite,bounds,start,end,stops;
-				var streaks1 = container.children[0];
-				var streaks2 = container.children[1];
-				var streaks3 = container.children[2];
+        sprite = self.frame.children[source];
+        bounds = sprite.getBounds();
+        start = new PIXI.Point(bounds.x+adjust.x,bounds.y+adjust.y);
+        end = target.getCenter().clone();
 
-				// Make sure bounds are set correctly.
-				Tactics.stage.children[1].updateTransform();
+        start.x += Math.floor(sprite.width/2);
+        start.y += Math.floor(sprite.height/2);
+        end.y -= 14;
 
-				sprite = self.frame.children[source];
-				bounds = sprite.getBounds();
-				start = new PIXI.Point(bounds.x+adjust.x,bounds.y+adjust.y);
-				end = target.getCenter().clone();
+        // Determine the stops the lightning will make.
+        stops =
+        [
+          {
+            x:start.x + Math.floor((end.x - start.x) * 1/3),
+            y:start.y + Math.floor((end.y - start.y) * 1/3)
+          },
+          {
+            x:start.x + Math.floor((end.x - start.x) * 2/3),
+            y:start.y + Math.floor((end.y - start.y) * 2/3)
+          },
+          {x:end.x,y:end.y}
+        ];
 
-				start.x += Math.floor(sprite.width/2);
-				start.y += Math.floor(sprite.height/2);
-				end.y -= 14;
+        streaks1.clear();
+        streaks2.clear();
+        streaks3.clear();
 
-				// Determine the stops the lightning will make.
-				stops =
-				[
-					{
-						x:start.x + Math.floor((end.x - start.x) * 1/3),
-						y:start.y + Math.floor((end.y - start.y) * 1/3)
-					},
-					{
-						x:start.x + Math.floor((end.x - start.x) * 2/3),
-						y:start.y + Math.floor((end.y - start.y) * 2/3)
-					},
-					{x:end.x,y:end.y}
-				];
+        $.each([1,2,3],function (i)
+        {
+          var alpha = i % 2 === 0 ? 0.5 : 1;
+          var deviation = alpha === 1 ? 9 : 19;
+          var midpoint = (deviation+1)/2;
 
-				streaks1.clear();
-				streaks2.clear();
-				streaks3.clear();
+          streaks1.lineStyle(1,0x8888FF,alpha);
+          streaks2.lineStyle(2,0xFFFFFF,alpha);
+          streaks3.lineStyle(2,0xFFFFFF,alpha);
 
-				$.each([1,2,3],function (i)
-				{
-					var alpha = i % 2 === 0 ? 0.5 : 1;
-					var deviation = alpha === 1 ? 9 : 19;
-					var midpoint = (deviation+1)/2;
+          streaks1.moveTo(start.x,start.y);
+          streaks2.moveTo(start.x,start.y);
+          streaks3.moveTo(start.x,start.y);
 
-					streaks1.lineStyle(1,0x8888FF,alpha);
-					streaks2.lineStyle(2,0xFFFFFF,alpha);
-					streaks3.lineStyle(2,0xFFFFFF,alpha);
+          $.each(stops,function (j,stop)
+          {
+            var offset;
+            var x = stop.x,y = stop.y;
 
-					streaks1.moveTo(start.x,start.y);
-					streaks2.moveTo(start.x,start.y);
-					streaks3.moveTo(start.x,start.y);
+            if (j < 2)
+            {
+              // Now add a random offset to the stops.
+              offset = Math.floor(Math.random() * deviation) + 1;
+              if (offset > midpoint) offset = (offset-midpoint) * -1;
+              x += offset;
 
-					$.each(stops,function (j,stop)
-					{
-						var offset;
-						var x = stop.x,y = stop.y;
+              offset = Math.floor(Math.random() * deviation) + 1;
+              if (offset > midpoint) offset = (offset-midpoint) * -1;
+              y += offset;
+            }
 
-						if (j < 2)
-						{
-							// Now add a random offset to the stops.
-							offset = Math.floor(Math.random() * deviation) + 1;
-							if (offset > midpoint) offset = (offset-midpoint) * -1;
-							x += offset;
+            streaks1.lineTo(x,y);
+            streaks2.lineTo(x,y);
+            streaks3.lineTo(x,y);
+          });
+        });
 
-							offset = Math.floor(Math.random() * deviation) + 1;
-							if (offset > midpoint) offset = (offset-midpoint) * -1;
-							y += offset;
-						}
+        return self;
+      },
+      animStrike:function (attacker,direction)
+      {
+        return new Tactics.Animation({frames:
+        [
+          function ()
+          {
+            sounds.strike.play();
+          },
+          function ()
+          {
+            self.shock(direction,0);
+          },
+          function ()
+          {
+            self.shock(direction,1);
+          },
+          function ()
+          {
+            self.shock(direction,2);
+          },
+          function ()
+          {
+            self.shock();
+          }
+        ]});
+      },
+      animStagger:function (attacker,direction)
+      {
+        var color;
+        var anim = new Tactics.Animation({frames:
+        [
+          function ()
+          {
+            self
+              .drawFrame(data.animations[self.direction].block.s)
+              .offsetFrame(0.06,direction);
+          },
+          function ()
+          {
+            self
+              .drawFrame(data.animations[self.direction].block.s)
+              .offsetFrame(-0.02,direction);
+          },
+          function ()
+          {
+            self.drawFrame(data.stills[self.direction]);
+          }
+        ]});
 
-						streaks1.lineTo(x,y);
-						streaks2.lineTo(x,y);
-						streaks3.lineTo(x,y);
-					});
-				});
+        if (attacker.color === self.color)
+        {
+          self.banned.push(attacker.team);
 
-				return self;
-			},
-			animStrike:function (attacker,direction)
-			{
-				return new Tactics.Animation({frames:
-				[
-					function ()
-					{
-						sounds.strike.play();
-					},
-					function ()
-					{
-						self.shock(direction,0);
-					},
-					function ()
-					{
-						self.shock(direction,1);
-					},
-					function ()
-					{
-						self.shock(direction,2);
-					},
-					function ()
-					{
-						self.shock();
-					}
-				]});
-			},
-			animStagger:function (attacker,direction)
-			{
-				var color;
-				var anim = new Tactics.Animation({frames:
-				[
-					function ()
-					{
-						self
-							.drawFrame(data.animations[self.direction].block.s)
-							.offsetFrame(0.06,direction);
-					},
-					function ()
-					{
-						self
-							.drawFrame(data.animations[self.direction].block.s)
-							.offsetFrame(-0.02,direction);
-					},
-					function ()
-					{
-						self.drawFrame(data.stills[self.direction]);
-					}
-				]});
+          $.each(board.getWinningTeams().reverse(),function (i,team)
+          {
+            if (self.banned.indexOf(i) > -1) return;
 
-				if (attacker.color === self.color)
-				{
-					self.banned.push(attacker.team);
+            anim.splice(self.animPhase(color = team.color));
+            return false;
+          });
 
-					$.each(board.getWinningTeams().reverse(),function (i,team)
-					{
-						if (self.banned.indexOf(i) > -1) return;
+          if (!color) anim.splice(self.animPhase());
+        }
 
-						anim.splice(self.animPhase(color = team.color));
-						return false;
-					});
+        return anim;
+      },
+      animBlock:function (attacker,direction)
+      {
+        var anim = new Tactics.Animation();
+        var block = data.animations[direction].block;
+        var frame = 0,shock = 0;
 
-					if (!color) anim.splice(self.animPhase());
-				}
+        anim
+          .addFrames(
+          [
+            function ()
+            {
+              self.direction = direction;
+            },
+            function ()
+            {
+              sounds.block.play();
+            }
+          ])
+          .splice(0,
+          {
+            script:function ()
+            {
+              self.drawFrame(block.s+frame++);
+            },
+            repeat:block.l
+          })
+          .splice(1,
+          [
+            {
+              script:function ()
+              {
+                self.shock(direction,shock++,1);
+              },
+              repeat:3
+            },
+            function ()
+            {
+              self.shock();
+            }
+          ]);
 
-				return anim;
-			},
-			animBlock:function (attacker,direction)
-			{
-				var anim = new Tactics.Animation();
-				var block = data.animations[direction].block;
-				var frame = 0,shock = 0;
+        return anim;
+      }
+    });
 
-				anim
-					.addFrames(
-					[
-						function ()
-						{
-							self.direction = direction;
-						},
-						function ()
-						{
-							sounds.block.play();
-						}
-					])
-					.splice(0,
-					{
-						script:function ()
-						{
-							self.drawFrame(block.s+frame++);
-						},
-						repeat:block.l
-					})
-					.splice(1,
-					[
-						{
-							script:function ()
-							{
-								self.shock(direction,shock++,1);
-							},
-							repeat:3
-						},
-						function ()
-						{
-							self.shock();
-						}
-					]);
-
-				return anim;
-			}
-		});
-
-		return self;
-	};
+    return self;
+  };
 })();
