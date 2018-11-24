@@ -9,6 +9,20 @@
 
     let data = Object.assign({
       /*
+       * Animations typically run at 12 frames-per-second.
+       */
+      fps: 12,
+      /*
+       * By default, the animation ends when all frames are rendered.
+       * But, loop can be used to restart the animation from a specific index.
+       */
+      loop: null,
+      /*
+       * Animation state contains arbitrary data that can help track the status
+       * of the animation as it runs or when it is stopped.
+       */
+      state: {},
+      /*
        * By default, frames are skipped to maintain animation speed on low-end
        * hardware.  But, all scripts are run to guarantee logical integrity.
        *
@@ -18,11 +32,17 @@
        *
        * May be set to "false" for potentially laggy, but complete, animations.
        */
-      skipFrames:'run-script'
+      skipFrames: 'run-script',
     }, options);
 
+    if (data.loop === true)
+      data.loop = 0;
+
+    utils.addEvents.call(self);
+
     Object.assign(self, {
-      frames:frames,
+      frames: frames,
+      state: data.state,
 
       /*
        * Append a frame to the animation.
@@ -145,6 +165,7 @@
         let render;
 
         data.playing = true;
+        self.emit({type:'play', state:self.state});
 
         if (data.skipFrames === 'run-script') {
           // Frames are skipped, but all scripts are run to maintain logical consistency.
@@ -156,7 +177,8 @@
               frame = frames[cursor++];
 
               for (let s = 0; s < frame.scripts.length; s++)
-                if (frame.scripts[s].call(self, frame) === false) return false;
+                if (frame.scripts[s].call(self, frame, self.state) === false)
+                  return false;
             }
           };
         }
@@ -171,7 +193,8 @@
               frame = frames[cursor++];
 
               for (let s = 0; s < frame.scripts.length; s++)
-                if (frame.scripts[s].call(self, frame) === false) return false;
+                if (frame.scripts[s].call(self, frame, self.state) === false)
+                  return false;
             }
           };
         }
@@ -181,7 +204,8 @@
             var frame = frames[cursor++];
 
             for (let s = 0; s < frame.scripts.length; s++)
-              if (frame.scripts[s].call(self, frame) === false) return false;
+              if (frame.scripts[s].call(self, frame, self.state) === false)
+                return false;
           };
         }
 
@@ -190,13 +214,11 @@
 
           Tactics.renderAnim(skip => {
             if (!data.playing) return false;
-            if (render(skip) === false || (cursor == frames.length && !data.loop)) {
-              data.playing = false;
-              resolve();
-              return;
-            }
+            if (render(skip) === false || (cursor == frames.length && data.loop === null))
+              return self.stop();
 
-            if (cursor == frames.length) cursor = 0;
+            if (cursor == frames.length)
+              cursor = data.loop || 0;
           }, data.fps);
         }).then(callback);
       },
@@ -205,7 +227,9 @@
        */
       stop: function () {
         data.playing = false;
-        if (data.resolver) data.resolver();
+        self.emit({type:'stop', state:self.state});
+
+        if (data.resolver) data.resolver(self.state);
       }
     });
 

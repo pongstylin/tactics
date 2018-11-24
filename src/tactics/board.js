@@ -326,29 +326,27 @@ Tactics.Board = function ()
         let assigned = event.target.assigned;
         let old_focused = self.focused;
 
-        if (event.type === 'focus') {
+        if (event.type === 'focus')
           self.focused = assigned;
-
-          if (assigned && !self.locked) {
-            let selected = self.selected;
-            let view_only = self.locked
-              || assigned.team !== self.turns[0]
-              || assigned.mRecovery > 0
-              || (selected && selected.attacked && selected !== assigned);
-
-             Tactics.sounds.focus.play();
-             self.focused = assigned.focus(view_only);
-          }
-        }
-        else {
-          if (assigned) {
-            assigned.blur();
-            if (assigned === old_focused)
-              self.focused = null;
-          }
-        }
+        else // event.type === 'blur'
+          if (assigned === old_focused)
+            self.focused = null;
 
         if (old_focused !== self.focused && !self.locked) {
+          if (old_focused)
+            old_focused.blur();
+
+          if (self.focused) {
+            let selected = self.selected;
+            let view_only = self.locked
+              || self.focused.team !== self.turns[0]
+              || self.focused.mRecovery > 0
+              || (selected && selected.attacked && selected !== self.focused);
+
+             Tactics.sounds.focus.play();
+             self.focused.focus(view_only);
+          }
+
           self.drawCard();
           self.emit({
             type:   'focus-change',
@@ -457,7 +455,7 @@ Tactics.Board = function ()
           important++;
         }
 
-        if (unit.can_special())
+        if (unit.canSpecial())
           notices.push('Enraged!');
 
         if (unit.barriered) {
@@ -832,8 +830,8 @@ Tactics.Board = function ()
         }
       }
       else {
-        let can_move   = unit.can_move();
-        let can_attack = unit.can_attack();
+        let can_move   = unit.canMove();
+        let can_attack = unit.canAttack();
 
         mode = self.selectMode;
 
@@ -912,13 +910,6 @@ Tactics.Board = function ()
 
       if (selected != self.selected || viewed != self.viewed)
         self.drawCard();
-
-      // Technically, the selection mode hasn't changed, but the selection has
-      self.emit({
-        type:   'select-mode-change',
-        ovalue: self.selectMode,
-        nvalue: self.selectMode,
-      });
 
       return self;
     },
@@ -1118,8 +1109,6 @@ Tactics.Board = function ()
       if (!Array.isArray(results))
         results = [results];
 
-      results.sort((a, b) => a.unit.assignment.y - b.unit.assignment.y || a.unit.assignment.x - b.unit.assignment.x);
-
       let showResult = result => {
         let unit = result.unit;
 
@@ -1136,7 +1125,8 @@ Tactics.Board = function ()
 
         if (result.miss) {
           unit.change({notice: 'Miss!'});
-          return unit.animCaption('Miss!').play();
+          let caption = result.notice || 'Miss!';
+          return unit.animCaption(caption).play();
         }
         else if ('mHealth' in result) {
           let increment;
@@ -1152,11 +1142,13 @@ Tactics.Board = function ()
 
           // Die if the unit is dead.
           if (result.mHealth === -unit.health) {
-            anim = unit.animCaption('Nooo...', options)
+            let caption = result.notice || 'Nooo...';
+            anim = unit.animCaption(caption, options)
               .splice(unit.animDeath(self));
           }
           else {
-            anim = unit.animCaption(Math.abs(diff).toString(), options);
+            let caption = result.notice || Math.abs(diff).toString();
+            anim = unit.animCaption(caption, options);
           }
 
           // Show a change in health in 1 second

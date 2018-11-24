@@ -15,13 +15,10 @@
         return board.teams[self.team].units.map(unit => unit.assignment);
       },
       highlightAttack: function () {
-        if (self.viewed) {
+        if (self.viewed)
           _super.highlightAttack();
-        }
-        else {
-          self.activated = 'target';
+        else
           self.getAttackTiles().forEach(target => self.highlightTarget(target));
-        }
 
         return self;
       },
@@ -30,15 +27,17 @@
         let direction        = board.getDirection(self.assignment, target, self.direction);
         let all_target_units = board.teams[self.team].units;
 
-        // The result is required to display the effect of an attack, whether it
+        // The results are required to display the effect of an attack, whether it
         // is a miss or how much health was lost or gained.
-        let result = self.calcAttackResults(all_target_units);
+        let results = self.calcAttackResults(all_target_units);
 
         let attackAnim = self.animAttack(target);
         attackAnim.splice(2, self.animHeal(all_target_units));
 
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim);
+
+        results.sort((a, b) => a.unit.assignment.y - b.unit.assignment.y || a.unit.assignment.x - b.unit.assignment.x);
 
         return anim.play().then(() => result);
       },

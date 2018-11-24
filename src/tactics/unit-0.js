@@ -11,6 +11,7 @@
     var walks = {};
     var attacks = {};
     var blocks = {};
+    var turns = {};
 
     $.extend(self,
     {
@@ -70,6 +71,11 @@
           });
         }
 
+        $.each(data.turns,function (direction,turn)
+        {
+          turns[direction] = self.compileFrame(turn);
+        });
+
         self.assign(assignment);
         self.origin = {tile:assignment,direction:direction};
         self.direction = direction;
@@ -109,7 +115,7 @@
         frame.addChild(sprite);
 
         sprite = PIXI.Sprite.fromImage(imageBase+'color/image'+icolor.src+'.png');
-        sprite.data = {name: 'color'};
+        sprite.data = {name: 'trim'};
         sprite.position = new PIXI.Point(icolor.x-anchor.x,icolor.y-anchor.y);
         frame.addChild(sprite);
 
@@ -133,6 +139,12 @@
         self.filters = {};
 
         return self;
+      },
+      drawTurn: function () {
+        self.drawFrame(turns[self.direction]);
+      },
+      drawStand: function () {
+        self.drawFrame(stills[self.direction]);
       },
       drawAvatar:function ()
       {

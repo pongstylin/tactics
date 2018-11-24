@@ -473,6 +473,13 @@ Tactics = (function ()
             {anchor:{x:14,y:72},base:{src:'5307',x:1,y:0},color:{src:'5159',x:0,y:9},shadow:{src:'147',x:67,y:87,flip:1}},
             {anchor:{x:14,y:70},base:{src:'5309',x:1,y:0},color:{src:'5161',x:0,y:7},shadow:{src:'149',x:66,y:84,flip:1}}
           ]
+        },
+        turns:
+        {
+          N: {anchor:{x:31,y:67},base:{src:'5237',x:0,y:0},color:{src:'5089',x:0, y:3},shadow:{src:'72',x:52,y:82,flip:1}},
+          S: {anchor:{x:18,y:63},base:{src:'5164',x:0,y:0},color:{src:'5015',x:0,y:3},shadow:{src:'72',x:-1,y:46}},
+          W: {anchor:{x:47,y:61},base:{src:'5201',x:0,y:0},color:{src:'5053',x:21,y:2},shadow:{src:'113',x:0,y:48}},
+          E: {anchor:{x:21,y:69},base:{src:'5276',x:0,y:0},color:{src:'5128',x:0,y:5},shadow:{src:'113',x:71,y:81,flip:1}},
         }
       },
       {name:'Pyromancer'},
@@ -551,11 +558,17 @@ Tactics = (function ()
           attack2: 'sound809',
           //block:   'sound12',
           block:   'sound2021',
+          bomb1:   'sound1368',
+          bomb2:   'sound1370',
+        },
+        effects: {
+          explode: {
+            frames_url:    'http://www.taorankings.com/html5/json/explode.json',
+            frames_offset: {y:-8},
+          },
         },
         frames_url: 'http://www.taorankings.com/html5/json/assassin.json',
-        frames_offset: {
-          y: -10,
-        },
+        frames_offset: {y:-10},
         stills: {
           S: 1,
           W: 55,
@@ -856,13 +869,10 @@ Tactics = (function ()
       {name:'Furgon'},
       {name:'Shrub'},
       {
-        name:'Champion',
-        stills:{S:0,N:1},
-        frames:
-        [
-          {x:-26,y:-67,c:[{id:6354},{id:4713,x:-1,y:-1}]},
-          {x:-30,y:-102,c:[{id:6354,f:'B'},{id:4715,x:-1,y:-1}]}
-        ]
+        name:          'Champion',
+        frames_url:    'http://www.taorankings.com/html5/json/trophy.json',
+        frames_offset: {y:-20},
+        stills:        {S:0, N:1},
       },
       {name:'Ambusher'},
       {name:'Berserker'},
