@@ -14,16 +14,18 @@ Tactics.App = (function ($, window, document) {
         c: 10,
         b: 0,
         u: {
-          fa:{t:3,d:'S'},
-          bc:{t:7,d:'S'},ec:{t:0,d:'S'},fc:{t:0,d:'S'},gc:{t:0,d:'S'},
+          fa:{t:3, d:'S'},
+          db:{t:1, d:'S'},hb:{t:1, d:'S'},
+          bc:{t:7, d:'S'},ec:{t:0, d:'S'},fc:{t:0, d:'S'},gc:{t:0, d:'S'},
         }
       },
       {
         c: 2,
         b: 0,
         u: {
-          ei:{t:0,d:'N'},fi:{t:0,d:'N'},gi:{t:0,d:'N'},ji:{t:7,d:'N'},
-          fk:{t:3,d:'N'},
+          ei:{t:0, d:'N'},fi:{t:0, d:'N'},gi:{t:0, d:'N'},ji:{t:7, d:'N'},
+          dj:{t:1, d:'N'},hj:{t:1, d:'N'},
+          fk:{t:3, d:'N'},
         }
       },
     ],

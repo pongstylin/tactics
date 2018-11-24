@@ -9,9 +9,6 @@
     var special_ready = false;
 
     Object.assign(self, {
-      animDeploy: function (assignment) {
-        return self.animWalk(assignment);
-      },
       highlightAttack: function () {
         if (self.viewed)
           _super.highlightAttack();

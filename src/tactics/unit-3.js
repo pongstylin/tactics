@@ -2,15 +2,12 @@
   'use strict';
 
   Tactics.units[3].extend = function (self) {
+    var _super = Object.assign({}, self);
     var board = Tactics.board;
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
-    var _super = Object.assign({}, self);
 
     Object.assign(self, {
-      animDeploy: function (assignment) {
-        return self.animWalk(assignment);
-      },
       getAttackTiles: function () {
         return board.teams[self.team].units.map(unit => unit.assignment);
       },
@@ -39,7 +36,7 @@
 
         results.sort((a, b) => a.unit.assignment.y - b.unit.assignment.y || a.unit.assignment.x - b.unit.assignment.x);
 
-        return anim.play().then(() => result);
+        return anim.play().then(() => results);
       },
       calcAttack: function (target_unit) {
         let calc = {

@@ -117,19 +117,8 @@
           .unlock();
       });
     };
-    var onDeployFocus  = event => event.target.pixi.alpha = 0.6;
-    var onDeployBlur   = event => event.target.pixi.alpha = 0.3;
-    var onAttackSelect = event => {
-      let tile = event.target;
-
-      board.clearHighlight();
-
-      // This makes it possible to click the attack button to switch from target
-      // mode to attack mode.
-      self.activated = 'target';
-
-      self.highlightTarget(tile);
-    };
+    var onDeployFocus  = event => event.target.setAlpha(0.6);
+    var onDeployBlur   = event => event.target.setAlpha(0.3);
 
     utils.addEvents.call(self);
 
@@ -331,9 +320,9 @@
             return Object.assign(result, {miss: true});
 
           let calc = self.calcAttack(unit);
-          let luck = Math.random() * 100;
+          let bad_luck = Math.random() * 100;
 
-          if (luck < calc.block)
+          if (bad_luck > calc.chance)
             return Object.assign(result, {
               miss:      true,
               blocked:   true,
@@ -747,7 +736,7 @@
             action: 'attack',
             tile:   tile,
             color:  0xFF8800,
-            select: onAttackSelect,
+            select: self.onAttackSelect,
             focus:  self.onAttackFocus,
             blur:   self.onAttackBlur,
           }, self.viewed);
@@ -763,8 +752,8 @@
           tile:   target,
           color:  0xFF3300,
           select: self.onTargetSelect,
-          focus:  self.onAttackFocus,
-          blur:   self.onAttackBlur,
+          focus:  self.onTargetFocus,
+          blur:   self.onTargetBlur,
         }, self.viewed);
 
         if (target.focused) self.onAttackFocus({target:target});
@@ -1032,7 +1021,7 @@
         if (!self.assignment.painted)
           self.assignment.paint('focus', 0.3);
         else
-          self.assignment.pixi.alpha *= 2;
+          self.assignment.setAlpha(self.assignment.pixi.alpha * 2);
 
         return !pulse && !viewed ? startPulse(6) : self;
       },
@@ -1044,7 +1033,7 @@
         if (self.assignment.painted === 'focus')
           self.assignment.strip();
         else
-          self.assignment.pixi.alpha /= 2;
+          self.assignment.setAlpha(self.assignment.pixi.alpha / 2);
 
         return pulse && !self.activated ? stopPulse() : self;
       },
@@ -1165,6 +1154,12 @@
             }
           ]
         });
+      },
+      /*
+       * Right now, the default expectation is units walk from A to B.
+       */
+      animDeploy: function (assignment) {
+        return self.animWalk(assignment);
       },
       /*
        * Units turn in the direction they are headed before they go there.
@@ -1634,6 +1629,17 @@
           options,
         );
       },
+      onAttackSelect: function (event) {
+        let tile = event.target;
+
+        board.clearHighlight();
+
+        // This makes it possible to click the attack button to switch from target
+        // mode to attack mode.
+        self.activated = 'target';
+
+        self.highlightTarget(tile);
+      },
       onTargetSelect: function (event) {
         board.lock();
         self.freeze();
@@ -1648,6 +1654,12 @@
               .setSelectMode(self.deployed ? 'turn' : 'move')
               .unlock();
           });
+      },
+      onTargetFocus: function (event) {
+        return self.onAttackFocus(event);
+      },
+      onTargetBlur: function (event) {
+        return self.onAttackBlur(event);
       },
       onSpecialSelect: function () {
         board.lock();
@@ -1690,13 +1702,12 @@
               notice: '-'+calc.damage+' ('+Math.round(calc.chance)+'%)'
             });
         }
-        else {
-          tile.pixi.alpha = 0.6;
-        }
+
+        tile.setAlpha(0.6);
       },
       onAttackBlur: function (event) {
         if (!event.target.assigned)
-          event.target.pixi.alpha = 0.3;
+          event.target.setAlpha(0.3);
       },
       canMove: function () {
         return !!self.getMoveTiles().length

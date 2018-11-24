@@ -1216,11 +1216,11 @@ Tactics.Board = function ()
       if (highlighted.find(h => h.tile === tile))
         throw new Error('Attempt made to highlight highlighted tile');
 
-      tile.paint(
-        highlight.action,
-        viewed ? 0.15 : 0.3,
-        highlight.color,
-      );
+      let alpha =
+        viewed ? 0.15 :
+        tile.focused ? 0.6 : 0.3;
+
+      tile.paint(highlight.action, alpha, highlight.color);
 
       if (!viewed) {
         tile.action = highlight.action;
