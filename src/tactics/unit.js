@@ -666,7 +666,9 @@
           frame.tint = 0xFFFFFF;
 
           frame.children.forEach(sprite => {
-            sprite.filters = null;
+            // Apply unit filters to the base and trim sprites.
+            if (sprite.data.name === 'base' || sprite.data.name === 'trim')
+              sprite.filters = Object.keys(self.filters).map(name => self.filters[name]);
 
             // Legacy
             if (sprite.data.t)
@@ -900,13 +902,18 @@
           setFilter(name, undefined);
         }
         else {
-          matrix = setFilter(name,'ColorMatrixFilter').matrix;
+          matrix = setFilter(name, 'ColorMatrixFilter').matrix;
           matrix[3] = matrix[8] = matrix[13] = intensity;
         }
 
         return self;
       },
-      colorize: function (color) {
+      /*
+       * Add color to the unit's base and trim.
+       * Example, increase the redness by 128 (0x880000).
+       *   self.colorize(0xFF0000, 0.5);
+       */
+      colorize: function (color, lightness) {
         var name = 'colorize';
         var matrix;
 
@@ -917,14 +924,17 @@
             ((color & 0x0000FF) / 0x0000FF),
           ];
 
-        if (color === null) {
+        if (typeof lightness === 'number')
+          color = color.map(c => Math.min(c * lightness, 1));
+
+        if (color === null || lightness === 0) {
           setFilter(name, undefined);
         }
         else {
-          matrix = setFilter(name,'ColorMatrixFilter').matrix;
-          matrix[3]  = color[0] / 256;
-          matrix[8]  = color[1] / 256;
-          matrix[13] = color[2] / 256;
+          matrix = setFilter(name, 'ColorMatrixFilter').matrix;
+          matrix[3]  = color[0];
+          matrix[8]  = color[1];
+          matrix[13] = color[2];
         }
 
         return self;
@@ -1535,7 +1545,7 @@
           {
             script: () => {
               index++;
-              target_units.forEach(tunit => tunit.colorize([0x40 / 5 * index, 0x40 / 5 * index, 0]));
+              target_units.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
             },
             repeat: 5,
           },
@@ -1543,7 +1553,7 @@
           {
             script: () => {
               index--;
-              target_units.forEach(tunit => tunit.colorize([0x40 / 5 * index, 0x40 / 5 * index, 0]));
+              target_units.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
             },
             repeat: 5,
           },
@@ -1743,6 +1753,10 @@
       },
     });
 
+    /*
+     * Applies and returns a new filter to the base and trim sprites.
+     * If the filter name already exists, it just returns it.
+     */
     function setFilter(name, type) {
       var filters = self.filters;
 

@@ -279,6 +279,7 @@ Tactics.App = (function ($, window, document) {
     let loaded = 0;
     let loader = PIXI.loader;
     let unit_types = [];
+    let effects = {};
 
     function progress() {
       let percent = (++loaded / resources.length) * 100;
@@ -371,11 +372,19 @@ Tactics.App = (function ($, window, document) {
         if (unit.effects) {
           Object.keys(unit.effects).forEach(name => {
             let effect_url = unit.effects[name].frames_url;
-            resources.push(effect_url);
 
-            $.getJSON(effect_url).then(renderData => {
+            if (!(effect_url in effects)) {
+              resources.push(effect_url);
+
+              effects[effect_url] = $.getJSON(effect_url).then(renderData => {
+                progress();
+                return renderData;
+              });
+            }
+  
+            effects[effect_url].then(renderData => {
               Object.assign(unit.effects[name], renderData);
-              progress();
+              return renderData;
             });
           });
         }

@@ -20,7 +20,7 @@
         return self;
       },
       attack: function (target) {
-        let anim             = new Tactics.Animation({fps: 12});
+        let anim             = new Tactics.Animation();
         let direction        = board.getDirection(self.assignment, target, self.direction);
         let all_target_units = board.teams[self.team].units;
 

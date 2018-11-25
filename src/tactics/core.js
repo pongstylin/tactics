@@ -488,12 +488,20 @@ Tactics = (function ()
         power:      15,
         armor:      0,
         health:     30,
-        recovery:   2,
+        recovery:   3,
         blocking:   33,
         aType:      'magic',
         aRadius:    3,
         mRadius:    3,
-        sounds:     {},
+        sounds:     {
+          attack: 'sound431',
+        },
+        effects: {
+          fireblast: {
+            frames_url:    'http://www.taorankings.com/html5/json/explode.json',
+            frames_offset: {y:-8},
+          },
+        },
         frames_url: 'http://www.taorankings.com/html5/json/pyromancer.json',
         frames_offset: {y:-10},
         stills: {

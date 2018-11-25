@@ -1190,7 +1190,7 @@ Tactics.Board = function ()
       highlighted.forEach(highlight => {
         var tile = highlight.tile;
 
-        if (tile.focused && tile.assigned)
+        if (tile.focused && tile.assigned && !self.locked)
           tile.paint('focus', 0.3);
         else
           tile.strip();
