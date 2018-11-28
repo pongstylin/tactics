@@ -120,6 +120,9 @@
       set_interactive: function (bool) {
         self.pixi.buttonMode = bool;
       },
+      setAlpha: function (alpha) {
+        self.pixi.alpha = alpha;
+      },
       paint: function (name, alpha, color) {
         self.painted    = name;
         self.pixi.tint  = color || 0xFFFFFF;

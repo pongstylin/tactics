@@ -107,7 +107,7 @@ BODY
 {
 	outline:none;
 }
-#app > .buttons BUTTON.selected
+#app:not(.locked) > .buttons BUTTON.selected
 {
 	margin:1px;
 	border-width:2px;
@@ -156,7 +156,7 @@ BODY
 	100% { box-shadow: none;                 }
 }
 
-#app > .buttons BUTTON.ready {
+#app:not(.locked) > .buttons BUTTON.ready {
 	-webkit-animation: glow ease-in-out 1s infinite;
 	animation: glow ease-in-out 1s infinite;
   cursor: pointer;

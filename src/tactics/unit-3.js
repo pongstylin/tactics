@@ -2,37 +2,31 @@
   'use strict';
 
   Tactics.units[3].extend = function (self) {
+    var _super = Object.assign({}, self);
     var board = Tactics.board;
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
-    var _super = Object.assign({}, self);
 
     Object.assign(self, {
-      animDeploy: function (assignment) {
-        return self.animWalk(assignment);
-      },
       getAttackTiles: function () {
         return board.teams[self.team].units.map(unit => unit.assignment);
       },
       highlightAttack: function () {
-        if (self.viewed) {
+        if (self.viewed)
           _super.highlightAttack();
-        }
-        else {
-          self.activated = 'target';
+        else
           self.getAttackTiles().forEach(target => self.highlightTarget(target));
-        }
 
         return self;
       },
       attack: function (target) {
-        let anim             = new Tactics.Animation({fps: 12});
+        let anim             = new Tactics.Animation();
         let direction        = board.getDirection(self.assignment, target, self.direction);
         let all_target_units = board.teams[self.team].units;
 
-        // The result is required to display the effect of an attack, whether it
+        // The results are required to display the effect of an attack, whether it
         // is a miss or how much health was lost or gained.
-        let result = self.calcAttackResults(all_target_units);
+        let results = self.calcAttackResults(all_target_units);
 
         let attackAnim = self.animAttack(target);
         attackAnim.splice(2, self.animHeal(all_target_units));
@@ -40,7 +34,9 @@
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim);
 
-        return anim.play().then(() => result);
+        results.sort((a, b) => a.unit.assignment.y - b.unit.assignment.y || a.unit.assignment.x - b.unit.assignment.x);
+
+        return anim.play().then(() => results);
       },
       calcAttack: function (target_unit) {
         let calc = {
