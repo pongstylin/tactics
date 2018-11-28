@@ -15,7 +15,7 @@ Tactics.App = (function ($, window, document) {
         b: 0,
         u: {
           fa:{t:3, d:'S'},
-          db:{t:1, d:'S'},hb:{t:1, d:'S'},
+          db:{t:1, d:'S'},hb:{t:1, d:'S'},ib:{t:8, d:'S'},
           bc:{t:7, d:'S'},ec:{t:0, d:'S'},fc:{t:0, d:'S'},gc:{t:0, d:'S'},
         }
       },
@@ -24,7 +24,7 @@ Tactics.App = (function ($, window, document) {
         b: 0,
         u: {
           ei:{t:0, d:'N'},fi:{t:0, d:'N'},gi:{t:0, d:'N'},ji:{t:7, d:'N'},
-          dj:{t:1, d:'N'},hj:{t:1, d:'N'},
+          cj:{t:8, d:'N'},dj:{t:1, d:'N'},hj:{t:1, d:'N'},
           fk:{t:3, d:'N'},
         }
       },
@@ -103,7 +103,7 @@ Tactics.App = (function ($, window, document) {
                 $('BUTTON[name=pass]').addClass('ready');
               }
               else {
-                selected.turn(90).hideMode().showMode();
+                selected.turn(90).showMode();
                 $('BUTTON[name=select][value=turn]').removeClass('ready');
               }
             }
@@ -327,6 +327,24 @@ Tactics.App = (function ($, window, document) {
       });
 
       resources.push(url);
+    });
+
+    Object.keys(Tactics.effects).forEach(name => {
+      let effect_url = Tactics.effects[name].frames_url;
+
+      if (!(effect_url in effects)) {
+        resources.push(effect_url);
+
+        effects[effect_url] = $.getJSON(effect_url).then(renderData => {
+          progress();
+          return renderData;
+        });
+      }
+  
+      effects[effect_url].then(renderData => {
+        Object.assign(Tactics.effects[name], renderData);
+        return renderData;
+      });
     });
 
     let trophy_url = Tactics.units[19].frames_url;

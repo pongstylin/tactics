@@ -20,6 +20,7 @@ import 'tactics/unit-0.js';
 import 'tactics/unit-1.js';
 import 'tactics/unit-3.js';
 import 'tactics/unit-7.js';
+import 'tactics/unit-8.js';
 import 'tactics/unit-15.js';
 import 'tactics/unit-22.js';
 import 'tactics/utils-array.js';
