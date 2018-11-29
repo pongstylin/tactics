@@ -58,7 +58,10 @@
        */
       addFrame: function (frame) {
         let index = frames.length;
-        let template = {scripts:[],duration:1000/data.fps};
+        let template = {
+          scripts:  [],
+          duration: 1000/data.fps
+        };
 
         if (typeof frame === 'function') {
           frame = Object.assign(template, {scripts: [frame]});
@@ -76,11 +79,23 @@
         if (repeat = frame.repeat) {
           delete frame.repeat;
 
-          for (let i = 0; i < repeat; i++)
-            frames[frames.length] = $.extend(true, {}, frame, {index: index + i});
+          for (let i = 0; i < repeat; i++) {
+            let repeat_frame = $.extend(true, {}, frame, {
+              index:        index + i,
+              repeat_index: i,
+            });
+
+            repeat_frame.scripts = repeat_frame.scripts.map(s => s.bind(this, repeat_frame));
+            frames.push(repeat_frame);
+          }
         }
         else {
-          frames[frames.length] = Object.assign({}, frame, {index: index});
+          frame = Object.assign({}, frame, {
+            index: index,
+          });
+
+          frame.scripts = frame.scripts.map(s => s.bind(this, frame));
+          frames.push(frame);
         }
 
         return self;
@@ -98,8 +113,12 @@
        * Combine (splice) multiple animations in powerful ways.
        *
        * Usage: splice([offset,] animation)
-       *   offset: (optional) One or more target animation frame indexes.
-       *   animation: One or more frames and/or animation objects.
+       *   offset: (optional)
+       *     One or more target animation frame indexes.
+       *     The index may be negative where -1 is the last frame.
+       *     The index may be the next index at the end.
+       *   animation:
+       *     One or more frames and/or animation objects.
        *
        * Note: When merging frames, the original frame duration is unchanged.
        *
@@ -142,6 +161,10 @@
 
         offsets.forEach((offset, i) => {
           if (offset > frames.length) throw 'Start index too high';
+          if (offset < 0) {
+            offset = frames.length - offset + 1;
+            if (offset < 0) throw 'Start index too low';
+          }
 
           for (let i = 0; i < anim.frames.length; i++)
             if (offset+i < frames.length)
@@ -285,7 +308,7 @@
           if (frame = frames.shift())
             container.addChild(frame);
         },
-        repeat:frames.length+1
+        repeat: frames.length+1,
       }
     ]});
   };

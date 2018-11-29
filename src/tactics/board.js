@@ -338,9 +338,9 @@ Tactics.Board = function ()
 
           if (self.focused) {
             let selected = self.selected;
-            let view_only = self.locked
-              || self.focused.team !== self.turns[0]
+            let view_only = self.focused.team !== self.turns[0]
               || self.focused.mRecovery > 0
+              || self.focused.paralyzed !== false
               || (selected && selected.attacked && selected !== self.focused);
 
              Tactics.sounds.focus.play();
@@ -460,6 +460,11 @@ Tactics.Board = function ()
 
         if (unit.barriered) {
           notices.push('Barriered!');
+          important++;
+        }
+
+        if (unit.focusing) {
+          notices.push('Focused!');
           important++;
         }
 
@@ -809,7 +814,7 @@ Tactics.Board = function ()
       var viewed = self.viewed;
       var mode;
 
-      if (unit == viewed) return self.drawCard();
+      if (unit === viewed) return self.drawCard();
 
       if (viewed) {
         viewed.deactivate();
@@ -830,37 +835,31 @@ Tactics.Board = function ()
         }
       }
       else {
-        let can_move   = unit.canMove();
-        let can_attack = unit.canAttack();
+        // Do what a unit can can[].
+        let can = [];
+        if (unit.canMove())
+          can.push('move');
+        if (unit.canAttack())
+          can.push('attack');
+        if (unit.canTurn())
+          can.push('turn');
 
         mode = self.selectMode;
+        if (mode === null || can.indexOf(mode) === -1)
+          mode = can.shift();
 
-        if (mode === null) {
-          if (can_move)
-            mode = 'move';
-          else if (can_attack)
-            mode = 'attack';
-        }
-        else {
-          if (mode === 'move' && !can_move)
-            mode = can_attack ? 'attack' : null;
-          else if (mode === 'attack' && !can_attack)
-            mode = can_move   ? 'move'   : null;
-        }
+        let view_only = unit.team !== self.turns[0]
+          || unit.mRecovery > 0
+          || unit.paralyzed !== false
+          || (selected && selected.attacked && selected !== unit);
 
-        if (
-          !unit.mRecovery &&
-          self.turns[0] == unit.team &&
-          (!selected || !selected.attacked)
-        ) {
-          // select mode
-          if (selected) selected.reset();
-          self.selected = unit;
-        }
-        else {
-          // view mode
+        if (view_only) {
           if (selected && !viewed) selected.hideMode();
           self.viewed = unit;
+        }
+        else {
+          if (selected) selected.reset();
+          self.selected = unit;
         }
       }
 
@@ -880,35 +879,36 @@ Tactics.Board = function ()
         if (viewed) viewed.deactivate();
         self.viewed = null;
       }
-      else if (!team.bot) {
-        if (viewed) {
-          viewed.deactivate();
-          self.viewed = null;
-
-          if (selected)
-            if (selected.activated == 'direction')
-              selected.activate('turn');
-            else if (selected.activated == 'target')
-              selected.activate('attack');
-            else
-              selected.showMode();
-
-          self.setSelectMode(selected ? selected.activated : self.selectMode);
-        }
-        else if (selected && !selected.attacked) {
-          // Cancel any deployment or turning then deselect.
-          selected.reset();
-          self.selected = null;
-        }
-        else
-          return self;
-      }
-      else {
+      else if (team.bot) {
         if (selected) selected.deactivate();
         self.selected = null;
       }
+      else if (viewed) {
+        viewed.deactivate();
+        self.viewed = null;
 
-      if (selected != self.selected || viewed != self.viewed)
+        if (selected)
+          if (selected.activated == 'direction')
+            selected.activate('turn');
+          else if (selected.activated == 'target')
+            selected.activate('attack');
+          else
+            selected.showMode();
+
+        self.setSelectMode(selected ? selected.activated : self.selectMode);
+      }
+      else if (selected && !selected.attacked) {
+        // Cancel any deployment or turning then deselect.
+        selected.reset();
+        self.selected = null;
+
+        if (selected.activated !== 'move')
+          self.setSelectMode('move');
+      }
+      else
+        return self;
+
+      if (selected !== self.selected || viewed !== self.viewed)
         self.drawCard();
 
       return self;
@@ -1110,16 +1110,19 @@ Tactics.Board = function ()
         results = [results];
 
       let showResult = result => {
+        let anim = new Tactics.Animation();
         let unit = result.unit;
 
         self.drawCard(unit);
 
-        let change = {notice: null};
+        let change = Object.assign({}, result);
 
-        if ('mBlocking' in result)
-          change.mBlocking = result.mBlocking;
-        if ('mRecovery' in result)
-          change.mRecovery = result.mRecovery;
+        // Changed later
+        change.notice = null;
+        delete change.mHealth;
+
+        // Not changes
+        delete change.miss;
 
         unit.change(change);
 
@@ -1128,7 +1131,41 @@ Tactics.Board = function ()
           let caption = result.notice || 'Miss!';
           return unit.animCaption(caption).play();
         }
-        else if ('mHealth' in result) {
+
+        if (result.focusing) {
+          let caption = result.notice;
+          let index = anim.frames.length;
+          if (caption)
+            anim.splice(index, unit.animCaption(caption, options));
+          anim.splice(index, unit.animFocus());
+
+          return anim.play();
+        }
+
+        // Detect and animate a loss of focus
+        if (unit.focusing)
+          if (result.poisoned || result.paralyzed || (result.mHealth && result.mHealth < unit.mHealth))
+            anim.splice(unit.animBreakFocus());
+
+        if (result.paralyzed) {
+          let caption = result.notice || 'Paralyzed!';
+          let index = anim.frames.length;
+          anim.splice(index, unit.animCaption(caption, options));
+          anim.splice(index, unit.animFocus());
+
+          return anim.play();
+        }
+
+        if (result.poisoned) {
+          let caption = result.notice || 'Poisoned!';
+          let index = anim.frames.length;
+          anim.splice(index, unit.animCaption(caption, options));
+          anim.splice(index, unit.animFocus());
+
+          return anim.play();
+        }
+
+        if ('mHealth' in result) {
           let increment;
           let options = {};
 
@@ -1137,21 +1174,21 @@ Tactics.Board = function ()
           else if (result.mHealth < unit.mHealth && result.mHealth !== -unit.health)
             options.color = '#FFBB44';
 
-          let diff = unit.mHealth - result.mHealth;
-          let anim;
-
           // Die if the unit is dead.
           if (result.mHealth === -unit.health) {
             let caption = result.notice || 'Nooo...';
-            anim = unit.animCaption(caption, options)
+            anim
+              .splice(unit.animCaption(caption, options))
               .splice(unit.animDeath(self));
-          }
-          else {
-            let caption = result.notice || Math.abs(diff).toString();
-            anim = unit.animCaption(caption, options);
+
+            return anim.play();
           }
 
-          // Show a change in health in 1 second
+          let diff = unit.mHealth - result.mHealth;
+          let caption = result.notice || Math.abs(diff).toString();
+          anim.splice(0, unit.animCaption(caption, options));
+
+          // Animate a change in health over 1 second (12 frames)
           if (result.mHealth !== unit.mHealth) {
             let progress = unit.mHealth;
 

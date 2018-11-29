@@ -294,6 +294,12 @@ Tactics = (function ()
       select:'sound14',
       strike:'sound6',
     },
+    effects: {
+      focus: {
+        frames_url: 'http://www.taorankings.com/html5/json/focus.json',
+        frames_offset: {y:-16},
+      },
+    },
     animations:
     {
       death:
@@ -499,11 +505,10 @@ Tactics = (function ()
         effects: {
           fireblast: {
             frames_url:    'http://www.taorankings.com/html5/json/explode.json',
-            frames_offset: {y:-8},
+            frames_offset: {y:-20},
           },
         },
         frames_url: 'http://www.taorankings.com/html5/json/pyromancer.json',
-        frames_offset: {y:-10},
         stills: {
           S: 1,
           W: 36,
@@ -628,11 +633,11 @@ Tactics = (function ()
         effects: {
           explode: {
             frames_url:    'http://www.taorankings.com/html5/json/explode.json',
-            frames_offset: {y:-8},
+            frames_offset: {y:-20},
           },
         },
         frames_url: 'http://www.taorankings.com/html5/json/assassin.json',
-        frames_offset: {y:-10},
+        frames_offset: {y:-4},
         stills: {
           S: 1,
           W: 55,
@@ -682,7 +687,64 @@ Tactics = (function ()
           E: 216,
         },
       },
-      {name:'Enchantress'},
+      {
+        name:     'Enchantress',
+        ability:  'Paralysis',
+        power:    0,
+        armor:    0,
+        health:   35,
+        recovery: 3,
+        blocking: 0,
+        aType:    'magic',
+        aRadius:  2,
+        mRadius:  3,
+        sounds:   {
+          paralyze: 'sound2393',
+        },
+        effects: {
+          streaks: {
+            frames_url:    'http://www.taorankings.com/html5/json/streaks.json',
+            frames_offset: {y:-26},
+          },
+        },
+        frames_url: 'http://www.taorankings.com/html5/json/enchantress.json',
+        stills: {
+          S: 0,
+          W: 36,
+          N: 72,
+          E: 108,
+        },
+        backSteps: {
+          S: [  2,   7],
+          W: [ 38,  43],
+          N: [ 74,  79],
+          E: [110, 115],
+        },
+        foreSteps: {
+          S: [  8,  11],
+          W: [ 44,  47],
+          N: [ 80,  83],
+          E: [116, 119],
+        },
+        walks: {
+          S: [ 12,  19],
+          W: [ 48,  55],
+          N: [ 84,  91],
+          E: [120, 127],
+        },
+        attacks: {
+          S: [ 21,  33],
+          W: [ 57,  69],
+          N: [ 93, 105],
+          E: [129, 141],
+        },
+        turns: {
+          S: 35,
+          W: 71,
+          N: 107,
+          E: 143,
+        },
+      },
       {name:'Mud Golem'},
       {name:'Frost Golem'},
       {name:'Stone Golem'},

@@ -17,16 +17,24 @@
     };
 
     let selectTurnEvent = event => {
+      let target = event.target;
       Tactics.sounds.select.play();
 
       hideTurnOptions();
       event.currentTarget.filters = null;
 
-      turnsUnit.turn(event.target.data.direction);
-      turnsUnit.turned = true;
+      let doIt = () => {
+        turnsUnit.turn(target.data.direction);
+        turnsUnit.turned = true;
 
-      Tactics.board.setSelectMode('ready');
-      Tactics.render();
+        Tactics.board.setSelectMode('ready');
+        Tactics.render();
+      };
+
+      if (turnsUnit.focusing)
+        turnsUnit.animBreakFocus().play().then(doIt);
+      else
+        doIt();
     };
     let focusTurnEvent = event => {
       Tactics.sounds.focus.play();
@@ -112,9 +120,16 @@
     var onDeploySelect = event => {
       board.lock();
       self.deploy(event.target).then(() => {
-        board
-          .setSelectMode(self.attacked ? 'turn' : 'attack')
-          .unlock();
+        if (self.attacked) {
+          if (self.blocking)
+            board.setSelectMode('turn');
+          else
+            board.setSelectMode('ready');
+        }
+        else
+          board.setSelectMode('attack');
+
+        board.unlock();
       });
     };
     var onDeployFocus  = event => event.target.setAlpha(0.6);
@@ -163,6 +178,10 @@
       ability:   data.ability,
       specialty: data.specialty,
 
+      // May be set to an array of units being focused upon
+      focusing:  false,
+
+      // May be set to an array of units focused upon me.
       poisoned:  false,
       paralyzed: false,
       barriered: false,
@@ -279,7 +298,7 @@
           return calc;
         }
 
-        if (data.aType === 'melee') {
+        if (data.aType === 'melee' && target_unit.paralyzed === false) {
           if (target_unit.directional !== false) {
             direction = board.getDirection(from || self.assignment,target_unit.assignment);
 
@@ -520,7 +539,11 @@
         self.color = color === null ? 0xFFFFFF : Tactics.colors[color];
         self.assign(assignment);
         self.direction = direction;
-        self.origin = {tile:assignment,direction:direction};
+        self.origin = {
+          tile:      assignment,
+          direction: direction,
+          focusing:  false,
+        };
 
         return self.drawFrame(data.stills[self.directional === false ? 'S' : direction]);
       },
@@ -529,19 +552,21 @@
         container.data = frame;
         if (!frame.length || frame.c) return container;
 
+        let offset;
         if (data.width && data.height) {
-          container.position = new PIXI.Point(
-            Math.floor(-(data.width / 2)),
-            Math.floor(-(data.height / 2) - HALF_TILE_HEIGHT),
+          offset = new PIXI.Point(
+            Math.floor(-data.width / 2),
+            Math.floor(-data.height + (HALF_TILE_HEIGHT*4/3)),
           );
 
           // Finicky
-          let offset = data.frames_offset || {};
-          container.position.x += offset.x || 0;
-          container.position.y += offset.y || 0;
+          if (data.frames_offset) {
+            offset.x += data.frames_offset.x || 0;
+            offset.y += data.frames_offset.y || 0;
+          }
         }
         else // Legacy
-          container.position = new PIXI.Point(frame.x||0,(frame.y||0)-2);
+          offset = new PIXI.Point(frame.x || 0, (frame.y || 0) - 2);
 
         container.alpha = 'a' in frame ? frame.a : 1;
 
@@ -566,7 +591,6 @@
               delete shape.id;
             }
             else {
-              console.error('shape', shape);
               throw new Error('Frames without images are not supported');
             }
 
@@ -583,6 +607,11 @@
               shape.am = shape.a;
               delete shape.a;
             }
+
+            if (!('x' in shape))
+              shape.x = 0;
+            if (!('y' in shape))
+              shape.y = 0;
           }
 
           /*
@@ -590,7 +619,7 @@
            */
           var sprite = PIXI.Sprite.fromImage(shape.image);
           sprite.data = shape;
-          sprite.position = new PIXI.Point(shape.x, shape.y);
+          sprite.position = new PIXI.Point(shape.x + offset.x, shape.y + offset.y);
           sprite.alpha = 'am' in shape ? shape.am : 1;
 
           // Legacy
@@ -649,13 +678,7 @@
         if (frame.data) {
           // Reset Normal Appearance
           if (data.width && data.height) {
-            frame.position.x = Math.floor(-(data.width/2));
-            frame.position.y = Math.floor(-(data.height/2) - HALF_TILE_HEIGHT);
-
-            // Finicky
-            let offset = data.frames_offset || {};
-            frame.position.x += offset.x || 0;
-            frame.position.y += offset.y || 0;
+            // No change required.  All frames have constant positions.
           }
           else { // Legacy
             frame.position.x = frame.data.x || 0;
@@ -680,8 +703,6 @@
           });
         }
 
-        self.filters = {};
-
         return self;
       },
       drawTurn: function () {
@@ -689,6 +710,9 @@
       },
       drawStand: function () {
         self.drawFrame(data.stills[self.direction]);
+      },
+      getSpritesByName: function (name) {
+        return self.frame.children.filter(s => s.data && s.data.name === name);
       },
       offsetFrame: function (offset, direction) {
         var frame = self.frame;
@@ -806,7 +830,12 @@
       },
       // Animate from one tile to the next
       deploy: function (assignment) {
-        var anim = self.animDeploy(assignment);
+        let anim = new Tactics.Animation();
+
+        if (self.focusing)
+          anim.splice(self.animBreakFocus());
+
+        anim.splice(self.animDeploy(assignment));
 
         self.freeze();
         self.assignment.dismiss();
@@ -872,7 +901,7 @@
 
         return self;
       },
-      brightness: function (intensity,whiteness) {
+      brightness: function (intensity, whiteness) {
         var name = 'brightness';
         var filter;
         var matrix;
@@ -993,7 +1022,7 @@
 
           for (i=0; i<directions.length; i++) {
             if (!(neighbor = current[directions[i]])) continue;
-            if (neighbor.assigned && (neighbor.assigned.team !== self.team || neighbor.assigned.mPass === false)) continue;
+            if (neighbor.assigned && (neighbor.assigned.team !== self.team || !neighbor.assigned.isPassable())) continue;
             if (closed.indexOf(neighbor) > -1) continue;
 
             score = gScore[current.id] + 1 + (i*.1);
@@ -1019,6 +1048,7 @@
 
         if (!isNaN(direction)) direction = board.getRotation(self.direction,direction);
         self.direction = direction;
+        self.turned = true;
 
         self.drawFrame(data.stills[direction]);
 
@@ -1031,7 +1061,7 @@
         if (!self.assignment.painted)
           self.assignment.paint('focus', 0.3);
         else
-          self.assignment.setAlpha(self.assignment.pixi.alpha * 2);
+          self.assignment.setAlpha(Math.min(0.6, self.assignment.pixi.alpha * 2));
 
         return !pulse && !viewed ? startPulse(6) : self;
       },
@@ -1049,25 +1079,20 @@
       },
       showMode: function () {
         var mode = self.activated;
+        if (mode === true || mode === 'ready')
+          return;
 
         hideTurnOptions();
         board.clearHighlight();
 
-        if (mode == 'move') {
+        if (mode === 'move')
           self.highlightDeployOptions();
-        }
-        else if (mode == 'attack') {
+        else if (mode === 'attack')
           self.highlightAttack();
-        }
-        else if (mode == 'turn') {
+        else if (mode === 'turn')
           self.showTurnOptions();
-        }
-        else if (mode == 'direction') {
+        else if (mode === 'direction')
           self.showDirection();
-        }
-        else {
-          throw new Error('Unsupported mode for showing');
-        }
       },
       hideMode: function () {
         if (self.activated && self.activated !== true) {
@@ -1098,29 +1123,19 @@
        * A unit may be activated in 'view'-only mode.  This typically occurs
        * when selecting an enemy unit to view its movement or attack range.
        */
-      activate: function (mode,view) {
+      activate: function (mode, view) {
         var origin = self.origin;
 
         mode = mode || self.activated || true;
         self.viewed = view;
         if (self.activated == mode) return;
 
-        if (mode == 'move') {
-          if (self.deployed) {
-            self.assign(origin.tile).turn(origin.adirection || origin.direction);
-            self.deployed = false;
-            self.turned = false;
-          }
-          else if (self.turned) {
-            self.turn(origin.adirection || origin.direction);
-            self.turned = false;
-          }
-        }
+        if (mode == 'move')
+          if (self.deployed || self.turned)
+            self.reset();
 
         self.activated = mode;
-
-        if (mode !== true && mode !== 'ready')
-          self.showMode();
+        self.showMode();
 
         return view ? self : startPulse(4,2);
       },
@@ -1130,14 +1145,18 @@
         self.hideMode();
 
         self.activated = self.deployed = self.attacked = false;
-        self.origin = {tile:self.assignment,direction:self.direction};
+        self.origin = {
+          tile:      self.assignment,
+          direction: self.direction,
+          focusing:  self.focusing,
+        };
 
         return stopPulse();
       },
-      reset: function ()
-      {
+      reset: function () {
         var origin = self.origin;
-        if (origin) self.assign(origin.tile).turn(origin.direction);
+        if (self.deployed || self.turned)
+          self.assign(origin.tile).turn(origin.direction);
 
         return self.deactivate();
       },
@@ -1145,6 +1164,57 @@
         Object.assign(self, changes);
 
         self.emit({type: 'change', changes: changes});
+
+        return self;
+      },
+      showFocus: function (alpha) {
+        let focus  = self.getSpritesByName('focus')[0];
+
+        if (!focus) {
+          focus = self.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
+          focus.data = {name: 'focus'};
+          focus.children.forEach(sprite => sprite.tint = self.color);
+          focus.alpha = alpha || 1;
+
+          self.frame.addChildAt(focus, 1);
+        }
+        else
+          focus.alpha = alpha || 1;
+
+        return self;
+      },
+      animFocus: function () {
+        let anim   = new Tactics.Animation();
+        let alphas = [0.125, 0.25, 0.375, 0.5];
+        let focus  = self.getSpritesByName('focus')[0];
+
+        if (!focus) {
+          focus = self.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
+          focus.data = {name: 'focus'};
+          focus.children.forEach(sprite => sprite.tint = self.color);
+
+          anim.addFrame(() => self.frame.addChildAt(focus, 1));
+        }
+
+        anim.splice(0, {
+          script: frame => focus.alpha = alphas[frame.repeat_index],
+          repeat: alphas.length,
+        });
+
+        return anim;
+      },
+      animDefocus: function () {
+        let anim = new Tactics.Animation();
+        let alphas = [0.375, 0.25, 0.125];
+        let focus = self.getSpritesByName('focus')[0];
+
+        anim.addFrame({
+          script: frame => focus.alpha = alphas[frame.repeat_index],
+          repeat: alphas.length,
+        });
+        anim.addFrame(() => self.frame.removeChild(focus));
+
+        return anim;
       },
       animPulse: function (steps, speed) {
         var step = steps;
@@ -1160,7 +1230,7 @@
             },
             {
               script: () => self.brightness(1 + (step++ * stride)),
-              repeat:steps
+              repeat: steps
             }
           ]
         });
@@ -1393,6 +1463,24 @@
 
         return anim;
       },
+      animStrike: function (defender) {
+        let anim = new Tactics.Animation();
+        let direction = board.getDirection(
+          defender.assignment,
+          self.assignment,
+          board.getRotation(self.direction, 180),
+        );
+
+        return anim.addFrames([
+          () => sounds.strike.play(),
+          () => defender.shock(direction, 0),
+          () => defender.shock(direction, 1),
+          () => defender.shock(direction, 2),
+          () => defender.shock(),
+        ]);
+
+        return anim;
+      },
       animStagger: function (attacker) {
         let anim = new Tactics.Animation();
         let direction = board.getDirection(attacker.assignment, self.assignment, self.direction);
@@ -1408,24 +1496,6 @@
               .offsetFrame(-0.02, direction),
           () =>
             self.drawFrame(data.stills[self.direction]),
-        ]);
-
-        return anim;
-      },
-      animStrike: function (defender) {
-        let anim = new Tactics.Animation();
-        let direction = board.getDirection(
-          defender.assignment,
-          self.assignment,
-          board.getRotation(self.direction, 180),
-        );
-
-        return anim.addFrames([
-          () => sounds.strike.play(),
-          () => defender.shock(direction, 0),
-          () => defender.shock(direction, 1),
-          () => defender.shock(direction, 2),
-          () => defender.shock(),
         ]);
 
         return anim;
@@ -1660,9 +1730,16 @@
             self.origin.adirection = self.direction;
             self.thaw();
 
-            board
-              .setSelectMode(self.deployed ? 'turn' : 'move')
-              .unlock();
+            if (self.deployed) {
+              if (self.blocking)
+                board.setSelectMode('turn');
+              else
+                board.setSelectMode('ready');
+            }
+            else
+              board.setSelectMode('move');
+
+            board.unlock();
           });
       },
       onTargetFocus: function (event) {
@@ -1727,8 +1804,14 @@
         return !!self.getAttackTiles().length
           && !self.attacked;
       },
+      canTurn: function () {
+        return self.directional !== false;
+      },
       canSpecial: function () {
         return false;
+      },
+      isPassable: function () {
+        return self.focusing === false && self.paralyzed === false && self.mPass !== false;
       },
       /*
        * Animate the unit getting ready to launch their special attack.
@@ -1765,8 +1848,9 @@
           filters[name] = new PIXI.filters[type]();
 
           self.frame.children.forEach(child => {
-            if (child.data.name === 'base' || child.data.name === 'trim')
-              child.filters = Object.keys(filters).map(n => filters[n]);
+            if ('data' in child)
+              if (child.data.name === 'base' || child.data.name === 'trim')
+                child.filters = Object.keys(filters).map(n => filters[n]);
           });
         }
       }
@@ -1775,11 +1859,12 @@
           delete filters[name];
 
           self.frame.children.forEach(child => {
-            if (child.data.name === 'base' || child.data.name === 'trim')
-              if (child.filters.length > 1)
-                child.filters = Object.keys(filters).map(n => filters[n]);
-              else
-                child.filters = null;
+            if ('data' in child)
+              if (child.data.name === 'base' || child.data.name === 'trim')
+                if (child.filters.length > 1)
+                  child.filters = Object.keys(filters).map(n => filters[n]);
+                else
+                  child.filters = null;
           });
         }
       }
