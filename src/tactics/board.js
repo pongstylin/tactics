@@ -151,19 +151,16 @@ Tactics.Board = function ()
     rotation:'N',
 
     // Property accessors
-    getTile:function (x,y)
-    {
+    getTile: function (x,y) {
       return self.tiles[x+y*11];
     },
 
     // Public functions
-    getDistance:function (a,b)
-    {
+    getDistance: function (a, b) {
       // Return the distance between two tiles.
       return Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
     },
-    getBetween:function (a,b,empty)
-    {
+    getBetween: function (a, b, empty) {
       var distance = self.getDistance(a,b);
       var dx = Math.abs(a.x-b.x);
       var dy = Math.abs(a.y-b.y);

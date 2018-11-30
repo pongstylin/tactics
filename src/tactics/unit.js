@@ -215,21 +215,23 @@
       },
       getAttackTiles: function (start) {
         var tiles = [];
-        var x,y;
-        var r = data.aRadius;
-        var cx,cy;
+        var radius = data.aRadius;
         var tile;
 
         start = start || self.assignment;
-        cx    = start.x;
-        cy    = start.y;
+        let cx    = start.x;
+        let cy    = start.y;
+        let minX  = Math.max(cx - radius, 0);
+        let maxX  = Math.min(cx + radius, 10);
+        let minY  = Math.max(cy - radius, 0);
+        let maxY  = Math.min(cy + radius, 10);
 
-        for (x=cx-r; x<=cx+r; x++) {
-          for (y=cy-r; y<=cy+r; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          for (let y = minY; y <= maxY; y++) {
             if (data.aLinear && x != cx && y != cy) continue;
             if (!(tile = board.getTile(x, y))) continue;
             if (tile === start) continue;
-            if (board.getDistance(start, tile) > r) continue;
+            if (board.getDistance(start, tile) > radius) continue;
 
             tiles.push(tile);
           }
@@ -237,7 +239,58 @@
 
         return tiles;
       },
-      targetLOS: function (target,from) {
+      getLOSTargetUnit(target, source) {
+        source = source || self.assignment;
+
+        // Get the absolute position of the line.
+        let source_point = source.pixi.toGlobal(new PIXI.Point(44, 28));
+        let target_point = target.pixi.toGlobal(new PIXI.Point(44, 28));
+
+        let hit_area = new PIXI.Polygon([
+          43, 10, // top-left
+          46, 10, // top-right
+          72, 26, // right-top
+          72, 29, // right-bottom
+          46, 46, // bottom-right
+          43, 46, // bottom-left
+          16, 29, // left-bottom
+          16, 26, // left-top
+          43, 10, // close
+        ]);
+
+        // Set oneX and oneY to 1 or -1 depending on attack direction.
+        let oneX = target.x === source.x
+          ? 1 // Could be any number
+          : (target.x - source.x) / Math.abs(target.x - source.x)
+        let oneY = target.y === source.y
+          ? 1 // Could be any number
+          : (target.y - source.y) / Math.abs(target.y - source.y)
+
+        // Trace a path from source to target, testing tiles along the way.
+        for (let x = source.x; x !== target.x + oneX; x += oneX) {
+          for (let y = source.y; y !== target.y + oneY; y += oneY) {
+            let tile = board.getTile(x, y);
+            if (!tile || tile === source || !tile.assigned) continue;
+
+            // Get the relative position of the line to the tile.
+            let local_source_point = tile.pixi.toLocal(source_point);
+            let local_target_point = tile.pixi.toLocal(target_point);
+
+            let intersects = hit_area.intersects(
+              local_source_point.x,
+              local_source_point.y,
+              local_target_point.x,
+              local_target_point.y,
+            );
+
+            if (intersects)
+              return tile.assigned;
+          }
+        }
+
+        return null;
+      },
+      targetLOS: function (target, from) {
         var x,y;
         from = from || self.assignment;
 
@@ -1379,7 +1432,7 @@
         for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
           indexes.push(index);
         }
-        indexes.forEach((index, i) => anim.splice(0, () => self.drawFrame(index)));
+        indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
 
         anim.addFrame(() => self.drawFrame(data.stills[direction]));
 
