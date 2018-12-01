@@ -39,6 +39,7 @@ module.exports = {
       tactics: path.resolve(__dirname, 'src', 'tactics'),
       util: path.resolve(__dirname, 'src', 'util'),
       lib: path.resolve(__dirname, 'lib'),
+      plugins: path.resolve(__dirname, 'src', 'plugins'),
     }
   },
   devtool: process.env.NODE_ENV === 'production' ? false : 'eval-source-map',

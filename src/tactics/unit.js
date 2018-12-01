@@ -3,30 +3,38 @@
 
   const HALF_TILE_HEIGHT = 28;
 
-  var turns;
+  var turnOptions;
   var turnsUnit;
   var hideTurnOptions;
 
-  function prerender_turns() {
-    turns = new PIXI.Container();
+  function prerenderTurnOptions() {
+    turnOptions = new PIXI.Container();
 
     hideTurnOptions = function () {
-      if (Tactics.stage.children.indexOf(turns) > -1) Tactics.stage.removeChild(turns);
+      if (Tactics.stage.children.indexOf(turnOptions) > -1) Tactics.stage.removeChild(turnOptions);
 
       return self;
     };
 
     let selectTurnEvent = event => {
+      let target = event.target;
       Tactics.sounds.select.play();
 
       hideTurnOptions();
       event.currentTarget.filters = null;
 
-      turnsUnit.turn(event.target.data.direction);
-      turnsUnit.turned = true;
+      let doIt = () => {
+        turnsUnit.turn(target.data.direction);
+        turnsUnit.turned = true;
 
-      Tactics.board.setSelectMode('ready');
-      Tactics.render();
+        Tactics.board.setSelectMode('ready');
+        Tactics.render();
+      };
+
+      if (turnsUnit.focusing)
+        turnsUnit.animBreakFocus().play().then(doIt);
+      else
+        doIt();
     };
     let focusTurnEvent = event => {
       Tactics.sounds.focus.play();
@@ -69,13 +77,13 @@
         sprite.data = {direction:'S'};
       }
 
-      turns.addChild(sprite);
+      turnOptions.addChild(sprite);
     });
   }
 
   var shocks;
 
-  function prerender_shocks() {
+  function prerenderShocks() {
     shocks = [
       new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png'),
       new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png'),
@@ -97,9 +105,9 @@
   }
 
   Tactics.Unit = function (type) {
-    if (turns === undefined) {
-      prerender_turns();
-      prerender_shocks();
+    if (turnOptions === undefined) {
+      prerenderTurnOptions();
+      prerenderShocks();
     }
 
     var self = this;
@@ -108,26 +116,24 @@
     var board = Tactics.board;
     var pulse;
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
-    var stills = data.stills;
     var shock;
     var onDeploySelect = event => {
       board.lock();
       self.deploy(event.target).then(() => {
-        board
-          .setSelectMode(self.attacked ? 'turn' : 'attack')
-          .unlock();
+        if (self.attacked) {
+          if (self.blocking)
+            board.setSelectMode('turn');
+          else
+            board.setSelectMode('ready');
+        }
+        else
+          board.setSelectMode('attack');
+
+        board.unlock();
       });
     };
-    var onDeployFocus  = event => event.target.pixi.alpha = 0.6;
-    var onDeployBlur   = event => event.target.pixi.alpha = 0.3;
-    var onAttackSelect = event => {
-      let tile = event.target;
-
-      board.clearHighlight();
-
-      self.activated = 'target';
-      self.highlightTarget(tile);
-    };
+    var onDeployFocus  = event => event.target.setAlpha(0.6);
+    var onDeployBlur   = event => event.target.setAlpha(0.3);
 
     utils.addEvents.call(self);
 
@@ -172,6 +178,10 @@
       ability:   data.ability,
       specialty: data.specialty,
 
+      // May be set to an array of units being focused upon
+      focusing:  false,
+
+      // May be set to an array of units focused upon me.
       poisoned:  false,
       paralyzed: false,
       barriered: false,
@@ -205,21 +215,23 @@
       },
       getAttackTiles: function (start) {
         var tiles = [];
-        var x,y;
-        var r = data.aRadius;
-        var cx,cy;
+        var radius = data.aRadius;
         var tile;
 
         start = start || self.assignment;
-        cx    = start.x;
-        cy    = start.y;
+        let cx    = start.x;
+        let cy    = start.y;
+        let minX  = Math.max(cx - radius, 0);
+        let maxX  = Math.min(cx + radius, 10);
+        let minY  = Math.max(cy - radius, 0);
+        let maxY  = Math.min(cy + radius, 10);
 
-        for (x=cx-r; x<=cx+r; x++) {
-          for (y=cy-r; y<=cy+r; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          for (let y = minY; y <= maxY; y++) {
             if (data.aLinear && x != cx && y != cy) continue;
             if (!(tile = board.getTile(x, y))) continue;
             if (tile === start) continue;
-            if (board.getDistance(start, tile) > r) continue;
+            if (board.getDistance(start, tile) > radius) continue;
 
             tiles.push(tile);
           }
@@ -227,7 +239,58 @@
 
         return tiles;
       },
-      targetLOS: function (target,from) {
+      getLOSTargetUnit(target, source) {
+        source = source || self.assignment;
+
+        // Get the absolute position of the line.
+        let source_point = source.pixi.toGlobal(new PIXI.Point(44, 28));
+        let target_point = target.pixi.toGlobal(new PIXI.Point(44, 28));
+
+        let hit_area = new PIXI.Polygon([
+          43, 10, // top-left
+          46, 10, // top-right
+          72, 26, // right-top
+          72, 29, // right-bottom
+          46, 46, // bottom-right
+          43, 46, // bottom-left
+          16, 29, // left-bottom
+          16, 26, // left-top
+          43, 10, // close
+        ]);
+
+        // Set oneX and oneY to 1 or -1 depending on attack direction.
+        let oneX = target.x === source.x
+          ? 1 // Could be any number
+          : (target.x - source.x) / Math.abs(target.x - source.x)
+        let oneY = target.y === source.y
+          ? 1 // Could be any number
+          : (target.y - source.y) / Math.abs(target.y - source.y)
+
+        // Trace a path from source to target, testing tiles along the way.
+        for (let x = source.x; x !== target.x + oneX; x += oneX) {
+          for (let y = source.y; y !== target.y + oneY; y += oneY) {
+            let tile = board.getTile(x, y);
+            if (!tile || tile === source || !tile.assigned) continue;
+
+            // Get the relative position of the line to the tile.
+            let local_source_point = tile.pixi.toLocal(source_point);
+            let local_target_point = tile.pixi.toLocal(target_point);
+
+            let intersects = hit_area.intersects(
+              local_source_point.x,
+              local_source_point.y,
+              local_target_point.x,
+              local_target_point.y,
+            );
+
+            if (intersects)
+              return tile.assigned;
+          }
+        }
+
+        return null;
+      },
+      targetLOS: function (target, from) {
         var x,y;
         from = from || self.assignment;
 
@@ -288,7 +351,7 @@
           return calc;
         }
 
-        if (data.aType === 'melee') {
+        if (data.aType === 'melee' && target_unit.paralyzed === false) {
           if (target_unit.directional !== false) {
             direction = board.getDirection(from || self.assignment,target_unit.assignment);
 
@@ -329,9 +392,9 @@
             return Object.assign(result, {miss: true});
 
           let calc = self.calcAttack(unit);
-          let luck = Math.random() * 100;
+          let bad_luck = Math.random() * 100;
 
-          if (luck < calc.block)
+          if (bad_luck > calc.chance)
             return Object.assign(result, {
               miss:      true,
               blocked:   true,
@@ -515,40 +578,48 @@
       // Public methods
       draw: function (direction, assignment) {
         let color = board.teams[self.team].color;
-        let frames = [];
+        let frames = data.frames.map(frame => self.compileFrame(frame, data));
+        let effects = {};
 
-        for (let i = 0; i < data.frames.length; i++) {
-          frames[i] = self.compileFrame(i);
-        }
+        if (data.effects)
+          Object.keys(data.effects).forEach(name => {
+            effects[name] =
+              data.effects[name].frames.map(frame => self.compileFrame(frame, data.effects[name]));
+          });
 
         self.frames = frames;
+        self.effects = effects;
         self.color = color === null ? 0xFFFFFF : Tactics.colors[color];
         self.assign(assignment);
         self.direction = direction;
-        self.origin = {tile:assignment,direction:direction};
+        self.origin = {
+          tile:      assignment,
+          direction: direction,
+          focusing:  false,
+        };
 
-        return self.drawFrame(stills[self.directional === false ? 'S' : direction]);
+        return self.drawFrame(data.stills[self.directional === false ? 'S' : direction]);
       },
-      compileFrame: function (index) {
+      compileFrame: function (frame, data) {
         var container = new PIXI.Container();
-        var frame = data.frames[index];
-
-        if (!frame) return container;
         container.data = frame;
+        if (!frame.length || frame.c) return container;
 
+        let offset;
         if (data.width && data.height) {
-          container.position = new PIXI.Point(
-            Math.floor(-(data.width / 2)),
-            Math.floor(-(data.height / 2) - HALF_TILE_HEIGHT),
+          offset = new PIXI.Point(
+            Math.floor(-data.width / 2),
+            Math.floor(-data.height + (HALF_TILE_HEIGHT*4/3)),
           );
 
           // Finicky
-          let offset = data.frames_offset || {};
-          container.position.x += offset.x || 0;
-          container.position.y += offset.y || 0;
+          if (data.frames_offset) {
+            offset.x += data.frames_offset.x || 0;
+            offset.y += data.frames_offset.y || 0;
+          }
         }
         else // Legacy
-          container.position = new PIXI.Point(frame.x||0,(frame.y||0)-2);
+          offset = new PIXI.Point(frame.x || 0, (frame.y || 0) - 2);
 
         container.alpha = 'a' in frame ? frame.a : 1;
 
@@ -573,7 +644,6 @@
               delete shape.id;
             }
             else {
-              console.error('shape', shape);
               throw new Error('Frames without images are not supported');
             }
 
@@ -590,6 +660,11 @@
               shape.am = shape.a;
               delete shape.a;
             }
+
+            if (!('x' in shape))
+              shape.x = 0;
+            if (!('y' in shape))
+              shape.y = 0;
           }
 
           /*
@@ -597,7 +672,7 @@
            */
           var sprite = PIXI.Sprite.fromImage(shape.image);
           sprite.data = shape;
-          sprite.position = new PIXI.Point(shape.x, shape.y);
+          sprite.position = new PIXI.Point(shape.x + offset.x, shape.y + offset.y);
           sprite.alpha = 'am' in shape ? shape.am : 1;
 
           // Legacy
@@ -642,7 +717,7 @@
         return container;
       },
       drawAvatar: function () {
-        return self.compileFrame(stills.S);
+        return self.compileFrame(data.frames[data.stills.S], data);
       },
       drawFrame: function (index, context) {
         var frame;
@@ -656,13 +731,7 @@
         if (frame.data) {
           // Reset Normal Appearance
           if (data.width && data.height) {
-            frame.position.x = Math.floor(-(data.width/2));
-            frame.position.y = Math.floor(-(data.height/2) - HALF_TILE_HEIGHT);
-
-            // Finicky
-            let offset = data.frames_offset || {};
-            frame.position.x += offset.x || 0;
-            frame.position.y += offset.y || 0;
+            // No change required.  All frames have constant positions.
           }
           else { // Legacy
             frame.position.x = frame.data.x || 0;
@@ -673,7 +742,9 @@
           frame.tint = 0xFFFFFF;
 
           frame.children.forEach(sprite => {
-            sprite.filters = null;
+            // Apply unit filters to the base and trim sprites.
+            if (sprite.data.name === 'base' || sprite.data.name === 'trim')
+              sprite.filters = Object.keys(self.filters).map(name => self.filters[name]);
 
             // Legacy
             if (sprite.data.t)
@@ -685,9 +756,16 @@
           });
         }
 
-        self.filters = {};
-
         return self;
+      },
+      drawTurn: function () {
+        self.drawFrame(data.turns[self.direction]);
+      },
+      drawStand: function () {
+        self.drawFrame(data.stills[self.direction]);
+      },
+      getSpritesByName: function (name) {
+        return self.frame.children.filter(s => s.data && s.data.name === name);
       },
       offsetFrame: function (offset, direction) {
         var frame = self.frame;
@@ -737,7 +815,7 @@
             action: 'attack',
             tile:   tile,
             color:  0xFF8800,
-            select: onAttackSelect,
+            select: self.onAttackSelect,
             focus:  self.onAttackFocus,
             blur:   self.onAttackBlur,
           }, self.viewed);
@@ -753,8 +831,8 @@
           tile:   target,
           color:  0xFF3300,
           select: self.onTargetSelect,
-          focus:  self.onAttackFocus,
-          blur:   self.onAttackBlur,
+          focus:  self.onTargetFocus,
+          blur:   self.onTargetBlur,
         }, self.viewed);
 
         if (target.focused) self.onAttackFocus({target:target});
@@ -766,32 +844,32 @@
         if (self.viewed) return self.showDirection();
 
         turnsUnit = self;
-        turns.position = self.assignment.getCenter().clone();
-        turns.position.x -= 43;
-        turns.position.y -= 70;
+        turnOptions.position = self.assignment.getCenter().clone();
+        turnOptions.position.x -= 43;
+        turnOptions.position.y -= 70;
 
-        turns.children.forEach(arrow => {
+        turnOptions.children.forEach(arrow => {
           arrow.interactive = arrow.buttonMode = true;
           arrow.visible = true;
         });
 
-        if (Tactics.stage.children.indexOf(turns) === -1)
-          Tactics.stage.addChild(turns);
+        if (Tactics.stage.children.indexOf(turnOptions) === -1)
+          Tactics.stage.addChild(turnOptions);
 
         return self;
       },
       showDirection: function () {
-        turns.position = self.assignment.getCenter().clone();
-        turns.position.x -= 43;
-        turns.position.y -= 70;
+        turnOptions.position = self.assignment.getCenter().clone();
+        turnOptions.position.x -= 43;
+        turnOptions.position.y -= 70;
 
-        turns.children.forEach(arrow => {
+        turnOptions.children.forEach(arrow => {
           arrow.interactive = arrow.buttonMode = false;
           arrow.visible = self.directional === false || arrow.data.direction == self.direction;
         });
 
-        if (Tactics.stage.children.indexOf(turns) === -1)
-          Tactics.stage.addChild(turns);
+        if (Tactics.stage.children.indexOf(turnOptions) === -1)
+          Tactics.stage.addChild(turnOptions);
 
         return self;
       },
@@ -805,7 +883,12 @@
       },
       // Animate from one tile to the next
       deploy: function (assignment) {
-        var anim = self.animDeploy(assignment);
+        let anim = new Tactics.Animation();
+
+        if (self.focusing)
+          anim.splice(self.animBreakFocus());
+
+        anim.splice(self.animDeploy(assignment));
 
         self.freeze();
         self.assignment.dismiss();
@@ -871,7 +954,7 @@
 
         return self;
       },
-      brightness: function (intensity,whiteness) {
+      brightness: function (intensity, whiteness) {
         var name = 'brightness';
         var filter;
         var matrix;
@@ -901,8 +984,39 @@
           setFilter(name, undefined);
         }
         else {
-          matrix = setFilter(name,'ColorMatrixFilter').matrix;
+          matrix = setFilter(name, 'ColorMatrixFilter').matrix;
           matrix[3] = matrix[8] = matrix[13] = intensity;
+        }
+
+        return self;
+      },
+      /*
+       * Add color to the unit's base and trim.
+       * Example, increase the redness by 128 (0x880000).
+       *   self.colorize(0xFF0000, 0.5);
+       */
+      colorize: function (color, lightness) {
+        var name = 'colorize';
+        var matrix;
+
+        if (typeof color === 'number')
+          color = [
+            ((color & 0xFF0000) / 0xFF0000),
+            ((color & 0x00FF00) / 0x00FF00),
+            ((color & 0x0000FF) / 0x0000FF),
+          ];
+
+        if (typeof lightness === 'number')
+          color = color.map(c => Math.min(c * lightness, 1));
+
+        if (color === null || lightness === 0) {
+          setFilter(name, undefined);
+        }
+        else {
+          matrix = setFilter(name, 'ColorMatrixFilter').matrix;
+          matrix[3]  = color[0];
+          matrix[8]  = color[1];
+          matrix[13] = color[2];
         }
 
         return self;
@@ -961,7 +1075,7 @@
 
           for (i=0; i<directions.length; i++) {
             if (!(neighbor = current[directions[i]])) continue;
-            if (neighbor.assigned && (neighbor.assigned.team !== self.team || neighbor.assigned.mPass === false)) continue;
+            if (neighbor.assigned && (neighbor.assigned.team !== self.team || !neighbor.assigned.isPassable())) continue;
             if (closed.indexOf(neighbor) > -1) continue;
 
             score = gScore[current.id] + 1 + (i*.1);
@@ -987,8 +1101,9 @@
 
         if (!isNaN(direction)) direction = board.getRotation(self.direction,direction);
         self.direction = direction;
+        self.turned = true;
 
-        self.drawFrame(stills[direction]);
+        self.drawFrame(data.stills[direction]);
 
         return self;
       },
@@ -999,7 +1114,7 @@
         if (!self.assignment.painted)
           self.assignment.paint('focus', 0.3);
         else
-          self.assignment.pixi.alpha *= 2;
+          self.assignment.setAlpha(Math.min(0.6, self.assignment.pixi.alpha * 2));
 
         return !pulse && !viewed ? startPulse(6) : self;
       },
@@ -1011,31 +1126,26 @@
         if (self.assignment.painted === 'focus')
           self.assignment.strip();
         else
-          self.assignment.pixi.alpha /= 2;
+          self.assignment.setAlpha(self.assignment.pixi.alpha / 2);
 
         return pulse && !self.activated ? stopPulse() : self;
       },
       showMode: function () {
         var mode = self.activated;
+        if (mode === true || mode === 'ready')
+          return;
 
         hideTurnOptions();
         board.clearHighlight();
 
-        if (mode == 'move') {
+        if (mode === 'move')
           self.highlightDeployOptions();
-        }
-        else if (mode == 'attack') {
+        else if (mode === 'attack')
           self.highlightAttack();
-        }
-        else if (mode == 'turn') {
+        else if (mode === 'turn')
           self.showTurnOptions();
-        }
-        else if (mode == 'direction') {
+        else if (mode === 'direction')
           self.showDirection();
-        }
-        else {
-          throw new Error('Unsupported mode for showing');
-        }
       },
       hideMode: function () {
         if (self.activated && self.activated !== true) {
@@ -1060,36 +1170,25 @@
        * Modes include 'move', 'attack', 'turn', and 'direction':
        * * 'move' mode shows all possible move targets as blue tiles.
        * * 'attack' mode shows all possible attack targets as orange tiles.
-       * * 'target' mode shows selected attack targets as red-orange tiles.
        * * 'turn' mode shows all 4 arrows for assigning a direction.
        * * 'direction' mode shows 1 arrow to show current unit direction.
        *
        * A unit may be activated in 'view'-only mode.  This typically occurs
        * when selecting an enemy unit to view its movement or attack range.
        */
-      activate: function (mode,view) {
+      activate: function (mode, view) {
         var origin = self.origin;
 
         mode = mode || self.activated || true;
         self.viewed = view;
         if (self.activated == mode) return;
 
-        if (mode == 'move') {
-          if (self.deployed) {
-            self.assign(origin.tile).turn(origin.adirection || origin.direction);
-            self.deployed = false;
-            self.turned = false;
-          }
-          else if (self.turned) {
-            self.turn(origin.adirection || origin.direction);
-            self.turned = false;
-          }
-        }
+        if (mode == 'move')
+          if (self.deployed || self.turned)
+            self.reset();
 
         self.activated = mode;
-
-        if (mode !== true && mode !== 'ready')
-          self.showMode();
+        self.showMode();
 
         return view ? self : startPulse(4,2);
       },
@@ -1099,14 +1198,18 @@
         self.hideMode();
 
         self.activated = self.deployed = self.attacked = false;
-        self.origin = {tile:self.assignment,direction:self.direction};
+        self.origin = {
+          tile:      self.assignment,
+          direction: self.direction,
+          focusing:  self.focusing,
+        };
 
         return stopPulse();
       },
-      reset: function ()
-      {
+      reset: function () {
         var origin = self.origin;
-        if (origin) self.assign(origin.tile).turn(origin.direction);
+        if (self.deployed || self.turned)
+          self.assign(origin.tile).turn(origin.direction);
 
         return self.deactivate();
       },
@@ -1114,6 +1217,57 @@
         Object.assign(self, changes);
 
         self.emit({type: 'change', changes: changes});
+
+        return self;
+      },
+      showFocus: function (alpha) {
+        let focus  = self.getSpritesByName('focus')[0];
+
+        if (!focus) {
+          focus = self.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
+          focus.data = {name: 'focus'};
+          focus.children.forEach(sprite => sprite.tint = self.color);
+          focus.alpha = alpha || 1;
+
+          self.frame.addChildAt(focus, 1);
+        }
+        else
+          focus.alpha = alpha || 1;
+
+        return self;
+      },
+      animFocus: function () {
+        let anim   = new Tactics.Animation();
+        let alphas = [0.125, 0.25, 0.375, 0.5];
+        let focus  = self.getSpritesByName('focus')[0];
+
+        if (!focus) {
+          focus = self.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
+          focus.data = {name: 'focus'};
+          focus.children.forEach(sprite => sprite.tint = self.color);
+
+          anim.addFrame(() => self.frame.addChildAt(focus, 1));
+        }
+
+        anim.splice(0, {
+          script: frame => focus.alpha = alphas[frame.repeat_index],
+          repeat: alphas.length,
+        });
+
+        return anim;
+      },
+      animDefocus: function () {
+        let anim = new Tactics.Animation();
+        let alphas = [0.375, 0.25, 0.125];
+        let focus = self.getSpritesByName('focus')[0];
+
+        anim.addFrame({
+          script: frame => focus.alpha = alphas[frame.repeat_index],
+          repeat: alphas.length,
+        });
+        anim.addFrame(() => self.frame.removeChild(focus));
+
+        return anim;
       },
       animPulse: function (steps, speed) {
         var step = steps;
@@ -1129,10 +1283,16 @@
             },
             {
               script: () => self.brightness(1 + (step++ * stride)),
-              repeat:steps
+              repeat: steps
             }
           ]
         });
+      },
+      /*
+       * Right now, the default expectation is units walk from A to B.
+       */
+      animDeploy: function (assignment) {
+        return self.animWalk(assignment);
       },
       /*
        * Units turn in the direction they are headed before they go there.
@@ -1146,14 +1306,14 @@
           anim.addFrame(() => self.drawFrame(data.turns[board.getRotation(self.direction, 90)]));
 
         anim.addFrame(() => {
-          self.drawFrame(stills[direction]);
+          self.drawFrame(data.stills[direction]);
           self.direction = direction;
         });
 
         return anim;
       },
       animWalk: function (assignment) {
-        let anim = new Tactics.Animation({fps: 12});
+        let anim = new Tactics.Animation();
         let path = self.findPath(assignment);
 
         // Turn frames are not typically required while walking unless the very
@@ -1220,7 +1380,7 @@
         return anim;
       },
       animStepBack: function (direction) {
-        let anim = new Tactics.Animation({fps: 12});
+        let anim = new Tactics.Animation();
 
         let indexes = [];
         for (let index = data.backSteps[direction][0]; index <= data.backSteps[direction][1]; index++) {
@@ -1234,7 +1394,7 @@
         return anim;
       },
       animStepForward: function (direction) {
-        let anim = new Tactics.Animation({fps: 12});
+        let anim = new Tactics.Animation();
 
         let indexes = [];
         for (let index = data.foreSteps[direction][0]; index <= data.foreSteps[direction][1]; index++) {
@@ -1242,7 +1402,7 @@
         }
         indexes.forEach(index => anim.addFrame(() => self.drawFrame(index)));
 
-        anim.addFrame(() => self.drawFrame(stills[self.direction]));
+        anim.addFrame(() => self.drawFrame(data.stills[self.direction]));
 
         // One final stomp for science
         anim.splice(0, () => sounds.step.play());
@@ -1250,7 +1410,7 @@
         return anim;
       },
       animAttack: function (target) {
-        let anim = new Tactics.Animation({fps: 12});
+        let anim = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, target, self.direction);
 
         let indexes = [];
@@ -1262,7 +1422,7 @@
         return anim;
       },
       animBlock: function (attacker) {
-        let anim = new Tactics.Animation({fps: 12});
+        let anim = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
         anim.addFrame(() => self.origin.direction = self.direction = direction);
@@ -1272,33 +1432,92 @@
         for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
           indexes.push(index);
         }
-        indexes.forEach((index, i) => anim.splice(0, () => self.drawFrame(index)));
+        indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
 
-        anim.addFrame(() => self.drawFrame(stills[direction]));
+        anim.addFrame(() => self.drawFrame(data.stills[direction]));
 
         return anim;
       },
-      animStagger: function (attacker) {
-        let anim = new Tactics.Animation({fps: 12});
-        let direction = board.getDirection(attacker.assignment, self.assignment, self.direction);
+      animReadySpecial: function () {
+        let anim = new Tactics.Animation({
+          state: {ready: false},
+          loop:  24,
+        });
 
-        anim.addFrames([
-          () =>
-            self
-              .drawFrame(data.turns[self.direction])
-              .offsetFrame(0.06, direction),
-          () =>
-            self
-              .drawFrame(data.turns[self.direction])
-              .offsetFrame(-0.02, direction),
-          () =>
-            self.drawFrame(stills[self.direction]),
-        ]);
+        let radius = 28;
+        let angle = 2 * Math.PI / 24;
+        let blurFilter = new PIXI.filters.BlurFilter();
+        blurFilter.blur = 0.5;
+
+        let shape = new PIXI.Graphics();
+        shape.position = new PIXI.Point(0, HALF_TILE_HEIGHT - radius);
+        shape.lineStyle(2, 0xFF3300);
+
+        let container = new PIXI.Container();
+        container.scale = new PIXI.Point(1, 0.6);
+        container.data = {name: 'special'};
+        container.addChild(shape);
+
+        anim.addFrame(() => {
+          container.position = new PIXI.Point(
+            self.frame.position.x * -1,
+            self.frame.position.y * -1,
+          );
+
+          // Insert the shape right after the shadow
+          self.frame.addChildAt(container, 1);
+        });
+
+        let index = 0;
+
+        anim.splice(0, {
+          script: () => {
+            shape.moveTo(0, 0);
+            shape.lineTo(
+              Math.cos(angle * (index + 18)) * radius,
+              Math.sin(angle * (index + 18)) * radius,
+            );
+
+            // Make sure the shape pulses with the unit.
+            blurFilter.blur = Math.floor(index / 6);
+            if (self.frame.children[2].filters)
+              container.filters = [blurFilter].concat(self.frame.children[2].filters);
+            else
+              container.filters = [blurFilter];
+
+            index++;
+          },
+          repeat: 24,
+        });
+
+        anim.addFrame((frame, state) => state.ready = true);
+
+        let degrees = 0;
+
+        // This frame will be looped until animation is stopped.
+        anim.splice(24, () => {
+          degrees = (degrees + 5) % 360;
+          let radians = degrees * Math.PI / 180;
+
+          // Degrees to radians
+          shape.rotation = degrees * Math.PI / 180;
+
+          // Make sure the shape pulses with the unit.
+          blurFilter.blur = 4;
+          if (self.frame.children[2].filters)
+            container.filters = [blurFilter].concat(self.frame.children[2].filters);
+          else
+            container.filters = [blurFilter];
+        });
+
+        anim.on('stop', event => {
+          self.frame.removeChild(container);
+        });
 
         return anim;
       },
       animStrike: function (defender) {
-        let anim = new Tactics.Animation({fps: 12});
+        let anim = new Tactics.Animation();
         let direction = board.getDirection(
           defender.assignment,
           self.assignment,
@@ -1311,6 +1530,25 @@
           () => defender.shock(direction, 1),
           () => defender.shock(direction, 2),
           () => defender.shock(),
+        ]);
+
+        return anim;
+      },
+      animStagger: function (attacker) {
+        let anim = new Tactics.Animation();
+        let direction = board.getDirection(attacker.assignment, self.assignment, self.direction);
+
+        anim.addFrames([
+          () =>
+            self
+              .drawFrame(data.turns[self.direction])
+              .offsetFrame(0.06, direction),
+          () =>
+            self
+              .drawFrame(data.turns[self.direction])
+              .offsetFrame(-0.02, direction),
+          () =>
+            self.drawFrame(data.stills[self.direction]),
         ]);
 
         return anim;
@@ -1409,57 +1647,40 @@
 
         return anim;
       },
-      animHeal: function (targets) {
+      animHeal: function (target_units) {
         var anim = new Tactics.Animation();
-        var filter = new PIXI.filters.ColorMatrixFilter();
-        var matrix = filter.matrix;
 
-        if (!Array.isArray(targets)) targets = [targets];
+        if (!Array.isArray(target_units)) target_units = [target_units];
 
         anim.addFrame(() => sounds.heal.play());
 
-        targets.forEach(target => {
+        target_units.forEach(tunit => {
           // Apply sparkles in a few randomized patterns
           [{x:-18,y:-52},{x:0,y:-67},{x:18,y:-52}].randomize().forEach((pos, i) => {
-            anim.splice(i*3+1, self.animSparkle(target.pixi, pos));
+            anim.splice(i*3+1, self.animSparkle(tunit.pixi, pos));
           });
         });
 
-        // Filters are re-applied every frame because they may be reset
+        let index = 0;
+
         anim.splice(2, [
           // Intensify yellow tint on healed units
           {
             script: () => {
-              matrix[3] = matrix[8] += 0.05;
-              targets.forEach(target => {
-                target.pixi.children[0].children.forEach(sprite => {
-                  if (sprite.data.name === 'trim' || sprite.data.name === 'base')
-                    sprite.filters = [filter];
-                });
-              });
+              index++;
+              target_units.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
             },
             repeat: 5,
           },
           // Fade yellow tint on healed units
           {
             script: () => {
-              matrix[3] = matrix[8] -= 0.05;
-              targets.forEach(target => {
-                target.pixi.children[0].children.forEach(sprite => {
-                  if (sprite.data.name === 'trim' || sprite.data.name === 'base')
-                    sprite.filters = [filter];
-                });
-              });
+              index--;
+              target_units.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
             },
             repeat: 5,
           },
-          // Filters are not always reset, so reset explicitly
-          () => targets.forEach(target => {
-            target.pixi.children[0].children.forEach(sprite => {
-              if (sprite.data.name === 'trim' || sprite.data.name === 'base')
-                sprite.filters = null;
-            });
-          }),
+          () => target_units.forEach(tunit => tunit.colorize(null)),
         ]);
 
         return anim;
@@ -1541,6 +1762,17 @@
           options,
         );
       },
+      onAttackSelect: function (event) {
+        let tile = event.target;
+
+        board.clearHighlight();
+
+        // This makes it possible to click the attack button to switch from target
+        // mode to attack mode.
+        self.activated = 'target';
+
+        self.highlightTarget(tile);
+      },
       onTargetSelect: function (event) {
         board.lock();
         self.freeze();
@@ -1551,9 +1783,43 @@
             self.origin.adirection = self.direction;
             self.thaw();
 
-            board
-              .setSelectMode(self.deployed ? 'turn' : 'move')
-              .unlock();
+            if (self.deployed) {
+              if (self.blocking)
+                board.setSelectMode('turn');
+              else
+                board.setSelectMode('ready');
+            }
+            else
+              board.setSelectMode('move');
+
+            board.unlock();
+          });
+      },
+      onTargetFocus: function (event) {
+        return self.onAttackFocus(event);
+      },
+      onTargetBlur: function (event) {
+        return self.onAttackBlur(event);
+      },
+      onSpecialSelect: function () {
+        board.lock();
+        self.freeze();
+        self.attackSpecial()
+          .then(board.showResults)
+          .then(() => {
+            if (self.mHealth > -self.health) {
+              self.deployed = true;
+              self.attacked = true;
+              self.origin.adirection = self.direction;
+              self.thaw();
+
+              board.setSelectMode('turn');
+              board.unlock();
+            }
+            else {
+              board.unlock();
+              board.endTurn();
+            }
           });
       },
       onAttackFocus: function (event) {
@@ -1576,46 +1842,83 @@
               notice: '-'+calc.damage+' ('+Math.round(calc.chance)+'%)'
             });
         }
-        else {
-          tile.pixi.alpha = 0.6;
-        }
+
+        tile.setAlpha(0.6);
       },
       onAttackBlur: function (event) {
         if (!event.target.assigned)
-          event.target.pixi.alpha = 0.3;
+          event.target.setAlpha(0.3);
       },
-      can_move: function () {
+      canMove: function () {
         return !!self.getMoveTiles().length
           && (!self.attacked || !self.deployed || !self.deployed.first);
       },
-      can_attack: function () {
+      canAttack: function () {
         return !!self.getAttackTiles().length
           && !self.attacked;
       },
-      can_special: function () {
+      canTurn: function () {
+        return self.directional !== false;
+      },
+      canSpecial: function () {
         return false;
+      },
+      isPassable: function () {
+        return self.focusing === false && self.paralyzed === false && self.mPass !== false;
+      },
+      /*
+       * Animate the unit getting ready to launch their special attack.
+       * Returns a promise decorated with a couple of useful methods.
+       */
+      readySpecial: function () {
+        let anim = self.animReadySpecial();
+        let promise = anim.play();
+
+        // If you release too early, the attack is cancelled.
+        // If you release after ~2 secs then the attack is launched. 
+        promise.release = () => {
+          anim.stop();
+          if (anim.state.ready)
+            self.onSpecialSelect();
+        };
+
+        // For the sake of all that's holy, don't attack even if ready!
+        promise.cancel = () => anim.stop();
+
+        return promise;
       },
     });
 
+    /*
+     * Applies and returns a new filter to the base and trim sprites.
+     * If the filter name already exists, it just returns it.
+     */
     function setFilter(name, type) {
       var filters = self.filters;
-      var base = self.frame.children[1];
-      var color = self.frame.children[2];
 
       if (type) {
         if (!(name in filters)) {
           filters[name] = new PIXI.filters[type]();
-          base.filters = color.filters = Object.keys(filters).map(n => filters[n]);
+
+          self.frame.children.forEach(child => {
+            if ('data' in child)
+              if (child.data.name === 'base' || child.data.name === 'trim')
+                child.filters = Object.keys(filters).map(n => filters[n]);
+          });
         }
       }
       else {
         if (name in filters) {
           delete filters[name];
 
-          if (base.filters.length > 1)
-            base.filters = color.filters = Object.keys(filters).map(n => filters[n]);
-          else
-            base.filters = color.filters = null;
+          self.frame.children.forEach(child => {
+            if ('data' in child)
+              if (child.data.name === 'base' || child.data.name === 'trim')
+                if (child.filters.length > 1)
+                  child.filters = Object.keys(filters).map(n => filters[n]);
+                else
+                  child.filters = null;
+          });
         }
       }
 
@@ -1641,7 +1944,7 @@
     }
 
     function animText(text, style, options) {
-      var anim = new Tactics.Animation({fps: 12});
+      var anim = new Tactics.Animation();
       var container = new PIXI.Container();
       var w = 0;
 

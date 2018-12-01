@@ -1,7 +1,7 @@
 (function ()
 {
-  Tactics.units[0].extend = function (self)
-  {
+  Tactics.units[0].extend = function (self) {
+    var _super = Object.assign({}, self);
     var data = Tactics.units[self.type];
     var sounds = $.extend({},Tactics.sounds,data.sounds);
     var board = Tactics.board;
@@ -11,6 +11,7 @@
     var walks = {};
     var attacks = {};
     var blocks = {};
+    var turns = {};
 
     $.extend(self,
     {
@@ -70,6 +71,11 @@
           });
         }
 
+        $.each(data.turns,function (direction,turn)
+        {
+          turns[direction] = self.compileFrame(turn);
+        });
+
         self.assign(assignment);
         self.origin = {tile:assignment,direction:direction};
         self.direction = direction;
@@ -78,6 +84,9 @@
       },
       compileFrame:function (data)
       {
+        if (arguments.length > 1)
+          return _super.compileFrame(arguments[0], arguments[1]);
+
         var imageBase = 'http://www.taorankings.com/html5/units/'+type+'/';
         var frame = new PIXI.Container();
         var sprite;
@@ -109,7 +118,7 @@
         frame.addChild(sprite);
 
         sprite = PIXI.Sprite.fromImage(imageBase+'color/image'+icolor.src+'.png');
-        sprite.data = {name: 'color'};
+        sprite.data = {name: 'trim'};
         sprite.position = new PIXI.Point(icolor.x-anchor.x,icolor.y-anchor.y);
         frame.addChild(sprite);
 
@@ -123,16 +132,28 @@
         // Reset Normal Appearance
         frame.filters = null;
         frame.tint = 0xFFFFFF;
-        frame.children[0].filters = null;
-        frame.children[0].tint = 0xFFFFFF;
-        frame.children[1].filters = null;
-        frame.children[1].tint = 0xFFFFFF;
-        frame.children[2].filters = null;
-        frame.children[2].tint = self.color;
 
-        self.filters = {};
+        frame.children.forEach(sprite => {
+          // Apply unit filters to the base and trim sprites.
+          if (sprite.data.name === 'base' || sprite.data.name === 'trim')
+            sprite.filters = Object.keys(self.filters).map(name => self.filters[name]);
+
+          // Legacy
+          if (sprite.data.t)
+            sprite.tint = sprite.data.t;
+          else if (sprite.data.name === 'trim')
+            sprite.tint = self.color;
+          else
+            sprite.tint = 0xFFFFFF;
+        });
 
         return self;
+      },
+      drawTurn: function () {
+        self.drawFrame(turns[self.direction]);
+      },
+      drawStand: function () {
+        self.drawFrame(stills[self.direction]);
       },
       drawAvatar:function ()
       {
@@ -161,7 +182,7 @@
         return container;
       },
       attack:function (target) {
-        let anim = new Tactics.Animation({fps:12});
+        let anim = new Tactics.Animation();
         let direction = board.getDirection(self.assignment,target);
         let target_unit = target.assigned;
         let results = [];
@@ -222,7 +243,7 @@
       },
       animDeploy:function (assignment)
       {
-        var anim = new Tactics.Animation({fps:12});
+        var anim = new Tactics.Animation();
         var tiles = self.findPath(assignment);
         var origin = self.assignment;
 
@@ -496,20 +517,14 @@
       var direction = board.getDirection(ftile,dtile);
       var edirection,ddirection;
       var funit,dunit;
-      var step = 0;
 
       // Add the frames for walking from one tile to the next.
-      anim.addFrame
-      ({
-        script:function (frame)
-        {
-          self.walk(dtile,direction,step++);
-        },
-        repeat:walks[direction].length
+      anim.addFrame({
+        script: frame => self.walk(dtile,direction, frame.repeat_index),
+        repeat: walks[direction].length,
       });
 
-      anim.splice([0,4],function ()
-      {
+      anim.splice([0, 4], () => {
         sounds.step.play();
       });
 
