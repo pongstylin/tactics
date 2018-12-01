@@ -63,7 +63,7 @@ Tactics.Board = function ()
           avatar: {type:'C',x:42,y:75},
           name  : {
             type: 'T',
-            x:    88,
+            x:    80,
             y:    14,
             style: {
               fontFamily: 'Arial',
@@ -929,9 +929,8 @@ Tactics.Board = function ()
         }, 100);
       }
       else {
-        self.unlock();
         self.notice = 'Your Turn!';
-        self.drawCard();
+        self.unlock();
       }
     },
     endTurn: function () {
@@ -1018,11 +1017,11 @@ Tactics.Board = function ()
       self.tiles.forEach(tile => {
         tile.set_interactive(!!(tile.action || tile.assigned));
 
-        if (tile.focused && tile.assigned) {
+        if (tile.focused && tile.assigned)
           tile.assigned.focus();
-        }
       });
 
+      self.drawCard();
       self.emit({
         type:   'lock-change',
         ovalue: true,
