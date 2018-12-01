@@ -35,8 +35,8 @@
         let all_target_units = [];
 
         let attackAnim = self.animAttack(first);
-        attackAnim.splice(0, frame => { console.log('play0', frame.index); sounds.attack1.play() });
-        attackAnim.splice(3, frame => { console.log('play1', frame.index); sounds.attack2.play() });
+        attackAnim.splice(0, sounds.attack1.play());
+        attackAnim.splice(3, sounds.attack2.play());
 
         targets.forEach(target => {
           attackAnim.splice(4, self.animBlackSpike(target, first));
