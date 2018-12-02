@@ -300,13 +300,13 @@
         if (target.x === from.x) {
           if (target.y > from.y) {
             for (y=from.y+1; y<target.y; y++) {
-              tile = board.getTile(target.x,y);
+              let tile = board.getTile(target.x,y);
               if (tile.assigned) return tile;
             }
           }
           else {
             for (y=from.y-1; y>target.y; y--) {
-              tile = board.getTile(target.x,y);
+              let tile = board.getTile(target.x,y);
               if (tile.assigned) return tile;
             }
           }
@@ -315,13 +315,13 @@
         else if (target.y === from.y) {
           if (target.x > from.x) {
             for (x=from.x+1; x<target.x; x++) {
-              tile = board.getTile(x,target.y);
+              let tile = board.getTile(x,target.y);
               if (tile.assigned) return tile;
             }
           }
           else {
             for (x=from.x-1; x>target.x; x--) {
-              tile = board.getTile(x,target.y);
+              let tile = board.getTile(x,target.y);
               if (tile.assigned) return tile;
             }
           }
@@ -345,7 +345,7 @@
 
         if (calc.damage === 0) calc.damage = 1;
 
-        if (data.aLOS && self.targetLOS(target_unit.assignment,from) !== target_unit.assignment) {
+        if (data.aLOS && self.getLOSTargetUnit(target_unit.assignment, from) !== target_unit) {
           calc.chance = 0;
           calc.unblockable = false;
           return calc;
