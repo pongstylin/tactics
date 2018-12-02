@@ -2,11 +2,18 @@
   'use strict';
 
   Tactics.units[1].extend = function (self) {
+    var _super = Object.assign({}, self);
     var board = Tactics.board;
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
     Object.assign(self, {
+      getAttackTiles: function () {
+        let tiles = _super.getAttackTiles();
+        tiles.unshift(self.assignment);
+
+        return tiles;
+      },
       onAttackSelect: function (event) {
         let target = event.target;
 
