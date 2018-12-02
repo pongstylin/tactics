@@ -650,7 +650,12 @@ Tactics.Board = function ()
 
     addTeams: function (teams) {
       teams.forEach((team, i) => {
-        self.teams.push({color:team.c,units:[],bot:team.b ? new Tactics.Bot(team.b) : null});
+        self.teams.push({
+          name:  team.n || null,
+          color: team.c,
+          units: [],
+          bot:   team.b ? new Tactics.Bot(team.b) : null,
+        });
 
         Object.keys(team.u).forEach(coords => {
           var uData = team.u[coords];
@@ -808,7 +813,7 @@ Tactics.Board = function ()
     //
     select: function (unit) {
       var selected = self.selected;
-      var viewed = self.viewed;
+      var viewed   = self.viewed;
       var mode;
 
       if (unit === viewed) return self.drawCard();
@@ -818,7 +823,7 @@ Tactics.Board = function ()
         self.viewed = null;
       }
 
-      if (unit == selected) {
+      if (unit === selected) {
         if (selected.activated == 'direction') {
           mode = 'turn';
         }
@@ -912,15 +917,15 @@ Tactics.Board = function ()
     },
 
     startTurn: function () {
-      var teamId = self.turns[0];
-      var bot = self.teams[teamId].bot;
+      let teamId = self.turns[0];
+      let team   = self.teams[teamId];
 
-      if (bot) {
+      if (team.bot) {
         self.lock();
 
         // Give the page a chance to render the effect of locking the board.
         setTimeout(() => {
-          bot.startTurn(teamId).then(record => {
+          team.bot.startTurn(teamId).then(record => {
             self.record = record;
 
             if (Tactics.debug) return;
@@ -929,7 +934,10 @@ Tactics.Board = function ()
         }, 100);
       }
       else {
-        self.notice = 'Your Turn!';
+        if (team.name)
+          self.notice = 'Go '+team.name+" team!";
+        else
+          self.notice = 'Your Turn!';
         self.unlock();
       }
     },
@@ -1011,6 +1019,7 @@ Tactics.Board = function ()
       });
     },
     unlock: function () {
+      self.drawCard();
       if (!self.locked) return;
       self.locked = false;
 
@@ -1021,7 +1030,6 @@ Tactics.Board = function ()
           tile.assigned.focus();
       });
 
-      self.drawCard();
       self.emit({
         type:   'lock-change',
         ovalue: true,

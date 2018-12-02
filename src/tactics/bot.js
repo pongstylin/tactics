@@ -13,103 +13,74 @@
       painted.push(tile);
     }
 
-    function select(data)
-    {
-      var deferred = $.Deferred();
-
+    function select(data) {
       board.select(data.unit);
       paint(data.unit.assignment);
 
-      if (!data.first)
-      {
+      if (data.first)
+        return Promise.resolve(data);
+
+      return new Promise((resolve, reject) => {
         // Give the user 2 seconds to see the card.
         data.unit.notice = 'I pass!';
         board.drawCard(data.unit);
 
-        setTimeout(function ()
-        {
+        setTimeout(() => {
           data.unit.notice = null;
-          deferred.resolve(data);
-        },2000);
-      }
-      else
-      {
-        deferred.resolve(data);
-      }
-
-      return deferred.promise();
+          resolve(data);
+        }, 2000);
+      });
     }
 
-    function deploy(data)
-    {
-      var deferred;
-
+    function deploy(data) {
       if (data.unit.mHealth === -data.unit.health) return data;
       if (!data.end) return data;
-      deferred = $.Deferred();
 
-      board.setSelectMode('move');
-
-      setTimeout(function ()
-      {
-        data.unit.deploy(data.end)
-          .done(function ()
-          {
-            paint(data.end,0x0088FF);
-            deferred.resolve(data); 
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          data.unit.deploy(data.end).then(() => {
+            paint(data.end, 0x0088FF);
+            resolve(data);
           });
-      },2000);
-
-      return deferred.promise();
+        }, 2000);
+      });
     }
 
-    function attack(data)
-    {
-      var deferred,target=data.target,atype;
+    function attack(data) {
+      var target = data.target, atype;
 
       if (!target) return data;
-      deferred = $.Deferred();
-
-      board.setSelectMode('attack')
 
       // Show a preview of what the attack chances are.
       if (target.assigned) board.drawCard(target.assigned);
 
       atype = target.assigned === data.unit ? 'special' : 'attack';
 
-      setTimeout(function ()
-      {
-        data.unit[atype](target)
-          .done(function ()
-          {
-            paint(data.target,0xFF8800);
-            deferred.resolve(data);
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          data.unit[atype](target).then(() => {
+            paint(data.target, 0xFF8800);
+            resolve(data);
           });
-      },2000);
-
-      return deferred.promise();
+        }, 2000);
+      });
     }
 
-    function turn(data)
-    {
-      var deferred,target=data.target;
+    function turn(data) {
+      var target = data.target;
 
       if (data.unit.mHealth === -data.unit.health) return data;
       if (!data.direction) return data;
-      deferred = $.Deferred();
-
-      board.setSelectMode('turn');
 
       // View the results of the attack, if one was made.
       if (target && target.assigned) board.drawCard(target.assigned);
 
-      setTimeout(function ()
-      {
-        data.unit.turn(data.direction).showDirection();
-        deferred.resolve(data);
-      },2000);
-
-      return deferred.promise();
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          data.unit.turn(data.direction).activate('direction');
+          resolve(data);
+        }, 2000);
+      });
     }
 
     $.extend(self,
@@ -146,52 +117,44 @@
             }
           }
 
-          Array.prototype.push.apply
-          (
+          Array.prototype.push.apply(
             i === teamId ? self.friends : self.enemies,
             team.units
           );
         });
 
         // Give the card time to fade.
-        setTimeout(function ()
-        {
+        setTimeout(() => {
           var calc;
 
           self.addChoice(self.calcTeamFuture(teamId));
 
-          if (self.inRange())
-          {
+          if (self.inRange()) {
             self.considerUnit();
           }
-          else
-          {
+          else {
             self.considerPosition(teamId);
             self.endTurn();
           }
-        },1000);
+        }, 1000);
 
         self.deferred = $.Deferred();
         return self.deferred.promise();
       },
-      endTurn:function ()
-      {
+      endTurn: function () {
         var choices = self.choices,unit;
         var first = choices[0];
         var chosen;
         var start;
 
-        if (choices.length === 1)
-        {
+        if (choices.length === 1) {
           chosen = choices[0];
 
           // If all units have turn wait, use the first team unit when passing.
           if (!chosen.unit) chosen.unit = board.teams[board.turns[0]].units[0];
         }
-        else
-        {
-          choices.sort(function (a,b)
-          {
+        else {
+          choices.sort((a, b) => {
             // Hack to prioritize seed attacks.
             var as = 0,bs = 0;
             // Hack to make sure bot actually attacks.
@@ -200,13 +163,11 @@
             if (a.target && a.target.assigned.type === 15) as++;
             if (b.target && b.target.assigned.type === 15) bs++;
 
-            if (a.target && a.target !== a.unit.assignment)
-            {
+            if (a.target && a.target !== a.unit.assignment) {
               at = a.unit.calcThreat(a.target.assigned,a.first === 'attack' ? a.unit.assignment : a.end);
               at = at.chance <= 20 ? 0 : at.threat;
             }
-            if (b.target && b.target !== b.unit.assignment)
-            {
+            if (b.target && b.target !== b.unit.assignment) {
               bt = b.unit.calcThreat(b.target.assigned,b.first === 'attack' ? b.unit.assignment : b.end);
               bt = bt.chance <= 20 ? 0 : bt.threat;
             }
@@ -220,8 +181,7 @@
           });
           chosen = choices[0];
           // If we are passing or the equivalent, then try to get a better position.
-          if (first.defense === chosen.defense && first.offense === chosen.offense)
-          {
+          if (first.defense === chosen.defense && first.offense === chosen.offense) {
             self.friends = board.teams[board.turns[0]].units.slice();
             self.considerPosition();
             chosen = self.choices[0];
@@ -232,37 +192,33 @@
         // Now put our decisions into action.
         //
         if (chosen.first == 'move')
-          order = [deploy,attack];
+          order = [deploy, attack];
         else
-          order = [attack,deploy];
+          order = [attack, deploy];
 
         select(chosen)
           .then(order[0])
           .then(order[1])
           .then(turn)
-          .then(function ()
-        {
-          setTimeout(function ()
-          {
-            $.each(painted,function (i,tile)
-            {
-              if (tile.assigned && tile.focused)
-                tile.paint('focus',0.3);
-              else
-                tile.strip();
-            });
+          .then(data => {
+            setTimeout(() => {
+              painted.forEach(tile => {
+                if (tile.assigned && tile.focused)
+                  tile.paint('focus', 0.3);
+                else
+                  tile.strip();
+              });
 
-            self.deferred.resolve();
-          },2000);
+              self.deferred.resolve();
+            }, 2000);
 
-          return chosen;
-        });
+            return chosen;
+          });
 
         return self;
       },
       // Find the closest enemy unit and move the furthest friendly unit closer to the closest friendly unit.
-      considerPosition:function ()
-      {
+      considerPosition: function () {
         var choices = [];
         var choice;
 
@@ -271,19 +227,16 @@
         //
         // Determine the unit that is closest to an enemy.
         //
-        $.each(self.friends,function (i,friend)
-        {
-          $.each(self.enemies,function (i,enemy)
-          {
+        self.friends.forEach(friend => {
+          self.enemies.forEach(enemy => {
             var weight = board.getDistance(enemy.assignment,friend.assignment);
 
             if (enemy.type === 15) return;
 
-            choices.push
-            ({
-              enemy:enemy,
-              friend:friend,
-              weight:weight + Math.random()
+            choices.push({
+              enemy:  enemy,
+              friend: friend,
+              weight: weight + Math.random()
             });
           });
         });
@@ -388,17 +341,14 @@
 
         return self;
       },
-      considerUnit:function ()
-      {
-        var unit = self.friends.pop();
-        var start = unit.assignment;
+      considerUnit: function () {
+        var unit      = self.friends.pop();
+        var start     = unit.assignment;
         var direction = unit.direction;
         var tile,tiles;
         var target;
-        var i;
 
-        if (unit.mRecovery === 0)
-        {
+        if (unit.mRecovery === 0) {
           self.considerTurnOnly(unit);
 
           if (target = self.considerTarget(unit))
@@ -407,8 +357,7 @@
 
           tiles = unit.getMoveTiles();
 
-          for (i=0; i<tiles.length; i++)
-          {
+          for (let i = 0; i < tiles.length; i++) {
             unit.assign(tile = tiles[i]);
 
             if (target)
@@ -439,8 +388,7 @@
 
         if (fdirection === tdirection) return self;
 
-        self.addChoice($.extend
-        ({
+        self.addChoice($.extend({
           unit:unit,
           first:'turn',
           direction:tdirection,

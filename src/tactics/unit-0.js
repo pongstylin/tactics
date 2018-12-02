@@ -209,16 +209,13 @@
 
         return anim.play().then(() => results);
       },
-      animTurn:function (direction)
-      {
+      animTurn: function (direction) {
         var anim = new Tactics.Animation();
 
         if (direction === self.direction) return;
 
-        if (direction === board.getRotation(self.direction,180))
-        {
-          anim.splice
-          ([
+        if (direction === board.getRotation(self.direction,180)) {
+          anim.splice([
             function ()
             {
               self.walk(self.assignment,board.getRotation(self.direction,90),-1);

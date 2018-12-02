@@ -1381,8 +1381,7 @@ Tactics = (function ()
         ]
       }
     ],
-    colors:
-    [
+    colors: [
       0,
       0,
       0xFF0000,//0xFF6057,

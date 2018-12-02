@@ -478,7 +478,7 @@
         //if (self.mRecovery > target.mRecovery) return;
         //if (self.mRecovery === target.mRecovery && board.turns.indexOf(self.team) > board.turns.indexOf(target.team)) return;
 
-        for (i=0; i<directions.length; i++) {
+        for (let i = 0; i < directions.length; i++) {
           if (!(tile = target.assignment[directions[i]])) continue;
 
           if (tile.assigned) {
@@ -504,28 +504,28 @@
             //  threat *= 1 - target.blocking/400;
           }
 
-          threats.push({tile:tile,threat:threat});
+          threats.push({tile:tile, threat:threat});
         }
 
         if (!threats.length) return;
 
-        return threats.sort(function (a,b) { return b.threat-a.threat; });
+        return threats.sort((a,b) => b.threat - a.threat);
       },
       calcThreat: function (target,tile,turns) {
         var calc = {};
         var tdirection = target.direction;
         var path,cnt,attack;
         var directions = [
-          board.getRotation(tdirection,180),
-          board.getRotation(tdirection,90),
-          board.getRotation(tdirection,270),
+          board.getRotation(tdirection, 180),
+          board.getRotation(tdirection, 90),
+          board.getRotation(tdirection, 270),
           tdirection
         ];
 
         if (!tile) {
           if (!turns) turns = board.turns;
 
-          for (i=0; i<directions.length; i++) {
+          for (let i = 0; i < directions.length; i++) {
             if (!(tile = target.assignment[directions[i]])) continue;
 
             if (tile.assigned) {
@@ -547,11 +547,11 @@
             path = null;
           }
 
-          if (!path) return {damage:0,threat:0,from:null,turns:null,chance:0};
+          if (!path) return {damage:0, threat:0, from:null, turns:null, chance:0};
           tile = path.pop() || self.assignment;
         }
 
-        attack = self.calcAttack(target,tile);
+        attack = self.calcAttack(target, tile);
 
         calc.from = tile;
         calc.turns = cnt;
@@ -1172,6 +1172,9 @@
        * * 'attack' mode shows all possible attack targets as orange tiles.
        * * 'turn' mode shows all 4 arrows for assigning a direction.
        * * 'direction' mode shows 1 arrow to show current unit direction.
+       *
+       * The bot activates units without a mode so that it pulses, but does not
+       * show movement or attack tiles.
        *
        * A unit may be activated in 'view'-only mode.  This typically occurs
        * when selecting an enemy unit to view its movement or attack range.
