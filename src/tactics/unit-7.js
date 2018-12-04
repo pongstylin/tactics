@@ -9,6 +9,9 @@
     var special_ready = false;
 
     Object.assign(self, {
+      getTargetTiles: function (target) {
+        return self.getAttackTiles();
+      },
       highlightAttack: function () {
         if (self.viewed)
           _super.highlightAttack();
@@ -17,19 +20,9 @@
 
         return self;
       },
-      attack: function (target) {
-        let anim             = new Tactics.Animation();
-        let direction        = board.getDirection(self.assignment, target, self.direction);
-
-        let all_target_units = [];
-        self.getAttackTiles().forEach(tile => {
-          if (tile.assigned)
-            all_target_units.push(tile.assigned);
-        });
-
-        // The result is required to display the effect of an attack, whether it
-        // is a miss or how much health was lost or gained.
-        let results = self.calcAttackResults(all_target_units);
+      playAttack: function (target, results) {
+        let anim      = new Tactics.Animation();
+        let direction = board.getDirection(self.assignment, target, self.direction);
 
         let attackAnim = self.animAttack(target);
         attackAnim.splice(1, () => sounds.attack1.play());
@@ -37,22 +30,22 @@
         attackAnim.addFrame(() => self.drawFrame(data.stills[direction]));
 
         results.forEach(result => {
-          let target_unit = result.unit;
+          let unit = result.unit;
 
           // Animate the target unit's reaction starting with the 4th attack frame.
           if (result.blocked)
             attackAnim
-              .splice(3, target_unit.animBlock(self));
+              .splice(3, unit.animBlock(self));
           else
             attackAnim
-              .splice(3, self.animStrike(target_unit))
-              .splice(4, target_unit.animStagger(self));
+              .splice(3, self.animStrike(unit))
+              .splice(4, unit.animStagger(self));
         });
 
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim)
 
-        return anim.play().then(() => results);
+        return anim.play();
       },
       canSpecial: function () {
         if (!self.canAttack())

@@ -1008,6 +1008,8 @@ Tactics.Board = function ()
 
     lock: function () {
       if (self.locked) return;
+      if (self.focused)
+        self.focused.assignment.emit({type:'blur', target:self.focused.assignment});
       self.locked = true;
 
       self.tiles.forEach(tile => tile.set_interactive(false));
@@ -1027,7 +1029,7 @@ Tactics.Board = function ()
         tile.set_interactive(!!(tile.action || tile.assigned));
 
         if (tile.focused && tile.assigned)
-          tile.assigned.focus();
+          tile.emit({type:'focus', target:tile});
       });
 
       self.emit({

@@ -239,6 +239,17 @@
 
         return tiles;
       },
+      getTargetTiles(target) {
+        return [target];
+      },
+      getTargetUnits(target) {
+        if (self.aLOS)
+          return [self.getLOSTargetUnit(target)];
+        else
+          return self.getTargetTiles(target)
+            .filter(tile => !!tile.assigned)
+            .map(tile => tile.assigned);
+      },
       getLOSTargetUnit(target, source) {
         source = source || self.assignment;
 
@@ -899,7 +910,15 @@
         });
       },
       attack: function (target) {
-        // stub, not sure what the default attack behavior looks like yet
+        let target_units = self.getTargetUnits(target);
+        let results      = self.calcAttackResults(target_units);
+
+        return self.playAttack(target, results)
+          .then(() => board.showResults(results))
+          .then(() => {
+            self.attacked = true;
+            self.origin.adirection = self.direction;
+          });
       },
       shock: function (direction, frameId, block) {
         var anchor = self.assignment.getCenter();
@@ -1351,10 +1370,7 @@
 
           // If this is our final destination, stand ready
           if (to_tile === assignment)
-            anim.addFrame(() => {
-              self.assign(assignment).turn(direction);
-              if (assignment.focused) self.focus();
-            });
+            anim.addFrame(() => self.assign(assignment).turn(direction));
 
           // Make any units behind us step back into position.
           let from_unit;
@@ -1766,7 +1782,7 @@
         );
       },
       onAttackSelect: function (event) {
-        let tile = event.target;
+        let target = event.target;
 
         board.clearHighlight();
 
@@ -1774,29 +1790,25 @@
         // mode to attack mode.
         self.activated = 'target';
 
-        self.highlightTarget(tile);
+        self.getTargetTiles(target).forEach(tile => self.highlightTarget(tile));
       },
       onTargetSelect: function (event) {
         board.lock();
         self.freeze();
-        self.attack(event.target)
-          .then(board.showResults)
-          .then(() => {
-            self.attacked = true;
-            self.origin.adirection = self.direction;
-            self.thaw();
+        return self.attack(event.target).then(() => {
+          self.thaw();
 
-            if (self.deployed) {
-              if (self.blocking)
-                board.setSelectMode('turn');
-              else
-                board.setSelectMode('ready');
-            }
+          if (self.deployed) {
+            if (self.blocking)
+              board.setSelectMode('turn');
             else
-              board.setSelectMode('move');
+              board.setSelectMode('ready');
+          }
+          else
+            board.setSelectMode('move');
 
-            board.unlock();
-          });
+          board.unlock();
+        });
       },
       onTargetFocus: function (event) {
         return self.onAttackFocus(event);

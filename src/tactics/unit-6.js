@@ -7,32 +7,26 @@
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
     Object.assign(self, {
-      onAttackSelect: function (event) {
-        let direction = board.getDirection(self.assignment, event.target);
-
-        board.clearHighlight();
-
-        // This makes it possible to click the attack button to switch from target
-        // mode to attack mode.
-        self.activated = 'target';
-        self._targets = [];
+      getTargetTiles: function (target) {
+        let direction = board.getDirection(self.assignment, target);
+        let targets = [];
 
         let context = self.assignment;
-        while (self._targets.length < 4) {
+        while (targets.length < 4) {
           context = context[direction];
           if (!context) break;
 
-          self._targets.push(context);
-          self.highlightTarget(context);
+          targets.push(context);
         }
+
+        return self._targets = targets;
       },
-      attack: function () {
+      playAttack: function (target, results) {
         let targets   = self._targets;
         let first     = self._targets[0];
         let anim      = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, first, self.direction);
         let darkness  = [-0.3, -0.4, -0.5, -0.3, -0.2, 0];
-        let all_target_units = [];
 
         let attackAnim = self.animAttack(first);
         attackAnim.splice(0, sounds.attack1.play());
@@ -43,8 +37,6 @@
 
           let target_unit = target.assigned;
           if (target_unit) {
-            all_target_units.push(target_unit);
-
             attackAnim.splice(6, target_unit.animStagger(self));
             attackAnim.splice(6, {
               script: frame => target_unit.colorize(0xFFFFFF, darkness[frame.repeat_index]),
@@ -56,12 +48,7 @@
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim);
 
-        /*
-         * Get the effect of the attack on all units in the target area.
-         */
-        let results = self.calcAttackResults(all_target_units);
-
-        return anim.play().then(() => results);
+        return anim.play();
       },
       animBlock: function (attacker) {
         let anim = new Tactics.Animation();
