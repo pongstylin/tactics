@@ -63,7 +63,7 @@ Tactics.Board = function ()
           avatar: {type:'C',x:42,y:75},
           name  : {
             type: 'T',
-            x:    88,
+            x:    80,
             y:    14,
             style: {
               fontFamily: 'Arial',
@@ -151,19 +151,16 @@ Tactics.Board = function ()
     rotation:'N',
 
     // Property accessors
-    getTile:function (x,y)
-    {
+    getTile: function (x,y) {
       return self.tiles[x+y*11];
     },
 
     // Public functions
-    getDistance:function (a,b)
-    {
+    getDistance: function (a, b) {
       // Return the distance between two tiles.
       return Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
     },
-    getBetween:function (a,b,empty)
-    {
+    getBetween: function (a, b, empty) {
       var distance = self.getDistance(a,b);
       var dx = Math.abs(a.x-b.x);
       var dy = Math.abs(a.y-b.y);
@@ -653,7 +650,12 @@ Tactics.Board = function ()
 
     addTeams: function (teams) {
       teams.forEach((team, i) => {
-        self.teams.push({color:team.c,units:[],bot:team.b ? new Tactics.Bot(team.b) : null});
+        self.teams.push({
+          name:  team.n || null,
+          color: team.c,
+          units: [],
+          bot:   team.b ? new Tactics.Bot(team.b) : null,
+        });
 
         Object.keys(team.u).forEach(coords => {
           var uData = team.u[coords];
@@ -811,7 +813,7 @@ Tactics.Board = function ()
     //
     select: function (unit) {
       var selected = self.selected;
-      var viewed = self.viewed;
+      var viewed   = self.viewed;
       var mode;
 
       if (unit === viewed) return self.drawCard();
@@ -821,7 +823,7 @@ Tactics.Board = function ()
         self.viewed = null;
       }
 
-      if (unit == selected) {
+      if (unit === selected) {
         if (selected.activated == 'direction') {
           mode = 'turn';
         }
@@ -915,15 +917,15 @@ Tactics.Board = function ()
     },
 
     startTurn: function () {
-      var teamId = self.turns[0];
-      var bot = self.teams[teamId].bot;
+      let teamId = self.turns[0];
+      let team   = self.teams[teamId];
 
-      if (bot) {
+      if (team.bot) {
         self.lock();
 
         // Give the page a chance to render the effect of locking the board.
         setTimeout(() => {
-          bot.startTurn(teamId).then(record => {
+          team.bot.startTurn(teamId).then(record => {
             self.record = record;
 
             if (Tactics.debug) return;
@@ -932,9 +934,11 @@ Tactics.Board = function ()
         }, 100);
       }
       else {
+        if (team.name)
+          self.notice = 'Go '+team.name+" team!";
+        else
+          self.notice = 'Your Turn!';
         self.unlock();
-        self.notice = 'Your Turn!';
-        self.drawCard();
       }
     },
     endTurn: function () {
@@ -1015,15 +1019,15 @@ Tactics.Board = function ()
       });
     },
     unlock: function () {
+      self.drawCard();
       if (!self.locked) return;
       self.locked = false;
 
       self.tiles.forEach(tile => {
         tile.set_interactive(!!(tile.action || tile.assigned));
 
-        if (tile.focused && tile.assigned) {
+        if (tile.focused && tile.assigned)
           tile.assigned.focus();
-        }
       });
 
       self.emit({

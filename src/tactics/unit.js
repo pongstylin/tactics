@@ -215,21 +215,23 @@
       },
       getAttackTiles: function (start) {
         var tiles = [];
-        var x,y;
-        var r = data.aRadius;
-        var cx,cy;
+        var radius = data.aRadius;
         var tile;
 
         start = start || self.assignment;
-        cx    = start.x;
-        cy    = start.y;
+        let cx    = start.x;
+        let cy    = start.y;
+        let minX  = Math.max(cx - radius, 0);
+        let maxX  = Math.min(cx + radius, 10);
+        let minY  = Math.max(cy - radius, 0);
+        let maxY  = Math.min(cy + radius, 10);
 
-        for (x=cx-r; x<=cx+r; x++) {
-          for (y=cy-r; y<=cy+r; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          for (let y = minY; y <= maxY; y++) {
             if (data.aLinear && x != cx && y != cy) continue;
             if (!(tile = board.getTile(x, y))) continue;
             if (tile === start) continue;
-            if (board.getDistance(start, tile) > r) continue;
+            if (board.getDistance(start, tile) > radius) continue;
 
             tiles.push(tile);
           }
@@ -237,7 +239,58 @@
 
         return tiles;
       },
-      targetLOS: function (target,from) {
+      getLOSTargetUnit(target, source) {
+        source = source || self.assignment;
+
+        // Get the absolute position of the line.
+        let source_point = source.pixi.toGlobal(new PIXI.Point(44, 28));
+        let target_point = target.pixi.toGlobal(new PIXI.Point(44, 28));
+
+        let hit_area = new PIXI.Polygon([
+          43, 10, // top-left
+          46, 10, // top-right
+          72, 26, // right-top
+          72, 29, // right-bottom
+          46, 46, // bottom-right
+          43, 46, // bottom-left
+          16, 29, // left-bottom
+          16, 26, // left-top
+          43, 10, // close
+        ]);
+
+        // Set oneX and oneY to 1 or -1 depending on attack direction.
+        let oneX = target.x === source.x
+          ? 1 // Could be any number
+          : (target.x - source.x) / Math.abs(target.x - source.x)
+        let oneY = target.y === source.y
+          ? 1 // Could be any number
+          : (target.y - source.y) / Math.abs(target.y - source.y)
+
+        // Trace a path from source to target, testing tiles along the way.
+        for (let x = source.x; x !== target.x + oneX; x += oneX) {
+          for (let y = source.y; y !== target.y + oneY; y += oneY) {
+            let tile = board.getTile(x, y);
+            if (!tile || tile === source || !tile.assigned) continue;
+
+            // Get the relative position of the line to the tile.
+            let local_source_point = tile.pixi.toLocal(source_point);
+            let local_target_point = tile.pixi.toLocal(target_point);
+
+            let intersects = hit_area.intersects(
+              local_source_point.x,
+              local_source_point.y,
+              local_target_point.x,
+              local_target_point.y,
+            );
+
+            if (intersects)
+              return tile.assigned;
+          }
+        }
+
+        return null;
+      },
+      targetLOS: function (target, from) {
         var x,y;
         from = from || self.assignment;
 
@@ -247,13 +300,13 @@
         if (target.x === from.x) {
           if (target.y > from.y) {
             for (y=from.y+1; y<target.y; y++) {
-              tile = board.getTile(target.x,y);
+              let tile = board.getTile(target.x,y);
               if (tile.assigned) return tile;
             }
           }
           else {
             for (y=from.y-1; y>target.y; y--) {
-              tile = board.getTile(target.x,y);
+              let tile = board.getTile(target.x,y);
               if (tile.assigned) return tile;
             }
           }
@@ -262,13 +315,13 @@
         else if (target.y === from.y) {
           if (target.x > from.x) {
             for (x=from.x+1; x<target.x; x++) {
-              tile = board.getTile(x,target.y);
+              let tile = board.getTile(x,target.y);
               if (tile.assigned) return tile;
             }
           }
           else {
             for (x=from.x-1; x>target.x; x--) {
-              tile = board.getTile(x,target.y);
+              let tile = board.getTile(x,target.y);
               if (tile.assigned) return tile;
             }
           }
@@ -292,7 +345,7 @@
 
         if (calc.damage === 0) calc.damage = 1;
 
-        if (data.aLOS && self.targetLOS(target_unit.assignment,from) !== target_unit.assignment) {
+        if (data.aLOS && self.getLOSTargetUnit(target_unit.assignment, from) !== target_unit) {
           calc.chance = 0;
           calc.unblockable = false;
           return calc;
@@ -425,7 +478,7 @@
         //if (self.mRecovery > target.mRecovery) return;
         //if (self.mRecovery === target.mRecovery && board.turns.indexOf(self.team) > board.turns.indexOf(target.team)) return;
 
-        for (i=0; i<directions.length; i++) {
+        for (let i = 0; i < directions.length; i++) {
           if (!(tile = target.assignment[directions[i]])) continue;
 
           if (tile.assigned) {
@@ -451,28 +504,28 @@
             //  threat *= 1 - target.blocking/400;
           }
 
-          threats.push({tile:tile,threat:threat});
+          threats.push({tile:tile, threat:threat});
         }
 
         if (!threats.length) return;
 
-        return threats.sort(function (a,b) { return b.threat-a.threat; });
+        return threats.sort((a,b) => b.threat - a.threat);
       },
       calcThreat: function (target,tile,turns) {
         var calc = {};
         var tdirection = target.direction;
         var path,cnt,attack;
         var directions = [
-          board.getRotation(tdirection,180),
-          board.getRotation(tdirection,90),
-          board.getRotation(tdirection,270),
+          board.getRotation(tdirection, 180),
+          board.getRotation(tdirection, 90),
+          board.getRotation(tdirection, 270),
           tdirection
         ];
 
         if (!tile) {
           if (!turns) turns = board.turns;
 
-          for (i=0; i<directions.length; i++) {
+          for (let i = 0; i < directions.length; i++) {
             if (!(tile = target.assignment[directions[i]])) continue;
 
             if (tile.assigned) {
@@ -494,11 +547,11 @@
             path = null;
           }
 
-          if (!path) return {damage:0,threat:0,from:null,turns:null,chance:0};
+          if (!path) return {damage:0, threat:0, from:null, turns:null, chance:0};
           tile = path.pop() || self.assignment;
         }
 
-        attack = self.calcAttack(target,tile);
+        attack = self.calcAttack(target, tile);
 
         calc.from = tile;
         calc.turns = cnt;
@@ -1120,6 +1173,9 @@
        * * 'turn' mode shows all 4 arrows for assigning a direction.
        * * 'direction' mode shows 1 arrow to show current unit direction.
        *
+       * The bot activates units without a mode so that it pulses, but does not
+       * show movement or attack tiles.
+       *
        * A unit may be activated in 'view'-only mode.  This typically occurs
        * when selecting an enemy unit to view its movement or attack range.
        */
@@ -1379,7 +1435,7 @@
         for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
           indexes.push(index);
         }
-        indexes.forEach((index, i) => anim.splice(0, () => self.drawFrame(index)));
+        indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
 
         anim.addFrame(() => self.drawFrame(data.stills[direction]));
 

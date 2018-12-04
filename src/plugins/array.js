@@ -1,16 +1,13 @@
-Array.prototype.random = function ()
-{
+Array.prototype.random = function () {
   return this[Math.floor(Math.random() * this.length)];
 };
 
-Array.prototype.randomize = function ()
-{
+Array.prototype.randomize = function () {
   var arr = this;
   var currentIndex = arr.length, temporaryValue, randomIndex;
 
   // While there remain elements to shuffle...
-  while (0 !== currentIndex)
-  {
+  while (0 !== currentIndex) {
     // Pick a remaining element...
     randomIndex = Math.floor(Math.random() * currentIndex);
     currentIndex -= 1;
@@ -24,8 +21,7 @@ Array.prototype.randomize = function ()
   return arr;
 };
 
-Array.prototype.spin = function ()
-{
+Array.prototype.spin = function () {
   var arr = this;
   var index = Math.floor(Math.random() * arr.length);
   while (index--) arr.push(arr.shift());

@@ -273,8 +273,7 @@ Tactics = (function ()
       }
       requestAnimationFrame(loop);
     },
-    images:
-    [
+    images: [
       'board.jpg',
       'shock.png',
       'particle.png',
@@ -287,12 +286,12 @@ Tactics = (function ()
       'turn_bl.png',
       'turn_br.png'  // Inefficient.  Better to flip the bl horizontally.
     ],
-    sounds:
-    {
-      step: 'sound10',
-      focus:'sound15',
-      select:'sound14',
-      strike:'sound6',
+    sounds: {
+      step:   'sound10',
+      block:  'sound11',
+      focus:  'sound15',
+      select: 'sound14',
+      strike: 'sound6',
     },
     effects: {
       focus: {
@@ -300,10 +299,8 @@ Tactics = (function ()
         frames_offset: {y:-16},
       },
     },
-    animations:
-    {
-      death:
-      [
+    animations: {
+      death: [
         [
           {src:'death.png',pos:{x: 0  ,y:-16  },scale:{x:1.416,y:1.5  },alpha:0.5 }
         ],
@@ -552,7 +549,66 @@ Tactics = (function ()
           E: 140,
         },
       },
-      {name:'Scout'},
+      {
+        name:     'Scout',
+        ability:  'Long Range',
+        power:    18,
+        armor:    8,
+        health:   40,
+        recovery: 2,
+        blocking: 60,
+        mRadius:  4,
+        aRadius:  6,
+        aType:    'melee',
+        aLOS:     true,
+        sounds:   {
+          attack: 'sound812',
+        },
+        frames_url: 'http://www.taorankings.com/html5/json/scout.json',
+        frames_offset: {y:5},
+        stills: {
+          S: 0,
+          W: 42,
+          N: 84,
+          E: 126,
+        },
+        backSteps: {
+          S: [  1,   6],
+          W: [ 43,  48],
+          N: [ 85,  90],
+          E: [127, 132],
+        },
+        foreSteps: {
+          S: [  7,  10],
+          W: [ 49,  52],
+          N: [ 91,  94],
+          E: [133, 136],
+        },
+        walks: {
+          S: [ 11,  18],
+          W: [ 53,  60],
+          N: [ 95, 102],
+          E: [137, 144],
+        },
+        attacks: {
+          S: [ 19,  32],
+          W: [ 61,  74],
+          N: [103, 116],
+          E: [145, 158],
+        },
+        blocks: {
+          S: [ 34,  39],
+          W: [ 76,  81],
+          N: [118, 123],
+          E: [160, 165],
+        },
+        turns: {
+          S: 41,
+          W: 83,
+          N: 125,
+          E: 167,
+        },
+      },
       {
         name:    'Cleric',
         ability: 'Heal All',
@@ -561,9 +617,9 @@ Tactics = (function ()
         health:   24,
         recovery: 5,
         blocking: 0,
-        aType:    'magic',
-        aRadius:  'all',
         mRadius:  3,
+        aRadius:  'all',
+        aType:    'magic',
         sounds:   {
           heal: 'sound1203',
         },
@@ -575,26 +631,26 @@ Tactics = (function ()
           E: 133,
         },
         backSteps: {
-          S: [2, 7],
-          W: [46, 51],
-          N: [90, 95],
+          S: [  2,   7],
+          W: [ 46,  51],
+          N: [ 90,  95],
           E: [134, 139],
         },
         foreSteps: {
-          S: [8, 11],
-          W: [52, 55],
-          N: [96, 99],
+          S: [  8,  11],
+          W: [ 52,  55],
+          N: [ 96,  99],
           E: [140, 143],
         },
         walks: {
-          S: [12, 19],
-          W: [56, 63],
+          S: [ 12,  19],
+          W: [ 56,  63],
           N: [100, 107],
           E: [144, 151],
         },
         attacks: {
-          S: [20, 43],
-          W: [64, 87],
+          S: [ 20,  43],
+          W: [ 64,  87],
           N: [108, 131],
           E: [152, 175],
         },
@@ -610,7 +666,74 @@ Tactics = (function ()
         name:'Lightning Ward',
         frames_url: 'http://www.taorankings.com/html5/json/lightning_ward.json',
       },
-      {name:'Witch'},
+      {
+        name:     'Dark Magic Witch',
+        ability:  'Dark Magic',
+        power:    24,
+        armor:    0,
+        health:   28,
+        recovery: 3,
+        blocking: 20,
+        mRadius:  3,
+        aRadius:  4,
+        aType:    'magic',
+        aLinear:  true,
+        sounds:   {
+          attack1: 'sound431',
+          attack2: 'sound1602',
+          block1: 'sound431',
+          block2: 'sound11',
+        },
+        effects:  {
+          black_spike: {
+            frames_url:    'http://www.taorankings.com/html5/json/black_spike.json',
+            frames_offset: {y:-16},
+          },
+        },
+        frames_url: 'http://www.taorankings.com/html5/json/witch.json',
+        stills: {
+          S: 1,
+          W: 38,
+          N: 75,
+          E: 112,
+        },
+        backSteps: {
+          S: [  2,   7],
+          W: [ 39,  44],
+          N: [ 76,  81],
+          E: [113, 118],
+        },
+        foreSteps: {
+          S: [  8,  11],
+          W: [ 45,  48],
+          N: [ 82,  85],
+          E: [119, 122],
+        },
+        walks: {
+          S: [ 12,  19],
+          W: [ 49,  56],
+          N: [ 86,  93],
+          E: [123, 130],
+        },
+        attacks: {
+          S: [ 21,  32],
+          W: [ 58,  69],
+          N: [ 95, 106],
+          E: [132, 143],
+        },
+        blocks: {
+          S: [ 28,  33],
+          W: [ 65,  70],
+          N: [102, 107],
+          E: [139, 144],
+        },
+        turns: {
+          S: 37,
+          W: 74,
+          N: 111,
+          E: 148,
+        },
+      },
       {
         name:     'Assassin',
         ability:  'Melee Attack',
@@ -636,7 +759,7 @@ Tactics = (function ()
             frames_offset: {y:-20},
           },
         },
-        frames_url: 'http://www.taorankings.com/html5/json/assassin.json',
+        frames_url:    'http://www.taorankings.com/html5/json/assassin.json',
         frames_offset: {y:-4},
         stills: {
           S: 1,
@@ -645,37 +768,37 @@ Tactics = (function ()
           E: 163,
         },
         backSteps: {
-          S: [2, 7],
-          W: [56, 61],
+          S: [  2,   7],
+          W: [ 56,  61],
           N: [110, 115],
           E: [164, 169],
         },
         foreSteps: {
-          S: [8, 11],
-          W: [62, 65],
+          S: [  8,  11],
+          W: [ 62,  65],
           N: [116, 119],
           E: [170, 173],
         },
         walks: {
-          S: [12, 19],
-          W: [66, 73],
+          S: [ 12,  19],
+          W: [ 66,  73],
           N: [120, 127],
           E: [174, 181],
         },
         attacks: {
-          S: [21, 30],
-          W: [75, 84],
+          S: [ 21,  30],
+          W: [ 75,  84],
           N: [129, 138],
           E: [183, 192],
         },
         special: {
-          S: [32, 45],
-          W: [86, 99],
+          S: [ 32,  45],
+          W: [ 86,  99],
           N: [140, 153],
           E: [194, 207],
         },
         blocks: {
-          S: [47, 52],
+          S: [ 47,  52],
           W: [101, 106],
           N: [155, 160],
           E: [209, 214],
@@ -1258,8 +1381,7 @@ Tactics = (function ()
         ]
       }
     ],
-    colors:
-    [
+    colors: [
       0,
       0,
       0xFF0000,//0xFF6057,

@@ -1,37 +1,23 @@
-(function ()
-{
+(function () {
   // Bot class.
-  Tactics.Bot.Chaos = function (options)
-  {
+  Tactics.Bot.Chaos = function (options) {
     var self = this;
     var board = Tactics.board;
     var agent;
 
-    $.extend(self,
-    {
-      startTurn:function (teamId)
-      {
-        var deferred = $.Deferred();
+    $.extend(self, {
+      startTurn: function (teamId) {
+        return new Promise((resolve, reject) => {
+          self.team = board.teams[teamId];
+          agent = self.team.units[0];
 
-        self.team = board.teams[teamId];
-        agent = self.team.units[0];
-
-        if (agent.type === 15)
-        {
-          agent.phase().done(function ()
-          {
-            deferred.resolve();
-          });
-        }
-        else
-        {
-          self.startTurnDragon(teamId).then(agent.phase).done(function ()
-          {
-            deferred.resolve();
-          });
-        }
-
-        return deferred.promise();
+          if (agent.type === 15) {
+            agent.phase().then(() => resolve());
+          }
+          else {
+            self.startTurnDragon(teamId).then(agent.phase).then(() => resolve());
+          }
+        });
       },
       startTurnDragon:function (teamId)
       {

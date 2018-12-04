@@ -1,30 +1,37 @@
-Tactics.App = (function ($,window,document)
-{
+Tactics.App = (function ($, window, document) {
+  'use strict';
+
   var self = {};
   var board;
   var pointer;
   var fullscreen = Tactics.fullscreen;
 
-  // To be retreived from the game server.
-  //teams[0].s = teams[1].s =  {af:3,bc:6,bd:1,bh:1,bi:8,cb:7,ce:0,cf:0,cg:0,cj:2};a
-  var colors = [2,10,8,7];
-  var data =
-  {
-    teams:
-    [
-      {c: 2,b:0,u:{ei:{t:0,d:'N'},fi:{t:0,d:'N'},gi:{t:0,d:'N'}}},
-      {c:10,b:1,u:{ec:{t:0,d:'S'},fc:{t:0,d:'S'},gc:{t:0,d:'S'}}}
+  // Ultimately, team data will be retreived from the game server.
+  var colors = [2, 10];
+  var data = {
+    teams: [
+      {
+        c: 2,
+        b: 0,
+        u: {
+          ei:{t:0, d:'N'}, fi:{t:0, d:'N'}, gi:{t:0, d:'N'},
+        }
+      },
+      {
+        c: 10,
+        b: 1,
+        u: {
+          ec:{t:0, d:'S'}, fc:{t:0, d:'S'}, gc:{t:0, d:'S'},
+        }
+      }
     ],
-    turns:[0,1]
+    turns:[0,1],
   };
 
   $(window)
-    .on('load',function ()
-    {
-      var buttons =
-      {
-        swapbar:function ()
-        {
+    .on('load', function () {
+      var buttons = {
+        swapbar: function () {
           var $active = $('#app > .buttons.active');
           var $next = $active.next('.buttons');
 
@@ -35,13 +42,11 @@ Tactics.App = (function ($,window,document)
           $next.addClass('active');
         },
         resize:fullscreen.toggle,
-        movebar:function ($button)
-        {
+        movebar: function ($button) {
           $('#app').toggleClass('left right');
           $button.toggleClass('fa-rotate-270 fa-rotate-90');
         },
-        rotate:function ($button)
-        {
+        rotate: function ($button) {
           var cls,per;
 
           if ($button.hasClass('fa-rotate-90'))
@@ -68,60 +73,47 @@ Tactics.App = (function ($,window,document)
           $button.toggleClass(cls);
           Tactics.board.rotate(per);
         },
-        sound:function ($button)
-        {
+        sound: function ($button) {
           $button.toggleClass('fa-bell fa-bell-slash');
 
-          if ($button.hasClass('fa-bell'))
-          {
+          if ($button.hasClass('fa-bell')) {
             Howler.unmute();
           }
-          else
-          {
+          else {
             Howler.mute();
           }
         },
-        select:function ($button)
-        {
+        select: function ($button) {
           var selected = board.selected;
           var viewed = board.viewed;
           var mode = $button.val();
 
-          if (mode == 'turn' && board.selectMode == 'turn')
-          {
-            if (viewed)
-            {
+          if (mode == 'turn' && board.selectMode == 'turn') {
+            if (viewed) {
               if (viewed.activated == 'turn')
                 viewed.activate('direction',true);
             }
-            else if (selected)
-            {
-              if (selected.activated == 'turn')
-              {
+            else if (selected) {
+              if (selected.activated == 'turn') {
                 selected.activate('direction');
                 $('BUTTON[name=pass]').addClass('ready');
               }
-              else
-              {
-                selected.turn(90).hideMode().showMode();
+              else {
+                selected.turn(90).showMode();
                 $('BUTTON[name=select][value=turn]').removeClass('ready');
               }
             }
           }
-          else
-          {
+          else {
             board.setSelectMode(mode);
           }
         },
-        pass:function ()
-        {
+        pass: function () {
           board.endTurn();
         },
-        surrender:function ()
-        {
+        surrender: function () {
           $('#popup #message').text('Are you sure you want to reset the game?');
-          $('#popup BUTTON[name=yes]').data('handler',function ()
-          {
+          $('#popup BUTTON[name=yes]').data('handler', () => {
             setupGame();
             $('#overlay,#popup').hide();
           });
@@ -129,23 +121,19 @@ Tactics.App = (function ($,window,document)
         }
       };
 
-      $('#overlay').on('click tap',function ()
-      {
+      $('#overlay').on('click tap', () => {
         if ($('#popup').hasClass('error')) return;
         $('#overlay,#popup').hide();
       });
 
-      $('#popup BUTTON[name=no]').data('handler',function ()
-      {
+      $('#popup BUTTON[name=no]').data('handler', () => {
         $('#overlay,#popup').hide();
       });
 
-      if ('ontouchstart' in window)
-      {
+      if ('ontouchstart' in window) {
         $('body').addClass(pointer = 'touch');
       }
-      else
-      {
+      else {
         $('body').addClass(pointer = 'mouse');
       }
 
@@ -153,8 +141,7 @@ Tactics.App = (function ($,window,document)
 
       $(window).trigger('resize');
 
-      $('#loader').css
-      ({
+      $('#loader').css({
         top:($(window).height()/2)-($('#loader').height()/2)+'px',
         left:($(window).width()/2)-($('#loader').width()/2)+'px',
         visibility:'visible'
@@ -163,67 +150,51 @@ Tactics.App = (function ($,window,document)
       board = Tactics.board;
 
       board
-        .on('select-mode-change',function (event)
-        {
-          var selected = board.selected;
-          var viewed = board.viewed;
-          var omode = event.ovalue;
-          var nmode = event.nvalue;
-          var move = true,attack = true;
+        .on('select-mode-change', event => {
+          let selected    = board.viewed || board.selected;
+          let old_mode    = event.ovalue;
+          let new_mode    = event.nvalue;
+          let can_move    = !selected || selected.canMove();
+          let can_attack  = !selected || selected.canAttack();
+          let can_special = selected && selected.canSpecial();
 
-          $('BUTTON[name=select][value='+omode+']').removeClass('selected');
-          $('BUTTON[name=select][value='+nmode+']').addClass('selected');
+          $('BUTTON[name=select][value='+old_mode+']').removeClass('selected');
+          $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
 
-          if (!$('#game-play').hasClass('active'))
-          {
+          if (!$('#game-play').hasClass('active')) {
             $('.buttons').removeClass('active');
             $('#game-play').addClass('active');
           }
 
-          if (viewed)
-          {
-            if (!viewed.mRadius) move = false;
-            if (!viewed.aRadius) attack = false;
-          }
-          else if (selected)
-          {
-            if (selected && selected.attacked)
-            {
-              move = !selected.deployed || !selected.deployed.first;
-              attack = false;
-            }
-            if (!selected.mRadius) move = false;
-            if (!selected.aRadius) attack = false;
-          }
+          $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
+          $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
 
-          $('BUTTON[name=select][value=move]').prop('disabled',!move);
-          $('BUTTON[name=select][value=attack]').prop('disabled',!attack);
+          if (new_mode === 'attack' && can_special && !selected.viewed)
+            $('BUTton[name=select][value=attack]').addClass('ready');
+          else
+            $('BUTton[name=select][value=attack]').removeClass('ready');
 
-          if (pointer == 'touch' && nmode == 'turn' && selected && !viewed)
+          if (new_mode === 'turn' && pointer === 'touch' && selected && !selected.viewed)
             $('BUTTON[name=select][value=turn]').addClass('ready');
           else
             $('BUTTON[name=select][value=turn]').removeClass('ready');
 
-          if (nmode == 'ready')
+          if (new_mode === 'ready')
             $('BUTTON[name=pass]').addClass('ready');
           else
             $('BUTTON[name=pass]').removeClass('ready');
         })
-        .on('card-change',function (event)
-        {
-          var $card = $('#card');
+        .on('card-change', event => {
+          let $card = $('#card');
 
-          if (event.nvalue && event.ovalue === null)
-          {
+          if (event.nvalue && event.ovalue === null) {
             $card.stop().fadeIn()
           }
-          else if (event.nvalue === null)
-          {
+          else if (event.nvalue === null) {
             $card.stop().fadeOut();
           }
         })
-        .on('lock-change',function (event)
-        {
+        .on('lock-change', event => {
           $('#app').toggleClass('locked');
         });
 
@@ -233,16 +204,32 @@ Tactics.App = (function ($,window,document)
       if (Howler.noAudio)
         $('BUTTON[name=sound]').toggleClass('hidden');
 
+      let timer;
+
       $('BODY')
-        .on('mouseover','#app BUTTON:enabled',function ()
-        {
-          var $button = $(this);
+        /*
+         * Under these conditions a special attack can be triggered:
+         *   1) The unit is enraged and selected in attack mode. (selector)
+         *   2) The attack button is pressed for 2 seconds and released.
+         */
+        .on('mousedown touchstart', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
+          let selected = board.selected;
+          let readySpecial = selected.readySpecial();
+          let button = event.target;
+
+          $(document).one('mouseup touchend', event => {
+            if (event.target === button)
+              readySpecial.release();
+            else
+              readySpecial.cancel();
+          });
+        })
+        .on('mouseover','#app BUTTON:enabled', event => {
+          var $button = $(event.target);
           if ($button.css('cursor') != 'pointer') return;
 
-          if ($button.parents('.locked').length)
-          {
-            if ($button.parents('#game-settings').length)
-            {
+          if ($button.parents('.locked').length) {
+            if ($button.parents('#game-settings').length) {
               if ($button.attr('name') === 'rotate')
                 return;
             }
@@ -252,15 +239,12 @@ Tactics.App = (function ($,window,document)
 
           Tactics.sounds.focus.play();
         })
-        .on('click tap','#app BUTTON:enabled',function ()
-        {
-          var $button = $(this);
+        .on('click tap','#app BUTTON:enabled', event => {
+          var $button = $(event.target);
           var handler = $button.data('handler') || buttons[$button.attr('name')];
 
-          if ($button.parents('.locked').length)
-          {
-            if ($button.parents('#game-settings').length)
-            {
+          if ($button.parents('.locked').length) {
+            if ($button.parents('#game-settings').length) {
               if ($button.attr('name') === 'rotate')
                 return;
             }
@@ -271,12 +255,12 @@ Tactics.App = (function ($,window,document)
           handler($button);
 
           Tactics.sounds.select.play();
+          Tactics.render();
         });
 
       load();
     })
-    .on('resize',function ()
-    {
+    .on('resize', () => {
       var $resize = $('BUTTON[name=resize]');
 
       Tactics.resize($('#field').width(),$(window).height());
@@ -285,29 +269,24 @@ Tactics.App = (function ($,window,document)
         $resize.toggleClass('fa-expand fa-compress');
     });
 
-  function load()
-  {
-    var $progress = $('#progress');
-    var resources = [];
-    var loaded = 0;
-    var loader = PIXI.loader;
-    var utypes = [];
+  function load() {
+    let $progress = $('#progress');
+    let resources = [];
+    let loaded = 0;
+    let loader = PIXI.loader;
+    let unit_types = [];
+    let effects = {};
 
-    function progress()
-    {
-      var percent = (++loaded / resources.length) * 100;
-      var action = pointer === 'mouse' ? 'Click' : 'Tap';
+    function progress() {
+      let percent = (++loaded / resources.length) * 100;
+      let action = pointer === 'mouse' ? 'Click' : 'Tap';
 
       $progress.width(percent);
 
-      if (percent === 100)
-      {
+      if (percent === 100) {
         $('#loader')
-          .css({
-            cursor:'pointer'
-          })
-          .one('click tap',function ()
-          {
+          .css({cursor: 'pointer'})
+          .one('click tap', () => {
             board.draw();
 
             $('#splash').hide();
@@ -320,178 +299,158 @@ Tactics.App = (function ($,window,document)
       }
     }
 
-    $.each(Tactics.images,function (i,image_url)
-    {
-      var url = 'http://www.taorankings.com/html5/images/'+image_url;
+    Tactics.images.forEach(image_url => {
+      let url = 'http://www.taorankings.com/html5/images/'+image_url;
 
       resources.push(url);
-
-      loader.add
-      ({
-        url:url
-      });
+      loader.add({url: url});
     });
 
-    $.each(Tactics.sounds,function (name,sound)
-    {
-      var howl;
-      var url;
+    Object.keys(Tactics.sounds).forEach(name => {
+      let sound = Tactics.sounds[name];
+      if (typeof sound === 'string')
+        sound = {file: sound};
 
-      if (typeof sound === 'string') sound = {file:sound};
-      url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+      let url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+
+      Tactics.sounds[name] = new Howl({
+        urls:        [url+'.mp3', url+'.ogg'],
+        sprite:      sound.sprite,
+        volume:      sound.volume || 1,
+        rate:        sound.rate || 1,
+        onload:      () => progress(),
+        onloaderror: () => {},
+      });
 
       resources.push(url);
+    });
 
-      howl = new Howl
-      ({
-        urls:[url+'.mp3',url+'.ogg'],
-        sprite:sound.sprite,
-        volume:sound.volume || 1,
-        rate:sound.rate || 1,
-        onload:function ()
-        {
+    Object.keys(Tactics.effects).forEach(name => {
+      let effect_url = Tactics.effects[name].frames_url;
+
+      if (!(effect_url in effects)) {
+        resources.push(effect_url);
+
+        effects[effect_url] = $.getJSON(effect_url).then(renderData => {
           progress();
-        },
-        onloaderror:function ()
-        {
-        }
-      });
-
-      Tactics.sounds[name] = howl;
-    });
-
-    // Trophy
-    $.each(Tactics.units[19].frames,function (i,frame)
-    {
-      $.each(frame.c,function (i,sprite)
-      {
-        var url = 'http://www.taorankings.com/html5/units/19/image'+sprite.id+'.png';
-
-        if (resources.indexOf(url) !== -1)
-          return;
-
-        resources.push(url);
-        loader.add
-        ({
-          url:url
+          return renderData;
         });
+      }
+  
+      effects[effect_url].then(renderData => {
+        Object.assign(Tactics.effects[name], renderData);
+        return renderData;
       });
     });
 
-    $.each(data.teams,function (i,team)
-    {
-      var units = $.extend({},team.u);
+    let trophy_url = Tactics.units[19].frames_url;
+    resources.push(trophy_url);
 
-      if (i === 4)
-        units.aa = {t:22};
+    $.getJSON(trophy_url).then(renderData => {
+      Object.assign(Tactics.units[19], renderData);
+      progress();
+    });
 
-      $.each(units,function (i,unit)
-      {
-        var units = Tactics.units;
-        var utype = unit.t;
-        var sprites = [];
+    data.teams.forEach(team => {
+      Object.values(team.u).forEach(u => {
+        let units     = Tactics.units;
+        let unit_type = u.t;
+        let unit      = units[unit_type];
+        let sprites   = [];
 
-        if (utypes.indexOf(utype) > -1) return;
-        utypes.push(utype);
+        if (unit_types.indexOf(unit_type) > -1)
+          return;
+        unit_types.push(unit_type);
 
-        if (units[utype].sounds)
-        {
-          $.each(units[utype].sounds,function (name,sound)
-          {
-            var howl;
-            var url;
+        if (unit.sounds) {
+          Object.keys(unit.sounds).forEach(name => {
+            let sound = unit.sounds[name];
+            if (typeof sound === 'string')
+              sound = {file: sound};
 
-            if (typeof sound === 'string') sound = {file:sound};
-            url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+            let url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+
+            unit.sounds[name] = new Howl({
+              urls:        [url+'.mp3', url+'.ogg'],
+              sprite:      sound.sprite,
+              volume:      sound.volume || 1,
+              rate:        sound.rate || 1,
+              onload:      () => progress(),
+              onloaderror: () => {},
+            });
 
             resources.push(url);
-
-            howl = new Howl
-            ({
-              urls:[url+'.mp3',url+'.ogg'],
-              sprite:sound.sprite,
-              volume:sound.volume || 1,
-              rate:sound.rate || 1,
-              onload:function ()
-              {
-                progress();
-              },
-              onloaderror:function ()
-              {
-              }
-            });
-
-            units[utype].sounds[name] = howl;
           });
         }
 
-        if (units[utype].frames)
-        {
-          $.each(units[utype].frames,function (i,frame)
-          {
+        if (unit.effects) {
+          Object.keys(unit.effects).forEach(name => {
+            let effect_url = unit.effects[name].frames_url;
+
+            if (!(effect_url in effects)) {
+              resources.push(effect_url);
+
+              effects[effect_url] = $.getJSON(effect_url).then(renderData => {
+                progress();
+                return renderData;
+              });
+            }
+  
+            effects[effect_url].then(renderData => {
+              Object.assign(unit.effects[name], renderData);
+              return renderData;
+            });
+          });
+        }
+
+        if (unit.frames_url) {
+          let frames_url = unit.frames_url;
+          resources.push(frames_url);
+
+          $.getJSON(frames_url).then(renderData => {
+            Object.assign(unit, renderData);
+            progress();
+          });
+        }
+        // Legacy
+        else if (unit.frames) {
+          unit.frames.forEach(frame => {
             if (!frame) return;
 
-            $.each(frame.c,function (i,sprite)
-            {
-              var url = 'http://www.taorankings.com/html5/units/'+utype+'/image'+sprite.id+'.png';
-
+            frame.c.forEach(sprite => {
+              let url = 'http://www.taorankings.com/html5/units/'+unit_type+'/image'+sprite.id+'.png';
               if (resources.indexOf(url) !== -1)
                 return;
 
               resources.push(url);
-              loader.add
-              ({
-                url:url
-              });
+              loader.add({url: url});
             });
           });
         }
-        else
-        {
-          $.each(units[utype].stills,function (direction,still)
-          {
-            sprites.push(still);
-          });
+        // Legacy
+        else {
+          sprites.push.apply(sprites, Object.values(unit.stills));
 
-          if (units[utype].walks)
-          {
-            $.each(units[utype].walks,function (direction,walk)
-            {
-              sprites.push.apply(sprites,walk);
-            });
-          }
+          if (unit.walks)
+            sprites.push.apply(sprites, [].concat.apply([], Object.values(unit.walks)));
 
-          if (units[utype].attacks)
-          {
-            $.each(units[utype].attacks,function (direction,attack)
-            {
-              sprites.push.apply(sprites,attack);
-            });
-          }
+          if (unit.attacks)
+            sprites.push.apply(sprites, [].concat.apply([], Object.values(unit.attacks)));
 
-          if (units[utype].blocks)
-          {
-            $.each(units[utype].blocks,function (direction,block)
-            {
-              sprites.push.apply(sprites,block);
-            });
-          }
+          if (unit.blocks)
+            sprites.push.apply(sprites, [].concat.apply([], Object.values(unit.blocks)));
 
-          $.each(sprites,function (i,sprite)
-          {
-            $.each(sprite,function (aspect,image)
-            {
-              var url = 'http://www.taorankings.com/html5/units/'+utype+'/'+aspect+'/image'+image.src+'.png';
-
+          sprites.forEach(sprite => {
+            Object.keys(sprite).forEach(name => {
+              let image = sprite[name];
               if (!image.src) return;
+
+              let url = 'http://www.taorankings.com/html5/units/'+unit_type+'/'+name+'/image'+image.src+'.png';
               if (resources.indexOf(url) !== -1)
                 return;
 
               resources.push(url);
-              loader.add
-              ({
-                url:url
-              });
+              loader.add({url: url});
             });
           });
         }
@@ -503,14 +462,20 @@ Tactics.App = (function ($,window,document)
       .load();
   }
 
-  function setupGame()
-  {
+  function setupGame() {
+    // Preload the Trophy data URLs
+    let trophy = new Tactics.Unit(19);
+    trophy.drawAvatar();
+
     board.reset().addTeams(data.teams);
     board.turns = data.turns.slice().spin();
 
-    Tactics.render();
+    // Give Data URIs a chance to load.
+    setTimeout(() => {
+      Tactics.render();
 
-    board.startTurn();
+      board.startTurn();
+    }, 1);
   }
 
   return self;
