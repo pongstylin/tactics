@@ -12,7 +12,7 @@ Tactics = (function ()
     // pointer and back when needed without moving the mouse.
     renderer.plugins.interaction.update();
 
-    //console.log('pixi render',+new Date());
+    //console.log('render', +new Date());
     renderer.render(stage);
     rendering = false;
   };
@@ -23,6 +23,7 @@ Tactics = (function ()
     width:22+(88*9)+22,
     height:38+4+(56*9)+4,
     utils:{},
+    animators: {},
 
     init:function ($viewport) {
       // We don't need an infinite loop, thanks.
@@ -227,51 +228,54 @@ Tactics = (function ()
     // is complete.  The animator is passed the number of frames that should be
     // skipped to maintain speed.
     //
-    renderAnim:function (anim,fps)
-    {
-      var self = this;
-      var throttle = 1000 / fps;
-      var running;
-      var start;
-      var delay = 0;
-      var count = 0;
-      var skip = 0;
+    renderAnim: function (anim, fps) {
+      let self = this;
+      let throttle = 1000 / fps;
+      let animators = self.animators[fps] = self.animators[fps] || [];
+      let start;
+      let delay = 0;
+      let count = 0;
+      let skip = 0;
+      let i;
 
-      var loop = function (now)
-      {
+      let loop = now => {
         skip = 0;
 
-        // stop the loop if anim returned false
-        if (running !== false)
-        {
-          if (count)
-          {
+        // stop the loop if all animators returned false
+        if (animators.length) {
+          if (count) {
             delay = (now - start) - (count * throttle);
 
-            if (delay > throttle)
-            {
+            if (delay > throttle) {
               skip = Math.floor(delay / throttle);
               count += skip;
 
               requestAnimationFrame(loop);
             }
-            else
-            {
-              setTimeout(function () { requestAnimationFrame(loop); },throttle-delay);
+            else {
+              setTimeout(() => requestAnimationFrame(loop), throttle - delay);
             }
           }
-          else
-          {
+          else {
             start = now;
-            setTimeout(function () { requestAnimationFrame(loop); },throttle);
+            setTimeout(() => requestAnimationFrame(loop), throttle);
           }
 
-          running = anim(skip);
+          // Iterate backward since elements may be removed.
+          for (i = animators.length-1; i > -1; i--) {
+            if (animators[i](skip) === false)
+              animators.splice(i, 1);
+          }
           render();
           count++;
         }
-      }
-      requestAnimationFrame(loop);
+      };
+
+      // Stack multiple animations using the same FPS into one loop.
+      animators.push(anim);
+
+      if (animators.length === 1)
+        requestAnimationFrame(loop);
     },
     images: [
       'board.jpg',
