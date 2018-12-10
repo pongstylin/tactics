@@ -236,8 +236,10 @@
 
           Tactics.renderAnim(skip => {
             if (!data.playing) return false;
-            if (render(skip) === false || (cursor == frames.length && data.loop === null))
-              return self.stop();
+            if (render(skip) === false || (cursor == frames.length && data.loop === null)) {
+              self.stop();
+              return false;
+            }
 
             if (cursor == frames.length)
               cursor = data.loop || 0;

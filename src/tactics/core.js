@@ -231,7 +231,7 @@ Tactics = (function ()
     renderAnim: function (anim, fps) {
       let self = this;
       let throttle = 1000 / fps;
-      let animators = self.animators[fps] = self.animators[fps] || [];
+      let animators = [anim];
       let start;
       let delay = 0;
       let count = 0;
@@ -269,13 +269,18 @@ Tactics = (function ()
           render();
           count++;
         }
+        else {
+          delete self.animators[fps];
+        }
       };
 
       // Stack multiple animations using the same FPS into one loop.
-      animators.push(anim);
-
-      if (animators.length === 1)
+      if (fps in self.animators)
+        self.animators[fps].push(anim);
+      else {
+        self.animators[fps] = animators;
         requestAnimationFrame(loop);
+      }
     },
     images: [
       'board.jpg',
