@@ -199,7 +199,7 @@
               frame = frames[cursor++];
 
               for (let s = 0; s < frame.scripts.length; s++)
-                if (frame.scripts[s].call(self, frame, self.state) === false)
+                if (frame.scripts[s].call(self, self.state) === false)
                   return false;
             }
           };
@@ -215,7 +215,7 @@
               frame = frames[cursor++];
 
               for (let s = 0; s < frame.scripts.length; s++)
-                if (frame.scripts[s].call(self, frame, self.state) === false)
+                if (frame.scripts[s].call(self, self.state) === false)
                   return false;
             }
           };
@@ -226,7 +226,7 @@
             var frame = frames[cursor++];
 
             for (let s = 0; s < frame.scripts.length; s++)
-              if (frame.scripts[s].call(self, frame, self.state) === false)
+              if (frame.scripts[s].call(self, self.state) === false)
                 return false;
           };
         }
