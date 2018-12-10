@@ -433,7 +433,10 @@ Tactics.Board = function ()
         //  Status Detection
         //
         if (unit.mHealth === -unit.health) {
-          notice = 'Dead!';
+          if (unit.type === 15)
+            notice = 'Hatched!';
+          else
+            notice = 'Dead!';
         }
         else {
           notice = unit.notice;
@@ -659,8 +662,8 @@ Tactics.Board = function ()
 
         Object.keys(team.u).forEach(coords => {
           var uData = team.u[coords];
-          var x = coords.charCodeAt(0)-97;
-          var y = coords.charCodeAt(1)-97;
+          var x = coords.charCodeAt(0) - 97;
+          var y = coords.charCodeAt(1) - 97;
           var degree = self.getDegree('N',self.rotation);
           var data = Object.assign({},
             uData,self.getUnitRotation(degree, self.getTile(x,y), uData.d)
@@ -732,7 +735,7 @@ Tactics.Board = function ()
       if (unit == self.carded)
         self.drawCard();
 
-      tUnits.splice(tUnits.indexOf(unit),1);
+      tUnits.splice(tUnits.indexOf(unit), 1);
       unit.assignment.dismiss();
       units.removeChild(unit.pixi);
 
@@ -1111,7 +1114,7 @@ Tactics.Board = function ()
       };
     },
 
-    showResults: function (results) {
+    playResults: function (results) {
       if (!Array.isArray(results))
         results = [results];
 
@@ -1181,7 +1184,7 @@ Tactics.Board = function ()
             options.color = '#FFBB44';
 
           // Die if the unit is dead.
-          if (result.mHealth === -unit.health) {
+          if (result.mHealth === -unit.health && unit.type !== 15) {
             let caption = result.notice || 'Nooo...';
             anim
               .splice(unit.animCaption(caption, options))

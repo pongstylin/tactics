@@ -74,7 +74,7 @@
             result.miss = true;
           else {
             result.mHealth = -target_unit.health;
-            result.notice  = cries.randomize().shift();
+            result.notice  = cries.shuffle().shift();
           }
 
           results.push(result);
@@ -86,7 +86,7 @@
         results.push({
           unit:    self,
           mHealth: -self.health,
-          notice:  taunts.randomize()[0],
+          notice:  taunts.shuffle()[0],
         });
 
         return anim.play().then(() => results);

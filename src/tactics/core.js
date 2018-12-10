@@ -1073,18 +1073,18 @@ Tactics = (function ()
       {name:'Beast Rider'},
       {name:'Dragonspeaker Mage'},
       {
-        name:'Chaos Seed',
-        ability:'Chaos',
-        specialty:'Awaken',
-        power:24,
-        armor:99,
-        health:6,
-        recovery:0,
-        blocking:50,
-        aType:'magic',
-        aRadius:0,
-        mRadius:0,
-        directional:false,
+        name:        'Chaos Seed',
+        ability:     'Chaos',
+        specialty:   'Awaken',
+        power:       24,
+        armor:       99,
+        health:      6,
+        recovery:    0,
+        blocking:    50,
+        aType:       'magic',
+        aRadius:     0,
+        mRadius:     0,
+        directional: false,
         sounds: {
           crack:'crack',
           block:'sound8',
@@ -1112,10 +1112,17 @@ Tactics = (function ()
             }
           }
         },
-        stills:{S:0},
-        frames:
-        [
-          {x:-2,y:12,c:[{id:6459,x:-12.5,y:-19.5},{id:1351,x:-21,y:-61},{id:1354,x:-20,y:-57}]}
+        stills: {S: 0},
+        frames: [
+          {
+            x: -1,
+            y: 7,
+            c: [
+              {id:6459, x:-12.5, y:-19.5},
+              {id:1351, x:-21,   y:-61},
+              {id:1354, x:-20,   y:-57},
+            ]
+          }
         ]
       },
       {name:'Wisp'},
@@ -1145,27 +1152,34 @@ Tactics = (function ()
         mPass:false,
         mPath:false,
         mRadius:4,
-        sounds:
-        {
-          flap:'sound7',
-          block:'sound11',
-          heal:'sound1203',
-          impact:'sound1602',
-          charge:{file:'charge',rate:0.6},
-          buzz:{file:'buzz',rate:0.6},
-          phase:{file:'sound4',rate:0.5}
+        sounds: {
+          flap:   'sound7',
+          block:  'sound11',
+          heal:   'sound1203',
+          impact: 'sound1602',
+          charge: {file:'charge', rate:0.6},
+          buzz:   {file:'buzz',   rate:0.6},
+          phase:  {file:'sound4', rate:0.5},
         },
-        stills:{S:0,W:48,N:96,E:144},
-        turns:{S:1,W:49,N:97,E:145},
-        animations:
-        {
+        stills: {
+          S: 0,
+          W: 48,
+          N: 96,
+          E: 144,
+        },
+        turns: {
+          S: 1,
+          W: 49,
+          N: 97,
+          E: 145,
+        },
+        animations: {
           S:{deploy:{s:  2,l:23},attack:{s: 25,l:9},block:{s: 34,l:6},hatch:{s: 40,l:8}},
           W:{deploy:{s: 50,l:23},attack:{s: 73,l:9},block:{s: 82,l:6},hatch:{s: 88,l:8}},
           N:{deploy:{s: 98,l:23},attack:{s:121,l:9},block:{s:130,l:6},hatch:{s:136,l:8}},
           E:{deploy:{s:146,l:23},attack:{s:169,l:9},block:{s:178,l:6},hatch:{s:184,l:8}}
         },
-        frames:
-        [
+        frames: [
           // S Still
           {c:[{id:6055,x:-70,y:-40,a:0.5},{id:3955,x:-71,y:-101},{id:3957,x:-29,y:-52}]},
           // S Turn

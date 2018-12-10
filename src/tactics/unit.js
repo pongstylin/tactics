@@ -301,45 +301,6 @@
 
         return null;
       },
-      targetLOS: function (target, from) {
-        var x,y;
-        from = from || self.assignment;
-
-        // Any way to make this more efficient?
-
-        // Horizontal
-        if (target.x === from.x) {
-          if (target.y > from.y) {
-            for (y=from.y+1; y<target.y; y++) {
-              let tile = board.getTile(target.x,y);
-              if (tile.assigned) return tile;
-            }
-          }
-          else {
-            for (y=from.y-1; y>target.y; y--) {
-              let tile = board.getTile(target.x,y);
-              if (tile.assigned) return tile;
-            }
-          }
-        }
-        // Vertical
-        else if (target.y === from.y) {
-          if (target.x > from.x) {
-            for (x=from.x+1; x<target.x; x++) {
-              let tile = board.getTile(x,target.y);
-              if (tile.assigned) return tile;
-            }
-          }
-          else {
-            for (x=from.x-1; x>target.x; x--) {
-              let tile = board.getTile(x,target.y);
-              if (tile.assigned) return tile;
-            }
-          }
-        }
-
-        return target;
-      },
       calcAttack: function (target_unit, from) {
         if (from === undefined)
           from = self.assignment;
@@ -363,19 +324,22 @@
         }
 
         if (data.aType === 'melee' && target_unit.paralyzed === false) {
-          if (target_unit.directional !== false) {
+          if (target_unit.directional === false) {
+            calc.penalty = 100 - target_unit.blocking;
+          }
+          else {
             direction = board.getDirection(from || self.assignment,target_unit.assignment);
 
             if (direction.indexOf(target_unit.direction) > -1) {
               calc.block = 0;
               return calc;
             }
-            else if (direction.indexOf(board.getRotation(target_unit.direction,180)) > -1) {
-              calc.penalty = 100-target_unit.blocking;
+            else if (direction.indexOf(board.getRotation(target_unit.direction, 180)) > -1) {
+              calc.penalty = 100 - target_unit.blocking;
             }
             else {
               calc.block /= 2;
-              calc.penalty = 200-target_unit.blocking;
+              calc.penalty = 200 - target_unit.blocking;
             }
             calc.bonus = target_unit.blocking;
           }
@@ -417,6 +381,8 @@
             mBlocking: unit.mBlocking + calc.bonus,
           });
         });
+
+        return results;
       },
       // Obtain the maximum threat to the unit before he recovers.
       calcDefense: function (turns) {
@@ -614,7 +580,7 @@
       compileFrame: function (frame, data) {
         var container = new PIXI.Container();
         container.data = frame;
-        if (!frame.length || frame.c) return container;
+        if (!frame.length && !frame.c) return container;
 
         let offset;
         if (data.width && data.height) {
@@ -640,7 +606,7 @@
         else
           shapes = frame;
 
-        shapes.forEach(shape => {
+        shapes.forEach((shape, i) => {
           /*
            * Translate short form to long form
            */
@@ -658,13 +624,22 @@
               throw new Error('Frames without images are not supported');
             }
 
-            if (shape.n === 's' || shape.n === 'shadow')
-              shape.name = 'shadow';
-            if (shape.n === 'b' || shape.n === 'base')
-              shape.name = 'base';
-            if (shape.n === 't' || shape.n === 'trim')
-              shape.name = 'trim';
-            delete shape.n;
+            if ('n' in shape) {
+              if (shape.n === 's' || shape.n === 'shadow')
+                shape.name = 'shadow';
+              if (shape.n === 'b' || shape.n === 'base')
+                shape.name = 'base';
+              if (shape.n === 't' || shape.n === 'trim')
+                shape.name = 'trim';
+              delete shape.n;
+            }
+            // Legacy
+            else if ('c' in frame) {
+              shape.name =
+                i === 0 ? 'shadow' :
+                i === 1 ? 'base'   :
+                i === 2 ? 'trim'   : null;
+            }
 
             // Legacy translation
             if ('a' in shape) {
@@ -731,10 +706,12 @@
         return self.compileFrame(data.frames[data.stills.S], data);
       },
       drawFrame: function (index, context) {
-        var frame;
+        let frame = self.frames[index];
 
         if (self.frame) pixi.removeChild(self.frame);
-        pixi.addChildAt(self.frame = frame = self.frames[index], 0);
+        if (!frame)
+          return;
+        pixi.addChildAt(self.frame = frame, 0);
 
         if (context)
           pixi.position = context.getCenter().clone();
@@ -913,12 +890,30 @@
         let target_units = self.getTargetUnits(target);
         let results      = self.calcAttackResults(target_units);
 
+        self.freeze();
         return self.playAttack(target, results)
-          .then(() => board.showResults(results))
+          .then(() => board.playResults(results))
           .then(() => {
             self.attacked = true;
             self.origin.adirection = self.direction;
-          });
+
+            let promise = Promise.resolve();
+
+            results.forEach(result => {
+              let unit = result.unit;
+
+              if (unit.canCounter()) {
+                let action = unit.getCounterAction(self, result);
+                if (action)
+                  promise = promise
+                    .then(() => unit[action.type](action))
+                    .then(() => board.playResults(action.results));
+              }
+            });
+
+            return promise;
+          })
+          .then(() => self.thaw());
       },
       shock: function (direction, frameId, block) {
         var anchor = self.assignment.getCenter();
@@ -1296,16 +1291,15 @@
         var stride = 0.1 * (speed || 1);
 
         return new Tactics.Animation({
-          fps:    12,
           loop:   true,
           frames: [
             {
               script: () => self.brightness(1 + (step-- * stride)),
-              repeat: steps
+              repeat: steps,
             },
             {
               script: () => self.brightness(1 + (step++ * stride)),
-              repeat: steps
+              repeat: steps,
             }
           ]
         });
@@ -1444,16 +1438,22 @@
         let anim = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
-        anim.addFrame(() => self.origin.direction = self.direction = direction);
+        if (self.directional === false)
+          anim.addFrame(() => {});
+        else
+          anim.addFrame(() => self.origin.direction = self.direction = direction);
         anim.addFrame(() => sounds.block.play());
 
-        let indexes = [];
-        for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
-          indexes.push(index);
+        if (data.blocks) {
+          let indexes = [];
+          for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
+            indexes.push(index);
+          }
+          indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
         }
-        indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
 
-        anim.addFrame(() => self.drawFrame(data.stills[direction]));
+        if (self.directional !== false)
+          anim.addFrame(() => self.drawFrame(data.stills[direction]));
 
         return anim;
       },
@@ -1554,7 +1554,7 @@
         return anim;
       },
       animStagger: function (attacker) {
-        let anim = new Tactics.Animation();
+        let anim      = new Tactics.Animation();
         let direction = board.getDirection(attacker.assignment, self.assignment, self.direction);
 
         anim.addFrames([
@@ -1602,11 +1602,11 @@
 
         return anim;
       },
-      animLightning:function (target, changes) {
-        var anim = new Tactics.Animation();
-        var pos = target.getCenter();
-        var tunit = target.assigned;
-        var whiten = [0.30,0.60,0.90,0.60,0.30,0];
+      animLightning: function (target) {
+        var anim      = new Tactics.Animation();
+        var pos       = target.getCenter();
+        var tunit     = target.assigned;
+        var whiten    = [0.30,0.60,0.90,0.60,0.30,0];
         var container = new PIXI.Container();
         var strike;
         var strikes = [
@@ -1629,7 +1629,7 @@
         strikes[4].scale.x = -1;
         strikes[5].position = new PIXI.Point(-33+strikes[5].width,-532-1);
         strikes[5].scale.x = -1;
-        strikes.randomize();
+        strikes.shuffle();
 
         anim.addFrames([
           () => {
@@ -1645,24 +1645,17 @@
               else
                 Tactics.stage.children[1].removeChild(container);
             },
-            repeat:7
+            repeat: 7,
           }
         ]);
 
-        if (tunit) {
+        if (tunit)
           anim
-            .splice(2,tunit.animStagger(self,tunit.direction,changes))
-            .splice(1, [
-              () => tunit.change(changes),
-              {
-                script: () => tunit.whiten(whiten.shift()),
-                repeat:6
-              }
-            ]);
-
-          if (changes.mHealth === -tunit.health)
-            anim.splice(tunit.animDeath(self));
-        }
+            .splice(2, tunit.animStagger(self,tunit.direction))
+            .splice(2, {
+              script: () => tunit.whiten(whiten.shift()),
+              repeat: 6,
+            });
 
         return anim;
       },
@@ -1674,8 +1667,8 @@
         anim.addFrame(() => sounds.heal.play());
 
         target_units.forEach(tunit => {
-          // Apply sparkles in a few randomized patterns
-          [{x:-18,y:-52},{x:0,y:-67},{x:18,y:-52}].randomize().forEach((pos, i) => {
+          // Apply sparkles in a few shuffled patterns
+          [{x:-18,y:-52},{x:0,y:-67},{x:18,y:-52}].shuffle().forEach((pos, i) => {
             anim.splice(i*3+1, self.animSparkle(tunit.pixi, pos));
           });
         });
@@ -1794,10 +1787,7 @@
       },
       onTargetSelect: function (event) {
         board.lock();
-        self.freeze();
-        return self.attack(event.target).then(() => {
-          self.thaw();
-
+        return self.attack(event.target).then(results => {
           if (self.deployed) {
             if (self.blocking)
               board.setSelectMode('turn');
@@ -1820,7 +1810,7 @@
         board.lock();
         self.freeze();
         self.attackSpecial()
-          .then(board.showResults)
+          .then(board.playResults)
           .then(() => {
             if (self.mHealth > -self.health) {
               self.deployed = true;
@@ -1876,6 +1866,9 @@
         return self.directional !== false;
       },
       canSpecial: function () {
+        return false;
+      },
+      canCounter: function () {
         return false;
       },
       isPassable: function () {

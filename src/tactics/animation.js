@@ -80,12 +80,11 @@
           delete frame.repeat;
 
           for (let i = 0; i < repeat; i++) {
-            let repeat_frame = $.extend(true, {}, frame, {
-              index:        index + i,
-              repeat_index: i,
-            });
+            let repeat_frame = $.extend(true, {}, frame, {index: index + i});
 
-            repeat_frame.scripts = repeat_frame.scripts.map(s => s.bind(this, repeat_frame));
+            repeat_frame.scripts = repeat_frame.scripts.map(s => s.bind(this,
+              Object.assign({repeat_index: i}, repeat_frame)
+            ));
             frames.push(repeat_frame);
           }
         }
@@ -308,7 +307,7 @@
           if (frame = frames.shift())
             container.addChild(frame);
         },
-        repeat: frames.length+1,
+        repeat: frames.length + 1,
       }
     ]});
   };
