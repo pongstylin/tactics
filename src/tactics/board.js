@@ -1190,6 +1190,7 @@ Tactics.Board = function ()
               .splice(unit.animCaption(caption, options))
               .splice(unit.animDeath(self));
 
+            unit.change({mHealth:result.mHealth});
             return anim.play();
           }
 
