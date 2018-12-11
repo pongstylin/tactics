@@ -4,7 +4,6 @@ import 'plugins/pixi.js';
 import 'lib/font-awesome.css';
 import 'util/event.js';
 import 'lib/jquery.touchy.js';
-import 'lib/jquery.touch.js';
 import 'lib/howler.js';
 
 import 'tactics/core.scss';
