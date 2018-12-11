@@ -1816,6 +1816,7 @@
         // This makes it possible to click the attack button to switch from target
         // mode to attack mode.
         self.activated = 'target';
+
         self.targeted = self.getTargetTiles(target);
         self.targeted.forEach(tile => self.highlightTarget(tile));
       },

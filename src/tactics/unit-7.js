@@ -15,8 +15,10 @@
       highlightAttack: function () {
         if (self.viewed)
           _super.highlightAttack();
-        else
-          self.getAttackTiles().forEach(target => self.highlightTarget(target));
+        else {
+          self.targeted = self.getTargetTiles(self.assignment);
+          self.targeted.forEach(target => self.highlightTarget(target));
+        }
 
         return self;
       },
