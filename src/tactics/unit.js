@@ -1214,8 +1214,7 @@
         if (self.activated == mode) return;
 
         if (mode == 'move')
-          if (self.deployed || self.turned)
-            self.reset();
+          self.reset(mode);
 
         self.activated = mode;
         self.showMode();
@@ -1236,12 +1235,34 @@
 
         return stopPulse();
       },
-      reset: function () {
+      /*
+       * The reset() method is used to undo moving and/or turning.
+       * It is currently used in 3 contexts:
+       *   1) If the unit has not attacked, reset it when selecting a different unit.
+       *   2) If the unit has not attacked, reset it when selecting an empty tile.
+       *   3) Reset a unit when activating 'move' mode.
+       *
+       * For the first 2 contexts, the unit needs to be deactivated.  This is managed
+       * by a falsey 'mode' (an intent to no longer have an activated mode).
+       */
+      reset: function (mode) {
         var origin = self.origin;
-        if (self.deployed || self.turned)
+
+        if (self.attacked) {
+          if (self.deployed && !self.deployed.first)
+            self.assign(origin.tile).turn(origin.adirection);
+          else
+            self.turn(origin.adirection);
+        }
+        else
           self.assign(origin.tile).turn(origin.direction);
 
-        return self.deactivate();
+        if (!mode)
+          self.deactivate();
+        else
+          self.deployed = self.turned = false;
+
+        return self;
       },
       change: function (changes) {
         Object.assign(self, changes);
@@ -1826,12 +1847,14 @@
           .then(board.playResults)
           .then(() => {
             if (self.mHealth > -self.health) {
-              self.deployed = true;
               self.attacked = true;
               self.origin.adirection = self.direction;
               self.thaw();
 
-              board.setSelectMode('turn');
+              if (self.canMove())
+                board.setSelectMode('move');
+              else
+                board.setSelectMode('turn');
               board.unlock();
             }
             else {
