@@ -1213,7 +1213,7 @@
         self.viewed = view;
         if (self.activated == mode) return;
 
-        if (mode == 'move')
+        if (!view && mode === 'move')
           self.reset(mode);
 
         self.activated = mode;
@@ -1226,7 +1226,7 @@
 
         self.hideMode();
 
-        self.activated = self.deployed = self.targeted = self.attacked = false;
+        self.activated = self.deployed = self.targeted = self.attacked = self.turned = false;
         self.origin = {
           tile:      self.assignment,
           direction: self.direction,

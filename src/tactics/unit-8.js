@@ -106,31 +106,28 @@
 
         return anim;
       },
-      reset: function () {
-        var origin = self.origin;
+      reset: function (mode) {
+        let origin = self.origin;
+        let refocus = origin.focusing && !self.attacked && (self.deployed || self.turned);
 
-        if (self.deployed || self.turned) {
-          self.assign(origin.tile).turn(origin.direction);
-          self.deployed = false;
-          self.turned = false;
+        _super.reset(mode);
 
-          if (origin.focusing) {
-            self
+        if (refocus) {
+          self
+            .showFocus(0.5)
+            .change({focusing: origin.focusing});
+
+          self.focusing.forEach(unit => {
+            let paralyzed = unit.paralyzed || [];
+            paralyzed.push(self);
+
+            unit
               .showFocus(0.5)
-              .change({focusing: origin.focusing});
-
-            self.focusing.forEach(unit => {
-              let paralyzed = unit.paralyzed || [];
-              paralyzed.push(self);
-
-              unit
-                .showFocus(0.5)
-                .change({paralyzed: paralyzed});
-            });
-          }
+              .change({paralyzed: paralyzed});
+          });
         }
 
-        return self.deactivate();
+        return self;
       },
     });
 
