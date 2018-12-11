@@ -155,6 +155,7 @@
       focused:   false,
       origin:    {},
       deployed:  false,
+      targeted:  false,
       attacked:  false,
       turned:    false,
 
@@ -1214,7 +1215,7 @@
 
         self.hideMode();
 
-        self.activated = self.deployed = self.attacked = false;
+        self.activated = self.deployed = self.targeted = self.attacked = false;
         self.origin = {
           tile:      self.assignment,
           direction: self.direction,
@@ -1782,8 +1783,8 @@
         // This makes it possible to click the attack button to switch from target
         // mode to attack mode.
         self.activated = 'target';
-
-        self.getTargetTiles(target).forEach(tile => self.highlightTarget(tile));
+        self.targeted = self.getTargetTiles(target);
+        self.targeted.forEach(tile => self.highlightTarget(tile));
       },
       onTargetSelect: function (event) {
         board.lock();

@@ -19,11 +19,11 @@
           targets.push(context);
         }
 
-        return self._targets = targets;
+        return targets;
       },
       playAttack: function (target, results) {
-        let targets   = self._targets;
-        let first     = self._targets[0];
+        let targeted  = self.targeted;
+        let first     = targeted[0];
         let anim      = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, first, self.direction);
         let darkness  = [-0.3, -0.4, -0.5, -0.3, -0.2, 0];

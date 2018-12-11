@@ -15,7 +15,7 @@
         return tiles;
       },
       getTargetTiles: function (target) {
-        let target_tiles = [
+        let targets = [
           target,
           target.S,
           target.W,
@@ -24,29 +24,29 @@
         ].filter(tile => !!tile);
 
         // Blast closer tiles before further tiles.
-        target_tiles.sort((a, b) =>
+        targets.sort((a, b) =>
           board.getDistance(self.assignment, a) - board.getDistance(self.assignment, b)
         );
 
-        return self._targets = target_tiles;
+        return targets;
       },
-      playAttack: function (center, results) {
-        let targets   = self._targets;
+      playAttack: function (target, results) {
+        let targeted  = self.targeted;
         let anim      = new Tactics.Animation();
-        let direction = board.getDirection(self.assignment, center, self.direction);
+        let direction = board.getDirection(self.assignment, target, self.direction);
 
         /*
          * Animate the attack.  Blast closer tiles before further tiles.
          */
-        let closest = board.getDistance(self.assignment, targets[0]);
-        let attackAnim = self.animAttack(center);
+        let closest = board.getDistance(self.assignment, targeted[0]);
+        let attackAnim = self.animAttack(target);
 
         attackAnim.splice(0, () => sounds.attack.play());
 
-        targets.forEach(target => {
-          let index = 3 + (board.getDistance(self.assignment, target) - closest);
+        targeted.forEach(tile => {
+          let index = 3 + (board.getDistance(self.assignment, tile) - closest);
 
-          attackAnim.splice(index, self.animFireBlast(target, center));
+          attackAnim.splice(index, self.animFireBlast(tile, target));
         });
 
         anim.splice(self.animTurn(direction));
