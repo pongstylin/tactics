@@ -40,7 +40,8 @@
 
         return anim.play();
       },
-      calcAttackResults: function (target_units) {
+      calcAttackResults: function (target) {
+        let target_units = self.getTargetUnits(target);
         let results = [{
           unit:     self,
           focusing: target_units,

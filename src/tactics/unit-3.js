@@ -57,7 +57,8 @@
 
         return calc;
       },
-      calcAttackResults: function (target_units) {
+      calcAttackResults: function (target) {
+        let target_units = self.getTargetUnits(target);
         let results = target_units.map(unit => {
           let result = {unit: unit};
 
