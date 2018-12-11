@@ -15,6 +15,7 @@
         attackAnim.splice(4, () => sounds.attack.play());
         attackAnim.addFrame(() => self.drawFrame(data.stills[direction]));
 
+        // There should be zero or one result.
         results.forEach(result => {
           let unit = result.unit;
 
@@ -23,7 +24,7 @@
             board.getDistance(self.assignment, unit.assignment) / 2,
           );
 
-          // Animate the target unit's reaction starting with the 4th attack frame.
+          // Animate the target unit's reaction.
           if (result.blocked)
             attackAnim
               .splice(index, unit.animBlock(self));

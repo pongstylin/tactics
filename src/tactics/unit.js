@@ -244,12 +244,19 @@
         return [target];
       },
       getTargetUnits(target) {
-        if (self.aLOS)
-          return [self.getLOSTargetUnit(target)];
+        let target_units = [];
+
+        if (data.aLOS === true) {
+          let unit = self.getLOSTargetUnit(target);
+          if (unit)
+            target_units.push(unit);
+        }
         else
-          return self.getTargetTiles(target)
+          target_units = self.targeted
             .filter(tile => !!tile.assigned)
             .map(tile => tile.assigned);
+
+        return target_units;
       },
       getLOSTargetUnit(target, source) {
         source = source || self.assignment;
@@ -302,14 +309,18 @@
 
         return null;
       },
-      calcAttack: function (target_unit, from) {
+      calcAttack: function (target_unit, from, target) {
         if (from === undefined)
           from = self.assignment;
+        if (target === undefined)
+          target = target_unit.assignment;
 
-        let direction;
+        let power    = self.power + self.mPower;
+        let armor    = target_unit.armor + target_unit.mArmor;
+        let blocking = target_unit.blocking + target_unit.mBlocking;
         let calc = {
-          damage:      Math.round((self.power+self.mPower) * (1 - (target_unit.armor+target_unit.mArmor)/100)),
-          block:       target_unit.blocking + target_unit.mBlocking,
+          damage:      Math.round(power * (1 - armor/100)),
+          block:       blocking,
           chance:      100,
           penalty:     0,
           bonus:       0,
@@ -318,7 +329,7 @@
 
         if (calc.damage === 0) calc.damage = 1;
 
-        if (data.aLOS && self.getLOSTargetUnit(target_unit.assignment, from) !== target_unit) {
+        if (data.aLOS && self.getLOSTargetUnit(target, from) !== target_unit) {
           calc.chance = 0;
           calc.unblockable = false;
           return calc;
@@ -329,7 +340,7 @@
             calc.penalty = 100 - target_unit.blocking;
           }
           else {
-            direction = board.getDirection(from || self.assignment,target_unit.assignment);
+            let direction = board.getDirection(from, target_unit.assignment, true);
 
             if (direction.indexOf(target_unit.direction) > -1) {
               calc.block = 0;
@@ -357,7 +368,9 @@
        * Once player vs player is implemented, this needs to be delegated to the
        * game server to prevent cheating since luck is involved.
        */
-      calcAttackResults: function (target_units) {
+      calcAttackResults: function (target) {
+        let target_units = self.getTargetUnits(target);
+
         if (!Array.isArray(target_units))
           target_units = [target_units];
 
@@ -367,7 +380,7 @@
           if (unit.barriered)
             return Object.assign(result, {miss: true});
 
-          let calc = self.calcAttack(unit);
+          let calc = self.calcAttack(unit, self.assignment, target);
           let bad_luck = Math.random() * 100;
 
           if (bad_luck > calc.chance)
@@ -468,7 +481,7 @@
             if (path.length > mRadius) continue;
           }
 
-          calc = self.calcAttack(target,tile);
+          calc = self.calcAttack(target, tile);
           threat = Math.abs(calc.damage) / (target.health+target.mHealth) * 100;
           if (threat > 100) threat = 100;
 
@@ -888,8 +901,7 @@
         });
       },
       attack: function (target) {
-        let target_units = self.getTargetUnits(target);
-        let results      = self.calcAttackResults(target_units);
+        let results = self.calcAttackResults(target);
 
         self.freeze();
         return self.playAttack(target, results)
