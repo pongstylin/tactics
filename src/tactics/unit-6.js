@@ -29,8 +29,8 @@
         let darkness  = [-0.3, -0.4, -0.5, -0.3, -0.2, 0];
 
         let attackAnim = self.animAttack(first);
-        attackAnim.splice(0, sounds.attack1.play());
-        attackAnim.splice(3, sounds.attack2.play());
+        attackAnim.splice(0, () => sounds.attack1.play());
+        attackAnim.splice(3, () => sounds.attack2.play());
 
         targeted.forEach(target => {
           attackAnim.splice(4, self.animBlackSpike(target, first));
