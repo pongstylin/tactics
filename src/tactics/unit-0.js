@@ -124,10 +124,17 @@
 
         return frame;
       },
-      drawFrame:function (frame)
-      {
-        if (self.frame) pixi.removeChild(self.frame);
+      drawFrame: function (frame) {
+        let focus;
+
+        if (self.frame) {
+          focus = self.hideFocus();
+          pixi.removeChild(self.frame);
+        }
+
         pixi.addChildAt(self.frame = frame,0);
+        if (focus)
+          self.showFocus(focus.alpha);
 
         // Reset Normal Appearance
         frame.filters = null;

@@ -721,11 +721,18 @@
       },
       drawFrame: function (index, context) {
         let frame = self.frames[index];
+        let focus;
 
-        if (self.frame) pixi.removeChild(self.frame);
+        if (self.frame) {
+          focus = self.hideFocus();
+          pixi.removeChild(self.frame);
+        }
         if (!frame)
           return;
+
         pixi.addChildAt(self.frame = frame, 0);
+        if (focus)
+          self.showFocus(focus.alpha);
 
         if (context)
           pixi.position = context.getCenter().clone();

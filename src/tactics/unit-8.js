@@ -86,23 +86,25 @@
         let anim = new Tactics.Animation();
         let units = [self, ...self.focusing];
 
-        units.forEach(u => {
-          if (u === self) {
-            if (!u.paralyzed && !u.poisoned)
-              anim.splice(0, u.animDefocus());
+        // Do not break focus when turning after attacking.
+        if (self.attacked === false)
+          units.forEach(u => {
+            if (u === self) {
+              if (!u.paralyzed && !u.poisoned)
+                anim.splice(0, u.animDefocus());
 
-            anim.splice(-1, () => u.change({focusing: false}));
-          }
-          else {
-            if (u.paralyzed.length === 1 && !u.poisoned)
-              anim.splice(0, u.animDefocus());
+              anim.splice(-1, () => u.change({focusing: false}));
+            }
+            else {
+              if (u.paralyzed.length === 1 && !u.poisoned)
+                anim.splice(0, u.animDefocus());
 
-            if (u.paralyzed.length === 1)
-              anim.splice(-1, () => u.change({paralyzed: false}));
-            else
-              anim.splice(-1, () => u.change({paralyzed: u.paralyzed.filter(u => u !== self)}));
-          }
-        });
+              if (u.paralyzed.length === 1)
+                anim.splice(-1, () => u.change({paralyzed: false}));
+              else
+                anim.splice(-1, () => u.change({paralyzed: u.paralyzed.filter(u => u !== self)}));
+            }
+          });
 
         return anim;
       },

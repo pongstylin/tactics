@@ -764,19 +764,15 @@ Tactics.Board = function ()
 
       units.forEach(unit => {
         let origin = unit.origin;
-        let focus  = unit.hideFocus();
-        let data   = self.getUnitRotation(degree,unit.assignment,unit.direction);
-        let odata  = self.getUnitRotation(degree,origin.tile,origin.direction);
+        let data   = self.getUnitRotation(degree, unit.assignment, unit.direction);
+        let odata  = self.getUnitRotation(degree, origin.tile, origin.direction);
 
         if (origin.adirection)
-          odata.adirection = self.getRotation(origin.adirection,degree);
+          odata.adirection = self.getRotation(origin.adirection, degree);
 
         unit.assignment = null;
         unit.assign(data.tile).turn(data.direction);
         unit.origin = odata;
-
-        if (focus)
-          unit.showFocus(focus.alpha);
       });
 
       if (self.selected && !self.viewed) self.selected.showMode();
