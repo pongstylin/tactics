@@ -31,8 +31,13 @@
         Tactics.render();
       };
 
-      if (turnsUnit.focusing)
-        turnsUnit.animBreakFocus().play().then(doIt);
+      if (turnsUnit.focusing) {
+        turnsUnit.freeze();
+        turnsUnit.animBreakFocus().play().then(() => {
+          doIt();
+          turnsUnit.thaw();
+        });
+      }
       else
         doIt();
     };

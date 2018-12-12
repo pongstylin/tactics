@@ -161,7 +161,7 @@
         offsets.forEach((offset, i) => {
           if (offset > frames.length) throw 'Start index too high';
           if (offset < 0) {
-            offset = frames.length - offset + 1;
+            offset = frames.length + offset;
             if (offset < 0) throw 'Start index too low';
           }
 
