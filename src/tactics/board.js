@@ -763,9 +763,10 @@ Tactics.Board = function ()
       units.forEach(u => u.assignment.dismiss());
 
       units.forEach(unit => {
-        var origin = unit.origin;
-        var data = self.getUnitRotation(degree,unit.assignment,unit.direction);
-        var odata = self.getUnitRotation(degree,origin.tile,origin.direction);
+        let origin = unit.origin;
+        let focus  = unit.hideFocus();
+        let data   = self.getUnitRotation(degree,unit.assignment,unit.direction);
+        let odata  = self.getUnitRotation(degree,origin.tile,origin.direction);
 
         if (origin.adirection)
           odata.adirection = self.getRotation(origin.adirection,degree);
@@ -773,6 +774,9 @@ Tactics.Board = function ()
         unit.assignment = null;
         unit.assign(data.tile).turn(data.direction);
         unit.origin = odata;
+
+        if (focus)
+          unit.showFocus(focus.alpha);
       });
 
       if (self.selected && !self.viewed) self.selected.showMode();

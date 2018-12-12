@@ -1272,7 +1272,7 @@
         return self;
       },
       showFocus: function (alpha) {
-        let focus  = self.getSpritesByName('focus')[0];
+        let focus = self.getSpritesByName('focus')[0];
 
         if (!focus) {
           focus = self.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
@@ -1286,6 +1286,13 @@
           focus.alpha = alpha || 1;
 
         return self;
+      },
+      hideFocus: function () {
+        let focus = self.getSpritesByName('focus')[0];
+        if (focus)
+          self.frame.removeChild(focus);
+
+        return focus;
       },
       animFocus: function () {
         let anim   = new Tactics.Animation();
