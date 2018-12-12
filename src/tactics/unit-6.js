@@ -32,7 +32,7 @@
         attackAnim.splice(0, sounds.attack1.play());
         attackAnim.splice(3, sounds.attack2.play());
 
-        targets.forEach(target => {
+        targeted.forEach(target => {
           attackAnim.splice(4, self.animBlackSpike(target, first));
 
           let target_unit = target.assigned;
