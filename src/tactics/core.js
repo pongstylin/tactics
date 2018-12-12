@@ -12,7 +12,7 @@ Tactics = (function ()
     // pointer and back when needed without moving the mouse.
     renderer.plugins.interaction.update();
 
-    //console.log('pixi render',+new Date());
+    //console.log('render', +new Date());
     renderer.render(stage);
     rendering = false;
   };
@@ -23,6 +23,7 @@ Tactics = (function ()
     width:22+(88*9)+22,
     height:38+4+(56*9)+4,
     utils:{},
+    animators: {},
 
     init:function ($viewport) {
       // We don't need an infinite loop, thanks.
@@ -227,51 +228,59 @@ Tactics = (function ()
     // is complete.  The animator is passed the number of frames that should be
     // skipped to maintain speed.
     //
-    renderAnim:function (anim,fps)
-    {
-      var self = this;
-      var throttle = 1000 / fps;
-      var running;
-      var start;
-      var delay = 0;
-      var count = 0;
-      var skip = 0;
+    renderAnim: function (anim, fps) {
+      let self = this;
+      let throttle = 1000 / fps;
+      let animators = [anim];
+      let start;
+      let delay = 0;
+      let count = 0;
+      let skip = 0;
+      let i;
 
-      var loop = function (now)
-      {
+      let loop = now => {
         skip = 0;
 
-        // stop the loop if anim returned false
-        if (running !== false)
-        {
-          if (count)
-          {
+        // stop the loop if all animators returned false
+        if (animators.length) {
+          if (count) {
             delay = (now - start) - (count * throttle);
 
-            if (delay > throttle)
-            {
+            if (delay > throttle) {
               skip = Math.floor(delay / throttle);
               count += skip;
 
               requestAnimationFrame(loop);
             }
-            else
-            {
-              setTimeout(function () { requestAnimationFrame(loop); },throttle-delay);
+            else {
+              setTimeout(() => requestAnimationFrame(loop), throttle - delay);
             }
           }
-          else
-          {
+          else {
             start = now;
-            setTimeout(function () { requestAnimationFrame(loop); },throttle);
+            setTimeout(() => requestAnimationFrame(loop), throttle);
           }
 
-          running = anim(skip);
+          // Iterate backward since elements may be removed.
+          for (i = animators.length-1; i > -1; i--) {
+            if (animators[i](skip) === false)
+              animators.splice(i, 1);
+          }
           render();
           count++;
         }
+        else {
+          delete self.animators[fps];
+        }
+      };
+
+      // Stack multiple animations using the same FPS into one loop.
+      if (fps in self.animators)
+        self.animators[fps].push(anim);
+      else {
+        self.animators[fps] = animators;
+        requestAnimationFrame(loop);
       }
-      requestAnimationFrame(loop);
     },
     images: [
       'board.jpg',
@@ -537,10 +546,10 @@ Tactics = (function ()
           E: [126, 135],
         },
         blocks: {
-          S: [ 32,  34],
-          W: [ 67,  69],
-          N: [102, 104],
-          E: [137, 139],
+          S: [ 26,  31],
+          W: [ 61,  66],
+          N: [ 96, 101],
+          E: [131, 136],
         },
         turns: {
           S: 35,
@@ -1069,18 +1078,18 @@ Tactics = (function ()
       {name:'Beast Rider'},
       {name:'Dragonspeaker Mage'},
       {
-        name:'Chaos Seed',
-        ability:'Chaos',
-        specialty:'Awaken',
-        power:24,
-        armor:99,
-        health:6,
-        recovery:0,
-        blocking:50,
-        aType:'magic',
-        aRadius:0,
-        mRadius:0,
-        directional:false,
+        name:        'Chaos Seed',
+        ability:     'Chaos',
+        specialty:   'Awaken',
+        power:       24,
+        armor:       99,
+        health:      6,
+        recovery:    0,
+        blocking:    50,
+        aType:       'magic',
+        aRadius:     0,
+        mRadius:     0,
+        directional: false,
         sounds: {
           crack:'crack',
           block:'sound8',
@@ -1108,10 +1117,17 @@ Tactics = (function ()
             }
           }
         },
-        stills:{S:0},
-        frames:
-        [
-          {x:-2,y:12,c:[{id:6459,x:-12.5,y:-19.5},{id:1351,x:-21,y:-61},{id:1354,x:-20,y:-57}]}
+        stills: {S: 0},
+        frames: [
+          {
+            x: -1,
+            y: 7,
+            c: [
+              {id:6459, x:-12.5, y:-19.5},
+              {id:1351, x:-21,   y:-61},
+              {id:1354, x:-20,   y:-57},
+            ]
+          }
         ]
       },
       {name:'Wisp'},
@@ -1141,27 +1157,34 @@ Tactics = (function ()
         mPass:false,
         mPath:false,
         mRadius:4,
-        sounds:
-        {
-          flap:'sound7',
-          block:'sound11',
-          heal:'sound1203',
-          impact:'sound1602',
-          charge:{file:'charge',rate:0.6},
-          buzz:{file:'buzz',rate:0.6},
-          phase:{file:'sound4',rate:0.5}
+        sounds: {
+          flap:   'sound7',
+          block:  'sound11',
+          heal:   'sound1203',
+          impact: 'sound1602',
+          charge: {file:'charge', rate:0.6},
+          buzz:   {file:'buzz',   rate:0.6},
+          phase:  {file:'sound4', rate:0.5},
         },
-        stills:{S:0,W:48,N:96,E:144},
-        turns:{S:1,W:49,N:97,E:145},
-        animations:
-        {
+        stills: {
+          S: 0,
+          W: 48,
+          N: 96,
+          E: 144,
+        },
+        turns: {
+          S: 1,
+          W: 49,
+          N: 97,
+          E: 145,
+        },
+        animations: {
           S:{deploy:{s:  2,l:23},attack:{s: 25,l:9},block:{s: 34,l:6},hatch:{s: 40,l:8}},
           W:{deploy:{s: 50,l:23},attack:{s: 73,l:9},block:{s: 82,l:6},hatch:{s: 88,l:8}},
           N:{deploy:{s: 98,l:23},attack:{s:121,l:9},block:{s:130,l:6},hatch:{s:136,l:8}},
           E:{deploy:{s:146,l:23},attack:{s:169,l:9},block:{s:178,l:6},hatch:{s:184,l:8}}
         },
-        frames:
-        [
+        frames: [
           // S Still
           {c:[{id:6055,x:-70,y:-40,a:0.5},{id:3955,x:-71,y:-101},{id:3957,x:-29,y:-52}]},
           // S Turn

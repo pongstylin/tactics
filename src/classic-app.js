@@ -11,7 +11,7 @@ Tactics.App = (function ($, window, document) {
   var data = {
     teams: [
       {
-        n: 'Red',
+        n: 'Blue',
         c: 10,
         b: 0,
         u: {
@@ -21,7 +21,7 @@ Tactics.App = (function ($, window, document) {
         }
       },
       {
-        n: 'Blue',
+        n: 'Red',
         c: 2,
         b: 0,
         u: {
@@ -209,8 +209,6 @@ Tactics.App = (function ($, window, document) {
 
       if (Howler.noAudio)
         $('BUTTON[name=sound]').toggleClass('hidden');
-
-      let timer;
 
       $('BODY')
         /*

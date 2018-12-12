@@ -9,52 +9,55 @@
     var effects = Object.assign({}, Tactics.effects, data.effects);
 
     Object.assign(self, {
+      getTargetTiles: function () {
+        return self.getAttackTiles();
+      },
       highlightAttack: function () {
         if (self.viewed)
           _super.highlightAttack();
-        else
-          self.getAttackTiles().forEach(target => self.highlightTarget(target));
+        else {
+          self.targeted = self.getTargetTiles(self.assignment);
+          self.targeted.forEach(target => self.highlightTarget(target));
+        }
 
         return self;
       },
-      attack: function (target) {
+      playAttack: function (target, results) {
         let anim      = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, target, self.direction);
 
-        let all_target_units = [];
-        self.getAttackTiles().forEach(tile => {
-          if (tile.assigned)
-            all_target_units.push(tile.assigned);
-        });
-
-        let results = [{
-          unit:     self,
-          focusing: all_target_units,
-        }];
-        Array.prototype.push.apply(results, self.calcAttackResults(all_target_units));
-
         let attackAnim = self.animAttack(target);
         attackAnim.addFrame(() => self.drawFrame(data.stills[direction]));
-
         attackAnim.splice(0, () => sounds.paralyze.play())
 
-        all_target_units.forEach(unit => {
+        results.forEach(result => {
+          let unit = result.unit;
+          if (unit === self) return;
+
           attackAnim.splice(0, self.animStreaks(unit));
         });
 
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim)
 
-        return anim.play().then(() => results);
+        return anim.play();
       },
-      calcAttackResults: function (target_units) {
-        return target_units.map(unit => {
+      calcAttackResults: function (target) {
+        let target_units = self.getTargetUnits(target);
+        let results = [{
+          unit:     self,
+          focusing: target_units,
+        }];
+
+        target_units.forEach(unit => {
           let result = {unit: unit};
           let paralyzed = unit.paralyzed || [];
           paralyzed.push(self);
 
-          return Object.assign(result, {paralyzed: paralyzed});
+          results.push(Object.assign(result, {paralyzed: paralyzed}));
         });
+
+        return results;
       },
       animStreaks: function (target_unit) {
         let anim = new Tactics.Animation();
@@ -103,31 +106,28 @@
 
         return anim;
       },
-      reset: function () {
-        var origin = self.origin;
+      reset: function (mode) {
+        let origin = self.origin;
+        let refocus = origin.focusing && !self.attacked && (self.deployed || self.turned);
 
-        if (self.deployed || self.turned) {
-          self.assign(origin.tile).turn(origin.direction);
-          self.deployed = false;
-          self.turned = false;
+        _super.reset(mode);
 
-          if (origin.focusing) {
-            self
+        if (refocus) {
+          self
+            .showFocus(0.5)
+            .change({focusing: origin.focusing});
+
+          self.focusing.forEach(unit => {
+            let paralyzed = unit.paralyzed || [];
+            paralyzed.push(self);
+
+            unit
               .showFocus(0.5)
-              .change({focusing: origin.focusing});
-
-            self.focusing.forEach(unit => {
-              let paralyzed = unit.paralyzed || [];
-              paralyzed.push(self);
-
-              unit
-                .showFocus(0.5)
-                .change({paralyzed: paralyzed});
-            });
-          }
+              .change({paralyzed: paralyzed});
+          });
         }
 
-        return self.deactivate();
+        return self;
       },
     });
 

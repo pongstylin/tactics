@@ -204,8 +204,6 @@ Tactics.App = (function ($, window, document) {
       if (Howler.noAudio)
         $('BUTTON[name=sound]').toggleClass('hidden');
 
-      let timer;
-
       $('BODY')
         /*
          * Under these conditions a special attack can be triggered:

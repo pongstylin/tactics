@@ -181,33 +181,28 @@
 
         return container;
       },
-      attack:function (target) {
-        let anim = new Tactics.Animation();
-        let direction = board.getDirection(self.assignment,target);
-        let target_unit = target.assigned;
-        let results = [];
-
+      playAttack: function (target, results) {
+        let anim       = new Tactics.Animation();
+        let direction  = board.getDirection(self.assignment, target);
         let attackAnim = self.animAttack(direction);
 
-        if (target_unit) {
-          results = self.calcAttackResults(target_unit);
+        // Animate a target unit's reaction starting with the 4th attack frame.
+        results.forEach(result => {
+          let unit = result.unit;
 
-          // Animate the target unit's reaction starting with the 4th attack frame.
-          if (results[0].blocked) {
+          if (result.blocked)
             attackAnim
-              .splice(3, target_unit.animBlock(self));
-          }
-          else {
+              .splice(3, unit.animBlock(self));
+          else
             attackAnim
-              .splice(3, self.animStrike(target_unit))
-              .splice(4, target_unit.animStagger(self));
-          }
-        }
+              .splice(3, self.animStrike(unit))
+              .splice(4, unit.animStagger(self));
+        });
 
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim);
 
-        return anim.play().then(() => results);
+        return anim.play();
       },
       animTurn: function (direction) {
         var anim = new Tactics.Animation();

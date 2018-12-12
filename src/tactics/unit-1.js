@@ -14,61 +14,45 @@
 
         return tiles;
       },
-      onAttackSelect: function (event) {
-        let target = event.target;
-
-        board.clearHighlight();
-
-        // This makes it possible to click the attack button to switch from target
-        // mode to attack mode.
-        self.activated = 'target';
-        self._targets = [
+      getTargetTiles: function (target) {
+        let targets = [
           target,
-          board.getTile(target.x - 1, target.y),
-          board.getTile(target.x + 1, target.y),
-          board.getTile(target.x, target.y - 1),
-          board.getTile(target.x, target.y + 1),
-        ].filter(target => !!target);
+          target.S,
+          target.W,
+          target.N,
+          target.E,
+        ].filter(tile => !!tile);
 
-        self._targets.forEach(target => self.highlightTarget(target));
+        // Blast closer tiles before further tiles.
+        targets.sort((a, b) =>
+          board.getDistance(self.assignment, a) - board.getDistance(self.assignment, b)
+        );
+
+        return targets;
       },
-      attack: function () {
-        let targets          = self._targets;
-        let center           = targets[0];
-        let anim             = new Tactics.Animation();
-        let direction        = board.getDirection(self.assignment, center, self.direction);
+      playAttack: function (target, results) {
+        let targeted  = self.targeted;
+        let anim      = new Tactics.Animation();
+        let direction = board.getDirection(self.assignment, target, self.direction);
 
         /*
          * Animate the attack.  Blast closer tiles before further tiles.
          */
-        targets.sort((a, b) => board.getDistance(self.assignment, a) - board.getDistance(self.assignment, b));
-
-        let closest = board.getDistance(self.assignment, targets[0]);
-        let attackAnim = self.animAttack(center);
+        let closest = board.getDistance(self.assignment, targeted[0]);
+        let attackAnim = self.animAttack(target);
 
         attackAnim.splice(0, () => sounds.attack.play());
 
-        targets.forEach(target => {
-          let index = 3 + (board.getDistance(self.assignment, target) - closest);
+        targeted.forEach(tile => {
+          let index = 3 + (board.getDistance(self.assignment, tile) - closest);
 
-          attackAnim.splice(index, self.animFireBlast(target, center));
+          attackAnim.splice(index, self.animFireBlast(tile, target));
         });
 
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim);
 
-        /*
-         * Get the effect of the attack on all units in the blast area.
-         */
-        let all_target_units = [];
-        targets.forEach(target => {
-          if (target.assigned)
-            all_target_units.push(target.assigned);
-        });
-
-        let results = self.calcAttackResults(all_target_units);
-
-        return anim.play().then(() => results);
+        return anim.play();
       },
       animFireBlast: function (target, center) {
         let anim = new Tactics.Animation();

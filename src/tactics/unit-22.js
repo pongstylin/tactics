@@ -1,88 +1,43 @@
-(function ()
-{
-  Tactics.units[22].extend = function (self)
-  {
+(function () {
+  Tactics.units[22].extend = function (self) {
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
     var board = Tactics.board;
 
-    $.each(data.frames,function (i,frame)
-    {
+    data.frames.forEach((frame, i) => {
       if (!frame) return;
+      let names = ['shadow', 'base', 'trim'];
 
-      $.each(frame.c,function (j,sprite)
-      {
-        if (j === 0)
-        {
-          sprite.n = 'shadow';
-        }
-        else if (j === 2 && (frame.c.length === 3 || i < 80))
-        {
-          sprite.n = 'trim';
-        }
-        else if (j === 3 && i > 80)
-        {
-          sprite.n = 'trim';
-        }
+      frame.c.forEach(shape => {
+        if (names.length && shape.id !== 56)
+          shape.n = names.shift();
       });
     });
 
-    $.extend(self,
-    {
-      title:'Awakened!',
-      banned:[],
+    $.extend(self, {
+      title:  'Awakened!',
+      banned: [],
 
-      attack:function (target) {
-        var anim = new Tactics.Animation({fps:10});
-        var direction = board.getDirection(self.assignment,target);
-        var tunit;
-        var calc,changes;
+      playAttack: function (target, results) {
+        let anim      = new Tactics.Animation({fps: 10});
+        let direction = board.getDirection(self.assignment, target);
 
-        if (target === target.assigned)
+        if (target === self.assigned)
           return self.special();
 
-        // LOS might change the actual target.
-        // self.calcAttack(target) should return data on all units affected by the attack as well as the unit being focused.
-        target = self.targetLOS(target);
-        tunit = target.assigned;
-
-        if (tunit) {
-          calc = self.calcAttack(tunit);
-
-          changes  = {mHealth:tunit.mHealth + calc.damage};
-          if (changes.mHealth < -tunit.health) changes.mHealth = -tunit.health;
-
-          // jQuery does not extend undefined value
-          changes.notice = null;
-        }
-
-        self.freeze();
+        // Make sure we strike the actual target (LOS can change it).
+        if (results.length)
+          target = results[0].unit.assignment;
 
         anim
           .splice(self.animTurn(direction))
-          .splice(self.animAttack(target,false,changes));
+          .splice(self.animAttack(target));
 
-        return anim.play().then(() => {
-          self.attacked = {target:target,block:false,changes:changes};
-          self.origin.adirection = self.direction;
-          self.thaw();
-        });
+        return anim.play();
       },
       special: function () {
-        var anim = new Tactics.Animation({fps:12});
-        var target = self.assignment;
-        var tunit = self;
-        var block = data.animations[self.direction].block;
-        var changes;
-
-        if (tunit) {
-          changes = {
-            mHealth: Math.max(tunit.mHealth + self.power, 0),
-          };
-
-          // jQuery does not extend undefined value
-          changes.notice = null;
-        }
+        let anim  = new Tactics.Animation();
+        let block = data.animations[self.direction].block;
 
         anim
           .splice([
@@ -90,132 +45,89 @@
             () => self.drawFrame(block.s+1),
             () => {},
           ])
-          .splice(self.animHeal([tunit]))
-          .splice(4, () => tunit.change(changes))
+          .splice(self.animHeal([self]))
           .splice([
             () => self.drawFrame(block.s+4),
             () => self.drawFrame(block.s+5),
           ]);
 
-        self.freeze();
+        return anim.play();
+      },
+      phase: function (action) {
+        let banned   = action ? action.results[0].banned : self.banned;
+        let color_id = null;
+        let teams    = board.getWinningTeams().reverse()
+          .filter((team, t) => banned.indexOf(t) === -1);
+        let choices  = teams.filter(team => {
+          if (team.units.length === 0) return false;
 
-        return anim.play().then(() => {
-          self.attacked = {target:target,block:false,changes:changes};
-          self.origin.adirection = self.direction;
-          self.thaw();
+          return team.score === teams[0].score;
         });
+
+        if (choices.length)
+          color_id = choices.random().color;
+
+        if (color_id === board.teams[self.team].color)
+          return Promise.resolve();
+
+        return self.animPhase(color_id).play();
       },
-      phase:function (color)
-      {
-        var deferred = $.Deferred();
-        var teams = board.getWinningTeams();
-        var choices = [];
+      animPhase: function (color_id) {
+        let old_color = self.color;
+        let new_color = color_id === null ? 0xFFFFFF : Tactics.colors[color_id];
 
-        if (color === undefined)
-        {
-          if (teams.length > 1)
-          {
-            $.each(teams.reverse(),function (i,team)
-            {
-              if (team.units.length === 0) return;
-              if (self.banned.indexOf(i) > -1) return;
-              if (choices.length && team.score > choices[0].score) return false;
-
-              choices.push(team);
-            });
-
-            color = choices.random().color;
-          }
-          else
-          {
-            color = null;
-          }
-        }
-
-        if (color === board.teams[self.team].color)
-          deferred.resolve();
-        else
-          self.animPhase(color).play(function () { deferred.resolve(); });
-
-        return deferred.promise();
-      },
-      animPhase:function (color)
-      {
-        var step = 12;
-        var fcolor = self.color;
-        var tcolor = color === null ? 0xFFFFFF : Tactics.colors[color];
-
-        return new Tactics.Animation({fps:12,frames:
-        [
-          function ()
-          {
+        return new Tactics.Animation({frames: [
+          () => {
             sounds.phase.play();
-            board.teams[self.team].color = color;
-            self.color = tcolor;
+            board.teams[self.team].color = self.color = color_id;
           },
           {
-            script:function ()
-            {
-              self.pixi.children[0].children[2].tint = Tactics.utils.getColorStop(fcolor,tcolor,--step / 12);
+            script: frame => {
+              self.frame.children[2].tint =
+                Tactics.utils.getColorStop(old_color, new_color, (11 - frame.repeat_index) / 12);
             },
-            repeat:12
+            repeat: 12,
           }
         ]});
       },
-      animDeploy:function (assignment)
-      {
+      animDeploy: function (assignment) {
         var anim = new Tactics.Animation({fps:10});
         var origin = self.assignment;
-        var direction = board.getDirection(origin,assignment,1);
-        var odirection = board.getRotation(self.direction,180);
-        var deploy,frame=0;
+        var direction = board.getDirection(origin,assignment, 1);
+        var odirection = board.getRotation(self.direction, 180);
 
         if (direction.length === 2)
           direction = direction.indexOf(self.direction) === -1 ? odirection : self.direction;
 
-        deploy = data.animations[direction].deploy;
+        let deploy = data.animations[direction].deploy;
 
         anim
           .splice(self.animTurn(direction))
-          .splice
-          (
-            new Tactics.Animation({frames:
-            [
-              {
-                script:function ()
-                {
-                  self.drawFrame(deploy.s+frame++);
-                },
-                repeat:deploy.l
-              }
-            ]})
-              .splice(10,function ()
-              {
-                self.assign(assignment);
-              })
-              .splice([2,7,11,16],function ()
-              {
-                sounds.flap.play();
-              })
+          .splice(
+            new Tactics.Animation({frames: [{
+              script: frame => self.drawFrame(deploy.s + frame.repeat_index),
+              repeat: deploy.l,
+            }]})
+              .splice(10, () => self.assign(assignment))
+              .splice([2,7,11,16], () => sounds.flap.play())
           );
 
         return anim;
       },
-      animAttack:function (target,block,changes)
-      {
-        var anim = new Tactics.Animation();
-        var tunit = target.assigned;
-        var direction = board.getDirection(self.assignment,target,1);
-        var attack=data.animations[direction].attack,frame=0;
-        var whiten = [0.25,0.5,0];
-        var source = direction === 'N' || direction === 'E' ?  1 : 3;
-        var adjust = direction === 'N' ? {x:-5,y:0} : direction === 'W' ? {x:-5,y:3} : {x:5,y:3};
+      animAttack: function (target) {
+        var anim      = new Tactics.Animation();
+        var tunit     = target.assigned;
+        var direction = board.getDirection(self.assignment, target, 1);
+        var attack    = data.animations[direction].attack, frame=0;
+        var whiten    = [0.25, 0.5, 0];
+        var source    = direction === 'N' || direction === 'E' ?  1 : 3;
+        var adjust    = direction === 'N' ? {x:-5,y:0} : direction === 'W' ? {x:-5,y:3} : {x:5,y:3};
         var container = new PIXI.Container();
-        var filter1 = new PIXI.filters.BlurFilter();
-        var filter2 = new PIXI.filters.BlurFilter();
-        var streaks1 = new PIXI.Graphics;
-        var streaks2 = new PIXI.Graphics;
-        var streaks3 = new PIXI.Graphics;
+        var filter1   = new PIXI.filters.BlurFilter();
+        var filter2   = new PIXI.filters.BlurFilter();
+        var streaks1  = new PIXI.Graphics;
+        var streaks2  = new PIXI.Graphics;
+        var streaks3  = new PIXI.Graphics;
 
         //filter1.blur = 6;
         streaks1.filters = [filter1];
@@ -229,31 +141,19 @@
         container.addChild(streaks3);
 
         anim
-          .addFrame
-          ({
-            script:function ()
-            {
-              self.drawFrame(attack.s+frame++);
-            },
-            repeat:attack.l
+          .addFrame({
+            script: () => self.drawFrame(attack.s + frame++),
+            repeat: attack.l,
           })
-          .splice(0,function ()
-          {
-            sounds.charge.play().fade(0,1,500);
-          })
-          .splice(5,tunit.animStagger(self,direction,changes))
-          .splice(5,function ()
-          {
+          .splice(0, () => sounds.charge.play().fade(0,1,500))
+          .splice(5, tunit.animStagger(self))
+          .splice(5, () => {
             sounds.buzz.play();
             sounds.charge.stop();
             sounds.impact.play();
           })
-          .splice(5,
-          {
-            script:function ()
-            {
-              tunit.whiten(whiten.shift());
-            },
+          .splice(5, {
+            script: () => tunit.whiten(whiten.shift()),
             repeat:3
           })
           .splice(5,function ()
@@ -270,17 +170,6 @@
             Tactics.stage.removeChild(container);
             sounds.buzz.stop();
           });
-
-        if (changes)
-        {
-          if (changes.mHealth === -tunit.health)
-            anim.splice(tunit.animDeath(self));
-
-          anim.splice(5,function ()
-          {
-            tunit.change(changes);
-          });
-        }
 
         return anim;
       },
@@ -360,115 +249,45 @@
 
         return self;
       },
-      animStrike:function (attacker,direction)
-      {
-        return new Tactics.Animation({frames:
-        [
-          function ()
-          {
-            sounds.strike.play();
-          },
-          function ()
-          {
-            self.shock(direction,0);
-          },
-          function ()
-          {
-            self.shock(direction,1);
-          },
-          function ()
-          {
-            self.shock(direction,2);
-          },
-          function ()
-          {
-            self.shock();
-          }
-        ]});
-      },
-      animStagger:function (attacker,direction)
-      {
-        var color;
-        var anim = new Tactics.Animation({frames:
-        [
-          function ()
-          {
-            self
-              .drawFrame(data.animations[self.direction].block.s)
-              .offsetFrame(0.06,direction);
-          },
-          function ()
-          {
-            self
-              .drawFrame(data.animations[self.direction].block.s)
-              .offsetFrame(-0.02,direction);
-          },
-          function ()
-          {
-            self.drawFrame(data.stills[self.direction]);
-          }
-        ]});
-
-        if (attacker.color === self.color)
-        {
-          self.banned.push(attacker.team);
-
-          $.each(board.getWinningTeams().reverse(),function (i,team)
-          {
-            if (self.banned.indexOf(i) > -1) return;
-
-            anim.splice(self.animPhase(color = team.color));
-            return false;
-          });
-
-          if (!color) anim.splice(self.animPhase());
-        }
-
-        return anim;
-      },
-      animBlock:function (attacker,direction)
-      {
-        var anim = new Tactics.Animation();
-        var block = data.animations[direction].block;
-        var frame = 0,shock = 0;
+      animBlock: function (attacker) {
+        let anim      = new Tactics.Animation();
+        let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
+        let block     = data.animations[direction].block;
 
         anim
-          .addFrames(
-          [
-            function ()
-            {
-              self.direction = direction;
-            },
-            function ()
-            {
-              sounds.block.play();
-            }
+          .addFrames([
+            () => self.direction = direction,
+            () => sounds.block.play(),
           ])
-          .splice(0,
-          {
-            script:function ()
-            {
-              self.drawFrame(block.s+frame++);
-            },
-            repeat:block.l
+          .splice(0, {
+            script: frame => self.drawFrame(block.s + frame.repeat_index),
+            repeat: block.l,
           })
-          .splice(1,
-          [
+          .splice(1, [
             {
-              script:function ()
-              {
-                self.shock(direction,shock++,1);
-              },
-              repeat:3
+              script: frame => self.shock(direction, frame.repeat_index, 1),
+              repeat: 3,
             },
-            function ()
-            {
-              self.shock();
-            }
+            () => self.shock(),
           ]);
 
         return anim;
-      }
+      },
+      canCounter: function () {
+        return true;
+      },
+      getCounterAction: function (attacker, result) {
+        if (attacker.color === self.color)
+          return {
+            type:    'phase',
+            unit:    self,
+            tile:    self.assignment,
+            results: [{
+              unit:   self,
+              banned: [...self.banned, attacker.team],
+            }],
+          };
+      },
     });
 
     return self;

@@ -11,32 +11,34 @@
       getAttackTiles: function () {
         return board.teams[self.team].units.map(unit => unit.assignment);
       },
+      getTargetTiles: function (target) {
+        return self.getAttackTiles();
+      },
+      getTargetUnits: function (target) {
+        return board.teams[self.team].units;
+      },
       highlightAttack: function () {
         if (self.viewed)
           _super.highlightAttack();
-        else
-          self.getAttackTiles().forEach(target => self.highlightTarget(target));
+        else {
+          self.targeted = self.getTargetTiles(self.assignment);
+          self.targeted.forEach(target => self.highlightTarget(target));
+        }
 
         return self;
       },
-      attack: function (target) {
-        let anim             = new Tactics.Animation();
-        let direction        = board.getDirection(self.assignment, target, self.direction);
-        let all_target_units = board.teams[self.team].units;
-
-        // The results are required to display the effect of an attack, whether it
-        // is a miss or how much health was lost or gained.
-        let results = self.calcAttackResults(all_target_units);
+      playAttack: function (target, results) {
+        let anim         = new Tactics.Animation();
+        let direction    = board.getDirection(self.assignment, target, self.direction);
+        let target_units = self.getTargetUnits(target);
 
         let attackAnim = self.animAttack(target);
-        attackAnim.splice(2, self.animHeal(all_target_units));
+        attackAnim.splice(2, self.animHeal(target_units));
 
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim);
 
-        results.sort((a, b) => a.unit.assignment.y - b.unit.assignment.y || a.unit.assignment.x - b.unit.assignment.x);
-
-        return anim.play().then(() => results);
+        return anim.play();
       },
       calcAttack: function (target_unit) {
         let calc = {
@@ -57,8 +59,9 @@
 
         return calc;
       },
-      calcAttackResults: function (target_units) {
-        return target_units.map(unit => {
+      calcAttackResults: function (target) {
+        let target_units = self.getTargetUnits(target);
+        let results = target_units.map(unit => {
           let result = {unit: unit};
 
           if (unit.barriered)
@@ -66,6 +69,10 @@
 
           return Object.assign(result, {mHealth: Math.min(unit.mHealth + self.power, 0)});
         });
+
+        results.sort((a, b) => a.unit.assignment.y - b.unit.assignment.y || a.unit.assignment.x - b.unit.assignment.x);
+
+        return results;
       },
     });
 

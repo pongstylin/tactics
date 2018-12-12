@@ -80,12 +80,11 @@
           delete frame.repeat;
 
           for (let i = 0; i < repeat; i++) {
-            let repeat_frame = $.extend(true, {}, frame, {
-              index:        index + i,
-              repeat_index: i,
-            });
+            let repeat_frame = $.extend(true, {}, frame, {index: index + i});
 
-            repeat_frame.scripts = repeat_frame.scripts.map(s => s.bind(this, repeat_frame));
+            repeat_frame.scripts = repeat_frame.scripts.map(s => s.bind(this,
+              Object.assign({repeat_index: i}, repeat_frame)
+            ));
             frames.push(repeat_frame);
           }
         }
@@ -200,7 +199,7 @@
               frame = frames[cursor++];
 
               for (let s = 0; s < frame.scripts.length; s++)
-                if (frame.scripts[s].call(self, frame, self.state) === false)
+                if (frame.scripts[s].call(self, self.state) === false)
                   return false;
             }
           };
@@ -216,7 +215,7 @@
               frame = frames[cursor++];
 
               for (let s = 0; s < frame.scripts.length; s++)
-                if (frame.scripts[s].call(self, frame, self.state) === false)
+                if (frame.scripts[s].call(self, self.state) === false)
                   return false;
             }
           };
@@ -227,7 +226,7 @@
             var frame = frames[cursor++];
 
             for (let s = 0; s < frame.scripts.length; s++)
-              if (frame.scripts[s].call(self, frame, self.state) === false)
+              if (frame.scripts[s].call(self, self.state) === false)
                 return false;
           };
         }
@@ -237,8 +236,10 @@
 
           Tactics.renderAnim(skip => {
             if (!data.playing) return false;
-            if (render(skip) === false || (cursor == frames.length && data.loop === null))
-              return self.stop();
+            if (render(skip) === false || (cursor == frames.length && data.loop === null)) {
+              self.stop();
+              return false;
+            }
 
             if (cursor == frames.length)
               cursor = data.loop || 0;
@@ -308,7 +309,7 @@
           if (frame = frames.shift())
             container.addChild(frame);
         },
-        repeat: frames.length+1,
+        repeat: frames.length + 1,
       }
     ]});
   };

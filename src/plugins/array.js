@@ -1,8 +1,9 @@
 Array.prototype.random = function () {
   return this[Math.floor(Math.random() * this.length)];
 };
+Object.defineProperty(Array.prototype, 'random', {enumerable: false});
 
-Array.prototype.randomize = function () {
+Array.prototype.shuffle = function () {
   var arr = this;
   var currentIndex = arr.length, temporaryValue, randomIndex;
 
@@ -20,6 +21,7 @@ Array.prototype.randomize = function () {
 
   return arr;
 };
+Object.defineProperty(Array.prototype, 'shuffle', {enumerable: false});
 
 Array.prototype.spin = function () {
   var arr = this;
@@ -30,3 +32,4 @@ Array.prototype.spin = function () {
 
   return arr;
 };
+Object.defineProperty(Array.prototype, 'spin', {enumerable: false});

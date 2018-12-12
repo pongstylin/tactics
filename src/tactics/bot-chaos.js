@@ -19,40 +19,33 @@
           }
         });
       },
-      startTurnDragon:function (teamId)
-      {
+      startTurnDragon: function (teamId) {
         self.choices = [];
         self.friends = [agent];
         self.enemies = [];
 
-        $.each(board.teams,function (i,team)
-        {
-          $.each(team.units,function (i,unit)
-          {
+        $.each(board.teams, function (i,team) {
+          $.each(team.units, function (i,unit) {
             unit.id = unit.assignment.id;
           });
 
           if (team.color === self.team.color) return;
-          Array.prototype.push.apply(self.enemies,team.units);
+          Array.prototype.push.apply(self.enemies, team.units);
         });
 
         // Give the card time to fade.
-        setTimeout(function ()
-        {
+        setTimeout(() => {
           var calc;
 
           self.addChoice(self.calcTeamFuture(teamId));
 
-          if (self.inRange())
-          {
+          if (self.inRange()) {
             self.considerUnit();
           }
-          else
-          {
+          else {
             self.considerPosition(teamId);
 
-            if (agent.mRecovery === 0 && agent.mHealth < 0)
-            {
+            if (agent.mRecovery === 0 && agent.mHealth < 0) {
               self.choices[0].first = 'attack';
               self.choices[0].target = agent.assignment;
             }
@@ -64,8 +57,7 @@
         self.deferred = $.Deferred();
         return self.deferred.promise();
       },
-      considerUnit:function ()
-      {
+      considerUnit: function () {
         var unit = self.friends.pop();
         var start = unit.assignment;
         var direction = unit.direction;
@@ -73,8 +65,7 @@
         var target;
         var i;
 
-        if (unit.mRecovery === 0)
-        {
+        if (unit.mRecovery === 0) {
           self.considerTurnOnly(unit);
 
           if (target = self.considerTarget(unit))
@@ -84,8 +75,7 @@
 
           tiles = unit.getMoveTiles();
 
-          for (i=0; i<tiles.length; i++)
-          {
+          for (i=0; i<tiles.length; i++) {
             unit.assign(tile = tiles[i]);
 
             if (target)
@@ -110,39 +100,35 @@
 
         return self;
       },
-      considerSpecialOnly:function (unit)
-      {
+      considerSpecialOnly: function (unit) {
         var mHealth = unit.mHealth;
         unit.mRecovery = Math.ceil(unit.recovery / 2);
         unit.mHealth += unit.power;
         if (unit.mHealth > 0) unit.mHealth = 0;
 
-        self.addChoice($.extend
-        ({
-          unit:unit,
-          first:'attack',
-          target:unit.assignment,
-          direction:self.considerDirection(unit)
-        },self.calcTeamFuture(unit.team)));
+        self.addChoice($.extend({
+          unit:      unit,
+          first:     'attack',
+          target:    unit.assignment,
+          direction: self.considerDirection(unit)
+        }, self.calcTeamFuture(unit.team)));
 
         unit.mHealth = mHealth;
         return self;
       },
-      considerSpecialFirst:function (unit,end,target)
-      {
+      considerSpecialFirst: function (unit, end, target) {
         var mHealth = unit.mHealth;
         unit.mRecovery = unit.recovery;
         unit.mHealth += unit.power;
         if (unit.mHealth > 0) unit.mHealth = 0;
 
-        self.addChoice($.extend
-        ({
-          unit:unit,
-          end:end,
-          first:'attack',
-          target:target,
-          direction:self.considerDirection(unit)
-        },self.calcTeamFuture(unit.team)));
+        self.addChoice($.extend({
+          unit:      unit,
+          end:       end,
+          first:     'attack',
+          target:    target,
+          direction: self.considerDirection(unit)
+        }, self.calcTeamFuture(unit.team)));
 
         unit.mHealth = mHealth;
         return self;
