@@ -115,6 +115,7 @@
         _super.reset(mode);
 
         if (refocus) {
+          self.origin.focusing = origin.focusing;
           self
             .showFocus(0.5)
             .change({focusing: origin.focusing});
