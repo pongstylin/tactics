@@ -337,13 +337,10 @@ Tactics.Board = function ()
 
           if (self.focused) {
             let selected = self.selected;
-            let view_only = self.focused.team !== self.turns[0]
-              || self.focused.mRecovery > 0
-              || self.focused.paralyzed !== false
-              || (selected && selected.attacked && selected !== self.focused);
+            let view_only = !self.focused.canSelect();
 
-             Tactics.sounds.focus.play();
-             self.focused.focus(view_only);
+            Tactics.sounds.focus.play();
+            self.focused.focus(view_only);
           }
 
           self.drawCard();
@@ -842,6 +839,16 @@ Tactics.Board = function ()
         }
       }
       else {
+        /*
+         * The currently selected unit must be reset first just in case the
+         * reset causes paralysis to be re-applied to the selected unit.
+         *
+         * This logic can be made simpler if canSelect() uses initial turn
+         * state to determine selectability as opposed to current turn state.
+         */
+        if (selected && unit.canSelect())
+          selected.reset(selected.activated = 'move');
+
         // Do what a unit can can[].
         let can = [];
         if (unit.canMove())
@@ -855,17 +862,14 @@ Tactics.Board = function ()
         if (mode === null || can.indexOf(mode) === -1)
           mode = can.shift();
 
-        let view_only = unit.team !== self.turns[0]
-          || unit.mRecovery > 0
-          || unit.paralyzed !== false
-          || (selected && selected.attacked && selected !== unit);
+        let view_only = !unit.canSelect();
 
         if (view_only) {
           if (selected && !viewed) selected.hideMode();
           self.viewed = unit;
         }
         else {
-          if (selected) selected.reset();
+          if (selected) selected.deactivate();
           self.selected = unit;
         }
       }
@@ -895,9 +899,9 @@ Tactics.Board = function ()
         self.viewed = null;
 
         if (selected)
-          if (selected.activated == 'direction')
+          if (selected.activated === 'direction')
             selected.activate('turn');
-          else if (selected.activated == 'target')
+          else if (selected.activated === 'target')
             selected.activate('attack');
           else
             selected.showMode();

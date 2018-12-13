@@ -1910,6 +1910,13 @@
         if (!event.target.assigned)
           event.target.setAlpha(0.3);
       },
+      canSelect: function () {
+        let selected = board.selected;
+        if (selected && selected.attacked && selected !== self)
+          return false;
+
+        return self.team === board.turns[0] && !self.mRecovery && !self.paralyzed;
+      },
       canMove: function () {
         return !!self.getMoveTiles().length
           && (!self.attacked || !self.deployed || !self.deployed.first);
