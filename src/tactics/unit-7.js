@@ -93,6 +93,30 @@
 
         return anim.play().then(() => results);
       },
+      /*
+       * Customized so that the sound is played on the first visual frame (not 2nd).
+       * Also plays a sound sprite instead of the full sound.
+       */
+      animBlock: function (attacker) {
+        let anim = new Tactics.Animation();
+        let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
+
+        anim.addFrame(() => {
+          self.origin.direction = self.direction = direction;
+          sounds.block.play('block');
+        });
+
+        let indexes = [];
+        for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
+          indexes.push(index);
+        }
+        indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
+
+        if (self.directional !== false)
+          anim.addFrame(() => self.drawFrame(data.stills[direction]));
+
+        return anim;
+      },
       animSpecial: function () {
         let anim = new Tactics.Animation();
         let direction = self.direction;

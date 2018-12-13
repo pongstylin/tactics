@@ -757,10 +757,15 @@ Tactics = (function ()
         sounds:   {
           attack1: 'sound809',
           attack2: 'sound809',
-          //block:   'sound12',
-          block:   'sound2021',
           bomb1:   'sound1368',
           bomb2:   'sound1370',
+          block:   {
+            file: 'sound8',
+            volume: 0.50,
+            sprite: {
+              block:[0,400],
+            }
+          },
         },
         effects: {
           explode: {
