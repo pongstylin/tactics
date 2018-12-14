@@ -120,8 +120,10 @@ Tactics.App = (function ($, window, document) {
                 $('BUTTON[name=pass]').addClass('ready');
               }
               else {
-                selected.turn(90).showMode();
-                $('BUTTON[name=select][value=turn]').removeClass('ready');
+                selected.turn(90).then(() => {
+                  selected.showMode();
+                  $('BUTTON[name=select][value=turn]').removeClass('ready');
+                });
               }
             }
           }

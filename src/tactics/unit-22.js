@@ -91,19 +91,20 @@
         ]});
       },
       animDeploy: function (assignment) {
-        var anim = new Tactics.Animation({fps:10});
-        var origin = self.assignment;
-        var direction = board.getDirection(origin,assignment, 1);
-        var odirection = board.getRotation(self.direction, 180);
+        let anim        = new Tactics.Animation({fps:10});
+        let frame_index = 0;
 
-        if (direction.length === 2)
-          direction = direction.indexOf(self.direction) === -1 ? odirection : self.direction;
+        anim.addFrame(() => self.assignment.dismiss());
+
+        // Turn frames are not typically required while walking unless the very
+        // next tile is in the opposite direction of where the unit is facing.
+        let odirection = board.getRotation(self.direction, 180)
+        if (board.getDirection(self.assignment, path[0]) === odirection)
+          anim.splice(frame_index++, () => self.drawTurn(90));
 
         let deploy = data.animations[direction].deploy;
-
         anim
-          .splice(self.animTurn(direction))
-          .splice(
+          .splice(frame_index,
             new Tactics.Animation({frames: [{
               script: frame => self.drawFrame(deploy.s + frame.repeat_index),
               repeat: deploy.l,

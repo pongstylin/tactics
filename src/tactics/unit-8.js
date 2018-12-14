@@ -40,7 +40,18 @@
         anim.splice(self.animTurn(direction));
         anim.splice(attackAnim)
 
-        return anim.play();
+        return anim.play().then(() => 'ready');
+      },
+      calcAttack: function () {
+        return {
+          damage:      0,
+          block:       0,
+          chance:      100,
+          penalty:     0,
+          bonus:       0,
+          unblockable: true,
+          effect:      'paralyze',
+        };
       },
       calcAttackResults: function (target) {
         let target_units = self.getTargetUnits(target);
@@ -51,7 +62,7 @@
 
         target_units.forEach(unit => {
           let result = {unit: unit};
-          let paralyzed = unit.paralyzed || [];
+          let paralyzed = (unit.paralyzed || []).slice();
           paralyzed.push(self);
 
           results.push(Object.assign(result, {paralyzed: paralyzed}));
@@ -82,31 +93,32 @@
 
         return anim;
       },
-      animBreakFocus: function () {
+      playBreakFocus: function () {
+        if (!self.focusing) return Promise.resolve();
+
+        if (self.attacked)
+          // Do not break focus when turning after attacking.
+          if (self.activated === 'turn')
+            return Promise.resolve();
+          // Allow cancelling the attack by moving after attacking.
+          else // self.activated === 'move'
+            self.attacked = false;
+
         let anim = new Tactics.Animation();
-        let units = [self, ...self.focusing];
+        anim.splice( 0, self.animDefocus());
+        anim.splice(-1, () => self.change({focusing: false}));
 
-        // Do not break focus when turning after attacking.
-        if (self.attacked === false)
-          units.forEach(u => {
-            if (u === self) {
-              if (!u.paralyzed && !u.poisoned)
-                anim.splice(0, u.animDefocus());
+        self.focusing.forEach(unit => {
+          if (unit.paralyzed.length === 1 && !unit.poisoned)
+            anim.splice(0, unit.animDefocus());
 
-              anim.splice(-1, () => u.change({focusing: false}));
-            }
-            else {
-              if (u.paralyzed.length === 1 && !u.poisoned)
-                anim.splice(0, u.animDefocus());
+          if (unit.paralyzed.length === 1)
+            anim.splice(-1, () => unit.change({paralyzed: false}));
+          else
+            anim.splice(-1, () => unit.change({paralyzed: unit.paralyzed.filter(u => u !== self)}));
+        });
 
-              if (u.paralyzed.length === 1)
-                anim.splice(-1, () => u.change({paralyzed: false}));
-              else
-                anim.splice(-1, () => u.change({paralyzed: u.paralyzed.filter(u => u !== self)}));
-            }
-          });
-
-        return anim;
+        return anim.play();
       },
       reset: function (mode) {
         let origin = self.origin;
@@ -121,7 +133,7 @@
             .change({focusing: origin.focusing});
 
           self.focusing.forEach(unit => {
-            let paralyzed = unit.paralyzed || [];
+            let paralyzed = (unit.paralyzed || []).slice();
             paralyzed.push(self);
 
             unit

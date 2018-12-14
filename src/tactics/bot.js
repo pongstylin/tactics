@@ -77,8 +77,10 @@
 
       return new Promise((resolve, reject) => {
         setTimeout(() => {
-          data.unit.turn(data.direction).activate('direction');
-          resolve(data);
+          data.unit.turn(data.direction).then(() => {
+            data.unit.activate('direction');
+            resolve(data);
+          });
         }, 2000);
       });
     }

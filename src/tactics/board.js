@@ -735,7 +735,7 @@ Tactics.Board = function ()
         self.drawCard();
 
       tUnits.splice(tUnits.indexOf(unit), 1);
-      unit.assignment.dismiss();
+      unit.assign(null);
       units.removeChild(unit.pixi);
 
       return self;
@@ -753,11 +753,12 @@ Tactics.Board = function ()
 
       self.teams.forEach(t => Array.prototype.push.apply(units, t.units));
 
-      // First, reset all tiles.
-      if (self.selected && !self.viewed) self.selected.hideMode();
-      if (self.viewed) self.viewed.hideMode();
+      let activated = self.viewed || self.selected;
+      activated.hideMode();
 
-      units.forEach(u => u.assignment.dismiss());
+      // Unassign all units first since unit.assign() will call tile.dismiss()
+      // on the previously assigned tile.
+      units.forEach(u => u.assign(null));
 
       units.forEach(unit => {
         let origin = unit.origin;
@@ -767,8 +768,8 @@ Tactics.Board = function ()
         if (origin.adirection)
           odata.adirection = self.getRotation(origin.adirection, degree);
 
-        unit.assignment = null;
-        unit.assign(data.tile).turn(data.direction);
+        unit.assign(data.tile);
+        unit.stand(data.direction);
         unit.origin = odata;
       });
 
