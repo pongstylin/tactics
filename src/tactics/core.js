@@ -31,6 +31,10 @@ Tactics = (function ()
 
       var $canvas;
       renderer = PIXI.autoDetectRenderer(bw = self.width,bh = self.height);
+
+      // Let's not go crazy with the move events.
+      renderer.plugins.interaction.moveWhenInside = true;
+
       self.$viewport = $viewport;
       stage = self.stage = new PIXI.Container();
 

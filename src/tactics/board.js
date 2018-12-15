@@ -26,7 +26,7 @@ Tactics.Board = function ()
 
   card.stage.hitArea = new PIXI.Polygon([0,0, 175,0, 175,99, 0,99]);
   card.stage.interactive = card.stage.buttonMode = true;
-  card.stage.click = card.stage.tap = function () {
+  card.stage.pointertap = function () {
     var els = card.elements;
 
     if (els.layer1.visible) {
@@ -292,10 +292,10 @@ Tactics.Board = function ()
       var sy = 4+(56*4)+1; // padding-top , 4 tiles tall, tweak
       var x,y,c;
 
-      // The board itself is interactive since we want to detect a click or tap
-      // on a blank tile to cancel current selection, if sensible.
+      // The board itself is interactive since we want to detect a tap on a
+      // blank tile to cancel current selection, if sensible.
       pixi.interactive = true;
-      pixi.click = pixi.tap = () => {
+      pixi.pointertap = () => {
         if (self.locked) return;
 
         let selected = self.selected;
@@ -307,7 +307,7 @@ Tactics.Board = function ()
       pixi.position = new PIXI.Point(18,38);
 
       /*
-       * A select event occurs when a unit or an action tile is selected.
+       * A select event occurs when a unit and/or an action tile is selected.
        */
       var selectEvent = event => {
         if (self.locked) return;
@@ -319,7 +319,27 @@ Tactics.Board = function ()
         self.select(tile.assigned);
       };
 
+      var focused_tile = null;
       var focusEvent = event => {
+        /*
+         * Manually manage tile 'blur' events for touch pointers.
+         */
+        if (event.pointerType === 'touch' || focused_tile)
+          if (event.type === 'focus') {
+            if (focused_tile && focused_tile !== event.target)
+              focused_tile.emit({
+                type:        'blur',
+                target:      focused_tile,
+                pointerType: event.pointerType,
+              });
+            focused_tile = event.target;
+          }
+          else // event.type === 'blur'
+            if (focused_tile && focused_tile === event.target) {
+              focused_tile.focused = false;
+              focused_tile = null;
+            }
+
         if (self.locked) return;
 
         let assigned = event.target.assigned;
@@ -372,6 +392,14 @@ Tactics.Board = function ()
       }
 
       Tactics.stage.addChild(pixi);
+
+      /*
+       * While the board sprite and the tile children may be interactive, the units
+       * aren't.  So optimize PIXI by not checking them for interactivity.
+       */
+      units = new PIXI.Container();
+      units.interactiveChildren = false;
+
       Tactics.stage.addChild(units = new PIXI.Container());
 
       // Required to place units in the correct places.

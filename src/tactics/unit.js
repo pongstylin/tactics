@@ -249,6 +249,7 @@
           if (unit)
             target_units.push(unit);
         }
+        // This is an optimization, don't compute targeted tiles twice.
         else if (self.targeted)
           target_units = self.targeted
             .filter(tile => !!tile.assigned)
