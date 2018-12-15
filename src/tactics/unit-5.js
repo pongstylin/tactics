@@ -6,6 +6,10 @@
 		var data = Tactics.units[self.type];
 		var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 		Object.assign(self, {
+			animStagger:function (attacker)
+			{
+				//do nothing. The Lightning Ward laughs at any feeble attempt to move it.
+			},			
 			playAttack: function (target) {
 				let anim        = new Tactics.Animation();
 				let target_unit =  target.assigned;
