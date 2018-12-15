@@ -892,7 +892,7 @@
         return self;
       },
       assign: function (assignment) {
-        if (self.assignment) self.assignment.dismiss();
+        if (self.assignment && self.assignment.assigned === self) self.assignment.dismiss();
         self.assignment = assignment;
 
         if (assignment) {

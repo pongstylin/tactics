@@ -785,10 +785,6 @@ Tactics.Board = function ()
       let activated = self.viewed || self.selected;
       if (activated) activated.hideMode();
 
-      // Unassign all units first since unit.assign() will call tile.dismiss()
-      // on the previously assigned tile.
-      units.forEach(u => u.assignment.dismiss());
-
       units.forEach(unit => {
         let origin = unit.origin;
         let data   = self.getUnitRotation(degree, unit.assignment, unit.direction);
