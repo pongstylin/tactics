@@ -1427,12 +1427,12 @@
           for (let index = data.walks[direction][0]; index <= data.walks[direction][1]; index++) {
             indexes.push(index);
           }
-          indexes.forEach(index => anim.addFrame(() => self.drawFrame(index, from_tile)));
+          indexes.forEach(index =>
+            anim.splice(frame_index++, () => self.drawFrame(index, from_tile))
+          );
 
           // Do not step softly into that good night.
-          anim.splice([frame_index, frame_index+4], () => {
-            sounds.step.play();
-          });
+          anim.splice([-8, -4], () => sounds.step.play());
 
           // If this is our final destination, stand ready
           if (to_tile === assignment)
