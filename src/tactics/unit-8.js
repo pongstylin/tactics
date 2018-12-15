@@ -93,9 +93,10 @@
 
         return anim;
       },
+      /*
+       * This method is called when a unit moves, attacks, or turns.
+       */
       playBreakFocus: function () {
-        if (!self.focusing) return Promise.resolve();
-
         if (self.attacked)
           // Do not break focus when turning after attacking.
           if (self.activated === 'turn')
@@ -104,7 +105,15 @@
           else // self.activated === 'move'
             self.attacked = false;
 
+        return self.animBreakFocus().play();
+      },
+      /*
+       * This method is called when a unit is attacked.
+       */
+      animBreakFocus: function () {
         let anim = new Tactics.Animation();
+        if (!self.focusing) return anim;
+
         anim.splice( 0, self.animDefocus());
         anim.splice(-1, () => self.change({focusing: false}));
 
@@ -118,7 +127,7 @@
             anim.splice(-1, () => unit.change({paralyzed: unit.paralyzed.filter(u => u !== self)}));
         });
 
-        return anim.play();
+        return anim;
       },
       reset: function (mode) {
         let origin = self.origin;
