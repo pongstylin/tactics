@@ -787,7 +787,7 @@ Tactics.Board = function ()
 
       // Unassign all units first since unit.assign() will call tile.dismiss()
       // on the previously assigned tile.
-      units.forEach(u => u.assign(null));
+      units.forEach(u => u.assignment.dismiss());
 
       units.forEach(unit => {
         let origin = unit.origin;
