@@ -293,9 +293,10 @@ Tactics.Board = function ()
       var x,y,c;
 
       // The board itself is interactive since we want to detect a tap on a
-      // blank tile to cancel current selection, if sensible.
+      // blank tile to cancel current selection, if sensible.  Ultimately, this
+      // functionality needs to be provided by an 'undo' button.
       pixi.interactive = true;
-      pixi.pointertap = () => {
+      pixi.pointertap = event => {
         if (self.locked) return;
 
         let selected = self.selected;
@@ -782,7 +783,7 @@ Tactics.Board = function ()
       self.teams.forEach(t => Array.prototype.push.apply(units, t.units));
 
       let activated = self.viewed || self.selected;
-      activated.hideMode();
+      if (activated) activated.hideMode();
 
       // Unassign all units first since unit.assign() will call tile.dismiss()
       // on the previously assigned tile.
