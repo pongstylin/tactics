@@ -1441,7 +1441,7 @@
           // Make any units behind us step back into position.
           let from_unit;
           if ((from_unit = from_tile.assigned) && from_unit !== self)
-            anim.splice(frame_index+3, from_unit.animStepForward(step_directions.pop()));
+            anim.splice(-5, from_unit.animStepForward(step_directions.pop()));
 
           // Make any units before us step out of the way.
           let to_unit;
@@ -1458,10 +1458,8 @@
             ].find(direction => bad_directions.indexOf(direction) === -1);
 
             step_directions.push(to_direction);
-            anim.splice(frame_index, to_unit.animStepBack(to_direction));
+            anim.splice(-8, to_unit.animStepBack(to_direction));
           }
-
-          frame_index = anim.frames.length;
         });
 
         return anim;
