@@ -26,8 +26,8 @@
 
       board.lock();
       selected.turn(target.data.direction).then(() => {
-        board.setSelectMode('ready');
         board.unlock();
+        board.setSelectMode('ready');
 
         // Normally, we should render after receiving an event.
         // But the selected unit should handle that by pulsing.
@@ -118,6 +118,8 @@
     var onDeploySelect = event => {
       board.lock();
       self.deploy(event.target).then(() => {
+        board.unlock();
+
         if (self.attacked) {
           if (self.blocking)
             board.setSelectMode('turn');
@@ -126,8 +128,6 @@
         }
         else
           board.setSelectMode('attack');
-
-        board.unlock();
       });
     };
     var onDeployFocus  = event => event.target.setAlpha(0.6);
@@ -829,6 +829,9 @@
         return self;
       },
       highlightAttack: function () {
+        if (!self.viewed && data.aAll)
+          return self.onAttackSelect({target:self.assignment});
+
         self.getAttackTiles().forEach(tile => {
           board.setHighlight({
             action: 'attack',
@@ -1434,15 +1437,6 @@
           // Do not step softly into that good night.
           anim.splice([-8, -4], () => sounds.step.play());
 
-          // If this is our final destination, stand ready
-          if (to_tile === assignment)
-            anim.addFrame(() => self.assign(assignment).stand(direction));
-
-          // Make any units behind us step back into position.
-          let from_unit;
-          if ((from_unit = from_tile.assigned) && from_unit !== self)
-            anim.splice(-5, from_unit.animStepForward(step_directions.pop()));
-
           // Make any units before us step out of the way.
           let to_unit;
           if (to_unit = to_tile.assigned) {
@@ -1460,6 +1454,15 @@
             step_directions.push(to_direction);
             anim.splice(-8, to_unit.animStepBack(to_direction));
           }
+
+          // Make any units behind us step back into position.
+          let from_unit;
+          if ((from_unit = from_tile.assigned) && from_unit !== self)
+            anim.splice(-5, from_unit.animStepForward(step_directions.pop()));
+
+          // If this is our final destination, stand ready
+          if (to_tile === assignment)
+            anim.addFrame(() => self.assign(assignment).stand(direction));
         });
 
         return anim;
@@ -1849,18 +1852,29 @@
       onAttackSelect: function (event) {
         let target = event.target;
 
-        board.clearHighlight();
+        if (!data.aAll) {
+          board.clearHighlight();
 
-        // This makes it possible to click the attack button to switch from target
-        // mode to attack mode.
-        self.activated = 'target';
+          // This makes it possible to click the attack button to switch from target
+          // mode to attack mode.
+          self.activated = 'target';
+        }
 
         self.targeted = self.getTargetTiles(target);
         self.targeted.forEach(tile => self.highlightTarget(tile));
+
+        // This is a bandaid for touch devices where unit.focus is harder to use.
+        let target_units = self.getTargetUnits(target);
+        if (target_units.length === 1) {
+          self.onAttackFocus({target:target_units[0].assignment});
+          board.drawCard(target_units[0]);
+        }
       },
       onTargetSelect: function (event) {
         board.lock();
         return self.attack(event.target).then(results => {
+          board.unlock();
+
           if (self.type === 8)
             board.setSelectMode('ready');
           else if (self.deployed) {
@@ -1871,8 +1885,6 @@
           }
           else
             board.setSelectMode('move');
-
-          board.unlock();
         });
       },
       onTargetFocus: function (event) {
@@ -1892,11 +1904,11 @@
               self.origin.adirection = self.direction;
               self.thaw();
 
+              board.unlock();
               if (self.canMove())
                 board.setSelectMode('move');
               else
                 board.setSelectMode('turn');
-              board.unlock();
             }
             else {
               board.unlock();
@@ -1932,8 +1944,10 @@
               notice: '-'+calc.damage+' ('+Math.round(calc.chance)+'%)'
             });
         }
-
-        tile.setAlpha(0.6);
+        else
+          // Setting alpha is only required for unassigned tiles.
+          // unit.focus() handles setting alpha for assigned tiles.
+          tile.setAlpha(0.6);
       },
       onAttackBlur: function (event) {
         // Ignore assigned targets since the unit.blur will reduce alpha

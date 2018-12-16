@@ -632,6 +632,7 @@ Tactics = (function ()
         blocking: 0,
         mRadius:  3,
         aRadius:  'all',
+        aAll:     true,
         aType:    'magic',
         sounds:   {
           heal: 'sound1203',
@@ -799,6 +800,7 @@ Tactics = (function ()
         blocking: 70,
         aType:    'melee',
         aRadius:  1,
+        aAll:     true,
         mRadius:  4,
         sounds:   {
           attack1: 'sound809',
@@ -880,6 +882,7 @@ Tactics = (function ()
         blocking: 0,
         aType:    'magic',
         aRadius:  2,
+        aAll:     true,
         mRadius:  3,
         sounds:   {
           paralyze: 'sound2393',

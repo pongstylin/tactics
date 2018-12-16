@@ -12,16 +12,6 @@
       getTargetTiles: function () {
         return self.getAttackTiles();
       },
-      highlightAttack: function () {
-        if (self.viewed)
-          _super.highlightAttack();
-        else {
-          self.targeted = self.getTargetTiles(self.assignment);
-          self.targeted.forEach(target => self.highlightTarget(target));
-        }
-
-        return self;
-      },
       playAttack: function (target, results) {
         let anim      = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, target, self.direction);
