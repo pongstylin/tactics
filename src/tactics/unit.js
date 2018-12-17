@@ -910,8 +910,12 @@
        * Specify the absolute direction, e.g. 'N'.
        */
       stand: function (direction) {
-        if (!direction) direction = self.direction;
-        if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
+        if (self.directional === false)
+          direction = 'S';
+        else {
+          if (!direction) direction = self.direction;
+          if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
+        }
 
         self.drawStand(direction);
         self.direction = direction;
