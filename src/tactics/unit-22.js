@@ -98,8 +98,8 @@
 
         // Turn frames are not typically required while walking unless the very
         // next tile is in the opposite direction of where the unit is facing.
-        let odirection = board.getRotation(self.direction, 180)
-        if (board.getDirection(self.assignment, path[0]) === odirection)
+        let direction = board.getDirection(self.assignment, assignment, self.direction);
+        if (direction === board.getRotation(self.direction, 180))
           anim.splice(frame_index++, () => self.drawTurn(90));
 
         let deploy = data.animations[direction].deploy;
@@ -112,6 +112,7 @@
               .splice(10, () => self.assign(assignment))
               .splice([2,7,11,16], () => sounds.flap.play())
           );
+        anim.addFrame(() => self.stand(direction));
 
         return anim;
       },

@@ -1414,8 +1414,8 @@
 
         // Turn frames are not typically required while walking unless the very
         // next tile is in the opposite direction of where the unit is facing.
-        let odirection = board.getRotation(self.direction, 180)
-        if (board.getDirection(self.assignment, path[0]) === odirection)
+        let direction = board.getDirection(self.assignment, path[0]);
+        if (direction === board.getRotation(self.direction, 180))
           anim.splice(frame_index++, () => self.drawTurn(90));
 
         // Keep track of what direction units face as they step out of the way.
