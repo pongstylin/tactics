@@ -470,16 +470,16 @@ Tactics.Board = function ()
           notice = unit.notice;
         }
 
-        if (!notice && unit.mRecovery)
-          notice = 'Wait '+unit.mRecovery+' Turn'+(unit.mRecovery > 1 ? 's' : '')+'!';
-
-        if (unit.poisoned) {
-          notices.push('Poisoned!');
+        if (unit.paralyzed) {
+          notices.push('Paralyzed!');
           important++;
         }
 
-        if (unit.paralyzed) {
-          notices.push('Paralyzed!');
+        if (unit.mRecovery)
+          notices.push('Wait '+unit.mRecovery+' Turn'+(unit.mRecovery > 1 ? 's' : '')+'!');
+
+        if (unit.poisoned) {
+          notices.push('Poisoned!');
           important++;
         }
 
