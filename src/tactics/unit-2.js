@@ -13,7 +13,6 @@
 
         let attackAnim = self.animAttack(target);
         attackAnim.splice(4, () => sounds.attack.play());
-        attackAnim.addFrame(() => self.drawFrame(data.stills[direction]));
 
         // There should be zero or one result.
         results.forEach(result => {

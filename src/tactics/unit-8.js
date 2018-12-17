@@ -17,7 +17,6 @@
         let direction = board.getDirection(self.assignment, target, self.direction);
 
         let attackAnim = self.animAttack(target);
-        attackAnim.addFrame(() => self.drawFrame(data.stills[direction]));
         attackAnim.splice(0, () => sounds.paralyze.play())
 
         results.forEach(result => {

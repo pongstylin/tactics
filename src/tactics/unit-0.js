@@ -269,7 +269,7 @@
             },
             repeat: 4,
           },
-          () => self.stand(),
+          () => self.drawStand(),
         ]});
       },
       animAttack: function (direction) {
@@ -300,10 +300,10 @@
           {
             self.origin.direction = self.direction = direction;
             self.block(0);
+            sounds.block.play();
           },
           function ()
           {
-            sounds.block.play();
             self.block(1).shock(direction,0,1);
           },
           function ()

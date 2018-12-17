@@ -737,7 +737,14 @@ Tactics = (function ()
         sounds:   {
           attack1: 'sound431',
           attack2: 'sound1602',
-          block1: 'sound431',
+          block1: {
+            file: 'sound431',
+            volume: 2,
+            rate: 0.5,
+            sprite: {
+              block: [1400, 600],
+            },
+          },
           block2: 'sound11',
         },
         effects:  {
@@ -812,7 +819,7 @@ Tactics = (function ()
             volume: 0.50,
             sprite: {
               block:[0,400],
-            }
+            },
           },
         },
         effects: {
@@ -1161,8 +1168,8 @@ Tactics = (function ()
             }
           },
           phase: {
-            file:'sound4',
-            rate:0.5
+            file: 'sound4',
+            rate: 0.5,
           },
           roar: {
             file:'chaos',

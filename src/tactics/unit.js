@@ -313,9 +313,9 @@
         return null;
       },
       calcAttack: function (target_unit, from, target) {
-        if (from === undefined)
+        if (!from)
           from = self.assignment;
-        if (target === undefined)
+        if (!target)
           target = target_unit.assignment;
 
         let power    = self.power + self.mPower;
@@ -585,14 +585,14 @@
         self.effects = effects;
         self.color = color === null ? 0xFFFFFF : Tactics.colors[color];
         self.assign(assignment);
-        self.direction = direction;
+        self.stand(self.directional === false ? 'S' : direction);
         self.origin = {
           tile:      assignment,
           direction: direction,
           focusing:  false,
         };
 
-        return self.drawFrame(data.stills[self.directional === false ? 'S' : direction]);
+        return self;
       },
       compileFrame: function (frame, data) {
         let container = new PIXI.Container();
@@ -781,7 +781,6 @@
         if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
 
         self.drawFrame(data.stills[direction]);
-        self.direction = direction;
       },
       getSpritesByName: function (name) {
         return self.frame.children.filter(s => s.data && s.data.name === name);
@@ -1490,7 +1489,7 @@
         }
         indexes.forEach(index => anim.addFrame(() => self.drawFrame(index)));
 
-        anim.addFrame(() => self.drawFrame(data.stills[self.direction]));
+        anim.addFrame(() => self.drawStand());
 
         // One final stomp for science
         anim.splice(0, () => sounds.step.play());
@@ -1507,17 +1506,17 @@
         }
         indexes.forEach(index => anim.addFrame(() => self.drawFrame(index)));
 
+        anim.addFrame(() => self.stand(direction));
+
         return anim;
       },
       animBlock: function (attacker) {
         let anim = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
-        if (self.directional === false)
-          anim.addFrame(() => {});
-        else
-          anim.addFrame(() => self.origin.direction = self.direction = direction);
         anim.addFrame(() => sounds.block.play());
+        if (self.directional !== false)
+          anim.splice(0, () => self.origin.direction = self.direction = direction);
 
         if (data.blocks) {
           let indexes = [];
@@ -1525,10 +1524,25 @@
             indexes.push(index);
           }
           indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
+
+          // Kinda hacky.  It seems that shocks should be rendered by the attacker, not defender.
+          if (attacker.type === 2)
+            anim.splice(1, [
+              () => self.shock(direction, 1, true),
+              () => self.shock(direction, 2, true),
+              () => self.shock(),
+            ]);
+          else
+            anim.splice(1, [
+              () => self.shock(direction, 0, true),
+              () => self.shock(direction, 1, true),
+              () => self.shock(direction, 2, true),
+              () => self.shock(),
+            ]);
         }
 
         if (self.directional !== false)
-          anim.addFrame(() => self.drawFrame(data.stills[direction]));
+          anim.addFrame(() => self.stand(direction));
 
         return anim;
       },
@@ -1642,7 +1656,7 @@
               .drawFrame(data.turns[self.direction])
               .offsetFrame(-0.02, direction),
           () =>
-            self.drawFrame(data.stills[self.direction]),
+            self.drawStand(),
         ]);
 
         return anim;
@@ -1866,7 +1880,7 @@
         // This is a bandaid for touch devices where unit.focus is harder to use.
         let target_units = self.getTargetUnits(target);
         if (target_units.length === 1) {
-          self.onAttackFocus({target:target_units[0].assignment});
+          self.onAttackFocus({target:target_units[0].assignment}, target);
           board.drawCard(target_units[0]);
         }
       },
@@ -1916,12 +1930,12 @@
             }
           });
       },
-      onAttackFocus: function (event) {
+      onAttackFocus: function (event, target) {
         let tile = event.target;
         let unit;
 
         if (unit = tile.assigned) {
-          let calc = self.calcAttack(unit);
+          let calc = self.calcAttack(unit, null, target);
 
           if (calc.effect === 'paralyze')
             unit.change({

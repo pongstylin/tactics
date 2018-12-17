@@ -18,7 +18,6 @@
         let attackAnim = self.animAttack(target);
         attackAnim.splice(1, () => sounds.attack1.play());
         attackAnim.splice(3, () => sounds.attack2.play());
-        attackAnim.addFrame(() => self.drawFrame(data.stills[direction]));
 
         results.forEach(result => {
           let unit = result.unit;
@@ -101,8 +100,22 @@
         }
         indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
 
-        if (self.directional !== false)
-          anim.addFrame(() => self.drawFrame(data.stills[direction]));
+        // Kinda hacky.  It seems that shocks should be rendered by the attacker, not defender.
+        if (attacker.type === 2)
+          anim.splice(1, [
+            () => self.shock(direction, 1, true),
+            () => self.shock(direction, 2, true),
+            () => self.shock(),
+          ]);
+        else
+          anim.splice(1, [
+            () => self.shock(direction, 0, true),
+            () => self.shock(direction, 1, true),
+            () => self.shock(direction, 2, true),
+            () => self.shock(),
+          ]);
+
+        anim.addFrame(() => self.stand(direction));
 
         return anim;
       },
@@ -115,7 +128,8 @@
           indexes.push(index);
         }
         indexes.forEach(index => anim.addFrame(() => self.drawFrame(index)));
-        anim.addFrame(() => self.drawFrame(data.stills[direction]));
+
+        anim.addFrame(() => self.stand(direction));
 
         return anim;
       },
