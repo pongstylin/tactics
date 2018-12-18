@@ -354,7 +354,7 @@ Tactics = (function ()
     [
       {
         name:'Knight',
-        ability:'Melee Attack',
+        ability:'Sword & Shield',
         power:22,
         armor:25,
         health:50,
@@ -564,7 +564,7 @@ Tactics = (function ()
       },
       {
         name:     'Scout',
-        ability:  'Long Range',
+        ability:  'Long Shot',
         power:    18,
         armor:    8,
         health:   40,
@@ -624,7 +624,7 @@ Tactics = (function ()
       },
       {
         name:    'Cleric',
-        ability: 'Heal All',
+        ability: 'Holy Mass',
         power:    12,
         armor:    0,
         health:   24,
@@ -724,7 +724,7 @@ Tactics = (function ()
       },
       {
         name:     'Dark Magic Witch',
-        ability:  'Dark Magic',
+        ability:  'Black Spikes',
         power:    24,
         armor:    0,
         health:   28,
@@ -798,18 +798,19 @@ Tactics = (function ()
         },
       },
       {
-        name:     'Assassin',
-        ability:  'Melee Attack',
-        power:    18,
-        armor:    12,
-        health:   35,
-        recovery: 1,
-        blocking: 70,
-        aType:    'melee',
-        aRadius:  1,
-        aAll:     true,
-        mRadius:  4,
-        sounds:   {
+        name:      'Assassin',
+        ability:   'Multi-Strike',
+        specialty: 'Deathblow',
+        power:     18,
+        armor:     12,
+        health:    35,
+        recovery:  1,
+        blocking:  70,
+        aType:     'melee',
+        aRadius:   1,
+        aAll:      true,
+        mRadius:   4,
+        sounds:    {
           attack1: 'sound809',
           attack2: 'sound809',
           bomb1:   'sound1368',
@@ -881,7 +882,7 @@ Tactics = (function ()
       },
       {
         name:     'Enchantress',
-        ability:  'Paralysis',
+        ability:  'Paralytic Field',
         power:    0,
         armor:    0,
         health:   35,
@@ -1204,7 +1205,7 @@ Tactics = (function ()
       {name:'Berserker'},
       {
         name:'Chaos Dragon',
-        ability:'Lightning',
+        ability:'Static Charge',
         specialty:'Regenerate',
         power:28,
         armor:30,
