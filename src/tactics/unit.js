@@ -239,6 +239,9 @@
         return tiles;
       },
       getTargetTiles(target) {
+        if (data.aLOS === true)
+          return self.getLOSTargetTiles(target);
+
         return [target];
       },
       getTargetUnits(target) {
@@ -261,22 +264,30 @@
 
         return target_units;
       },
-      getLOSTargetUnit(target, source) {
+      getLOSTargetTiles(target, source) {
         source = source || self.assignment;
 
         // Get the absolute position of the line.
         let source_point = source.pixi.toGlobal(new PIXI.Point(44, 28));
         let target_point = target.pixi.toGlobal(new PIXI.Point(44, 28));
 
+        /* For testing LOS
+        let line = new PIXI.Graphics();
+        line.lineStyle(1, 0x00ff00);
+        line.moveTo(source_point.x, source_point.y);
+        line.lineTo(target_point.x, target_point.y);
+        Tactics.stage.addChild(line);
+        */
+
         let hit_area = new PIXI.Polygon([
-          43, 10, // top-left
-          46, 10, // top-right
-          72, 26, // right-top
-          72, 29, // right-bottom
-          46, 46, // bottom-right
-          43, 46, // bottom-left
-          16, 29, // left-bottom
-          16, 26, // left-top
+          43, 12, // top-left
+          46, 12, // top-right
+          70, 26, // right-top
+          70, 29, // right-bottom
+          46, 44, // bottom-right
+          43, 44, // bottom-left
+          18, 29, // left-bottom
+          18, 26, // left-top
           43, 10, // close
         ]);
 
@@ -289,10 +300,18 @@
           : (target.y - source.y) / Math.abs(target.y - source.y)
 
         // Trace a path from source to target, testing tiles along the way.
+        let target_tiles = [];
         for (let x = source.x; x !== target.x + oneX; x += oneX) {
           for (let y = source.y; y !== target.y + oneY; y += oneY) {
             let tile = board.getTile(x, y);
-            if (!tile || tile === source || !tile.assigned) continue;
+            if (!tile || tile === source) continue;
+ 
+            /* For testing LOS
+            let child = new PIXI.Graphics();
+            child.lineStyle(1, 0xff0000);
+            child.drawPolygon(hit_area.points);
+            tile.pixi.addChild(child);
+            */
 
             // Get the relative position of the line to the tile.
             let local_source_point = tile.pixi.toLocal(source_point);
@@ -306,11 +325,16 @@
             );
 
             if (intersects)
-              return tile.assigned;
+              target_tiles.push(tile);
           }
         }
 
-        return null;
+        return target_tiles;
+      },
+      getLOSTargetUnit(target, source) {
+        let target_tile = self.getLOSTargetTiles(target, source).find(t => !!t.assigned);
+
+        return target_tile ? target_tile.assigned : null;
       },
       calcAttack: function (target_unit, from, target) {
         if (!from)
@@ -1261,6 +1285,7 @@
 
         self.hideMode();
 
+        self.target = null;
         self.activated = self.deployed = self.targeted = self.attacked = self.turned = false;
         self.origin = {
           tile:      self.assignment,
@@ -1878,13 +1903,14 @@
           self.activated = 'target';
         }
 
+        self.target = target;
         self.targeted = self.getTargetTiles(target);
         self.targeted.forEach(tile => self.highlightTarget(tile));
 
         // This is a bandaid for touch devices where unit.focus is harder to use.
         let target_units = self.getTargetUnits(target);
-        if (target_units.length === 1) {
-          self.onAttackFocus({target:target_units[0].assignment}, target);
+        if (target_units.length === 1 && (!target.assigned || !target.focused)) {
+          self.onAttackFocus({target:target_units[0].assignment});
           board.drawCard(target_units[0]);
         }
       },
@@ -1934,12 +1960,12 @@
             }
           });
       },
-      onAttackFocus: function (event, target) {
+      onAttackFocus: function (event) {
         let tile = event.target;
         let unit;
 
         if (unit = tile.assigned) {
-          let calc = self.calcAttack(unit, null, target);
+          let calc = self.calcAttack(unit, null, self.target);
 
           if (calc.effect === 'paralyze')
             unit.change({
