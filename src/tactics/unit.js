@@ -1919,7 +1919,9 @@
         return self.attack(event.target).then(results => {
           board.unlock();
 
-          if (self.type === 8)
+          if (self.mHealth === -self.health)
+            board.endTurn();
+          else if (self.type === 8)
             board.setSelectMode('ready');
           else if (self.deployed) {
             if (self.blocking)
