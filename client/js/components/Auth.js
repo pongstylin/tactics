@@ -1,6 +1,6 @@
 import React, { Component } from 'react'
 import PropTypes from 'prop-types'
-import socket from '../core/socket';
+import socket from '../core/socket'
 
 export default class Auth extends Component {
   static propTypes = {
