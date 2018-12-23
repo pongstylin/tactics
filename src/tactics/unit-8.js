@@ -49,13 +49,10 @@
           focusing: target_units,
         }];
 
-        target_units.forEach(unit => {
-          let result = {unit: unit};
-          let paralyzed = (unit.paralyzed || []).slice();
-          paralyzed.push(self);
-
-          results.push(Object.assign(result, {paralyzed: paralyzed}));
-        });
+        Array.prototype.push.apply(results, target_units.map(unit => ({
+          unit:      unit,
+          paralyzed: true,
+        })));
 
         return results;
       },
@@ -103,18 +100,14 @@
         let anim = new Tactics.Animation();
         if (!self.focusing) return anim;
 
-        anim.splice(0, () => self.change({focusing: false}));
+        anim.splice(0, () => self.change({focusing:false}));
         if (!self.paralyzed && !self.poisoned)
           anim.splice(-1, self.animDefocus());
 
         self.focusing.forEach(unit => {
-          if (unit.paralyzed.length === 1)
-            anim.splice(0, () => unit.change({paralyzed: false}));
-          else
-            anim.splice(0, () => unit.change({paralyzed: unit.paralyzed.filter(u => u !== self)}));
-
-          if (unit.paralyzed.length === 1 && !unit.poisoned)
-            anim.splice(-1, unit.animDefocus());
+          if (unit.paralyzed === 1 && !unit.poisoned)
+            anim.splice(0, unit.animDefocus());
+          anim.splice(-1, () => unit.change({paralyzed:false}));
         });
 
         return anim;
@@ -131,14 +124,11 @@
             .showFocus(0.5)
             .change({focusing: origin.focusing});
 
-          self.focusing.forEach(unit => {
-            let paralyzed = (unit.paralyzed || []).slice();
-            paralyzed.push(self);
-
+          self.focusing.forEach(unit =>
             unit
               .showFocus(0.5)
-              .change({paralyzed: paralyzed});
-          });
+              .change({paralyzed:true})
+          );
         }
 
         return self;

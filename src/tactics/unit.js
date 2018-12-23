@@ -180,10 +180,10 @@
       // May be set to an array of units being focused upon
       focusing:  false,
 
-      // May be set to an array of units focused upon me.
-      poisoned:  false,
-      paralyzed: false,
-      barriered: false,
+      // The number of units applying the status effect
+      poisoned:  0,
+      paralyzed: 0,
+      barriered: 0,
 
       getMoveTiles: function (start) {
         let tiles = [];
@@ -422,8 +422,6 @@
             mBlocking: unit.mBlocking + calc.bonus,
           });
         });
-
-        return results;
       },
       // Obtain the maximum threat to the unit before he recovers.
       calcDefense: function (turns) {
@@ -1325,9 +1323,12 @@
         return self;
       },
       change: function (changes) {
+        if (typeof changes.paralyzed === 'boolean')
+          changes.paralyzed = self.paralyzed + (changes.paralyzed ? 1 : -1);
+
         Object.assign(self, changes);
 
-        self.emit({type: 'change', changes: changes});
+        self.emit({type:'change', changes:changes});
 
         return self;
       },
