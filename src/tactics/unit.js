@@ -2026,7 +2026,7 @@
         return false;
       },
       isPassable: function () {
-        return self.focusing === false && self.paralyzed === false && self.mPass !== false;
+        return self.focusing === false && !self.paralyzed && self.mPass !== false;
       },
       /*
        * Animate the unit getting ready to launch their special attack.
