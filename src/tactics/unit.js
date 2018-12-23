@@ -362,7 +362,7 @@
           return calc;
         }
 
-        if (data.aType === 'melee' && target_unit.paralyzed === false) {
+        if (data.aType === 'melee' && !target_unit.paralyzed) {
           if (target_unit.directional === false) {
             calc.penalty = 100 - target_unit.blocking;
           }
