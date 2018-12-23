@@ -48,6 +48,15 @@ After making changes to the source, the distribution bundles can be rebuilt usin
 $ npm run dist
 ```
 
+### Building with Docker
+
+Given you have [Docker](https://www.docker.com/get-started) downloaded onto your machine. Run the following command to
+get the app running.
+
+```bash
+docker-compose up
+```
+
 Be aware that no license currently exists for distributing this game as-is for public use since rights have not been acquired for the image and audio files used by it.  You may, however, make use of such resources when contributing additional work to this repository.  You may also create your own image and audio files and integrate them with this source code and publish the work for public use.
 
 ## License
