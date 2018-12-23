@@ -499,17 +499,17 @@ Tactics = (function ()
         }
       },
       {
-        name:       'Pyromancer',
-        ability:    'Fire Blast',
-        power:      15,
-        armor:      0,
-        health:     30,
-        recovery:   3,
-        blocking:   33,
-        aType:      'magic',
-        aRadius:    3,
-        mRadius:    3,
-        sounds:     {
+        name:     'Pyromancer',
+        ability:  'Fire Blast',
+        power:    15,
+        armor:    0,
+        health:   30,
+        recovery: 3,
+        blocking: 33,
+        aType:    'magic',
+        aRadius:  3,
+        mRadius:  3,
+        sounds:   {
           attack: 'sound431',
         },
         effects: {

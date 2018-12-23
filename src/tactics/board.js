@@ -149,6 +149,7 @@ Tactics.Board = function ()
     notice:'',
     selectMode:'move',
     rotation:'N',
+    passedTurns: 0,
 
     // Property accessors
     getTile: function (x,y) {
@@ -979,14 +980,39 @@ Tactics.Board = function ()
       }
     },
     endTurn: function () {
-      var turns = self.turns;
-      var teamId = turns[0];
-      var decay,recovery;
-      var selected = self.selected,attacked,deployed;
+      self.notice = null;
 
-      self.notice = undefined;
+      /*
+       * First, adjust the recovery for and deselect the unit, if any.
+       * Also determine if the turn was passed without taking action.
+       */
+      let selected = self.selected;
+      if (selected) {
+        let recovery = selected.recovery;
+        let attacked = selected.attacked;
+        let deployed = selected.deployed;
+        let turned   = selected.turned;
 
-      // First remove dead teams from turn order.
+        if (!attacked && !deployed && !turned)
+          self.passedTurns++;
+        else {
+          self.passedTurns = 0;
+
+          selected.mRecovery =
+            deployed && attacked ?            recovery      :
+            deployed             ? Math.floor(recovery / 2) :
+                        attacked ?  Math.ceil(recovery / 2) : 0;
+        }
+
+        self.deselect(true);
+      }
+      else
+        self.passedTurns++;
+
+      // Next, remove dead teams from turn order.
+      let turns = self.turns;
+      let teamId = turns[0];
+
       self.teams.forEach((team, t) => {
         if (team.units.length) return;
         if (turns.indexOf(t) === -1) return;
@@ -994,6 +1020,7 @@ Tactics.Board = function ()
         turns.splice(turns.indexOf(t),1);
 
         // If the player team was killed, he can take over for a bot team.
+        // TODO: Restrict this behavior to the Chaos app.
         if (!self.teams[t].bot) {
           for (let i = 0; i < self.teams.length; i++) {
             if (!self.teams[i].units.length) continue;
@@ -1004,7 +1031,7 @@ Tactics.Board = function ()
       });
 
       // Recover and decay blocking modifiers
-      decay = self.turns.length;
+      let decay = self.turns.length;
       if (self.teams[4] && self.teams[4].units.length) decay--;
 
       self.teams.forEach((team, t) => {
@@ -1017,24 +1044,15 @@ Tactics.Board = function ()
         });
       });
 
-      if (selected) {
-        recovery = selected.recovery;
-        attacked = selected.attacked;
-        deployed = selected.deployed;
-
-        selected.mRecovery =
-          deployed && attacked ?            recovery      :
-          deployed             ? Math.floor(recovery / 2) :
-                      attacked ?  Math.ceil(recovery / 2) : 0;
-      }
-
-      self.deselect(true);
-
       // If this team killed itself, this can be false.
       if (teamId == turns[0])
         turns.push(turns.shift());
 
       let winners = turns.filter(t => {
+        // If all teams passed 3 turns in a row, draw!
+        if (self.passedTurns === turns.length * 3)
+          return false;
+
         let team = self.teams[t];
         let unit = team.units.find(unit => {
           // Wards don't count.
