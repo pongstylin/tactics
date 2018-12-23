@@ -1,5 +1,5 @@
 const RECONNECT_TIMEOUT = 1000;
-const URI = 'ws://localhost:3000';
+const URI = 'ws://localhost:8080';
 
 const executeEventFunctions = (events, event, data = null) => {
   if (events.hasOwnProperty(event)) {

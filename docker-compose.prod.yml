@@ -4,7 +4,7 @@ services:
   client:
     build:
       context: client
-      dockerfile: client/Dockerfile
+      dockerfile: client/Dockerfile.prod
     volumes:
     - .:/var/www
     - /var/www/client/node_modules
@@ -12,7 +12,7 @@ services:
   server:
     build:
       context: server
-      dockerfile: server/Dockerfile
+      dockerfile: server/Dockerfile.prod
     volumes:
     - .:/var/www
 
