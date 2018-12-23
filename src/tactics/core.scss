@@ -160,10 +160,14 @@ BODY
 	100% { box-shadow: none;                 }
 }
 
+#app.locked.gameover > .buttons BUTTON[name=surrender],
 #app:not(.locked) > .buttons BUTTON.ready {
 	-webkit-animation: glow ease-in-out 1s infinite;
 	animation: glow ease-in-out 1s infinite;
-  cursor: pointer;
+
+  /* Intended to override locked surrender button */
+  cursor: pointer !important;
+  opacity: 1 !important;
 }
 
 #app > .buttons BUTTON.hidden {
@@ -183,10 +187,9 @@ BODY
 
 #app.locked > #game-play.buttons BUTTON,
 #app.locked > #game-settings.buttons BUTTON[name=rotate],
-#app > .buttons BUTTON[disabled]
-{
-	opacity:0.4;
-	cursor:default;
+#app > .buttons BUTTON[disabled] {
+	opacity: 0.4;
+	cursor:  default;
 }
 
 #overlay

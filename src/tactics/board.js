@@ -973,6 +973,8 @@ Tactics.Board = function ()
           self.notice = 'Go '+team.name+" team!";
         else
           self.notice = 'Your Turn!';
+
+        self.setSelectMode('move');
         self.unlock();
       }
     },
@@ -1027,37 +1029,64 @@ Tactics.Board = function ()
       }
 
       self.deselect(true);
-      self.setSelectMode('move');
-      self.drawCard();
 
       // If this team killed itself, this can be false.
       if (teamId == turns[0])
         turns.push(turns.shift());
 
-      // If all units were killed, this can be false.
-      if (turns.length)
+      let winners = turns.filter(t => {
+        let team = self.teams[t];
+        let unit = team.units.find(unit => {
+          // Wards don't count.
+          if (unit.type === 4 || unit.type === 5)
+            return false;
+
+          // Paralyzed units don't count.
+          if (unit.paralyzed)
+            return false;
+
+          // This unit keeps the team alive!
+          return true;
+        });
+
+        return !!unit;
+      });
+
+      if (winners.length === 0) {
+        self.notice = 'Draw!';
+        self.lock('gameover');
+      }
+      else if (winners.length === 1) {
+        let team_name = self.teams[winners[0]].name;
+        self.notice = team_name+' Wins!';
+        self.lock('gameover');
+      }
+      else
         self.startTurn();
+
+      self.drawCard();
 
       return self;
     },
 
-    lock: function () {
+    lock: function (value) {
       if (self.locked) return;
       if (self.focused)
         self.focused.assignment.emit({type:'blur', target:self.focused.assignment});
-      self.locked = true;
+      self.locked = value || true;
 
       self.tiles.forEach(tile => tile.set_interactive(false));
 
       self.emit({
         type:   'lock-change',
         ovalue: false,
-        nvalue: true,
+        nvalue: self.locked,
       });
     },
     unlock: function () {
+      let old_locked = self.locked;
       self.drawCard();
-      if (!self.locked) return;
+      if (!old_locked) return;
       self.locked = false;
 
       self.tiles.forEach(tile => {
@@ -1069,7 +1098,7 @@ Tactics.Board = function ()
 
       self.emit({
         type:   'lock-change',
-        ovalue: true,
+        ovalue: old_locked,
         nvalue: false,
       });
     },

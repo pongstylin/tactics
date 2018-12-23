@@ -123,7 +123,7 @@ Tactics.App = (function ($, window, document) {
         }
       };
 
-      $('#overlay').on('click tap', () => {
+      $('#overlay').on('click', () => {
         if ($('#popup').hasClass('error')) return;
         $('#overlay,#popup').hide();
       });
@@ -197,7 +197,15 @@ Tactics.App = (function ($, window, document) {
           }
         })
         .on('lock-change', event => {
-          $('#app').toggleClass('locked');
+          if (event.nvalue === 'gameover')
+            $('#app').addClass('gameover');
+          else
+            $('#app').removeClass('gameover');
+
+          if (event.nvalue)
+            $('#app').addClass('locked');
+          else
+            $('#app').removeClass('locked');
         });
 
       if (!fullscreen.isAvailable())
@@ -226,31 +234,20 @@ Tactics.App = (function ($, window, document) {
         })
         .on('mouseover','#app BUTTON:enabled', event => {
           var $button = $(event.target);
-          if ($button.css('cursor') != 'pointer') return;
 
-          if ($button.parents('.locked').length) {
-            if ($button.parents('#game-settings').length) {
-              if ($button.attr('name') === 'rotate')
-                return;
-            }
-            else
-              return;
-          }
+          // Ignore disabled buttons
+          if (window.getComputedStyle(event.target).cursor !== 'pointer')
+            return;
 
           Tactics.sounds.focus.play();
         })
-        .on('click tap','#app BUTTON:enabled', event => {
+        .on('click','#app BUTTON:enabled', event => {
           var $button = $(event.target);
           var handler = $button.data('handler') || buttons[$button.attr('name')];
 
-          if ($button.parents('.locked').length) {
-            if ($button.parents('#game-settings').length) {
-              if ($button.attr('name') === 'rotate')
-                return;
-            }
-            else
-              return;
-          }
+          // Ignore disabled buttons
+          if (window.getComputedStyle(event.target).cursor !== 'pointer')
+            return;
 
           handler($button);
 
@@ -286,7 +283,7 @@ Tactics.App = (function ($, window, document) {
       if (percent === 100) {
         $('#loader')
           .css({cursor: 'pointer'})
-          .one('click tap', () => {
+          .one('click', () => {
             board.draw();
 
             $('#splash').hide();
