@@ -27,16 +27,9 @@ export default {
     };
     state.connection.onclose = () => {
       state.connected = false;
-      setTimeout(this.connect, RECONNECT_TIMEOUT);
+      setTimeout(() => this.connect(), RECONNECT_TIMEOUT);
       executeEventFunctions(state.events, 'disconnected');
     };
-  },
-  disconnect () {
-    if (state.connected) {
-      state.connection.onclose = () => {};
-      state.connection.close();
-      state.connected = false;
-    }
   },
   on (event, func) {
     if (!state.events.hasOwnProperty(event)) {
