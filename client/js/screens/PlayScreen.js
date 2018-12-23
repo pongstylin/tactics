@@ -16,7 +16,6 @@ export default class PlayScreen extends Component {
   render () {
     return (
       <Screen name="play">
-        <h1>Play Screen</h1>
         {this.state.player === null ? <Auth onLogin={this.handleLogin}/> : <Game player={this.state.player}/>}
       </Screen>
     );

@@ -2,5 +2,8 @@
 @import "partials/reset";
 @import "partials/layout";
 
+@import "components/screen";
+@import "components/auth";
+
 @import "screens/home";
 @import "screens/play";
