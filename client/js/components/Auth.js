@@ -1,6 +1,8 @@
 import React, { Component } from 'react'
 import PropTypes from 'prop-types'
 import socket from '../core/socket'
+import config from '../config'
+import validator from '../../../shared/validator/index'
 
 export default class Auth extends Component {
   static propTypes = {
@@ -40,6 +42,12 @@ export default class Auth extends Component {
     this.setState({submitting: true});
 
     // TODO: Validate data
+    const validation = validator.validate(this.state.data, config.shared.validators[this.state.type](this.state.data));
+
+    if (!validation.passed) {
+      this.setState({submitting: false, errors: validation.getErrors()});
+      return;
+    }
 
     socket.emit('register', this.state.data);
   };
