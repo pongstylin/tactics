@@ -1,4 +1,4 @@
-import React, { Component } from 'react'
+import React, { Component, createRef } from 'react'
 import PropTypes from 'prop-types'
 import socket from '../core/socket'
 import config from '../config'
@@ -8,6 +8,8 @@ export default class Auth extends Component {
   static propTypes = {
     onLogin: PropTypes.func,
   };
+
+  username = createRef();
 
   state = {
     type: 'login',
@@ -30,8 +32,9 @@ export default class Auth extends Component {
     });
   }
 
-  toggleType = () => {
-    this.setState({type: this.state.type === 'login' ? 'register' : 'login', errors: []});
+  toggleType = async () => {
+    await this.setState({type: this.state.type === 'login' ? 'register' : 'login', errors: []});
+    this.username.current.focus();
   };
 
   handleSubmit = event => {
@@ -78,7 +81,9 @@ export default class Auth extends Component {
             type="text"
             name="username"
             autoComplete="username"
+            autoFocus={true}
             id="username"
+            ref={this.username}
             onChange={this.handleChange}
             value={this.state.data.username}
           />
