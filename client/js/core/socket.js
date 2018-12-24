@@ -1,4 +1,5 @@
 const RECONNECT_TIMEOUT = 1000;
+const PING_INTERVAL = 10000;
 const URI = 'ws://localhost:8080';
 
 const executeEventFunctions = (events, event, data = null) => {
@@ -13,6 +14,7 @@ const state = {
   events: {},
   connection: null,
   connected: false,
+  pingInterval: null,
 };
 
 export default {
@@ -20,6 +22,8 @@ export default {
     state.connection = new WebSocket(URI);
     state.connection.onopen = () => {
       state.connected = true;
+      state.pingInterval && clearInterval(state.pingInterval);
+      state.pingInterval = setInterval(() => this.emit('ping'), PING_INTERVAL);
     };
     state.connection.onmessage = message => {
       const {event, data} = JSON.parse(message.data);
