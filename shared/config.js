@@ -10,5 +10,6 @@ module.exports = {
       username: [validator.validators.required, validator.validators.max(15)],
       password: [validator.validators.required],
     }),
+    message: [validator.validators.required, validator.validators.max(50)],
   },
 }

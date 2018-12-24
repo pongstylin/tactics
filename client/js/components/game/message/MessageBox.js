@@ -1,4 +1,6 @@
 import React, { Component } from 'react'
+import validator from '../../../../../shared/validator/index'
+import config from '../../../config'
 import socket from '../../../core/socket'
 import GameContextConsumer from '../context/GameContextConsumer'
 
@@ -11,7 +13,7 @@ export default class MessageBox extends Component {
   handleSubmit = event => {
     event.preventDefault();
 
-    if (this.state.message.trim().length === 0) {
+    if (!validator.validate({message: this.state.message}, {message: config.shared.validators.message}).passed) {
       return;
     }
 
