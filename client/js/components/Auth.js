@@ -21,11 +21,11 @@ export default class Auth extends Component {
   };
 
   componentDidMount () {
-    socket.on('register.succeeded', async player => {
+    socket.on('auth.succeeded', async player => {
       await this.setState({submitting: false});
       this.props.onLogin && this.props.onLogin(player);
     });
-    socket.on('register.failed', errors => {
+    socket.on('auth.failed', errors => {
       this.setState({submitting: false, errors});
     });
   }
