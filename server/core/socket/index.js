@@ -17,8 +17,6 @@ module.exports = socket => {
 
   // Handle client messages
   socket.on('message', message => {
-    console.info('[info] connection message');
-
     try {
       const {event, data} = JSON.parse(message);
       if (state.sockets.hasOwnProperty(socket.guid)) {
