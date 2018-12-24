@@ -19,7 +19,18 @@ const db = new Sequelize(config.db.name, config.db.username, config.db.password,
 // Instantiate all models
 for (let model in models) {
   if (models.hasOwnProperty(model)) {
-    models[model] = models[model](db);
+    const instance = models[model](db);
+
+    instance.prototype.toJSON = function () {
+      // Remove hidden fields
+      const values = Object.assign({}, this.get());
+      for (let i = 0; i < instance.options.hidden.length; i++) {
+        delete values[instance.options.hidden[i]];
+      }
+      return values;
+    }
+
+    models[model] = instance;
   }
 }
 

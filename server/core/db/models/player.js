@@ -7,8 +7,15 @@ module.exports = db => {
         primaryKey: true,
         autoIncrement: true,
       },
-      username: Sequelize.DataTypes.STRING,
-      password: Sequelize.DataTypes.STRING,
+      username: {
+        type: Sequelize.DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+      },
+      password: {
+        type: Sequelize.DataTypes.STRING,
+        allowNull: false,
+      },
       stats: {
         type: Sequelize.DataTypes.INTEGER,
         defaultValue: 750,
@@ -16,5 +23,8 @@ module.exports = db => {
     },
     {
       freezeTableName: true,
+      hidden: [
+        'password',
+      ],
     });
 }

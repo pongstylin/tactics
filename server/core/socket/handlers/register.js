@@ -14,14 +14,18 @@ module.exports = async (socket, data) => {
   }
 
   try {
+    // Validate name doesn't already exist in DB
+    if (await models.player.findOne({where: {username: data.username}})) {
+      socket.emit('register.failed', ['Username already taken']);
+      console.error(`[error] user already exists ${data.username}`);
+      return;
+    }
+
     const password = await bcrypt.hash(data.password, config.saltRounds);
-    const player = await models.player.create({
-      username: data.username,
-      password,
-    });
-    socket.emit('register.succeeded', player);
+    const player = await models.player.create({username: data.username, password});
+    socket.emit('register.succeeded', player.toJSON());
   } catch (err) {
     console.error('[error]', err);
-    socket.emit('register.failed', ["Can't create your account, try again later"]);
+    socket.emit('register.failed', ['Failed to make account']);
   }
 };

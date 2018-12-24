@@ -21,7 +21,8 @@ export default class Auth extends Component {
   };
 
   componentDidMount () {
-    socket.on('register.succeeded', player => {
+    socket.on('register.succeeded', async player => {
+      await this.setState({submitting: false});
       this.props.onLogin && this.props.onLogin(player);
     });
     socket.on('register.failed', errors => {
@@ -33,7 +34,7 @@ export default class Auth extends Component {
     this.setState({type: this.state.type === 'login' ? 'register' : 'login', errors: []});
   };
 
-  handleSubmit = async event => {
+  handleSubmit = event => {
     event.preventDefault();
 
     // Prevent simultaneous submits
