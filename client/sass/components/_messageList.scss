@@ -1,0 +1,13 @@
+.MessageList {
+  max-height: 190px;
+  overflow: auto;
+
+  // Hide scrollbar visibility but keep function
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  &__message {
+    margin-bottom: .5rem;
+  }
+}

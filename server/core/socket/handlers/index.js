@@ -1,5 +1,6 @@
 module.exports = {
+  'ping': require('./ping'),
   'register': require('./register'),
   'login': require('./login'),
-  'ping': require('./ping'),
+  'message': require('./message'),
 };
