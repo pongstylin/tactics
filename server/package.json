@@ -14,7 +14,10 @@
   "author": "Enijar",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^3.0.2",
     "express": "^4.16.4",
+    "mysql2": "^1.6.4",
+    "sequelize": "^4.42.0",
     "ws": "^6.1.2"
   },
   "devDependencies": {

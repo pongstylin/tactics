@@ -4,7 +4,7 @@ services:
   client:
     build:
       context: client
-      dockerfile: client/Dockerfile
+      dockerfile: Dockerfile
     volumes:
     - .:/var/www
     - /var/www/client/node_modules
@@ -12,16 +12,20 @@ services:
   server:
     build:
       context: server
-      dockerfile: server/Dockerfile
+      dockerfile: Dockerfile
     volumes:
     - .:/var/www
+    - /var/www/server/node_modules
 
   mysql:
     image: 'mysql:5.7'
     command: --default-authentication-plugin=mysql_native_password
-    restart: always
+    restart: unless-stopped
     environment:
+    - MYSQL_USER=tactics
+    - MYSQL_PASSWORD=secret
     - MYSQL_ROOT_PASSWORD=secret
+    - MYSQL_DATABASE=tactics
     ports:
     - 33306:3306
 

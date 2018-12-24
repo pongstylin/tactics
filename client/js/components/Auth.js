@@ -14,22 +14,23 @@ export default class Auth extends Component {
     data: {
       username: '',
       password: '',
-      password_confirmed: '',
+      passwordConfirm: '',
     },
     submitting: false,
     errors: [],
   };
 
   componentDidMount () {
-    socket.on('registered', player => {
-      if (this.props.onLogin) {
-        this.props.onLogin(player);
-      }
+    socket.on('register.succeeded', player => {
+      this.props.onLogin && this.props.onLogin(player);
+    });
+    socket.on('register.failed', errors => {
+      this.setState({submitting: false, errors});
     });
   }
 
   toggleType = () => {
-    this.setState({type: this.state.type === 'login' ? 'register' : 'login'});
+    this.setState({type: this.state.type === 'login' ? 'register' : 'login', errors: []});
   };
 
   handleSubmit = async event => {
@@ -39,9 +40,8 @@ export default class Auth extends Component {
     if (this.state.submitting) {
       return;
     }
-    this.setState({submitting: true});
+    this.setState({submitting: true, errors: []});
 
-    // TODO: Validate data
     const validation = validator.validate(this.state.data, config.shared.validators[this.state.type](this.state.data));
 
     if (!validation.passed) {
@@ -49,7 +49,7 @@ export default class Auth extends Component {
       return;
     }
 
-    socket.emit('register', this.state.data);
+    socket.emit(this.state.type, this.state.data);
   };
 
   handleChange = event => {
@@ -60,54 +60,62 @@ export default class Auth extends Component {
 
   render () {
     return (
-      <div className="Auth">
-        <form onSubmit={this.handleSubmit}>
-          <div className="Auth__field">
-            <label htmlFor="username">Name</label>
-            <input
-              type="text"
-              name="username"
-              autoComplete="username"
-              id="username"
-              onChange={this.handleChange}
-              value={this.state.data.username}
-            />
+      <form onSubmit={this.handleSubmit} className="Auth">
+        {this.state.errors.length > 0 && (
+          <div className="Auth__errors">
+            {this.state.errors.map((error, index) => (
+              <div key={index} className="Auth__errors-error">
+                {error}
+              </div>
+            ))}
           </div>
+        )}
 
+        <div className="Auth__field">
+          <label htmlFor="username">Name</label>
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            id="username"
+            onChange={this.handleChange}
+            value={this.state.data.username}
+          />
+        </div>
+
+        <div className="Auth__field">
+          <label htmlFor="password">Password</label>
+          <input
+            type="password"
+            name="password"
+            autoComplete={this.state.type === 'login' ? 'current-password' : 'new-password'}
+            id="password"
+            onChange={this.handleChange}
+            value={this.state.data.password}
+          />
+        </div>
+
+        {this.state.type === 'register' && (
           <div className="Auth__field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password_confirmed">Confirm Password</label>
             <input
               type="password"
-              name="password"
-              autoComplete={this.state.type === 'login' ? 'current-password' : 'new-password'}
-              id="password"
+              name="passwordConfirm"
+              autoComplete="new-password"
+              id="passwordConfirm"
               onChange={this.handleChange}
-              value={this.state.data.password}
+              value={this.state.data.passwordConfirm}
             />
           </div>
+        )}
 
-          {this.state.type === 'register' && (
-            <div className="Auth__field">
-              <label htmlFor="password_confirmed">Confirm Password</label>
-              <input
-                type="password"
-                name="password_confirmed"
-                autoComplete="new-password"
-                id="password_confirmed"
-                onChange={this.handleChange}
-                value={this.state.data.password_confirmed}
-              />
-            </div>
-          )}
-
-          <div className="Auth__buttons">
-            <button type="button" onClick={this.toggleType}>
-              {this.state.type === 'login' ? 'New Account' : 'Back'}
-            </button>
-            <button type="submit">{this.state.type === 'login' ? 'Login' : 'Register'}</button>
-          </div>
-        </form>
-      </div>
+        <div className="Auth__buttons">
+          <button type="button" onClick={this.toggleType}>
+            {this.state.type === 'login' ? 'New Account' : 'Back'}
+          </button>
+          <button type="submit">{this.state.type === 'login' ? 'Login' : 'Register'}</button>
+        </div>
+      </form>
     );
   }
 }

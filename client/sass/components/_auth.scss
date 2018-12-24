@@ -4,14 +4,31 @@
   align-items: center;
   justify-content: center;
   color: #a4a39b;
-  max-width: 365px;
   width: 100%;
+  max-width: 300px;
+
+  &__errors {
+    margin-bottom: 1rem;
+    max-width: 191px;
+    margin-left: auto;
+    width: 100%;
+    text-align: center;
+
+    &-error {
+      margin-bottom: .5rem;
+      color: #ff0000;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
 
   &__field {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    width: 300px;
+    width: 100%;
     margin-bottom: .65em;
 
     label {
@@ -36,6 +53,7 @@
     justify-content: center;
     align-self: flex-end;
     max-width: 191px;
+    width: 100%;
     margin-left: auto;
 
     button {
