@@ -308,7 +308,7 @@ Tactics = (function ()
     },
     effects: {
       focus: {
-        frames_url: 'http://www.taorankings.com/html5/json/focus.json',
+        frames_url: 'https://tactics.taorankings.com/json/focus.json',
         frames_offset: {y:-16},
       },
     },
@@ -514,11 +514,11 @@ Tactics = (function ()
         },
         effects: {
           fireblast: {
-            frames_url:    'http://www.taorankings.com/html5/json/explode.json',
+            frames_url:    'https://tactics.taorankings.com/json/explode.json',
             frames_offset: {y:-20},
           },
         },
-        frames_url: 'http://www.taorankings.com/html5/json/pyromancer.json',
+        frames_url: 'https://tactics.taorankings.com/json/pyromancer.json',
         stills: {
           S: 1,
           W: 36,
@@ -577,7 +577,7 @@ Tactics = (function ()
         sounds:   {
           attack: 'sound812',
         },
-        frames_url: 'http://www.taorankings.com/html5/json/scout.json',
+        frames_url: 'https://tactics.taorankings.com/json/scout.json',
         frames_offset: {y:5},
         stills: {
           S: 0,
@@ -637,7 +637,7 @@ Tactics = (function ()
         sounds:   {
           heal: 'sound1203',
         },
-        frames_url: 'http://www.taorankings.com/html5/json/cleric.json',
+        frames_url: 'https://tactics.taorankings.com/json/cleric.json',
         stills: {
           S: 1,
           W: 45,
@@ -719,7 +719,7 @@ Tactics = (function ()
           N: 0,
           E: 0,
         },                            
-        frames_url: 'http://www.taorankings.com/html5/json/lightning_ward.json',
+        frames_url: 'https://tactics.taorankings.com/json/lightning_ward.json',
         frames_offset: {x:5,y:-5},        
       },
       {
@@ -749,11 +749,11 @@ Tactics = (function ()
         },
         effects:  {
           black_spike: {
-            frames_url:    'http://www.taorankings.com/html5/json/black_spike.json',
+            frames_url:    'https://tactics.taorankings.com/json/black_spike.json',
             frames_offset: {y:-16},
           },
         },
-        frames_url: 'http://www.taorankings.com/html5/json/witch.json',
+        frames_url: 'https://tactics.taorankings.com/json/witch.json',
         stills: {
           S: 1,
           W: 38,
@@ -825,11 +825,11 @@ Tactics = (function ()
         },
         effects: {
           explode: {
-            frames_url:    'http://www.taorankings.com/html5/json/explode.json',
+            frames_url:    'https://tactics.taorankings.com/json/explode.json',
             frames_offset: {y:-20},
           },
         },
-        frames_url:    'http://www.taorankings.com/html5/json/assassin.json',
+        frames_url:    'https://tactics.taorankings.com/json/assassin.json',
         frames_offset: {y:-4},
         stills: {
           S: 1,
@@ -897,11 +897,11 @@ Tactics = (function ()
         },
         effects: {
           streaks: {
-            frames_url:    'http://www.taorankings.com/html5/json/streaks.json',
+            frames_url:    'https://tactics.taorankings.com/json/streaks.json',
             frames_offset: {y:-26},
           },
         },
-        frames_url: 'http://www.taorankings.com/html5/json/enchantress.json',
+        frames_url: 'https://tactics.taorankings.com/json/enchantress.json',
         stills: {
           S: 0,
           W: 36,
@@ -1197,7 +1197,7 @@ Tactics = (function ()
       {name:'Shrub'},
       {
         name:          'Champion',
-        frames_url:    'http://www.taorankings.com/html5/json/trophy.json',
+        frames_url:    'https://tactics.taorankings.com/json/trophy.json',
         frames_offset: {y:-20},
         stills:        {S:0, N:1},
       },
