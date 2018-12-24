@@ -314,7 +314,7 @@ Tactics.App = (function ($, window, document) {
       if (typeof sound === 'string')
         sound = {file: sound};
 
-      let url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+      let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
       Tactics.sounds[name] = new Howl({
         urls:        [url+'.mp3', url+'.ogg'],
@@ -371,7 +371,7 @@ Tactics.App = (function ($, window, document) {
             if (typeof sound === 'string')
               sound = {file: sound};
 
-            let url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+            let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
             unit.sounds[name] = new Howl({
               urls:        [url+'.mp3', url+'.ogg'],
