@@ -41,7 +41,7 @@ export default {
     }
     state.events[event].push(func);
   },
-  emit (event, data = null) {
+  emit (event, data) {
     if (state.connected) {
       state.connection.send(JSON.stringify({event, data}));
     }

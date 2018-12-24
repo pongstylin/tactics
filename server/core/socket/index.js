@@ -13,7 +13,7 @@ module.exports = socket => {
   console.info('[info] connection opened');
   logConnectedClients();
 
-  socket.send(JSON.stringify({event: 'connected', data: null}));
+  socket.send(JSON.stringify({event: 'connected'}));
 
   // Handle client messages
   socket.on('message', message => {
