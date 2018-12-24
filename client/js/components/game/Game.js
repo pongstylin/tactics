@@ -8,7 +8,7 @@ export default class Auth extends Component {
 
   render () {
     return (
-      <div className="Game">
+      <div className="Game" style={{color: '#fff'}}>
         <p>Game</p>
         <p>
           Player:<br/>
