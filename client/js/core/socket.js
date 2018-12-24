@@ -1,5 +1,5 @@
 const RECONNECT_TIMEOUT = 1000;
-const PING_INTERVAL = 10000;
+const PING_INTERVAL = 30000;
 const URI = 'ws://localhost:8080';
 
 const executeEventFunctions = (events, event, data = null) => {
