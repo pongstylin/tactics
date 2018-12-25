@@ -47,18 +47,15 @@
     }
 
     function attack(data) {
-      var target = data.target, atype;
-
+      let target = data.target;
       if (!target) return data;
 
       // Show a preview of what the attack chances are.
       if (target.assigned) board.drawCard(target.assigned);
 
-      atype = target.assigned === data.unit ? 'special' : 'attack';
-
       return new Promise((resolve, reject) => {
         setTimeout(() => {
-          data.unit[atype](target).then(() => {
+          data.unit.attack(target).then(() => {
             paint(data.target, 0xFF8800);
             resolve(data);
           });

@@ -18,11 +18,29 @@
       title:  'Awakened!',
       banned: [],
 
+      calcAttackResults: function (target) {
+        if (target === self.assignment)
+          return [{
+            unit:    self,
+            mHealth: Math.min(0, self.mHealth + self.power),
+          }];
+        else if (target.assigned) {
+          let unit = target.assigned;
+          let calc = self.calcAttack(unit);
+
+          return [{
+            unit:    unit,
+            mHealth: Math.max(unit.mHealth - calc.damage, -unit.health),
+          }];
+        }
+        else
+          return [];
+      },
       playAttack: function (target, results) {
-        let anim      = new Tactics.Animation({fps: 10});
+        let anim      = new Tactics.Animation({fps:10});
         let direction = board.getDirection(self.assignment, target);
 
-        if (target === self.assigned)
+        if (target === self.assignment)
           return self.special();
 
         // Make sure we strike the actual target (LOS can change it).
@@ -79,7 +97,8 @@
         return new Tactics.Animation({frames: [
           () => {
             sounds.phase.play();
-            board.teams[self.team].color = self.color = color_id;
+            board.teams[self.team].color = color_id;
+            self.color = new_color;
           },
           {
             script: frame => {
