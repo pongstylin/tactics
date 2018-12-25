@@ -286,7 +286,7 @@ Tactics.Board = function ()
 
     // Public methods
     draw: function () {
-      var pixi = self.pixi = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/board.jpg');
+      var pixi = self.pixi = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/board.jpg');
       var tiles = self.tiles = new Array(11*11);
       var tile;
       var sx = 6-88;       // padding-left, 1 tile  wide

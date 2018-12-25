@@ -50,7 +50,7 @@
     };
 
     ['turn_tl.png','turn_tr.png','turn_bl.png','turn_br.png'].forEach((image, i) => {
-      let sprite = new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/'+image);
+      let sprite = new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/'+image);
       sprite.interactive = true;
       sprite.buttonMode  = true;
       sprite.click       = selectTurnEvent;
@@ -83,9 +83,9 @@
 
   function prerenderShocks() {
     shocks = [
-      new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png'),
-      new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png'),
-      new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png')
+      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png'),
+      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png'),
+      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png')
     ];
 
     shocks[0].anchor = new PIXI.Point(0.5,0.5);
@@ -656,7 +656,7 @@
             }
             else if ('id' in shape) {
               // Legacy
-              shape.image = 'http://www.taorankings.com/html5/units/'+type+'/image'+shape.id+'.png';
+              shape.image = 'https://legacy.taorankings.com/units/'+type+'/image'+shape.id+'.png';
               delete shape.id;
             }
             else {
@@ -1729,12 +1729,12 @@
         let container = new PIXI.Container();
         let strike;
         let strikes = [
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-1.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-2.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-3.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-1.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-2.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-3.png')
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-1.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-2.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-3.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-1.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-2.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-3.png')
         ];
 
         container.position = new PIXI.Point(pos.x,pos.y+1);
@@ -1819,9 +1819,9 @@
       animSparkle: function (parent, pos) {
         let filter    = new PIXI.filters.ColorMatrixFilter();
         let matrix    = filter.matrix;
-        let shock     = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png');
+        let shock     = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png');
         let size      = {w:shock.width,h:shock.height};
-        let particle  = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/particle.png');
+        let particle  = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/particle.png');
         let container = new PIXI.Container();
         container.position = new PIXI.Point(pos.x,pos.y+2);
 

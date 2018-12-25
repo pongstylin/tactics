@@ -87,7 +87,7 @@
         if (arguments.length > 1)
           return _super.compileFrame(arguments[0], arguments[1]);
 
-        var imageBase = 'http://www.taorankings.com/html5/units/'+type+'/';
+        var imageBase = 'https://legacy.taorankings.com/units/'+type+'/';
         var frame = new PIXI.Container();
         var sprite;
         var anchor = data.anchor;
@@ -169,7 +169,7 @@
         self.drawFrame(stills[direction]);
       },
       drawAvatar: function () {
-        var imageBase = 'http://www.taorankings.com/html5/units/'+type+'/';
+        var imageBase = 'https://legacy.taorankings.com/units/'+type+'/';
         var container = new PIXI.Container();
         var sprite;
         var frame = data.stills.S;

@@ -318,7 +318,7 @@ Tactics.App = (function ($, window, document) {
     }
 
     Tactics.images.forEach(image_url => {
-      let url = 'http://www.taorankings.com/html5/images/'+image_url;
+      let url = 'https://legacy.taorankings.com/images/'+image_url;
 
       resources.push(url);
       loader.add({url: url});
@@ -442,7 +442,7 @@ Tactics.App = (function ($, window, document) {
             if (!frame) return;
 
             frame.c.forEach(sprite => {
-              let url = 'http://www.taorankings.com/html5/units/'+unit_type+'/image'+sprite.id+'.png';
+              let url = 'https://legacy.taorankings.com/units/'+unit_type+'/image'+sprite.id+'.png';
               if (resources.indexOf(url) !== -1)
                 return;
 
@@ -469,7 +469,7 @@ Tactics.App = (function ($, window, document) {
               let image = sprite[name];
               if (!image.src) return;
 
-              let url = 'http://www.taorankings.com/html5/units/'+unit_type+'/'+name+'/image'+image.src+'.png';
+              let url = 'https://legacy.taorankings.com/units/'+unit_type+'/'+name+'/image'+image.src+'.png';
               if (resources.indexOf(url) !== -1)
                 return;
 

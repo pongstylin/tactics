@@ -278,7 +278,7 @@
       if (data.a) frame.alpha = data.a;
 
       dataObjs.forEach(obj => {
-        let sprite = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/'+obj.src);
+        let sprite = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/'+obj.src);
 
         if (obj.pos) {
           sprite.position.x = obj.pos.x || 0;
