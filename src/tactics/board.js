@@ -1006,8 +1006,10 @@ Tactics.Board = function ()
 
         self.deselect(true);
       }
-      else
+      else {
+        if (self.viewed) self.deselect(true);
         self.passedTurns++;
+      }
 
       // Next, remove dead teams from turn order.
       let turns = self.turns;
@@ -1036,7 +1038,9 @@ Tactics.Board = function ()
 
       self.teams.forEach((team, t) => {
         team.units.forEach(unit => {
-          if (unit.mRecovery && t == teamId) unit.mRecovery--;
+          if (unit.mRecovery && t == teamId && unit !== selected)
+            unit.mRecovery--;
+
           if (teamId !== 4 && unit.mBlocking) {
             unit.mBlocking *= 1 - 0.2/decay;
             if (Math.abs(unit.mBlocking) < 2) unit.mBlocking = 0;
