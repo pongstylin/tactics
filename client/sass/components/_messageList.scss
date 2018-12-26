@@ -9,5 +9,9 @@
 
   &__message {
     margin-bottom: .5rem;
+
+    &--command {
+      color: #40adff;
+    }
   }
 }

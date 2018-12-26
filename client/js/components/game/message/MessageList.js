@@ -29,8 +29,8 @@ export default class MessageList extends Component {
     return (
       <div className="MessageList" ref={this.messages}>
         {this.state.messages.map((message, index) => (
-          <div key={index} className="MessageList__message">
-            <em>{message.player.username}</em>: {message.message}
+          <div key={index} className={`MessageList__message MessageList__message--${message.type}`}>
+            <em>{message.type === 'command' ? '[server]' : message.player.username}</em> {message.message}
           </div>
         ))}
       </div>
