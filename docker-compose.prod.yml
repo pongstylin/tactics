@@ -2,26 +2,28 @@ version: '3'
 
 services:
   client:
-    build:
-      context: client
-      dockerfile: client/Dockerfile.prod
+    build: ./client
     volumes:
-    - .:/var/www
+    - ./:/var/www
     - /var/www/client/node_modules
+    command: npm run build
 
   server:
-    build:
-      context: server
-      dockerfile: server/Dockerfile.prod
+    build: ./server
     volumes:
-    - .:/var/www
+    - ./:/var/www
+    - /var/www/server/node_modules
+    command: npm run build
 
   mysql:
     image: 'mysql:5.7'
     command: --default-authentication-plugin=mysql_native_password
     restart: always
     environment:
+    - MYSQL_USER=tactics
+    - MYSQL_PASSWORD=secret
     - MYSQL_ROOT_PASSWORD=secret
+    - MYSQL_DATABASE=tactics
     ports:
     - 33306:3306
 

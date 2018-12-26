@@ -1,7 +1,7 @@
 FROM node:latest
 
 WORKDIR /var/www/server
-COPY package*.json ./
-RUN npm install
 
-CMD npm run watch
+COPY package*.json ./
+
+RUN npm install

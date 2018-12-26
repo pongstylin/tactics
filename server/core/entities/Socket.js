@@ -4,6 +4,7 @@ const state = require('../state');
 module.exports = class Socket {
   constructor (socket) {
     this.socket = socket;
+    this.guid = socket.guid;
   }
 
   handleEvent(event, data) {

@@ -58,6 +58,12 @@ Given you have [Docker](https://www.docker.com/get-started) downloaded onto your
 docker-compose up
 ```
 
+**!! IMPORTANT !!**
+
+When you install an npm package, you will need to cancel and re-run the `docker-compose up` command.
+
+When you restart the docker container, you it will re-create the database and all data will be removed.
+
 **Production**
 
 ```bash

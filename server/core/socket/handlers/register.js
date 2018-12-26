@@ -1,4 +1,6 @@
 const bcrypt = require('bcrypt');
+const JWT = require('jsonwebtoken');
+const state = require('../../state');
 const config = require('../../../config');
 const validator = require('../../../../shared/validator/index');
 const models = require('../../db/models/index');
@@ -23,7 +25,12 @@ module.exports = async (socket, data) => {
 
     const password = await bcrypt.hash(data.password, config.saltRounds);
     const player = await models.player.create({username: data.username, password});
-    socket.emit('auth.succeeded', player.toJSON());
+    const playerJSON = player.toJSON();
+
+    playerJSON.token = JWT.sign({player: playerJSON}, config.key);
+    state.sockets[socket.guid].token = playerJSON.token;
+
+    socket.emit('auth.succeeded', playerJSON);
   } catch (err) {
     console.error('[error]', err);
     socket.emit('auth.failed', ['Failed to make account']);

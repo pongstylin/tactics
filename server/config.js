@@ -1,6 +1,7 @@
 const config = require('../shared/config');
 
 module.exports = {
+  key: 'secret',
   port: process.env.PORT || 3000,
   shared: config,
   db: {

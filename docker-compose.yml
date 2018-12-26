@@ -2,25 +2,23 @@ version: '3'
 
 services:
   client:
-    build:
-      context: client
-      dockerfile: Dockerfile
+    build: ./client
     volumes:
-    - .:/var/www
+    - ./:/var/www
     - /var/www/client/node_modules
+    command: npm run watch
 
   server:
-    build:
-      context: server
-      dockerfile: Dockerfile
+    build: ./server
     volumes:
-    - .:/var/www
+    - ./:/var/www
     - /var/www/server/node_modules
+    command: npm run watch
 
   mysql:
     image: 'mysql:5.7'
     command: --default-authentication-plugin=mysql_native_password
-    restart: unless-stopped
+    restart: always
     environment:
     - MYSQL_USER=tactics
     - MYSQL_PASSWORD=secret
