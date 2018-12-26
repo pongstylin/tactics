@@ -13,13 +13,12 @@ module.exports = async (socket, data) => {
   }
 
   let type = 'message';
-
-  const [message, command, args] = data.message.match(/^\/(\w+)\s?(.+)/);
+  const message = data.message.match(/^\/(\w+)\s?(.+)/);
 
   // Validate and parse command messages
-  if (command && commands.hasOwnProperty(command)) {
+  if (message && message[1] && commands.hasOwnProperty(message[1])) {
     type = 'command';
-    data.message = await commands[command](args);
+    data.message = await commands[message[1]](message[2]);
   }
 
   socket.broadcast('message.received', {
