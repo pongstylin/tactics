@@ -5,5 +5,5 @@ module.exports = async username => {
   if (!player) {
     return 'Player not found';
   }
-  return `Player ${player.username} has ${player.stats} stats`;
+  return `${player.username} has ${player.stats} stats`;
 }
