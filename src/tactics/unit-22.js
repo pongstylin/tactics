@@ -74,16 +74,20 @@
       phase: function (action) {
         let banned   = action ? action.results[0].banned : self.banned;
         let color_id = null;
-        let teams    = board.getWinningTeams().reverse()
-          .filter((team, t) => banned.indexOf(t) === -1);
-        let choices  = teams.filter(team => {
-          if (team.units.length === 0) return false;
+        let teams    = board.getWinningTeams().reverse().filter((team, t) =>
+          banned.indexOf(t) === -1 && t !== self.team
+        );
 
-          return team.score === teams[0].score;
-        });
+        if (teams.length > 1) {
+          let choices  = teams.filter(team => {
+            if (team.units.length === 0) return false;
 
-        if (choices.length)
-          color_id = choices.random().color;
+            return team.score === teams[0].score;
+          });
+
+          if (choices.length)
+            color_id = choices.random().color;
+        }
 
         if (color_id === board.teams[self.team].color)
           return Promise.resolve();

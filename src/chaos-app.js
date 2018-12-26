@@ -39,6 +39,7 @@ Tactics.App = (function ($, window, document) {
         },
       },
       {
+        n: 'Chaos',
         c: null,
         b: 'Chaos',
         u: {

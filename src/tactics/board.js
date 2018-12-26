@@ -1080,7 +1080,10 @@ Tactics.Board = function ()
       }
       else if (winners.length === 1) {
         let team_name = self.teams[winners[0]].name;
-        self.notice = team_name+' Wins!';
+        if (team_name === null)
+          self.notice = 'You win!';
+        else
+          self.notice = team_name+' Wins!';
         self.lock('gameover');
       }
       else

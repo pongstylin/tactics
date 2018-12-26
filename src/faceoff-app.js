@@ -18,6 +18,7 @@ Tactics.App = (function ($, window, document) {
         }
       },
       {
+        n: 'Bot',
         c: 10,
         b: 1,
         u: {
