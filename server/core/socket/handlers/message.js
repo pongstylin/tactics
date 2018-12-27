@@ -21,7 +21,8 @@ module.exports = async (socket, data) => {
     data.message = await commands[message[1]](message[2]);
   }
 
-  socket.broadcast('message.received', {
+  // Only broadcast message to all sockets if not a command message
+  socket[type === 'message' ? 'broadcast' : 'emit']('message.received', {
     player: data.player,
     message: data.message,
     type,
