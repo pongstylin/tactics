@@ -7,8 +7,8 @@
     "lib": "lib"
   },
   "repository": {
-    "type" : "git",
-    "url" : "git@github.com:pongstylin/tactics.git"
+    "type": "git",
+    "url": "git@github.com:pongstylin/tactics.git"
   },
   "scripts": {
     "start": "NODE_ENV=development webpack --watch --progress --hide-modules & node src/app.js || true",
@@ -27,6 +27,9 @@
   },
   "dependencies": {
     "express": "^4.16.4",
-    "pixi.js": "^4.8.2"
+    "impetus": "^0.8.8",
+    "pixi.js": "^4.8.2",
+    "touch-pinch": "^1.0.1",
+    "touch-position": "^2.0.0"
   }
 }

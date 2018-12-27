@@ -1,3 +1,5 @@
+const panzoom = require('util/panzoom.js');
+
 Tactics = (function ()
 {
   var self = {};
@@ -40,9 +42,11 @@ Tactics = (function ()
 
       $canvas = self.$canvas = $(renderer.view).attr('id','board').appendTo('#field');
 
+      self.panzoom = panzoom(renderer.view);
       self.renderer = renderer instanceof PIXI.CanvasRenderer ? 'canvas' : 'webgl';
       self.board = new Tactics.Board();
 
+      /*
       $canvas
         // TODO:
         //   1) Why does zooming out go slower than zooming in (unless it is a
@@ -140,9 +144,11 @@ Tactics = (function ()
               transformOrigin:'0 0'
             });
         });
+        */
     },
     resize:function (width,height)
     {
+      /*
       vw = width;
       vh = height;
 
@@ -163,6 +169,7 @@ Tactics = (function ()
       self.$canvas
         .data('transform',{sx:0,sy:0,cx:0,cy:0,s:1,tx:0,ty:0,ox:0,oy:0,px:0,py:0})
         .css({width:vw,height:vh,transform:'',transformOrigin:''});
+      */
 
       return self;
     },
