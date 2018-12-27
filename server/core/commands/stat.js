@@ -5,5 +5,8 @@ module.exports = async username => {
   if (!player) {
     return 'Player not found';
   }
-  return `${player.username} has ${player.stats} stats`;
+  return {
+    scope: 'player',
+    message: `${player.username} has ${player.stats} stats`,
+  };
 }

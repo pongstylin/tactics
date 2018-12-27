@@ -13,7 +13,7 @@ module.exports = async (socket, data) => {
   }
 
   let type = 'message';
-  const message = data.message.match(/^\/(\w+)\s?(.+)/);
+  const message = data.message.match(/^\/(\w+)\s?(.+)?/);
 
   // Validate and parse command messages
   if (message && message[1] && commands.hasOwnProperty(message[1])) {
@@ -21,10 +21,20 @@ module.exports = async (socket, data) => {
     data.message = await commands[message[1]](message[2]);
   }
 
-  // Only broadcast message to all sockets if not a command message
-  socket[type === 'message' ? 'broadcast' : 'emit']('message.received', {
+  let socketEmitMethod = 'emit';
+  let messageText = data.message;
+
+  // Command messages may return a scope of either player or
+  // all. Player will emit to itself and all will broadcast
+  // to all players
+  if (type === 'command' && typeof data.message === 'object') {
+    socketEmitMethod = data.message.scope === 'all' ? 'broadcast' : 'emit';
+    messageText = data.message.message;
+  }
+
+  socket[socketEmitMethod]('message.received', {
     player: data.player,
-    message: data.message,
+    message: messageText,
     type,
     timestamp: Date.now(),
   });
