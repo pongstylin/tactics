@@ -1,8 +1,7 @@
 import React, { Component } from 'react'
 import PropTypes from 'prop-types'
 import GameContext from './context/GameContext'
-import MessageList from './message/MessageList'
-import MessageBox from './message/MessageBox'
+import MessageContainer from '../../containers/MessageContainer'
 
 export default class Auth extends Component {
   static propTypes = {
@@ -23,8 +22,7 @@ export default class Auth extends Component {
     return (
       <GameContext.Provider value={this.getContext()}>
         <div className="Game">
-          <MessageBox/>
-          <MessageList/>
+          <MessageContainer/>
         </div>
       </GameContext.Provider>
     );

@@ -1,6 +1,7 @@
 .MessageList {
-  max-height: 190px;
+  height: 220px;
   overflow: auto;
+  font-size: 0.8rem;
 
   // Hide scrollbar visibility but keep function
   &::-webkit-scrollbar {
@@ -8,7 +9,7 @@
   }
 
   &__message {
-    margin-bottom: .5rem;
+    padding: 0.25em 0;
 
     &--command {
       color: #40adff;
