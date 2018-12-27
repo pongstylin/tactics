@@ -2,7 +2,6 @@ import 'pixi.js';
 import 'plugins/pixi.js';
 
 import 'util/event.js';
-import 'lib/jquery.touchy.js';
 import 'lib/howler.js';
 
 import 'tactics/core.scss';
