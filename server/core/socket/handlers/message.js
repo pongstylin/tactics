@@ -18,7 +18,8 @@ module.exports = async (socket, data) => {
   // Validate and parse command messages
   if (message && message[1] && commands.hasOwnProperty(message[1])) {
     type = 'command';
-    data.message = await commands[message[1]](message[2]);
+    const args = String(message[2] === undefined ? '' : message[2]).split(' ');
+    data.message = await commands[message[1]](socket, data.player, ...args);
   }
 
   let socketEmitMethod = 'emit';
