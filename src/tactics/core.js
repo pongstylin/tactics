@@ -1,5 +1,3 @@
-const panzoom = require('util/panzoom.js');
-
 Tactics = (function ()
 {
   var self = {};
@@ -41,8 +39,13 @@ Tactics = (function ()
       stage = self.stage = new PIXI.Container();
 
       $canvas = self.$canvas = $(renderer.view).attr('id','board').appendTo('#field');
+      renderer.view.style.transformOrigin = '0 0 0';
 
       self.panzoom = panzoom(renderer.view);
+      self.panzoom.on('change', transform => {
+        console.log('transform', transform);
+        renderer.view.style.transform = 'scale('+transform.scale+') translate('+transform.x+'px,'+transform.y+'px)';
+      });
       self.renderer = renderer instanceof PIXI.CanvasRenderer ? 'canvas' : 'webgl';
       self.board = new Tactics.Board();
 

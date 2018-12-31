@@ -1,140 +1,117 @@
-/*
- * Customized from: https://github.com/dy/pan-zoom
- */
-'use strict'
+'use strict';
 
-var Impetus = require('impetus')
-var touchPinch = require('touch-pinch')
-var position = require('touch-position')
+import Impetus from 'impetus';
+import touchPinch from 'touch-pinch';
+import { EventEmitter } from 'events';
 
+function panzoom (options) {
+  console.log('panzoom');
+  if (!options)
+    options = {};
 
-module.exports = panZoom
+  let target;
+  if (typeof options.target === 'string')
+    target = document.querySelector(options.target);
+  else
+    target = options.target;
 
+  let current = Object.assign({x:0, y:0, scale:1}, options.initial);
+  let emitter = new EventEmitter();
 
-function panZoom (target, cb) {
-	if (target instanceof Function) {
-		cb = target
-		target = document.documentElement || document.body
-	}
+  // Throttle events to screen refresh rate.
+  let frame_id = null;
+  let postChangeEvent = () => {
+    if (frame_id !== null)
+      return;
 
-	if (typeof target === 'string') target = document.querySelector(target)
+    frame_id = requestAnimationFrame(() => {
+      emitter.emit('change', current);
+      frame_id = null;
+    });
+  };
 
-	//enable panning
-	var touch = position.emitter({
-		element: target
-	})
+  // One-finger panning
+  let impetus = new Impetus({
+    source: target,
+    update: (x, y) => {
+      current.x = x;
+      current.y = y;
 
-	var impetus
+      postChangeEvent();
+    },
+    multiplier: 1,
+    friction: .75,
+    initialValues: [current.x, current.y],
+  });
 
-	var initX = 0, initY = 0, init = true
-	var initFn = function (e) { init = true }
-	target.addEventListener('touchstart', initFn, { passive: true })
+  // Two-finger panning and zooming.
+  let pinch = touchPinch(target);
+  let last_position;
+  let last_scale;
+  let getPosition = () => {
+    let f1 = pinch.fingers[0];
+    let f2 = pinch.fingers[1];
 
-	var lastY = 0, lastX = 0
-	impetus = new Impetus({
-		source: target,
-		update: function (x, y) {
-			if (init) {
-				init = false
-				initX = touch.position[0]
-				initY = touch.position[1]
-			}
+    return {
+      x: f2.position[0] * .5 + f1.position[0] * .5,
+      y: f2.position[1] * .5 + f1.position[1] * .5,
+    };
+  };
 
-			var e = {
-				target: target,
-				type: 'touch',
-				dx: x - lastX, dy: y - lastY, dz: 0,
-				x: touch.position[0], y: touch.position[1],
-				x0: initX, y0: initY
-			}
+  pinch.on('start', curr => {
+    last_position = getPosition();
+    last_scale    = current.scale;
 
-			lastX = x
-			lastY = y
+    impetus.pause();
+  });
+  pinch.on('change', (curr, prev) => {
+    if (!pinch.pinching || !last_position) return
 
-			schedule(e)
-		},
-		multiplier: 1,
-		friction: .75
-	})
+    // Pan
+    let position = getPosition();
+    current.x += (position.x - last_position.x) / current.scale;
+    current.y += (position.y - last_position.y) / current.scale;
 
+    // Zoom
+    let origin = {
+      x: position.x - current.x,
+      y: position.y - current.y,
+    };
+    let new_scale = curr / prev;
+    //console.log(origin.x, position.x, current.x);
+    console.log(origin.x + new_scale * (current.x - origin.x), current.x + (origin.x - current.x) * (last_scale - current.scale));
+    current.scale *= new_scale;
+    current.x = origin.x + new_scale * (current.x - origin.x);
+    current.y = origin.y + new_scale * (current.y - origin.y);
+    //current.x += (origin.x - current.x) * (last_scale - current.scale);
+    //current.y += (origin.y - current.y) * (last_scale - current.scale);
 
-	//mobile pinch zoom
-	var pinch = touchPinch(target)
-	var mult = 2
-	var initialCoords
+    postChangeEvent();
+    last_position = position;
+    last_scale    = current.scale;
+  });
+  pinch.on('end', () => {
+    if (!last_position) return;
+    last_position = null;
 
-	pinch.on('start', function (curr) {
-		var f1 = pinch.fingers[0];
-		var f2 = pinch.fingers[1];
+    impetus.setValues(current.x, current.y);
+    impetus.resume();
+  });
 
-		initialCoords = [
-			f2.position[0] * .5 + f1.position[0] * .5,
-			f2.position[1] * .5 + f1.position[1] * .5
-		]
+  return {
+    destroy: function () {
+      impetus.destroy();
 
-		impetus && impetus.pause()
-	})
-	pinch.on('end', function () {
-		if (!initialCoords) return
+      pinch.disable();
 
-		initialCoords = null
-
-		impetus && impetus.resume()
-	})
-	pinch.on('change', function (curr, prev) {
-		if (!pinch.pinching || !initialCoords) return
-
-		schedule({
-			target: target,
-			type: 'touch',
-			dx: 0, dy: 0, dz: - (curr - prev) * mult,
-			x: initialCoords[0], y: initialCoords[1],
-			x0: initialCoords[0], y0: initialCoords[0]
-		})
-	})
-
-
-	// schedule function to current or next frame
-	var planned, frameId
-	function schedule (ev) {
-		if (frameId != null) {
-			if (!planned) planned = ev
-			else {
-				planned.dx += ev.dx
-				planned.dy += ev.dy
-				planned.dz += ev.dz
-
-				planned.x = ev.x
-				planned.y = ev.y
-			}
-
-			return
-		}
-
-		// Firefox sometimes does not clear webgl current drawing buffer
-		// so we have to schedule callback to the next frame, not the current
-		// cb(ev)
-
-		frameId = requestAnimationFrame(() => {
-			cb(ev)
-			frameId = null
-			if (planned) {
-				var arg = planned
-				planned = null
-				schedule(arg)
-			}
-		})
-	}
-
-	return function unpanzoom () {
-		touch.dispose()
-
-		target.removeEventListener('touchstart', initFn)
-
-		impetus.destroy()
-
-		pinch.disable()
-
-		cancelAnimationFrame(frameId)
-	}
+      cancelAnimationFrame(frame_id);
+    },
+    on: emitter.addListener.bind(emitter),
+    off: emitter.removeListener.bind(emitter),
+  }
 }
+
+if (window)
+  window.panzoom = panzoom;
+
+export { panzoom };
