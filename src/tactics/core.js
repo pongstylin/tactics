@@ -1,7 +1,6 @@
 Tactics = (function ()
 {
   var self = {};
-  var vw,vh,bw,bh;
   var renderer;
   var stage;
   var rendering = false;
@@ -25,12 +24,12 @@ Tactics = (function ()
     utils:{},
     animators: {},
 
-    init:function ($viewport) {
+    init: function ($viewport) {
       // We don't need an infinite loop, thanks.
       PIXI.ticker.shared.autoStart = false;
 
       var $canvas;
-      renderer = PIXI.autoDetectRenderer(bw = self.width,bh = self.height);
+      renderer = PIXI.autoDetectRenderer(self.width, self.height);
 
       // Let's not go crazy with the move events.
       renderer.plugins.interaction.moveWhenInside = true;
@@ -41,138 +40,31 @@ Tactics = (function ()
       $canvas = self.$canvas = $(renderer.view).attr('id','board').appendTo('#field');
       renderer.view.style.transformOrigin = '0 0 0';
 
-      self.panzoom = panzoom(renderer.view);
-      self.panzoom.on('change', transform => {
-        console.log('transform', transform);
-        renderer.view.style.transform = 'scale('+transform.scale+') translate('+transform.x+'px,'+transform.y+'px)';
-      });
       self.renderer = renderer instanceof PIXI.CanvasRenderer ? 'canvas' : 'webgl';
       self.board = new Tactics.Board();
-
-      /*
-      $canvas
-        // TODO:
-        //   1) Why does zooming out go slower than zooming in (unless it is a
-        //   continuous zoom in-out)
-        //   2) Consider transforming the canvas content instead of the canvas.
-        .on('touchy-pinch',function (event,$target,data)
-        {
-          var otransform = $target.data('transform');
-          var transform = $.extend({},otransform);
-          var minScale = 1;
-          var maxScale = 1 / (vw / bw);
-          var offset = $('#field').offset();
-
-          transform.sx  = data.startPoint.x - offset.left;
-          transform.sy  = data.startPoint.y - offset.top;
-          transform.cx  = data.currentPoint.x - offset.left;
-          transform.cy  = data.currentPoint.y - offset.top;
-
-          // Adjust scale, origin, and translation
-          transform.s  += data.scale - data.previousScale;
-          transform.s   = Math.max(minScale,Math.min(transform.s,maxScale));
-          transform.ox += transform.cx/otransform.s - transform.cx/transform.s;
-          transform.oy += transform.cy/otransform.s - transform.cy/transform.s;
-          transform.tx += otransform.ox - transform.ox;
-          transform.ty += otransform.oy - transform.oy;
-
-          // Adjust position
-          if (otransform.cx != transform.cx)
-          {
-            // Save position if user has lifted fingers and placed them someplace else.
-            if (otransform.sx != transform.sx)
-              transform.tx += transform.px;
-
-            transform.px = (transform.cx - transform.sx) / otransform.s;
-          }
-          if (otransform.cy != transform.cy)
-          {
-            // Save position if user has lifted fingers and placed them someplace else.
-            if (otransform.sy != transform.sy)
-              transform.ty += transform.py;
-
-            transform.py = (transform.cy - transform.sy) / otransform.s;
-          }
-
-          // It might be better to snap to the edge upon pinch release.  But how to detect?
-          var minX = (vw / transform.s) - vw;
-          var maxX = 0;
-          var minY = (vh / transform.s) - vh;
-          var maxY = 0;
-
-          if (transform.tx+transform.px > maxX)
-            transform.tx = maxX - transform.px;
-          if (transform.tx+transform.px < minX)
-            transform.tx = minX - transform.px;
-          if (transform.ty+transform.py > maxY)
-            transform.ty = maxY - transform.py;
-          if (transform.ty+transform.py < minY)
-            transform.ty = minY - transform.py;
-
-          $target
-            .data('transform',transform)
-            .css
-            ({
-              transform:'scale('+transform.s+') translate('+(transform.tx+transform.px)+'px,'+(transform.ty+transform.py)+'px)',
-              transformOrigin:'0 0'
-            });
-        })
-        .on('touchy-drag',function (event,phase,$target,data)
-        {
-          if (phase != 'move') return;
-
-          var transform = $target.data('transform');
-          var minX = (vw / transform.s) - vw;
-          var maxX = 0;
-          var minY = (vh / transform.s) - vh;
-          var maxY = 0;
-
-          transform.tx += (data.movePoint.x - data.lastMovePoint.x) / transform.s;
-          transform.ty += (data.movePoint.y - data.lastMovePoint.y) / transform.s;
-
-          if (transform.tx+transform.px > maxX)
-            transform.tx = maxX - transform.px;
-          if (transform.tx+transform.px < minX)
-            transform.tx = minX - transform.px;
-          if (transform.ty+transform.py > maxY)
-            transform.ty = maxY - transform.py;
-          if (transform.ty+transform.py < minY)
-            transform.ty = minY - transform.py;
-
-          $target
-            .data('transform',transform)
-            .css
-            ({
-              transform:'scale('+transform.s+') translate('+(transform.tx+transform.px)+'px,'+(transform.ty+transform.py)+'px)',
-              transformOrigin:'0 0'
-            });
-        });
-        */
+      self.panzoom = panzoom({target:renderer.view});
     },
-    resize:function (width,height)
-    {
+    resize: function (width, height) {
       /*
-      vw = width;
-      vh = height;
+       * Downsize the element to fit the container.
+       */
+      let elementScale = Math.min(1, width / self.width, height / self.height);
 
-      // shrink the view dimensions to maximum bounds.
-      if (vw > bw) vw = bw;
-      if (vh > bh) vh = bh;
+      if (elementScale < 1) {
+        let elementWidth  = Math.floor(self.width  * elementScale);
+        let elementHeight = Math.floor(self.height * elementScale);
 
-      // shrink a dimension to maintain proportion.
-      if (vw / bw > vh / bh)
-      {
-        vw = bw * (vh / bh);
+        self.$canvas.css({width:elementWidth+'px', height:elementHeight+'px'});
       }
-      else
-      {
-        vh = bh * (vw / bw);
+      else {
+        self.$canvas.css({width:'', height:''});
       }
 
-      self.$canvas
-        .data('transform',{sx:0,sy:0,cx:0,cy:0,s:1,tx:0,ty:0,ox:0,oy:0,px:0,py:0})
-        .css({width:vw,height:vh,transform:'',transformOrigin:''});
-      */
+      /*
+       * Allow touch devices to upscale to normal size.
+       */
+      self.panzoom.maxScale = 1 / elementScale;
+      self.panzoom.reset();
 
       return self;
     },
