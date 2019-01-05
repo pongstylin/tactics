@@ -19,6 +19,8 @@ function panzoom (options) {
   }, initial);
   let minScale = options.minScale || 1;
   let maxScale = options.maxScale || 1;
+  let panWidth = options.panWidth || target.parentElement.clientWidth;
+  let panHeight = options.panHeight || target.parentElement.clientHeight;
   let allowOffScreen = !!options.allowOffScreen;
   let emitter = new EventEmitter();
 
@@ -63,7 +65,6 @@ function panzoom (options) {
       return;
 
     frame_id = requestAnimationFrame(() => {
-      console.log(current.origin, current.scale, current.translate);
       let scale     = 'scale('+current.scale+')';
       let translate = 'translate('+current.translate.x+'px,'+current.translate.y+'px)';
 
@@ -88,55 +89,46 @@ function panzoom (options) {
   /*
    * Prevent the content from being panned off screen unless allowed.
    */
-  let boundedX = x => {
+  let clampXY = (x, y) => {
     if (allowOffScreen) return x;
 
-    // Offset the min/max based on the current origin and scale.
     let s = current.scale;
     let w = target.clientWidth;
-    let ox = -current.origin.x * (1 - s);
-
-    let minX = (ox - (w*s - w)) / s;
-    let maxX = ox / s;
-
-    if (x < minX) return minX;
-    if (x > maxX) return maxX;
-    return x;
-  };
-
-  let boundedY = y => {
-    if (allowOffScreen) return y;
-
-    // Offset the min/max based on the origin and scale.
-    let s = current.scale;
     let h = target.clientHeight;
+
+    // Offset the min/max based on the current origin and scale.
+    let ox = -current.origin.x * (1 - s);
     let oy = -current.origin.y * (1 - s);
 
-    let minY = (oy - (h*s - h)) / s;
-    let maxY = oy / s;
+    // Offset further based on the target offset
+    ox -= target.offsetLeft;
+    oy -= target.offsetTop;
 
-    if (y < minY) return minY;
-    if (y > maxY) return maxY;
-    return y;
+    let minX = (ox - Math.max(0, w*s - panWidth))  / s;
+    let maxX = (ox + Math.max(0, panWidth - w*s))  / s;
+    let minY = (oy - Math.max(0, h*s - panHeight)) / s;
+    let maxY = (oy + Math.max(0, panHeight - h*s)) / s;
+
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(minY, Math.min(maxY, y)),
+    };
   };
 
   // One-finger panning
   let paused = false;
-  let impetus = new Impetus({
+  let impetus;
+  impetus = new Impetus({
     source: target,
     update: (x, y) => {
       if (paused) return;
 
-      let bx = boundedX(x);
-      let by = boundedY(y);
+      let clamped = clampXY(x, y);
+      if (clamped.x !== x || clamped.y !== y)
+        if (impetus) impetus.setValues(clamped.x, clamped.y);
 
-      if (bx !== x || by !== y)
-        impetus.setValues(bx, by);
-
-      if (current.translate.x === bx && current.translate.y === by) return;
-
-      current.translate.x = bx;
-      current.translate.y = by;
+      if (current.translate.x === clamped.x && current.translate.y === clamped.y) return;
+      current.translate = clamped;
 
       postChangeEvent();
     },
@@ -207,9 +199,8 @@ function panzoom (options) {
     /*
      * Set limits
      */
-    current.scale       = Math.max(minScale, Math.min(maxScale, current.scale));
-    current.translate.x = boundedX(current.translate.x);
-    current.translate.y = boundedY(current.translate.y);
+    current.scale     = Math.max(minScale, Math.min(maxScale, current.scale));
+    current.translate = clampXY(current.translate.x, current.translate.y);
 
     postChangeEvent(f1, f2);
   };
@@ -257,6 +248,9 @@ function panzoom (options) {
       impetus.setMultiplier(1 / current.scale);
       impetus.resume();
       paused = false;
+
+      panWidth  = options.panWidth  || target.parentElement.clientWidth;
+      panHeight = options.panHeight || target.parentElement.clientHeight;
 
       postChangeEvent();
     },

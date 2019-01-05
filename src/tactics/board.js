@@ -1,10 +1,11 @@
-Tactics.Board = function ()
-{
+Tactics.Board = function () {
+  'use strict';
+
   var self = this;
   var trophy;
   var units;
   var card = {
-    renderer:  new PIXI.CanvasRenderer(176,100,{transparent:true}),
+    renderer:  new PIXI.CanvasRenderer(176, 100, {transparent:true}),
     stage:     new PIXI.Container(),
     rendering: false,
     render:    () => {
@@ -20,9 +21,9 @@ Tactics.Board = function ()
   };
   var highlighted = [];
 
-  card.$canvas = $(card.renderer.view)
-    .attr('id','card')
-    .insertAfter(Tactics.$canvas);
+  card.canvas = card.renderer.view;
+  card.canvas.id = 'card';
+  Tactics.canvas.parentElement.appendChild(card.canvas);
 
   card.stage.hitArea = new PIXI.Polygon([0,0, 175,0, 175,99, 0,99]);
   card.stage.interactive = card.stage.buttonMode = true;

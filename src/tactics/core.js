@@ -1,8 +1,9 @@
-Tactics = (function ()
-{
+Tactics = (function () {
+  'use strict';
+
   var self = {};
-  var renderer;
   var stage;
+  var renderer;
   var rendering = false;
   var render = () => {
     self.emit({type:'render'});
@@ -24,52 +25,38 @@ Tactics = (function ()
     utils:{},
     animators: {},
 
-    init: function ($viewport) {
+    init: function (container) {
       // We don't need an infinite loop, thanks.
       PIXI.ticker.shared.autoStart = false;
 
-      var $canvas;
+      stage = self.stage = new PIXI.Container();
+
       renderer = PIXI.autoDetectRenderer(self.width, self.height);
 
       // Let's not go crazy with the move events.
       renderer.plugins.interaction.moveWhenInside = true;
 
-      self.$viewport = $viewport;
-      stage = self.stage = new PIXI.Container();
+      let canvas = self.canvas = renderer.view;
+      canvas.id = 'board';
+      container.appendChild(canvas);
 
-      $canvas = self.$canvas = $(renderer.view).attr('id','board').appendTo('#field');
-      renderer.view.style.transformOrigin = '0 0 0';
-
-      self.renderer = renderer instanceof PIXI.CanvasRenderer ? 'canvas' : 'webgl';
       self.board = new Tactics.Board();
-      self.panzoom = panzoom({target:renderer.view});
+      self.panzoom = panzoom({target:canvas});
     },
-    resize: function (width, height) {
-      /*
-       * Downsize the element to fit the container.
-       */
+    /*
+     * Allow touch devices to upscale to normal size.
+     */
+    resize: function () {
+      let width = self.canvas.clientWidth;
+      let height = self.canvas.clientHeight;
       let elementScale = Math.min(1, width / self.width, height / self.height);
 
-      if (elementScale < 1) {
-        let elementWidth  = Math.floor(self.width  * elementScale);
-        let elementHeight = Math.floor(self.height * elementScale);
-
-        self.$canvas.css({width:elementWidth+'px', height:elementHeight+'px'});
-      }
-      else {
-        self.$canvas.css({width:'', height:''});
-      }
-
-      /*
-       * Allow touch devices to upscale to normal size.
-       */
       self.panzoom.maxScale = 1 / elementScale;
       self.panzoom.reset();
 
       return self;
     },
-    draw:function (data)
-    {
+    draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};
       var elements = {};
       var context = data.context;

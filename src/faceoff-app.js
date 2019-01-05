@@ -140,7 +140,7 @@ Tactics.App = (function ($, window, document) {
         $('body').addClass(pointer = 'mouse');
       }
 
-      Tactics.init($('#field'));
+      Tactics.init($('#field').get(0));
 
       $(window).trigger('resize');
 
@@ -259,12 +259,11 @@ Tactics.App = (function ($, window, document) {
       load();
     })
     .on('resize', () => {
-      var $resize = $('BUTTON[name=resize]');
-
-      Tactics.resize($('#field').width(),$(window).height());
-
+      let $resize = $('BUTTON[name=resize]');
       if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
         $resize.toggleClass('fa-expand fa-compress');
+
+      Tactics.resize();
     });
 
   function load() {
