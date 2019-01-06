@@ -47,6 +47,14 @@ Tactics.App = (function ($, window, document) {
           $('#app').toggleClass('left right');
           $button.toggleClass('fa-rotate-270 fa-rotate-90');
         },
+        lock: function ($button) {
+          $button.toggleClass('fa-lock fa-unlock');
+
+          if ($button.hasClass('fa-lock'))
+            Tactics.panzoom.lock();
+          else
+            Tactics.panzoom.unlock();
+        },
         rotate: function ($button) {
           var cls,per;
 

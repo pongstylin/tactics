@@ -41,7 +41,10 @@ Tactics = (function () {
       container.appendChild(canvas);
 
       self.board = new Tactics.Board();
-      self.panzoom = panzoom({target:canvas});
+      self.panzoom = panzoom({
+        target: canvas,
+        locked: true,
+      });
     },
     /*
      * Allow touch devices to upscale to normal size.

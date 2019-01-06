@@ -164,16 +164,19 @@ BODY
 }
 
 #app > .buttons BUTTON.hidden {
-  display:none;
+  display: none;
 }
 
-#app > .buttons BUTTON[name=movebar],#app > .buttons BUTTON[name=swapbar]
-{
-  display:none;
+#app > .buttons BUTTON[name=movebar],
+#app > .buttons BUTTON[name=swapbar] {
+  display: none;
 }
 
-.mouse #app:not(.locked) > .buttons BUTTON:not(.selected):enabled:hover
-{
+.mouse .buttons BUTTON[name=lock] {
+  display: none;
+}
+
+.mouse #app:not(.locked) > .buttons BUTTON:not(.selected):enabled:hover {
   margin:2px;
   border-width:1px;
 }
@@ -250,15 +253,21 @@ BODY
     left:   0;
   }
 
+  #app {
+    margin: 0 auto;
+  }
+
   #app > .buttons {
     display:    inline-block;
     text-align: right;
     padding:    2px 6px;
     right:      0;
   }
-  #board {
-    margin: 0 auto;
+
+  .mouse .buttons BUTTON[name=lock] {
+    display: none;
   }
+
   #game-play {
     top: 0;
   }

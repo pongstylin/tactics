@@ -17,11 +17,11 @@ function panzoom (options) {
     scale:     1,
     translate: {x:0, y:0},
   }, initial);
+  let locked = !!options.locked;
   let minScale = options.minScale || 1;
   let maxScale = options.maxScale || 1;
   let panWidth = options.panWidth || target.parentElement.clientWidth;
   let panHeight = options.panHeight || target.parentElement.clientHeight;
-  let allowOffScreen = !!options.allowOffScreen;
   let emitter = new EventEmitter();
 
   /*
@@ -89,9 +89,7 @@ function panzoom (options) {
   /*
    * Prevent the content from being panned off screen unless allowed.
    */
-  let clampXY = (x, y) => {
-    if (allowOffScreen) return x;
-
+  let getBounds = () => {
     let s = current.scale;
     let w = target.clientWidth;
     let h = target.clientHeight;
@@ -110,32 +108,62 @@ function panzoom (options) {
     let maxY = (oy + Math.max(0, panHeight - h*s)) / s;
 
     return {
-      x: Math.max(minX, Math.min(maxX, x)),
-      y: Math.max(minY, Math.min(maxY, y)),
+      x: {min:minX, max:maxX},
+      y: {min:minY, max:maxY},
     };
   };
 
   // One-finger panning
-  let paused = false;
-  let impetus;
-  impetus = new Impetus({
-    source: target,
-    update: (x, y) => {
-      if (paused) return;
+  let paused  = false;
+  let impetus = null;
 
-      let clamped = clampXY(x, y);
-      if (clamped.x !== x || clamped.y !== y)
-        if (impetus) impetus.setValues(clamped.x, clamped.y);
+  let startImpetus = () => {
+    let bounds = getBounds();
 
-      if (current.translate.x === clamped.x && current.translate.y === clamped.y) return;
-      current.translate = clamped;
+    impetus = new Impetus({
+      source: target,
+      update: (x, y) => {
+        if (paused) return;
 
-      postChangeEvent();
-    },
-    multiplier: 1 / current.scale,
-    friction: 0.9,
-    initialValues: [current.translate.x, current.translate.y],
-  });
+        current.translate.x = x;
+        current.translate.y = y;
+
+        postChangeEvent();
+      },
+      multiplier: 1 / current.scale,
+      friction: 0.9,
+      initialValues: [current.translate.x, current.translate.y],
+      boundX: [bounds.x.min, bounds.x.max],
+      boundY: [bounds.y.min, bounds.y.max],
+      bounce: false,
+    });
+  };
+
+  let pauseImpetus = () => {
+    if (impetus === null || paused) return;
+
+    paused = true;
+    impetus.pause();
+  };
+
+  let resetImpetus = () => {
+    if (impetus === null) return startImpetus();
+
+    let bounds = getBounds();
+
+    impetus.setValues(current.translate.x, current.translate.y);
+    impetus.setMultiplier(1 / current.scale);
+    impetus.setBoundX([bounds.x.min, bounds.x.max]);
+    impetus.setBoundY([bounds.y.min, bounds.y.max]);
+  };
+
+  let resumeImpetus = () => {
+    if (impetus === null) return startImpetus();
+
+    paused = false;
+    resetImpetus();
+    impetus.resume();
+  };
 
   /*
    * Two-finger panning and zooming.
@@ -199,15 +227,19 @@ function panzoom (options) {
     /*
      * Set limits
      */
-    current.scale     = Math.max(minScale, Math.min(maxScale, current.scale));
-    current.translate = clampXY(current.translate.x, current.translate.y);
+    let bounds = getBounds();
+
+    current.scale       = Math.max(minScale, Math.min(maxScale, current.scale));
+    current.translate.x = Math.max(bounds.x.min, Math.min(bounds.x.max, current.translate.x));
+    current.translate.y = Math.max(bounds.y.min, Math.min(bounds.y.max, current.translate.y));
 
     postChangeEvent(f1, f2);
   };
 
   pinch.on('start', curr => {
-    paused = true;
-    impetus.pause();
+    if (locked) return;
+
+    pauseImpetus();
 
     let fingers = pinch.fingers;
     let f1 = getTouchPoint(fingers[0].touch);
@@ -216,7 +248,7 @@ function panzoom (options) {
     setFingers(f1, f2);
   });
   pinch.on('change', () => {
-    if (!pinch.pinching) return;
+    if (locked || !pinch.pinching) return;
 
     let fingers = pinch.fingers;
     let f1 = getTouchPoint(fingers[0].touch);
@@ -225,32 +257,33 @@ function panzoom (options) {
     moveFingers(f1, f2);
   });
   pinch.on('end', () => {
-    paused = false;
-    impetus.setValues(current.translate.x, current.translate.y);
-    impetus.setMultiplier(1 / current.scale);
-    impetus.resume();
+    if (locked) return;
+
+    resumeImpetus();
   });
 
   let instance = {
     setFingers: setFingers,
     moveFingers: moveFingers,
+    lock: function () {
+      locked = true;
+      pauseImpetus();
+    },
+    unlock: function () {
+      locked = false;
+      resumeImpetus();
+    },
     reset: function () {
-      paused = true;
-      impetus.pause();
-
       Object.assign(current, {
         origin:    {x:0, y:0},
         scale:     1,
         translate: {x:0, y:0},
       }, initial);
 
-      impetus.setValues(current.translate.x, current.translate.y);
-      impetus.setMultiplier(1 / current.scale);
-      impetus.resume();
-      paused = false;
-
       panWidth  = options.panWidth  || target.parentElement.clientWidth;
       panHeight = options.panHeight || target.parentElement.clientHeight;
+
+      if (!locked) resetImpetus();
 
       postChangeEvent();
     },
@@ -294,6 +327,11 @@ function panzoom (options) {
       return maxScale = v;
     },
   });
+
+  if (locked)
+    postChangeEvent();
+  else
+    startImpetus();
 
   return instance;
 }
