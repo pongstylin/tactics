@@ -85,7 +85,7 @@
       playBreakFocus: function () {
         if (self.attacked)
           // Do not break focus when turning after attacking.
-          if (self.activated === 'turn')
+          if (self.activated === 'turn' || self.activated === 'direction')
             return Promise.resolve();
           // Allow cancelling the attack by moving after attacking.
           else // self.activated === 'move'
