@@ -31,7 +31,7 @@ Tactics.App = (function ($, window, document) {
         }
       },
     ],
-    turns: [0, 1],
+    turnOrder: [0, 1],
   };
 
   $(window)
@@ -483,7 +483,7 @@ Tactics.App = (function ($, window, document) {
     trophy.drawAvatar();
 
     board.reset().addTeams(data.teams);
-    board.turns = data.turns.slice().spin();
+    board.turnOrder = data.turnOrder.slice().spin();
 
     // Give Data URIs a chance to load.
     setTimeout(() => {

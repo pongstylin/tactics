@@ -135,26 +135,64 @@ Tactics.Board = function () {
   utils.addEvents.call(self);
 
   // Using a closure to organize variables.
-  $.extend(self,
-  {
+  $.extend(self, {
     // Public properties
-    tiles:null,
-    pixi:undefined,
-    locked:false,
-    teams:[],
-    turns:[],
-    selected:null,
-    viewed:null,
-    focused:null,
-    carded:null,
-    notice:'',
-    selectMode:'move',
-    rotation:'N',
+    tiles:      null,
+    pixi:       undefined,
+    locked:     false,
+    teams:      [],
+    turnOrder:  [],
+    selected:   null,
+    viewed:     null,
+    focused:    null,
+    carded:     null,
+    notice:     '',
+    selectMode: 'move',
+    rotation:   'N',
+
+    // Number of turns where no action was taken.
     passedTurns: 0,
 
+    // State of board at start of turn.
+    state: {},
+
+    // Actions taken this turn
+    actions: [],
+
+    // This will ultimately call a server to get the results of an action.
+    takeAction: function (action) {
+      self.lock();
+
+      if (action.type === 'attack')
+        action.results = action.unit.calcAttackResults(action.tile);
+
+      return self.performAction(action).then(() => self.unlock());
+    },
+
+    // Act out the action on the board.
+    performAction: function (action) {
+      let unit = action.unit;
+
+      if (action.type === 'turn')
+        return unit.turn(action.direction);
+      else if (action.type === 'end')
+        return self.endTurn();
+
+      return unit[action.type](action);
+    },
+
+    undo: function () {
+      self.actions.forEach(action => {
+      });
+    },
+
     // Property accessors
-    getTile: function (x,y) {
+    getTile: function (x, y) {
       return self.tiles[x+y*11];
+    },
+
+    getUnit: function (x, y) {
+      return self.getTile(x, y).assigned;
     },
 
     // Public functions
@@ -810,7 +848,7 @@ Tactics.Board = function () {
     },
 
     setSelectMode: function (mode) {
-      var team = self.teams[self.turns[0]];
+      var team = self.teams[self.turnOrder[0]];
 
        if (self.viewed)
          if (!team.bot)
@@ -909,7 +947,7 @@ Tactics.Board = function () {
     deselect: function (reset) {
       var selected = self.selected;
       var viewed = self.viewed;
-      var team = self.teams[self.turns[0]];
+      var team = self.teams[self.turnOrder[0]];
 
       if (reset) {
         if (selected) selected.deactivate();
@@ -954,7 +992,7 @@ Tactics.Board = function () {
     },
 
     startTurn: function () {
-      let teamId = self.turns[0];
+      let teamId = self.turnOrder[0];
       let team   = self.teams[teamId];
 
       if (team.bot) {
@@ -1013,14 +1051,14 @@ Tactics.Board = function () {
       }
 
       // Next, remove dead teams from turn order.
-      let turns = self.turns;
-      let teamId = turns[0];
+      let turnOrder = self.turnOrder;
+      let teamId = turnOrder[0];
 
       self.teams.forEach((team, t) => {
         if (team.units.length) return;
-        if (turns.indexOf(t) === -1) return;
+        if (turnOrder.indexOf(t) === -1) return;
 
-        turns.splice(turns.indexOf(t),1);
+        turnOrder.splice(turnOrder.indexOf(t),1);
 
         // If the player team was killed, he can take over for a bot team.
         // TODO: Restrict this behavior to the Chaos app.
@@ -1034,7 +1072,7 @@ Tactics.Board = function () {
       });
 
       // Recover and decay blocking modifiers
-      let decay = self.turns.length;
+      let decay = self.turnOrder.length;
       if (self.teams[4] && self.teams[4].units.length) decay--;
 
       self.teams.forEach((team, t) => {
@@ -1050,12 +1088,12 @@ Tactics.Board = function () {
       });
 
       // If this team killed itself, this can be false.
-      if (teamId == turns[0])
-        turns.push(turns.shift());
+      if (teamId == turnOrder[0])
+        turnOrder.push(turnOrder.shift());
 
-      let winners = turns.filter(t => {
+      let winners = turnOrder.filter(t => {
         // If all teams passed 3 turns in a row, draw!
-        if (self.passedTurns === turns.length * 3)
+        if (self.passedTurns === turnOrder.length * 3)
           return false;
 
         let team = self.teams[t];
@@ -1173,32 +1211,6 @@ Tactics.Board = function () {
       self.eraseCard();
 
       return self.setSelectMode('move');
-    },
-    save: function () {
-      var teams = [];
-
-      self.teams.forEach(team => {
-        var tdata = {c:team.color,b:team.bot ? 1 : 0,u:{}};
-
-        team.units.forEach(unit => {
-          var udata = {t:unit.type,d:unit.direction};
-          var tile = unit.assignment;
-          var coords = String.fromCharCode(97+tile.x)+String.fromCharCode(97+tile.y);
-
-          if (unit.mHealth) udata.h = unit.mHealth;
-          if (unit.mBlocking) udata.b = unit.mBlocking;
-          if (unit.mRecovery) udata.r = unit.mRecovery;
-
-          tdata.u[coords] = udata;
-        });
-
-        teams.push(tdata);
-      });
-
-      return {
-        teams: teams,
-        turns: self.turns,
-      };
     },
 
     playResults: function (results) {

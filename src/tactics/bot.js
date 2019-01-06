@@ -32,13 +32,13 @@
       });
     }
 
-    function deploy(data) {
+    function move(data) {
       if (data.unit.mHealth === -data.unit.health) return data;
       if (!data.end) return data;
 
       return new Promise((resolve, reject) => {
         setTimeout(() => {
-          data.unit.deploy(data.end).then(() => {
+          data.unit.move(data.end).then(() => {
             paint(data.end, 0x0088FF);
             resolve(data);
           });
@@ -150,7 +150,7 @@
           chosen = choices[0];
 
           // If all units have turn wait, use the first team unit when passing.
-          if (!chosen.unit) chosen.unit = board.teams[board.turns[0]].units[0];
+          if (!chosen.unit) chosen.unit = board.teams[board.turnOrder[0]].units[0];
         }
         else {
           choices.sort((a, b) => {
@@ -181,7 +181,7 @@
           chosen = choices[0];
           // If we are passing or the equivalent, then try to get a better position.
           if (first.defense === chosen.defense && first.offense === chosen.offense) {
-            self.friends = board.teams[board.turns[0]].units.slice();
+            self.friends = board.teams[board.turnOrder[0]].units.slice();
             self.considerPosition();
             chosen = self.choices[0];
           }
@@ -191,9 +191,9 @@
         // Now put our decisions into action.
         //
         if (chosen.first == 'move')
-          order = [deploy, attack];
+          order = [move, attack];
         else
-          order = [attack, deploy];
+          order = [attack, move];
 
         select(chosen)
           .then(order[0])
@@ -459,14 +459,14 @@
       },
       considerDirection:function (unit,target)
       {
-        var turns = board.turns.slice();
+        var turnOrder = board.turnOrder.slice();
         var directions = ['N','S','E','W'];
         var d,direction = {N:Math.random(),S:Math.random(),E:Math.random(),W:Math.random()};
         var choices = [];
         var enemies = self.enemies;
         var i,t,w;
 
-        turns.push(turns.shift());
+        turnOrder.push(turnOrder.shift());
 
         for (i=0; i<directions.length; i++)
         {
@@ -475,7 +475,7 @@
           choices.push
           ({
             direction:directions[i],
-            weight   :unit.calcDefense(turns),
+            weight   :unit.calcDefense(turnOrder),
             random   :Math.random()
           });
         }
@@ -492,7 +492,7 @@
             w = 1;
 
             if (t  <  unit.mRecovery) w += 99;
-            if (t === unit.mRecovery && turns.indexOf(enemies[i].team) < turns.indexOf(unit.team)) w += 99;
+            if (t === unit.mRecovery && turnOrder.indexOf(enemies[i].team) < turnOrder.indexOf(unit.team)) w += 99;
 
             if (d.length == 1)
             {
@@ -547,7 +547,7 @@
         });
         target = targets[0];
 
-        $.extend(target,unit.calcThreat(target.target,unit.assignment));
+        $.extend(target,unit.calcThreat(target.target, unit.assignment));
 
         return target;
       },
@@ -571,14 +571,14 @@
       calcTeamFuture:function (teamId,target)
       {
         var calc = [];
-        var turns = board.turns.slice();
+        var turnOrder = board.turnOrder.slice();
         var teams = board.teams;
         var funit,funits,eunit,eunits;
         var fdamages = {},fdamage,ftotal,eclaim;
         var i,j,k,l,fsum,tsum,cnt,losses,threat,threats;
 
         // Calculate the figures after this turn ends.
-        turns.push(turns.shift());
+        turnOrder.push(turnOrder.shift());
 
         // Calculate the defense score for each team.
         for (i=0; i<teams.length; i++)
@@ -615,9 +615,9 @@
 
                 cnt = eunit.calcThreatTurns(funit,1);
                 if (cnt  >  funit.mRecovery) continue;
-                if (cnt === funit.mRecovery && turns.indexOf(k) > turns.indexOf(i)) continue;
+                if (cnt === funit.mRecovery && turnOrder.indexOf(k) > turnOrder.indexOf(i)) continue;
 
-                threat = eunit.calcThreat(funit,null,turns);
+                threat = eunit.calcThreat(funit, null, turnOrder);
                 if (threat.damage)
                 {
                   fdamages[funit.id][k].push
@@ -640,7 +640,7 @@
               // The number of times we can attack before recovery.
               cnt = funit.mRecovery;
               // We can attack one more time if enemy turn comes first.
-              if (turns.indexOf(i) > turns.indexOf(k)) cnt++;
+              if (turnOrder.indexOf(i) > turnOrder.indexOf(k)) cnt++;
 
               for (l=0; l<fdamages[funit.id][k].length; l++)
               {
@@ -677,7 +677,7 @@
               // The number of times we can attack before recovery.
               cnt = funit.mRecovery;
               // We can attack one more time if enemy turn comes first.
-              if (turns.indexOf(k) < turns.indexOf(i)) cnt++;
+              if (turnOrder.indexOf(k) < turnOrder.indexOf(i)) cnt++;
 
               for (l=0; l<fdamages[funit.id][k].length; l++)
               {

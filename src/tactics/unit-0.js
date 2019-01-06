@@ -216,7 +216,7 @@
 
         return anim.play();
       },
-      animDeploy: function (assignment) {
+      animMove: function (assignment) {
         var anim = new Tactics.Animation();
         var tiles = self.findPath(assignment);
         var origin = self.assignment;

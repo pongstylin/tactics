@@ -15,7 +15,7 @@
       return self;
     };
 
-    let selectTurnEvent = event => {
+    let onTurnSelect = event => {
       let target   = event.target;
       let board    = Tactics.board;
       let selected = board.selected;
@@ -24,9 +24,7 @@
       hideTurnOptions();
       event.currentTarget.filters = null;
 
-      board.lock();
       selected.turn(target.data.direction).then(() => {
-        board.unlock();
         board.setSelectMode('ready');
 
         // Normally, we should render after receiving an event.
@@ -34,7 +32,7 @@
         //Tactics.render();
       });
     };
-    let focusTurnEvent = event => {
+    let onTurnFocus = event => {
       Tactics.sounds.focus.play();
 
       let filter = new PIXI.filters.ColorMatrixFilter();
@@ -43,7 +41,7 @@
 
       Tactics.render();
     };
-    let blurTurnEvent = event => {
+    let onTurnBlur = event => {
       event.currentTarget.filters = null;
 
       Tactics.render();
@@ -53,10 +51,10 @@
       let sprite = new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/'+image);
       sprite.interactive = true;
       sprite.buttonMode  = true;
-      sprite.click       = selectTurnEvent;
-      sprite.tap         = selectTurnEvent;
-      sprite.mouseover   = focusTurnEvent;
-      sprite.mouseout    = blurTurnEvent;
+      sprite.click       = onTurnSelect;
+      sprite.tap         = onTurnSelect;
+      sprite.mouseover   = onTurnFocus;
+      sprite.mouseout    = onTurnBlur;
 
       if (i == 0) {
         sprite.position = new PIXI.Point(1,0);
@@ -115,11 +113,14 @@
     var pulse;
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
     var shock;
-    var onDeploySelect = event => {
-      board.lock();
-      self.deploy(event.target).then(() => {
-        board.unlock();
+    var onMoveSelect = event => {
+      let action = {
+        type: 'move',
+        unit: self,
+        tile: event.target,
+      };
 
+      board.takeAction(action).then(() => {
         if (self.attacked) {
           if (self.blocking)
             board.setSelectMode('turn');
@@ -130,8 +131,8 @@
           board.setSelectMode('attack');
       });
     };
-    var onDeployFocus  = event => event.target.setAlpha(0.6);
-    var onDeployBlur   = event => event.target.setAlpha(0.3);
+    var onMoveFocus  = event => event.target.setAlpha(0.6);
+    var onMoveBlur   = event => event.target.setAlpha(0.3);
 
     utils.addEvents.call(self);
 
@@ -424,11 +425,11 @@
         });
       },
       // Obtain the maximum threat to the unit before he recovers.
-      calcDefense: function (turns) {
+      calcDefense: function (turnOrder) {
         let damages = [],damage = 0,threat;
         let i,j,units,unit,cnt;
 
-        if (!turns) turns = board.turns;
+        if (!turnOrder) turnOrder = board.turnOrder;
 
         for (i=0; i<board.teams.length; i++) {
           damages.push([]);
@@ -442,8 +443,8 @@
             cnt = unit.calcThreatTurns(self,1);
 
             if (cnt  >  self.mRecovery) continue;
-            if (cnt === self.mRecovery && turns.indexOf(i) > turns.indexOf(self.team)) continue;
-            threat = unit.calcThreat(self,null,turns);
+            if (cnt === self.mRecovery && turnOrder.indexOf(i) > turnOrder.indexOf(self.team)) continue;
+            threat = unit.calcThreat(self, null, turnOrder);
             if (threat.damage)
               damages[i].push({
                 unit:   unit,
@@ -461,7 +462,7 @@
           // The number of times they can attack before recovery.
           cnt = self.mRecovery;
           // We can attack one more time if enemy turn comes first.
-          if (turns.indexOf(i) < turns.indexOf(self.team)) cnt++;
+          if (turnOrder.indexOf(i) < turnOrder.indexOf(self.team)) cnt++;
 
           for (j=0; j<damages[i].length; j++) {
             // Only attackers that can attack before he moves again count.
@@ -492,7 +493,7 @@
         let tile,calc,threat;
 
         //if (self.mRecovery > target.mRecovery) return;
-        //if (self.mRecovery === target.mRecovery && board.turns.indexOf(self.team) > board.turns.indexOf(target.team)) return;
+        //if (self.mRecovery === target.mRecovery && board.turnOrder.indexOf(self.team) > board.turnOrder.indexOf(target.team)) return;
 
         for (let i = 0; i < directions.length; i++) {
           if (!(tile = target.assignment[directions[i]])) continue;
@@ -527,7 +528,7 @@
 
         return threats.sort((a,b) => b.threat - a.threat);
       },
-      calcThreat: function (target,tile,turns) {
+      calcThreat: function (target, tile, turnOrder) {
         let calc = {};
         let tdirection = target.direction;
         let path,cnt,attack;
@@ -539,7 +540,7 @@
         ];
 
         if (!tile) {
-          if (!turns) turns = board.turns;
+          if (!turnOrder) turnOrder = board.turnOrder;
 
           for (let i = 0; i < directions.length; i++) {
             if (!(tile = target.assignment[directions[i]])) continue;
@@ -558,7 +559,7 @@
             cnt = Math.ceil(path.length / self.mRadius)-1;
 
             if (target.mRecovery  >  cnt) break;
-            if (target.mRecovery === cnt && turns.indexOf(target.team) > turns.indexOf(self.team)) break;
+            if (target.mRecovery === cnt && turnOrder.indexOf(target.team) > turnOrder.indexOf(self.team)) break;
 
             path = null;
           }
@@ -833,18 +834,18 @@
 
         return self;
       },
-      highlightDeployOptions: function () {
+      highlightMoveOptions: function () {
         self.getMoveTiles().forEach(tile => {
           board.setHighlight({
-            action: 'deploy',
+            action: 'move',
             tile:   tile,
             color:  0x0088FF,
-            select: onDeploySelect,
-            focus:  onDeployFocus,
-            blur:   onDeployBlur,
+            select: onMoveSelect,
+            focus:  onMoveFocus,
+            blur:   onMoveBlur,
           }, self.viewed);
 
-          if (tile.focused) onDeployFocus({target:tile});
+          if (tile.focused) onMoveFocus({target:tile});
         });
 
         return self;
@@ -958,20 +959,19 @@
         self.direction = direction;
       },
       // Animate from one tile to the next
-      deploy: function (assignment) {
+      move: function (action) {
         self.freeze();
         return self.playBreakFocus()
-          .then(() => self.animDeploy(assignment).play())
+          .then(() => self.animMove(action.tile).play())
           .then(() => self.deployed = {first:!self.attacked})
           .then(() => self.thaw());
       },
-      attack: function (target) {
-        let results;
+      attack: function (action) {
+        let results = action.results;
 
         self.freeze();
         return self.playBreakFocus()
-          .then(() => results = self.calcAttackResults(target))
-          .then(() => self.playAttack(target, results))
+          .then(() => self.playAttack(action.tile, results))
           .then(() => board.playResults(results))
           .then(mode => {
             self.attacked = true;
@@ -1238,7 +1238,7 @@
         board.clearHighlight();
 
         if (mode === 'move')
-          self.highlightDeployOptions();
+          self.highlightMoveOptions();
         else if (mode === 'attack')
           self.highlightAttack();
         else if (mode === 'target')
@@ -1426,7 +1426,7 @@
       /*
        * Right now, the default expectation is units walk from A to B.
        */
-      animDeploy: function (assignment) {
+      animMove: function (assignment) {
         return self.animWalk(assignment);
       },
       /*
@@ -1921,10 +1921,13 @@
         board.setSelectMode('target');
       },
       onTargetSelect: function (event) {
-        board.lock();
-        return self.attack(event.target).then(results => {
-          board.unlock();
+        let action = {
+          type: 'attack',
+          unit: self,
+          tile: event.target,
+        };
 
+        return board.takeAction(action).then(() => {
           if (self.mHealth === -self.health)
             board.endTurn();
           else if (self.type === 8)
@@ -2011,7 +2014,7 @@
         if (selected && selected.attacked && selected !== self)
           return false;
 
-        return self.team === board.turns[0] && !self.mRecovery && !self.paralyzed;
+        return self.team === board.turnOrder[0] && !self.mRecovery && !self.paralyzed;
       },
       canMove: function () {
         return !!self.getMoveTiles().length

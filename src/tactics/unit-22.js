@@ -113,7 +113,7 @@
           }
         ]});
       },
-      animDeploy: function (assignment) {
+      animMove: function (assignment) {
         let anim        = new Tactics.Animation({fps:10});
         let frame_index = 0;
 
@@ -125,12 +125,12 @@
         if (direction === board.getRotation(self.direction, 180))
           anim.splice(frame_index++, () => self.drawTurn(90));
 
-        let deploy = data.animations[direction].deploy;
+        let move = data.animations[direction].move;
         anim
           .splice(frame_index,
             new Tactics.Animation({frames: [{
-              script: frame => self.drawFrame(deploy.s + frame.repeat_index),
-              repeat: deploy.l,
+              script: frame => self.drawFrame(move.s + frame.repeat_index),
+              repeat: move.l,
             }]})
               .splice(10, () => self.assign(assignment))
               .splice([2,7,11,16], () => sounds.flap.play())
