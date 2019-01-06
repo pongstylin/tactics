@@ -47,6 +47,14 @@ Tactics.App = (function ($, window, document) {
           $('#app').toggleClass('left right');
           $button.toggleClass('fa-rotate-270 fa-rotate-90');
         },
+        lock: function ($button) {
+          $button.toggleClass('fa-lock fa-unlock');
+
+          if ($button.hasClass('fa-lock'))
+            Tactics.panzoom.lock();
+          else
+            Tactics.panzoom.unlock();
+        },
         rotate: function ($button) {
           var cls,per;
 
@@ -140,7 +148,7 @@ Tactics.App = (function ($, window, document) {
         $('body').addClass(pointer = 'mouse');
       }
 
-      Tactics.init($('#field'));
+      Tactics.init($('#field').get(0));
 
       $(window).trigger('resize');
 
@@ -259,12 +267,11 @@ Tactics.App = (function ($, window, document) {
       load();
     })
     .on('resize', () => {
-      var $resize = $('BUTTON[name=resize]');
-
-      Tactics.resize($('#field').width(),$(window).height());
-
+      let $resize = $('BUTTON[name=resize]');
       if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
         $resize.toggleClass('fa-expand fa-compress');
+
+      Tactics.resize();
     });
 
   function load() {
