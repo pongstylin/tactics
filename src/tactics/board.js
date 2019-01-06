@@ -1096,7 +1096,7 @@ Tactics.Board = function () {
     },
 
     lock: function (value) {
-      if (self.locked) return;
+      if (self.locked === value) return;
       if (self.focused)
         self.focused.assignment.emit({type:'blur', target:self.focused.assignment});
       self.locked = value || true;
