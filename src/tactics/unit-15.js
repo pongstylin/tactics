@@ -441,9 +441,6 @@
             anim.splice(i, () => sounds.wind.play(winds.random()));
         }
 
-        if (!board.teams[board.turns[0]].bot)
-          anim.splice(anim.frames.length-1, () => board.endTurn());
-
         return anim.play();
       },
       canCounter: function () {

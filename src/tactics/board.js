@@ -1,10 +1,11 @@
-Tactics.Board = function ()
-{
+Tactics.Board = function () {
+  'use strict';
+
   var self = this;
   var trophy;
   var units;
   var card = {
-    renderer:  new PIXI.CanvasRenderer(176,100,{transparent:true}),
+    renderer:  new PIXI.CanvasRenderer(176, 100, {transparent:true}),
     stage:     new PIXI.Container(),
     rendering: false,
     render:    () => {
@@ -20,13 +21,13 @@ Tactics.Board = function ()
   };
   var highlighted = [];
 
-  card.$canvas = $(card.renderer.view)
-    .attr('id','card')
-    .insertAfter(Tactics.$canvas);
+  card.canvas = card.renderer.view;
+  card.canvas.id = 'card';
+  Tactics.canvas.parentElement.appendChild(card.canvas);
 
   card.stage.hitArea = new PIXI.Polygon([0,0, 175,0, 175,99, 0,99]);
   card.stage.interactive = card.stage.buttonMode = true;
-  card.stage.click = card.stage.tap = function () {
+  card.stage.pointertap = function () {
     var els = card.elements;
 
     if (els.layer1.visible) {
@@ -149,6 +150,7 @@ Tactics.Board = function ()
     notice:'',
     selectMode:'move',
     rotation:'N',
+    passedTurns: 0,
 
     // Property accessors
     getTile: function (x,y) {
@@ -285,17 +287,18 @@ Tactics.Board = function ()
 
     // Public methods
     draw: function () {
-      var pixi = self.pixi = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/board.jpg');
+      var pixi = self.pixi = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/board.jpg');
       var tiles = self.tiles = new Array(11*11);
       var tile;
       var sx = 6-88;       // padding-left, 1 tile  wide
       var sy = 4+(56*4)+1; // padding-top , 4 tiles tall, tweak
       var x,y,c;
 
-      // The board itself is interactive since we want to detect a click or tap
-      // on a blank tile to cancel current selection, if sensible.
+      // The board itself is interactive since we want to detect a tap on a
+      // blank tile to cancel current selection, if sensible.  Ultimately, this
+      // functionality needs to be provided by an 'undo' button.
       pixi.interactive = true;
-      pixi.click = pixi.tap = () => {
+      pixi.pointertap = event => {
         if (self.locked) return;
 
         let selected = self.selected;
@@ -307,7 +310,7 @@ Tactics.Board = function ()
       pixi.position = new PIXI.Point(18,38);
 
       /*
-       * A select event occurs when a unit or an action tile is selected.
+       * A select event occurs when a unit and/or an action tile is selected.
        */
       var selectEvent = event => {
         if (self.locked) return;
@@ -319,7 +322,27 @@ Tactics.Board = function ()
         self.select(tile.assigned);
       };
 
+      var focused_tile = null;
       var focusEvent = event => {
+        /*
+         * Manually manage tile 'blur' events for touch pointers.
+         */
+        if (event.pointerType === 'touch' || focused_tile)
+          if (event.type === 'focus') {
+            if (focused_tile && focused_tile !== event.target)
+              focused_tile.emit({
+                type:        'blur',
+                target:      focused_tile,
+                pointerType: event.pointerType,
+              });
+            focused_tile = event.target;
+          }
+          else // event.type === 'blur'
+            if (focused_tile && focused_tile === event.target) {
+              focused_tile.focused = false;
+              focused_tile = null;
+            }
+
         if (self.locked) return;
 
         let assigned = event.target.assigned;
@@ -337,13 +360,10 @@ Tactics.Board = function ()
 
           if (self.focused) {
             let selected = self.selected;
-            let view_only = self.focused.team !== self.turns[0]
-              || self.focused.mRecovery > 0
-              || self.focused.paralyzed !== false
-              || (selected && selected.attacked && selected !== self.focused);
+            let view_only = !self.focused.canSelect();
 
-             Tactics.sounds.focus.play();
-             self.focused.focus(view_only);
+            Tactics.sounds.focus.play();
+            self.focused.focus(view_only);
           }
 
           self.drawCard();
@@ -375,6 +395,14 @@ Tactics.Board = function ()
       }
 
       Tactics.stage.addChild(pixi);
+
+      /*
+       * While the board sprite and the tile children may be interactive, the units
+       * aren't.  So optimize PIXI by not checking them for interactivity.
+       */
+      units = new PIXI.Container();
+      units.interactiveChildren = false;
+
       Tactics.stage.addChild(units = new PIXI.Container());
 
       // Required to place units in the correct places.
@@ -444,16 +472,16 @@ Tactics.Board = function ()
           notice = unit.notice;
         }
 
-        if (!notice && unit.mRecovery)
-          notice = 'Wait '+unit.mRecovery+' Turn'+(unit.mRecovery > 1 ? 's' : '')+'!';
-
-        if (unit.poisoned) {
-          notices.push('Poisoned!');
+        if (unit.paralyzed) {
+          notices.push('Paralyzed!');
           important++;
         }
 
-        if (unit.paralyzed) {
-          notices.push('Paralyzed!');
+        if (unit.mRecovery)
+          notices.push('Wait '+unit.mRecovery+' Turn'+(unit.mRecovery > 1 ? 's' : '')+'!');
+
+        if (unit.poisoned) {
+          notices.push('Poisoned!');
           important++;
         }
 
@@ -738,7 +766,7 @@ Tactics.Board = function ()
         self.drawCard();
 
       tUnits.splice(tUnits.indexOf(unit), 1);
-      unit.assignment.dismiss();
+      unit.assign(null);
       units.removeChild(unit.pixi);
 
       return self;
@@ -756,22 +784,19 @@ Tactics.Board = function ()
 
       self.teams.forEach(t => Array.prototype.push.apply(units, t.units));
 
-      // First, reset all tiles.
-      if (self.selected && !self.viewed) self.selected.hideMode();
-      if (self.viewed) self.viewed.hideMode();
-
-      units.forEach(u => u.assignment.dismiss());
+      let activated = self.viewed || self.selected;
+      if (activated) activated.hideMode();
 
       units.forEach(unit => {
-        var origin = unit.origin;
-        var data = self.getUnitRotation(degree,unit.assignment,unit.direction);
-        var odata = self.getUnitRotation(degree,origin.tile,origin.direction);
+        let origin = unit.origin;
+        let data   = self.getUnitRotation(degree, unit.assignment, unit.direction);
+        let odata  = self.getUnitRotation(degree, origin.tile, origin.direction);
 
         if (origin.adirection)
-          odata.adirection = self.getRotation(origin.adirection,degree);
+          odata.adirection = self.getRotation(origin.adirection, degree);
 
-        unit.assignment = null;
-        unit.assign(data.tile).turn(data.direction);
+        unit.assign(data.tile);
+        unit.stand(data.direction);
         unit.origin = odata;
       });
 
@@ -842,6 +867,16 @@ Tactics.Board = function ()
         }
       }
       else {
+        /*
+         * The currently selected unit must be reset first just in case the
+         * reset causes paralysis to be re-applied to the selected unit.
+         *
+         * This logic can be made simpler if canSelect() uses initial turn
+         * state to determine selectability as opposed to current turn state.
+         */
+        if (selected && unit.canSelect())
+          selected.reset(selected.activated = 'move');
+
         // Do what a unit can can[].
         let can = [];
         if (unit.canMove())
@@ -855,17 +890,14 @@ Tactics.Board = function ()
         if (mode === null || can.indexOf(mode) === -1)
           mode = can.shift();
 
-        let view_only = unit.team !== self.turns[0]
-          || unit.mRecovery > 0
-          || unit.paralyzed !== false
-          || (selected && selected.attacked && selected !== unit);
+        let view_only = !unit.canSelect();
 
         if (view_only) {
           if (selected && !viewed) selected.hideMode();
           self.viewed = unit;
         }
         else {
-          if (selected) selected.reset();
+          if (selected) selected.deactivate();
           self.selected = unit;
         }
       }
@@ -895,9 +927,9 @@ Tactics.Board = function ()
         self.viewed = null;
 
         if (selected)
-          if (selected.activated == 'direction')
+          if (selected.activated === 'direction')
             selected.activate('turn');
-          else if (selected.activated == 'target')
+          else if (selected.activated === 'target')
             selected.activate('attack');
           else
             selected.showMode();
@@ -943,18 +975,47 @@ Tactics.Board = function ()
           self.notice = 'Go '+team.name+" team!";
         else
           self.notice = 'Your Turn!';
+
+        self.setSelectMode('move');
         self.unlock();
       }
     },
     endTurn: function () {
-      var turns = self.turns;
-      var teamId = turns[0];
-      var decay,recovery;
-      var selected = self.selected,attacked,deployed;
+      self.notice = null;
 
-      self.notice = undefined;
+      /*
+       * First, adjust the recovery for and deselect the unit, if any.
+       * Also determine if the turn was passed without taking action.
+       */
+      let selected = self.selected;
+      if (selected) {
+        let recovery = selected.recovery;
+        let attacked = selected.attacked;
+        let deployed = selected.deployed;
+        let turned   = selected.turned;
 
-      // First remove dead teams from turn order.
+        if (!attacked && !deployed && !turned)
+          self.passedTurns++;
+        else {
+          self.passedTurns = 0;
+
+          selected.mRecovery =
+            deployed && attacked ?            recovery      :
+            deployed             ? Math.floor(recovery / 2) :
+                        attacked ?  Math.ceil(recovery / 2) : 0;
+        }
+
+        self.deselect(true);
+      }
+      else {
+        if (self.viewed) self.deselect(true);
+        self.passedTurns++;
+      }
+
+      // Next, remove dead teams from turn order.
+      let turns = self.turns;
+      let teamId = turns[0];
+
       self.teams.forEach((team, t) => {
         if (team.units.length) return;
         if (turns.indexOf(t) === -1) return;
@@ -962,6 +1023,7 @@ Tactics.Board = function ()
         turns.splice(turns.indexOf(t),1);
 
         // If the player team was killed, he can take over for a bot team.
+        // TODO: Restrict this behavior to the Chaos app.
         if (!self.teams[t].bot) {
           for (let i = 0; i < self.teams.length; i++) {
             if (!self.teams[i].units.length) continue;
@@ -972,12 +1034,14 @@ Tactics.Board = function ()
       });
 
       // Recover and decay blocking modifiers
-      decay = self.turns.length;
+      let decay = self.turns.length;
       if (self.teams[4] && self.teams[4].units.length) decay--;
 
       self.teams.forEach((team, t) => {
         team.units.forEach(unit => {
-          if (unit.mRecovery && t == teamId) unit.mRecovery--;
+          if (unit.mRecovery && t == teamId && unit !== selected)
+            unit.mRecovery--;
+
           if (teamId !== 4 && unit.mBlocking) {
             unit.mBlocking *= 1 - 0.2/decay;
             if (Math.abs(unit.mBlocking) < 2) unit.mBlocking = 0;
@@ -985,49 +1049,70 @@ Tactics.Board = function ()
         });
       });
 
-      if (selected) {
-        recovery = selected.recovery;
-        attacked = selected.attacked;
-        deployed = selected.deployed;
-
-        selected.mRecovery =
-          deployed && attacked ?            recovery      :
-          deployed             ? Math.floor(recovery / 2) :
-                      attacked ?  Math.ceil(recovery / 2) : 0;
-      }
-
-      self.deselect(true);
-      self.setSelectMode('move');
-      self.drawCard();
-
       // If this team killed itself, this can be false.
       if (teamId == turns[0])
         turns.push(turns.shift());
 
-      // If all units were killed, this can be false.
-      if (turns.length)
+      let winners = turns.filter(t => {
+        // If all teams passed 3 turns in a row, draw!
+        if (self.passedTurns === turns.length * 3)
+          return false;
+
+        let team = self.teams[t];
+        let unit = team.units.find(unit => {
+          // Wards don't count.
+          if (unit.type === 4 || unit.type === 5)
+            return false;
+
+          // Paralyzed units don't count.
+          if (unit.paralyzed)
+            return false;
+
+          // This unit keeps the team alive!
+          return true;
+        });
+
+        return !!unit;
+      });
+
+      if (winners.length === 0) {
+        self.notice = 'Draw!';
+        self.lock('gameover');
+      }
+      else if (winners.length === 1) {
+        let team_name = self.teams[winners[0]].name;
+        if (team_name === null)
+          self.notice = 'You win!';
+        else
+          self.notice = team_name+' Wins!';
+        self.lock('gameover');
+      }
+      else
         self.startTurn();
+
+      self.drawCard();
 
       return self;
     },
 
-    lock: function () {
-      if (self.locked) return;
+    lock: function (value) {
+      if (self.locked === value) return;
       if (self.focused)
         self.focused.assignment.emit({type:'blur', target:self.focused.assignment});
-      self.locked = true;
+      self.locked = value || true;
 
       self.tiles.forEach(tile => tile.set_interactive(false));
 
       self.emit({
         type:   'lock-change',
         ovalue: false,
-        nvalue: true,
+        nvalue: self.locked,
       });
     },
     unlock: function () {
+      let old_locked = self.locked;
       self.drawCard();
-      if (!self.locked) return;
+      if (!old_locked) return;
       self.locked = false;
 
       self.tiles.forEach(tile => {
@@ -1039,7 +1124,7 @@ Tactics.Board = function ()
 
       self.emit({
         type:   'lock-change',
-        ovalue: true,
+        ovalue: old_locked,
         nvalue: false,
       });
     },

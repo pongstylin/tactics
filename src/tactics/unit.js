@@ -4,7 +4,6 @@
   const HALF_TILE_HEIGHT = 28;
 
   var turnOptions;
-  var turnsUnit;
   var hideTurnOptions;
 
   function prerenderTurnOptions() {
@@ -17,24 +16,23 @@
     };
 
     let selectTurnEvent = event => {
-      let target = event.target;
-      Tactics.sounds.select.play();
+      let target   = event.target;
+      let board    = Tactics.board;
+      let selected = board.selected;
 
+      Tactics.sounds.select.play();
       hideTurnOptions();
       event.currentTarget.filters = null;
 
-      let doIt = () => {
-        turnsUnit.turn(target.data.direction);
-        turnsUnit.turned = true;
+      board.lock();
+      selected.turn(target.data.direction).then(() => {
+        board.unlock();
+        board.setSelectMode('ready');
 
-        Tactics.board.setSelectMode('ready');
-        Tactics.render();
-      };
-
-      if (turnsUnit.focusing)
-        turnsUnit.animBreakFocus().play().then(doIt);
-      else
-        doIt();
+        // Normally, we should render after receiving an event.
+        // But the selected unit should handle that by pulsing.
+        //Tactics.render();
+      });
     };
     let focusTurnEvent = event => {
       Tactics.sounds.focus.play();
@@ -52,7 +50,7 @@
     };
 
     ['turn_tl.png','turn_tr.png','turn_bl.png','turn_br.png'].forEach((image, i) => {
-      let sprite = new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/'+image);
+      let sprite = new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/'+image);
       sprite.interactive = true;
       sprite.buttonMode  = true;
       sprite.click       = selectTurnEvent;
@@ -85,9 +83,9 @@
 
   function prerenderShocks() {
     shocks = [
-      new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png'),
-      new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png'),
-      new PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png')
+      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png'),
+      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png'),
+      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png')
     ];
 
     shocks[0].anchor = new PIXI.Point(0.5,0.5);
@@ -120,6 +118,8 @@
     var onDeploySelect = event => {
       board.lock();
       self.deploy(event.target).then(() => {
+        board.unlock();
+
         if (self.attacked) {
           if (self.blocking)
             board.setSelectMode('turn');
@@ -128,8 +128,6 @@
         }
         else
           board.setSelectMode('attack');
-
-        board.unlock();
       });
     };
     var onDeployFocus  = event => event.target.setAlpha(0.6);
@@ -182,18 +180,18 @@
       // May be set to an array of units being focused upon
       focusing:  false,
 
-      // May be set to an array of units focused upon me.
-      poisoned:  false,
-      paralyzed: false,
-      barriered: false,
+      // The number of units applying the status effect
+      poisoned:  0,
+      paralyzed: 0,
+      barriered: 0,
 
       getMoveTiles: function (start) {
-        var tiles = [];
-        var x,y;
-        var r = data.mRadius;
-        var cx, cy;
-        var tile;
-        var path;
+        let tiles = [];
+        let x,y;
+        let r = data.mRadius;
+        let cx, cy;
+        let tile;
+        let path;
 
         start = start || self.assignment;
         cx    = start.x;
@@ -215,9 +213,9 @@
         return tiles;
       },
       getAttackTiles: function (start) {
-        var tiles = [];
-        var radius = data.aRadius;
-        var tile;
+        let tiles = [];
+        let radius = data.aRadius;
+        let tile;
 
         start = start || self.assignment;
         let cx    = start.x;
@@ -241,6 +239,9 @@
         return tiles;
       },
       getTargetTiles(target) {
+        if (data.aLOS === true)
+          return self.getLOSTargetTiles(target);
+
         return [target];
       },
       getTargetUnits(target) {
@@ -251,29 +252,42 @@
           if (unit)
             target_units.push(unit);
         }
-        else
+        // This is an optimization, don't compute targeted tiles twice.
+        else if (self.targeted)
           target_units = self.targeted
+            .filter(tile => !!tile.assigned)
+            .map(tile => tile.assigned);
+        else
+          target_units = self.getTargetTiles(target)
             .filter(tile => !!tile.assigned)
             .map(tile => tile.assigned);
 
         return target_units;
       },
-      getLOSTargetUnit(target, source) {
+      getLOSTargetTiles(target, source) {
         source = source || self.assignment;
 
         // Get the absolute position of the line.
         let source_point = source.pixi.toGlobal(new PIXI.Point(44, 28));
         let target_point = target.pixi.toGlobal(new PIXI.Point(44, 28));
 
+        /* For testing LOS
+        let line = new PIXI.Graphics();
+        line.lineStyle(1, 0x00ff00);
+        line.moveTo(source_point.x, source_point.y);
+        line.lineTo(target_point.x, target_point.y);
+        Tactics.stage.addChild(line);
+        */
+
         let hit_area = new PIXI.Polygon([
-          43, 10, // top-left
-          46, 10, // top-right
-          72, 26, // right-top
-          72, 29, // right-bottom
-          46, 46, // bottom-right
-          43, 46, // bottom-left
-          16, 29, // left-bottom
-          16, 26, // left-top
+          43, 12, // top-left
+          46, 12, // top-right
+          70, 26, // right-top
+          70, 29, // right-bottom
+          46, 44, // bottom-right
+          43, 44, // bottom-left
+          18, 29, // left-bottom
+          18, 26, // left-top
           43, 10, // close
         ]);
 
@@ -286,10 +300,18 @@
           : (target.y - source.y) / Math.abs(target.y - source.y)
 
         // Trace a path from source to target, testing tiles along the way.
+        let target_tiles = [];
         for (let x = source.x; x !== target.x + oneX; x += oneX) {
           for (let y = source.y; y !== target.y + oneY; y += oneY) {
             let tile = board.getTile(x, y);
-            if (!tile || tile === source || !tile.assigned) continue;
+            if (!tile || tile === source) continue;
+ 
+            /* For testing LOS
+            let child = new PIXI.Graphics();
+            child.lineStyle(1, 0xff0000);
+            child.drawPolygon(hit_area.points);
+            tile.pixi.addChild(child);
+            */
 
             // Get the relative position of the line to the tile.
             let local_source_point = tile.pixi.toLocal(source_point);
@@ -303,16 +325,21 @@
             );
 
             if (intersects)
-              return tile.assigned;
+              target_tiles.push(tile);
           }
         }
 
-        return null;
+        return target_tiles;
+      },
+      getLOSTargetUnit(target, source) {
+        let target_tile = self.getLOSTargetTiles(target, source).find(t => !!t.assigned);
+
+        return target_tile ? target_tile.assigned : null;
       },
       calcAttack: function (target_unit, from, target) {
-        if (from === undefined)
+        if (!from)
           from = self.assignment;
-        if (target === undefined)
+        if (!target)
           target = target_unit.assignment;
 
         let power    = self.power + self.mPower;
@@ -335,7 +362,7 @@
           return calc;
         }
 
-        if (data.aType === 'melee' && target_unit.paralyzed === false) {
+        if (data.aType === 'melee' && !target_unit.paralyzed) {
           if (target_unit.directional === false) {
             calc.penalty = 100 - target_unit.blocking;
           }
@@ -395,13 +422,11 @@
             mBlocking: unit.mBlocking + calc.bonus,
           });
         });
-
-        return results;
       },
       // Obtain the maximum threat to the unit before he recovers.
       calcDefense: function (turns) {
-        var damages = [],damage = 0,threat;
-        var i,j,units,unit,cnt,turns;
+        let damages = [],damage = 0,threat;
+        let i,j,units,unit,cnt;
 
         if (!turns) turns = board.turns;
 
@@ -454,7 +479,7 @@
       // How many turns until I can attack?
       // -1 may be returned if no movement required (unless simple is set)
       calcThreatTurns: function (target, simple) {
-        var turns = Math.ceil((board.getDistance(self.assignment,target.assignment) - self.aRadius) / self.mRadius) - 1;
+        let turns = Math.ceil((board.getDistance(self.assignment,target.assignment) - self.aRadius) / self.mRadius) - 1;
 
         if (turns < 0 && (self.mRecovery || simple))
           return self.mRecovery;
@@ -462,9 +487,9 @@
         return turns+self.mRecovery;
       },
       calcThreats: function (target, limit) {
-        var threats = [];
-        var directions = ['N','S','E','W'];
-        var tile,calc,threat;
+        let threats = [];
+        let directions = ['N','S','E','W'];
+        let tile,calc,threat;
 
         //if (self.mRecovery > target.mRecovery) return;
         //if (self.mRecovery === target.mRecovery && board.turns.indexOf(self.team) > board.turns.indexOf(target.team)) return;
@@ -503,10 +528,10 @@
         return threats.sort((a,b) => b.threat - a.threat);
       },
       calcThreat: function (target,tile,turns) {
-        var calc = {};
-        var tdirection = target.direction;
-        var path,cnt,attack;
-        var directions = [
+        let calc = {};
+        let tdirection = target.direction;
+        let path,cnt,attack;
+        let directions = [
           board.getRotation(tdirection, 180),
           board.getRotation(tdirection, 90),
           board.getRotation(tdirection, 270),
@@ -582,17 +607,17 @@
         self.effects = effects;
         self.color = color === null ? 0xFFFFFF : Tactics.colors[color];
         self.assign(assignment);
-        self.direction = direction;
+        self.stand(self.directional === false ? 'S' : direction);
         self.origin = {
           tile:      assignment,
           direction: direction,
           focusing:  false,
         };
 
-        return self.drawFrame(data.stills[self.directional === false ? 'S' : direction]);
+        return self;
       },
       compileFrame: function (frame, data) {
-        var container = new PIXI.Container();
+        let container = new PIXI.Container();
         container.data = frame;
         if (!frame.length && !frame.c) return container;
 
@@ -631,7 +656,7 @@
             }
             else if ('id' in shape) {
               // Legacy
-              shape.image = 'http://www.taorankings.com/html5/units/'+type+'/image'+shape.id+'.png';
+              shape.image = 'https://legacy.taorankings.com/units/'+type+'/image'+shape.id+'.png';
               delete shape.id;
             }
             else {
@@ -670,7 +695,7 @@
           /*
            * Configure a sprite using shape data
            */
-          var sprite = PIXI.Sprite.fromImage(shape.image);
+          let sprite = PIXI.Sprite.fromImage(shape.image);
           sprite.data = shape;
           sprite.position = new PIXI.Point(shape.x + offset.x, shape.y + offset.y);
           sprite.alpha = 'am' in shape ? shape.am : 1;
@@ -721,11 +746,18 @@
       },
       drawFrame: function (index, context) {
         let frame = self.frames[index];
+        let focus;
 
-        if (self.frame) pixi.removeChild(self.frame);
+        if (self.frame) {
+          focus = self.hideFocus();
+          pixi.removeChild(self.frame);
+        }
         if (!frame)
           return;
+
         pixi.addChildAt(self.frame = frame, 0);
+        if (focus)
+          self.showFocus(focus.alpha);
 
         if (context)
           pixi.position = context.getCenter().clone();
@@ -760,17 +792,23 @@
 
         return self;
       },
-      drawTurn: function () {
-        self.drawFrame(data.turns[self.direction]);
+      drawTurn: function (direction) {
+        if (!direction) direction = self.direction;
+        if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
+
+        self.drawFrame(data.turns[direction]);
       },
-      drawStand: function () {
-        self.drawFrame(data.stills[self.direction]);
+      drawStand: function (direction) {
+        if (!direction) direction = self.direction;
+        if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
+
+        self.drawFrame(data.stills[direction]);
       },
       getSpritesByName: function (name) {
         return self.frame.children.filter(s => s.data && s.data.name === name);
       },
       offsetFrame: function (offset, direction) {
-        var frame = self.frame;
+        let frame = self.frame;
         offset = {
           x: Math.round(88 * offset),
           y: Math.round(56 * offset)
@@ -812,6 +850,9 @@
         return self;
       },
       highlightAttack: function () {
+        if (!self.viewed && data.aAll)
+          return self.onAttackSelect({target:self.assignment});
+
         self.getAttackTiles().forEach(tile => {
           board.setHighlight({
             action: 'attack',
@@ -845,7 +886,6 @@
       showTurnOptions: function () {
         if (self.viewed) return self.showDirection();
 
-        turnsUnit = self;
         turnOptions.position = self.assignment.getCenter().clone();
         turnOptions.position.x -= 43;
         turnOptions.position.y -= 70;
@@ -876,37 +916,49 @@
         return self;
       },
       assign: function (assignment) {
-        if (self.assignment) self.assignment.dismiss();
-        self.assignment = assignment.assign(self);
+        if (self.assignment && self.assignment.assigned === self) self.assignment.dismiss();
+        self.assignment = assignment;
 
-        pixi.position = assignment.getCenter().clone();
+        if (assignment) {
+          assignment.assign(self);
+          pixi.position = assignment.getCenter().clone();
+        }
 
         return self;
       },
+      /*
+       * Specify the relative direction using "degrees" of rotation, e.g. 90.
+       * - OR -
+       * Specify the absolute direction, e.g. 'N'.
+       */
+      stand: function (direction) {
+        if (self.directional === false)
+          direction = 'S';
+        else {
+          if (!direction) direction = self.direction;
+          if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
+        }
+
+        self.drawStand(direction);
+        self.direction = direction;
+      },
       // Animate from one tile to the next
       deploy: function (assignment) {
-        let anim = new Tactics.Animation();
-
-        if (self.focusing)
-          anim.splice(self.animBreakFocus());
-
-        anim.splice(self.animDeploy(assignment));
-
         self.freeze();
-        self.assignment.dismiss();
-
-        return anim.play().then(() => {
-          self.deployed = {first:!self.attacked};
-          self.thaw();
-        });
+        return self.playBreakFocus()
+          .then(() => self.animDeploy(assignment).play())
+          .then(() => self.deployed = {first:!self.attacked})
+          .then(() => self.thaw());
       },
       attack: function (target) {
-        let results = self.calcAttackResults(target);
+        let results;
 
         self.freeze();
-        return self.playAttack(target, results)
+        return self.playBreakFocus()
+          .then(() => results = self.calcAttackResults(target))
+          .then(() => self.playAttack(target, results))
           .then(() => board.playResults(results))
-          .then(() => {
+          .then(mode => {
             self.attacked = true;
             self.origin.adirection = self.direction;
 
@@ -928,9 +980,25 @@
           })
           .then(() => self.thaw());
       },
+      turn: function (direction) {
+        if (self.directional === false) return self;
+        if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
+
+        self.freeze();
+        return self.playBreakFocus()
+          .then(() => self.animTurn(direction).play())
+          .then(() => {
+            self.direction = direction;
+            self.turned    = true;
+          })
+          .then(() => self.thaw());
+      },
+      playBreakFocus: function () {
+        return Promise.resolve();
+      },
       shock: function (direction, frameId, block) {
-        var anchor = self.assignment.getCenter();
-        var frame;
+        let anchor = self.assignment.getCenter();
+        let frame;
 
         if (shock) {
           Tactics.stage.children[1].removeChild(shock);
@@ -982,9 +1050,9 @@
         return self;
       },
       brightness: function (intensity, whiteness) {
-        var name = 'brightness';
-        var filter;
-        var matrix;
+        let name = 'brightness';
+        let filter;
+        let matrix;
 
         if (intensity === 1 && !whiteness) {
           setFilter(name, undefined);
@@ -1004,8 +1072,8 @@
         return self;
       },
       whiten: function (intensity) {
-        var name = 'whiten';
-        var matrix;
+        let name = 'whiten';
+        let matrix;
 
         if (!intensity) {
           setFilter(name, undefined);
@@ -1023,8 +1091,8 @@
        *   self.colorize(0xFF0000, 0.5);
        */
       colorize: function (color, lightness) {
-        var name = 'colorize';
-        var matrix;
+        let name = 'colorize';
+        let matrix;
 
         if (typeof color === 'number')
           color = [
@@ -1053,17 +1121,17 @@
         // Modified to avoid tiles with enemy units.
         // Modified to favor a path with no friendly units.
         // Modified to pick a preferred direction, all things being equal.
-        var start;
-        var goal;
-        var path     = [];
-        var opened   = [];
-        var closed   = [];
-        var cameFrom = {};
-        var gScore   = {};
-        var fScore   = {};
-        var current;
-        var directions = ['N','S','E','W'],direction;
-        var i,neighbor,score;
+        let start;
+        let goal;
+        let path     = [];
+        let opened   = [];
+        let closed   = [];
+        let cameFrom = {};
+        let gScore   = {};
+        let fScore   = {};
+        let current;
+        let directions = ['N','S','E','W'],direction;
+        let i,neighbor,score;
 
         if (arguments.length == 1) {
           start = self.assignment;
@@ -1123,17 +1191,6 @@
 
         return;
       },
-      turn: function (direction) {
-        if (self.directional === false) return self;
-
-        if (!isNaN(direction)) direction = board.getRotation(self.direction,direction);
-        self.direction = direction;
-        self.turned = true;
-
-        self.drawFrame(data.stills[direction]);
-
-        return self;
-      },
       focus: function (viewed) {
         if (self.focused) return;
         self.focused = true;
@@ -1158,7 +1215,7 @@
         return pulse && !self.activated ? stopPulse() : self;
       },
       showMode: function () {
-        var mode = self.activated;
+        let mode = self.activated;
         if (mode === true || mode === 'ready')
           return;
 
@@ -1207,7 +1264,7 @@
        * when selecting an enemy unit to view its movement or attack range.
        */
       activate: function (mode, view) {
-        var origin = self.origin;
+        let origin = self.origin;
 
         mode = mode || self.activated || true;
         self.viewed = view;
@@ -1226,6 +1283,7 @@
 
         self.hideMode();
 
+        self.target = null;
         self.activated = self.deployed = self.targeted = self.attacked = self.turned = false;
         self.origin = {
           tile:      self.assignment,
@@ -1246,16 +1304,16 @@
        * by a falsey 'mode' (an intent to no longer have an activated mode).
        */
       reset: function (mode) {
-        var origin = self.origin;
+        let origin = self.origin;
 
         if (self.attacked) {
           if (self.deployed && !self.deployed.first)
-            self.assign(origin.tile).turn(origin.adirection);
+            self.assign(origin.tile).stand(origin.adirection);
           else
-            self.turn(origin.adirection);
+            self.stand(origin.adirection);
         }
         else
-          self.assign(origin.tile).turn(origin.direction);
+          self.assign(origin.tile).stand(origin.direction);
 
         if (!mode)
           self.deactivate();
@@ -1265,14 +1323,17 @@
         return self;
       },
       change: function (changes) {
+        if (typeof changes.paralyzed === 'boolean')
+          changes.paralyzed = self.paralyzed + (changes.paralyzed ? 1 : -1);
+
         Object.assign(self, changes);
 
-        self.emit({type: 'change', changes: changes});
+        self.emit({type:'change', changes:changes});
 
         return self;
       },
       showFocus: function (alpha) {
-        let focus  = self.getSpritesByName('focus')[0];
+        let focus = self.getSpritesByName('focus')[0];
 
         if (!focus) {
           focus = self.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
@@ -1286,6 +1347,13 @@
           focus.alpha = alpha || 1;
 
         return self;
+      },
+      hideFocus: function () {
+        let focus = self.getSpritesByName('focus')[0];
+        if (focus)
+          self.frame.removeChild(focus);
+
+        return focus;
       },
       animFocus: function () {
         let anim   = new Tactics.Animation();
@@ -1321,8 +1389,8 @@
         return anim;
       },
       animPulse: function (steps, speed) {
-        var step = steps;
-        var stride = 0.1 * (speed || 1);
+        let step = steps;
+        let stride = 0.1 * (speed || 1);
 
         return new Tactics.Animation({
           loop:   true,
@@ -1345,32 +1413,36 @@
         return self.animWalk(assignment);
       },
       /*
-       * Units turn in the direction they are headed before they go there.
+       * Units turn in the direction they are headed before they move there.
        * This method returns an animation that does just that, if needed.
        */
       animTurn: function (direction) {
         let anim = new Tactics.Animation();
 
-        if (direction === self.direction) return;
-        if (direction === board.getRotation(self.direction, 180))
-          anim.addFrame(() => self.drawFrame(data.turns[board.getRotation(self.direction, 90)]));
+        // Do nothing if already facing the desired direction
+        if (direction === self.direction) return anim;
 
-        anim.addFrame(() => {
-          self.drawFrame(data.stills[direction]);
-          self.direction = direction;
-        });
+        // If turning to the opposite direction, first turn right.
+        if (direction === board.getRotation(self.direction, 180))
+          anim.addFrame(() => self.drawTurn(90));
+
+        // Now stand facing the desired direction.
+        anim.addFrame(() => self.stand(direction));
 
         return anim;
       },
       animWalk: function (assignment) {
-        let anim = new Tactics.Animation();
-        let path = self.findPath(assignment);
+        let anim        = new Tactics.Animation();
+        let path        = self.findPath(assignment);
+        let frame_index = 0;
+
+        anim.addFrame(() => self.assignment.dismiss());
 
         // Turn frames are not typically required while walking unless the very
         // next tile is in the opposite direction of where the unit is facing.
-        let odirection = board.getRotation(self.direction, 180)
-        if (board.getDirection(self.assignment, path[0]) === odirection)
-          anim.addFrame(() => self.drawFrame(data.turns[board.getRotation(self.direction, 90)]));
+        let direction = board.getDirection(self.assignment, path[0]);
+        if (direction === board.getRotation(self.direction, 180))
+          anim.splice(frame_index++, () => self.drawTurn(90));
 
         // Keep track of what direction units face as they step out of the way.
         let step_directions = [];
@@ -1383,27 +1455,16 @@
           let walks     = data.walks[direction];
 
           // Walk to the next tile
-          let start_walk_index = anim.frames.length;
-
           let indexes = [];
           for (let index = data.walks[direction][0]; index <= data.walks[direction][1]; index++) {
             indexes.push(index);
           }
-          indexes.forEach(index => anim.addFrame(() => self.drawFrame(index, from_tile)));
+          indexes.forEach(index =>
+            anim.splice(frame_index++, () => self.drawFrame(index, from_tile))
+          );
 
           // Do not step softly into that good night.
-          anim.splice([start_walk_index, start_walk_index+4], () => {
-            sounds.step.play();
-          });
-
-          // If this is our final destination, stand ready
-          if (to_tile === assignment)
-            anim.addFrame(() => self.assign(assignment).turn(direction));
-
-          // Make any units behind us step back into position.
-          let from_unit;
-          if ((from_unit = from_tile.assigned) && from_unit !== self)
-            anim.splice(start_walk_index+3, from_unit.animStepForward(step_directions.pop()));
+          anim.splice([-8, -4], () => sounds.step.play());
 
           // Make any units before us step out of the way.
           let to_unit;
@@ -1415,13 +1476,22 @@
             // Find the first available direction in preference order.
             let to_direction = [
               to_unit.direction,
-              board.getRotation(to_unit.direction, 90),
-              board.getRotation(to_unit.direction, 270),
+              board.getRotation(to_unit.direction,  90),
+              board.getRotation(to_unit.direction, -90),
             ].find(direction => bad_directions.indexOf(direction) === -1);
 
             step_directions.push(to_direction);
-            anim.splice(start_walk_index, to_unit.animStepBack(to_direction));
+            anim.splice(-8, to_unit.animStepBack(to_direction));
           }
+
+          // Make any units behind us step back into position.
+          let from_unit;
+          if ((from_unit = from_tile.assigned) && from_unit !== self)
+            anim.splice(-5, from_unit.animStepForward(step_directions.pop()));
+
+          // If this is our final destination, stand ready
+          if (to_tile === assignment)
+            anim.addFrame(() => self.assign(assignment).stand(direction));
         });
 
         return anim;
@@ -1449,7 +1519,7 @@
         }
         indexes.forEach(index => anim.addFrame(() => self.drawFrame(index)));
 
-        anim.addFrame(() => self.drawFrame(data.stills[self.direction]));
+        anim.addFrame(() => self.drawStand());
 
         // One final stomp for science
         anim.splice(0, () => sounds.step.play());
@@ -1466,17 +1536,17 @@
         }
         indexes.forEach(index => anim.addFrame(() => self.drawFrame(index)));
 
+        anim.addFrame(() => self.stand(direction));
+
         return anim;
       },
       animBlock: function (attacker) {
         let anim = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
-        if (self.directional === false)
-          anim.addFrame(() => {});
-        else
-          anim.addFrame(() => self.origin.direction = self.direction = direction);
         anim.addFrame(() => sounds.block.play());
+        if (self.directional !== false)
+          anim.splice(0, () => self.origin.direction = self.direction = direction);
 
         if (data.blocks) {
           let indexes = [];
@@ -1484,10 +1554,25 @@
             indexes.push(index);
           }
           indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
+
+          // Kinda hacky.  It seems that shocks should be rendered by the attacker, not defender.
+          if (attacker.type === 2)
+            anim.splice(1, [
+              () => self.shock(direction, 1, true),
+              () => self.shock(direction, 2, true),
+              () => self.shock(),
+            ]);
+          else
+            anim.splice(1, [
+              () => self.shock(direction, 0, true),
+              () => self.shock(direction, 1, true),
+              () => self.shock(direction, 2, true),
+              () => self.shock(),
+            ]);
         }
 
         if (self.directional !== false)
-          anim.addFrame(() => self.drawFrame(data.stills[direction]));
+          anim.addFrame(() => self.stand(direction));
 
         return anim;
       },
@@ -1601,14 +1686,14 @@
               .drawFrame(data.turns[self.direction])
               .offsetFrame(-0.02, direction),
           () =>
-            self.drawFrame(data.stills[self.direction]),
+            self.drawStand(),
         ]);
 
         return anim;
       },
       animDeath: function () {
-        var container = new PIXI.Container();
-        var anim = Tactics.Animation.fromData(container, Tactics.animations.death);
+        let container = new PIXI.Container();
+        let anim = Tactics.Animation.fromData(container, Tactics.animations.death);
 
         container.position = new PIXI.Point(1,-2);
 
@@ -1637,19 +1722,19 @@
         return anim;
       },
       animLightning: function (target) {
-        var anim      = new Tactics.Animation();
-        var pos       = target.getCenter();
-        var tunit     = target.assigned;
-        var whiten    = [0.30,0.60,0.90,0.60,0.30,0];
-        var container = new PIXI.Container();
-        var strike;
-        var strikes = [
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-1.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-2.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-3.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-1.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-2.png'),
-          PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/lightning-3.png')
+        let anim      = new Tactics.Animation();
+        let pos       = target.getCenter();
+        let tunit     = target.assigned;
+        let whiten    = [0.30,0.60,0.90,0.60,0.30,0];
+        let container = new PIXI.Container();
+        let strike;
+        let strikes = [
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-1.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-2.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-3.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-1.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-2.png'),
+          PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-3.png')
         ];
 
         container.position = new PIXI.Point(pos.x,pos.y+1);
@@ -1694,7 +1779,7 @@
         return anim;
       },
       animHeal: function (target_units) {
-        var anim = new Tactics.Animation();
+        let anim = new Tactics.Animation();
 
         if (!Array.isArray(target_units)) target_units = [target_units];
 
@@ -1732,12 +1817,12 @@
         return anim;
       },
       animSparkle: function (parent, pos) {
-        var filter    = new PIXI.filters.ColorMatrixFilter();
-        var matrix    = filter.matrix;
-        var shock     = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/shock.png');
-        var size      = {w:shock.width,h:shock.height};
-        var particle  = PIXI.Sprite.fromImage('http://www.taorankings.com/html5/images/particle.png');
-        var container = new PIXI.Container();
+        let filter    = new PIXI.filters.ColorMatrixFilter();
+        let matrix    = filter.matrix;
+        let shock     = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png');
+        let size      = {w:shock.width,h:shock.height};
+        let particle  = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/particle.png');
+        let container = new PIXI.Container();
         container.position = new PIXI.Point(pos.x,pos.y+2);
 
         shock.filters = [filter];
@@ -1811,19 +1896,35 @@
       onAttackSelect: function (event) {
         let target = event.target;
 
-        board.clearHighlight();
+        if (!data.aAll) {
+          board.clearHighlight();
 
-        // This makes it possible to click the attack button to switch from target
-        // mode to attack mode.
-        self.activated = 'target';
+          // This makes it possible to click the attack button to switch from target
+          // mode to attack mode.
+          self.activated = 'target';
+        }
 
+        self.target = target;
         self.targeted = self.getTargetTiles(target);
         self.targeted.forEach(tile => self.highlightTarget(tile));
+
+        // This is a bandaid for touch devices where unit.focus is harder to use.
+        let target_units = self.getTargetUnits(target);
+        if (target_units.length === 1 && (!target.assigned || !target.focused)) {
+          self.onAttackFocus({target:target_units[0].assignment});
+          board.drawCard(target_units[0]);
+        }
       },
       onTargetSelect: function (event) {
         board.lock();
         return self.attack(event.target).then(results => {
-          if (self.deployed) {
+          board.unlock();
+
+          if (self.mHealth === -self.health)
+            board.endTurn();
+          else if (self.type === 8)
+            board.setSelectMode('ready');
+          else if (self.deployed) {
             if (self.blocking)
               board.setSelectMode('turn');
             else
@@ -1831,8 +1932,6 @@
           }
           else
             board.setSelectMode('move');
-
-          board.unlock();
         });
       },
       onTargetFocus: function (event) {
@@ -1852,11 +1951,11 @@
               self.origin.adirection = self.direction;
               self.thaw();
 
+              board.unlock();
               if (self.canMove())
                 board.setSelectMode('move');
               else
                 board.setSelectMode('turn');
-              board.unlock();
             }
             else {
               board.unlock();
@@ -1865,13 +1964,21 @@
           });
       },
       onAttackFocus: function (event) {
-        var tile = event.target;
-        var unit;
+        let tile = event.target;
+        let unit;
 
         if (unit = tile.assigned) {
-          let calc = self.calcAttack(unit);
+          let calc = self.calcAttack(unit, null, self.target);
 
-          if (calc.damage === 0)
+          if (calc.effect === 'paralyze')
+            unit.change({
+              notice: 'Paralyze!',
+            });
+          else if (calc.effect === 'poison')
+            unit.change({
+              notice: 'Poison!',
+            });
+          else if (calc.damage === 0)
             unit.change({
               notice: calc.damage+' ('+Math.round(calc.chance)+'%)'
             });
@@ -1884,12 +1991,22 @@
               notice: '-'+calc.damage+' ('+Math.round(calc.chance)+'%)'
             });
         }
-
-        tile.setAlpha(0.6);
+        else
+          // Setting alpha is only required for unassigned tiles.
+          // unit.focus() handles setting alpha for assigned tiles.
+          tile.setAlpha(0.6);
       },
       onAttackBlur: function (event) {
+        // Ignore assigned targets since the unit.blur will reduce alpha
         if (!event.target.assigned)
           event.target.setAlpha(0.3);
+      },
+      canSelect: function () {
+        let selected = board.selected;
+        if (selected && selected.attacked && selected !== self)
+          return false;
+
+        return self.team === board.turns[0] && !self.mRecovery && !self.paralyzed;
       },
       canMove: function () {
         return !!self.getMoveTiles().length
@@ -1909,7 +2026,7 @@
         return false;
       },
       isPassable: function () {
-        return self.focusing === false && self.paralyzed === false && self.mPass !== false;
+        return self.focusing === false && !self.paralyzed && self.mPass !== false;
       },
       /*
        * Animate the unit getting ready to launch their special attack.
@@ -1939,7 +2056,7 @@
      * If the filter name already exists, it just returns it.
      */
     function setFilter(name, type) {
-      var filters = self.filters;
+      let filters = self.filters;
 
       if (type) {
         if (!(name in filters)) {
@@ -1989,14 +2106,14 @@
     }
 
     function animText(text, style, options) {
-      var anim = new Tactics.Animation();
-      var container = new PIXI.Container();
-      var w = 0;
+      let anim = new Tactics.Animation();
+      let container = new PIXI.Container();
+      let w = 0;
 
       options = options || {};
 
       text.split('').forEach((v, i) => {
-        var letter = new PIXI.Text(v, style);
+        let letter = new PIXI.Text(v, style);
         letter.position.x = w;
         w += letter.width;
 

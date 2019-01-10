@@ -1,9 +1,9 @@
-Tactics = (function ()
-{
+Tactics = (function () {
+  'use strict';
+
   var self = {};
-  var vw,vh,bw,bh;
-  var renderer;
   var stage;
+  var renderer;
   var rendering = false;
   var render = () => {
     self.emit({type:'render'});
@@ -25,145 +25,41 @@ Tactics = (function ()
     utils:{},
     animators: {},
 
-    init:function ($viewport) {
+    init: function (container) {
       // We don't need an infinite loop, thanks.
       PIXI.ticker.shared.autoStart = false;
 
-      var $canvas;
-      renderer = PIXI.autoDetectRenderer(bw = self.width,bh = self.height);
-      self.$viewport = $viewport;
       stage = self.stage = new PIXI.Container();
 
-      $canvas = self.$canvas = $(renderer.view).attr('id','board').appendTo('#field');
+      renderer = PIXI.autoDetectRenderer(self.width, self.height);
 
-      self.renderer = renderer instanceof PIXI.CanvasRenderer ? 'canvas' : 'webgl';
+      // Let's not go crazy with the move events.
+      renderer.plugins.interaction.moveWhenInside = true;
+
+      let canvas = self.canvas = renderer.view;
+      canvas.id = 'board';
+      container.appendChild(canvas);
+
       self.board = new Tactics.Board();
-
-      $canvas
-        // TODO:
-        //   1) Why does zooming out go slower than zooming in (unless it is a
-        //   continuous zoom in-out)
-        //   2) Consider transforming the canvas content instead of the canvas.
-        .on('touchy-pinch',function (event,$target,data)
-        {
-          var otransform = $target.data('transform');
-          var transform = $.extend({},otransform);
-          var minScale = 1;
-          var maxScale = 1 / (vw / bw);
-          var offset = $('#field').offset();
-
-          transform.sx  = data.startPoint.x - offset.left;
-          transform.sy  = data.startPoint.y - offset.top;
-          transform.cx  = data.currentPoint.x - offset.left;
-          transform.cy  = data.currentPoint.y - offset.top;
-
-          // Adjust scale, origin, and translation
-          transform.s  += data.scale - data.previousScale;
-          transform.s   = Math.max(minScale,Math.min(transform.s,maxScale));
-          transform.ox += transform.cx/otransform.s - transform.cx/transform.s;
-          transform.oy += transform.cy/otransform.s - transform.cy/transform.s;
-          transform.tx += otransform.ox - transform.ox;
-          transform.ty += otransform.oy - transform.oy;
-
-          // Adjust position
-          if (otransform.cx != transform.cx)
-          {
-            // Save position if user has lifted fingers and placed them someplace else.
-            if (otransform.sx != transform.sx)
-              transform.tx += transform.px;
-
-            transform.px = (transform.cx - transform.sx) / otransform.s;
-          }
-          if (otransform.cy != transform.cy)
-          {
-            // Save position if user has lifted fingers and placed them someplace else.
-            if (otransform.sy != transform.sy)
-              transform.ty += transform.py;
-
-            transform.py = (transform.cy - transform.sy) / otransform.s;
-          }
-
-          // It might be better to snap to the edge upon pinch release.  But how to detect?
-          var minX = (vw / transform.s) - vw;
-          var maxX = 0;
-          var minY = (vh / transform.s) - vh;
-          var maxY = 0;
-
-          if (transform.tx+transform.px > maxX)
-            transform.tx = maxX - transform.px;
-          if (transform.tx+transform.px < minX)
-            transform.tx = minX - transform.px;
-          if (transform.ty+transform.py > maxY)
-            transform.ty = maxY - transform.py;
-          if (transform.ty+transform.py < minY)
-            transform.ty = minY - transform.py;
-
-          $target
-            .data('transform',transform)
-            .css
-            ({
-              transform:'scale('+transform.s+') translate('+(transform.tx+transform.px)+'px,'+(transform.ty+transform.py)+'px)',
-              transformOrigin:'0 0'
-            });
-        })
-        .on('touchy-drag',function (event,phase,$target,data)
-        {
-          if (phase != 'move') return;
-
-          var transform = $target.data('transform');
-          var minX = (vw / transform.s) - vw;
-          var maxX = 0;
-          var minY = (vh / transform.s) - vh;
-          var maxY = 0;
-
-          transform.tx += (data.movePoint.x - data.lastMovePoint.x) / transform.s;
-          transform.ty += (data.movePoint.y - data.lastMovePoint.y) / transform.s;
-
-          if (transform.tx+transform.px > maxX)
-            transform.tx = maxX - transform.px;
-          if (transform.tx+transform.px < minX)
-            transform.tx = minX - transform.px;
-          if (transform.ty+transform.py > maxY)
-            transform.ty = maxY - transform.py;
-          if (transform.ty+transform.py < minY)
-            transform.ty = minY - transform.py;
-
-          $target
-            .data('transform',transform)
-            .css
-            ({
-              transform:'scale('+transform.s+') translate('+(transform.tx+transform.px)+'px,'+(transform.ty+transform.py)+'px)',
-              transformOrigin:'0 0'
-            });
-        });
+      self.panzoom = panzoom({
+        target: canvas,
+        locked: true,
+      });
     },
-    resize:function (width,height)
-    {
-      vw = width;
-      vh = height;
+    /*
+     * Allow touch devices to upscale to normal size.
+     */
+    resize: function () {
+      let width = self.canvas.clientWidth;
+      let height = self.canvas.clientHeight;
+      let elementScale = Math.min(1, width / self.width, height / self.height);
 
-      // shrink the view dimensions to maximum bounds.
-      if (vw > bw) vw = bw;
-      if (vh > bh) vh = bh;
-
-      // shrink a dimension to maintain proportion.
-      if (vw / bw > vh / bh)
-      {
-        vw = bw * (vh / bh);
-      }
-      else
-      {
-        vh = bh * (vw / bw);
-      }
-
-      self.$canvas
-        .data('transform',{sx:0,sy:0,cx:0,cy:0,s:1,tx:0,ty:0,ox:0,oy:0,px:0,py:0})
-        .css({width:vw,height:vh,transform:'',transformOrigin:''});
+      self.panzoom.maxScale = 1 / elementScale;
+      self.panzoom.reset();
 
       return self;
     },
-    draw:function (data)
-    {
+    draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};
       var elements = {};
       var context = data.context;
@@ -304,7 +200,7 @@ Tactics = (function ()
     },
     effects: {
       focus: {
-        frames_url: 'http://www.taorankings.com/html5/json/focus.json',
+        frames_url: 'https://tactics.taorankings.com/json/focus.json',
         frames_offset: {y:-16},
       },
     },
@@ -350,7 +246,7 @@ Tactics = (function ()
     [
       {
         name:'Knight',
-        ability:'Melee Attack',
+        ability:'Sword & Shield',
         power:22,
         armor:25,
         health:50,
@@ -495,26 +391,26 @@ Tactics = (function ()
         }
       },
       {
-        name:       'Pyromancer',
-        ability:    'Fire Blast',
-        power:      15,
-        armor:      0,
-        health:     30,
-        recovery:   3,
-        blocking:   33,
-        aType:      'magic',
-        aRadius:    3,
-        mRadius:    3,
-        sounds:     {
+        name:     'Pyromancer',
+        ability:  'Fire Blast',
+        power:    15,
+        armor:    0,
+        health:   30,
+        recovery: 3,
+        blocking: 33,
+        aType:    'magic',
+        aRadius:  3,
+        mRadius:  3,
+        sounds:   {
           attack: 'sound431',
         },
         effects: {
           fireblast: {
-            frames_url:    'http://www.taorankings.com/html5/json/explode.json',
+            frames_url:    'https://tactics.taorankings.com/json/explode.json',
             frames_offset: {y:-20},
           },
         },
-        frames_url: 'http://www.taorankings.com/html5/json/pyromancer.json',
+        frames_url: 'https://tactics.taorankings.com/json/pyromancer.json',
         stills: {
           S: 1,
           W: 36,
@@ -560,7 +456,7 @@ Tactics = (function ()
       },
       {
         name:     'Scout',
-        ability:  'Long Range',
+        ability:  'Long Shot',
         power:    18,
         armor:    8,
         health:   40,
@@ -573,7 +469,7 @@ Tactics = (function ()
         sounds:   {
           attack: 'sound812',
         },
-        frames_url: 'http://www.taorankings.com/html5/json/scout.json',
+        frames_url: 'https://tactics.taorankings.com/json/scout.json',
         frames_offset: {y:5},
         stills: {
           S: 0,
@@ -620,7 +516,7 @@ Tactics = (function ()
       },
       {
         name:    'Cleric',
-        ability: 'Heal All',
+        ability: 'Holy Mass',
         power:    12,
         armor:    0,
         health:   24,
@@ -628,11 +524,12 @@ Tactics = (function ()
         blocking: 0,
         mRadius:  3,
         aRadius:  'all',
+        aAll:     true,
         aType:    'magic',
         sounds:   {
           heal: 'sound1203',
         },
-        frames_url: 'http://www.taorankings.com/html5/json/cleric.json',
+        frames_url: 'https://tactics.taorankings.com/json/cleric.json',
         stills: {
           S: 1,
           W: 45,
@@ -714,12 +611,12 @@ Tactics = (function ()
           N: 0,
           E: 0,
         },                            
-        frames_url: 'http://www.taorankings.com/html5/json/lightning_ward.json',
+        frames_url: 'https://tactics.taorankings.com/json/lightning_ward.json',
         frames_offset: {x:5,y:-5},        
       },
       {
         name:     'Dark Magic Witch',
-        ability:  'Dark Magic',
+        ability:  'Black Spikes',
         power:    24,
         armor:    0,
         health:   28,
@@ -732,16 +629,23 @@ Tactics = (function ()
         sounds:   {
           attack1: 'sound431',
           attack2: 'sound1602',
-          block1: 'sound431',
+          block1: {
+            file: 'sound431',
+            volume: 2,
+            rate: 0.5,
+            sprite: {
+              block: [1400, 600],
+            },
+          },
           block2: 'sound11',
         },
         effects:  {
           black_spike: {
-            frames_url:    'http://www.taorankings.com/html5/json/black_spike.json',
+            frames_url:    'https://tactics.taorankings.com/json/black_spike.json',
             frames_offset: {y:-16},
           },
         },
-        frames_url: 'http://www.taorankings.com/html5/json/witch.json',
+        frames_url: 'https://tactics.taorankings.com/json/witch.json',
         stills: {
           S: 1,
           W: 38,
@@ -786,31 +690,38 @@ Tactics = (function ()
         },
       },
       {
-        name:     'Assassin',
-        ability:  'Melee Attack',
-        power:    18,
-        armor:    12,
-        health:   35,
-        recovery: 1,
-        blocking: 70,
-        aType:    'melee',
-        aRadius:  1,
-        mRadius:  4,
-        sounds:   {
+        name:      'Assassin',
+        ability:   'Multi-Strike',
+        specialty: 'Deathblow',
+        power:     18,
+        armor:     12,
+        health:    35,
+        recovery:  1,
+        blocking:  70,
+        aType:     'melee',
+        aRadius:   1,
+        aAll:      true,
+        mRadius:   4,
+        sounds:    {
           attack1: 'sound809',
           attack2: 'sound809',
-          //block:   'sound12',
-          block:   'sound2021',
           bomb1:   'sound1368',
           bomb2:   'sound1370',
+          block:   {
+            file: 'sound8',
+            volume: 0.50,
+            sprite: {
+              block:[0,400],
+            },
+          },
         },
         effects: {
           explode: {
-            frames_url:    'http://www.taorankings.com/html5/json/explode.json',
+            frames_url:    'https://tactics.taorankings.com/json/explode.json',
             frames_offset: {y:-20},
           },
         },
-        frames_url:    'http://www.taorankings.com/html5/json/assassin.json',
+        frames_url:    'https://tactics.taorankings.com/json/assassin.json',
         frames_offset: {y:-4},
         stills: {
           S: 1,
@@ -863,7 +774,7 @@ Tactics = (function ()
       },
       {
         name:     'Enchantress',
-        ability:  'Paralysis',
+        ability:  'Paralytic Field',
         power:    0,
         armor:    0,
         health:   35,
@@ -871,17 +782,18 @@ Tactics = (function ()
         blocking: 0,
         aType:    'magic',
         aRadius:  2,
+        aAll:     true,
         mRadius:  3,
         sounds:   {
           paralyze: 'sound2393',
         },
         effects: {
           streaks: {
-            frames_url:    'http://www.taorankings.com/html5/json/streaks.json',
+            frames_url:    'https://tactics.taorankings.com/json/streaks.json',
             frames_offset: {y:-26},
           },
         },
-        frames_url: 'http://www.taorankings.com/html5/json/enchantress.json',
+        frames_url: 'https://tactics.taorankings.com/json/enchantress.json',
         stills: {
           S: 0,
           W: 36,
@@ -1149,8 +1061,8 @@ Tactics = (function ()
             }
           },
           phase: {
-            file:'sound4',
-            rate:0.5
+            file: 'sound4',
+            rate: 0.5,
           },
           roar: {
             file:'chaos',
@@ -1177,7 +1089,7 @@ Tactics = (function ()
       {name:'Shrub'},
       {
         name:          'Champion',
-        frames_url:    'http://www.taorankings.com/html5/json/trophy.json',
+        frames_url:    'https://tactics.taorankings.com/json/trophy.json',
         frames_offset: {y:-20},
         stills:        {S:0, N:1},
       },
@@ -1185,7 +1097,7 @@ Tactics = (function ()
       {name:'Berserker'},
       {
         name:'Chaos Dragon',
-        ability:'Lightning',
+        ability:'Static Charge',
         specialty:'Regenerate',
         power:28,
         armor:30,

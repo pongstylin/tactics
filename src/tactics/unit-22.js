@@ -18,11 +18,29 @@
       title:  'Awakened!',
       banned: [],
 
+      calcAttackResults: function (target) {
+        if (target === self.assignment)
+          return [{
+            unit:    self,
+            mHealth: Math.min(0, self.mHealth + self.power),
+          }];
+        else if (target.assigned) {
+          let unit = target.assigned;
+          let calc = self.calcAttack(unit);
+
+          return [{
+            unit:    unit,
+            mHealth: Math.max(unit.mHealth - calc.damage, -unit.health),
+          }];
+        }
+        else
+          return [];
+      },
       playAttack: function (target, results) {
-        let anim      = new Tactics.Animation({fps: 10});
+        let anim      = new Tactics.Animation({fps:10});
         let direction = board.getDirection(self.assignment, target);
 
-        if (target === self.assigned)
+        if (target === self.assignment)
           return self.special();
 
         // Make sure we strike the actual target (LOS can change it).
@@ -56,16 +74,20 @@
       phase: function (action) {
         let banned   = action ? action.results[0].banned : self.banned;
         let color_id = null;
-        let teams    = board.getWinningTeams().reverse()
-          .filter((team, t) => banned.indexOf(t) === -1);
-        let choices  = teams.filter(team => {
-          if (team.units.length === 0) return false;
+        let teams    = board.getWinningTeams().reverse().filter((team, t) =>
+          banned.indexOf(t) === -1 && t !== self.team
+        );
 
-          return team.score === teams[0].score;
-        });
+        if (teams.length > 1) {
+          let choices  = teams.filter(team => {
+            if (team.units.length === 0) return false;
 
-        if (choices.length)
-          color_id = choices.random().color;
+            return team.score === teams[0].score;
+          });
+
+          if (choices.length)
+            color_id = choices.random().color;
+        }
 
         if (color_id === board.teams[self.team].color)
           return Promise.resolve();
@@ -79,7 +101,8 @@
         return new Tactics.Animation({frames: [
           () => {
             sounds.phase.play();
-            board.teams[self.team].color = self.color = color_id;
+            board.teams[self.team].color = color_id;
+            self.color = new_color;
           },
           {
             script: frame => {
@@ -91,19 +114,20 @@
         ]});
       },
       animDeploy: function (assignment) {
-        var anim = new Tactics.Animation({fps:10});
-        var origin = self.assignment;
-        var direction = board.getDirection(origin,assignment, 1);
-        var odirection = board.getRotation(self.direction, 180);
+        let anim        = new Tactics.Animation({fps:10});
+        let frame_index = 0;
 
-        if (direction.length === 2)
-          direction = direction.indexOf(self.direction) === -1 ? odirection : self.direction;
+        anim.addFrame(() => self.assignment.dismiss());
+
+        // Turn frames are not typically required while walking unless the very
+        // next tile is in the opposite direction of where the unit is facing.
+        let direction = board.getDirection(self.assignment, assignment, self.direction);
+        if (direction === board.getRotation(self.direction, 180))
+          anim.splice(frame_index++, () => self.drawTurn(90));
 
         let deploy = data.animations[direction].deploy;
-
         anim
-          .splice(self.animTurn(direction))
-          .splice(
+          .splice(frame_index,
             new Tactics.Animation({frames: [{
               script: frame => self.drawFrame(deploy.s + frame.repeat_index),
               repeat: deploy.l,
@@ -111,6 +135,7 @@
               .splice(10, () => self.assign(assignment))
               .splice([2,7,11,16], () => sounds.flap.play())
           );
+        anim.addFrame(() => self.stand(direction));
 
         return anim;
       },

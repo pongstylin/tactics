@@ -87,7 +87,7 @@
         if (arguments.length > 1)
           return _super.compileFrame(arguments[0], arguments[1]);
 
-        var imageBase = 'http://www.taorankings.com/html5/units/'+type+'/';
+        var imageBase = 'https://legacy.taorankings.com/units/'+type+'/';
         var frame = new PIXI.Container();
         var sprite;
         var anchor = data.anchor;
@@ -124,10 +124,17 @@
 
         return frame;
       },
-      drawFrame:function (frame)
-      {
-        if (self.frame) pixi.removeChild(self.frame);
+      drawFrame: function (frame) {
+        let focus;
+
+        if (self.frame) {
+          focus = self.hideFocus();
+          pixi.removeChild(self.frame);
+        }
+
         pixi.addChildAt(self.frame = frame,0);
+        if (focus)
+          self.showFocus(focus.alpha);
 
         // Reset Normal Appearance
         frame.filters = null;
@@ -149,15 +156,20 @@
 
         return self;
       },
-      drawTurn: function () {
-        self.drawFrame(turns[self.direction]);
+      drawTurn: function (direction) {
+        if (!direction) direction = self.direction;
+        if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
+
+        self.drawFrame(turns[direction]);
       },
-      drawStand: function () {
-        self.drawFrame(stills[self.direction]);
+      drawStand: function (direction) {
+        if (!direction) direction = self.direction;
+        if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
+
+        self.drawFrame(stills[direction]);
       },
-      drawAvatar:function ()
-      {
-        var imageBase = 'http://www.taorankings.com/html5/units/'+type+'/';
+      drawAvatar: function () {
+        var imageBase = 'https://legacy.taorankings.com/units/'+type+'/';
         var container = new PIXI.Container();
         var sprite;
         var frame = data.stills.S;
@@ -204,37 +216,7 @@
 
         return anim.play();
       },
-      animTurn: function (direction) {
-        var anim = new Tactics.Animation();
-
-        if (direction === self.direction) return;
-
-        if (direction === board.getRotation(self.direction,180)) {
-          anim.splice([
-            function ()
-            {
-              self.walk(self.assignment,board.getRotation(self.direction,90),-1);
-            },
-            function ()
-            {
-              self.drawFrame(stills[direction]);
-              self.direction = direction;
-            }
-          ]);
-        }
-        else
-        {
-          anim.splice(function ()
-          {
-            self.drawFrame(stills[direction]);
-            self.direction = direction;
-          });
-        }
-
-        return anim;
-      },
-      animDeploy:function (assignment)
-      {
+      animDeploy: function (assignment) {
         var anim = new Tactics.Animation();
         var tiles = self.findPath(assignment);
         var origin = self.assignment;
@@ -251,54 +233,43 @@
         // Hack until Knight is upgraded to use SWF-exported JSON data.
         self._step_directions = [];
 
-        $.each(tiles,function (i)
-        {
+        $.each(tiles, i => {
           var ftile = tiles[i-1] || origin;
 
-          anim.splice(animTravel(ftile,tiles[i],tiles[i+1]));
+          anim.splice(animTravel(ftile, tiles[i], tiles[i+1]));
         });
 
         return anim;
       },
-      animStepBack:function (direction)
-      {
+      animStepBack: function (direction) {
         var step = 7;
 
-        return new Tactics.Animation({frames:
-        [
+        return new Tactics.Animation({frames: [
           {
-            script:function (frame)
-            {
+            script: frame => {
               if (step === 4) sounds.step.play();
-              self.walk(self.assignment,direction,step--);
+              self.walk(self.assignment, direction, step--);
             },
-            repeat:5,
+            repeat: 5,
           },
-          function (frame)
-          {
+          () => {
             sounds.step.play();
-            self.stand(direction,0.25);
+            self.stand(direction, 0.25);
           }
         ]});
       },
-      animStepForward:function ()
-      {
+      animStepForward: function (direction) {
         var step = 4;
 
-        return new Tactics.Animation({frames:
-        [
+        return new Tactics.Animation({frames: [
           {
-            script:function (frame)
-            {
+            script: frame => {
               if (step === 4) sounds.step.play();
-              self.walk(self.assignment,self._direction,step++);
+              self.walk(self.assignment, direction, step++);
             },
-            repeat:4
+            repeat: 4,
           },
-          function (frame)
-          {
-            self.stand();
-          }
+          () => self.drawStand(),
         ]});
       },
       animAttack: function (direction) {
@@ -329,10 +300,10 @@
           {
             self.origin.direction = self.direction = direction;
             self.block(0);
+            sounds.block.play();
           },
           function ()
           {
-            sounds.block.play();
             self.block(1).shock(direction,0,1);
           },
           function ()
@@ -373,33 +344,29 @@
 
         return anim;
       },
-      stand:function (direction,offset)
-      {
-        var center = self.assignment.getCenter();
-        var offsetX,offsetY;
+      stand: function (direction, offset) {
+        if (!direction) direction = self.direction;
+        if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
 
-        direction = direction || self.direction;
+        let center = self.assignment.getCenter();
+        let offsetX;
+        let offsetY;
 
-        if (offset)
-        {
+        if (offset) {
           // This will actually offset the unit in the opposite direction.
-          if (direction === 'S')
-          {
+          if (direction === 'S') {
             offsetX = -88 * offset;
             offsetY = -56 * offset;
           }
-          else if (direction === 'N')
-          {
+          else if (direction === 'N') {
             offsetX =  88 * offset;
             offsetY =  56 * offset;
           }
-          else if (direction === 'E')
-          {
+          else if (direction === 'E') {
             offsetX = -88 * offset;
             offsetY =  56 * offset;
           }
-          else
-          {
+          else {
             offsetX =  88 * offset;
             offsetY = -56 * offset;
           }
@@ -407,19 +374,17 @@
           pixi.position.x = center.x + offsetX;
           pixi.position.y = center.y + offsetY;
         }
-        else
-        {
+        else {
           pixi.position = center.clone();
         }
 
-        self.drawFrame(stills[direction]);
+        self.drawStand(direction);
+        if (!offset)
+          self.direction = direction;
 
-        // The visual direction as opposed to the deployed direction.
-        self._direction = direction;
         return self;
       },
-      walk:function (target,direction,step,offset,odirection)
-      {
+      walk: function (target,direction,step,offset,odirection) {
         var pixi = self.pixi;
         var walk = walks[direction];
         var tpoint = target.getCenter();
@@ -428,23 +393,19 @@
         while (step < 0) step = walk.length + step;
 
         // The tile we're coming from may not exist, so calc its center manually.
-        if (direction === 'N')
-        {
+        if (direction === 'N') {
           distX = 44;
           distY = 28;
         }
-        else if (direction === 'E')
-        {
+        else if (direction === 'E') {
           distX = -44;
           distY = 28;
         }
-        else if (direction == 'W')
-        {
+        else if (direction == 'W') {
           distX = 44;
           distY = -28;
         }
-        else
-        {
+        else {
           distX = -44;
           distY = -28;
         }
@@ -453,58 +414,36 @@
         pixi.position.x = tpoint.x + Math.floor(distX * ((walk.length-step-1) / walk.length));
         pixi.position.y = tpoint.y + Math.floor(distY * ((walk.length-step-1) / walk.length));
 
-        if (offset)
-        {
+        if (offset) {
           offset = {x:Math.round(88 * offset),y:Math.round(56 * offset)};
 
           // This is the opposite of what you would normally expect.
-          if (odirection == 'N')
-          {
+          if (odirection == 'N') {
             pixi.position.x -= offset.x;
             pixi.position.y -= offset.y;
           }
-          else if (odirection == 'E')
-          {
+          else if (odirection == 'E') {
             pixi.position.x += offset.x;
             pixi.position.y -= offset.y;
           }
-          else if (odirection == 'W')
-          {
+          else if (odirection == 'W') {
             pixi.position.x -= offset.x;
             pixi.position.y += offset.y;
           }
-          else
-          {
+          else {
             pixi.position.x += offset.x;
             pixi.position.y += offset.y;
           }
         }
 
-        // The visual direction as opposed to the deployed direction.
-        self._direction = direction;
         return self;
       },
-      block:function (frame)
-      {
+      block: function (frame) {
         return self.drawFrame(blocks[self.direction][frame]);
       },
-      turn:function (direction)
-      {
-        if (self.directional === false) return;
-
-        if (!isNaN(direction)) direction = board.getRotation(self.direction,direction);
-        self.direction = direction;
-
-        self.drawFrame(stills[direction]);
-
-        Tactics.render();
-
-        return self;
-      }
     });
 
-    function animTravel(ftile,dtile,ntile)
-    {
+    function animTravel(ftile,dtile,ntile) {
       var anim = new Tactics.Animation();
       var direction = board.getDirection(ftile,dtile);
       var edirection,ddirection;
@@ -521,36 +460,30 @@
       });
 
       if (!ntile)
-        anim.addFrame(() => self.assign(dtile).turn(direction));
+        anim.addFrame(() => self.assign(dtile).stand(direction));
 
       // Move the unit behind us back into position.
       if ((funit = ftile.assigned) && funit !== self)
-      {
-        anim.splice(3,funit.animStepForward(self._step_directions.pop()));
-      }
+        anim.splice(3, funit.animStepForward(self._step_directions.pop()));
 
-      if (dunit = dtile.assigned)
-      {
+      if (dunit = dtile.assigned) {
         // These directions are not available.
-        edirection = [direction,board.getDirection(ntile,dtile)];
+        edirection = [direction, board.getDirection(ntile,dtile)];
 
         // One of these directions are available.  Sorted by preference.
-        $.each
-        ([
+        $.each([
           dunit.direction,
-          board.getRotation(dunit.direction,90),
-          board.getRotation(dunit.direction,270)
-        ],function (i,direction)
-        {
-          if (edirection.indexOf(direction) === -1)
-          {
+          board.getRotation(dunit.direction,  90),
+          board.getRotation(dunit.direction, -90),
+        ], (i, direction) => {
+          if (edirection.indexOf(direction) === -1) {
             ddirection = direction;
             return false;
           }
         });
 
         self._step_directions.push(ddirection);
-        anim.splice(0,dunit.animStepBack(ddirection));
+        anim.splice(0, dunit.animStepBack(ddirection));
       }
 
       return anim;

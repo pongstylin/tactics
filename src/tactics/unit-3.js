@@ -2,7 +2,6 @@
   'use strict';
 
   Tactics.units[3].extend = function (self) {
-    var _super = Object.assign({}, self);
     var board = Tactics.board;
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
@@ -16,16 +15,6 @@
       },
       getTargetUnits: function (target) {
         return board.teams[self.team].units;
-      },
-      highlightAttack: function () {
-        if (self.viewed)
-          _super.highlightAttack();
-        else {
-          self.targeted = self.getTargetTiles(self.assignment);
-          self.targeted.forEach(target => self.highlightTarget(target));
-        }
-
-        return self;
       },
       playAttack: function (target, results) {
         let anim         = new Tactics.Animation();

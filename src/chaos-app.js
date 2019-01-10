@@ -39,6 +39,7 @@ Tactics.App = (function ($, window, document) {
         },
       },
       {
+        n: 'Chaos',
         c: null,
         b: 'Chaos',
         u: {
@@ -66,6 +67,14 @@ Tactics.App = (function ($, window, document) {
         movebar: function ($button) {
           $('#app').toggleClass('left right');
           $button.toggleClass('fa-rotate-270 fa-rotate-90');
+        },
+        lock: function ($button) {
+          $button.toggleClass('fa-lock fa-unlock');
+
+          if ($button.hasClass('fa-lock'))
+            Tactics.panzoom.lock();
+          else
+            Tactics.panzoom.unlock();
         },
         rotate: function ($button) {
           var cls,per;
@@ -120,8 +129,10 @@ Tactics.App = (function ($, window, document) {
                 $('BUTTON[name=pass]').addClass('ready');
               }
               else {
-                selected.turn(90).showMode();
-                $('BUTTON[name=select][value=turn]').removeClass('ready');
+                selected.turn(90).then(() => {
+                  selected.showMode();
+                  $('BUTTON[name=select][value=turn]').removeClass('ready');
+                });
               }
             }
           }
@@ -142,7 +153,7 @@ Tactics.App = (function ($, window, document) {
         }
       };
 
-      $('#overlay').on('click tap', () => {
+      $('#overlay').on('click', () => {
         if ($('#popup').hasClass('error')) return;
         $('#overlay,#popup').hide();
       });
@@ -158,7 +169,7 @@ Tactics.App = (function ($, window, document) {
         $('body').addClass(pointer = 'mouse');
       }
 
-      Tactics.init($('#field'));
+      Tactics.init($('#field').get(0));
 
       $(window).trigger('resize');
 
@@ -216,6 +227,11 @@ Tactics.App = (function ($, window, document) {
           }
         })
         .on('lock-change', event => {
+          if (event.nvalue === 'gameover')
+            $('#app').addClass('gameover');
+          else
+            $('#app').removeClass('gameover');
+
           if (event.nvalue)
             $('#app').addClass('locked');
           else
@@ -248,31 +264,20 @@ Tactics.App = (function ($, window, document) {
         })
         .on('mouseover','#app BUTTON:enabled', event => {
           var $button = $(event.target);
-          if ($button.css('cursor') != 'pointer') return;
 
-          if ($button.parents('.locked').length) {
-            if ($button.parents('#game-settings').length) {
-              if ($button.attr('name') === 'rotate')
-                return;
-            }
-            else
-              return;
-          }
+          // Ignore disabled buttons
+          if (window.getComputedStyle(event.target).cursor !== 'pointer')
+            return;
 
           Tactics.sounds.focus.play();
         })
-        .on('click tap','#app BUTTON:enabled', event => {
+        .on('click','#app BUTTON:enabled', event => {
           var $button = $(event.target);
           var handler = $button.data('handler') || buttons[$button.attr('name')];
 
-          if ($button.parents('.locked').length) {
-            if ($button.parents('#game-settings').length) {
-              if ($button.attr('name') === 'rotate')
-                return;
-            }
-            else
-              return;
-          }
+          // Ignore disabled buttons
+          if (window.getComputedStyle(event.target).cursor !== 'pointer')
+            return;
 
           handler($button);
 
@@ -283,12 +288,11 @@ Tactics.App = (function ($, window, document) {
       load();
     })
     .on('resize', () => {
-      var $resize = $('BUTTON[name=resize]');
-
-      Tactics.resize($('#field').width(),$(window).height());
-
+      let $resize = $('BUTTON[name=resize]');
       if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
         $resize.toggleClass('fa-expand fa-compress');
+
+      Tactics.resize();
     });
 
   function load() {
@@ -308,7 +312,7 @@ Tactics.App = (function ($, window, document) {
       if (percent === 100) {
         $('#loader')
           .css({cursor: 'pointer'})
-          .one('click tap', () => {
+          .one('click', () => {
             board.draw();
 
             $('#splash').hide();
@@ -322,7 +326,7 @@ Tactics.App = (function ($, window, document) {
     }
 
     Tactics.images.forEach(image_url => {
-      let url = 'http://www.taorankings.com/html5/images/'+image_url;
+      let url = 'https://legacy.taorankings.com/images/'+image_url;
 
       resources.push(url);
       loader.add({url: url});
@@ -333,7 +337,7 @@ Tactics.App = (function ($, window, document) {
       if (typeof sound === 'string')
         sound = {file: sound};
 
-      let url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+      let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
       Tactics.sounds[name] = new Howl({
         urls:        [url+'.mp3', url+'.ogg'],
@@ -396,7 +400,7 @@ Tactics.App = (function ($, window, document) {
             if (typeof sound === 'string')
               sound = {file: sound};
 
-            let url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+            let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
             unit.sounds[name] = new Howl({
               urls:        [url+'.mp3', url+'.ogg'],
@@ -446,7 +450,7 @@ Tactics.App = (function ($, window, document) {
             if (!frame) return;
 
             frame.c.forEach(sprite => {
-              let url = 'http://www.taorankings.com/html5/units/'+unit_type+'/image'+sprite.id+'.png';
+              let url = 'https://legacy.taorankings.com/units/'+unit_type+'/image'+sprite.id+'.png';
               if (resources.indexOf(url) !== -1)
                 return;
 
@@ -473,7 +477,7 @@ Tactics.App = (function ($, window, document) {
               let image = sprite[name];
               if (!image.src) return;
 
-              let url = 'http://www.taorankings.com/html5/units/'+unit_type+'/'+name+'/image'+image.src+'.png';
+              let url = 'https://legacy.taorankings.com/units/'+unit_type+'/'+name+'/image'+image.src+'.png';
               if (resources.indexOf(url) !== -1)
                 return;
 

@@ -4,6 +4,16 @@ Tactics is a JavaScript turn-based strategy board game using HTML5 and WebGL.  I
 
 This project is derivative of the flash-based Tactics Arena Online (TAO) game that has since been shut down.  It makes use of image and audio files from that game to expedite development.  All attempts to contact the rights-holder of these resources have been unsuccessful, so a legal right to use them should not be assumed.
 
+## Goals
+
+When the original game was abandoned, it was missed by a large community of players that still exists today.  Because of that nostalgia, this project attempts to recapture the authentic game-playing experience of the original.  That means using the original graphics and sound effects as long as it is legally possible.  On that note, if legally challenged, an attempt will be made to acquire a license to use these materials.  Also, the intent is to recreate all of the units from the original game with their original stats and behavior.
+
+It is not enough to recreate the original game experience.  It is important to make sure it can never die again.  That is why this is an open source project that is in the Public Domain.  Anyone may choose to host this game on their own servers for public use.  You are also encouraged to rebrand and reskin your version of the game.  Be creative, change up the units, stats, and behavior to create something new.  This project will make sure that the original experience remains preserved.
+
+The final goal of this project is to keep the game relevant as technology changes.  The original game used Flash and did not transition well to the mobile lifestyle.  So this project uses HTML5 web technology that can be used on any system whether you're using a mouse, your finger, or a stylus.  To meet this goal, this game will differ in minor ways from the original, but not in ways that anybody would complain about.
+
+That is as far as it goes.  This project is intended to recreate the core game experience in the modern world.  It will not include community support features such as clans, private messaging, tournament hosting, or enforcing different styles of play.  Anybody who hosts this game is responsible for building such features according to their personal preference.
+
 ## Requirements
 * Node.js
 

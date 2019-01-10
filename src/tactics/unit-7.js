@@ -2,7 +2,6 @@
   'use strict';
 
   Tactics.units[7].extend = function (self) {
-    var _super = Object.assign({}, self);
     var board = Tactics.board;
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
@@ -12,16 +11,6 @@
       getTargetTiles: function (target) {
         return self.getAttackTiles();
       },
-      highlightAttack: function () {
-        if (self.viewed)
-          _super.highlightAttack();
-        else {
-          self.targeted = self.getTargetTiles(self.assignment);
-          self.targeted.forEach(target => self.highlightTarget(target));
-        }
-
-        return self;
-      },
       playAttack: function (target, results) {
         let anim      = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, target, self.direction);
@@ -29,7 +18,6 @@
         let attackAnim = self.animAttack(target);
         attackAnim.splice(1, () => sounds.attack1.play());
         attackAnim.splice(3, () => sounds.attack2.play());
-        attackAnim.addFrame(() => self.drawFrame(data.stills[direction]));
 
         results.forEach(result => {
           let unit = result.unit;
@@ -93,6 +81,44 @@
 
         return anim.play().then(() => results);
       },
+      /*
+       * Customized so that the sound is played on the first visual frame (not 2nd).
+       * Also plays a sound sprite instead of the full sound.
+       */
+      animBlock: function (attacker) {
+        let anim = new Tactics.Animation();
+        let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
+
+        anim.addFrame(() => {
+          self.origin.direction = self.direction = direction;
+          sounds.block.play('block');
+        });
+
+        let indexes = [];
+        for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
+          indexes.push(index);
+        }
+        indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
+
+        // Kinda hacky.  It seems that shocks should be rendered by the attacker, not defender.
+        if (attacker.type === 2)
+          anim.splice(1, [
+            () => self.shock(direction, 1, true),
+            () => self.shock(direction, 2, true),
+            () => self.shock(),
+          ]);
+        else
+          anim.splice(1, [
+            () => self.shock(direction, 0, true),
+            () => self.shock(direction, 1, true),
+            () => self.shock(direction, 2, true),
+            () => self.shock(),
+          ]);
+
+        anim.addFrame(() => self.stand(direction));
+
+        return anim;
+      },
       animSpecial: function () {
         let anim = new Tactics.Animation();
         let direction = self.direction;
@@ -102,7 +128,8 @@
           indexes.push(index);
         }
         indexes.forEach(index => anim.addFrame(() => self.drawFrame(index)));
-        anim.addFrame(() => self.drawFrame(data.stills[direction]));
+
+        anim.addFrame(() => self.stand(direction));
 
         return anim;
       },

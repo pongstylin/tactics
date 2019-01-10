@@ -29,10 +29,10 @@
         let darkness  = [-0.3, -0.4, -0.5, -0.3, -0.2, 0];
 
         let attackAnim = self.animAttack(first);
-        attackAnim.splice(0, sounds.attack1.play());
-        attackAnim.splice(3, sounds.attack2.play());
+        attackAnim.splice(0, () => sounds.attack1.play());
+        attackAnim.splice(3, () => sounds.attack2.play());
 
-        targets.forEach(target => {
+        targeted.forEach(target => {
           attackAnim.splice(4, self.animBlackSpike(target, first));
 
           let target_unit = target.assigned;
@@ -54,11 +54,11 @@
         let anim = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
-        anim.addFrame(() => self.origin.direction = self.direction = direction);
         anim.addFrame(() => {
-          sounds.block1.play();
           sounds.block2.play();
+          self.origin.direction = self.direction = direction;
         });
+        anim.addFrame(() => sounds.block1.play('block'));
 
         let indexes = [];
         for (let index = data.blocks[direction][0]; index <= data.blocks[direction][1]; index++) {
@@ -66,7 +66,22 @@
         }
         indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
 
-        anim.addFrame(() => self.drawFrame(data.stills[direction]));
+        // Kinda hacky.  It seems that shocks should be rendered by the attacker, not defender.
+        if (attacker.type === 2)
+          anim.splice(1, [
+            () => self.shock(direction, 1, true),
+            () => self.shock(direction, 2, true),
+            () => self.shock(),
+          ]);
+        else
+          anim.splice(1, [
+            () => self.shock(direction, 0, true),
+            () => self.shock(direction, 1, true),
+            () => self.shock(direction, 2, true),
+            () => self.shock(),
+          ]);
+
+        anim.addFrame(() => self.stand(direction));
 
         return anim;
       },
