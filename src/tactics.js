@@ -3,7 +3,7 @@ import 'plugins/pixi.js';
 
 import 'util/event.js';
 import 'util/panzoom.js';
-import 'lib/howler.js';
+import 'howler';
 
 import 'tactics/core.scss';
 import 'tactics/core.js';

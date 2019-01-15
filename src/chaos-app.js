@@ -340,7 +340,7 @@ Tactics.App = (function ($, window, document) {
       let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
       Tactics.sounds[name] = new Howl({
-        urls:        [url+'.mp3', url+'.ogg'],
+        src:        [url+'.mp3', url+'.ogg'],
         sprite:      sound.sprite,
         volume:      sound.volume || 1,
         rate:        sound.rate || 1,
@@ -403,7 +403,7 @@ Tactics.App = (function ($, window, document) {
             let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
             unit.sounds[name] = new Howl({
-              urls:        [url+'.mp3', url+'.ogg'],
+              src:        [url+'.mp3', url+'.ogg'],
               sprite:      sound.sprite,
               volume:      sound.volume || 1,
               rate:        sound.rate || 1,
