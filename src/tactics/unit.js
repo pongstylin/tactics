@@ -850,10 +850,15 @@
         return self;
       },
       highlightAttack: function () {
-        if (!self.viewed && data.aAll)
-          return self.onAttackSelect({target:self.assignment});
+        let tiles = self.getAttackTiles();
 
-        self.getAttackTiles().forEach(tile => {
+        if (!self.viewed && data.aAll) {
+          self.target   = self.assignment;
+          self.targeted = tiles;
+          return self.highlightTarget();
+        }
+
+        tiles.forEach(tile => {
           board.setHighlight({
             action: 'attack',
             tile:   tile,
@@ -868,18 +873,28 @@
 
         return self;
       },
-      highlightTarget: function (target) {
-        board.setHighlight({
-          action: 'target',
-          tile:   target,
-          color:  0xFF3300,
-          select: self.onTargetSelect,
-          focus:  self.onTargetFocus,
-          blur:   self.onTargetBlur,
-        }, self.viewed);
+      highlightTarget: function () {
+        self.targeted.forEach(tile => {
+          board.setHighlight({
+            action: 'target',
+            tile:   tile,
+            color:  0xFF3300,
+            select: self.onTargetSelect,
+            focus:  self.onTargetFocus,
+            blur:   self.onTargetBlur,
+          }, self.viewed);
 
-        if (target.focused) self.onAttackFocus({target:target});
-        if (target.assigned) target.assigned.activate();
+          if (tile.focused)  self.onAttackFocus({target:tile});
+          if (tile.assigned) tile.assigned.activate();
+        });
+
+        // This is a bandaid for touch devices where unit.focus is harder to use.
+        let target       = self.target;
+        let target_units = self.getTargetUnits(target);
+        if (target_units.length === 1 && (!target.assigned || !target.focused)) {
+          self.onAttackFocus({target:target_units[0].assignment});
+          board.drawCard(target_units[0]);
+        }
 
         return self;
       },
@@ -1226,6 +1241,8 @@
           self.highlightDeployOptions();
         else if (mode === 'attack')
           self.highlightAttack();
+        else if (mode === 'target')
+          self.highlightTarget();
         else if (mode === 'turn')
           self.showTurnOptions();
         else if (mode === 'direction')
@@ -1896,24 +1913,12 @@
       onAttackSelect: function (event) {
         let target = event.target;
 
-        if (!data.aAll) {
-          board.clearHighlight();
-
-          // This makes it possible to click the attack button to switch from target
-          // mode to attack mode.
-          self.activated = 'target';
-        }
-
-        self.target = target;
+        self.target   = target;
         self.targeted = self.getTargetTiles(target);
-        self.targeted.forEach(tile => self.highlightTarget(tile));
 
-        // This is a bandaid for touch devices where unit.focus is harder to use.
-        let target_units = self.getTargetUnits(target);
-        if (target_units.length === 1 && (!target.assigned || !target.focused)) {
-          self.onAttackFocus({target:target_units[0].assignment});
-          board.drawCard(target_units[0]);
-        }
+        // This makes it possible to click the attack button to switch from target
+        // mode to attack mode.
+        board.setSelectMode('target');
       },
       onTargetSelect: function (event) {
         board.lock();

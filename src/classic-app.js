@@ -174,8 +174,13 @@ Tactics.App = (function ($, window, document) {
           let can_attack  = !selected || selected.canAttack();
           let can_special = selected && selected.canSpecial();
 
-          $('BUTTON[name=select][value='+old_mode+']').removeClass('selected');
+          $('BUTTON[name=select]').removeClass('selected');
           $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
+
+          if (new_mode === 'target')
+            $('BUTTON[name=select][value=attack]').addClass('selected targeting');
+          else if (old_mode === 'target')
+            $('BUTTON[name=select][value=attack]').removeClass('targeting');
 
           if (!$('#game-play').hasClass('active')) {
             $('.buttons').removeClass('active');
