@@ -29,6 +29,7 @@
     "express": "^4.16.4",
     "impetus": "^0.8.8",
     "pixi.js": "^4.8.2",
-    "touch-pinch": "^1.0.1"
+    "touch-pinch": "^1.0.1",
+    "howler": "^2.1.1"
   }
 }

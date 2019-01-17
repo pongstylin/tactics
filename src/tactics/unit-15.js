@@ -191,12 +191,12 @@
               repeat: 12,
             },
           ])
-          .splice( 0, () => sounds.wind.play(winds.shift()).fadeIn(0.25, 500))
+          .splice( 0, () => sounds.wind.fade(0,0.25,500,sounds.wind.play(winds.shift())))
           .splice( 4, () => sounds.wind.play(winds.shift()))
           .splice( 8, () => sounds.wind.play(winds.shift()))
           .splice(12, () => sounds.roar.play('roar'))
           .splice(16, () => sounds.wind.play(winds.shift()))
-          .splice(20, () => sounds.wind.play(winds.shift()).fadeOut(0, 1700));
+          .splice(20, () => sounds.wind.fade(1,0,1700,sounds.wind.play(winds.shift())));
 
         return anim.splice(22, self.animLightning(target_unit.assignment)).play();
       },
