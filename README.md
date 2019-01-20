@@ -54,6 +54,4 @@ Be aware that no license currently exists for distributing this game as-is for p
 All contents under the `src` directory fall under the following license:
 [Unlicense](https://choosealicense.com/licenses/unlicense/)
 
-All contents under the `lib` directory are licensed according to their respective licenses.
-
-All image and audio files that are loaded from the http://www.taorankings.com domain are not licensed ([No License](https://choosealicense.com/no-permission/)).
+All image and audio files that are loaded from the \*.taorankings.com domain are not licensed ([No License](https://choosealicense.com/no-permission/)).
