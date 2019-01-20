@@ -1,11 +1,11 @@
 import 'pixi.js';
+import 'howler';
 import 'plugins/array.js';
 import 'plugins/math.js';
 import 'plugins/pixi.js';
 
 import 'util/event.js';
 import 'util/panzoom.js';
-import 'howler';
 
 import 'tactics/core.scss';
 import 'tactics/core.js';
