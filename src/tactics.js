@@ -1,4 +1,6 @@
 import 'pixi.js';
+import 'plugins/array.js';
+import 'plugins/math.js';
 import 'plugins/pixi.js';
 
 import 'util/event.js';
@@ -26,4 +28,3 @@ import 'tactics/unit-8.js';
 import 'tactics/unit-15.js';
 import 'tactics/unit-22.js';
 import 'tactics/utils-colorstop.js';
-import 'plugins/array.js';

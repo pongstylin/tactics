@@ -19,47 +19,6 @@
 
   Tactics.Tile = function (x, y) {
     var self = this;
-    var selectEvent = event => {
-      if (self.pixi.buttonMode) {
-        // Prevent the board object from receiving this event.
-        event.stopPropagation();
-
-        self.emit({type: 'select', target: self});
-        Tactics.render();
-      }
-    };
-    var focusEvent = event => {
-      if (self.focused) return;
-      let pointerType = event.data.pointerType;
-
-      self.focused = true;
-
-      self.emit({
-        type:        'focus',
-        target:      self,
-        pointerType: pointerType,
-      });
-      Tactics.render();
-    };
-    var blurEvent = event => {
-      if (!self.focused) return;
-      let pointerType = event.data.pointerType;
-
-      // Chrome has been observed posting "pointerleave" events after a "click".
-      // That is not the desired behavior, so this heuristic ignores them.
-      event = event.data.originalEvent;
-      if (event.type === 'pointerleave' && event.relatedTarget === null)
-        return;
-
-      self.focused = false;
-
-      self.emit({
-        type:        'blur',
-        target:      self,
-        pointerType: pointerType,
-      });
-      Tactics.render();
-    };
 
     utils.addEvents.call(self);
 
@@ -87,17 +46,17 @@
         pixi.hitArea = new PIXI.Polygon(points.slice());
 
         pixi.interactive = true;
-        pixi.pointertap  = selectEvent;
-        pixi.pointerover = focusEvent;
-        pixi.pointerout  = blurEvent;
+        pixi.pointertap  = self.onSelect;
+        pixi.pointerover = self.onFocus;
+        pixi.pointerout  = self.onBlur;
 
         // PIXI does not emit 'pointerover' or 'pointerout' events for touch pointers.
         // Use 'touchmove' to simulate focus events.
         // Use 'touchend' to simulate blur events.
         // The board object will handle blurring as the touch pointer moves.
-        pixi.touchmove       = focusEvent;
-        pixi.touchend        = blurEvent;
-        pixi.touchendoutside = blurEvent;
+        pixi.touchmove       = self.onFocus;
+        pixi.touchend        = self.onBlur;
+        pixi.touchendoutside = self.onBlur;
 
         return self;
       },
@@ -153,7 +112,51 @@
         self.painted    = null;
         self.pixi.tint  = 0xFFFFFF;
         self.pixi.alpha = 0;
-      }
+      },
+      onSelect: function (event) {
+        if (self.pixi.buttonMode) {
+          // Prevent the board object from receiving this event.
+          event.stopPropagation();
+
+          self.emit({type: 'select', target: self});
+          Tactics.render();
+        }
+      },
+      onFocus: function (event) {
+        if (self.focused) return;
+        let pointerType = event.data.pointerType;
+
+        self.focused = pointerType;
+
+        self.emit({
+          type:        'focus',
+          target:      self,
+          pointerType: pointerType,
+          pixiEvent:   event,
+        });
+        Tactics.render();
+      },
+      onBlur: function (event) {
+        if (!self.focused) return;
+        let pointerType = event.data.pointerType;
+
+        // Chrome has been observed posting "pointerleave" events after a "click".
+        // That is not the desired behavior, so this heuristic ignores them.
+        event = event.data.originalEvent;
+        if (event.type === 'pointerleave' && event.relatedTarget === null)
+          return;
+
+        self.focused = false;
+
+        self.emit({
+          type:        'blur',
+          target:      self,
+          pointerType: pointerType,
+          pixiEvent:   event,
+        });
+
+        Tactics.render();
+      },
     });
 
     return self;

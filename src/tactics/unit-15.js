@@ -65,13 +65,13 @@
             tile: target_unit.assignment,
             results: [{
               unit:    target_unit,
-              mHealth: Math.min(target_unit.mHealth + self.power, 0),
-              notice: 'Nice',
+              notice:  'Nice',
+              changes: {mHealth:Math.min(target_unit.mHealth + self.power, 0)},
             }],
           };
         }
-        else if ('mHealth' in result) {
-          if (result.mHealth > -self.health) {
+        else if (result.changes && 'mHealth' in result.changes) {
+          if (result.changes.mHealth > -self.health) {
             // Cracked
             let team;
             if (attacker.color === self.color) {
@@ -98,12 +98,12 @@
               tile: target_unit.assignment,
               results: [{
                 unit:    target_unit,
-                mHealth: Math.max(mHealth, -target_unit.health),
+                changes: {mHealth:Math.max(mHealth, -target_unit.health)},
               }],
             };
           }
           else {
-            // Broken
+            // Hatched
             return {
               type:    'hatch',
               unit:    self,

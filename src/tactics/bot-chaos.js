@@ -24,18 +24,19 @@
         self.friends = [agent];
         self.enemies = [];
 
-        $.each(board.teams, function (i,team) {
-          $.each(team.units, function (i,unit) {
+        board.teams.forEach(team => {
+          team.units.forEach(unit => {
             unit.id = unit.assignment.id;
           });
 
           if (team.color === self.team.color) return;
+
           Array.prototype.push.apply(self.enemies, team.units);
         });
 
         // Give the card time to fade.
         setTimeout(() => {
-          var calc;
+          let calc;
 
           self.addChoice(self.calcTeamFuture(teamId));
 
@@ -53,9 +54,6 @@
             self.endTurn();
           }
         },1000);
-
-        self.deferred = $.Deferred();
-        return self.deferred.promise();
       },
       considerUnit: function () {
         var unit = self.friends.pop();

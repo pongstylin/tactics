@@ -27,7 +27,12 @@
 
         setTimeout(() => {
           data.unit.notice = null;
-          resolve(data);
+
+          let action = {type:'endTurn'};
+
+          board.takeAction(action).then(() => {
+            resolve(data);
+          });
         }, 2000);
       });
     }
@@ -38,8 +43,14 @@
 
       return new Promise((resolve, reject) => {
         setTimeout(() => {
-          data.unit.move(data.end).then(() => {
+          let action = {
+            type: 'move',
+            tile: data.end,
+          };
+
+          board.takeAction(action).then(() => {
             paint(data.end, 0x0088FF);
+
             resolve(data);
           });
         }, 2000);
@@ -55,8 +66,14 @@
 
       return new Promise((resolve, reject) => {
         setTimeout(() => {
-          data.unit.attack(target).then(() => {
+          let action = {
+            type: 'attack',
+            tile: target,
+          };
+
+          board.takeAction(action).then(() => {
             paint(data.target, 0xFF8800);
+
             resolve(data);
           });
         }, 2000);
@@ -74,42 +91,39 @@
 
       return new Promise((resolve, reject) => {
         setTimeout(() => {
-          data.unit.turn(data.direction).then(() => {
-            data.unit.activate('direction');
+          let action = {
+            type:      'turn',
+            direction: data.direction,
+          };
+
+          board.takeAction(action).then(() => {
             resolve(data);
           });
         }, 2000);
       });
     }
 
-    $.extend(self,
-    {
-      startTurn:function (teamId)
-      {
-        self.team = board.teams[teamId];
+    $.extend(self, {
+      startTurn: function (teamId) {
+        self.team    = board.teams[teamId];
         self.choices = [];
         self.friends = [];
         self.enemies = [];
 
-        $.each(board.teams,function (i,team)
-        {
+        board.teams.forEach(team => {
           if (team.units.length === 0) return;
 
-          $.each(team.units,function (i,unit)
-          {
+          team.units.forEach(unit => {
             unit.id = unit.assignment.id;
           });
 
-          if (i === 4)
-          {
-            if (team.color === self.team.color)
-            {
+          if (team.name === 'Chaos') {
+            if (team.color === self.team.color) {
               // Don't attack dragon.
               if (team.units[0].type === 22)
                 return;
             }
-            else
-            {
+            else {
               // Don't attack seed.
               if (team.units[0].type === 15)
                 return;
@@ -117,14 +131,14 @@
           }
 
           Array.prototype.push.apply(
-            i === teamId ? self.friends : self.enemies,
-            team.units
+            team === self.team ? self.friends : self.enemies,
+            team.units,
           );
         });
 
         // Give the card time to fade.
         setTimeout(() => {
-          var calc;
+          let calc;
 
           self.addChoice(self.calcTeamFuture(teamId));
 
@@ -136,9 +150,6 @@
             self.endTurn();
           }
         }, 1000);
-
-        self.deferred = $.Deferred();
-        return self.deferred.promise();
       },
       endTurn: function () {
         var choices = self.choices,unit;
@@ -150,7 +161,7 @@
           chosen = choices[0];
 
           // If all units have turn wait, use the first team unit when passing.
-          if (!chosen.unit) chosen.unit = board.teams[board.turnOrder[0]].units[0];
+          if (!chosen.unit) chosen.unit = board.teams[board.currentTeamId].units[0];
         }
         else {
           choices.sort((a, b) => {
@@ -181,7 +192,7 @@
           chosen = choices[0];
           // If we are passing or the equivalent, then try to get a better position.
           if (first.defense === chosen.defense && first.offense === chosen.offense) {
-            self.friends = board.teams[board.turnOrder[0]].units.slice();
+            self.friends = board.teams[board.currentTeamId].units.slice();
             self.considerPosition();
             chosen = self.choices[0];
           }
@@ -200,18 +211,13 @@
           .then(order[1])
           .then(turn)
           .then(data => {
-            setTimeout(() => {
-              painted.forEach(tile => {
-                if (tile.assigned && tile.focused)
-                  tile.paint('focus', 0.3);
-                else
-                  tile.strip();
-              });
-
-              self.deferred.resolve();
-            }, 2000);
-
-            return chosen;
+            painted.forEach(tile => {
+              if (tile.assigned && tile.focused)
+                tile.paint('focus', 0.3);
+              else
+                tile.strip();
+            });
+            Tactics.render();
           });
 
         return self;
@@ -457,9 +463,8 @@
 
         return self;
       },
-      considerDirection:function (unit,target)
-      {
-        var turnOrder = board.turnOrder.slice();
+      considerDirection: function (unit,target) {
+        var turnOrder = board.getTurnOrder();
         var directions = ['N','S','E','W'];
         var d,direction = {N:Math.random(),S:Math.random(),E:Math.random(),W:Math.random()};
         var choices = [];
@@ -468,25 +473,21 @@
 
         turnOrder.push(turnOrder.shift());
 
-        for (i=0; i<directions.length; i++)
-        {
+        for (i=0; i<directions.length; i++) {
           unit.direction = directions[i];
 
-          choices.push
-          ({
-            direction:directions[i],
-            weight   :unit.calcDefense(turnOrder),
-            random   :Math.random()
+          choices.push({
+            direction: directions[i],
+            weight   : unit.calcDefense(turnOrder),
+            random   : Math.random()
           });
         }
 
-        choices.sort(function (a,b) { return (b.weight-a.weight) || (b.random-a.random); });
+        choices.sort((a,b) => ((b.weight-a.weight) || (b.random-a.random)));
 
-        if (choices[0].weight === choices[3].weight)
-        {
+        if (choices[0].weight === choices[3].weight) {
           // If all directions are equally defensible, pick something intelligent.
-          for (i=0; i<enemies.length; i++)
-          {
+          for (i=0; i<enemies.length; i++) {
             d = board.getDirection(unit.assignment,enemies[i].assignment);
             t = enemies[i].calcThreatTurns(unit);
             w = 1;
@@ -494,12 +495,10 @@
             if (t  <  unit.mRecovery) w += 99;
             if (t === unit.mRecovery && turnOrder.indexOf(enemies[i].team) < turnOrder.indexOf(unit.team)) w += 99;
 
-            if (d.length == 1)
-            {
+            if (d.length == 1) {
               direction[d.charAt(0)] += w;
             }
-            else
-            {
+            else {
               direction[d.charAt(0)] += w;
               direction[d.charAt(1)] += w;
             }
@@ -509,8 +508,7 @@
 
           return unit.direction = directions[0];
         }
-        else if (target && choices[0].weight === choices[1].weight)
-        {
+        else if (target && choices[0].weight === choices[1].weight) {
           d = board.getDirection(unit.assignment,target.tile);
 
           if (d === choices[0].direction) return unit.direction = choices[0].direction;
@@ -571,7 +569,7 @@
       calcTeamFuture:function (teamId,target)
       {
         var calc = [];
-        var turnOrder = board.turnOrder.slice();
+        var turnOrder = board.getTurnOrder();
         var teams = board.teams;
         var funit,funits,eunit,eunits;
         var fdamages = {},fdamage,ftotal,eclaim;

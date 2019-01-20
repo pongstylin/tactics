@@ -24,13 +24,12 @@
       hideTurnOptions();
       event.currentTarget.filters = null;
 
-      selected.turn(target.data.direction).then(() => {
-        board.setSelectMode('ready');
+      let action = {
+        type:      'turn',
+        direction: target.data.direction,
+      };
 
-        // Normally, we should render after receiving an event.
-        // But the selected unit should handle that by pulsing.
-        //Tactics.render();
-      });
+      board.takeAction(action).then(() => Tactics.render());
     };
     let onTurnFocus = event => {
       Tactics.sounds.focus.play();
@@ -57,19 +56,19 @@
       sprite.mouseout    = onTurnBlur;
 
       if (i == 0) {
-        sprite.position = new PIXI.Point(1,0);
+        sprite.position = new PIXI.Point(-42, -HALF_TILE_HEIGHT);
         sprite.data = {direction:'N'};
       }
       else if (i == 1) {
-        sprite.position = new PIXI.Point(55,0);
+        sprite.position = new PIXI.Point( 12, -HALF_TILE_HEIGHT);
         sprite.data = {direction:'E'};
       }
       else if (i == 2) {
-        sprite.position = new PIXI.Point(0,30);
+        sprite.position = new PIXI.Point(-43, 2);
         sprite.data = {direction:'W'};
       }
       else if (i == 3) {
-        sprite.position = new PIXI.Point(55,30);
+        sprite.position = new PIXI.Point( 12, 2);
         sprite.data = {direction:'S'};
       }
 
@@ -116,20 +115,10 @@
     var onMoveSelect = event => {
       let action = {
         type: 'move',
-        unit: self,
         tile: event.target,
       };
 
-      board.takeAction(action).then(() => {
-        if (self.attacked) {
-          if (self.blocking)
-            board.setSelectMode('turn');
-          else
-            board.setSelectMode('ready');
-        }
-        else
-          board.setSelectMode('attack');
-      });
+      board.takeAction(action);
     };
     var onMoveFocus  = event => event.target.setAlpha(0.6);
     var onMoveBlur   = event => event.target.setAlpha(0.3);
@@ -152,11 +141,8 @@
       notice:    undefined,
       activated: false,
       focused:   false,
-      origin:    {},
-      deployed:  false,
-      targeted:  false,
-      attacked:  false,
-      turned:    false,
+
+      target:    null,
 
       mPass:   data.mPass,
       mRadius: data.mRadius,
@@ -239,13 +225,13 @@
 
         return tiles;
       },
-      getTargetTiles(target) {
+      getTargetTiles: function (target) {
         if (data.aLOS === true)
           return self.getLOSTargetTiles(target);
 
         return [target];
       },
-      getTargetUnits(target) {
+      getTargetUnits: function (target) {
         let target_units = [];
 
         if (data.aLOS === true) {
@@ -253,11 +239,6 @@
           if (unit)
             target_units.push(unit);
         }
-        // This is an optimization, don't compute targeted tiles twice.
-        else if (self.targeted)
-          target_units = self.targeted
-            .filter(tile => !!tile.assigned)
-            .map(tile => tile.assigned);
         else
           target_units = self.getTargetTiles(target)
             .filter(tile => !!tile.assigned)
@@ -265,7 +246,7 @@
 
         return target_units;
       },
-      getLOSTargetTiles(target, source) {
+      getLOSTargetTiles: function (target, source) {
         source = source || self.assignment;
 
         // Get the absolute position of the line.
@@ -337,91 +318,307 @@
 
         return target_tile ? target_tile.assigned : null;
       },
+      /*
+       * This method calculates what might happen if this unit attacked a target unit.
+       * This helps bots make a decision on the best choice to make.
+       */
       calcAttack: function (target_unit, from, target) {
         if (!from)
           from = self.assignment;
         if (!target)
           target = target_unit.assignment;
 
-        let power    = self.power + self.mPower;
-        let armor    = target_unit.armor + target_unit.mArmor;
+        let calc     = {};
+        let power    = self.power           + self.mPower;
+        let armor    = target_unit.armor    + target_unit.mArmor;
         let blocking = target_unit.blocking + target_unit.mBlocking;
-        let calc = {
-          damage:      Math.round(power * (1 - armor/100)),
-          block:       blocking,
-          chance:      100,
-          penalty:     0,
-          bonus:       0,
-          unblockable: true,
-        };
-
-        if (calc.damage === 0) calc.damage = 1;
 
         if (data.aLOS && self.getLOSTargetUnit(target, from) !== target_unit) {
-          calc.chance = 0;
-          calc.unblockable = false;
-          return calc;
-        }
+          // Armor reduces melee/magic damage.
+          calc.damage = Math.round(power * (1 - armor/100));
+          if (calc.damage === 0) calc.damage = 1;
 
-        if (data.aType === 'melee' && !target_unit.paralyzed) {
-          if (target_unit.directional === false) {
+          // Another unit is in the way.  No chance to hit target unit.
+          calc.chance = 0;
+        }
+        else if (data.aType === 'melee') {
+          // Armor reduces magic damage.
+          calc.damage = Math.round(power * (1 - armor/100));
+          if (calc.damage === 0) calc.damage = 1;
+
+          if (target_unit.barriered)
+            calc.chance = 0;
+          else if (target_unit.paralyzed)
+            calc.chance = 100;
+          else if (target_unit.directional === false) {
+            // Wards have 100% blocking from all directions.
+            // The Chaos Seed has 50% blocking from all directions.
+            calc.chance = Math.clamp(100 - blocking, 0, 100);
+
+            // A successful block reduces Chaos Seed blocking temporarily.
+            // But, a failed block does not boost Chaos Seed blocking.
+            calc.bonus   = 0;
             calc.penalty = 100 - target_unit.blocking;
           }
           else {
             let direction = board.getDirection(from, target_unit.assignment, true);
 
             if (direction.indexOf(target_unit.direction) > -1) {
-              calc.block = 0;
-              return calc;
+              // Hitting a unit from behind always succeeds.
+              calc.chance = 100;
             }
             else if (direction.indexOf(board.getRotation(target_unit.direction, 180)) > -1) {
+              // Hitting a unit from the front has smallest chance of success.
+              calc.chance = Math.clamp(100 - blocking, 0, 100);
+
+              // The target's blocking may be boosted or penalized depending on success.
+              calc.bonus   = target_unit.blocking;
               calc.penalty = 100 - target_unit.blocking;
             }
             else {
-              calc.block /= 2;
+              // Hitting a unit from the side has improved chance of success.
+              calc.chance = Math.clamp(100 - blocking/2, 0, 100);
+
+              // The target's blocking may be boosted or penalized depending on success.
+              calc.bonus   = target_unit.blocking;
               calc.penalty = 200 - target_unit.blocking;
             }
-            calc.bonus = target_unit.blocking;
           }
+        }
+        else if (data.aType === 'magic') {
+          // Armor reduces magic damage.
+          calc.damage = Math.round(power * (1 - armor/100));
+          if (calc.damage === 0) calc.damage = 1;
 
-          if (calc.block <   0) calc.block = 0;
-          if (calc.block > 100) calc.block = 100;
-          calc.chance = 100 - calc.block;
-          calc.unblockable = false;
+          // Magic can only be stopped by barriers.
+          if (target_unit.barriered)
+            calc.chance = 0;
+          else
+            calc.chance = 100;
+        }
+        else if (data.aType === 'heal') {
+          // Armor has no effect on heal power.
+          calc.damage = -power;
+
+          // Healing can be stopped by barriers.
+          if (target_unit.barriered)
+            calc.chance = 0;
+          else
+            calc.chance = 100;
+        }
+        else {
+          // The attack type is the name of an effect.
+          calc.effect = data.aType;
+
+          // Not even barriers can stop effects.
+          calc.chance = 100;
         }
 
         return calc;
       },
-      /*
-       * Once player vs player is implemented, this needs to be delegated to the
-       * game server to prevent cheating since luck is involved.
-       */
-      calcAttackResults: function (target) {
+      getMoveResults: function (action) {
+        if (self.focusing)
+          return self.getBreakFocusResults(action);
+
+        return [];
+      },
+      getTurnResults: function (action) {
+        if (self.focusing)
+          return self.getBreakFocusResults(action);
+
+        return [];
+      },
+      getAttackResults: function (action, config) {
+        let results      = [];
+        let target       = action.tile;
         let target_units = self.getTargetUnits(target);
+        let direction    = board.getDirection(self.assignment, target, self.direction);
+        let focusing     = [];
 
-        if (!Array.isArray(target_units))
-          target_units = [target_units];
+        if (direction !== self.direction)
+          results.push({
+            unit: self.assignment,
+            changes: { direction:direction },
+          });
 
-        return target_units.map(unit => {
-          let result = {unit: unit};
+        results.push(...target_units.map(unit => {
+          let result = { unit:unit.assignment };
+          let calc   = self.calcAttack(unit, self.assignment, target);
 
-          if (unit.barriered)
-            return Object.assign(result, {miss: true});
+          if (calc.effect) {
+            if (calc.effect === 'paralyze')
+              result.changes = { paralyzed:true };
+            else if (calc.effect === 'poisoned')
+              result.changes = { poisoned:true };
 
-          let calc = self.calcAttack(unit, self.assignment, target);
+            if (data.aFocus) {
+              focusing.push(unit.assignment);
+
+              result.results = [{
+                unit: self.assignment,
+                changes: { focusing:focusing.slice() },
+              }];
+            }
+
+            return result;
+          }
+          else if (calc.chance === 0) {
+            if (calc.penalty)
+              Object.assign(result, {
+                miss: 'blocked',
+                changes: {
+                  direction: board.getDirection(unit.assignment, self.assignment, unit.direction),
+                  mBlocking: unit.mBlocking - calc.penalty,
+                },
+              });
+            else if (unit.barriered)
+              result.miss = 'deflected';
+
+            return result;
+          }
+
           let bad_luck = Math.random() * 100;
 
-          if (bad_luck > calc.chance)
-            return Object.assign(result, {
-              miss:      true,
-              blocked:   true,
-              mBlocking: unit.mBlocking - calc.penalty,
+          // This metric is used to determine which actions required luck to determine results.
+          if (calc.chance < 100)
+            result.luck = Math.round(calc.chance - bad_luck);
+
+          if (bad_luck < calc.chance) {
+            result.changes = {
+              mHealth: Math.clamp(unit.mHealth - calc.damage, -unit.health, 0),
+            };
+
+            if (calc.bonus)
+              result.changes.mBlocking = unit.mBlocking + calc.bonus;
+          }
+          else {
+            result.miss = 'blocked';
+
+            if (calc.penalty || unit.directional !== false) {
+              result.changes = {};
+
+              if (unit.directional !== false)
+                result.changes.direction = board.getDirection(unit.assignment, self.assignment, unit.direction);
+
+              if (calc.penalty)
+                result.changes.mBlocking = unit.mBlocking - calc.penalty;
+            }
+          }
+
+          return result;
+        }));
+
+        self.getAttackSubResults(results);
+
+        return results;
+      },
+      /*
+       * Apply sub-results that are after-effects of certain results.
+       */
+      getAttackSubResults: function (results) {
+        // Keep track of changes to focus from one result to another.
+        let focusingUnits = [];
+
+        results.forEach(result => {
+          let unit    = result.unit.assigned;
+          let changes = result.changes;
+
+          // Break the focus of attacked units
+          if (unit.focusing) {
+            if (
+              !changes.paralyzed &&
+              !changes.poisoned &&
+              !('mHealth' in changes && changes.mHealth < unit.mHealth)
+            ) return;
+
+            let focusingUnit = focusingUnits.find(fu => fu.unit === unit);
+            if (!focusingUnit)
+              focusingUnits.push(focusingUnit = {
+                unit: unit,
+                focusing: unit.focusing.slice(),
+              });
+
+            result.results = [{
+              unit: unit.assignment,
+              changes: { focusing:false },
+            }];
+
+            let aType = Tactics.units[unit.type].aType;
+            focusingUnit.focusing.forEach(tile => {
+              let fUnit = tile.assigned;
+              let changes = {};
+
+              if (aType === 'paralyze')
+                changes.paralyzed = false;
+              else if (aType === 'poisoned')
+                changes.poisoned = false;
+
+              result.results.push({
+                unit: tile,
+                changes: changes,
+              });
             });
 
-          return Object.assign(result, {
-            mHealth:   Math.max(unit.mHealth - calc.damage, -unit.health),
-            mBlocking: unit.mBlocking + calc.bonus,
-          });
+            focusingUnit.focusing = false;
+          }
+          // Remove focus from dead units
+          else if (unit.paralyzed || unit.poisoned) {
+            if (!('mHealth' in changes)) return;
+            if (changes.mHealth > -unit.health) return;
+
+            let subResults = [];
+
+            // Find all units that are focusing upon this dead one.
+            board.teams.forEach(team => {
+              team.units.forEach(fUnit => {
+                // Skip units that weren't focusing in the first place.
+                if (fUnit.focusing === false) return;
+
+                let focusingUnit = focusingUnits.find(fu => fu.unit === fUnit);
+                if (!focusingUnit)
+                  focusingUnits.push(focusingUnit = {
+                    unit: fUnit,
+                    focusing: fUnit.focusing.slice(),
+                  });
+
+                // Skip units that aren't focusing anymore.
+                if (focusingUnit.focusing === false) return;
+
+                let focusing = focusingUnit.focusing.filter(tile => tile !== unit.assignment);
+
+                // Skip units that are focusing somewhere else.
+                if (focusing.length === focusingUnit.focusing.length) return;
+
+                if (focusing.length === 0)
+                  focusingUnit.focusing = false;
+                else
+                  focusingUnit.focusing = focusing;
+
+                subResults.push({
+                  unit: fUnit.assignment,
+                  changes: { focusing:focusingUnit.focusing },
+                });
+
+                if (focusingUnit.focusing === false) {
+                  let aType = Tactics.units[fUnit.type].aType;
+                  let changes = {};
+
+                  if (aType === 'paralyze')
+                    changes.paralyzed = false;
+                  else if (aType === 'poison')
+                    changes.poisoned = false;
+
+                  subResults.push({
+                    unit: unit.assignment,
+                    changes: changes,
+                  });
+                }
+              });
+            });
+
+            if (subResults.length)
+              result.results = subResults;
+          }
         });
       },
       // Obtain the maximum threat to the unit before he recovers.
@@ -429,7 +626,7 @@
         let damages = [],damage = 0,threat;
         let i,j,units,unit,cnt;
 
-        if (!turnOrder) turnOrder = board.turnOrder;
+        if (!turnOrder) turnOrder = board.getTurnOrder();
 
         for (i=0; i<board.teams.length; i++) {
           damages.push([]);
@@ -449,7 +646,7 @@
               damages[i].push({
                 unit:   unit,
                 turns:  threat.turns+1-unit.mRecovery,
-                damage: threat.damage
+                damage: threat.damage,
               });
           }
 
@@ -480,12 +677,14 @@
       // How many turns until I can attack?
       // -1 may be returned if no movement required (unless simple is set)
       calcThreatTurns: function (target, simple) {
-        let turns = Math.ceil((board.getDistance(self.assignment,target.assignment) - self.aRadius) / self.mRadius) - 1;
+        let turns = Math.ceil(
+          (board.getDistance(self.assignment, target.assignment) - self.aRadius) / self.mRadius
+        ) - 1;
 
         if (turns < 0 && (self.mRecovery || simple))
           return self.mRecovery;
 
-        return turns+self.mRecovery;
+        return turns + self.mRecovery;
       },
       calcThreats: function (target, limit) {
         let threats = [];
@@ -493,7 +692,7 @@
         let tile,calc,threat;
 
         //if (self.mRecovery > target.mRecovery) return;
-        //if (self.mRecovery === target.mRecovery && board.turnOrder.indexOf(self.team) > board.turnOrder.indexOf(target.team)) return;
+        //if (self.mRecovery === target.mRecovery && board.getTurnOrder().indexOf(self.team) > board.getTurnOrder().indexOf(target.team)) return;
 
         for (let i = 0; i < directions.length; i++) {
           if (!(tile = target.assignment[directions[i]])) continue;
@@ -540,7 +739,7 @@
         ];
 
         if (!tile) {
-          if (!turnOrder) turnOrder = board.turnOrder;
+          if (!turnOrder) turnOrder = board.getTurnOrder();
 
           for (let i = 0; i < directions.length; i++) {
             if (!(tile = target.assignment[directions[i]])) continue;
@@ -609,11 +808,6 @@
         self.color = color === null ? 0xFFFFFF : Tactics.colors[color];
         self.assign(assignment);
         self.stand(self.directional === false ? 'S' : direction);
-        self.origin = {
-          tile:      assignment,
-          direction: direction,
-          focusing:  false,
-        };
 
         return self;
       },
@@ -852,10 +1046,10 @@
       },
       highlightAttack: function () {
         let tiles = self.getAttackTiles();
+        let focused_tile;
 
         if (!self.viewed && data.aAll) {
-          self.target   = self.assignment;
-          self.targeted = tiles;
+          self.target = self.assignment;
           return self.highlightTarget();
         }
 
@@ -869,13 +1063,23 @@
             blur:   self.onAttackBlur,
           }, self.viewed);
 
-          if (!self.viewed && tile.focused) self.onAttackFocus({target:tile});
+          if (!self.viewed && tile.focused)
+            focused_tile = tile;
         });
+
+        if (focused_tile)
+          self.onAttackFocus({
+            target:      focused_tile,
+            pointerType: focused_tile.focused,
+          });
 
         return self;
       },
       highlightTarget: function () {
-        self.targeted.forEach(tile => {
+        let tiles = self.getTargetTiles(self.target);
+        let focused_tile;
+
+        tiles.forEach(tile => {
           board.setHighlight({
             action: 'target',
             tile:   tile,
@@ -885,26 +1089,20 @@
             blur:   self.onTargetBlur,
           }, self.viewed);
 
-          if (tile.focused)  self.onAttackFocus({target:tile});
-          if (tile.assigned) tile.assigned.activate();
+          if (tile.focused)
+            focused_tile = tile;
         });
 
-        // This is a bandaid for touch devices where unit.focus is harder to use.
-        let target       = self.target;
-        let target_units = self.getTargetUnits(target);
-        if (target_units.length === 1 && (!target.assigned || !target.focused)) {
-          self.onAttackFocus({target:target_units[0].assignment});
-          board.drawCard(target_units[0]);
-        }
+        if (focused_tile)
+          self.onTargetFocus({target:focused_tile});
 
-        return self;
+        return self.showTarget();
       },
       showTurnOptions: function () {
         if (self.viewed) return self.showDirection();
 
-        turnOptions.position = self.assignment.getCenter().clone();
-        turnOptions.position.x -= 43;
-        turnOptions.position.y -= 70;
+        turnOptions.position = self.assignment.getTop().clone();
+        turnOptions.position.y -= HALF_TILE_HEIGHT / 2;
 
         turnOptions.children.forEach(arrow => {
           arrow.interactive = arrow.buttonMode = true;
@@ -916,10 +1114,38 @@
 
         return self;
       },
+      showTarget: function () {
+        let target       = self.target;
+        let target_units = self.getTargetUnits(target);
+
+        if (target_units.length === 1) {
+          self.onTargetFocus({target:target_units[0].assignment});
+          board.drawCard(target_units[0]);
+        }
+        else if (target.assigned)
+          self.onTargetFocus({target:target});
+
+        // Activate targeted units
+        target_units.forEach(unit => {
+          if (unit !== self) unit.activate();
+        });
+
+        return self;
+      },
+      hideTarget: function () {
+        // Reset the targeted units
+        self.getTargetUnits(self.target).forEach(unit => {
+          if (unit !== self) unit.deactivate();
+        });
+
+        self.target = null;
+        board.drawCard();
+
+        return self;
+      },
       showDirection: function () {
-        turnOptions.position = self.assignment.getCenter().clone();
-        turnOptions.position.x -= 43;
-        turnOptions.position.y -= 70;
+        turnOptions.position = self.assignment.getTop().clone();
+        turnOptions.position.y -= HALF_TILE_HEIGHT / 2;
 
         turnOptions.children.forEach(arrow => {
           arrow.interactive = arrow.buttonMode = false;
@@ -958,58 +1184,42 @@
         self.drawStand(direction);
         self.direction = direction;
       },
+      /*
+       * This method is called when a unit moves, attacks, or turns.
+       */
+      breakFocus: function (action) {
+        board.applyChangeResults([action]);
+
+        return board.animApplyFocusChanges(action).play();
+      },
       // Animate from one tile to the next
       move: function (action) {
-        self.freeze();
-        return self.playBreakFocus()
-          .then(() => self.animMove(action.tile).play())
-          .then(() => self.deployed = {first:!self.attacked})
-          .then(() => self.thaw());
+        return self.animMove(action.tile).play();
       },
       attack: function (action) {
         let results = action.results;
 
-        self.freeze();
-        return self.playBreakFocus()
-          .then(() => self.playAttack(action.tile, results))
-          .then(() => board.playResults(results))
-          .then(mode => {
-            self.attacked = true;
-            self.origin.adirection = self.direction;
-
-            let promise = Promise.resolve();
-
-            results.forEach(result => {
-              let unit = result.unit;
-
-              if (unit.canCounter()) {
-                let action = unit.getCounterAction(self, result);
-                if (action)
-                  promise = promise
-                    .then(() => unit[action.type](action))
-                    .then(() => board.playResults(action.results));
-              }
-            });
-
-            return promise;
-          })
-          .then(() => self.thaw());
+        return self.playAttack(action.tile, results)
+          .then(() => board.playResults(results));
       },
-      turn: function (direction) {
+      attackSpecial: function (action) {
+        let results = action.results;
+
+        return self.playAttackSpecial(results)
+          .then(() => board.playResults(results));
+      },
+      turn: function (action) {
         if (self.directional === false) return self;
-        if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
 
-        self.freeze();
-        return self.playBreakFocus()
-          .then(() => self.animTurn(direction).play())
-          .then(() => {
-            self.direction = direction;
-            self.turned    = true;
-          })
-          .then(() => self.thaw());
+        return self.animTurn(action.direction).play()
+          .then(() => self.direction = action.direction);
       },
-      playBreakFocus: function () {
-        return Promise.resolve();
+      // Triggered by multi-tapping the turn button.
+      rotate: function (deg) {
+        return board.takeAction({
+          type:      'turn',
+          direction: board.getRotation(self.direction, deg),
+        });
       },
       shock: function (direction, frameId, block) {
         let anchor = self.assignment.getCenter();
@@ -1215,7 +1425,7 @@
         else
           self.assignment.setAlpha(Math.min(0.6, self.assignment.pixi.alpha * 2));
 
-        return !pulse && !viewed ? startPulse(6) : self;
+        return self.assignment.painted === 'focus' && !pulse && !viewed ? startPulse(6) : self;
       },
       blur: function () {
         if (!self.focused) return self;
@@ -1231,7 +1441,7 @@
       },
       showMode: function () {
         let mode = self.activated;
-        if (mode === true || mode === 'ready')
+        if (mode === true)
           return;
 
         hideTurnOptions();
@@ -1260,9 +1470,13 @@
         self.hideMode();
 
         stopPulse();
+
+        return self;
       },
       thaw: function () {
         startPulse(4,2);
+
+        return self;
       },
       /*
        * A unit is activated when it is selected either directly or indirectly.
@@ -1281,14 +1495,9 @@
        * when selecting an enemy unit to view its movement or attack range.
        */
       activate: function (mode, view) {
-        let origin = self.origin;
-
         mode = mode || self.activated || true;
         self.viewed = view;
         if (self.activated == mode) return;
-
-        if (!view && mode === 'move')
-          self.reset(mode);
 
         self.activated = mode;
         self.showMode();
@@ -1299,45 +1508,12 @@
         if (!self.activated) return self;
 
         self.hideMode();
+        self.activated = false;
 
-        self.target = null;
-        self.activated = self.deployed = self.targeted = self.attacked = self.turned = false;
-        self.origin = {
-          tile:      self.assignment,
-          direction: self.direction,
-          focusing:  self.focusing,
-        };
+        // Clear a notice set in onTargetFocus().
+        self.notice = null;
 
         return stopPulse();
-      },
-      /*
-       * The reset() method is used to undo moving and/or turning.
-       * It is currently used in 3 contexts:
-       *   1) If the unit has not attacked, reset it when selecting a different unit.
-       *   2) If the unit has not attacked, reset it when selecting an empty tile.
-       *   3) Reset a unit when activating 'move' mode.
-       *
-       * For the first 2 contexts, the unit needs to be deactivated.  This is managed
-       * by a falsey 'mode' (an intent to no longer have an activated mode).
-       */
-      reset: function (mode) {
-        let origin = self.origin;
-
-        if (self.attacked) {
-          if (self.deployed && !self.deployed.first)
-            self.assign(origin.tile).stand(origin.adirection);
-          else
-            self.stand(origin.adirection);
-        }
-        else
-          self.assign(origin.tile).stand(origin.direction);
-
-        if (!mode)
-          self.deactivate();
-        else
-          self.deployed = self.turned = false;
-
-        return self;
       },
       change: function (changes) {
         if (typeof changes.paralyzed === 'boolean')
@@ -1348,6 +1524,9 @@
         self.emit({type:'change', changes:changes});
 
         return self;
+      },
+      hasFocus: function () {
+        return !!self.getSpritesByName('focus')[0];
       },
       showFocus: function (alpha) {
         let focus = self.getSpritesByName('focus')[0];
@@ -1563,7 +1742,7 @@
 
         anim.addFrame(() => sounds.block.play());
         if (self.directional !== false)
-          anim.splice(0, () => self.origin.direction = self.direction = direction);
+          anim.splice(0, () => self.direction = direction);
 
         if (data.blocks) {
           let indexes = [];
@@ -1913,69 +2092,30 @@
       onAttackSelect: function (event) {
         let target = event.target;
 
-        self.target   = target;
-        self.targeted = self.getTargetTiles(target);
+        self.target = target;
 
         // This makes it possible to click the attack button to switch from target
         // mode to attack mode.
         board.setSelectMode('target');
       },
       onTargetSelect: function (event) {
+        self.hideTarget();
+
+        // Clear the notice set in onTargetFocus().
+        self.notice = null;
+
         let action = {
           type: 'attack',
-          unit: self,
           tile: event.target,
         };
 
-        return board.takeAction(action).then(() => {
-          if (self.mHealth === -self.health)
-            board.endTurn();
-          else if (self.type === 8)
-            board.setSelectMode('ready');
-          else if (self.deployed) {
-            if (self.blocking)
-              board.setSelectMode('turn');
-            else
-              board.setSelectMode('ready');
-          }
-          else
-            board.setSelectMode('move');
-        });
+        return board.takeAction(action);
       },
       onTargetFocus: function (event) {
-        return self.onAttackFocus(event);
-      },
-      onTargetBlur: function (event) {
-        return self.onAttackBlur(event);
-      },
-      onSpecialSelect: function () {
-        board.lock();
-        self.freeze();
-        self.attackSpecial()
-          .then(board.playResults)
-          .then(() => {
-            if (self.mHealth > -self.health) {
-              self.attacked = true;
-              self.origin.adirection = self.direction;
-              self.thaw();
-
-              board.unlock();
-              if (self.canMove())
-                board.setSelectMode('move');
-              else
-                board.setSelectMode('turn');
-            }
-            else {
-              board.unlock();
-              board.endTurn();
-            }
-          });
-      },
-      onAttackFocus: function (event) {
         let tile = event.target;
-        let unit;
+        let unit = tile.assigned;
 
-        if (unit = tile.assigned) {
+        if (unit) {
           let calc = self.calcAttack(unit, null, self.target);
 
           if (calc.effect === 'paralyze')
@@ -2004,25 +2144,100 @@
           // unit.focus() handles setting alpha for assigned tiles.
           tile.setAlpha(0.6);
       },
-      onAttackBlur: function (event) {
-        // Ignore assigned targets since the unit.blur will reduce alpha
+      onTargetBlur: function (event) {
+        // Ignore assigned targets since the unit.blur will halve alpha
         if (!event.target.assigned)
           event.target.setAlpha(0.3);
       },
+      onSpecialSelect: function () {
+        board.takeAction({type:'attackSpecial'});
+      },
+      onAttackFocus: function (event) {
+        let tile = event.target;
+
+        // Single-click attacks are only enabled for mouse pointers.
+        if (event.pointerType !== 'mouse')
+          return self.onTargetFocus(event);
+        else
+          tile.setAlpha(0.6);
+
+        // Show target tiles
+        self.getTargetTiles(tile).forEach(target => {
+          if (target === tile)
+            // Reconfigure the focused tile to be a target tile.
+            board.setHighlight({
+              action: 'target',
+              tile:   target,
+              color:  0xFF3300,
+              select: self.onTargetSelect,
+              focus:  self.onTargetFocus,
+              blur:   self.onAttackBlur, // not a typo
+            }, self.viewed);
+          else
+            // This attack tile only looks like a target tile.
+            board.setHighlight({
+              action: 'attack',
+              tile:   target,
+              color:  0xFF3300,
+              select: self.onAttackSelect,
+              focus:  self.onAttackFocus,
+              blur:   self.onAttackBlur,
+            }, self.viewed);
+        });
+
+        // Configure the targets if we were to initiate attack.
+        self.target = tile;
+
+        self.showTarget();
+      },
+      onAttackBlur: function (event) {
+        let tile = event.target;
+
+        // Single-click attacks are only enabled for mouse pointers.
+        if (event.pointerType !== 'mouse')
+          return self.onTargetBlur(event);
+        else
+          tile.setAlpha(0.3);
+
+        if (self.target) {
+          let attackTiles = self.getAttackTiles();
+
+          // Reset target tiles to attack tiles
+          self.getTargetTiles(tile).forEach(target => {
+            if (attackTiles.indexOf(target) > -1)
+              board.setHighlight({
+                action: 'attack',
+                tile:   target,
+                color:  0xFF8800,
+                select: self.onAttackSelect,
+                focus:  self.onAttackFocus,
+                blur:   self.onAttackBlur,
+              }, self.viewed);
+            else
+              board.clearHighlight(target);
+          });
+
+          self.hideTarget();
+        }
+      },
       canSelect: function () {
         let selected = board.selected;
-        if (selected && selected.attacked && selected !== self)
+        if (selected && selected !== self && board.actions.length)
           return false;
 
-        return self.team === board.turnOrder[0] && !self.mRecovery && !self.paralyzed;
+        return self.team === board.currentTeamId && !self.mRecovery && !self.paralyzed;
       },
       canMove: function () {
-        return !!self.getMoveTiles().length
-          && (!self.attacked || !self.deployed || !self.deployed.first);
+        if (board.selected === self && board.moved)
+          return false;
+
+        return !!self.getMoveTiles().length;
       },
       canAttack: function () {
-        return !!self.getAttackTiles().length
-          && !self.attacked;
+        if (board.selected === self && board.attacked)
+          return false;
+
+        return !!self.getAttackTiles().length;
       },
       canTurn: function () {
         return self.directional !== false;

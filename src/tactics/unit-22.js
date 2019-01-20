@@ -18,23 +18,37 @@
       title:  'Awakened!',
       banned: [],
 
-      calcAttackResults: function (target) {
+      getAttackResults: function (target) {
+        let results = [];
+
         if (target === self.assignment)
-          return [{
-            unit:    self,
-            mHealth: Math.min(0, self.mHealth + self.power),
-          }];
+          results.push({
+            unit: self,
+            changes: {
+              mHealth: Math.min(0, self.mHealth + self.power),
+            },
+          });
         else if (target.assigned) {
+          let direction = board.getDirection(self.assignment, target, self.direction);
+          if (direction !== self.direction)
+            results.push({
+              unit: self,
+              changes: {
+                direction: board.getDirection(self.assignment, target, self.direction),
+              },
+            });
+
           let unit = target.assigned;
           let calc = self.calcAttack(unit);
-
-          return [{
-            unit:    unit,
-            mHealth: Math.max(unit.mHealth - calc.damage, -unit.health),
-          }];
+          results.push({
+            unit: unit,
+            changes: {
+              mHealth: Math.max(unit.mHealth - calc.damage, -unit.health),
+            },
+          });
         }
-        else
-          return [];
+
+        return results;
       },
       playAttack: function (target, results) {
         let anim      = new Tactics.Animation({fps:10});
@@ -44,8 +58,9 @@
           return self.special();
 
         // Make sure we strike the actual target (LOS can change it).
-        if (results.length)
-          target = results[0].unit.assignment;
+        let target_unit = self.getTargetUnits(target)[0];
+        if (target_unit)
+          target = target_unit.assignment;
 
         anim
           .splice(self.animTurn(direction))
@@ -181,81 +196,73 @@
             script: () => tunit.whiten(whiten.shift()),
             repeat:3
           })
-          .splice(5,function ()
-          {
+          .splice(5, () => {
             self.drawStreaks(container,target,source,adjust);
             Tactics.stage.addChild(container);
           })
-          .splice(6,function ()
-          {
+          .splice(6, () => {
             self.drawStreaks(container,target,source,adjust);
           })
-          .splice(7,function ()
-          {
+          .splice(7, () => {
             Tactics.stage.removeChild(container);
             sounds.buzz.stop();
           });
 
         return anim;
       },
-      drawStreaks:function (container,target,source,adjust)
-      {
-        var sprite,bounds,start,end,stops;
-        var streaks1 = container.children[0];
-        var streaks2 = container.children[1];
-        var streaks3 = container.children[2];
-
+      drawStreaks: function (container,target,source,adjust) {
         // Make sure bounds are set correctly.
         Tactics.stage.children[1].updateTransform();
 
-        sprite = self.frame.children[source];
-        bounds = sprite.getBounds();
-        start = new PIXI.Point(bounds.x+adjust.x,bounds.y+adjust.y);
-        end = target.getCenter().clone();
+        let sprite = self.frame.children[source];
+        let bounds = sprite.getBounds();
+        let start  = new PIXI.Point(bounds.x+adjust.x,bounds.y+adjust.y);
+        let end    = target.getCenter().clone();
 
-        start.x += Math.floor(sprite.width/2);
-        start.y += Math.floor(sprite.height/2);
-        end.y -= 14;
+        start.x += Math.floor(sprite.width  / 2);
+        start.y += Math.floor(sprite.height / 2);
+        end.y   -= 14;
 
         // Determine the stops the lightning will make.
-        stops =
-        [
+        let stops = [
           {
-            x:start.x + Math.floor((end.x - start.x) * 1/3),
-            y:start.y + Math.floor((end.y - start.y) * 1/3)
+            x: start.x + Math.floor((end.x - start.x) * 1/3),
+            y: start.y + Math.floor((end.y - start.y) * 1/3),
           },
           {
-            x:start.x + Math.floor((end.x - start.x) * 2/3),
-            y:start.y + Math.floor((end.y - start.y) * 2/3)
+            x: start.x + Math.floor((end.x - start.x) * 2/3),
+            y: start.y + Math.floor((end.y - start.y) * 2/3),
           },
-          {x:end.x,y:end.y}
+          {x:end.x, y:end.y},
         ];
+
+        let streaks1 = container.children[0];
+        let streaks2 = container.children[1];
+        let streaks3 = container.children[2];
 
         streaks1.clear();
         streaks2.clear();
         streaks3.clear();
 
-        $.each([1,2,3],function (i)
-        {
-          var alpha = i % 2 === 0 ? 0.5 : 1;
-          var deviation = alpha === 1 ? 9 : 19;
-          var midpoint = (deviation+1)/2;
+        for (let i=0; i<3; i++) {
+          let alpha     = i % 2 === 0 ? 0.5 : 1;
+          let deviation = alpha === 1 ? 9 : 19;
+          let midpoint  = (deviation + 1) / 2;
 
-          streaks1.lineStyle(1,0x8888FF,alpha);
-          streaks2.lineStyle(2,0xFFFFFF,alpha);
-          streaks3.lineStyle(2,0xFFFFFF,alpha);
+          streaks1.lineStyle(1, 0x8888FF, alpha);
+          streaks2.lineStyle(2, 0xFFFFFF, alpha);
+          streaks3.lineStyle(2, 0xFFFFFF, alpha);
 
-          streaks1.moveTo(start.x,start.y);
-          streaks2.moveTo(start.x,start.y);
-          streaks3.moveTo(start.x,start.y);
+          streaks1.moveTo(start.x, start.y);
+          streaks2.moveTo(start.x, start.y);
+          streaks3.moveTo(start.x, start.y);
 
-          $.each(stops,function (j,stop)
-          {
-            var offset;
-            var x = stop.x,y = stop.y;
+          stops.forEach((stop, j) => {
+            let offset;
+            let x = stop.x;
+            let y = stop.y;
 
-            if (j < 2)
-            {
+            if (j < 2) {
               // Now add a random offset to the stops.
               offset = Math.floor(Math.random() * deviation) + 1;
               if (offset > midpoint) offset = (offset-midpoint) * -1;
@@ -266,11 +273,11 @@
               y += offset;
             }
 
-            streaks1.lineTo(x,y);
-            streaks2.lineTo(x,y);
-            streaks3.lineTo(x,y);
+            streaks1.lineTo(x, y);
+            streaks2.lineTo(x, y);
+            streaks3.lineTo(x, y);
           });
-        });
+        }
 
         return self;
       },

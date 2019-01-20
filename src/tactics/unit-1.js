@@ -31,19 +31,19 @@
         return targets;
       },
       playAttack: function (target, results) {
-        let targeted  = self.targeted;
+        let targets   = self.getTargetTiles(target);
         let anim      = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, target, self.direction);
 
         /*
          * Animate the attack.  Blast closer tiles before further tiles.
          */
-        let closest = board.getDistance(self.assignment, targeted[0]);
+        let closest = board.getDistance(self.assignment, targets[0]);
         let attackAnim = self.animAttack(target);
 
         attackAnim.splice(0, () => sounds.attack.play());
 
-        targeted.forEach(tile => {
+        targets.forEach(tile => {
           let index = 3 + (board.getDistance(self.assignment, tile) - closest);
 
           attackAnim.splice(index, self.animFireBlast(tile, target));

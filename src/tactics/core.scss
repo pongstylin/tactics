@@ -36,6 +36,10 @@ BODY
   visibility:hidden;
   width:200px;
 }
+#loader.complete {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
 #bar
 {
   margin:10px auto;
@@ -99,6 +103,7 @@ BODY
   line-height:34px;
   text-align:center;
   vertical-align:bottom;  /* removes bottom spacing */
+  -webkit-tap-highlight-color: transparent;
 }
 #app > .buttons BUTTON:focus
 {
@@ -133,7 +138,7 @@ BODY
   border-color:     #FFE991;
 }
 #app > .buttons BUTTON[name=pass] {
-  background: url('https://legacy.taorankings.com/images/pass.png');
+  background-image: url('https://legacy.taorankings.com/images/pass.png');
 }
 #app > .buttons BUTTON[name=surrender] {
   background-image: url('https://legacy.taorankings.com/images/surrender.png');
@@ -182,6 +187,7 @@ BODY
 
 #app.locked > #game-play.buttons BUTTON,
 #app.locked > #game-settings.buttons BUTTON[name=rotate],
+#app.locked > #game-settings.buttons BUTTON[name=undo],
 #app > .buttons BUTTON[disabled] {
   opacity: 0.4;
   cursor:  default;
