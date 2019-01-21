@@ -7,18 +7,21 @@
     $.extend(self, {
       title: '...sleeps...',
 
-      phase: function (color) {
-        if (color === undefined) {
-          let teams   = board.getWinningTeams().reverse();
-          let choices = teams.filter(team => team.score === teams[0].score);
+      phase: function () {
+        let teamsData = board.getWinningTeams().reverse();
+        let color_id = null;
 
-          color = choices.random().color;
+        if (teamsData.length > 1) {
+          let choices = teamsData
+            .filter(teamData => teamData.score === teamsData[0].score);
+          if (choices.length)
+            color_id = board.teams[choices.random().id].color;
         }
 
-        if (color === board.teams[self.team].color)
+        if (color_id === board.teams[self.team].color)
           return Promise.resolve();
 
-        return self.animPhase(color).play();
+        return self.animPhase(color_id).play();
       },
       animPhase: function (color) {
         let fcolor = self.color;
@@ -45,10 +48,13 @@
           let team;
           if (attacker.color === self.color)
             team = board.teams[attacker.team];
-          else
+          else {
             team = board.teams.find(
               (team, i) => i !== self.team && Tactics.colors[team.color] === self.color
             );
+
+            if (!team) return;
+          }
 
           let target_units = team.units.filter(unit => unit.mHealth < 0);
           if (!target_units.length) return;
@@ -71,10 +77,13 @@
             // Cracked
             let team;
             if (attacker.color === self.color) {
-              let teams   = board.getWinningTeams();
-              let choices = teams.filter(team => team.score === teams[0].score);
+              let teamsData = board.getWinningTeams()
+                // Don't count the team that just attacked.
+                .filter(teamData => teamData.id !== attacker.team);
+              let choices = teamsData
+                .filter(teamData => teamData.score === teamsData[0].score);
 
-              team = choices.random();
+              team = board.teams[choices.random().id];
             }
             else
               team = board.teams[attacker.team];

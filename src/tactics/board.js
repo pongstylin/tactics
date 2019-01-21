@@ -377,6 +377,16 @@ Tactics.Board = function () {
           currentTeam.passedTurns = 0;
         else
           currentTeam.passedTurns++;
+
+        // Team Chaos needs a chance to phase before ending their turn.
+        if (currentTeam.name === 'Chaos') {
+          let action = {
+            type: 'phase',
+            unit: currentTeam.units[0].assignment,
+          };
+
+          validated.splice(validated.length-1, 0, action);
+        }
       }
 
       // Determine if the game has ended.
@@ -1463,17 +1473,12 @@ Tactics.Board = function () {
         if (team.name === 'Chaos') return;
         if (team.units.length === 0) return;
 
-        team.units.forEach(unit => 
-          chp += unit.health + unit.mHealth
-        );
+        team.units.forEach(unit => chp += unit.health + unit.mHealth);
 
         choices.push({
           id:     id,
-          color:  team.color,
-          units:  team.units,
           score:  chp / thp,
-          size:   team.units.length,
-          random: Math.random()
+          random: Math.random(),
         });
       });
 

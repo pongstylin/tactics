@@ -72,7 +72,7 @@
           };
 
           board.takeAction(action).then(() => {
-            paint(data.target, 0xFF8800);
+            paint(target, 0xFF8800);
 
             resolve(data);
           });

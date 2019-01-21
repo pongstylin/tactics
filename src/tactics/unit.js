@@ -428,7 +428,7 @@
 
         return [];
       },
-      getAttackResults: function (action, config) {
+      getAttackResults: function (action) {
         let results      = [];
         let target       = action.tile;
         let target_units = self.getTargetUnits(target);

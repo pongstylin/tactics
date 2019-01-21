@@ -18,8 +18,9 @@
       title:  'Awakened!',
       banned: [],
 
-      getAttackResults: function (target) {
+      getAttackResults: function (action) {
         let results = [];
+        let target  = action.tile;
 
         if (target === self.assignment)
           results.push({
@@ -43,7 +44,7 @@
           results.push({
             unit: target,
             changes: {
-              mHealth: Math.max(unit.mHealth - calc.damage, -unit.health),
+              mHealth: Math.max(-unit.health, unit.mHealth - calc.damage),
             },
           });
         }
@@ -87,19 +88,19 @@
         return anim.play();
       },
       phase: function (action) {
-        let banned   = action ? action.results[0].banned : self.banned;
+        let banned;
+        if (action.results)
+          banned = self.banned = action.results[0].banned;
+        else
+          banned = self.banned;
+
+        let teamsData = board.getWinningTeams().reverse()
+          .filter(teamData => banned.indexOf(teamData.id) === -1);
         let color_id = null;
-        let teams    = board.getWinningTeams().reverse().filter((team, t) =>
-          banned.indexOf(t) === -1 && t !== self.team
-        );
 
-        if (teams.length > 1) {
-          let choices  = teams.filter(team => {
-            if (team.units.length === 0) return false;
-
-            return team.score === teams[0].score;
-          });
-
+        if (teamsData.length > 1) {
+          let choices = teamsData
+            .filter(teamData => teamData.score === teamsData[0].score);
           if (choices.length)
             color_id = choices.random().color;
         }
@@ -185,7 +186,7 @@
             script: () => self.drawFrame(attack.s + frame++),
             repeat: attack.l,
           })
-          .splice(0, () => sounds.charge.play().fade(0,1,500))
+          .splice(0, () => sounds.charge.fade(0, 1, 500))
           .splice(5, tunit.animStagger(self))
           .splice(5, () => {
             sounds.buzz.play();
@@ -197,11 +198,11 @@
             repeat:3
           })
           .splice(5, () => {
-            self.drawStreaks(container,target,source,adjust);
+            self.drawStreaks(container, target,source,adjust);
             Tactics.stage.addChild(container);
           })
           .splice(6, () => {
-            self.drawStreaks(container,target,source,adjust);
+            self.drawStreaks(container, target,source,adjust);
           })
           .splice(7, () => {
             Tactics.stage.removeChild(container);
@@ -311,9 +312,9 @@
       getCounterAction: function (attacker, result) {
         if (attacker.color === self.color)
           return {
-            type:    'phase',
-            unit:    self.assignment,
-            tile:    self.assignment,
+            type: 'phase',
+            unit: self.assignment,
+            tile: self.assignment,
             results: [{
               unit:   self.assignment,
               banned: [...self.banned, attacker.team],

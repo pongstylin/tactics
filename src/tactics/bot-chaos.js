@@ -7,19 +7,16 @@
 
     $.extend(self, {
       startTurn: function (teamId) {
-        return new Promise((resolve, reject) => {
-          self.team = board.teams[teamId];
-          agent = self.team.units[0];
+        self.team = board.teams[teamId];
+        agent = self.team.units[0];
 
-          if (agent.type === 15)
-            agent.phase().then(() => resolve());
-          else
-            self.startTurnDragon(teamId).then(agent.phase).then(() => resolve());
-        }).then(() => {
-          let action = {type:'endTurn'};
+        if (agent.name === 'Chaos Seed') {
+          let action = { type:'endTurn' };
 
-          return board.takeAction(action);
-        });
+          board.takeAction(action);
+        }
+        else
+          self.startTurnDragon(teamId);
       },
       startTurnDragon: function (teamId) {
         self.choices = [];
@@ -27,13 +24,9 @@
         self.enemies = [];
 
         board.teams.forEach(team => {
-          team.units.forEach(unit => {
-            unit.id = unit.assignment.id;
-          });
-
           if (team.color === self.team.color) return;
 
-          Array.prototype.push.apply(self.enemies, team.units);
+          self.enemies.push(...team.units);
         });
 
         // Give the card time to fade.
@@ -42,20 +35,19 @@
 
           self.addChoice(self.calcTeamFuture(teamId));
 
-          if (self.inRange()) {
+          if (self.inRange())
             self.considerUnit();
-          }
           else {
             self.considerPosition(teamId);
 
             if (agent.mRecovery === 0 && agent.mHealth < 0) {
-              self.choices[0].first = 'attack';
+              self.choices[0].first  = 'attack';
               self.choices[0].target = agent.assignment;
             }
 
             self.endTurn();
           }
-        },1000);
+        }, 1000);
       },
       considerUnit: function () {
         var unit = self.friends.pop();
@@ -94,7 +86,7 @@
 
         // Use setTimeout to give the browser a chance to think while we think.
         if (self.friends.length)
-          setTimeout(self.considerUnit,10);
+          setTimeout(self.considerUnit, 10);
         else
           self.endTurn();
 
