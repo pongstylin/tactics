@@ -50,17 +50,24 @@ self.addEventListener('fetch', event => {
         request = event.request.clone();
 
       // Cache miss.  Fetch response and cache it.
-      return fetch(request).then(response => {
-        // Only cache successful responses.
-        if (!response || response.status !== 200)
+      return fetch(request)
+        .then(response => {
+          // Only cache successful responses.
+          if (!response || response.status !== 200)
+            return response;
+
+          // Clone the response before the body is consumed.
+          let responseClone = response.clone();
+          caches.open(DYNAMIC_BUNDLE).then(cache => cache.put(event.request, responseClone));
+
           return response;
-
-        // Clone the response before the body is consumed.
-        let responseClone = response.clone();
-        caches.open(DYNAMIC_BUNDLE).then(cache => cache.put(event.request, responseClone));
-
-        return response;
-      });
+        })
+        .catch(error => {
+          // If a potentially stale locally hosted resource is cached, return it.
+          if (response)
+            return response;
+          throw error;
+        });
     })
   );
 });
