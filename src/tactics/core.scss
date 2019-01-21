@@ -185,7 +185,7 @@ BODY
   border-width:1px;
 }
 
-#app.locked > #game-play.buttons BUTTON,
+#app.locked > #game-play.buttons BUTTON:not([name=swapbar]),
 #app.locked > #game-settings.buttons BUTTON[name=rotate],
 #app.locked > #game-settings.buttons BUTTON[name=undo],
 #app > .buttons BUTTON[disabled] {
