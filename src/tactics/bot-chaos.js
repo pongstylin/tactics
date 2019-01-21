@@ -11,12 +11,14 @@
           self.team = board.teams[teamId];
           agent = self.team.units[0];
 
-          if (agent.type === 15) {
+          if (agent.type === 15)
             agent.phase().then(() => resolve());
-          }
-          else {
+          else
             self.startTurnDragon(teamId).then(agent.phase).then(() => resolve());
-          }
+        }).then(() => {
+          let action = {type:'endTurn'};
+
+          return board.takeAction(action);
         });
       },
       startTurnDragon: function (teamId) {

@@ -9,12 +9,8 @@
 
       phase: function (color) {
         if (color === undefined) {
-          let teams = board.getWinningTeams().reverse();
-          let choices = teams.filter(team => {
-            if (team.units.length === 0) return false;
-
-            return team.score === teams[0].score;
-          });
+          let teams   = board.getWinningTeams().reverse();
+          let choices = teams.filter(team => team.score === teams[0].score);
 
           color = choices.random().color;
         }
@@ -61,12 +57,12 @@
 
           return {
             type: 'heal',
-            unit: self,
+            unit: self.assignment,
             tile: target_unit.assignment,
             results: [{
-              unit:    target_unit,
+              unit:    target_unit.assignment,
               notice:  'Nice',
-              changes: {mHealth:Math.min(target_unit.mHealth + self.power, 0)},
+              changes: { mHealth:Math.min(0, target_unit.mHealth + self.power) },
             }],
           };
         }
@@ -76,11 +72,7 @@
             let team;
             if (attacker.color === self.color) {
               let teams   = board.getWinningTeams();
-              let choices = teams.filter(team => {
-                if (team.units.length === 0) return false;
-
-                return team.score === teams[0].score;
-              });
+              let choices = teams.filter(team => team.score === teams[0].score);
 
               team = choices.random();
             }
@@ -94,11 +86,11 @@
 
             return {
               type: 'attack',
-              unit: self,
+              unit: self.assignment,
               tile: target_unit.assignment,
               results: [{
-                unit:    target_unit,
-                changes: {mHealth:Math.max(mHealth, -target_unit.health)},
+                unit:    target_unit.assignment,
+                changes: { mHealth:Math.max(-target_unit.health, mHealth) },
               }],
             };
           }
@@ -106,17 +98,20 @@
             // Hatched
             return {
               type:    'hatch',
-              unit:    self,
+              unit:    self.assignment,
               tile:    attacker.assignment,
-              results: [],
+              results: [{
+                unit:    attacker.assignment,
+                changes: { mHealth: -attacker.health },
+              }],
             };
           }
         }
       },
-      attack: function (action) {
+      playAttack: function (target, results) {
         let anim  = new Tactics.Animation();
         let winds = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
-        let target_unit = action.tile.assigned;
+        let target_unit = target.assigned;
 
         anim
           .addFrames([
@@ -231,7 +226,7 @@
             repeat: 12,
           });
 
-        return anim.play();
+        return anim.play().then(() => board.playResults(action.results));
       },
       animStagger: function (attacker) {
         let anim      = new Tactics.Animation();
@@ -266,19 +261,21 @@
         ]});
       },
       hatch: function (action) {
-        let anim = new Tactics.Animation();
-        let assignment = self.assignment;
-        let direction = board.getDirection(assignment, action.tile);
-        let target = action.tile.assigned;
-        let frames = target.walks[direction];
-        let step = 0;
-        let step2 = 0;
-        let myPos = assignment.getCenter();
-        let pos = target.pixi.position.clone();
-        let caption,dragon,hatch = Tactics.units[22].animations[direction].hatch;
-        let team = board.teams[self.team],tint = self.color;
-        let death = new PIXI.Container();
-        let winds = ['wind1','wind2','wind3','wind4','wind5'];
+        let anim        = new Tactics.Animation();
+        let assignment  = self.assignment;
+        let direction   = board.getDirection(assignment, action.tile);
+        let target_unit = action.tile.assigned;
+        let frames      = target_unit.walks[direction];
+        let step        = 0;
+        let step2       = 0;
+        let myPos       = assignment.getCenter();
+        let pos         = target_unit.pixi.position.clone();
+        let caption;
+        let dragon;
+        let hatch       = Tactics.units[22].animations[direction].hatch;
+        let team        = board.teams[self.team],tint = self.color;
+        let death       = new PIXI.Container();
+        let winds       = ['wind1','wind2','wind3','wind4','wind5'];
 
         if (direction === 'S')
           caption = {x:9};
@@ -315,7 +312,7 @@
               .dropUnit(self)
               .addUnit(self.team, {
                 t: 22,
-                tile: assignment,
+                assignment: assignment,
                 direction: direction,
               });
 
@@ -327,7 +324,7 @@
             script: () => dragon.frame.alpha = 1 - (--step / 12),
             repeat: 12
           })
-          .splice(22, target.animTurn(direction))
+          .splice(22, target_unit.animTurn(direction))
           .splice(24, {
             script: () => {
               let offset = ((step2 / (frames.length*3)) * 0.45) + 0.12;
@@ -336,33 +333,33 @@
               if ((step2 % frames.length) === 0 || (step2 % frames.length) === 4)
                 Tactics.units[0].sounds.step.play();
 
-              target.drawFrame(frames[step2++ % frames.length]);
+              target_unit.drawFrame(frames[step2++ % frames.length]);
 
               // Opposite of what you expect since we're going backwards.
               if (direction === 'S') {
-                target.pixi.position.x = pos.x - offset.x;
-                target.pixi.position.y = pos.y - offset.y;
+                target_unit.pixi.position.x = pos.x - offset.x;
+                target_unit.pixi.position.y = pos.y - offset.y;
               }
               else if (direction === 'N') {
-                target.pixi.position.x = pos.x + offset.x;
-                target.pixi.position.y = pos.y + offset.y;
+                target_unit.pixi.position.x = pos.x + offset.x;
+                target_unit.pixi.position.y = pos.y + offset.y;
               }
               else if (direction === 'E') {
-                target.pixi.position.x = pos.x - offset.x;
-                target.pixi.position.y = pos.y + offset.y;
+                target_unit.pixi.position.x = pos.x - offset.x;
+                target_unit.pixi.position.y = pos.y + offset.y;
               }
               else {
-                target.pixi.position.x = pos.x + offset.x;
-                target.pixi.position.y = pos.y - offset.y;
+                target_unit.pixi.position.x = pos.x + offset.x;
+                target_unit.pixi.position.y = pos.y - offset.y;
               }
             },
             repeat: frames.length*3,
           })
-          .splice(22, target.animCaption('Ugh!',caption))
+          .splice(22, target_unit.animCaption('Ugh!',caption))
           .splice(() => { // 48
-            // Useful for bots
-            target.mHealth = -target.health;
-            board.dropUnit(target);
+            // Change the mHealth so bots know not to move or turn after dying.
+            target_unit.mHealth = -target_unit.health;
+            board.dropUnit(target_unit);
           })
           .splice({ // 49
             script: function () {
@@ -434,7 +431,7 @@
           if (i === 84) break;
 
           if (i === 0)
-            anim.splice(i, () => sounds.wind.play(winds.random()).fadeIn(0.25, 500));
+            anim.splice(i, () => sounds.wind.fade(0, 0.25, 500, sounds.wind.play(winds.random())));
           else if (i === 76)
             anim.splice(i, () => sounds.roar.play('roar'));
           else

@@ -225,7 +225,7 @@ Tactics.Board = function () {
       // Validate actions until we find an endTurn event.
       let turnEnded = !!actions.find(action => {
         if (action.type === 'endTurn') {
-          action.results = self.getEndTurnResults();
+          action.results = self.getEndTurnResults(unitWatch);
           validated.push(action);
           return true;
         }
@@ -280,22 +280,11 @@ Tactics.Board = function () {
 
         validated.push(action);
 
-        // An attack may trigger a counter-attack.
-        if (action.type === 'attack')
-          action.results.forEach(result => {
-            let unit = result.unit.assigned;
-
-            if (unit.canCounter()) {
-              let action = unit.getCounterAction(self, result);
-              if (action)
-                validated.push(action);
-            }
-          });
         // A turn action immediately ends the turn.
-        else if (action.type === 'turn') {
+        if (action.type === 'turn') {
           validated.push({
             type:    'endTurn',
-            results: self.getEndTurnResults(),
+            results: self.getEndTurnResults(unitWatch),
           });
           return true;
         }
@@ -351,10 +340,34 @@ Tactics.Board = function () {
         if (turnEnded) {
           validated.push({
             type:    'endTurn',
-            results: self.getEndTurnResults(),
+            results: self.getEndTurnResults(unitWatch),
           });
 
           return true;
+        }
+
+        // An attack may trigger a counter-attack.
+        if (action.type === 'attack') {
+          let turnEnded = action.results.find(result => {
+            let unit = result.unit.assigned;
+            if (!unit.canCounter()) return;
+
+            let counterAction = unit.getCounterAction(action.unit.assigned, result);
+            if (!counterAction) return;
+
+            validated.push(counterAction);
+
+            return findTurnEnded(counterAction.results);
+          });
+
+          if (turnEnded) {
+            validated.push({
+              type:    'endTurn',
+              results: self.getEndTurnResults(unitWatch),
+            });
+
+            return true;
+          }
         }
       });
 
@@ -1283,23 +1296,31 @@ Tactics.Board = function () {
         self.drawCard();
       }
     },
-    getEndTurnResults() {
+    /*
+     * End turn results include:
+     *   The selected unit mRecovery is incremented based on their actions.
+     *   Other units' mRecovery on the outgoing team is decremented.
+     *   All units' mBlocking are reduced by 20% per turn cycle.
+     */
+    getEndTurnResults(unitWatch) {
       let selected  = self.selected;
-      let attacked  = self.attacked;
       let moved     = self.moved;
+      let attacked  = self.attacked;
       let teams     = self.teams.filter(team => !!team.units.length);
       let teamId    = self.currentTeamId;
       let results   = [];
 
-      // Recover and decay blocking modifiers
-      let decay = teams.length;
-
-      // Don't count team chaos.
-      if (self.teams[4] && self.teams[4].units.length) decay--;
+      // Per turn mBlocking decay rate is based on the number of playable teams.
+      // It is calculated such that a full turn cycle is still a 20% reduction.
+      let decay = teams.filter(t => t.name !== 'Chaos').length;
 
       teams.forEach((team, t) => {
         team.units.forEach(unit => {
-          // Decay recovery for the current team.
+          // Skip units that are about to die.
+          let watch = unitWatch.find(uw => uw.unit === unit);
+          if (watch && watch.mHealth === -unit.health) return;
+
+          // Adjust recovery for the outgoing team.
           if (t === teamId) {
             let mRecovery;
             if (unit === selected) {
@@ -1321,7 +1342,7 @@ Tactics.Board = function () {
             if (mRecovery !== undefined)
               results.push({
                 unit:    unit.assignment,
-                changes: {mRecovery:mRecovery},
+                changes: { mRecovery:mRecovery },
               });
           }
 
@@ -1332,7 +1353,7 @@ Tactics.Board = function () {
 
             results.push({
               unit:    unit.assignment,
-              changes: {mBlocking:mBlocking},
+              changes: { mBlocking:mBlocking },
             });
           }
         });
@@ -1439,7 +1460,7 @@ Tactics.Board = function () {
 
       self.teams.forEach((team, id) => {
         var thp = 50*3,chp = 0;
-        if (id === 4) return; // Team Chaos
+        if (team.name === 'Chaos') return;
         if (team.units.length === 0) return;
 
         team.units.forEach(unit => 

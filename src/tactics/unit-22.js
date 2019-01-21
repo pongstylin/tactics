@@ -23,7 +23,7 @@
 
         if (target === self.assignment)
           results.push({
-            unit: self,
+            unit: self.assignment,
             changes: {
               mHealth: Math.min(0, self.mHealth + self.power),
             },
@@ -32,7 +32,7 @@
           let direction = board.getDirection(self.assignment, target, self.direction);
           if (direction !== self.direction)
             results.push({
-              unit: self,
+              unit: self.assignment,
               changes: {
                 direction: board.getDirection(self.assignment, target, self.direction),
               },
@@ -41,7 +41,7 @@
           let unit = target.assigned;
           let calc = self.calcAttack(unit);
           results.push({
-            unit: unit,
+            unit: target,
             changes: {
               mHealth: Math.max(unit.mHealth - calc.damage, -unit.health),
             },
@@ -312,10 +312,10 @@
         if (attacker.color === self.color)
           return {
             type:    'phase',
-            unit:    self,
+            unit:    self.assignment,
             tile:    self.assignment,
             results: [{
-              unit:   self,
+              unit:   self.assignment,
               banned: [...self.banned, attacker.team],
             }],
           };
