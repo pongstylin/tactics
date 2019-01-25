@@ -264,6 +264,13 @@ function panzoom (options) {
   });
 
   let instance = {
+    transitioningTo: null,
+
+    canZoom: function () {
+      let testTransition = self.transitioningTo || current;
+
+      return testTransition.scale < maxScale;
+    },
     setFingers: setFingers,
     moveFingers: moveFingers,
     lock: function () {
@@ -275,6 +282,8 @@ function panzoom (options) {
       resumeImpetus();
     },
     transitionToTransform: function (transform) {
+      self.transitioningTo = transform;
+
       setOrigin(transform.origin);
 
       let startScale     = current.scale;
@@ -288,8 +297,10 @@ function panzoom (options) {
         if (!startTime) startTime = time;
 
         let progress = Math.min(500, time - startTime) / 500;
-        if (progress === 1)
+        if (progress === 1) {
           locked = wasLocked;
+          self.transitioning = null;
+        }
         else
           requestAnimationFrame(makeTransition);
 

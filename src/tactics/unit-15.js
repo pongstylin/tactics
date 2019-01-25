@@ -11,12 +11,8 @@
         let teamsData = board.getWinningTeams().reverse();
         let color_id = null;
 
-        if (teamsData.length > 1) {
-          let choices = teamsData
-            .filter(teamData => teamData.score === teamsData[0].score);
-          if (choices.length)
-            color_id = board.teams[choices.random().id].color;
-        }
+        if (teamsData.length)
+          color_id = board.teams[teamsData[0].id].color;
 
         if (color_id === board.teams[self.team].color)
           return Promise.resolve();

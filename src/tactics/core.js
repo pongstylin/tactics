@@ -50,9 +50,33 @@ Tactics = (function () {
      * Allow touch devices to upscale to normal size.
      */
     resize: function () {
-      let width = self.canvas.clientWidth;
-      let height = self.canvas.clientHeight;
-      let elementScale = Math.min(1, width / self.width, height / self.height);
+      self.canvas.style.width  = null;
+      self.canvas.style.height = null;
+
+      let container = self.canvas.parentNode;
+      let width     = container.clientWidth;
+      let height    = container.clientHeight;
+
+      if (window.innerHeight < height) {
+        let rect = self.canvas.getBoundingClientRect();
+
+        height  = window.innerHeight;
+        height -= rect.top;
+        //height -= window.innerHeight - rect.bottom;
+        //console.log(window.innerHeight, rect.bottom);
+      }
+      else
+        height -= self.canvas.offsetTop;
+
+      let width_ratio  = width  / self.width;
+      let height_ratio = height / self.height;
+      let elementScale = Math.min(1, width_ratio, height_ratio);
+
+      if (elementScale < 1)
+        if (width_ratio < height_ratio)
+          self.canvas.style.width = '100%';
+        else
+          self.canvas.style.height = height+'px';
 
       self.panzoom.maxScale = 1 / elementScale;
       self.panzoom.reset();
@@ -66,25 +90,21 @@ Tactics = (function () {
 
       if (!data.children) return;
 
-      $.each(data.children,function (k,v)
-      {
+      $.each(data.children, function (k,v) {
         var cls = types[v.type];
         var child;
 
-        if (cls == 'Text')
-        {
+        if (cls == 'Text') {
           child = new PIXI[cls](v.text || '',$.extend({},data.textStyle,v.style || {}));
         }
-        else
-        {
+        else {
           child = new PIXI[cls]();
         }
 
         if ('x'        in v) child.position.x = v.x;
         if ('y'        in v) child.position.y = v.y;
         if ('visible'  in v) child.visible = v.visible;
-        if ('onSelect' in v)
-        {
+        if ('onSelect' in v) {
           child.interactive = child.buttonMode = true;
           child.hitArea = new PIXI.Rectangle(0,0,v.w,v.h);
           child.click = child.tap = function () { v.onSelect.call(child,child); };

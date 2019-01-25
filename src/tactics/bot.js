@@ -38,7 +38,12 @@
     }
 
     function move(data) {
-      if (data.unit.mHealth === -data.unit.health) return data;
+      let unit = data.unit;
+
+      // Bail if killed by Chaos Seed in a counter-attack.
+      if (unit.mHealth === -unit.health) return data;
+
+      // Bail for attack-only choices.
       if (!data.end) return data;
 
       return new Promise((resolve, reject) => {
@@ -58,16 +63,22 @@
     }
 
     function attack(data) {
+      let unit   = data.unit;
       let target = data.target;
+
+      // Bail for move- or turn-only choices.
       if (!target) return data;
 
       // Show a preview of what the attack chances are.
-      if (target.assigned) board.drawCard(target.assigned);
+      if (target.assigned && target !== unit.assignment) {
+        unit.onTargetFocus({ target:target });
+        board.drawCard(target.assigned);
+      }
 
       return new Promise((resolve, reject) => {
         setTimeout(() => {
           let action = {
-            type: 'attack',
+            type: target === unit.assignment ? 'attackSpecial' : 'attack',
             tile: target,
           };
 
@@ -81,9 +92,13 @@
     }
 
     function turn(data) {
-      var target = data.target;
+      let unit   = data.unit;
+      let target = data.target;
 
-      if (data.unit.mHealth === -data.unit.health) return data;
+      // Bail if killed by Chaos Seed in a counter-attack.
+      if (unit.mHealth === -unit.health) return data;
+
+      // Bail for choices that don't involve turning.
       if (!data.direction) return data;
 
       // View the results of the attack, if one was made.
@@ -174,11 +189,11 @@
             if (b.target && b.target.assigned.type === 15) bs++;
 
             if (a.target && a.target !== a.unit.assignment) {
-              at = a.unit.calcThreat(a.target.assigned,a.first === 'attack' ? a.unit.assignment : a.end);
+              at = a.unit.calcThreat(a.target.assigned, a.first === 'attack' ? a.unit.assignment : a.end);
               at = at.chance <= 20 ? 0 : at.threat;
             }
             if (b.target && b.target !== b.unit.assignment) {
-              bt = b.unit.calcThreat(b.target.assigned,b.first === 'attack' ? b.unit.assignment : b.end);
+              bt = b.unit.calcThreat(b.target.assigned, b.first === 'attack' ? b.unit.assignment : b.end);
               bt = bt.chance <= 20 ? 0 : bt.threat;
             }
 
@@ -187,7 +202,7 @@
               || (bt - at)
               || (b.weight - a.weight)
               || (a.threats - b.threats)
-              || (b.random - a.random); 
+              || (b.random - a.random);
           });
           chosen = choices[0];
           // If we are passing or the equivalent, then try to get a better position.
@@ -386,80 +401,71 @@
 
         return self;
       },
-      considerTurnOnly:function (unit)
-      {
+      considerTurnOnly: function (unit) {
         var fdirection = unit.direction;
         var tdirection = self.considerDirection(unit);
 
         if (fdirection === tdirection) return self;
 
-        self.addChoice($.extend({
-          unit:unit,
-          first:'turn',
-          direction:tdirection,
+        self.addChoice(Object.assign({
+          unit:      unit,
+          first:     'turn',
+          direction: tdirection,
         },self.calcTeamFuture(unit.team)));
 
         return self;
       },
-      considerAttackOnly:function (unit,target)
-      {
+      considerAttackOnly: function (unit, target) {
         unit.mRecovery = Math.ceil(unit.recovery / 2);
 
-        self.addChoice($.extend
-        ({
-          unit:unit,
-          first:'attack',
-          target:target.tile,
-          direction:self.considerDirection(unit),
-        },self.calcTeamFuture(unit.team,target)));
+        self.addChoice(Object.assign({
+          unit:      unit,
+          first:     'attack',
+          target:    target.tile,
+          direction: self.considerDirection(unit),
+        }, self.calcTeamFuture(unit.team, target)));
 
         return self;
       },
-      considerAttackFirst:function (unit,end,target)
-      {
+      considerAttackFirst: function (unit, end, targetData) {
         unit.mRecovery = unit.recovery;
 
-        self.addChoice($.extend
-        ({
-          unit:unit,
-          end:end,
-          first:'attack',
-          target:target.tile,
-          direction:self.considerDirection(unit),
-        },self.calcTeamFuture(unit.team,target)));
+        self.addChoice(Object.assign({
+          unit:      unit,
+          end:       end,
+          first:     'attack',
+          target:    targetData.tile,
+          direction: self.considerDirection(unit),
+        }, self.calcTeamFuture(unit.team, targetData)));
 
         return self;
       },
-      considerMoveFirst:function (unit,end)
-      {
+      considerMoveFirst: function (unit, end) {
         var target;
 
         if (!(target = self.considerTarget(unit))) return self;
 
         unit.mRecovery = unit.recovery;
 
-        self.addChoice($.extend
-        ({
-          unit:unit,
-          end:end,
-          first:'move',
-          target:target.tile,
-          direction:self.considerDirection(unit,target),
-        },self.calcTeamFuture(unit.team,target)));
+        self.addChoice(Object.assign({
+          unit:      unit,
+          end:       end,
+          first:     'move',
+          target:    target.tile,
+          direction: self.considerDirection(unit,target),
+        }, self.calcTeamFuture(unit.team, target)));
 
         return self;
       },
-      considerMoveOnly:function (unit,end)
-      {
+      considerMoveOnly: function (unit, end) {
         unit.mRecovery = Math.floor(unit.recovery / 2);
 
-        self.addChoice($.extend
-        ({
-          unit:unit,
-          end:end,
-          first:'move',
-          direction:self.considerDirection(unit),
-        },self.calcTeamFuture(unit.team)));
+        self.addChoice(Object.assign({
+          unit:      unit,
+          end:       end,
+          first:     'move',
+          direction: self.considerDirection(unit),
+        }, self.calcTeamFuture(unit.team)));
 
         return self;
       },
@@ -517,37 +523,31 @@
 
         return unit.direction = choices[0].direction;
       },
-      considerTarget:function (unit)
-      {
-        var tile,tiles;
-        var target,targets = [];
-        var i,mRecovery;
+      considerTarget: function (unit) {
+        let targetsData = [];
+        let targets = unit.getAttackTiles();
 
-        tiles = unit.getAttackTiles();
+        for (let i=0; i<targets.length; i++) {
+          let target = targets[i];
+          let target_unit = target.assigned;
 
-        for (i=0; i<tiles.length; i++)
-        {
-          tile = tiles[i];
-
-          if (!(target = tile.assigned) || self.enemies.indexOf(target) === -1) continue;
+          if (!target_unit || self.enemies.indexOf(target_unit) === -1) continue;
 
           // Set defense to zero to try to priorize target.
-          if (target.type === 15)
-            targets.push({tile:tile,target:target,defense:0,random:Math.random()});
+          if (target_unit.type === 15)
+            targetsData.push({tile:target, target:target_unit, defense:0, random:Math.random()});
           else
-            targets.push({tile:tile,target:target,defense:target.calcDefense(),random:Math.random()});
+            targetsData.push({tile:target, target:target_unit, defense:target_unit.calcDefense(), random:Math.random()});
         }
 
-        if (!targets.length) return;
-        targets.sort(function (a,b)
-        {
-          return (a.defense-b.defense) || (a.random-b.random);
-        });
-        target = targets[0];
+        if (!targetsData.length) return;
+        targetsData.sort((a, b) => (a.defense - b.defense) || (a.random - b.random));
 
-        $.extend(target,unit.calcThreat(target.target, unit.assignment));
+        let targetData = targetsData[0];
 
-        return target;
+        Object.assign(targetData, unit.calcThreat(targetData.target, unit.assignment));
+
+        return targetData;
       },
       inRange:function ()
       {

@@ -18,45 +18,9 @@
       title:  'Awakened!',
       banned: [],
 
-      getAttackResults: function (action) {
-        let results = [];
-        let target  = action.tile;
-
-        if (target === self.assignment)
-          results.push({
-            unit: self.assignment,
-            changes: {
-              mHealth: Math.min(0, self.mHealth + self.power),
-            },
-          });
-        else if (target.assigned) {
-          let direction = board.getDirection(self.assignment, target, self.direction);
-          if (direction !== self.direction)
-            results.push({
-              unit: self.assignment,
-              changes: {
-                direction: board.getDirection(self.assignment, target, self.direction),
-              },
-            });
-
-          let unit = target.assigned;
-          let calc = self.calcAttack(unit);
-          results.push({
-            unit: target,
-            changes: {
-              mHealth: Math.max(-unit.health, unit.mHealth - calc.damage),
-            },
-          });
-        }
-
-        return results;
-      },
       playAttack: function (target, results) {
         let anim      = new Tactics.Animation({fps:10});
         let direction = board.getDirection(self.assignment, target);
-
-        if (target === self.assignment)
-          return self.special();
 
         // Make sure we strike the actual target (LOS can change it).
         let target_unit = self.getTargetUnits(target)[0];
@@ -69,24 +33,6 @@
 
         return anim.play();
       },
-      special: function () {
-        let anim  = new Tactics.Animation();
-        let block = data.animations[self.direction].block;
-
-        anim
-          .splice([
-            () => self.drawFrame(block.s),
-            () => self.drawFrame(block.s+1),
-            () => {},
-          ])
-          .splice(self.animHeal([self]))
-          .splice([
-            () => self.drawFrame(block.s+4),
-            () => self.drawFrame(block.s+5),
-          ]);
-
-        return anim.play();
-      },
       phase: function (action) {
         let banned;
         if (action.results)
@@ -94,15 +40,14 @@
         else
           banned = self.banned;
 
-        let teamsData = board.getWinningTeams().reverse()
-          .filter(teamData => banned.indexOf(teamData.id) === -1);
+        let teamsData = board.getWinningTeams().reverse();
         let color_id = null;
 
         if (teamsData.length > 1) {
-          let choices = teamsData
-            .filter(teamData => teamData.score === teamsData[0].score);
-          if (choices.length)
-            color_id = choices.random().color;
+          teamsData = teamsData.filter(teamData => banned.indexOf(teamData.id) === -1);
+
+          if (teamsData.length)
+            color_id = board.teams[teamsData[0].id].color;
         }
 
         if (color_id === board.teams[self.team].color)
@@ -186,7 +131,7 @@
             script: () => self.drawFrame(attack.s + frame++),
             repeat: attack.l,
           })
-          .splice(0, () => sounds.charge.fade(0, 1, 500))
+          .splice(0, () => sounds.charge.fade(0, 1, 500, sounds.charge.play()))
           .splice(5, tunit.animStagger(self))
           .splice(5, () => {
             sounds.buzz.play();
@@ -306,11 +251,48 @@
 
         return anim;
       },
+
+      /*
+       * Implement ability to self-heal
+       */
+      canSpecial: function () {
+        return self.mHealth < 0;
+      },
+      getAttackSpecialResults: function (action) {
+        return [{
+          unit: self.assignment,
+          changes: {
+            mHealth: Math.min(0, self.mHealth + self.power),
+          },
+        }];
+      },
+      playAttackSpecial: function (action) {
+        let anim  = new Tactics.Animation();
+        let block = data.animations[self.direction].block;
+
+        anim
+          .splice([
+            () => self.drawFrame(block.s),
+            () => self.drawFrame(block.s+1),
+            () => {},
+          ])
+          .splice(self.animHeal([self]))
+          .splice([
+            () => self.drawFrame(block.s+4),
+            () => self.drawFrame(block.s+5),
+          ]);
+
+        return anim.play();
+      },
+
+      /*
+       * Implement ability to get angry with attacking allies.
+       */
       canCounter: function () {
         return true;
       },
       getCounterAction: function (attacker, result) {
-        if (attacker.color === self.color)
+        if (attacker !== self && attacker.color === self.color)
           return {
             type: 'phase',
             unit: self.assignment,

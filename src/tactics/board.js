@@ -23,7 +23,7 @@ Tactics.Board = function () {
 
   card.canvas = card.renderer.view;
   card.canvas.id = 'card';
-  Tactics.canvas.parentElement.appendChild(card.canvas);
+  Tactics.canvas.parentElement.insertBefore(card.canvas, Tactics.canvas);
 
   card.stage.hitArea = new PIXI.Polygon([0,0, 175,0, 175,99, 0,99]);
   card.stage.interactive = card.stage.buttonMode = true;
@@ -1313,25 +1313,25 @@ Tactics.Board = function () {
      *   All units' mBlocking are reduced by 20% per turn cycle.
      */
     getEndTurnResults(unitWatch) {
-      let selected  = self.selected;
-      let moved     = self.moved;
-      let attacked  = self.attacked;
-      let teams     = self.teams.filter(team => !!team.units.length);
-      let teamId    = self.currentTeamId;
-      let results   = [];
+      let selected    = self.selected;
+      let moved       = self.moved;
+      let attacked    = self.attacked;
+      let teams       = self.teams.filter(t => !!t.units.length);
+      let currentTeam = self.teams[self.currentTeamId];
+      let results     = [];
 
       // Per turn mBlocking decay rate is based on the number of playable teams.
       // It is calculated such that a full turn cycle is still a 20% reduction.
-      let decay = teams.filter(t => t.name !== 'Chaos').length;
+      let decay = teams.length;
 
-      teams.forEach((team, t) => {
+      teams.forEach(team => {
         team.units.forEach(unit => {
           // Skip units that are about to die.
           let watch = unitWatch.find(uw => uw.unit === unit);
           if (watch && watch.mHealth === -unit.health) return;
 
           // Adjust recovery for the outgoing team.
-          if (t === teamId) {
+          if (team === currentTeam) {
             let mRecovery;
             if (unit === selected) {
               let recovery = selected.recovery;
@@ -1607,7 +1607,7 @@ Tactics.Board = function () {
           };
 
           if (unit.directional !== false)
-            unit_data.direction = self.getRotation(unit.direction, degree),
+            unit_data.direction = self.getRotation(unit.direction, degree);
 
           properties.forEach(prop => {
             if (unit[prop])

@@ -178,7 +178,7 @@ Tactics.App = (function ($, window, document) {
           else
             $('BUTton[name=select][value=attack]').removeClass('ready');
 
-          if (new_mode === 'turn' && panzoom.transform.scale < panzoom.maxScale && selected && !selected.viewed)
+          if (new_mode === 'turn' && panzoom.canZoom() && selected && !selected.viewed)
             $('BUTTON[name=select][value=turn]').addClass('ready');
           else
             $('BUTTON[name=select][value=turn]').removeClass('ready');
@@ -195,12 +195,10 @@ Tactics.App = (function ($, window, document) {
         .on('card-change', event => {
           let $card = $('#card');
 
-          if (event.nvalue && event.ovalue === null) {
-            $card.stop().fadeIn()
-          }
-          else if (event.nvalue === null) {
-            $card.stop().fadeOut();
-          }
+          if (event.nvalue && event.ovalue === null)
+            $card.addClass('show');
+          else if (event.nvalue === null)
+            $card.removeClass('show');
         })
         .on('lock-change', event => {
           if (event.nvalue === 'gameover')

@@ -54,14 +54,14 @@
         var start = unit.assignment;
         var direction = unit.direction;
         var tile,tiles;
-        var target;
         var i;
 
         if (unit.mRecovery === 0) {
           self.considerTurnOnly(unit);
 
-          if (target = self.considerTarget(unit))
-            self.considerAttackOnly(unit,target);
+          let targetData = self.considerTarget(unit);
+          if (targetData)
+            self.considerAttackOnly(unit, targetData);
           if (unit.mHealth < 0)
             self.considerSpecialOnly(unit);
 
@@ -70,13 +70,13 @@
           for (i=0; i<tiles.length; i++) {
             unit.assign(tile = tiles[i]);
 
-            if (target)
-              self.considerAttackFirst(unit,tile,target);
+            if (targetData)
+              self.considerAttackFirst(unit, tile, targetData);
             if (unit.mHealth < 0)
-              self.considerSpecialFirst(unit,tile,start);
+              self.considerSpecialFirst(unit, tile, { tile:start });
             self
-              .considerMoveFirst(unit,tile)
-              .considerMoveOnly(unit,tile);
+              .considerMoveFirst(unit, tile)
+              .considerMoveOnly(unit, tile);
           }
 
           unit.assign(start);
@@ -93,14 +93,14 @@
         return self;
       },
       considerSpecialOnly: function (unit) {
-        var mHealth = unit.mHealth;
-        unit.mRecovery = Math.ceil(unit.recovery / 2);
-        unit.mHealth += unit.power;
-        if (unit.mHealth > 0) unit.mHealth = 0;
+        let mHealth = unit.mHealth;
 
-        self.addChoice($.extend({
+        unit.mRecovery = Math.ceil(unit.recovery / 2);
+        unit.mHealth   = Math.min(0, unit.mHealth + unit.power);
+
+        self.addChoice(Object.assign({
           unit:      unit,
-          first:     'attack',
+          first:     'attackSpecial',
           target:    unit.assignment,
           direction: self.considerDirection(unit)
         }, self.calcTeamFuture(unit.team)));
@@ -108,17 +108,17 @@
         unit.mHealth = mHealth;
         return self;
       },
-      considerSpecialFirst: function (unit, end, target) {
-        var mHealth = unit.mHealth;
-        unit.mRecovery = unit.recovery;
-        unit.mHealth += unit.power;
-        if (unit.mHealth > 0) unit.mHealth = 0;
+      considerSpecialFirst: function (unit, end, targetData) {
+        let mHealth = unit.mHealth;
 
-        self.addChoice($.extend({
+        unit.mRecovery = unit.recovery;
+        unit.mHealth   = Math.min(0, unit.mHealth + unit.power);
+
+        self.addChoice(Object.assign({
           unit:      unit,
+          first:     'attackSpecial',
+          target:    targetData.tile,
           end:       end,
-          first:     'attack',
-          target:    target,
           direction: self.considerDirection(unit)
         }, self.calcTeamFuture(unit.team)));
 
