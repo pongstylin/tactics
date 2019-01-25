@@ -18,34 +18,14 @@
       title:  'Awakened!',
       banned: [],
 
-      calcAttackResults: function (target) {
-        if (target === self.assignment)
-          return [{
-            unit:    self,
-            mHealth: Math.min(0, self.mHealth + self.power),
-          }];
-        else if (target.assigned) {
-          let unit = target.assigned;
-          let calc = self.calcAttack(unit);
-
-          return [{
-            unit:    unit,
-            mHealth: Math.max(unit.mHealth - calc.damage, -unit.health),
-          }];
-        }
-        else
-          return [];
-      },
       playAttack: function (target, results) {
         let anim      = new Tactics.Animation({fps:10});
         let direction = board.getDirection(self.assignment, target);
 
-        if (target === self.assignment)
-          return self.special();
-
         // Make sure we strike the actual target (LOS can change it).
-        if (results.length)
-          target = results[0].unit.assignment;
+        let target_unit = self.getTargetUnits(target)[0];
+        if (target_unit)
+          target = target_unit.assignment;
 
         anim
           .splice(self.animTurn(direction))
@@ -53,40 +33,21 @@
 
         return anim.play();
       },
-      special: function () {
-        let anim  = new Tactics.Animation();
-        let block = data.animations[self.direction].block;
-
-        anim
-          .splice([
-            () => self.drawFrame(block.s),
-            () => self.drawFrame(block.s+1),
-            () => {},
-          ])
-          .splice(self.animHeal([self]))
-          .splice([
-            () => self.drawFrame(block.s+4),
-            () => self.drawFrame(block.s+5),
-          ]);
-
-        return anim.play();
-      },
       phase: function (action) {
-        let banned   = action ? action.results[0].banned : self.banned;
+        let banned;
+        if (action.results)
+          banned = self.banned = action.results[0].banned;
+        else
+          banned = self.banned;
+
+        let teamsData = board.getWinningTeams().reverse();
         let color_id = null;
-        let teams    = board.getWinningTeams().reverse().filter((team, t) =>
-          banned.indexOf(t) === -1 && t !== self.team
-        );
 
-        if (teams.length > 1) {
-          let choices  = teams.filter(team => {
-            if (team.units.length === 0) return false;
+        if (teamsData.length > 1) {
+          teamsData = teamsData.filter(teamData => banned.indexOf(teamData.id) === -1);
 
-            return team.score === teams[0].score;
-          });
-
-          if (choices.length)
-            color_id = choices.random().color;
+          if (teamsData.length)
+            color_id = board.teams[teamsData[0].id].color;
         }
 
         if (color_id === board.teams[self.team].color)
@@ -113,7 +74,7 @@
           }
         ]});
       },
-      animDeploy: function (assignment) {
+      animMove: function (assignment) {
         let anim        = new Tactics.Animation({fps:10});
         let frame_index = 0;
 
@@ -125,12 +86,12 @@
         if (direction === board.getRotation(self.direction, 180))
           anim.splice(frame_index++, () => self.drawTurn(90));
 
-        let deploy = data.animations[direction].deploy;
+        let move = data.animations[direction].move;
         anim
           .splice(frame_index,
             new Tactics.Animation({frames: [{
-              script: frame => self.drawFrame(deploy.s + frame.repeat_index),
-              repeat: deploy.l,
+              script: frame => self.drawFrame(move.s + frame.repeat_index),
+              repeat: move.l,
             }]})
               .splice(10, () => self.assign(assignment))
               .splice([2,7,11,16], () => sounds.flap.play())
@@ -170,7 +131,7 @@
             script: () => self.drawFrame(attack.s + frame++),
             repeat: attack.l,
           })
-          .splice(0, () => sounds.charge.play().fade(0,1,500))
+          .splice(0, () => sounds.charge.fade(0, 1, 500, sounds.charge.play()))
           .splice(5, tunit.animStagger(self))
           .splice(5, () => {
             sounds.buzz.play();
@@ -181,81 +142,73 @@
             script: () => tunit.whiten(whiten.shift()),
             repeat:3
           })
-          .splice(5,function ()
-          {
-            self.drawStreaks(container,target,source,adjust);
+          .splice(5, () => {
+            self.drawStreaks(container, target,source,adjust);
             Tactics.stage.addChild(container);
           })
-          .splice(6,function ()
-          {
-            self.drawStreaks(container,target,source,adjust);
+          .splice(6, () => {
+            self.drawStreaks(container, target,source,adjust);
           })
-          .splice(7,function ()
-          {
+          .splice(7, () => {
             Tactics.stage.removeChild(container);
             sounds.buzz.stop();
           });
 
         return anim;
       },
-      drawStreaks:function (container,target,source,adjust)
-      {
-        var sprite,bounds,start,end,stops;
-        var streaks1 = container.children[0];
-        var streaks2 = container.children[1];
-        var streaks3 = container.children[2];
-
+      drawStreaks: function (container,target,source,adjust) {
         // Make sure bounds are set correctly.
         Tactics.stage.children[1].updateTransform();
 
-        sprite = self.frame.children[source];
-        bounds = sprite.getBounds();
-        start = new PIXI.Point(bounds.x+adjust.x,bounds.y+adjust.y);
-        end = target.getCenter().clone();
+        let sprite = self.frame.children[source];
+        let bounds = sprite.getBounds();
+        let start  = new PIXI.Point(bounds.x+adjust.x,bounds.y+adjust.y);
+        let end    = target.getCenter().clone();
 
-        start.x += Math.floor(sprite.width/2);
-        start.y += Math.floor(sprite.height/2);
-        end.y -= 14;
+        start.x += Math.floor(sprite.width  / 2);
+        start.y += Math.floor(sprite.height / 2);
+        end.y   -= 14;
 
         // Determine the stops the lightning will make.
-        stops =
-        [
+        let stops = [
           {
-            x:start.x + Math.floor((end.x - start.x) * 1/3),
-            y:start.y + Math.floor((end.y - start.y) * 1/3)
+            x: start.x + Math.floor((end.x - start.x) * 1/3),
+            y: start.y + Math.floor((end.y - start.y) * 1/3),
           },
           {
-            x:start.x + Math.floor((end.x - start.x) * 2/3),
-            y:start.y + Math.floor((end.y - start.y) * 2/3)
+            x: start.x + Math.floor((end.x - start.x) * 2/3),
+            y: start.y + Math.floor((end.y - start.y) * 2/3),
           },
-          {x:end.x,y:end.y}
+          {x:end.x, y:end.y},
         ];
+
+        let streaks1 = container.children[0];
+        let streaks2 = container.children[1];
+        let streaks3 = container.children[2];
 
         streaks1.clear();
         streaks2.clear();
         streaks3.clear();
 
-        $.each([1,2,3],function (i)
-        {
-          var alpha = i % 2 === 0 ? 0.5 : 1;
-          var deviation = alpha === 1 ? 9 : 19;
-          var midpoint = (deviation+1)/2;
+        for (let i=0; i<3; i++) {
+          let alpha     = i % 2 === 0 ? 0.5 : 1;
+          let deviation = alpha === 1 ? 9 : 19;
+          let midpoint  = (deviation + 1) / 2;
 
-          streaks1.lineStyle(1,0x8888FF,alpha);
-          streaks2.lineStyle(2,0xFFFFFF,alpha);
-          streaks3.lineStyle(2,0xFFFFFF,alpha);
+          streaks1.lineStyle(1, 0x8888FF, alpha);
+          streaks2.lineStyle(2, 0xFFFFFF, alpha);
+          streaks3.lineStyle(2, 0xFFFFFF, alpha);
 
-          streaks1.moveTo(start.x,start.y);
-          streaks2.moveTo(start.x,start.y);
-          streaks3.moveTo(start.x,start.y);
+          streaks1.moveTo(start.x, start.y);
+          streaks2.moveTo(start.x, start.y);
+          streaks3.moveTo(start.x, start.y);
 
-          $.each(stops,function (j,stop)
-          {
-            var offset;
-            var x = stop.x,y = stop.y;
+          stops.forEach((stop, j) => {
+            let offset;
+            let x = stop.x;
+            let y = stop.y;
 
-            if (j < 2)
-            {
+            if (j < 2) {
               // Now add a random offset to the stops.
               offset = Math.floor(Math.random() * deviation) + 1;
               if (offset > midpoint) offset = (offset-midpoint) * -1;
@@ -266,11 +219,11 @@
               y += offset;
             }
 
-            streaks1.lineTo(x,y);
-            streaks2.lineTo(x,y);
-            streaks3.lineTo(x,y);
+            streaks1.lineTo(x, y);
+            streaks2.lineTo(x, y);
+            streaks3.lineTo(x, y);
           });
-        });
+        }
 
         return self;
       },
@@ -298,17 +251,54 @@
 
         return anim;
       },
+
+      /*
+       * Implement ability to self-heal
+       */
+      canSpecial: function () {
+        return self.mHealth < 0;
+      },
+      getAttackSpecialResults: function (action) {
+        return [{
+          unit: self.assignment,
+          changes: {
+            mHealth: Math.min(0, self.mHealth + self.power),
+          },
+        }];
+      },
+      playAttackSpecial: function (action) {
+        let anim  = new Tactics.Animation();
+        let block = data.animations[self.direction].block;
+
+        anim
+          .splice([
+            () => self.drawFrame(block.s),
+            () => self.drawFrame(block.s+1),
+            () => {},
+          ])
+          .splice(self.animHeal([self]))
+          .splice([
+            () => self.drawFrame(block.s+4),
+            () => self.drawFrame(block.s+5),
+          ]);
+
+        return anim.play();
+      },
+
+      /*
+       * Implement ability to get angry with attacking allies.
+       */
       canCounter: function () {
         return true;
       },
       getCounterAction: function (attacker, result) {
-        if (attacker.color === self.color)
+        if (attacker !== self && attacker.color === self.color)
           return {
-            type:    'phase',
-            unit:    self,
-            tile:    self.assignment,
+            type: 'phase',
+            unit: self.assignment,
+            tile: self.assignment,
             results: [{
-              unit:   self,
+              unit:   self.assignment,
               banned: [...self.banned, attacker.team],
             }],
           };

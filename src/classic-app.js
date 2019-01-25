@@ -7,7 +7,6 @@ Tactics.App = (function ($, window, document) {
   var fullscreen = Tactics.fullscreen;
 
   // Ultimately, team data will be retreived from the game server.
-  var colors = [2, 10];
   var data = {
     teams: [
       {
@@ -31,7 +30,6 @@ Tactics.App = (function ($, window, document) {
         }
       },
     ],
-    turns: [0, 1],
   };
 
   $(window)
@@ -63,29 +61,28 @@ Tactics.App = (function ($, window, document) {
         rotate: function ($button) {
           var cls,per;
 
-          if ($button.hasClass('fa-rotate-90'))
-          {
+          if ($button.hasClass('fa-rotate-90')) {
             cls = 'fa-rotate-90 fa-rotate-180';
             per = 'W';
           }
-          else if ($button.hasClass('fa-rotate-180'))
-          {
+          else if ($button.hasClass('fa-rotate-180')) {
             cls = 'fa-rotate-180 fa-rotate-270';
             per = 'N';
           }
-          else if ($button.hasClass('fa-rotate-270'))
-          {
+          else if ($button.hasClass('fa-rotate-270')) {
             cls = 'fa-rotate-270';
             per = 'E';
           }
-          else
-          {
+          else {
             cls = 'fa-rotate-90';
             per = 'S';
           }
 
           $button.toggleClass(cls);
           Tactics.board.rotate(per);
+        },
+        undo: function () {
+          board.undo();
         },
         sound: function ($button) {
           $button.toggleClass('fa-bell fa-bell-slash');
@@ -98,34 +95,17 @@ Tactics.App = (function ($, window, document) {
           }
         },
         select: function ($button) {
-          var selected = board.selected;
-          var viewed = board.viewed;
-          var mode = $button.val();
+          let mode = $button.val();
 
-          if (mode == 'turn' && board.selectMode == 'turn') {
-            if (viewed) {
-              if (viewed.activated == 'turn')
-                viewed.activate('direction',true);
-            }
-            else if (selected) {
-              if (selected.activated == 'turn') {
-                selected.activate('direction');
-                $('BUTTON[name=pass]').addClass('ready');
-              }
-              else {
-                selected.turn(90).then(() => {
-                  selected.showMode();
-                  $('BUTTON[name=select][value=turn]').removeClass('ready');
-                });
-              }
-            }
+          if (mode == 'turn' && $button.hasClass('ready')) {
+            $('BUTTON[name=select][value=turn]').removeClass('ready');
+            return board.zoomToTurnOptions();
           }
-          else {
-            board.setSelectMode(mode);
-          }
+
+          board.setSelectMode(mode);
         },
         pass: function () {
-          board.endTurn();
+          board.takeAction({type:'endTurn'});
         },
         surrender: function () {
           $('#popup #message').text('Are you sure you want to reset the game?');
@@ -167,12 +147,14 @@ Tactics.App = (function ($, window, document) {
 
       board
         .on('select-mode-change', event => {
+          let panzoom     = Tactics.panzoom;
           let selected    = board.viewed || board.selected;
           let old_mode    = event.ovalue;
           let new_mode    = event.nvalue;
           let can_move    = !selected || selected.canMove();
           let can_attack  = !selected || selected.canAttack();
           let can_special = selected && selected.canSpecial();
+          let can_undo    = board.canUndo();
 
           $('BUTTON[name=select]').removeClass('selected');
           $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
@@ -189,13 +171,14 @@ Tactics.App = (function ($, window, document) {
 
           $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
           $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
+          $('BUTTON[name=undo]').prop('disabled', !can_undo);
 
           if (new_mode === 'attack' && can_special && !selected.viewed)
             $('BUTton[name=select][value=attack]').addClass('ready');
           else
             $('BUTton[name=select][value=attack]').removeClass('ready');
 
-          if (new_mode === 'turn' && pointer === 'touch' && selected && !selected.viewed)
+          if (new_mode === 'turn' && panzoom.canZoom() && selected && !selected.viewed)
             $('BUTTON[name=select][value=turn]').addClass('ready');
           else
             $('BUTTON[name=select][value=turn]').removeClass('ready');
@@ -204,16 +187,18 @@ Tactics.App = (function ($, window, document) {
             $('BUTTON[name=pass]').addClass('ready');
           else
             $('BUTTON[name=pass]').removeClass('ready');
+
+          // Automatically lock panzoom for improved game interaction
+          if (!panzoom.locked)
+            buttons.lock($('BUTTON[name=lock]'));
         })
         .on('card-change', event => {
           let $card = $('#card');
 
-          if (event.nvalue && event.ovalue === null) {
-            $card.stop().fadeIn()
-          }
-          else if (event.nvalue === null) {
-            $card.stop().fadeOut();
-          }
+          if (event.nvalue && event.ovalue === null)
+            $card.addClass('show');
+          else if (event.nvalue === null)
+            $card.removeClass('show');
         })
         .on('lock-change', event => {
           if (event.nvalue === 'gameover')
@@ -300,14 +285,13 @@ Tactics.App = (function ($, window, document) {
 
       if (percent === 100) {
         $('#loader')
-          .css({cursor: 'pointer'})
+          .addClass('complete')
           .one('click', () => {
             board.draw();
 
-            $('#splash').hide();
-            $('#app').css('visibility','visible');
+            $('.message').text('One moment...');
 
-            setupGame();
+            setTimeout(setupGame, 1);
           })
           .find('.message')
             .text(action+' here to play!')
@@ -482,14 +466,17 @@ Tactics.App = (function ($, window, document) {
     let trophy = new Tactics.Unit(19);
     trophy.drawAvatar();
 
+    data.teams.spin();
     board.reset().addTeams(data.teams);
-    board.turns = data.turns.slice().spin();
 
     // Give Data URIs a chance to load.
     setTimeout(() => {
       Tactics.render();
 
       board.startTurn();
+
+      $('#splash').hide();
+      $('#app').css('visibility','visible');
     }, 1);
   }
 

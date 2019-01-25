@@ -77,7 +77,6 @@
         });
 
         self.assign(assignment);
-        self.origin = {tile:assignment,direction:direction};
         self.direction = direction;
 
         return self.drawFrame(stills[self.directional === false ? 'S' : direction]);
@@ -200,9 +199,10 @@
 
         // Animate a target unit's reaction starting with the 4th attack frame.
         results.forEach(result => {
-          let unit = result.unit;
+          let unit = result.unit.assigned;
+          if (unit === self) return;
 
-          if (result.blocked)
+          if (result.miss === 'blocked')
             attackAnim
               .splice(3, unit.animBlock(self));
           else
@@ -216,7 +216,7 @@
 
         return anim.play();
       },
-      animDeploy: function (assignment) {
+      animMove: function (assignment) {
         var anim = new Tactics.Animation();
         var tiles = self.findPath(assignment);
         var origin = self.assignment;
@@ -298,7 +298,7 @@
         [
           function ()
           {
-            self.origin.direction = self.direction = direction;
+            self.direction = direction;
             self.block(0);
             sounds.block.play();
           },

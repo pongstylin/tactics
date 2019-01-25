@@ -20,10 +20,11 @@
         attackAnim.splice(3, () => sounds.attack2.play());
 
         results.forEach(result => {
-          let unit = result.unit;
+          let unit = result.unit.assigned;
+          if (unit === self) return;
 
           // Animate the target unit's reaction starting with the 4th attack frame.
-          if (result.blocked)
+          if (result.miss === 'blocked')
             attackAnim
               .splice(3, unit.animBlock(self));
           else
@@ -37,50 +38,60 @@
 
         return anim.play();
       },
+
+      /*
+       * Special Attack Configuration
+       */
       canSpecial: function () {
         if (!self.canAttack())
           return false;
         else
           return (self.health + self.mHealth) < 5;
       },
-      attackSpecial: function () {
-        let anim = self.animSpecial();
+      getAttackSpecialResults: function () {
+        let results = [];
         let cries = ['My legs!', 'What?', 'Mommy!', 'No fair!'];
         let taunts = ['Worth it', 'Bye', '...'];
 
-        anim.splice(1, () => sounds.bomb1.play());
-
-        let results = [];
         self.getAttackTiles().forEach(tile => {
-          anim.splice(6, self.animExplode(tile));
-
           let target_unit = tile.assigned;
-          if (!target_unit)
-            return;
+          if (!target_unit) return;
 
-          let result = {unit:target_unit};
+          let result = {unit:target_unit.assignment};
 
           if (target_unit.barriered)
-            result.miss = true;
+            result.miss = 'deflected';
           else {
-            result.mHealth = -target_unit.health;
             result.notice  = cries.shuffle().shift();
+            result.changes = { mHealth:-target_unit.health };
           }
 
           results.push(result);
         });
 
-        anim.splice(6, self.animExplode(self.assignment));
-        anim.splice(9, () => sounds.bomb2.play());
-
         results.push({
-          unit:    self,
-          mHealth: -self.health,
+          unit:    self.assignment,
           notice:  taunts.shuffle()[0],
+          changes: { mHealth:-self.health },
         });
 
-        return anim.play().then(() => results);
+        self.getAttackSubResults(results);
+
+        return results;
       },
+      playAttackSpecial: function () {
+        let anim = self.animSpecial();
+
+        let targets = self.getAttackTiles();
+        targets.push(self.assignment);
+
+        anim.splice(1, () => sounds.bomb1.play());
+        targets.forEach(tile => anim.splice(6, self.animExplode(tile)));
+        anim.splice(9, () => sounds.bomb2.play());
+
+        return anim.play();
+      },
+
       /*
        * Customized so that the sound is played on the first visual frame (not 2nd).
        * Also plays a sound sprite instead of the full sound.
@@ -90,7 +101,7 @@
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
         anim.addFrame(() => {
-          self.origin.direction = self.direction = direction;
+          self.direction = direction;
           sounds.block.play('block');
         });
 

@@ -14,9 +14,9 @@
         let attackAnim = self.animAttack(target);
         attackAnim.splice(4, () => sounds.attack.play());
 
-        // There should be zero or one result.
         results.forEach(result => {
-          let unit = result.unit;
+          let unit = result.unit.assigned;
+          if (unit === self) return;
 
           // Simulate how long it takes for the arrow to travel.
           let index = 9 + Math.ceil(
@@ -24,7 +24,7 @@
           );
 
           // Animate the target unit's reaction.
-          if (result.blocked)
+          if (result.miss === 'blocked')
             attackAnim
               .splice(index, unit.animBlock(self));
           else

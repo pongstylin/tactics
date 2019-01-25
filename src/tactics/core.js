@@ -50,9 +50,33 @@ Tactics = (function () {
      * Allow touch devices to upscale to normal size.
      */
     resize: function () {
-      let width = self.canvas.clientWidth;
-      let height = self.canvas.clientHeight;
-      let elementScale = Math.min(1, width / self.width, height / self.height);
+      self.canvas.style.width  = null;
+      self.canvas.style.height = null;
+
+      let container = self.canvas.parentNode;
+      let width     = container.clientWidth;
+      let height    = container.clientHeight;
+
+      if (window.innerHeight < height) {
+        let rect = self.canvas.getBoundingClientRect();
+
+        height  = window.innerHeight;
+        height -= rect.top;
+        //height -= window.innerHeight - rect.bottom;
+        //console.log(window.innerHeight, rect.bottom);
+      }
+      else
+        height -= self.canvas.offsetTop;
+
+      let width_ratio  = width  / self.width;
+      let height_ratio = height / self.height;
+      let elementScale = Math.min(1, width_ratio, height_ratio);
+
+      if (elementScale < 1)
+        if (width_ratio < height_ratio)
+          self.canvas.style.width = '100%';
+        else
+          self.canvas.style.height = height+'px';
 
       self.panzoom.maxScale = 1 / elementScale;
       self.panzoom.reset();
@@ -66,25 +90,21 @@ Tactics = (function () {
 
       if (!data.children) return;
 
-      $.each(data.children,function (k,v)
-      {
+      $.each(data.children, function (k,v) {
         var cls = types[v.type];
         var child;
 
-        if (cls == 'Text')
-        {
+        if (cls == 'Text') {
           child = new PIXI[cls](v.text || '',$.extend({},data.textStyle,v.style || {}));
         }
-        else
-        {
+        else {
           child = new PIXI[cls]();
         }
 
         if ('x'        in v) child.position.x = v.x;
         if ('y'        in v) child.position.y = v.y;
         if ('visible'  in v) child.visible = v.visible;
-        if ('onSelect' in v)
-        {
+        if ('onSelect' in v) {
           child.interactive = child.buttonMode = true;
           child.hitArea = new PIXI.Rectangle(0,0,v.w,v.h);
           child.click = child.tap = function () { v.onSelect.call(child,child); };
@@ -245,16 +265,17 @@ Tactics = (function () {
     units:
     [
       {
-        name:'Knight',
-        ability:'Sword & Shield',
-        power:22,
-        armor:25,
-        health:50,
-        recovery:1,
-        blocking:80,
-        aType:'melee',
-        aRadius:1,
-        mRadius:3,
+        name:     'Knight',
+        ability:  'Sword & Shield',
+        power:    22,
+        armor:    25,
+        health:   50,
+        recovery: 1,
+        blocking: 80,
+        mType:    'path',
+        mRadius:  3,
+        aType:    'melee',
+        aRadius:  1,
         sounds:
         {
           step:    'sound13',
@@ -398,9 +419,10 @@ Tactics = (function () {
         health:   30,
         recovery: 3,
         blocking: 33,
+        mType:    'path',
+        mRadius:  3,
         aType:    'magic',
         aRadius:  3,
-        mRadius:  3,
         sounds:   {
           attack: 'sound431',
         },
@@ -462,9 +484,10 @@ Tactics = (function () {
         health:   40,
         recovery: 2,
         blocking: 60,
+        mType:    'path',
         mRadius:  4,
-        aRadius:  6,
         aType:    'melee',
+        aRadius:  6,
         aLOS:     true,
         sounds:   {
           attack: 'sound812',
@@ -522,10 +545,11 @@ Tactics = (function () {
         health:   24,
         recovery: 5,
         blocking: 0,
+        mType:    'path',
         mRadius:  3,
+        aType:    'heal',
         aRadius:  'all',
         aAll:     true,
-        aType:    'magic',
         sounds:   {
           heal: 'sound1203',
         },
@@ -569,17 +593,18 @@ Tactics = (function () {
       },
       {name:'Barrier Ward'},
       {
-        name:'Lightning Ward',
-        ability:'Lightning',
-				power:30,
-				armor:18,
-				health:56,
-				recovery:4,
-				blocking:100,
-				aType:'magic',
-				aRadius:3,
-				mRadius:0,
-				directional:false,
+        name:        'Lightning Ward',
+        ability:     'Lightning',
+				power:       30,
+				armor:       18,
+				health:      56,
+				recovery:    4,
+				blocking:    100,
+        mType:       false,
+				mRadius:     0,
+				aType:       'magic',
+				aRadius:     3,
+				directional: false,
 				sounds:
 				{
 					block:'sound8',
@@ -622,9 +647,10 @@ Tactics = (function () {
         health:   28,
         recovery: 3,
         blocking: 20,
+        mType:    'path',
         mRadius:  3,
-        aRadius:  4,
         aType:    'magic',
+        aRadius:  4,
         aLinear:  true,
         sounds:   {
           attack1: 'sound431',
@@ -698,10 +724,11 @@ Tactics = (function () {
         health:    35,
         recovery:  1,
         blocking:  70,
+        mType:     'path',
+        mRadius:   4,
         aType:     'melee',
         aRadius:   1,
         aAll:      true,
-        mRadius:   4,
         sounds:    {
           attack1: 'sound809',
           attack2: 'sound809',
@@ -780,10 +807,12 @@ Tactics = (function () {
         health:   35,
         recovery: 3,
         blocking: 0,
-        aType:    'magic',
+        mType:    'path',
+        mRadius:  3,
+        aType:    'paralyze',
+        aFocus:   true,
         aRadius:  2,
         aAll:     true,
-        mRadius:  3,
         sounds:   {
           paralyze: 'sound2393',
         },
@@ -847,7 +876,7 @@ Tactics = (function () {
           {c:[{id:6055,x:-70,y:-40,a:0.5},{id:3955,x:-71,y:-101},{id:3957,x:-29,y:-52}]},
           // S Turn
           {c:[{id:6057,x:-53,y:-36,a:0.5},{id:4102,x:-52,y:-109},{id:3959,x:-14,y:-54}]},
-          // S Deploy
+          // S Move
           {c:[{id:6059,x:-57,y:-38,a:0.5},{id:4104,x:-60,y:-108},{id:3961,x:-29,y:-51}]},
           {c:[{id:6061,x:-51,y:-31,a:0.5},{id:4106,x:-49,y:-108},{id:3963,x:-29,y:-50}]},
           {c:[{id:6063,x:-68,y:-33,a:0.5},{id:4108,x:-68,y:-74},{id:3965,x:-28,y:-54}]},
@@ -893,7 +922,7 @@ Tactics = (function () {
           {c:[{id:6091,x:-26,y:-45,a:0.5},{id:4136,x:-26,y:-102},{id:3993,x:-21,y:-54}]},
           // W Turn
           {c:[{id:6093,x:-70,y:-35,a:0.5},{id:4138,x:-72,y:-113},{id:3995,x:-29,y:-54}]},
-          // W Deploy
+          // W Move
           {c:[{id:6095,x:-26,y:-38,a:0.5},{id:4140,x:-26,y:-105},{id:3997,x:-22,y:-51}]},
           {c:[{id:6097,x:-26,y:-33,a:0.5},{id:4142,x:-26,y:-108},{id:3999,x:-22,y:-49}]},
           {c:[{id:6099,x:-49,y:-43,a:0.5},{id:4144,x:-49,y:-75},{id:4001,x:-26,y:-54}]},
@@ -939,7 +968,7 @@ Tactics = (function () {
           {c:[{id:6055,x:-70,y:-40,a:0.5,f:'B',w:112,h:58},{id:4172,x:-43,y:-65},{id:4029,x:-26,y:-61}]},
           // N Turn
           {c:[{id:6057,x:-53,y:-36,a:0.5,f:'B',w:124,h:82},{id:4174,x:-71,y:-123},{id:4031,x:-27,y:-68}]},
-          // N Deploy
+          // N Move
           {c:[{id:6059,x:-57,y:-38,a:0.5,f:'B',w:99,h:56},{id:4176,x:-43,y:-62},{id:4033,x:-26,y:-58}]},
           {c:[{id:6061,x:-51,y:-31,a:0.5,f:'B',w:94,h:49},{id:4178,x:-44,y:-70},{id:4035,x:-26,y:-56}]},
           {c:[{id:6063,x:-68,y:-33,a:0.5,f:'B',w:135,h:65},{id:4180,x:-69,y:-59},{id:4037,x:-23,y:-64}]},
@@ -985,7 +1014,7 @@ Tactics = (function () {
           {c:[{id:6091,x:-26,y:-45,a:0.5,f:'B',w:86,h:73},{id:4208,x:-61,y:-83},{id:4065,x:-21,y:-56}]},
           // E Turn
           {c:[{id:6093,x:-70,y:-35,a:0.5,f:'B',w:123,h:82},{id:4210,x:-55,y:-120},{id:4067,x:-16,y:-67}]},
-          // E Deploy
+          // E Move
           {c:[{id:6095,x:-26,y:-38,a:0.5,f:'B',w:82,h:66},{id:4212,x:-59,y:-71},{id:4069,x:-23,y:-53}]},
           {c:[{id:6097,x:-26,y:-33,a:0.5,f:'B',w:72,h:62},{id:4214,x:-49,y:-91},{id:4071,x:-24,y:-50}]},
           {c:[{id:6099,x:-49,y:-43,a:0.5,f:'B',w:99,h:72},{id:4216,x:-52,y:-63},{id:4073,x:-22,y:-62}]},
@@ -1040,9 +1069,10 @@ Tactics = (function () {
         health:      6,
         recovery:    0,
         blocking:    50,
+        mType:       false,
+        mRadius:     0,
         aType:       'magic',
         aRadius:     0,
-        mRadius:     0,
         directional: false,
         sounds: {
           crack:'crack',
@@ -1104,13 +1134,14 @@ Tactics = (function () {
         health:38,
         recovery:1,
         blocking:50,
-        aType:'magic',
-        aLOS:true,
-        aLinear:true,
-        aRadius:3,
-        mPass:false,
-        mPath:false,
-        mRadius:4,
+        mType:   'teleport',
+        mRadius: 4,
+        mPass:   false,
+        mPath:   false,
+        aType:   'magic',
+        aLOS:    true,
+        aLinear: true,
+        aRadius: 3,
         sounds: {
           flap:   'sound7',
           block:  'sound11',
@@ -1133,17 +1164,17 @@ Tactics = (function () {
           E: 145,
         },
         animations: {
-          S:{deploy:{s:  2,l:23},attack:{s: 25,l:9},block:{s: 34,l:6},hatch:{s: 40,l:8}},
-          W:{deploy:{s: 50,l:23},attack:{s: 73,l:9},block:{s: 82,l:6},hatch:{s: 88,l:8}},
-          N:{deploy:{s: 98,l:23},attack:{s:121,l:9},block:{s:130,l:6},hatch:{s:136,l:8}},
-          E:{deploy:{s:146,l:23},attack:{s:169,l:9},block:{s:178,l:6},hatch:{s:184,l:8}}
+          S:{move:{s:  2,l:23},attack:{s: 25,l:9},block:{s: 34,l:6},hatch:{s: 40,l:8}},
+          W:{move:{s: 50,l:23},attack:{s: 73,l:9},block:{s: 82,l:6},hatch:{s: 88,l:8}},
+          N:{move:{s: 98,l:23},attack:{s:121,l:9},block:{s:130,l:6},hatch:{s:136,l:8}},
+          E:{move:{s:146,l:23},attack:{s:169,l:9},block:{s:178,l:6},hatch:{s:184,l:8}}
         },
         frames: [
           // S Still
           {c:[{id:6055,x:-70,y:-40,a:0.5},{id:3955,x:-71,y:-101},{id:3957,x:-29,y:-52}]},
           // S Turn
           {c:[{id:6057,x:-53,y:-36,a:0.5},{id:4102,x:-52,y:-109},{id:3959,x:-14,y:-54}]},
-          // S Deploy
+          // S Move
           {c:[{id:6059,x:-57,y:-38,a:0.5},{id:4104,x:-60,y:-108},{id:3961,x:-29,y:-51}]},
           {c:[{id:6061,x:-51,y:-31,a:0.5},{id:4106,x:-49,y:-108},{id:3963,x:-29,y:-50}]},
           {c:[{id:6063,x:-68,y:-33,a:0.5},{id:4108,x:-68,y:-74},{id:3965,x:-28,y:-54}]},
@@ -1197,7 +1228,7 @@ Tactics = (function () {
           {c:[{id:6091,x:-26,y:-45,a:0.5},{id:4136,x:-26,y:-102},{id:3993,x:-21,y:-54}]},
           // W Turn
           {c:[{id:6093,x:-70,y:-35,a:0.5},{id:4138,x:-72,y:-113},{id:3995,x:-29,y:-54}]},
-          // W Deploy
+          // W Move
           {c:[{id:6095,x:-26,y:-38,a:0.5},{id:4140,x:-26,y:-105},{id:3997,x:-22,y:-51}]},
           {c:[{id:6097,x:-26,y:-33,a:0.5},{id:4142,x:-26,y:-108},{id:3999,x:-22,y:-49}]},
           {c:[{id:6099,x:-49,y:-43,a:0.5},{id:4144,x:-49,y:-75},{id:4001,x:-26,y:-54}]},
@@ -1251,7 +1282,7 @@ Tactics = (function () {
           {c:[{id:6055,x:-70,y:-40,a:0.5,f:'B',w:112,h:58},{id:4172,x:-43,y:-65},{id:4029,x:-26,y:-61}]},
           // N Turn
           {c:[{id:6057,x:-53,y:-36,a:0.5,f:'B',w:124,h:82},{id:4174,x:-71,y:-123},{id:4031,x:-27,y:-68}]},
-          // N Deploy
+          // N Move
           {c:[{id:6059,x:-57,y:-38,a:0.5,f:'B',w:99,h:56},{id:4176,x:-43,y:-62},{id:4033,x:-26,y:-58}]},
           {c:[{id:6061,x:-51,y:-31,a:0.5,f:'B',w:94,h:49},{id:4178,x:-44,y:-70},{id:4035,x:-26,y:-56}]},
           {c:[{id:6063,x:-68,y:-33,a:0.5,f:'B',w:135,h:65},{id:4180,x:-69,y:-59},{id:4037,x:-23,y:-64}]},
@@ -1305,7 +1336,7 @@ Tactics = (function () {
           {c:[{id:6091,x:-26,y:-45,a:0.5,f:'B',w:86,h:73},{id:4208,x:-61,y:-83},{id:4065,x:-21,y:-56}]},
           // E Turn
           {c:[{id:6093,x:-70,y:-35,a:0.5,f:'B',w:123,h:82},{id:4210,x:-55,y:-120},{id:4067,x:-16,y:-67}]},
-          // E Deploy
+          // E Move
           {c:[{id:6095,x:-26,y:-38,a:0.5,f:'B',w:82,h:66},{id:4212,x:-59,y:-71},{id:4069,x:-23,y:-53}]},
           {c:[{id:6097,x:-26,y:-33,a:0.5,f:'B',w:72,h:62},{id:4214,x:-49,y:-91},{id:4071,x:-24,y:-50}]},
           {c:[{id:6099,x:-49,y:-43,a:0.5,f:'B',w:99,h:72},{id:4216,x:-52,y:-63},{id:4073,x:-22,y:-62}]},

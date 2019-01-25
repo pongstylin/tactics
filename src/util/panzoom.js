@@ -58,30 +58,33 @@ function panzoom (options) {
   let f2_marker = createMarker('2');
    */
 
-  // Throttle events to screen refresh rate.
+  // Throttle rendering to screen refresh rate.
+  let render = () => {
+    let scale     = 'scale('+current.scale+')';
+    let translate = 'translate('+current.translate.x+'px,'+current.translate.y+'px)';
+
+    Object.assign(target.style, {
+      transformOrigin: current.origin.x+'px '+current.origin.y+'px 0',
+
+      // It is important to scale first
+      transform: scale+' '+translate,
+    });
+
+    /* ** For Testing Only **
+    setMarker(origin_marker, current.origin);
+    if (f1) setMarker(f1_marker, f1);
+    if (f2) setMarker(f2_marker, f2);
+    */
+
+    emitter.emit('change', current);
+  };
   let frame_id = null;
   let postChangeEvent = (f1, f2) => {
     if (frame_id !== null)
       return;
 
     frame_id = requestAnimationFrame(() => {
-      let scale     = 'scale('+current.scale+')';
-      let translate = 'translate('+current.translate.x+'px,'+current.translate.y+'px)';
-
-      Object.assign(target.style, {
-        transformOrigin: current.origin.x+'px '+current.origin.y+'px 0',
-
-        // It is important to scale first
-        transform: scale+' '+translate,
-      });
-
-      /* ** For Testing Only **
-      setMarker(origin_marker, current.origin);
-      if (f1) setMarker(f1_marker, f1);
-      if (f2) setMarker(f2_marker, f2);
-      */
-
-      emitter.emit('change', current);
+      render();
       frame_id = null;
     });
   };
@@ -180,23 +183,24 @@ function panzoom (options) {
     x: (point1.x + point2.x) / 2,
     y: (point1.y + point2.y) / 2,
   });
+  let setOrigin = (origin) => {
+    // Translate to compensate for the change in origin.
+    current.translate.x -= (origin.x - current.origin.x) * (1 - current.scale) / current.scale;
+    current.translate.y -= (origin.y - current.origin.y) * (1 - current.scale) / current.scale;
+    current.origin.x = origin.x;
+    current.origin.y = origin.y;
+  };
 
   // The change of distance between two fingers determines the change in zoom.
   let getDistance = (point1, point2) =>
     Math.sqrt((point2.x - point1.x)**2 + (point2.y - point1.y)**2);
 
   let setFingers = (f1, f2) => {
-    let origin   = getOrigin(f1, f2);
-    let distance = getDistance(f1, f2);
-
-    // Translate to compensate for the change in origin.
-    current.translate.x -= (origin.x - current.origin.x) * (1 - current.scale) / current.scale;
-    current.translate.y -= (origin.y - current.origin.y) * (1 - current.scale) / current.scale;
-    current.origin.x = origin.x;
-    current.origin.y = origin.y;
+    // Change the origin without changing position.
+    setOrigin(getOrigin(f1, f2));
 
     // The current scale is calibrated for this distance.
-    current.distance = distance;
+    current.distance = getDistance(f1, f2);
 
     postChangeEvent(f1, f2);
   };
@@ -214,11 +218,8 @@ function panzoom (options) {
     /*
      * Zoom
      */
-    // Translate to compensate for the change in origin.
-    current.translate.x -= (origin.x - current.origin.x) * (1 - current.scale) / current.scale;
-    current.translate.y -= (origin.y - current.origin.y) * (1 - current.scale) / current.scale;
-    current.origin.x     = origin.x;
-    current.origin.y     = origin.y;
+    // Change the origin without changing position.
+    setOrigin(origin);
 
     // Adjust scale based on the change in distance.
     current.scale       *= distance / current.distance;
@@ -263,6 +264,13 @@ function panzoom (options) {
   });
 
   let instance = {
+    transitioningTo: null,
+
+    canZoom: function () {
+      let testTransition = self.transitioningTo || current;
+
+      return testTransition.scale < maxScale;
+    },
     setFingers: setFingers,
     moveFingers: moveFingers,
     lock: function () {
@@ -272,6 +280,57 @@ function panzoom (options) {
     unlock: function () {
       locked = false;
       resumeImpetus();
+    },
+    transitionToTransform: function (transform) {
+      self.transitioningTo = transform;
+
+      setOrigin(transform.origin);
+
+      let startScale     = current.scale;
+      let startTranslate = Object.assign({}, current.translate);
+
+      let wasLocked = locked;
+      locked = true;
+
+      let startTime;
+      let makeTransition = time => {
+        if (!startTime) startTime = time;
+
+        let progress = Math.min(500, time - startTime) / 500;
+        if (progress === 1) {
+          locked = wasLocked;
+          self.transitioning = null;
+        }
+        else
+          requestAnimationFrame(makeTransition);
+
+        // The math may be too simple since scaling and panning isn't synced well.
+        // The origin may need to be transitioned as well.
+        current.scale = startScale + (transform.scale - startScale) * progress;
+        current.translate.x = startTranslate.x + (transform.translate.x - startTranslate.x) * progress;
+        current.translate.y = startTranslate.y + (transform.translate.y - startTranslate.y) * progress;
+
+        render();
+      };
+
+      requestAnimationFrame(makeTransition);
+
+      return instance;
+    },
+    // The point x and y must be expressed as a percentage (0 ... 1).
+    transitionPointToCenter: function (point, scale) {
+      return instance.transitionToTransform({
+        // We're scaling from the center of the target
+        origin: {
+          x: target.clientWidth / 2,
+          y: target.clientHeight / 2,
+        },
+        scale: scale || current.scale,
+        translate: {
+          x: (0.5 - point.x) * target.clientWidth,
+          y: (0.5 - point.y) * target.clientHeight,
+        },
+      });
     },
     reset: function () {
       Object.assign(current, {
@@ -297,6 +356,11 @@ function panzoom (options) {
     on: emitter.addListener.bind(emitter),
     off: emitter.removeListener.bind(emitter),
   };
+
+  Object.defineProperty(instance, 'locked', {
+    enumerable: true,
+    get: () => locked,
+  });
 
   Object.defineProperty(instance, 'initial', {
     enumerable: true,
@@ -326,6 +390,15 @@ function panzoom (options) {
       }
       return maxScale = v;
     },
+  });
+
+  Object.defineProperty(instance, 'transform', {
+    enumerable: true,
+    get: () => ({
+      origin:    Object.assign({}, current.origin),
+      scale:     current.scale,
+      translate: Object.assign({}, current.translate),
+    }),
   });
 
   if (locked)

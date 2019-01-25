@@ -2,148 +2,210 @@ HTML {
   touch-action: manipulation;
 }
 
-HTML,BODY
-{
-  width:100%;
-  height:100%;
+/*
+ * Default positioning rules position the app in the center of the screen.
+ * The app takes up all the space it can up to the maximum size of the board.
+ * The board itself is positioned in the center of the app.
+ */
+HTML, BODY, #app, #field {
+  width: 100%;
+  height: 100%;
 }
 
-BODY
-{
-  box-sizing:border-box;
-  margin:0;
-  padding:0;
-  background-color:black;
-  color:#DED8D5;
-  overflow:hidden;
-  font-family:Verdana;
-  font-size:0.8125em;
-
-  -webkit-text-size-adjust:none;
+#splash, #app {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
-#splash
-{
-  position:absolute;
-  width:100%;
-  height:100%;
-  color:white;
-  text-align:center;
-}
-#loader
-{
-  position:absolute;
-  visibility:hidden;
-  width:200px;
-}
-#bar
-{
-  margin:10px auto;
-  border:1px solid #808080;
-  width:100px;
-  height:7px;
-}
-#progress
-{
-  background-color:#D4611F;
-  width:0;
-  height:7px;
+BODY {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  background-color: black;
+  color: #DED8D5;
+  overflow: hidden;
+  font-family: Verdana;
+  font-size: 0.8125em;
+
+  -webkit-text-size-adjust: none;
 }
 
-#app {
-  position:   relative;
-  max-width:  836px;
-  visibility: hidden;
-}
 #field {
+  display: flex;
   position: relative;
   overflow: hidden;
-}
-#board {
-  display: block;
-  padding: 0;
-}
-#card {
-  display:       block;
-  position:      absolute;
-  top:           0;
-  left:          0;
-  background:    rgba(0, 0, 0, 0.5);
-  border-radius: 8px;
+
+  CANVAS {
+    display: block;
+  }
+
+  #card {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    // The card must show above the board when they overlap.
+    z-index: 1;
+  }
+
+  #board {
+    padding: 0;
+    margin: auto;
+  }
 }
 
-#app > .buttons
-{
-  display:block;
-  position:absolute;
-  box-sizing:border-box;
-  background-color:transparent;
-  font-size:18px;
-  margin:0;
-  padding:0;
+/*
+ * General Look & Feel for the splash screen.
+ */
+#splash {
+  color: white;
+  text-align: center;
+
+  #loader {
+    visibility: hidden;
+    width: 200px;
+
+    #bar {
+      margin: 10px auto;
+      border: 1px solid #808080;
+      width: 100px;
+      height: 7px;
+
+      #progress {
+        background-color: #D4611F;
+        width: 0;
+        height: 7px;
+      }
+    }
+  }
+  #loader.complete {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
-#app > .buttons BUTTON
-{
-  background:none no-repeat center transparent;
-  box-sizing:content-box;
-  color:#DED8D5;
-  width:34px;
-  height:34px;
-  margin:3px;
-  border:0 solid #DED8D5;
-  border-style:solid;
-  padding:0;
-  cursor:pointer;
-  font-size:18px;
-  line-height:34px;
-  text-align:center;
-  vertical-align:bottom;  /* removes bottom spacing */
-}
-#app > .buttons BUTTON:focus
-{
-  outline:none;
-}
-#app:not(.locked) > .buttons BUTTON.selected
-{
-  margin:1px;
-  border-width:2px;
-  border-radius:2px 2px 0 0;
-  cursor:default;
-}
-#app > .buttons BUTTON.selected[name=select][value=turn]
-{
-  cursor:pointer;
+/*
+ * General Look & Feel for the app.
+ */
+#app {
+  max-width: 836px;
+  max-height: 550px;
+  visibility: hidden;
+
+  #field {
+    #card {
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 8px;
+
+      // Fade out the card, somewhat slowly.
+      transition: opacity 600ms linear;
+      opacity: 0;
+    }
+    #card.show {
+      // Fade in the card, somewhat quickly.
+      transition: opacity 400ms linear;
+      opacity: 1;
+    }
+  }
+
+  .buttons {
+    display: block;
+    position: absolute;
+    box-sizing: border-box;
+    background-color: transparent;
+    font-size: 18px;
+    margin: 0;
+    padding: 6px;
+
+    BUTTON {
+      background: none no-repeat center transparent;
+      box-sizing: content-box;
+      color: #DED8D5;
+      width: 34px;
+      height: 34px;
+      margin: 3px;
+      border: 0 solid #DED8D5;
+      padding: 0;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 34px;
+      text-align: center;
+      vertical-align: bottom;  /* removes bottom spacing */
+      -webkit-tap-highlight-color: transparent;
+    }
+    BUTTON:focus {
+      outline: none;
+    }
+    BUTTON.selected {
+      margin: 1px;
+      border-width: 2px;
+      cursor: default;
+    }
+    BUTTON[disabled] {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
 }
 
-#app > .buttons BUTTON[name=select][value=move] {
-  background-image: url('https://legacy.taorankings.com/images/move.png');
-  border-color:     #0088FF;
-}
-#app > .buttons BUTTON[name=select][value=attack] {
-  background-image: url('https://legacy.taorankings.com/images/attack.png');
-  border-color:     #FF8800;
-}
-#app > .buttons BUTTON[name=select][value=attack].targeting {
-  border-color: #FF3300;
-  cursor:       pointer;
-}
-#app > .buttons BUTTON[name=select][value=turn] {
-  background-image: url('https://legacy.taorankings.com/images/turn.png');
-  border-color:     #FFE991;
-}
-#app > .buttons BUTTON[name=pass] {
-  background: url('https://legacy.taorankings.com/images/pass.png');
-}
-#app > .buttons BUTTON[name=surrender] {
-  background-image: url('https://legacy.taorankings.com/images/surrender.png');
-  border-color:     #FFFFFF;
+.mouse #app .buttons BUTTON:not(.selected):enabled:hover {
+  margin: 2px;
+  border-width: 1px;
 }
 
-@-webkit-keyframes glow {
-  0%   { box-shadow: none;                     }
-  50%  { box-shadow: 0px 0px 14px 4px #FFFFFF; }
-  100% { box-shadow: none;                     }
+/*
+ * Sometimes buttons need to be disabled or hidden.
+ */
+#app.locked {
+  #game-play.buttons BUTTON:not([name=swapbar]),
+  #game-settings.buttons BUTTON[name=rotate],
+  #game-settings.buttons BUTTON[name=undo] {
+    // Make the button appear disabled.
+    opacity: 0.4;
+    cursor: default;
+
+    // Override use of borders for .selected and hovered buttons
+    margin: 3px;
+    border-width: 0;
+  }
+}
+
+#app > .buttons BUTTON[name=movebar],
+#app > .buttons BUTTON[name=swapbar],
+.mouse .buttons BUTTON[name=lock],
+#app > .buttons BUTTON.hidden {
+  display: none;
+}
+
+/*
+ * Customize the look of game-play buttons.
+ */
+#app > .buttons {
+  BUTTON[name=select][value=move] {
+    background-image: url('https://legacy.taorankings.com/images/move.png');
+    border-color: #0088FF;
+  }
+  BUTTON[name=select][value=attack] {
+    background-image: url('https://legacy.taorankings.com/images/attack.png');
+    border-color: #FF8800;
+  }
+  BUTTON[name=select][value=attack].targeting {
+    border-color: #FF3300;
+    cursor: pointer;
+  }
+  BUTTON[name=select][value=turn] {
+    background-image: url('https://legacy.taorankings.com/images/turn.png');
+    border-color: #FFE991;
+  }
+  BUTTON[name=pass] {
+    background-image: url('https://legacy.taorankings.com/images/pass.png');
+  }
+  BUTTON[name=surrender] {
+    background-image: url('https://legacy.taorankings.com/images/surrender.png');
+    border-color: #FFFFFF;
+  }
 }
 
 @keyframes glow {
@@ -154,7 +216,6 @@ BODY
 
 #app.locked.gameover > .buttons BUTTON[name=surrender],
 #app:not(.locked) > .buttons BUTTON.ready {
-  -webkit-animation: glow ease-in-out 1s infinite;
   animation: glow ease-in-out 1s infinite;
 
   /* Intended to override locked surrender button */
@@ -162,222 +223,203 @@ BODY
   opacity: 1 !important;
 }
 
-#app > .buttons BUTTON.hidden {
+#overlay {
   display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
 }
 
-#app > .buttons BUTTON[name=movebar],
-#app > .buttons BUTTON[name=swapbar] {
+#popup {
   display: none;
+  position: absolute;
+  background-color: rgba(0,0,0,0.65);
+  box-shadow: 6px 8px 10px #000;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 100px;
+  margin-top: -51px;
+  margin-left: -101px;
+  border: 1px solid #AA9977;
+  border-radius: 4px;
+}
+
+#popup #message {
+  padding: 8px;
+}
+
+#popup .buttons {
+  position: absolute;
+  bottom: 0;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  text-align: center;
+}
+
+#popup BUTTON {
+  background: #6f634a;
+  color: #FFEECC;
+  width: 50px;
+  height: 18px;
+  margin: 0 8px;
+  border: 1px solid #FFEECC;
+  font-family: Arial;
+  font-size: 10px;
+  cursor: pointer;
+}
+.mouse #popup BUTTON:hover,
+.mouse #popup BUTTON:focus {
+  outline: #FFCC00 solid 1px;
+}
+
+#app > .buttons {
+  display: inline-block;
+  text-align: left;
+  padding: 2px 6px;
+  right: 0;
 }
 
 .mouse .buttons BUTTON[name=lock] {
   display: none;
 }
 
-.mouse #app:not(.locked) > .buttons BUTTON:not(.selected):enabled:hover {
-  margin:2px;
-  border-width:1px;
+#game-play {
+  top: 0;
+}
+#game-settings {
+  bottom: 0;
 }
 
-#app.locked > #game-play.buttons BUTTON,
-#app.locked > #game-settings.buttons BUTTON[name=rotate],
-#app > .buttons BUTTON[disabled] {
-  opacity: 0.4;
-  cursor:  default;
-}
-
-#overlay
-{
-  display:none;
-  position:absolute;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background-color:rgba(0,0,0,0.5);
-}
-
-#popup
-{
-  display:none;
-  position:absolute;
-  background-color:rgba(0,0,0,0.65);
-  box-shadow:6px 8px 10px #000;
-  top:50%;
-  left:50%;
-  width:200px;
-  height:100px;
-  margin-top:-51px;
-  margin-left:-101px;
-  border:1px solid #AA9977;
-  border-radius:4px;
-}
-
-#popup #message
-{
-  padding:8px;
-}
-
-#popup .buttons
-{
-  position:absolute;
-  bottom:0;
-  box-sizing:border-box;
-  width:100%;
-  padding:12px;
-  text-align:center;
-}
-
-#popup BUTTON
-{
-  background:#6f634a;
-  color:#FFEECC;
-  width:50px;
-  height:18px;
-  margin:0 8px;
-  border:1px solid #FFEECC;
-  font-family:Arial;
-  font-size:10px;
-  cursor:pointer;
-}
-.mouse #popup BUTTON:hover,.mouse #popup BUTTON:focus
-{
-  outline:#FFCC00 solid 1px;
-}
-
-@media (min-width:836px) and (min-height:550px) {
-  #card {
-    top:    20px;
-    left:   0;
+/*
+ * Vertical Layout
+ *   Use this layout for portrait orientation.
+ *   Useful when narrow width causes the board and info card to overlap.
+ *   Useful when excess vertical space is available.
+ *
+ * Buttons are placed low for easier thumb manipulation on phones.
+ */
+@media (max-width: 440px) and (max-aspect-ratio: 2/3) {
+  // No longer take up the full height of the page.
+  #app, #field {
+    height: auto;
   }
 
   #app {
-    margin: 0 auto;
-  }
+    // No longer need a max-height on the #app.
+    max-height: none;
 
-  #app > .buttons {
-    display:    inline-block;
-    text-align: right;
-    padding:    2px 6px;
-    right:      0;
-  }
+    #field {
+      // Stack 'em vertically
+      flex-direction: column;
 
-  .mouse .buttons BUTTON[name=lock] {
-    display: none;
-  }
+      // No longer place the card in the top-left corner of #field.
+      // Rather, horizontally center the card at the top of #field.
+      #card {
+        position: relative;
+        margin: 0 auto;
+      }
 
-  #game-play {
-    top: 0;
-  }
-  #game-settings {
-    bottom: 0;
-  }
+      // No longer center the board within the #field.
+      // Rather, it will be placed under the info card.
+      #board {
+        margin: 0;
+      }
+    }
 
-  #popup:not(.error) {
-    background: transparent;
-    border:     0 none;
-    box-shadow: none;
-    top:        48px;
-    left:       auto;
-    right:      0;
-    width:      220px;
-    height:     auto;
-    margin:     0;
-    padding:    2px 6px;
-    text-align: right;
-  }
-  #popup:not(.error) #message {
-    padding: 3px;
-  }
-  #popup:not(.error) .buttons {
-    position:   relative;
-    text-align: right;
-    padding:    10px 3px;
-  }
-  #popup:not(.error) BUTTON {
-    margin: 0 0 0 6px;
+    // No longer place the buttons in the top-right corner of #app.
+    // Rather, it will be placed under the #field.
+    .buttons {
+      position: relative;
+      padding: 6px;
+      display: none;
+
+      // The swapbar button will be used to toggle the button bars.
+      BUTTON[name=swapbar] {
+        display: inline-block;
+        position: absolute;
+
+        // Imitate padding.
+        right: 6px;
+        bottom: 6px;
+      }
+    }
+    .buttons.active {
+      display: block;
+    }
   }
 }
 
-@media (max-width:835px) and (orientation:portrait), (max-height:549px) and (orientation:portrait) {
-  #board {
-    margin-top: 108px;
-    width:      100%;
-  }
-  #card {
-    top:    8px;
-    left:   0;
-    right:  0;
-    margin: 0 auto;
-    border: 1px solid #AA9977;
+/*
+ * Horizontal Layout
+ *   Use this layout for landscape orientation.
+ *   Useful when narrow height causes the board and info card to overlap.
+ *   Useful when excess horizontal space is available.
+ *
+ * Buttons are placed on left/right edge for easier thumb manipulation on phones.
+ */
+@media (max-height: 440px) and (min-aspect-ratio: 3/2) {
+  #app {
+    #field {
+      position: absolute;
+
+      // No longer 100% width.  Exclude the width of the button bar.
+      width: calc(100% - 52px);
+
+      // Avoid card overlap by moving board flush to the right.
+      #board {
+        margin: auto 0 auto auto;
+      }
+    }
+
+    .buttons {
+      top: 0;
+      width: 52px;
+      height: 100%;
+      margin: 0;
+      display: none;
+
+      // Allow moving the bar to the left/right
+      BUTTON[name=movebar] {
+        display: inline-block;
+      }
+
+      // Segregate the menu button from the rest.
+      BUTTON[name=swapbar] {
+        display: inline-block;
+        position: absolute;
+
+        // Imitate padding
+        right: 6px;
+        bottom: 6px;
+      }
+    }
+    .buttons.active {
+      display: inline-block;
+    }
   }
 
-  #app > .buttons {
-    position: relative;
-    padding:  6px;
-    height:   52px;
-    display:  none;
-  }
-  #app > .buttons.active {
-    display: block;
+  #app.left {
+    #field {
+      left: 0;
+    }
+
+    .buttons {
+      right: 0;
+    }
   }
 
-  #app > .buttons BUTTON[name=swapbar] {
-    display:  inline-block;
-    position: absolute;
-    top:      6px;
-    right:    6px;
-  }
-}
+  #app.right {
+    #field {
+      right: 0;
+    }
 
-@media (max-width:835px) and (orientation:landscape), (max-height:549px) and (orientation:landscape) {
-  #app, #field {
-    height: 100%;
-  }
-  #board {
-    height: 100%;
-    position: absolute;
-    right: 0;
-  }
-  #card {
-    top:    2px;
-    left:   2px;
-    border: 1px solid #AA9977;
-  }
-
-  #app > .buttons {
-    top:     0;
-    width:   48px;
-    height:  100%;
-    margin:  0;
-    padding: 4px;
-    display: none;
-  }
-  #app > .buttons.active {
-    display: inline-block;
-  }
-
-  #app.left > .buttons {
-    right: 0px;
-  }
-  #app.left #field {
-    margin-right: 48px;
-  }
-
-  #app.right > .buttons {
-    left: 0px;
-  }
-  #app.right #field {
-    margin-left: 48px;
-  }
-
-  #app > .buttons BUTTON[name=movebar],#app > .buttons BUTTON[name=swapbar] {
-    display: inline-block;
-  }
-  #app > .buttons BUTTON[name=swapbar] {
-    position: absolute;
-    bottom:   4px;
-    left:     4px;
+    .buttons {
+      left: 0;
+    }
   }
 }
