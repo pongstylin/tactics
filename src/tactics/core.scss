@@ -39,6 +39,7 @@ BODY {
 
   CANVAS {
     display: block;
+    padding: 0;
   }
 
   #card {
@@ -51,7 +52,6 @@ BODY {
   }
 
   #board {
-    padding: 0;
     margin: auto;
   }
 }
@@ -110,14 +110,16 @@ BODY {
     }
   }
 
-  .buttons {
+  > .buttons {
     display: block;
     position: absolute;
+    right: 0;
     box-sizing: border-box;
     background-color: transparent;
-    font-size: 18px;
     margin: 0;
     padding: 6px;
+    font-size: 18px;
+    text-align: left;
 
     BUTTON {
       background: none no-repeat center transparent;
@@ -150,7 +152,7 @@ BODY {
   }
 }
 
-.mouse #app .buttons BUTTON:not(.selected):enabled:hover {
+.mouse #app > .buttons BUTTON:not(.selected):enabled:hover {
   margin: 2px;
   border-width: 1px;
 }
@@ -159,7 +161,18 @@ BODY {
  * Sometimes buttons need to be disabled or hidden.
  */
 #app.locked {
-  #game-play.buttons BUTTON:not([name=swapbar]),
+  #game-play.buttons BUTTON:not([name=swapbar]) {
+    // Make the button appear disabled.
+    opacity: 0.4;
+    cursor: default;
+
+    // Override use of borders for .selected and hovered buttons
+    margin: 3px;
+    border-width: 0;
+  }
+}
+
+#app.locked:not(.gameover) {
   #game-settings.buttons BUTTON[name=rotate],
   #game-settings.buttons BUTTON[name=undo] {
     // Make the button appear disabled.
@@ -174,7 +187,7 @@ BODY {
 
 #app > .buttons BUTTON[name=movebar],
 #app > .buttons BUTTON[name=swapbar],
-.mouse .buttons BUTTON[name=lock],
+.mouse #app > .buttons BUTTON[name=lock],
 #app > .buttons BUTTON.hidden {
   display: none;
 }
@@ -233,7 +246,7 @@ BODY {
   background-color: rgba(0,0,0,0.5);
 }
 
-#popup {
+#app > #popup {
   display: none;
   position: absolute;
   background-color: rgba(0,0,0,0.65);
@@ -246,42 +259,36 @@ BODY {
   margin-left: -101px;
   border: 1px solid #AA9977;
   border-radius: 4px;
+
+  #message {
+    padding: 8px;
+  }
+
+  .buttons {
+    position: absolute;
+    bottom: 0;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px;
+    text-align: center;
+
+    BUTTON {
+      background: #6f634a;
+      color: #FFEECC;
+      width: 50px;
+      height: 18px;
+      margin: 0 8px;
+      border: 1px solid #FFEECC;
+      font-family: Arial;
+      font-size: 10px;
+      cursor: pointer;
+    }
+  }
 }
 
-#popup #message {
-  padding: 8px;
-}
-
-#popup .buttons {
-  position: absolute;
-  bottom: 0;
-  box-sizing: border-box;
-  width: 100%;
-  padding: 12px;
-  text-align: center;
-}
-
-#popup BUTTON {
-  background: #6f634a;
-  color: #FFEECC;
-  width: 50px;
-  height: 18px;
-  margin: 0 8px;
-  border: 1px solid #FFEECC;
-  font-family: Arial;
-  font-size: 10px;
-  cursor: pointer;
-}
 .mouse #popup BUTTON:hover,
 .mouse #popup BUTTON:focus {
   outline: #FFCC00 solid 1px;
-}
-
-#app > .buttons {
-  display: inline-block;
-  text-align: left;
-  padding: 2px 6px;
-  right: 0;
 }
 
 .mouse .buttons BUTTON[name=lock] {
@@ -333,7 +340,7 @@ BODY {
 
     // No longer place the buttons in the top-right corner of #app.
     // Rather, it will be placed under the #field.
-    .buttons {
+    > .buttons {
       position: relative;
       padding: 6px;
       display: none;
@@ -348,7 +355,7 @@ BODY {
         bottom: 6px;
       }
     }
-    .buttons.active {
+    > .buttons.active {
       display: block;
     }
   }
@@ -376,7 +383,7 @@ BODY {
       }
     }
 
-    .buttons {
+    > .buttons {
       top: 0;
       width: 52px;
       height: 100%;
@@ -398,7 +405,7 @@ BODY {
         bottom: 6px;
       }
     }
-    .buttons.active {
+    > .buttons.active {
       display: inline-block;
     }
   }
@@ -408,7 +415,7 @@ BODY {
       left: 0;
     }
 
-    .buttons {
+    > .buttons {
       right: 0;
     }
   }
@@ -418,7 +425,7 @@ BODY {
       right: 0;
     }
 
-    .buttons {
+    > .buttons {
       left: 0;
     }
   }

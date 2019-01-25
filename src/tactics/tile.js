@@ -157,6 +157,10 @@
 
         Tactics.render();
       },
+
+      toJSON: function () {
+        return [self.x, self.y];
+      },
     });
 
     return self;

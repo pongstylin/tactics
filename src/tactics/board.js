@@ -280,23 +280,14 @@ Tactics.Board = function () {
 
         validated.push(action);
 
-        // A turn action immediately ends the turn.
-        if (action.type === 'turn') {
-          validated.push({
-            type:    'endTurn',
-            results: self.getEndTurnResults(unitWatch),
-          });
-          return true;
-        }
-
         /*
-         * Detect automatic end turn conditions.
+         * Keep track of unit status changes that can trigger end turn or game.
          */
-        let findTurnEnded = results => !!results.find(result => {
+        let watchChanges = results => results.forEach(result => {
           let subResults = result.results || [];
 
           let changes = result.changes;
-          if (!changes) return findTurnEnded(subResults);
+          if (!changes) return watchChanges(subResults);
 
           let unit  = result.unit.assigned;
           let watch = unitWatch.find(uw => uw.unit === unit);
@@ -308,47 +299,61 @@ Tactics.Board = function () {
               paralyzed: unit.paralyzed,
             });
 
-          /*
-           * Update the watch information
-           */
+          // Dead units can cause the turn or game to end.
           if ('mHealth' in changes)
             watch.mHealth = changes.mHealth;
 
+          // Focusing units can cause the turn to end.
           if ('focusing' in changes)
             watch.focusing = changes.focusing;
 
+          // Paralyzed units can cause the game to end.
           if ('paralyzed' in changes)
             if (typeof changes.paralyzed === 'boolean')
               watch.paralyzed += changes.paralyzed ? 1 : -1;
             else
               watch.paralyzed = changes.paralyzed;
 
-          if (unit !== selected) return findTurnEnded(subResults);
-
-          // Did the selected unit suicide or get counter attacked and killed?
-          if (watch.mHealth <= -unit.health)
-            return true;
-
-          // Did the selected unit start focusing?
-          if (changes.focusing)
-            return true;
-
-          return findTurnEnded(subResults);
+          watchChanges(subResults);
         });
 
-        let turnEnded = findTurnEnded(action.results);
-        if (turnEnded) {
+        watchChanges(action.results);
+
+        // A turn action immediately ends the turn.
+        if (action.type === 'turn') {
           validated.push({
             type:    'endTurn',
             results: self.getEndTurnResults(unitWatch),
           });
-
           return true;
         }
 
-        // An attack may trigger a counter-attack.
-        if (action.type === 'attack') {
-          let turnEnded = action.results.find(result => {
+        /*
+         * If the selected unit is unable to continue, end the turn early.
+         *   1) Pyromancer killed himself.
+         *   2) Knight attacked Chaos Seed and killed by counter-attack.
+         *   3) Assassin blew herself up.
+         *   4) Enchantress paralyzed at least 1 unit.
+         */
+        if (action.type === 'attack' || action.type === 'attackSpecial') {
+          let endTurn = () => {
+            let watch = unitWatch.find(uw => uw.unit === selected);
+            if (!watch || (watch.mHealth > -selected.health && !watch.focusing))
+              return;
+
+            validated.push({
+              type:    'endTurn',
+              results: self.getEndTurnResults(unitWatch),
+            });
+
+            return true;
+          };
+
+          if (endTurn())
+            return true;
+
+          // Can any victims counter-attack?
+          return action.results.find(result => {
             let unit = result.unit.assigned;
             if (!unit.canCounter()) return;
 
@@ -357,17 +362,10 @@ Tactics.Board = function () {
 
             validated.push(counterAction);
 
-            return findTurnEnded(counterAction.results);
+            watchChanges(counterAction.results);
+
+            return endTurn();
           });
-
-          if (turnEnded) {
-            validated.push({
-              type:    'endTurn',
-              results: self.getEndTurnResults(unitWatch),
-            });
-
-            return true;
-          }
         }
       });
 
