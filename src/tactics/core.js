@@ -20,8 +20,8 @@ Tactics = (function () {
   utils.addEvents.call(self);
 
   $.extend(self, {
-    width:22+(88*9)+22,
-    height:38+4+(56*9)+4,
+    width:  22 + 88*9 + 22,
+    height: 44 + 4 + 56*9,
     utils:{},
     animators: {},
 

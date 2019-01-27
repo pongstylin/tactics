@@ -1,6 +1,11 @@
 Tactics.Board = function () {
   'use strict';
 
+  const TILE_WIDTH       = 88;
+  const TILE_HEIGHT      = 56;
+  const HALF_TILE_WIDTH  = 44;
+  const HALF_TILE_HEIGHT = 28;
+
   var self = this;
   var trophy;
   var units_container;
@@ -638,10 +643,8 @@ Tactics.Board = function () {
     draw: function () {
       var pixi = self.pixi = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/board.jpg');
       var tiles = self.tiles = new Array(11*11);
-      var tile;
-      var sx = 6-88;       // padding-left, 1 tile  wide
-      var sy = 4+(56*4)+1; // padding-top , 4 tiles tall, tweak
-      var x,y,c;
+      var sx = 6 - TILE_WIDTH;        // padding-left, 1 tile  wide
+      var sy = 4 + TILE_HEIGHT*4 + 1; // padding-top , 4 tiles tall, tweak
 
       // The board itself is interactive since we want to detect a tap on a
       // blank tile to cancel current selection, if sensible.  Ultimately, this
@@ -656,7 +659,7 @@ Tactics.Board = function () {
 
         Tactics.render();
       };
-      pixi.position = new PIXI.Point(18,38);
+      pixi.position = new PIXI.Point(18, 44);
 
       /*
        * A select event occurs when a unit and/or an action tile is selected.
@@ -715,20 +718,25 @@ Tactics.Board = function () {
         }
       };
 
-      for (x=0; x<11; x++) {
-        y = 0;
-        c = 11;
-        if (x == 0)  { y=2; c=9;  }
-        if (x == 1)  { y=1; c=10; }
-        if (x == 9)  { y=1; c=10; }
-        if (x == 10) { y=2; c=9;  }
+      for (let x = 0; x < 11; x++) {
+        let start = 0;
+        let stop  = 11;
+        if (x == 0)  { start = 2; stop =  9; }
+        if (x == 1)  { start = 1; stop = 10; }
+        if (x == 9)  { start = 1; stop = 10; }
+        if (x == 10) { start = 2; stop =  9; }
 
-        for (; y<c; y++) {
-          tile = tiles[x+y*11] = new Tactics.Tile(x, y);
+        for (let y = start; y < stop; y++) {
+          let index = x + y*11;
+          let tile  = tiles[index] = new Tactics.Tile(x, y);
+
           tile.on('select',     selectEvent);
           tile.on('focus blur', focusEvent);
           tile.draw();
-          tile.pixi.position = new PIXI.Point(sx+(x*44)+(y*44),sy-(x*28)+(y*28));
+          tile.pixi.position = new PIXI.Point(
+            sx + x*HALF_TILE_WIDTH  + y*HALF_TILE_WIDTH,
+            sy - x*HALF_TILE_HEIGHT + y*HALF_TILE_HEIGHT,
+          );
 
           pixi.addChild(tile.pixi);
         }
