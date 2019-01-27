@@ -1712,6 +1712,8 @@ Tactics.Board = function () {
     reset: function () {
       self.dropTeams();
       self.eraseCard();
+      self.history = [];
+      self.currentTeamId = 0;
       self.actions = [];
       self.moved = self.attacked = self.turned = false;
 

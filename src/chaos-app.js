@@ -489,7 +489,10 @@ Tactics.App = (function ($, window, document) {
     trophy.drawAvatar();
 
     // When randomizing team order, make sure team Chaos is always first.
-    let teamChaos = data.teams.shift();
+    let teamChaos = data.teams.splice(
+      data.teams.findIndex(t => t.n === 'Chaos'),
+      1,
+    )[0];
     data.teams.spin();
     data.teams.unshift(teamChaos);
 
