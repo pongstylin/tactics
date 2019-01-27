@@ -307,10 +307,11 @@ BODY {
  *   Use this layout for portrait orientation.
  *   Useful when narrow width causes the board and info card to overlap.
  *   Useful when excess vertical space is available.
+ *   Required when card and buttons overlap (width < 382px).
  *
  * Buttons are placed low for easier thumb manipulation on phones.
  */
-@media (max-width: 440px) and (max-aspect-ratio: 2/3) {
+@media (max-width: 440px) and (max-aspect-ratio: 2/3), (max-width: 381px) {
   // No longer take up the full height of the page.
   #app, #field {
     height: auto;
