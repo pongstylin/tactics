@@ -538,10 +538,14 @@
                 focusing: unit.focusing.slice(),
               });
 
-            result.results = [{
+            // Skip units that aren't focusing anymore.
+            if (focusingUnit.focusing === false) return;
+
+            let subResults = result.results || (result.results = []);
+            subResults.push({
               unit: unit.assignment,
               changes: { focusing:false },
-            }];
+            });
 
             let aType = Tactics.units[unit.type].aType;
             focusingUnit.focusing.forEach(tile => {
@@ -553,7 +557,7 @@
               else if (aType === 'poisoned')
                 changes.poisoned = false;
 
-              result.results.push({
+              subResults.push({
                 unit: tile,
                 changes: changes,
               });
