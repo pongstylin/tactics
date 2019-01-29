@@ -40,9 +40,7 @@ If you are familiar with Tactics Arena Online and/or would like to assist in por
 
 ## Distribution
 
-The `dist` directory contains JavaScript bundles that can be used to publish the game to a website.  In additional to these, the jQuery library is required.  The HTML files in the `static` directory can serve as an example of how to publish the game to a website.
-
-After making changes to the source, the distribution bundles can be rebuilt using this command:
+The HTML files in the `static` directory can serve as an example of how to publish the game to a website.  They make use of distribution JS bundles built using this command:
 
 ```bash
 $ npm run dist
