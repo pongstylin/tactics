@@ -1202,17 +1202,10 @@ Tactics.Board = function () {
       }
 
       if (unit === selected) {
-        if (selected.activated == 'direction') {
-          mode = 'turn';
-        }
-        else if (selected.activated == 'target') {
-          mode = 'attack';
-        }
-        else {
-          mode = selected.activated;
+        mode = selected.activated;
 
-          if (viewed) unit.showMode();
-        }
+        if (mode === 'target')
+          mode = 'attack';
       }
       else {
         // Do what a unit can can[].
