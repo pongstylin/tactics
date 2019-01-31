@@ -1206,6 +1206,9 @@ Tactics.Board = function () {
 
         if (mode === 'target')
           mode = 'attack';
+
+        // Needed to show a mode previously hidden.
+        selected.showMode();
       }
       else {
         // Do what a unit can can[].
