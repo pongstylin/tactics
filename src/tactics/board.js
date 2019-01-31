@@ -1376,18 +1376,22 @@ Tactics.Board = function () {
       self.applyChangeResults(action.results);
 
       // If the player team was killed, he can take over for a bot team.
-      // TODO: Restrict this behavior to the Chaos app.
-      self.teams.forEach((team, t) => {
-        if (team.units.length) return;
+      // This only applies to the Chaos app.
+      if (self.teams.length === 5)
+        // Find a player team with no units.
+        self.teams.find(playerTeam => {
+          if (playerTeam.units.length) return;
+          if (playerTeam.bot) return;
 
-        if (!self.teams[t].bot) {
-          for (let i = 0; i < self.teams.length; i++) {
-            if (!self.teams[i].units.length) continue;
-            self.teams[i].bot = 0;
-            break;
-          }
-        }
-      });
+          // Find a bot team that will be the new player team.
+          return !!self.teams.find(botTeam => {
+            if (botTeam.units.length === 0) return;
+            if (botTeam.name === 'Chaos') return;
+
+            botTeam.bot = 0;
+            return true;
+          });
+        });
 
       self.pushHistory();
       self.startTurn();
