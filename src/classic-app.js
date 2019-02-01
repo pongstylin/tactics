@@ -87,12 +87,7 @@ Tactics.App = (function ($, window, document) {
         sound: function ($button) {
           $button.toggleClass('fa-bell fa-bell-slash');
 
-          if ($button.hasClass('fa-bell')) {
-            Howler.unmute();
-          }
-          else {
-            Howler.mute();
-          }
+          Howler.mute($button.hasClass('fa-bell-slash'));
         },
         select: function ($button) {
           let mode = $button.val();
