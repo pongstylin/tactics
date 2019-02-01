@@ -1415,6 +1415,7 @@ Tactics.Board = function () {
       else
         self.notice = 'Draw!';
 
+      self.pushHistory();
       self.lock('gameover');
       self.drawCard();
 
@@ -1704,15 +1705,36 @@ Tactics.Board = function () {
       return self;
     },
     popHistory: function () {
-      if (self.history.length === 0) return;
+      let history = self.history;
+      if (history.length === 0) return;
 
       // If any units are selected or viewed, deactivate them.
       self.deselect(true);
 
-      let turnData = self.history.pop();
+      let turnData = history.pop();
 
       self.currentTeamId = turnData.teamId;
       self.state         = turnData.units;
+
+      // Recalculate passed turn counts.
+      self.teams.forEach((team, teamId) => {
+        team.passedTurns = 0;
+
+        for (let i = history.length-1; i > -1; i--) {
+          if (history[i].teamId !== teamId)
+            continue;
+
+          // Stop searching once an action is made (aside from endTurn or endGame).
+          if (history[i].actions.length > 1)
+            return;
+
+          team.passedTurns++;
+
+          // Stop searching once 3 passed turns are detected.
+          if (team.passedTurns === 3)
+            return;
+        }
+      });
 
       return self.applyState();
     },
