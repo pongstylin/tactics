@@ -8,9 +8,6 @@
     var special_ready = false;
 
     Object.assign(self, {
-      getTargetTiles: function (target) {
-        return self.getAttackTiles();
-      },
       playAttack: function (target, results) {
         let anim      = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, target, self.direction);

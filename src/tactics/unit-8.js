@@ -9,9 +9,6 @@
     var effects = Object.assign({}, Tactics.effects, data.effects);
 
     Object.assign(self, {
-      getTargetTiles: function () {
-        return self.getAttackTiles();
-      },
       playAttack: function (target, results) {
         let anim      = new Tactics.Animation();
         let direction = board.getDirection(self.assignment, target, self.direction);

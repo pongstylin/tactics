@@ -228,6 +228,8 @@
       getTargetTiles: function (target) {
         if (data.aLOS === true)
           return self.getLOSTargetTiles(target);
+        else if (data.aAll === true)
+          return self.getAttackTiles();
 
         return [target];
       },
@@ -1053,7 +1055,7 @@
         let focused_tile;
 
         if (!self.viewed && data.aAll) {
-          self.target = self.assignment;
+          self.target = null;
           return self.highlightTarget();
         }
 
@@ -1126,7 +1128,7 @@
           self.onTargetFocus({target:target_units[0].assignment});
           board.drawCard(target_units[0]);
         }
-        else if (target.assigned)
+        else if (target && target.assigned)
           self.onTargetFocus({target:target});
 
         // Activate targeted units
