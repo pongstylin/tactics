@@ -1139,7 +1139,11 @@
       hideTarget: function () {
         // Reset the targeted units
         self.getTargetUnits(self.target).forEach(unit => {
-          if (unit !== self) unit.deactivate();
+          // Clear target info notice
+          unit.notice = null;
+
+          if (unit !== self)
+            unit.deactivate();
         });
 
         self.target = null;
@@ -1513,9 +1517,6 @@
 
         self.hideMode();
         self.activated = false;
-
-        // Clear a notice set in onTargetFocus().
-        self.notice = null;
 
         return stopPulse();
       },
@@ -2104,9 +2105,6 @@
       },
       onTargetSelect: function (event) {
         self.hideTarget();
-
-        // Clear the notice set in onTargetFocus().
-        self.notice = null;
 
         let action = {
           type: 'attack',
