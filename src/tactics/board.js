@@ -1716,25 +1716,24 @@ Tactics.Board = function () {
       self.currentTeamId = turnData.teamId;
       self.state         = turnData.units;
 
-      // Recalculate passed turn counts.
-      self.teams.forEach((team, teamId) => {
-        team.passedTurns = 0;
+      // Recalculate passed turn count for the team that popped a turn.
+      let team = self.teams[self.currentTeamId];
+      team.passedTurns = 0;
 
-        for (let i = history.length-1; i > -1; i--) {
-          if (history[i].teamId !== teamId)
-            continue;
+      for (let i = history.length-1; i > -1; i--) {
+        if (history[i].teamId !== self.currentTeamId)
+          continue;
 
-          // Stop searching once an action is made (aside from endTurn or endGame).
-          if (history[i].actions.length > 1)
-            return;
+        // Stop searching once an action is made (aside from endTurn or endGame).
+        if (history[i].actions.length > 1)
+          break;
 
-          team.passedTurns++;
+        team.passedTurns++;
 
-          // Stop searching once 3 passed turns are detected.
-          if (team.passedTurns === 3)
-            return;
-        }
-      });
+        // Stop searching once 2 passed turns are detected.
+        if (team.passedTurns === 2)
+          break;
+      }
 
       return self.applyState();
     },
