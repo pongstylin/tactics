@@ -113,10 +113,10 @@
           }
         }
       },
-      playAttack: function (target, results) {
+      playAttack: function (action) {
         let anim  = new Tactics.Animation();
         let winds = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
-        let target_unit = target.assigned;
+        let target_unit = action.tile.assigned;
 
         anim
           .addFrames([

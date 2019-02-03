@@ -192,15 +192,13 @@
 
         return container;
       },
-      playAttack: function (target, results) {
+      playAttack: function (action) {
         let anim       = new Tactics.Animation();
-        let direction  = board.getDirection(self.assignment, target);
-        let attackAnim = self.animAttack(direction);
+        let attackAnim = self.animAttack(action.direction);
 
         // Animate a target unit's reaction starting with the 4th attack frame.
-        results.forEach(result => {
+        action.results.forEach(result => {
           let unit = result.unit.assigned;
-          if (unit === self) return;
 
           if (result.miss === 'blocked')
             attackAnim
@@ -211,7 +209,7 @@
               .splice(4, unit.animStagger(self));
         });
 
-        anim.splice(self.animTurn(direction));
+        anim.splice(self.animTurn(action.direction));
         anim.splice(attackAnim);
 
         return anim.play();
@@ -273,8 +271,10 @@
         ]});
       },
       animAttack: function (direction) {
-        var anim = new Tactics.Animation();
-        var swing = 0;
+        let anim = new Tactics.Animation();
+        let swing = 0;
+
+        if (!direction) direction = self.direction;
 
         anim.addFrames([
           {

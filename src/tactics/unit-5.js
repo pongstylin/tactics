@@ -6,14 +6,13 @@
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
     Object.assign(self, {
-      playAttack: function (target, results) {
-        let anim        = new Tactics.Animation();
-        let target_unit = target.assigned;
-        let attackAnim  = self.animAttack(target);
+      playAttack: function (action) {
+        let anim       = new Tactics.Animation();
+        let attackAnim = self.animAttack();
         attackAnim.splice(5, () => sounds.attack.play());
 
         anim.splice(attackAnim);
-        anim.splice(10, self.animLightning(target, results));
+        anim.splice(10, self.animLightning(action.tile, action.results));
 
         return anim.play();
       },

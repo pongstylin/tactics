@@ -7,16 +7,15 @@
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
     Object.assign(self, {
-      playAttack: function (target, results) {
-        let anim      = new Tactics.Animation();
-        let direction = board.getDirection(self.assignment, target, self.direction);
+      playAttack: function (action) {
+        let anim = new Tactics.Animation();
 
-        let attackAnim = self.animAttack(target);
+        let attackAnim = self.animAttack(action.direction);
         attackAnim.splice(4, () => sounds.attack.play());
 
-        results.forEach(result => {
+        // Zero or one result expected.
+        action.results.forEach(result => {
           let unit = result.unit.assigned;
-          if (unit === self) return;
 
           // Simulate how long it takes for the arrow to travel.
           let index = 9 + Math.ceil(
@@ -33,7 +32,7 @@
               .splice(index+1, unit.animStagger(self));
         });
 
-        anim.splice(self.animTurn(direction));
+        anim.splice(self.animTurn(action.direction));
         anim.splice(attackAnim);
 
         return anim.play();

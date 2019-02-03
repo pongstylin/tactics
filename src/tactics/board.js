@@ -228,6 +228,7 @@ Tactics.Board = function () {
       let unitWatch = [];
 
       // Validate actions until we find an endTurn event.
+      // TODO: Don't forward excess properties on action objects.
       let turnEnded = !!actions.find(action => {
         if (action.type === 'endTurn') {
           action.results = self.getEndTurnResults(unitWatch);
@@ -236,6 +237,7 @@ Tactics.Board = function () {
         }
 
         let unit = action.unit.assigned;
+        let unitData = Tactics.units[unit.type];
 
         // Before initiating any action, a focused unit must break focus.
         if (unit.focusing)
@@ -258,9 +260,21 @@ Tactics.Board = function () {
         else if (action.type === 'attack') {
           if (self.attacked) return;
 
-          let tiles = unit.getAttackTiles();
-          if (tiles.indexOf(action.tile) === -1)
-            return;
+          if (unitData.aAll === true) {
+            if ('tile' in action)
+              delete action.tile;
+            if (action.direction === unit.direction)
+              delete action.direction;
+          }
+          else {
+            if (unit.getAttackTiles().indexOf(action.tile) === -1)
+              return;
+
+            // Set unit to face the direction of the target tile.
+            let direction = self.getDirection(unit.assignment, action.tile, unit.direction);
+            if (direction !== unit.direction)
+              action.direction = direction;
+          }
 
           action.results = unit.getAttackResults(action);
           self.attacked = true;
@@ -653,10 +667,7 @@ Tactics.Board = function () {
       pixi.pointertap = event => {
         if (self.locked) return;
 
-        let selected = self.selected;
-        if (self.viewed || (selected && !self.moved))
-          self.deselect();
-
+        self.deselect();
         Tactics.render();
       };
       pixi.position = new PIXI.Point(18, 44);
@@ -1272,7 +1283,7 @@ Tactics.Board = function () {
         self.setSelectMode(selected ? selected.activated : self.selectMode);
         return self.drawCard();
       }
-      else if (selected && !self.actions.length) {
+      else if (selected && !self.actions.length && self.selectMode !== 'target') {
         selected.deactivate();
         self.selected = null;
       }

@@ -17,15 +17,14 @@
       getTargetUnits: function (target) {
         return board.teams[self.team].units;
       },
-      playAttack: function (target, results) {
+      playAttack: function (action) {
         let anim         = new Tactics.Animation();
-        let direction    = board.getDirection(self.assignment, target, self.direction);
-        let target_units = self.getTargetUnits(target);
+        let target_units = self.getTargetUnits(action.tile);
 
-        let attackAnim = self.animAttack(target);
+        let attackAnim = self.animAttack(action.direction);
         attackAnim.splice(2, self.animHeal(target_units));
 
-        anim.splice(self.animTurn(direction));
+        anim.splice(self.animTurn(action.direction));
         anim.splice(attackAnim);
 
         return anim.play();

@@ -434,14 +434,7 @@
         let results      = [];
         let target       = action.tile;
         let target_units = self.getTargetUnits(target);
-        let direction    = board.getDirection(self.assignment, target, self.direction);
         let focusing     = [];
-
-        if (direction !== self.direction)
-          results.push({
-            unit: self.assignment,
-            changes: { direction:direction },
-          });
 
         results.push(...target_units.map(unit => {
           let result = { unit:unit.assignment };
@@ -1207,16 +1200,12 @@
         return self.animMove(action.tile).play();
       },
       attack: function (action) {
-        let results = action.results;
-
-        return self.playAttack(action.tile, results)
-          .then(() => board.playResults(results));
+        return self.playAttack(action)
+          .then(() => board.playResults(action.results));
       },
       attackSpecial: function (action) {
-        let results = action.results;
-
-        return self.playAttackSpecial(results)
-          .then(() => board.playResults(results));
+        return self.playAttackSpecial(action)
+          .then(() => board.playResults(action.results));
       },
       turn: function (action) {
         if (self.directional === false) return self;
@@ -1623,7 +1612,7 @@
         let anim = new Tactics.Animation();
 
         // Do nothing if already facing the desired direction
-        if (direction === self.direction) return anim;
+        if (!direction || direction === self.direction) return anim;
 
         // If turning to the opposite direction, first turn right.
         if (direction === board.getRotation(self.direction, 180))
@@ -1729,9 +1718,10 @@
 
         return anim;
       },
-      animAttack: function (target) {
+      animAttack: function (direction) {
         let anim = new Tactics.Animation();
-        let direction = board.getDirection(self.assignment, target, self.direction);
+
+        if (!direction) direction = self.direction;
 
         let indexes = [];
         for (let index = data.attacks[direction][0]; index <= data.attacks[direction][1]; index++) {
@@ -1739,7 +1729,7 @@
         }
         indexes.forEach(index => anim.addFrame(() => self.drawFrame(index)));
 
-        anim.addFrame(() => self.stand(direction));
+        anim.addFrame(() => self.stand());
 
         return anim;
       },
@@ -2106,12 +2096,23 @@
         board.setSelectMode('target');
       },
       onTargetSelect: function (event) {
-        self.hideTarget();
-
+        let target = self.target || event.target;
         let action = {
           type: 'attack',
-          tile: event.target,
         };
+
+        // Units that attack all targets don't have a specific target tile.
+        if (self.target)
+          action.tile = target;
+        else {
+          // Set unit to face the direction of the tapped tile.
+          // (This is an aesthetic data point that needs no server validation)
+          let direction = board.getDirection(self.assignment, target, self.direction);
+          if (direction !== self.direction)
+            action.direction = direction;
+        }
+
+        self.hideTarget();
 
         return board.takeAction(action);
       },

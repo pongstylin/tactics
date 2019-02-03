@@ -9,21 +9,19 @@
     var effects = Object.assign({}, Tactics.effects, data.effects);
 
     Object.assign(self, {
-      playAttack: function (target, results) {
-        let anim      = new Tactics.Animation();
-        let direction = board.getDirection(self.assignment, target, self.direction);
+      playAttack: function (action) {
+        let anim = new Tactics.Animation();
 
-        let attackAnim = self.animAttack(target);
+        let attackAnim = self.animAttack(action.direction);
         attackAnim.splice(0, () => sounds.paralyze.play())
 
-        results.forEach(result => {
+        action.results.forEach(result => {
           let unit = result.unit.assigned;
-          if (unit === self) return;
 
           attackAnim.splice(0, self.animStreaks(unit));
         });
 
-        anim.splice(self.animTurn(direction));
+        anim.splice(self.animTurn(action.direction));
         anim.splice(attackAnim);
 
         return anim.play();

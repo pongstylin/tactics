@@ -18,17 +18,17 @@
       title:  'Awakened!',
       banned: [],
 
-      playAttack: function (target, results) {
-        let anim      = new Tactics.Animation({fps:10});
-        let direction = board.getDirection(self.assignment, target);
+      playAttack: function (action) {
+        let anim = new Tactics.Animation({fps:10});
 
         // Make sure we strike the actual target (LOS can change it).
+        let target = action.tile;
         let target_unit = self.getTargetUnits(target)[0];
         if (target_unit)
           target = target_unit.assignment;
 
         anim
-          .splice(self.animTurn(direction))
+          .splice(self.animTurn(action.direction))
           .splice(self.animAttack(target));
 
         return anim.play();
