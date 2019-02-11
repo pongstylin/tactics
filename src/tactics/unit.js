@@ -1027,7 +1027,7 @@
         dividedByText.x = 26;
         dividedByText.y = -15;
         var totalHealthText = new PIXI.Text(
-            currentHealth,
+            self.health,
             textOptions
         );
         totalHealthText.x = 32;
