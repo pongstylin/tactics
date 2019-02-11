@@ -821,11 +821,11 @@ Tactics.Board = function () {
           unit.on('change', card.listener = () => self.drawCard(unit));
       }
 
+      if (els.healthBar.children.length) els.healthBar.removeChildren();
       if (unit) {
         mask = new PIXI.Graphics();
         mask.drawRect(0,0,88,60);
 
-        els.healthBar.removeChildren();
         els.healthBar.addChild(unit.drawHealth());
         //
         //  Status Detection
