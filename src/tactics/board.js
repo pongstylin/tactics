@@ -66,10 +66,10 @@ Tactics.Board = function () {
       upper: {
         type    :'C',
         children: {
-          avatar: {type:'C',x:42,y:75},
+          avatar: {type:'C',x:22,y:75},
           name  : {
             type: 'T',
-            x:    80,
+            x:    60,
             y:    14,
             style: {
               fontFamily: 'Arial',
@@ -77,7 +77,16 @@ Tactics.Board = function () {
               fontWeight: 'bold',
             },
           },
-          notice: {type:'T',x:92,y:34}
+          notice: {
+            type:'T',
+            x:108,
+            y:27,
+            style: {
+              fontFamily: 'Arial',
+              fontSize: '9px',
+            },
+          },
+          healthBar: {type: 'C', x: 60, y: 44}
         }
       },
       divider: {
@@ -96,20 +105,18 @@ Tactics.Board = function () {
           layer1: {
             type:'C',
             children: {
-              hLabel:{type:'T',x:  0,y: 0,text:'Health'},
-              health:{type:'T',x: 39,y: 0              },
+              pLabel:{type:'T',x:  0,y:0,text:'Power' },
+              power :{type:'T',x: 39,y:0              },
+              mPower:{type:'T',x: 70,y:0              },
+
 
               bLabel:{type:'T',x: 80,y: 0,text:'Block' },
               block :{type:'T',x:115,y: 0              },
               mBlock:{type:'T',x:143,y: 0              },
 
-              pLabel:{type:'T',x:  0,y:16,text:'Power' },
-              power :{type:'T',x: 39,y:16              },
-              mPower:{type:'T',x: 70,y:16              },
-
-              aLabel:{type:'T',x: 80,y:16,text:'Armor' },
-              armor :{type:'T',x:115,y:16              },
-              mArmor:{type:'T',x:143,y:16              }
+              aLabel:{type:'T',x: 0,y:16,text:'Armor' },
+              armor :{type:'T',x:39,y:16              },
+              mArmor:{type:'T',x:70,y:16              }
             },
           },
           layer2: {
@@ -818,14 +825,14 @@ Tactics.Board = function () {
         mask = new PIXI.Graphics();
         mask.drawRect(0,0,88,60);
 
+        els.healthBar.removeChildren();
+        els.healthBar.addChild(unit.drawHealth());
         //
         //  Status Detection
         //
         if (unit.mHealth === -unit.health) {
           if (unit.type === 15)
             notice = 'Hatched!';
-          else
-            notice = 'Dead!';
         }
         else {
           notice = unit.notice;
@@ -860,15 +867,7 @@ Tactics.Board = function () {
         if (unit.mBlocking < 0)
           notices.push('Vulnerable!');
 
-        if (unit.health + unit.mHealth < unit.health * 0.4) {
-          notices.push('Dying!');
-        }
-        else if (unit.mHealth < 0) {
-          notices.push('Hurt!');
-        }
-        else {
-          notices.push(unit.title || 'Ready!');
-        }
+        notices.push(unit.title);
 
         if (!notice) {
           notice = notices.shift();
@@ -904,8 +903,6 @@ Tactics.Board = function () {
         //  Draw the first layer of the bottom part of the card.
         //
         els.layer1.visible = true;
-
-        els.health.text = (unit.health + unit.mHealth)+'/'+unit.health;
 
         if (unit.blocking) {
           if (unit.mBlocking) {

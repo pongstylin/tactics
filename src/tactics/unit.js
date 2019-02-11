@@ -938,6 +938,110 @@
       drawAvatar: function () {
         return self.compileFrame(data.frames[data.stills.S], data);
       },
+      createGradientSpriteForHealthBar: function (options) {
+        var canvas;
+        // The canvas is cached so we're not creating a new canvas on every render
+        var canvas_key = '_canvas' + options.id;
+        if (self[canvas_key]) {
+          canvas = self[canvas_key];
+        } else {
+          canvas = document.createElement('canvas');
+        }
+        self[canvas_key] = canvas;
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.width = options.width;
+        canvas.height = options.height;
+
+        var gradient = ctx.createLinearGradient(0, 0, options.gradientEndX,0);
+        gradient.addColorStop(0, options.startColor);
+        gradient.addColorStop(1, options.endColor);
+        ctx.fillStyle = gradient;
+        ctx.moveTo(10, 0);
+        ctx.lineTo(canvas.width, 0);
+        ctx.lineTo(canvas.width - 10, canvas.height);
+        ctx.lineTo(0, canvas.height);
+        ctx.closePath();
+        ctx.fill();
+
+        var sprite = new PIXI.Sprite(PIXI.Texture.fromCanvas(canvas));
+        return sprite;
+      },
+      drawHealth: function () {
+        var healthBarSize = 95;
+        var currentHealth = self.health + self.mHealth;
+        var healthRatio = currentHealth / self.health;
+        var gradientStartColor;
+        var gradientEndColor;
+
+        if (healthRatio > 0.75) {
+          gradientStartColor = 'green';
+          gradientEndColor = 'yellow';
+        } else if (healthRatio > 0.35) {
+          gradientStartColor = 'yellow';
+          gradientEndColor = 'red';
+        } else {
+          gradientStartColor = 'red';
+          gradientEndColor = 'yellow';
+        }
+
+        // Create the health bar sprites
+        var healthBarSprite = self.createGradientSpriteForHealthBar({
+          id: 'healthBar',
+          height: 7,
+          width: healthRatio * healthBarSize,
+          startColor: gradientStartColor,
+          endColor: gradientEndColor,
+          gradientEndX: 200,
+        });
+        var underlayBarSprite = self.createGradientSpriteForHealthBar({
+          id: 'healthBarUnderlay',
+          height: 7,
+          width: healthBarSize,
+          startColor: '#008000',
+          endColor: '#006400',
+          gradientEndX: healthBarSize,
+        });
+        underlayBarSprite.x = 2;
+        underlayBarSprite.y = 2;
+        underlayBarSprite.alpha = 0.5;
+
+        // Create the health text
+        var textOptions = {
+          fontFamily:      'Arial',
+          fontSize:        '12px',
+          stroke:          0,
+          strokeThickness: 1,
+          fill:            'white',
+        };
+        var currentHealthText = new PIXI.Text(
+            currentHealth,
+            textOptions
+        );
+        currentHealthText.x = 12;
+        currentHealthText.y = -14;
+        var dividedByText = new PIXI.Text(
+            '/',
+            {...textOptions, fontSize: '19px'}
+        );
+        dividedByText.x = 26;
+        dividedByText.y = -15;
+        var totalHealthText = new PIXI.Text(
+            currentHealth,
+            textOptions
+        );
+        totalHealthText.x = 32;
+        totalHealthText.y = -9;
+
+        // Add everything to a container
+        var container = new PIXI.Container();
+        container.addChild(underlayBarSprite);
+        container.addChild(healthBarSprite);
+        container.addChild(currentHealthText);
+        container.addChild(dividedByText);
+        container.addChild(totalHealthText);
+        return container;
+      },
       drawFrame: function (index, context) {
         let frame = self.frames[index];
         let focus;
