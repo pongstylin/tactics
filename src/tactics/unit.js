@@ -964,8 +964,7 @@
         ctx.closePath();
         ctx.fill();
 
-        var sprite = new PIXI.Sprite(PIXI.Texture.fromCanvas(canvas));
-        return sprite;
+        return new PIXI.Sprite(PIXI.Texture.fromCanvas(canvas));
       },
       drawHealth: function () {
         var healthBarSize = 95;
