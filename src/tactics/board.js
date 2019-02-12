@@ -79,15 +79,15 @@ Tactics.Board = function () {
           },
           noticeContainer: {
             type: 'C',
-            x: 165,
-            y: 27,
+            x: 170,
+            y: 24,
             children: {
               notice: {
                 type: 'T',
                 anchor: { x: 1 },
                 style: {
                   fontFamily: 'Arial',
-                  fontSize: '9px',
+                  fontSize: '7px',
                 },
               },
             },
