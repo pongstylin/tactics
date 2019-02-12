@@ -833,7 +833,7 @@ Tactics.Board = function () {
       var currentHealth = unit.health + unit.mHealth;
       var healthRatio = currentHealth / unit.health;
       var toColorCode = num => '#' + parseInt(num).toString(16);
-      var gradientStartColor = Tactics.utils.getColorStop(0x32CD32, 0xFF0000, healthRatio);
+      var gradientStartColor = Tactics.utils.getColorStop(0xc2f442, 0xFF0000, healthRatio);
       var gradientShineColor = Tactics.utils.getColorStop(gradientStartColor, 0xFFFFFF, 0.8);
       var gradientEndColor = Tactics.utils.getColorStop(gradientShineColor, 0x000000, 0.2);
       gradientStartColor = toColorCode(gradientStartColor);
