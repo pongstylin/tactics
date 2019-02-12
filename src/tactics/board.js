@@ -816,6 +816,7 @@ Tactics.Board = function () {
 
       var gradient = ctx.createLinearGradient(0, 0, options.gradientEndX,0);
       gradient.addColorStop(0, options.startColor);
+      gradient.addColorStop(0.4, options.shineColor);
       gradient.addColorStop(1, options.endColor);
       ctx.fillStyle = gradient;
       ctx.moveTo(10, 0);
@@ -831,19 +832,14 @@ Tactics.Board = function () {
       var healthBarSize = 95;
       var currentHealth = unit.health + unit.mHealth;
       var healthRatio = currentHealth / unit.health;
-      var gradientStartColor;
-      var gradientEndColor;
-
-      if (healthRatio > 0.75) {
-        gradientStartColor = 'green';
-        gradientEndColor = 'yellow';
-      } else if (healthRatio > 0.35) {
-        gradientStartColor = 'yellow';
-        gradientEndColor = 'red';
-      } else {
-        gradientStartColor = 'red';
-        gradientEndColor = 'yellow';
-      }
+      var toColorCode = num => '#' + parseInt(num).toString(16);
+      var gradientStartColor = Tactics.utils.getColorStop(0x32CD32, 0xFF0000, healthRatio);
+      var gradientShineColor = Tactics.utils.getColorStop(gradientStartColor, 0xFFFFFF, 0.8);
+      var gradientEndColor = Tactics.utils.getColorStop(gradientShineColor, 0x000000, 0.2);
+      gradientStartColor = toColorCode(gradientStartColor);
+      gradientShineColor = toColorCode(gradientShineColor);
+      gradientEndColor = toColorCode(gradientEndColor);
+      var gradientEndX = healthBarSize;
 
       // Create the health bar sprites
       var healthBarSprite = self.createGradientSpriteForHealthBar({
@@ -851,16 +847,18 @@ Tactics.Board = function () {
         height: 6,
         width: healthRatio * healthBarSize,
         startColor: gradientStartColor,
+        shineColor: gradientShineColor,
         endColor: gradientEndColor,
-        gradientEndX: 200,
+        gradientEndX: gradientEndX,
       });
       var underlayBarSprite = self.createGradientSpriteForHealthBar({
         id: 'healthBarUnderlay',
         height: 6,
         width: healthBarSize,
         startColor: '#008000',
+        shineColor: '#006400',
         endColor: '#006400',
-        gradientEndX: healthBarSize,
+        gradientEndX: gradientEndX,
       });
       underlayBarSprite.x = 2;
       underlayBarSprite.y = 2;
