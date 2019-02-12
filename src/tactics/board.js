@@ -70,23 +70,29 @@ Tactics.Board = function () {
           name  : {
             type: 'T',
             x:    60,
-            y:    14,
+            y:    10,
             style: {
               fontFamily: 'Arial',
               fontSize:   '11px',
               fontWeight: 'bold',
             },
           },
-          notice: {
-            type:'T',
-            x:108,
-            y:27,
-            style: {
-              fontFamily: 'Arial',
-              fontSize: '9px',
+          noticeContainer: {
+            type: 'C',
+            x: 165,
+            y: 27,
+            children: {
+              notice: {
+                type: 'T',
+                anchor: { x: 1 },
+                style: {
+                  fontFamily: 'Arial',
+                  fontSize: '9px',
+                },
+              },
             },
           },
-          healthBar: {type: 'C', x: 60, y: 44}
+          healthBar: {type: 'C', x: 60, y: 48}
         }
       },
       divider: {
@@ -842,7 +848,7 @@ Tactics.Board = function () {
       // Create the health bar sprites
       var healthBarSprite = self.createGradientSpriteForHealthBar({
         id: 'healthBar',
-        height: 7,
+        height: 6,
         width: healthRatio * healthBarSize,
         startColor: gradientStartColor,
         endColor: gradientEndColor,
@@ -850,7 +856,7 @@ Tactics.Board = function () {
       });
       var underlayBarSprite = self.createGradientSpriteForHealthBar({
         id: 'healthBarUnderlay',
-        height: 7,
+        height: 6,
         width: healthBarSize,
         startColor: '#008000',
         endColor: '#006400',
@@ -865,7 +871,7 @@ Tactics.Board = function () {
         fontFamily:      'Arial',
         fontSize:        '12px',
         stroke:          0,
-        strokeThickness: 1,
+        strokeThickness: 2,
         fill:            'white',
       };
       var currentHealthText = new PIXI.Text(
@@ -879,13 +885,13 @@ Tactics.Board = function () {
           {...textOptions, fontSize: '19px'}
       );
       dividedByText.x = 26;
-      dividedByText.y = -15;
+      dividedByText.y = -17;
       var totalHealthText = new PIXI.Text(
           unit.health,
           textOptions
       );
       totalHealthText.x = 32;
-      totalHealthText.y = -9;
+      totalHealthText.y = -11;
 
       // Add everything to a container
       var container = new PIXI.Container();
