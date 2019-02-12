@@ -79,15 +79,14 @@ Tactics.Board = function () {
           },
           noticeContainer: {
             type: 'C',
-            x: 170,
-            y: 24,
+            x: 60,
+            y: 26,
             children: {
               notice: {
                 type: 'T',
-                anchor: { x: 1 },
                 style: {
                   fontFamily: 'Arial',
-                  fontSize: '7px',
+                  fontSize: '11px',
                 },
               },
             },
@@ -816,7 +815,7 @@ Tactics.Board = function () {
 
       var gradient = ctx.createLinearGradient(0, 0, options.gradientEndX,0);
       gradient.addColorStop(0, options.startColor);
-      gradient.addColorStop(0.4, options.shineColor);
+      gradient.addColorStop(0.6, options.shineColor);
       gradient.addColorStop(1, options.endColor);
       ctx.fillStyle = gradient;
       ctx.moveTo(10, 0);
@@ -928,11 +927,16 @@ Tactics.Board = function () {
           unit.on('change', card.listener = () => self.drawCard(unit));
       }
 
+      els.noticeContainer.x = 74;
+      els.notice.anchor.x = 0;
+
       if (els.healthBar.children.length) els.healthBar.removeChildren();
       if (unit) {
         mask = new PIXI.Graphics();
         mask.drawRect(0,0,88,60);
 
+        els.noticeContainer.x = 174;
+        els.notice.anchor.x = 1;
         els.healthBar.addChild(self.drawHealth(unit));
         //
         //  Status Detection
@@ -994,17 +998,6 @@ Tactics.Board = function () {
         els.name.text = unit.name;
 
         els.notice.text = notice;
-
-        if (unit.notice)
-          els.notice.style = Object.assign(els.notice.style, {
-            fontFamily: 'Arial',
-            fontSize:   '13px',
-          });
-        else
-          els.notice.style = Object.assign(els.notice.style, {
-            fontFamily: 'Arial',
-            fontSize:   '11px',
-          });
 
         //
         //  Draw the first layer of the bottom part of the card.
@@ -1948,7 +1941,6 @@ Tactics.Board = function () {
                   progress += (diff / 8) * -1;
                   unit.change({
                     mHealth: Math.round(progress),
-                    notice:  Math.round(unit.health + progress),
                   });
                 },
                 repeat: 8,
