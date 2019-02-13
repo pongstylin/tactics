@@ -104,6 +104,12 @@ Tactics = (function () {
         if ('x'        in v) child.position.x = v.x;
         if ('y'        in v) child.position.y = v.y;
         if ('visible'  in v) child.visible = v.visible;
+        if ('anchor'   in v) {
+          for (let key in v['anchor']) {
+              if (v['anchor'].hasOwnProperty(key))
+                child['anchor'][key] = v['anchor'][key];
+          }
+        }
         if ('onSelect' in v) {
           child.interactive = child.buttonMode = true;
           child.hitArea = new PIXI.Rectangle(0,0,v.w,v.h);

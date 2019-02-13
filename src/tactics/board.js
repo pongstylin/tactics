@@ -66,18 +66,32 @@ Tactics.Board = function () {
       upper: {
         type    :'C',
         children: {
-          avatar: {type:'C',x:42,y:75},
+          avatar: {type:'C',x:22,y:75},
           name  : {
             type: 'T',
-            x:    80,
-            y:    14,
+            x:    60,
+            y:    10,
             style: {
               fontFamily: 'Arial',
               fontSize:   '11px',
               fontWeight: 'bold',
             },
           },
-          notice: {type:'T',x:92,y:34}
+          noticeContainer: {
+            type: 'C',
+            x: 60,
+            y: 26,
+            children: {
+              notice: {
+                type: 'T',
+                style: {
+                  fontFamily: 'Arial',
+                  fontSize: '11px',
+                },
+              },
+            },
+          },
+          healthBar: {type: 'C', x: 60, y: 48}
         }
       },
       divider: {
@@ -96,20 +110,18 @@ Tactics.Board = function () {
           layer1: {
             type:'C',
             children: {
-              hLabel:{type:'T',x:  0,y: 0,text:'Health'},
-              health:{type:'T',x: 39,y: 0              },
+              pLabel:{type:'T',x:  0,y:0,text:'Power' },
+              power :{type:'T',x: 39,y:0              },
+              mPower:{type:'T',x: 70,y:0              },
+
 
               bLabel:{type:'T',x: 80,y: 0,text:'Block' },
               block :{type:'T',x:115,y: 0              },
               mBlock:{type:'T',x:143,y: 0              },
 
-              pLabel:{type:'T',x:  0,y:16,text:'Power' },
-              power :{type:'T',x: 39,y:16              },
-              mPower:{type:'T',x: 70,y:16              },
-
-              aLabel:{type:'T',x: 80,y:16,text:'Armor' },
-              armor :{type:'T',x:115,y:16              },
-              mArmor:{type:'T',x:143,y:16              }
+              aLabel:{type:'T',x: 0,y:16,text:'Armor' },
+              armor :{type:'T',x:39,y:16              },
+              mArmor:{type:'T',x:70,y:16              }
             },
           },
           layer2: {
@@ -786,6 +798,107 @@ Tactics.Board = function () {
 
       return self;
     },
+    createGradientSpriteForHealthBar: function (options) {
+      var canvas;
+      // The canvas is cached so we're not creating a new canvas on every render
+      var canvas_key = '_canvas' + options.id;
+      if (self[canvas_key]) {
+        canvas = self[canvas_key];
+      } else {
+        canvas = document.createElement('canvas');
+      }
+      self[canvas_key] = canvas;
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.width = options.width;
+      canvas.height = options.height;
+
+      var gradient = ctx.createLinearGradient(0, 0, options.gradientEndX,0);
+      gradient.addColorStop(0, options.startColor);
+      gradient.addColorStop(0.6, options.shineColor);
+      gradient.addColorStop(1, options.endColor);
+      ctx.fillStyle = gradient;
+      ctx.moveTo(10, 0);
+      ctx.lineTo(canvas.width, 0);
+      ctx.lineTo(canvas.width - 10, canvas.height);
+      ctx.lineTo(0, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+
+      return new PIXI.Sprite(PIXI.Texture.fromCanvas(canvas));
+    },
+    drawHealth: function (unit) {
+      var healthBarSize = 95;
+      var currentHealth = unit.health + unit.mHealth;
+      var healthRatio = currentHealth / unit.health;
+      var toColorCode = num => '#' + parseInt(num).toString(16);
+      var gradientStartColor = Tactics.utils.getColorStop(0xc2f442, 0xFF0000, healthRatio);
+      var gradientShineColor = Tactics.utils.getColorStop(gradientStartColor, 0xFFFFFF, 0.8);
+      var gradientEndColor = Tactics.utils.getColorStop(gradientShineColor, 0x000000, 0.2);
+      gradientStartColor = toColorCode(gradientStartColor);
+      gradientShineColor = toColorCode(gradientShineColor);
+      gradientEndColor = toColorCode(gradientEndColor);
+      var gradientEndX = healthBarSize;
+
+      // Create the health bar sprites
+      var healthBarSprite = self.createGradientSpriteForHealthBar({
+        id: 'healthBar',
+        height: 6,
+        width: healthRatio * healthBarSize,
+        startColor: gradientStartColor,
+        shineColor: gradientShineColor,
+        endColor: gradientEndColor,
+        gradientEndX: gradientEndX,
+      });
+      var underlayBarSprite = self.createGradientSpriteForHealthBar({
+        id: 'healthBarUnderlay',
+        height: 6,
+        width: healthBarSize,
+        startColor: '#008000',
+        shineColor: '#006400',
+        endColor: '#006400',
+        gradientEndX: gradientEndX,
+      });
+      underlayBarSprite.x = 2;
+      underlayBarSprite.y = 2;
+      underlayBarSprite.alpha = 0.5;
+
+      // Create the health text
+      var textOptions = {
+        fontFamily:      'Arial',
+        fontSize:        '12px',
+        stroke:          0,
+        strokeThickness: 2,
+        fill:            'white',
+      };
+      var currentHealthText = new PIXI.Text(
+          currentHealth,
+          textOptions
+      );
+      currentHealthText.x = 12;
+      currentHealthText.y = -14;
+      var dividedByText = new PIXI.Text(
+          '/',
+          {...textOptions, fontSize: '19px'}
+      );
+      dividedByText.x = 26;
+      dividedByText.y = -17;
+      var totalHealthText = new PIXI.Text(
+          unit.health,
+          textOptions
+      );
+      totalHealthText.x = 32;
+      totalHealthText.y = -11;
+
+      // Add everything to a container
+      var container = new PIXI.Container();
+      container.addChild(underlayBarSprite);
+      container.addChild(healthBarSprite);
+      container.addChild(currentHealthText);
+      container.addChild(dividedByText);
+      container.addChild(totalHealthText);
+      return container;
+    },
     /*
      * Draw an information card based on these priorities:
      *   1) The provided 'unit' argument (optional)
@@ -814,18 +927,23 @@ Tactics.Board = function () {
           unit.on('change', card.listener = () => self.drawCard(unit));
       }
 
+      els.noticeContainer.x = 74;
+      els.notice.anchor.x = 0;
+
+      if (els.healthBar.children.length) els.healthBar.removeChildren();
       if (unit) {
         mask = new PIXI.Graphics();
         mask.drawRect(0,0,88,60);
 
+        els.noticeContainer.x = 174;
+        els.notice.anchor.x = 1;
+        els.healthBar.addChild(self.drawHealth(unit));
         //
         //  Status Detection
         //
         if (unit.mHealth === -unit.health) {
           if (unit.type === 15)
             notice = 'Hatched!';
-          else
-            notice = 'Dead!';
         }
         else {
           notice = unit.notice;
@@ -860,15 +978,7 @@ Tactics.Board = function () {
         if (unit.mBlocking < 0)
           notices.push('Vulnerable!');
 
-        if (unit.health + unit.mHealth < unit.health * 0.4) {
-          notices.push('Dying!');
-        }
-        else if (unit.mHealth < 0) {
-          notices.push('Hurt!');
-        }
-        else {
-          notices.push(unit.title || 'Ready!');
-        }
+        notices.push(unit.title);
 
         if (!notice) {
           notice = notices.shift();
@@ -889,23 +999,10 @@ Tactics.Board = function () {
 
         els.notice.text = notice;
 
-        if (unit.notice)
-          els.notice.style = Object.assign(els.notice.style, {
-            fontFamily: 'Arial',
-            fontSize:   '13px',
-          });
-        else
-          els.notice.style = Object.assign(els.notice.style, {
-            fontFamily: 'Arial',
-            fontSize:   '11px',
-          });
-
         //
         //  Draw the first layer of the bottom part of the card.
         //
         els.layer1.visible = true;
-
-        els.health.text = (unit.health + unit.mHealth)+'/'+unit.health;
 
         if (unit.blocking) {
           if (unit.mBlocking) {
@@ -1844,7 +1941,6 @@ Tactics.Board = function () {
                   progress += (diff / 8) * -1;
                   unit.change({
                     mHealth: Math.round(progress),
-                    notice:  Math.round(unit.health + progress),
                   });
                 },
                 repeat: 8,
