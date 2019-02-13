@@ -67,8 +67,8 @@
           },
           {
             script: frame => {
-              self.frame.children[2].tint =
-                Tactics.utils.getColorStop(old_color, new_color, (11 - frame.repeat_index) / 12);
+              let step = frame.repeat_index + 1;
+              self.frame.children[2].tint = Tactics.utils.getColorStop(old_color, new_color, step / 12);
             },
             repeat: 12,
           }

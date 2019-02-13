@@ -19,20 +19,20 @@
 
         return self.animPhase(color_id).play();
       },
-      animPhase: function (color) {
-        let fcolor = self.color;
-        let tcolor = color === null ? 0xFFFFFF : Tactics.colors[color];
+      animPhase: function (color_id) {
+        let old_color = self.color;
+        let new_color = color_id === null ? 0xFFFFFF : Tactics.colors[color_id];
 
         return new Tactics.Animation({frames: [
           () => {
             sounds.phase.play();
-            board.teams[self.team].color = color;
-            self.color = tcolor;
+            board.teams[self.team].color = color_id;
+            self.color = new_color;
           },
           {
             script: frame => {
-              let step = 11 - frame.repeat_index;
-              self.frame.children[2].tint = Tactics.utils.getColorStop(fcolor, tcolor, step / 12);
+              let step = frame.repeat_index + 1;
+              self.frame.children[2].tint = Tactics.utils.getColorStop(old_color, new_color, step / 12);
             },
             repeat: 12,
           }
@@ -120,11 +120,11 @@
 
         anim
           .addFrames([
-            {
+            { // 0 - 12
               script: frame => {
-                let step = 1 + frame.repeat_index;
+                let step = frame.repeat_index + 1;
                 self.brightness(1 + (step * 0.2));
-                self.frame.tint = Tactics.utils.getColorStop(self.color, 0xFFFFFF, step / 12);
+                self.frame.tint = Tactics.utils.getColorStop(0xFFFFFF, self.color, step / 12);
 
                 // Shadow
                 self.frame.children[0].scale.x     = 1 - (step * 0.025);
@@ -140,14 +140,14 @@
               },
               repeat: 12,
             },
-            {
+            { // 12 - 18
               script: frame => {
                 let step = 11 - frame.repeat_index;
                 self.brightness(1 + (step * 0.2));
               },
               repeat: 6,
             },
-            {
+            { // 18 - 24
               script: frame => {
                 let step = 7 + frame.repeat_index;
                 self.brightness(1 + (step * 0.2), (step - 6) * 0.6);
@@ -155,26 +155,27 @@
               repeat: 6,
             }
           ])
+          // Lightning strike started 2 frames earlier
           .addFrames([
-            {
+            { // 24 - 30
               script: frame => {
                 let step = 11 - frame.repeat_index;
                 self.brightness(1 + (step * 0.2), (step - 6) * 0.6);
               },
               repeat: 6,
             },
-            {
+            { // 30 - 36
               script: frame => {
                 let step = 7 + frame.repeat_index;
                 self.brightness(1 + (step * 0.2));
               },
               repeat: 6,
             },
-            {
+            { // 36 - 48
               script: frame => {
                 let step = 11 - frame.repeat_index;
                 self.brightness(1 + (step * 0.2));
-                self.frame.tint = Tactics.utils.getColorStop(self.color, 0xFFFFFF, step / 12);
+                self.frame.tint = Tactics.utils.getColorStop(0xFFFFFF, self.color, step / 12);
 
                 // Shadow
                 self.frame.children[0].scale.x = 1 - (step * 0.025);
@@ -191,14 +192,15 @@
               repeat: 12,
             },
           ])
-          .splice( 0, () => sounds.wind.fade(0,0.25,500,sounds.wind.play(winds.shift())))
+          .splice( 0, () => sounds.wind.fade(0, 0.25, 500, sounds.wind.play(winds.shift())))
           .splice( 4, () => sounds.wind.play(winds.shift()))
           .splice( 8, () => sounds.wind.play(winds.shift()))
           .splice(12, () => sounds.roar.play('roar'))
           .splice(16, () => sounds.wind.play(winds.shift()))
-          .splice(20, () => sounds.wind.fade(1,0,1700,sounds.wind.play(winds.shift())));
-
-        return anim.splice(22, self.animLightning(target_unit.assignment)).play();
+          .splice(20, () => sounds.wind.fade(1, 0, 1700, sounds.wind.play(winds.shift())))
+          .splice(22, self.animLightning(target_unit.assignment));
+        
+        return anim.play();
       },
       heal: function (action) {
         let anim        = new Tactics.Animation();
@@ -213,7 +215,8 @@
               let step = 1 + frame.repeat_index;
 
               filter.brightness(1 + (step * 0.2));
-              self.frame.children[1].tint = Tactics.utils.getColorStop(self.color, 0xFFFFFF, step / 12);
+              self.frame.children[1].tint = Tactics.utils.getColorStop(0xFFFFFF, self.color, step / 12);
+
               if (step === 8) sounds.heal.play();
             },
             repeat: 12,
@@ -224,7 +227,7 @@
               let step = 11 - frame.repeat_index;
 
               filter.brightness(1 + (step * 0.2));
-              self.frame.children[1].tint = Tactics.utils.getColorStop(self.color, 0xFFFFFF, step / 12);
+              self.frame.children[1].tint = Tactics.utils.getColorStop(0xFFFFFF, self.color, step / 12);
 
               if (step === 0) pixi.filters = null;
             },
@@ -296,7 +299,7 @@
             script: () => {
               if (step === 0) sounds.phase.play();
               self.whiten(++step / 12);
-              self.frame.children[2].tint = Tactics.utils.getColorStop(0xFFFFFF,tint,step / 12);
+              self.frame.children[2].tint = Tactics.utils.getColorStop(tint, 0xFFFFFF, step / 12);
             },
             repeat: 12,
           })
@@ -388,9 +391,10 @@
             repeat:hatch.l-3
           })
           .splice({ // 78
-            script: frame =>
-              dragon.frame.children[2].tint =
-                Tactics.utils.getColorStop(tint, 0xFFFFFF, (frame.repeat_index + 1) / 12),
+            script: frame => {
+              let step = 11 - frame.repeat_index;
+              dragon.frame.children[2].tint = Tactics.utils.getColorStop(tint, 0xFFFFFF, step / 12);
+            },
             repeat: 12,
           })
           .splice({
