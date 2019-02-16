@@ -40,9 +40,7 @@ If you are familiar with Tactics Arena Online and/or would like to assist in por
 
 ## Distribution
 
-The `dist` directory contains JavaScript bundles that can be used to publish the game to a website.  In additional to these, the jQuery library is required.  The HTML files in the `static` directory can serve as an example of how to publish the game to a website.
-
-After making changes to the source, the distribution bundles can be rebuilt using this command:
+The HTML files in the `static` directory can serve as an example of how to publish the game to a website.  They make use of distribution JS bundles built using this command:
 
 ```bash
 $ npm run dist
@@ -76,6 +74,4 @@ Be aware that no license currently exists for distributing this game as-is for p
 All contents under the `src` directory fall under the following license:
 [Unlicense](https://choosealicense.com/licenses/unlicense/)
 
-All contents under the `lib` directory are licensed according to their respective licenses.
-
-All image and audio files that are loaded from the http://www.taorankings.com domain are not licensed ([No License](https://choosealicense.com/no-permission/)).
+All image and audio files that are loaded from the \*.taorankings.com domain are not licensed ([No License](https://choosealicense.com/no-permission/)).

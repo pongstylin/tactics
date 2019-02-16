@@ -77,7 +77,6 @@
         });
 
         self.assign(assignment);
-        self.origin = {tile:assignment,direction:direction};
         self.direction = direction;
 
         return self.drawFrame(stills[self.directional === false ? 'S' : direction]);
@@ -87,7 +86,7 @@
         if (arguments.length > 1)
           return _super.compileFrame(arguments[0], arguments[1]);
 
-        var imageBase = 'http://www.taorankings.com/html5/units/'+type+'/';
+        var imageBase = 'https://legacy.taorankings.com/units/'+type+'/';
         var frame = new PIXI.Container();
         var sprite;
         var anchor = data.anchor;
@@ -169,7 +168,7 @@
         self.drawFrame(stills[direction]);
       },
       drawAvatar: function () {
-        var imageBase = 'http://www.taorankings.com/html5/units/'+type+'/';
+        var imageBase = 'https://legacy.taorankings.com/units/'+type+'/';
         var container = new PIXI.Container();
         var sprite;
         var frame = data.stills.S;
@@ -193,16 +192,15 @@
 
         return container;
       },
-      playAttack: function (target, results) {
+      playAttack: function (action) {
         let anim       = new Tactics.Animation();
-        let direction  = board.getDirection(self.assignment, target);
-        let attackAnim = self.animAttack(direction);
+        let attackAnim = self.animAttack(action.direction);
 
         // Animate a target unit's reaction starting with the 4th attack frame.
-        results.forEach(result => {
-          let unit = result.unit;
+        action.results.forEach(result => {
+          let unit = result.unit.assigned;
 
-          if (result.blocked)
+          if (result.miss === 'blocked')
             attackAnim
               .splice(3, unit.animBlock(self));
           else
@@ -211,12 +209,12 @@
               .splice(4, unit.animStagger(self));
         });
 
-        anim.splice(self.animTurn(direction));
+        anim.splice(self.animTurn(action.direction));
         anim.splice(attackAnim);
 
         return anim.play();
       },
-      animDeploy: function (assignment) {
+      animMove: function (assignment) {
         var anim = new Tactics.Animation();
         var tiles = self.findPath(assignment);
         var origin = self.assignment;
@@ -273,8 +271,10 @@
         ]});
       },
       animAttack: function (direction) {
-        var anim = new Tactics.Animation();
-        var swing = 0;
+        let anim = new Tactics.Animation();
+        let swing = 0;
+
+        if (!direction) direction = self.direction;
 
         anim.addFrames([
           {
@@ -298,7 +298,7 @@
         [
           function ()
           {
-            self.origin.direction = self.direction = direction;
+            self.direction = direction;
             self.block(0);
             sounds.block.play();
           },

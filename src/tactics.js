@@ -1,10 +1,11 @@
 import 'pixi.js';
+import 'howler';
+import 'plugins/array.js';
+import 'plugins/math.js';
 import 'plugins/pixi.js';
 
-import 'lib/font-awesome.css';
 import 'util/event.js';
-import 'lib/jquery.touchy.js';
-import 'lib/howler.js';
+import 'util/panzoom.js';
 
 import 'tactics/core.scss';
 import 'tactics/core.js';
@@ -27,4 +28,3 @@ import 'tactics/unit-8.js';
 import 'tactics/unit-15.js';
 import 'tactics/unit-22.js';
 import 'tactics/utils-colorstop.js';
-import 'plugins/array.js';

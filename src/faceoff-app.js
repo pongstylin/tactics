@@ -7,7 +7,6 @@ Tactics.App = (function ($, window, document) {
   var fullscreen = Tactics.fullscreen;
 
   // Ultimately, team data will be retreived from the game server.
-  var colors = [2, 10];
   var data = {
     teams: [
       {
@@ -18,6 +17,7 @@ Tactics.App = (function ($, window, document) {
         }
       },
       {
+        n: 'Bot',
         c: 10,
         b: 1,
         u: {
@@ -25,7 +25,6 @@ Tactics.App = (function ($, window, document) {
         }
       }
     ],
-    turns:[0,1],
   };
 
   $(window)
@@ -46,26 +45,30 @@ Tactics.App = (function ($, window, document) {
           $('#app').toggleClass('left right');
           $button.toggleClass('fa-rotate-270 fa-rotate-90');
         },
+        lock: function ($button) {
+          $button.toggleClass('fa-lock fa-unlock');
+
+          if ($button.hasClass('fa-lock'))
+            Tactics.panzoom.lock();
+          else
+            Tactics.panzoom.unlock();
+        },
         rotate: function ($button) {
           var cls,per;
 
-          if ($button.hasClass('fa-rotate-90'))
-          {
+          if ($button.hasClass('fa-rotate-90')) {
             cls = 'fa-rotate-90 fa-rotate-180';
             per = 'W';
           }
-          else if ($button.hasClass('fa-rotate-180'))
-          {
+          else if ($button.hasClass('fa-rotate-180')) {
             cls = 'fa-rotate-180 fa-rotate-270';
             per = 'N';
           }
-          else if ($button.hasClass('fa-rotate-270'))
-          {
+          else if ($button.hasClass('fa-rotate-270')) {
             cls = 'fa-rotate-270';
             per = 'E';
           }
-          else
-          {
+          else {
             cls = 'fa-rotate-90';
             per = 'S';
           }
@@ -73,45 +76,26 @@ Tactics.App = (function ($, window, document) {
           $button.toggleClass(cls);
           Tactics.board.rotate(per);
         },
+        undo: function () {
+          board.undo();
+        },
         sound: function ($button) {
           $button.toggleClass('fa-bell fa-bell-slash');
 
-          if ($button.hasClass('fa-bell')) {
-            Howler.unmute();
-          }
-          else {
-            Howler.mute();
-          }
+          Howler.mute($button.hasClass('fa-bell-slash'));
         },
         select: function ($button) {
-          var selected = board.selected;
-          var viewed = board.viewed;
-          var mode = $button.val();
+          let mode = $button.val();
 
-          if (mode == 'turn' && board.selectMode == 'turn') {
-            if (viewed) {
-              if (viewed.activated == 'turn')
-                viewed.activate('direction',true);
-            }
-            else if (selected) {
-              if (selected.activated == 'turn') {
-                selected.activate('direction');
-                $('BUTTON[name=pass]').addClass('ready');
-              }
-              else {
-                selected.turn(90).then(() => {
-                  selected.showMode();
-                  $('BUTTON[name=select][value=turn]').removeClass('ready');
-                });
-              }
-            }
+          if (mode == 'turn' && $button.hasClass('ready')) {
+            $('BUTTON[name=select][value=turn]').removeClass('ready');
+            return board.zoomToTurnOptions();
           }
-          else {
-            board.setSelectMode(mode);
-          }
+
+          board.setSelectMode(mode);
         },
         pass: function () {
-          board.endTurn();
+          board.takeAction({type:'endTurn'});
         },
         surrender: function () {
           $('#popup #message').text('Are you sure you want to reset the game?');
@@ -123,7 +107,7 @@ Tactics.App = (function ($, window, document) {
         }
       };
 
-      $('#overlay').on('click tap', () => {
+      $('#overlay').on('click', () => {
         if ($('#popup').hasClass('error')) return;
         $('#overlay,#popup').hide();
       });
@@ -139,7 +123,7 @@ Tactics.App = (function ($, window, document) {
         $('body').addClass(pointer = 'mouse');
       }
 
-      Tactics.init($('#field'));
+      Tactics.init($('#field').get(0));
 
       $(window).trigger('resize');
 
@@ -153,15 +137,22 @@ Tactics.App = (function ($, window, document) {
 
       board
         .on('select-mode-change', event => {
+          let panzoom     = Tactics.panzoom;
           let selected    = board.viewed || board.selected;
           let old_mode    = event.ovalue;
           let new_mode    = event.nvalue;
           let can_move    = !selected || selected.canMove();
           let can_attack  = !selected || selected.canAttack();
           let can_special = selected && selected.canSpecial();
+          let can_undo    = board.canUndo();
 
-          $('BUTTON[name=select][value='+old_mode+']').removeClass('selected');
+          $('BUTTON[name=select]').removeClass('selected');
           $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
+
+          if (new_mode === 'target')
+            $('BUTTON[name=select][value=attack]').addClass('selected targeting');
+          else if (old_mode === 'target')
+            $('BUTTON[name=select][value=attack]').removeClass('targeting');
 
           if (!$('#game-play').hasClass('active')) {
             $('.buttons').removeClass('active');
@@ -170,13 +161,14 @@ Tactics.App = (function ($, window, document) {
 
           $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
           $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
+          $('BUTTON[name=undo]').prop('disabled', !can_undo);
 
           if (new_mode === 'attack' && can_special && !selected.viewed)
             $('BUTton[name=select][value=attack]').addClass('ready');
           else
             $('BUTton[name=select][value=attack]').removeClass('ready');
 
-          if (new_mode === 'turn' && pointer === 'touch' && selected && !selected.viewed)
+          if (new_mode === 'turn' && panzoom.canZoom() && selected && !selected.viewed)
             $('BUTTON[name=select][value=turn]').addClass('ready');
           else
             $('BUTTON[name=select][value=turn]').removeClass('ready');
@@ -185,19 +177,29 @@ Tactics.App = (function ($, window, document) {
             $('BUTTON[name=pass]').addClass('ready');
           else
             $('BUTTON[name=pass]').removeClass('ready');
+
+          // Automatically lock panzoom for improved game interaction
+          if (!panzoom.locked)
+            buttons.lock($('BUTTON[name=lock]'));
         })
         .on('card-change', event => {
           let $card = $('#card');
 
-          if (event.nvalue && event.ovalue === null) {
-            $card.stop().fadeIn()
-          }
-          else if (event.nvalue === null) {
-            $card.stop().fadeOut();
-          }
+          if (event.nvalue && event.ovalue === null)
+            $card.addClass('show');
+          else if (event.nvalue === null)
+            $card.removeClass('show');
         })
         .on('lock-change', event => {
-          $('#app').toggleClass('locked');
+          if (event.nvalue === 'gameover')
+            $('#app').addClass('gameover');
+          else
+            $('#app').removeClass('gameover');
+
+          if (event.nvalue)
+            $('#app').addClass('locked');
+          else
+            $('#app').removeClass('locked');
         });
 
       if (!fullscreen.isAvailable())
@@ -226,31 +228,20 @@ Tactics.App = (function ($, window, document) {
         })
         .on('mouseover','#app BUTTON:enabled', event => {
           var $button = $(event.target);
-          if ($button.css('cursor') != 'pointer') return;
 
-          if ($button.parents('.locked').length) {
-            if ($button.parents('#game-settings').length) {
-              if ($button.attr('name') === 'rotate')
-                return;
-            }
-            else
-              return;
-          }
+          // Ignore disabled buttons
+          if (window.getComputedStyle(event.target).cursor !== 'pointer')
+            return;
 
           Tactics.sounds.focus.play();
         })
-        .on('click tap','#app BUTTON:enabled', event => {
+        .on('click','#app BUTTON:enabled', event => {
           var $button = $(event.target);
           var handler = $button.data('handler') || buttons[$button.attr('name')];
 
-          if ($button.parents('.locked').length) {
-            if ($button.parents('#game-settings').length) {
-              if ($button.attr('name') === 'rotate')
-                return;
-            }
-            else
-              return;
-          }
+          // Ignore disabled buttons
+          if (window.getComputedStyle(event.target).cursor !== 'pointer')
+            return;
 
           handler($button);
 
@@ -261,12 +252,11 @@ Tactics.App = (function ($, window, document) {
       load();
     })
     .on('resize', () => {
-      var $resize = $('BUTTON[name=resize]');
-
-      Tactics.resize($('#field').width(),$(window).height());
-
+      let $resize = $('BUTTON[name=resize]');
       if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
         $resize.toggleClass('fa-expand fa-compress');
+
+      Tactics.resize();
     });
 
   function load() {
@@ -285,12 +275,11 @@ Tactics.App = (function ($, window, document) {
 
       if (percent === 100) {
         $('#loader')
-          .css({cursor: 'pointer'})
-          .one('click tap', () => {
+          .addClass('complete')
+          .one('click', () => {
             board.draw();
 
-            $('#splash').hide();
-            $('#app').css('visibility','visible');
+            $('.message').text('One moment...');
 
             setupGame();
           })
@@ -300,7 +289,7 @@ Tactics.App = (function ($, window, document) {
     }
 
     Tactics.images.forEach(image_url => {
-      let url = 'http://www.taorankings.com/html5/images/'+image_url;
+      let url = 'https://legacy.taorankings.com/images/'+image_url;
 
       resources.push(url);
       loader.add({url: url});
@@ -311,10 +300,10 @@ Tactics.App = (function ($, window, document) {
       if (typeof sound === 'string')
         sound = {file: sound};
 
-      let url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+      let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
       Tactics.sounds[name] = new Howl({
-        urls:        [url+'.mp3', url+'.ogg'],
+        src:        [url+'.mp3', url+'.ogg'],
         sprite:      sound.sprite,
         volume:      sound.volume || 1,
         rate:        sound.rate || 1,
@@ -368,10 +357,10 @@ Tactics.App = (function ($, window, document) {
             if (typeof sound === 'string')
               sound = {file: sound};
 
-            let url = 'http://www.taorankings.com/html5/sounds/'+sound.file;
+            let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
             unit.sounds[name] = new Howl({
-              urls:        [url+'.mp3', url+'.ogg'],
+              src:        [url+'.mp3', url+'.ogg'],
               sprite:      sound.sprite,
               volume:      sound.volume || 1,
               rate:        sound.rate || 1,
@@ -418,7 +407,7 @@ Tactics.App = (function ($, window, document) {
             if (!frame) return;
 
             frame.c.forEach(sprite => {
-              let url = 'http://www.taorankings.com/html5/units/'+unit_type+'/image'+sprite.id+'.png';
+              let url = 'https://legacy.taorankings.com/units/'+unit_type+'/image'+sprite.id+'.png';
               if (resources.indexOf(url) !== -1)
                 return;
 
@@ -445,7 +434,7 @@ Tactics.App = (function ($, window, document) {
               let image = sprite[name];
               if (!image.src) return;
 
-              let url = 'http://www.taorankings.com/html5/units/'+unit_type+'/'+name+'/image'+image.src+'.png';
+              let url = 'https://legacy.taorankings.com/units/'+unit_type+'/'+name+'/image'+image.src+'.png';
               if (resources.indexOf(url) !== -1)
                 return;
 
@@ -467,14 +456,17 @@ Tactics.App = (function ($, window, document) {
     let trophy = new Tactics.Unit(19);
     trophy.drawAvatar();
 
+    data.teams.spin();
     board.reset().addTeams(data.teams);
-    board.turns = data.turns.slice().spin();
 
     // Give Data URIs a chance to load.
     setTimeout(() => {
       Tactics.render();
 
       board.startTurn();
+
+      $('#splash').hide();
+      $('#app').css('visibility','visible');
     }, 1);
   }
 

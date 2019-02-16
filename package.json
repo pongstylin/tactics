@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "0.2.0",
+  "version": "0.2.5",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "directories": {
@@ -28,6 +28,9 @@
   "dependencies": {
     "express": "^4.16.4",
     "jsonwebtoken": "^8.4.0",
-    "pixi.js": "^4.8.2"
+    "impetus": "^0.8.8",
+    "pixi.js": "^4.8.2",
+    "touch-pinch": "^1.0.1",
+    "howler": "^2.1.1"
   }
 }

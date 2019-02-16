@@ -7,37 +7,32 @@
     $.extend(self, {
       title: '...sleeps...',
 
-      phase: function (color) {
-        if (color === undefined) {
-          let teams = board.getWinningTeams().reverse();
-          let choices = teams.filter(team => {
-            if (team.units.length === 0) return false;
+      phase: function () {
+        let teamsData = board.getWinningTeams().reverse();
+        let color_id = null;
 
-            return team.score === teams[0].score;
-          });
+        if (teamsData.length)
+          color_id = board.teams[teamsData[0].id].color;
 
-          color = choices.random().color;
-        }
-
-        if (color === board.teams[self.team].color)
+        if (color_id === board.teams[self.team].color)
           return Promise.resolve();
 
-        return self.animPhase(color).play();
+        return self.animPhase(color_id).play();
       },
-      animPhase: function (color) {
-        let fcolor = self.color;
-        let tcolor = color === null ? 0xFFFFFF : Tactics.colors[color];
+      animPhase: function (color_id) {
+        let old_color = self.color;
+        let new_color = color_id === null ? 0xFFFFFF : Tactics.colors[color_id];
 
         return new Tactics.Animation({frames: [
           () => {
             sounds.phase.play();
-            board.teams[self.team].color = color;
-            self.color = tcolor;
+            board.teams[self.team].color = color_id;
+            self.color = new_color;
           },
           {
             script: frame => {
-              let step = 11 - frame.repeat_index;
-              self.frame.children[2].tint = Tactics.utils.getColorStop(fcolor, tcolor, step / 12);
+              let step = frame.repeat_index + 1;
+              self.frame.children[2].tint = Tactics.utils.getColorStop(old_color, new_color, step / 12);
             },
             repeat: 12,
           }
@@ -49,10 +44,13 @@
           let team;
           if (attacker.color === self.color)
             team = board.teams[attacker.team];
-          else
+          else {
             team = board.teams.find(
               (team, i) => i !== self.team && Tactics.colors[team.color] === self.color
             );
+
+            if (!team) return;
+          }
 
           let target_units = team.units.filter(unit => unit.mHealth < 0);
           if (!target_units.length) return;
@@ -61,28 +59,27 @@
 
           return {
             type: 'heal',
-            unit: self,
+            unit: self.assignment,
             tile: target_unit.assignment,
             results: [{
-              unit:    target_unit,
-              mHealth: Math.min(target_unit.mHealth + self.power, 0),
-              notice: 'Nice',
+              unit:    target_unit.assignment,
+              notice:  'Nice',
+              changes: { mHealth:Math.min(0, target_unit.mHealth + self.power) },
             }],
           };
         }
-        else if ('mHealth' in result) {
-          if (result.mHealth > -self.health) {
+        else if (result.changes && 'mHealth' in result.changes) {
+          if (result.changes.mHealth > -self.health) {
             // Cracked
             let team;
             if (attacker.color === self.color) {
-              let teams   = board.getWinningTeams();
-              let choices = teams.filter(team => {
-                if (team.units.length === 0) return false;
+              let teamsData = board.getWinningTeams()
+                // Don't count the team that just attacked.
+                .filter(teamData => teamData.id !== attacker.team);
+              let choices = teamsData
+                .filter(teamData => teamData.score === teamsData[0].score);
 
-                return team.score === teams[0].score;
-              });
-
-              team = choices.random();
+              team = board.teams[choices.random().id];
             }
             else
               team = board.teams[attacker.team];
@@ -94,37 +91,40 @@
 
             return {
               type: 'attack',
-              unit: self,
+              unit: self.assignment,
               tile: target_unit.assignment,
               results: [{
-                unit:    target_unit,
-                mHealth: Math.max(mHealth, -target_unit.health),
+                unit:    target_unit.assignment,
+                changes: { mHealth:Math.max(-target_unit.health, mHealth) },
               }],
             };
           }
           else {
-            // Broken
+            // Hatched
             return {
               type:    'hatch',
-              unit:    self,
+              unit:    self.assignment,
               tile:    attacker.assignment,
-              results: [],
+              results: [{
+                unit:    attacker.assignment,
+                changes: { mHealth: -attacker.health },
+              }],
             };
           }
         }
       },
-      attack: function (action) {
+      playAttack: function (action) {
         let anim  = new Tactics.Animation();
         let winds = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
         let target_unit = action.tile.assigned;
 
         anim
           .addFrames([
-            {
+            { // 0 - 12
               script: frame => {
-                let step = 1 + frame.repeat_index;
+                let step = frame.repeat_index + 1;
                 self.brightness(1 + (step * 0.2));
-                self.frame.tint = Tactics.utils.getColorStop(self.color, 0xFFFFFF, step / 12);
+                self.frame.tint = Tactics.utils.getColorStop(0xFFFFFF, self.color, step / 12);
 
                 // Shadow
                 self.frame.children[0].scale.x     = 1 - (step * 0.025);
@@ -140,14 +140,14 @@
               },
               repeat: 12,
             },
-            {
+            { // 12 - 18
               script: frame => {
                 let step = 11 - frame.repeat_index;
                 self.brightness(1 + (step * 0.2));
               },
               repeat: 6,
             },
-            {
+            { // 18 - 24
               script: frame => {
                 let step = 7 + frame.repeat_index;
                 self.brightness(1 + (step * 0.2), (step - 6) * 0.6);
@@ -155,26 +155,27 @@
               repeat: 6,
             }
           ])
+          // Lightning strike started 2 frames earlier
           .addFrames([
-            {
+            { // 24 - 30
               script: frame => {
                 let step = 11 - frame.repeat_index;
                 self.brightness(1 + (step * 0.2), (step - 6) * 0.6);
               },
               repeat: 6,
             },
-            {
+            { // 30 - 36
               script: frame => {
                 let step = 7 + frame.repeat_index;
                 self.brightness(1 + (step * 0.2));
               },
               repeat: 6,
             },
-            {
+            { // 36 - 48
               script: frame => {
                 let step = 11 - frame.repeat_index;
                 self.brightness(1 + (step * 0.2));
-                self.frame.tint = Tactics.utils.getColorStop(self.color, 0xFFFFFF, step / 12);
+                self.frame.tint = Tactics.utils.getColorStop(0xFFFFFF, self.color, step / 12);
 
                 // Shadow
                 self.frame.children[0].scale.x = 1 - (step * 0.025);
@@ -191,14 +192,15 @@
               repeat: 12,
             },
           ])
-          .splice( 0, () => sounds.wind.play(winds.shift()).fadeIn(0.25, 500))
+          .splice( 0, () => sounds.wind.fade(0, 0.25, 500, sounds.wind.play(winds.shift())))
           .splice( 4, () => sounds.wind.play(winds.shift()))
           .splice( 8, () => sounds.wind.play(winds.shift()))
           .splice(12, () => sounds.roar.play('roar'))
           .splice(16, () => sounds.wind.play(winds.shift()))
-          .splice(20, () => sounds.wind.play(winds.shift()).fadeOut(0, 1700));
-
-        return anim.splice(22, self.animLightning(target_unit.assignment)).play();
+          .splice(20, () => sounds.wind.fade(1, 0, 1700, sounds.wind.play(winds.shift())))
+          .splice(22, self.animLightning(target_unit.assignment));
+        
+        return anim.play();
       },
       heal: function (action) {
         let anim        = new Tactics.Animation();
@@ -213,7 +215,8 @@
               let step = 1 + frame.repeat_index;
 
               filter.brightness(1 + (step * 0.2));
-              self.frame.children[1].tint = Tactics.utils.getColorStop(self.color, 0xFFFFFF, step / 12);
+              self.frame.children[1].tint = Tactics.utils.getColorStop(0xFFFFFF, self.color, step / 12);
+
               if (step === 8) sounds.heal.play();
             },
             repeat: 12,
@@ -224,14 +227,14 @@
               let step = 11 - frame.repeat_index;
 
               filter.brightness(1 + (step * 0.2));
-              self.frame.children[1].tint = Tactics.utils.getColorStop(self.color, 0xFFFFFF, step / 12);
+              self.frame.children[1].tint = Tactics.utils.getColorStop(0xFFFFFF, self.color, step / 12);
 
               if (step === 0) pixi.filters = null;
             },
             repeat: 12,
           });
 
-        return anim.play();
+        return anim.play().then(() => board.playResults(action.results));
       },
       animStagger: function (attacker) {
         let anim      = new Tactics.Animation();
@@ -266,19 +269,21 @@
         ]});
       },
       hatch: function (action) {
-        let anim = new Tactics.Animation();
-        let assignment = self.assignment;
-        let direction = board.getDirection(assignment, action.tile);
-        let target = action.tile.assigned;
-        let frames = target.walks[direction];
-        let step = 0;
-        let step2 = 0;
-        let myPos = assignment.getCenter();
-        let pos = target.pixi.position.clone();
-        let caption,dragon,hatch = Tactics.units[22].animations[direction].hatch;
-        let team = board.teams[self.team],tint = self.color;
-        let death = new PIXI.Container();
-        let winds = ['wind1','wind2','wind3','wind4','wind5'];
+        let anim        = new Tactics.Animation();
+        let assignment  = self.assignment;
+        let direction   = board.getDirection(assignment, action.tile);
+        let target_unit = action.tile.assigned;
+        let frames      = target_unit.walks[direction];
+        let step        = 0;
+        let step2       = 0;
+        let myPos       = assignment.getCenter();
+        let pos         = target_unit.pixi.position.clone();
+        let caption;
+        let dragon;
+        let hatch       = Tactics.units[22].animations[direction].hatch;
+        let team        = board.teams[self.team],tint = self.color;
+        let death       = new PIXI.Container();
+        let winds       = ['wind1','wind2','wind3','wind4','wind5'];
 
         if (direction === 'S')
           caption = {x:9};
@@ -294,7 +299,7 @@
             script: () => {
               if (step === 0) sounds.phase.play();
               self.whiten(++step / 12);
-              self.frame.children[2].tint = Tactics.utils.getColorStop(0xFFFFFF,tint,step / 12);
+              self.frame.children[2].tint = Tactics.utils.getColorStop(tint, 0xFFFFFF, step / 12);
             },
             repeat: 12,
           })
@@ -315,7 +320,7 @@
               .dropUnit(self)
               .addUnit(self.team, {
                 t: 22,
-                tile: assignment,
+                assignment: assignment,
                 direction: direction,
               });
 
@@ -327,7 +332,7 @@
             script: () => dragon.frame.alpha = 1 - (--step / 12),
             repeat: 12
           })
-          .splice(22, target.animTurn(direction))
+          .splice(22, target_unit.animTurn(direction))
           .splice(24, {
             script: () => {
               let offset = ((step2 / (frames.length*3)) * 0.45) + 0.12;
@@ -336,33 +341,33 @@
               if ((step2 % frames.length) === 0 || (step2 % frames.length) === 4)
                 Tactics.units[0].sounds.step.play();
 
-              target.drawFrame(frames[step2++ % frames.length]);
+              target_unit.drawFrame(frames[step2++ % frames.length]);
 
               // Opposite of what you expect since we're going backwards.
               if (direction === 'S') {
-                target.pixi.position.x = pos.x - offset.x;
-                target.pixi.position.y = pos.y - offset.y;
+                target_unit.pixi.position.x = pos.x - offset.x;
+                target_unit.pixi.position.y = pos.y - offset.y;
               }
               else if (direction === 'N') {
-                target.pixi.position.x = pos.x + offset.x;
-                target.pixi.position.y = pos.y + offset.y;
+                target_unit.pixi.position.x = pos.x + offset.x;
+                target_unit.pixi.position.y = pos.y + offset.y;
               }
               else if (direction === 'E') {
-                target.pixi.position.x = pos.x - offset.x;
-                target.pixi.position.y = pos.y + offset.y;
+                target_unit.pixi.position.x = pos.x - offset.x;
+                target_unit.pixi.position.y = pos.y + offset.y;
               }
               else {
-                target.pixi.position.x = pos.x + offset.x;
-                target.pixi.position.y = pos.y - offset.y;
+                target_unit.pixi.position.x = pos.x + offset.x;
+                target_unit.pixi.position.y = pos.y - offset.y;
               }
             },
             repeat: frames.length*3,
           })
-          .splice(22, target.animCaption('Ugh!',caption))
+          .splice(22, target_unit.animCaption('Ugh!',caption))
           .splice(() => { // 48
-            // Useful for bots
-            target.mHealth = -target.health;
-            board.dropUnit(target);
+            // Change the mHealth so bots know not to move or turn after dying.
+            target_unit.mHealth = -target_unit.health;
+            board.dropUnit(target_unit);
           })
           .splice({ // 49
             script: function () {
@@ -386,9 +391,10 @@
             repeat:hatch.l-3
           })
           .splice({ // 78
-            script: frame =>
-              dragon.frame.children[2].tint =
-                Tactics.utils.getColorStop(tint, 0xFFFFFF, (frame.repeat_index + 1) / 12),
+            script: frame => {
+              let step = 11 - frame.repeat_index;
+              dragon.frame.children[2].tint = Tactics.utils.getColorStop(tint, 0xFFFFFF, step / 12);
+            },
             repeat: 12,
           })
           .splice({
@@ -434,15 +440,12 @@
           if (i === 84) break;
 
           if (i === 0)
-            anim.splice(i, () => sounds.wind.play(winds.random()).fadeIn(0.25, 500));
+            anim.splice(i, () => sounds.wind.fade(0, 0.25, 500, sounds.wind.play(winds.random())));
           else if (i === 76)
             anim.splice(i, () => sounds.roar.play('roar'));
           else
             anim.splice(i, () => sounds.wind.play(winds.random()));
         }
-
-        if (!board.teams[board.turns[0]].bot)
-          anim.splice(anim.frames.length-1, () => board.endTurn());
 
         return anim.play();
       },

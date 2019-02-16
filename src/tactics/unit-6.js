@@ -21,18 +21,17 @@
 
         return targets;
       },
-      playAttack: function (target, results) {
-        let targeted  = self.targeted;
-        let first     = targeted[0];
+      playAttack: function (action) {
+        let targets   = self.getTargetTiles(action.tile);
+        let first     = targets[0];
         let anim      = new Tactics.Animation();
-        let direction = board.getDirection(self.assignment, first, self.direction);
         let darkness  = [-0.3, -0.4, -0.5, -0.3, -0.2, 0];
 
-        let attackAnim = self.animAttack(first);
+        let attackAnim = self.animAttack(action.direction);
         attackAnim.splice(0, () => sounds.attack1.play());
         attackAnim.splice(3, () => sounds.attack2.play());
 
-        targeted.forEach(target => {
+        targets.forEach(target => {
           attackAnim.splice(4, self.animBlackSpike(target, first));
 
           let target_unit = target.assigned;
@@ -45,7 +44,7 @@
           }
         });
 
-        anim.splice(self.animTurn(direction));
+        anim.splice(self.animTurn(action.direction));
         anim.splice(attackAnim);
 
         return anim.play();
@@ -56,7 +55,7 @@
 
         anim.addFrame(() => {
           sounds.block2.play();
-          self.origin.direction = self.direction = direction;
+          self.direction = direction;
         });
         anim.addFrame(() => sounds.block1.play('block'));
 
