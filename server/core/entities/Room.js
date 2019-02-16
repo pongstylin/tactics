@@ -22,8 +22,8 @@ module.exports = class Room {
   }
 
   broadcast(event, data) {
-    for (let [_, callback] in this.listeners) {
+    Object.values(this.listeners).forEach(callback => {
       callback(event, data);
-    }
+    });
   }
 };
