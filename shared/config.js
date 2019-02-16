@@ -15,7 +15,7 @@ module.exports = {
       gameId: [validator.validators.required, validator.validators.exactly(36)],
     }),
     submitActions: () => ({
-      actions: [validator.validators.required, validator.validators.isJsonArray],
+      actions: [validator.validators.required, validator.validators.isArray],
     })
   },
 };

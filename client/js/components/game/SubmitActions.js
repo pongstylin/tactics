@@ -16,7 +16,15 @@ export default class SubmitActions extends Component {
   handleSubmit = async event => {
     event.preventDefault();
 
-    const payload = { actions: this.state.actions };
+    let actionsObject;
+    try {
+      actionsObject = JSON.parse(this.state.actions);
+    } catch (e) {
+      console.error('Actions is not valid JSON');
+      return;
+    }
+
+    const payload = { actions: actionsObject };
     const validation = validator.validate(payload, config.shared.validators.submitActions());
     if (!validation.passed) {
       console.error('submitActions validation failed', validation.getErrors());
