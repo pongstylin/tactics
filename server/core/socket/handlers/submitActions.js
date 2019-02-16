@@ -2,7 +2,7 @@ const config = require('../../../config');
 const validator = require('../../../../shared/validator/index');
 
 module.exports = async (socket, data) => {
-  console.info('[info] submitActions');
+  console.info('[info] submitActions', data);
 
   const validation = validator.validate(data, config.shared.validators.submitActions());
 
