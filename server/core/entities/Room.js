@@ -3,14 +3,27 @@ const state = require('../state');
 module.exports = class Room {
   constructor (id) {
     this.id = id;
-    this.listeners = [];
+    this.listeners = {};
   }
 
-  addListener(callback) {
-    this.listeners.push(callback)
+  addListener(guid, callback) {
+    if (this.listeners.hasOwnProperty(guid)) {
+      throw new Error('Listener already registered for ' + guid);
+    }
+    this.listeners[guid] = callback;
+  }
+
+  removeListener(guid) {
+    delete this.listeners[guid];
+  }
+
+  get size() {
+    return Object.keys(this.listeners).length;
   }
 
   broadcast(event, data) {
-    this.listeners.forEach(cb => cb(event, data));
+    for (let [_, callback] in this.listeners) {
+      callback(event, data);
+    }
   }
 };

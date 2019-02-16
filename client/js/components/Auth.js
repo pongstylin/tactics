@@ -45,6 +45,7 @@ export default class Auth extends Component {
   loginWithJWT = (token, attempts=0) => {
     if (attempts > 3) {
       console.info('Failed max attempts for logging in with existing token');
+      this.setState({ type: 'login' });
       return;
     }
 

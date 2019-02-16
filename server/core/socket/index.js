@@ -31,6 +31,7 @@ module.exports = socket => {
   // Handle client disconnections
   socket.on('close', () => {
     console.info('[info] connection closed');
+    state.sockets[socket.guid].leaveRoom();
     delete state.sockets[socket.guid];
     logConnectedClients();
   });

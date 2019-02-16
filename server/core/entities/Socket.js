@@ -10,7 +10,22 @@ module.exports = class Socket {
 
   joinRoom(id) {
     this.state.room = state.rooms[id] = state.rooms[id] || new Room(id);
-    this.state.room.addListener((event, data) => this.emit(event, data));
+    this.state.room.addListener(
+      this.guid,
+      (event, data) => this.emit(event, data)
+    );
+  }
+
+  leaveRoom() {
+    if (!this.state.room) {
+      return;
+    }
+
+    this.state.room.removeListener(this.guid);
+    if (this.state.room.size === 0) {
+      delete state.rooms[this.state.room.id];
+    }
+    delete this.state.room;
   }
 
   handleEvent(event, data) {
