@@ -21,4 +21,15 @@ module.exports = {
     passed: cleanValue(valueToCompare) === cleanValue(field.value),
     message: `${field.name}s don't match`,
   }),
-}
+  isJsonArray: field => ({
+    passed: (function(str) {
+      try {
+        const parsed = JSON.parse(str);
+        return Array.isArray(parsed);
+      } catch (e) {
+        return false;
+      }
+    })(cleanValue(field.value)),
+    message: `${field.name} needs to be a valid JSON array`,
+  }),
+};

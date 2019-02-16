@@ -19,7 +19,7 @@ export default class MessageList extends Component {
   handleReceivedMessage = async message => {
     await this.setState({messages: this.state.messages.concat(message)});
     this.scrollToBottom();
-  }
+  };
 
   scrollToBottom() {
     this.messages.current.scrollTop = this.messages.current.scrollHeight - this.messages.current.clientHeight;

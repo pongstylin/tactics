@@ -31,6 +31,8 @@ module.exports = class Socket {
   handleEvent(event, data) {
     if (handlers.hasOwnProperty(event)) {
       handlers[event](this, data);
+    } else {
+      console.error('[error] Unhandled event: ' + event);
     }
   }
 

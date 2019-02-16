@@ -13,6 +13,9 @@ module.exports = {
     message: [validator.validators.required, validator.validators.max(50)],
     joinGame: () => ({
       gameId: [validator.validators.required, validator.validators.exactly(36)],
+    }),
+    submitActions: () => ({
+      actions: [validator.validators.required, validator.validators.isJsonArray],
     })
   },
-}
+};
