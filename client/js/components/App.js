@@ -8,6 +8,7 @@ export default class App extends Component {
     return (
       <Switch>
         <Route exact path="/" component={HomeScreen}/>
+        <Route exact path="/play/id/:gameId*" component={PlayScreen}/>
         <Route exact path="/play" component={PlayScreen}/>
       </Switch>
     );

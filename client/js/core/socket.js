@@ -44,7 +44,9 @@ export default {
   emit (event, data) {
     if (state.connected) {
       state.connection.send(JSON.stringify({event, data}));
+      return true;
     }
+    return false;
   },
   off (event, func) {
     if (state.events.hasOwnProperty(event)) {

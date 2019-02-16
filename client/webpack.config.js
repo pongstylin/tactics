@@ -26,6 +26,7 @@ module.exports = {
     'css/index.css': path.resolve(__dirname, 'sass', 'index.scss'),
   },
   output: {
+    publicPath: "/",
     filename: '[name]',
     path: path.resolve(__dirname, '..', 'public'),
   },

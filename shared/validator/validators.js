@@ -5,6 +5,10 @@ module.exports = {
     passed: field.value && cleanValue(field.value).length > 0,
     message: `${field.name} is required`,
   }),
+  exactly: number => field => ({
+    passed: cleanValue(field.value).length === Number(number),
+    message: `${field.name} needs to be exactly ${Number(number)}`,
+  }),
   min: number => field => ({
     passed: cleanValue(field.value).length >= Number(number),
     message: `${field.name} needs to be ${Number(number)} or more`,

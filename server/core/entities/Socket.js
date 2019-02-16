@@ -1,5 +1,6 @@
 const handlers = require('../socket/handlers');
 const state = require('../state');
+const Room = require('./Room');
 
 module.exports = class Socket {
   constructor (socket) {
@@ -7,10 +8,19 @@ module.exports = class Socket {
     this.guid = socket.guid;
   }
 
+  joinRoom(id) {
+    this.state.room = state.rooms[id] = state.rooms[id] || new Room(id);
+    this.state.room.addListener((event, data) => this.emit(event, data));
+  }
+
   handleEvent(event, data) {
     if (handlers.hasOwnProperty(event)) {
       handlers[event](this, data);
     }
+  }
+
+  get state() {
+    return state.sockets[this.guid];
   }
 
   /**
@@ -34,4 +44,12 @@ module.exports = class Socket {
       }
     }
   }
-}
+
+  broadcastRoom(event, data) {
+    if (this.state.room) {
+      this.state.room.broadcast(event, data);
+    } else {
+      this.emit(event, data);
+    }
+  }
+};

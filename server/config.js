@@ -13,4 +13,4 @@ module.exports = {
     password: 'secret',
   },
   saltRounds: 10,
-}
+};

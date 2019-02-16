@@ -1,6 +1,7 @@
 const validator = require('../../../../shared/validator');
 const config = require('../../../config');
 const commands = require('../../commands/index');
+const state = require('../../state');
 
 module.exports = async (socket, data) => {
   console.info('[info] message', data);
@@ -12,17 +13,22 @@ module.exports = async (socket, data) => {
     return;
   }
 
+  if (!socket.state.player) {
+    return;
+  }
+
   let type = 'message';
+  let socketEmitMethod = 'broadcastRoom';
   const message = data.message.match(/^\/(\w+)\s?(.+)?/);
 
   // Validate and parse command messages
   if (message && message[1] && commands.hasOwnProperty(message[1])) {
     type = 'command';
+    socketEmitMethod = 'emit';
     const args = String(message[2] === undefined ? '' : message[2]).split(' ');
     data.message = await commands[message[1]](socket, data.player, ...args);
   }
 
-  let socketEmitMethod = 'emit';
   let messageText = data.message;
 
   // Command messages may return a scope of either player or

@@ -28,7 +28,8 @@ module.exports = async (socket, data) => {
     const playerJSON = player.toJSON();
 
     playerJSON.token = JWT.sign({player: playerJSON}, config.key);
-    state.sockets[socket.guid].token = playerJSON.token;
+    socket.state.player = playerJSON;
+    socket.state.token = playerJSON.token;
 
     socket.emit('auth.succeeded', playerJSON);
   } catch (err) {

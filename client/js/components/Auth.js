@@ -12,7 +12,7 @@ export default class Auth extends Component {
   username = createRef();
 
   state = {
-    type: 'login',
+    type: null,
     data: {
       username: '',
       password: '',
@@ -23,14 +23,36 @@ export default class Auth extends Component {
   };
 
   componentDidMount () {
+    const jwtKey = 'jwt/accessToken';
     socket.on('auth.succeeded', async player => {
       await this.setState({submitting: false});
+      localStorage.setItem(jwtKey, player.token);
       this.props.onLogin && this.props.onLogin(player);
     });
     socket.on('auth.failed', errors => {
       this.setState({submitting: false, errors});
     });
+
+    const token = localStorage.getItem(jwtKey);
+    if (token) {
+      this.setState({ type: 'usingExistingSession' });
+      this.loginWithJWT(token);
+    } else {
+      this.setState({ type: 'login' });
+    }
   }
+
+  loginWithJWT = (token, attempts=0) => {
+    if (attempts > 3) {
+      console.info('Failed max attempts for logging in with existing token');
+      return;
+    }
+
+    if (!socket.emit('loginJWT', { token })) {
+      setTimeout(() => this.loginWithJWT(token, attempts + 1), 400);
+    }
+  };
+
 
   toggleType = async () => {
     await this.setState({type: this.state.type === 'login' ? 'register' : 'login', errors: []});
@@ -63,6 +85,12 @@ export default class Auth extends Component {
   };
 
   render () {
+    if (this.state.type === 'usingExistingSession') {
+      return (
+        <p>Logging you in...</p>
+      )
+    }
+
     return (
       <form onSubmit={this.handleSubmit} className="Auth">
         {this.state.errors.length > 0 && (

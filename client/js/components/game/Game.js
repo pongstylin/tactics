@@ -3,9 +3,10 @@ import PropTypes from 'prop-types'
 import GameContext from './context/GameContext'
 import MessageContainer from '../../containers/MessageContainer'
 
-export default class Auth extends Component {
+export default class Game extends Component {
   static propTypes = {
-    player: PropTypes.object,
+    id: PropTypes.string.isRequired,
+    player: PropTypes.object.isRequired,
   };
 
   state = {
@@ -14,6 +15,7 @@ export default class Auth extends Component {
 
   getContext () {
     return {
+      gameId: this.props.id,
       player: this.props.player,
     };
   }

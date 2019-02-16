@@ -11,5 +11,8 @@ module.exports = {
       password: [validator.validators.required],
     }),
     message: [validator.validators.required, validator.validators.max(50)],
+    joinGame: () => ({
+      gameId: [validator.validators.required, validator.validators.exactly(36)],
+    })
   },
 }
