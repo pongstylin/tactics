@@ -791,60 +791,84 @@ Tactics.Board = function () {
       return self;
     },
     createGradientSpriteForHealthBar: function (options) {
-      // The canvas is cached so we're not creating a new canvas on every render
-      let canvas_key = '_healthBarCanvas_'+options.id;
-      let canvas = self[canvas_key] || (self[canvas_key] = document.createElement('canvas'));
-      let ctx = canvas.getContext('2d');
+      const healthBarWidth  = 100;
+      const healthBarHeight = 6;
 
-      canvas.width = options.width;
-      canvas.height = options.height;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!self._healthBarData) self._healthBarData = {};
 
-      let gradient = ctx.createLinearGradient(0, 0, options.gradientEndX, 0);
-      gradient.addColorStop(0.0, options.startColor);
-      gradient.addColorStop(0.6, options.shineColor);
-      gradient.addColorStop(1.0, options.endColor);
+      let healthBarData = self._healthBarData[options.id];
+      let canvas;
+      if (healthBarData) {
+        canvas = healthBarData.canvas;
+      }
+      else {
+        // The canvas and base texture is only created once.
+        canvas = document.createElement('canvas');
+        canvas.width  = healthBarWidth;
+        canvas.height = healthBarHeight;
 
-      ctx.fillStyle = gradient;
-      ctx.moveTo(10, 0);
-      ctx.lineTo(canvas.width, 0);
-      ctx.lineTo(canvas.width - 10, canvas.height);
-      ctx.lineTo(0, canvas.height);
-      ctx.closePath();
-      ctx.fill();
+        healthBarData = self._healthBarData[options.id] = {canvas:canvas};
+      }
 
-      return new PIXI.Sprite(PIXI.Texture.fromCanvas(canvas));
+      if (healthBarData.size !== options.size) {
+        if (healthBarData.texture)
+          healthBarData.texture.destroy();
+
+        let ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        let gradient = ctx.createLinearGradient(0, 0, healthBarWidth, 0);
+        gradient.addColorStop(0.0, options.startColor);
+        gradient.addColorStop(0.6, options.shineColor);
+        gradient.addColorStop(1.0, options.endColor);
+
+        ctx.fillStyle = gradient;
+        ctx.moveTo(10, 0);
+        ctx.lineTo(healthBarWidth, 0);
+        ctx.lineTo(healthBarWidth - 10, healthBarHeight);
+        ctx.lineTo(0, healthBarHeight);
+        ctx.closePath();
+        ctx.fill();
+
+        if (healthBarData.baseTexture)
+          healthBarData.baseTexture.update();
+        else
+          healthBarData.baseTexture = new PIXI.BaseTexture(canvas);
+
+        let frame = new PIXI.Rectangle();
+        frame.width  = options.size * healthBarWidth;
+        frame.height = healthBarHeight;
+
+        healthBarData.texture = new PIXI.Texture(healthBarData.baseTexture, frame);
+        healthBarData.size    = options.size;
+      }
+
+      return new PIXI.Sprite(healthBarData.texture);
     },
     drawHealth: function (unit) {
-      var healthBarSize = 100;
       var currentHealth = unit.health + unit.mHealth;
       var healthRatio = currentHealth / unit.health;
       var toColorCode = num => '#' + parseInt(num).toString(16);
       var gradientStartColor = Tactics.utils.getColorStop(0xFF0000, 0xc2f442, healthRatio);
       var gradientShineColor = Tactics.utils.getColorStop(gradientStartColor, 0xFFFFFF, 0.7);
       var gradientEndColor = gradientStartColor;
-      var gradientEndX = healthBarSize;
 
       // Create the health bar sprites
       var healthBarSprite;
       if (healthRatio > 0)
         healthBarSprite = self.createGradientSpriteForHealthBar({
-          id:           'healthBar',
-          width:        healthRatio * healthBarSize,
-          height:       6,
-          startColor:   toColorCode(gradientStartColor),
-          shineColor:   toColorCode(gradientShineColor),
-          endColor:     toColorCode(gradientEndColor),
-          gradientEndX: gradientEndX,
+          id:         'healthBar',
+          size:       healthRatio,
+          startColor: toColorCode(gradientStartColor),
+          shineColor: toColorCode(gradientShineColor),
+          endColor:   toColorCode(gradientEndColor),
         });
       var underlayBarSprite = self.createGradientSpriteForHealthBar({
-        id:           'underlayHealthBar',
-        width:        healthBarSize,
-        height:       6,
-        startColor:   '#006600',
-        shineColor:   '#009900',
-        endColor:     '#002200',
-        gradientEndX: gradientEndX,
+        id:         'underlayHealthBar',
+        size:       1,
+        startColor: '#006600',
+        shineColor: '#009900',
+        endColor:   '#002200',
       });
       underlayBarSprite.x = 2;
       underlayBarSprite.y = 2;

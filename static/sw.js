@@ -124,13 +124,15 @@ self.addEventListener('activate', event => {
   let activeCacheNames = INSTALLED_BUNDLES.map(bundle => bundle.name);
 
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (activeCacheNames.indexOf(cacheName) === -1)
-            return caches.delete(cacheName);
-        })
-      );
-    })
+    caches.keys()
+      .then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            if (activeCacheNames.indexOf(cacheName) === -1)
+              return caches.delete(cacheName);
+          })
+        );
+      })
+      .then(() => clients.claim())
   );
 });

@@ -50,6 +50,8 @@ Tactics = (function () {
      * Allow touch devices to upscale to normal size.
      */
     resize: function () {
+      if (!self.canvas) return;
+
       self.canvas.style.width  = null;
       self.canvas.style.height = null;
 

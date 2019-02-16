@@ -30,6 +30,7 @@ BODY {
   font-size: 0.8125em;
 
   -webkit-text-size-adjust: none;
+  -webkit-touch-callout: none;
 }
 
 #field {
@@ -53,6 +54,48 @@ BODY {
 
   #board {
     margin: auto;
+  }
+}
+
+/*
+ * General Look & Feel for Notifications
+ */
+#notifications {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 100;
+
+  & > DIV {
+    position: relative;
+    background-color: #dddddd;
+    color: black;
+    text-align: center;
+
+    border-radius: 16px;
+    margin: 4px 4px 0;
+    padding: 2px 28px 2px 2px;
+
+    cursor: pointer;
+
+    A {
+      color: #0000FF;
+    }
+
+    .close {
+      display: block;
+      position: absolute;
+      top: 2px;
+      right: 0;
+      padding: 0 12px 0 10px;
+      font-weight: bold;
+      height: calc(100% - 4px);
+    }
+  }
+
+  & > DIV:hover .close {
+    color: #0000FF;
   }
 }
 
@@ -300,6 +343,10 @@ BODY {
 }
 #game-settings {
   bottom: 0;
+}
+
+A {
+  color: #00FFFF;
 }
 
 /*
