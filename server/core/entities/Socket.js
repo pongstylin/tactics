@@ -8,15 +8,15 @@ module.exports = class Socket {
     this.guid = socket.guid;
   }
 
-  joinRoom(id, occupantName) {
+  joinRoom(roomId, occupantId) {
     if (this.room) {
       this.leaveRoom();
     }
 
-    this.room = state.rooms[id] = state.rooms[id] || new Room(id);
+    this.room = state.rooms[roomId] = state.rooms[roomId] || new Room(roomId);
     this.room.addOccupant(
       this.guid,
-      occupantName,
+      occupantId,
       (event, data) => this.emit(event, data)
     );
   }
