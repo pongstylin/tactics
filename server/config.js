@@ -13,4 +13,5 @@ module.exports = {
     password: 'secret',
   },
   saltRounds: 10,
+  alterDB: process.env.NODE_ENV !== 'production',
 };

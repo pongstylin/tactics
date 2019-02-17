@@ -9,6 +9,13 @@ export default class Auth extends Component {
     onLogin: PropTypes.func,
   };
 
+  static AUTH_TYPES = {
+    QUICK_PLAY: 'quickPlay',
+    LOGIN: 'login',
+    REGISTER: 'register',
+    DEFAULT: 'quickPlay',
+  };
+
   username = createRef();
 
   state = {
@@ -38,14 +45,14 @@ export default class Auth extends Component {
       this.setState({ type: 'usingExistingSession' });
       this.loginWithJWT(token);
     } else {
-      this.setState({ type: 'login' });
+      this.setState({ type: Auth.AUTH_TYPES.DEFAULT });
     }
   }
 
   loginWithJWT = (token, attempts=0) => {
     if (attempts > 3) {
-      console.info('Failed max attempts for logging in with existing token');
-      this.setState({ type: 'login' });
+      console.error('Failed max attempts for logging in with existing token');
+      this.setState({ type: Auth.AUTH_TYPES.DEFAULT });
       return;
     }
 
@@ -56,7 +63,30 @@ export default class Auth extends Component {
 
 
   toggleType = async () => {
-    await this.setState({type: this.state.type === 'login' ? 'register' : 'login', errors: []});
+    let newType;
+
+    switch(this.state.type) {
+      case Auth.AUTH_TYPES.LOGIN: {
+        newType = Auth.AUTH_TYPES.REGISTER;
+        break;
+      }
+      case Auth.AUTH_TYPES.REGISTER: {
+        newType = Auth.AUTH_TYPES.LOGIN;
+        break;
+      }
+      case Auth.AUTH_TYPES.QUICK_PLAY: {
+        newType = Auth.AUTH_TYPES.LOGIN;
+        break;
+      }
+      default: {
+        newType = Auth.AUTH_TYPES.LOGIN;
+      }
+    }
+
+    await this.setState({
+      type: newType,
+      errors: [],
+    });
     this.username.current.focus();
   };
 
@@ -104,51 +134,62 @@ export default class Auth extends Component {
           </div>
         )}
 
-        <div className="Auth__field">
-          <label htmlFor="username">Name</label>
-          <input
-            type="text"
-            name="username"
-            autoComplete="username"
-            autoFocus={true}
-            id="username"
-            ref={this.username}
-            onChange={this.handleChange}
-            value={this.state.data.username}
-          />
-        </div>
-
-        <div className="Auth__field">
-          <label htmlFor="password">Password</label>
-          <input
-            type="password"
-            name="password"
-            autoComplete={this.state.type === 'login' ? 'current-password' : 'new-password'}
-            id="password"
-            onChange={this.handleChange}
-            value={this.state.data.password}
-          />
-        </div>
-
-        {this.state.type === 'register' && (
+        <div className={`AuthType_${this.state.type}`}>
           <div className="Auth__field">
-            <label htmlFor="password_confirmed">Confirm Password</label>
+            <label htmlFor="username">Name</label>
             <input
-              type="password"
-              name="passwordConfirm"
-              autoComplete="new-password"
-              id="passwordConfirm"
+              type="text"
+              name="username"
+              autoComplete="username"
+              autoFocus={true}
+              id="username"
+              ref={this.username}
               onChange={this.handleChange}
-              value={this.state.data.passwordConfirm}
+              value={this.state.data.username}
             />
           </div>
-        )}
 
-        <div className="Auth__buttons">
-          <button type="button" onClick={this.toggleType}>
-            {this.state.type === 'login' ? 'New Account' : 'Back'}
-          </button>
-          <button type="submit">{this.state.type === 'login' ? 'Login' : 'Register'}</button>
+          {this.state.type !== Auth.AUTH_TYPES.QUICK_PLAY && (
+            <div className="Auth__field">
+              <label htmlFor="password">Password</label>
+              <input
+                type="password"
+                name="password"
+                autoComplete={this.state.type === Auth.AUTH_TYPES.LOGIN ? 'current-password' : 'new-password'}
+                id="password"
+                onChange={this.handleChange}
+                value={this.state.data.password}
+              />
+            </div>
+          )}
+
+          {this.state.type === Auth.AUTH_TYPES.REGISTER && (
+            <div className="Auth__field">
+              <label htmlFor="password_confirmed">Confirm Password</label>
+              <input
+                type="password"
+                name="passwordConfirm"
+                autoComplete="new-password"
+                id="passwordConfirm"
+                onChange={this.handleChange}
+                value={this.state.data.passwordConfirm}
+              />
+            </div>
+          )}
+
+          {this.state.type === Auth.AUTH_TYPES.QUICK_PLAY ? (
+            <div className="Auth__buttons">
+              <button type="button" onClick={this.toggleType}>{'Existing Account'}</button>
+              <button type="submit">{'Play!'}</button>
+            </div>
+          ) : (
+            <div className="Auth__buttons">
+              <button type="button" onClick={this.toggleType}>
+                {this.state.type === Auth.AUTH_TYPES.LOGIN ? 'New Account' : 'Back'}
+              </button>
+              <button type="submit">{this.state.type === Auth.AUTH_TYPES.LOGIN ? 'Login' : 'Register'}</button>
+            </div>
+          )}
         </div>
       </form>
     );

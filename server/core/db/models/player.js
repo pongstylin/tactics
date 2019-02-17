@@ -10,7 +10,7 @@ module.exports = db => {
       username: {
         type: Sequelize.DataTypes.STRING,
         allowNull: false,
-        unique: true,
+        unique: 'username',
       },
       password: {
         type: Sequelize.DataTypes.STRING,
@@ -20,6 +20,11 @@ module.exports = db => {
         type: Sequelize.DataTypes.INTEGER,
         defaultValue: 750,
       },
+      isAnonymous: {
+        type: Sequelize.DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      }
     },
     {
       freezeTableName: true,

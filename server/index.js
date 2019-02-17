@@ -19,7 +19,7 @@ app.get('*', (req, res) => {
 
 server.listen(config.port, async () => {
   try {
-    await db.sync();
+    await db.sync({ alter: config.alterDB });
   } catch (err) {
     console.error(err);
   }

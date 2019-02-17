@@ -7,4 +7,5 @@ module.exports = {
   'createGame': require('./createGame'),
   'joinGame': require('./joinGame'),
   'submitActions': require('./submitActions'),
+  'quickPlay': require('./quickPlay'),
 };

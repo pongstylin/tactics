@@ -7,9 +7,14 @@
   width: 100%;
   max-width: 350px;
 
+  border-color: #262626;
+  border-style: solid;
+  border-width: 0.5px;
+  border-radius: 15px;
+  padding: 20px 5px;
+
   &__errors {
     margin-bottom: 1rem;
-    max-width: 191px;
     margin-left: auto;
     width: 100%;
     text-align: center;
@@ -42,11 +47,11 @@
   &__buttons {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     align-self: flex-end;
-    max-width: 191px;
     width: 100%;
     margin-left: auto;
+    flex-grow: 0;
 
     button {
       border: 1px solid #ada99c;

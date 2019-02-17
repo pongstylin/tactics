@@ -1,6 +1,5 @@
 const bcrypt = require('bcrypt');
 const JWT = require('jsonwebtoken');
-const state = require('../../state');
 const config = require('../../../config');
 const validator = require('../../../../shared/validator/index');
 const models = require('../../db/models/index');
