@@ -7,9 +7,6 @@ module.exports = class Room {
   }
 
   addOccupant(guid, name, callback) {
-    if (this.listeners.hasOwnProperty(guid)) {
-      throw new Error('Listener already registered for ' + guid);
-    }
     this.listeners[guid] = { name, callback };
   }
 
@@ -32,7 +29,11 @@ module.exports = class Room {
 
   broadcast(event, data) {
     Object.values(this.listeners).forEach(({ callback }) => {
-      callback(event, data);
+      try {
+        callback(event, data);
+      } catch (e) {
+        console.error('[error] Room.broadcast listener callback error');
+      }
     });
   }
 };

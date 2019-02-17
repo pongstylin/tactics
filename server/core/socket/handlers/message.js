@@ -13,7 +13,7 @@ module.exports = async (socket, data) => {
     return;
   }
 
-  if (!socket.state.player) {
+  if (!socket.player) {
     return;
   }
 

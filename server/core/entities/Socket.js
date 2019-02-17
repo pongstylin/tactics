@@ -9,8 +9,12 @@ module.exports = class Socket {
   }
 
   joinRoom(id, occupantName) {
-    this.state.room = state.rooms[id] = state.rooms[id] || new Room(id);
-    this.state.room.addOccupant(
+    if (this.room) {
+      this.leaveRoom();
+    }
+
+    this.room = state.rooms[id] = state.rooms[id] || new Room(id);
+    this.room.addOccupant(
       this.guid,
       occupantName,
       (event, data) => this.emit(event, data)
@@ -18,15 +22,15 @@ module.exports = class Socket {
   }
 
   leaveRoom() {
-    if (!this.state.room) {
+    if (!this.room) {
       return;
     }
 
-    this.state.room.removeOccupant(this.guid);
-    if (this.state.room.size === 0) {
-      delete state.rooms[this.state.room.id];
+    this.room.removeOccupant(this.guid);
+    if (this.room.size === 0) {
+      delete state.rooms[this.room.id];
     }
-    delete this.state.room;
+    delete this.room;
   }
 
   handleEvent(event, data) {
@@ -35,10 +39,6 @@ module.exports = class Socket {
     } else {
       console.error('[error] Unhandled event: ' + event);
     }
-  }
-
-  get state() {
-    return state.sockets[this.guid];
   }
 
   /**
@@ -64,8 +64,8 @@ module.exports = class Socket {
   }
 
   broadcastRoom(event, data) {
-    if (this.state.room) {
-      this.state.room.broadcast(event, data);
+    if (this.room) {
+      this.room.broadcast(event, data);
     } else {
       this.emit(event, data);
     }

@@ -1,6 +1,7 @@
 @import "partials/vars";
 @import "partials/reset";
 @import "partials/layout";
+@import "partials/buttons";
 
 @import "components/screen";
 @import "components/auth";
@@ -8,6 +9,7 @@
 @import "components/messageList";
 @import "components/messageBox";
 @import "components/occupancyList";
+@import "components/lobby";
 
 @import "screens/home";
 @import "screens/play";

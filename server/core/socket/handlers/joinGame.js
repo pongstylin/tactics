@@ -11,7 +11,7 @@ module.exports = async (socket, data) => {
     return;
   }
 
-  if (!socket.state.player) {
+  if (!socket.player) {
     return;
   }
 
@@ -30,14 +30,14 @@ module.exports = async (socket, data) => {
     return
   }
 
-  if (game.playerOneId === socket.state.player.id || game.playerTwoId === socket.state.player.id) {
+  if (game.playerOneId === socket.player.id || game.playerTwoId === socket.player.id) {
     socket.emit('joinGame.succeeded', game.id);
-    socket.joinRoom(game.id, socket.state.player.username);
+    socket.joinRoom(game.id, socket.player.username);
     socket.broadcastRoom('roomOccupantsChanged', { occupants: socket.room.occupantList });
   } else if (game.playerTwoId === null) {
-    await game.setPlayerTwo(socket.state.player);
+    await game.setPlayerTwo(socket.player);
     socket.emit('joinGame.succeeded', game.id);
-    socket.joinRoom(game.id, socket.state.player.username);
+    socket.joinRoom(game.id, socket.player.username);
     socket.broadcastRoom('roomOccupantsChanged', { occupants: socket.room.occupantList });
   } else {
     console.error('[error] Game is full');

@@ -26,6 +26,7 @@ export default {
       state.pingInterval = setInterval(() => this.emit('ping'), PING_INTERVAL);
     };
     state.connection.onmessage = message => {
+      console.debug(message);
       const {event, data} = JSON.parse(message.data);
       executeEventFunctions(state.events, event, data);
     };
@@ -52,7 +53,7 @@ export default {
     if (state.events.hasOwnProperty(event)) {
       for (let i = state.events[event].length - 1; i >= 0; i--) {
         if (state.events[event][i] === func) {
-          state.events = state.events.splice(i, 1);
+          state.events = state.events[event].splice(i, 1);
         }
       }
     }

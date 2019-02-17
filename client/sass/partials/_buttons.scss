@@ -1,0 +1,20 @@
+%gradient-button {
+  button {
+    border: 1px solid #ada99c;
+    background: linear-gradient(90deg, #8a8370, #695a41, #87816b);
+    color: #d6c6a5;
+    font-size: 1em;
+    padding: .2em .62em;
+    cursor: pointer;
+    white-space: nowrap;
+    flex: 1;
+
+    &:hover {
+      background: linear-gradient(90deg, #695a41, #8a8370, #695a41);
+    }
+
+    &:first-child {
+      margin-right: .65em;
+    }
+  }
+}

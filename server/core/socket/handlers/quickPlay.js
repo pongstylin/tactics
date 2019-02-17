@@ -20,6 +20,6 @@ module.exports = async (socket, data) => {
     return;
   }
 
-  socket.state.player = playerJSON;
+  socket.player = playerJSON;
   socket.emit('auth.succeeded', playerJSON);
 };

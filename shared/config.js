@@ -19,6 +19,9 @@ module.exports = {
     }),
     submitActions: () => ({
       actions: [validator.validators.required, validator.validators.isArray],
-    })
+    }),
+    joinRoom: () => ({
+      room: [validator.validators.required, validator.validators.min(1)],
+    }),
   },
 };

@@ -30,8 +30,7 @@ const loginNormal = async (socket, data) => {
     const playerJSON = player.toJSON();
 
     playerJSON.token = JWT.sign({player: playerJSON}, config.key);
-    socket.state.token = playerJSON.token;
-    socket.state.player = player;
+    socket.player = player;
 
     socket.emit('auth.succeeded', playerJSON);
   } catch (err) {
@@ -56,8 +55,7 @@ const loginJWT =  async (socket, data) => {
 
     const playerJSON = player.toJSON();
     playerJSON.token = token;
-    socket.state.token = token;
-    socket.state.player = player;
+    socket.player = player;
 
     socket.emit('auth.succeeded', playerJSON);
   } catch (err) {

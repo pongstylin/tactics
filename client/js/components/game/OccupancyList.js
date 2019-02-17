@@ -1,7 +1,7 @@
 import React, { Component, createRef } from 'react'
 import socket from '../../core/socket'
 
-export default class MessageList extends Component {
+export default class OccupancyList extends Component {
   state = {
     occupants: [],
   };

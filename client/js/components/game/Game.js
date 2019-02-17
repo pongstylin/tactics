@@ -16,7 +16,7 @@ export default class Game extends Component {
   componentDidMount() {
     socket.on('performActions', data => {
       this.handleActions(data.actions);
-    })
+    });
   }
 
   handleActions(actions) {
