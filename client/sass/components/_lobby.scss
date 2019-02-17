@@ -8,28 +8,50 @@
   justify-content: space-around;
   margin-top: 20px;
 
+  & > * {
+    margin-left: 20px;
+  }
+
   &__chat {
     width: 80%;
   }
 
   &__occupancy {
     width: 20%;
-    margin-left: 20px;
   }
 
   &__GameToolbar {
     width: 150px;
+    margin-top: 21px;
+
+    .Lobby__buttons {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      margin-left: auto;
+      flex-grow: 0;
+      flex-direction: column;
+
+      button {
+        width: 100%;
+        margin: 0 0 5px 10px;
+      }
+    }
+  }
+
+  .GameIDForm {
+    label {
+      margin-right: 5px;
+    }
+
+    .Lobby__buttons {
+      display: flex;
+      width: 100%;
+      margin-top: 5px;
+    }
   }
 
   &__buttons {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    align-self: flex-end;
-    width: 100%;
-    margin-left: auto;
-    flex-grow: 0;
-
     @extend %gradient-button;
   }
 }

@@ -53,7 +53,7 @@ export default {
     if (state.events.hasOwnProperty(event)) {
       for (let i = state.events[event].length - 1; i >= 0; i--) {
         if (state.events[event][i] === func) {
-          state.events = state.events[event].splice(i, 1);
+          state.events[event].splice(i, 1);
         }
       }
     }

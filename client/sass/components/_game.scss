@@ -8,12 +8,15 @@
   justify-content: space-around;
   margin-top: 20px;
 
+  & > * {
+    margin-left: 20px;
+  }
+
   &__chat {
     width: 80%;
   }
 
   &__occupancy {
     width: 20%;
-    margin-left: 20px;
   }
 }

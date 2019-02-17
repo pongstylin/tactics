@@ -21,7 +21,8 @@ export default class PlayScreen extends Component {
       this.setState({ errors })
     });
     socket.on('joinGame.succeeded', gameId => {
-      this.setState({ gameId, errors: [] })
+      this.setState({ gameId, errors: [] });
+      this.props.history.push(`/play/id/${gameId}`);
     });
     socket.on('joinGame.failed', errors => {
       this.setState({ errors })
@@ -45,8 +46,7 @@ export default class PlayScreen extends Component {
     socket.emit('createGame');
   };
 
-  handleJoinGame = async gameId => {
-    await this.setState({ gameId });
+  handleJoinGame = gameId => {
     socket.emit('joinGame', { gameId });
   };
 
