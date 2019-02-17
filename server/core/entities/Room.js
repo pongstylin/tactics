@@ -6,14 +6,14 @@ module.exports = class Room {
     this.listeners = {};
   }
 
-  addListener(guid, callback) {
+  addOccupent(guid, name, callback) {
     if (this.listeners.hasOwnProperty(guid)) {
       throw new Error('Listener already registered for ' + guid);
     }
-    this.listeners[guid] = callback;
+    this.listeners[guid] = { name, callback };
   }
 
-  removeListener(guid) {
+  removeOccupent(guid) {
     delete this.listeners[guid];
   }
 
@@ -21,8 +21,15 @@ module.exports = class Room {
     return Object.keys(this.listeners).length;
   }
 
+  get occupantList() {
+    return Object.values(this.listeners).reduce((arr, { name }) => {
+      arr.push(name);
+      return arr;
+    }, []);
+  }
+
   broadcast(event, data) {
-    Object.values(this.listeners).forEach(callback => {
+    Object.values(this.listeners).forEach(({ callback }) => {
       callback(event, data);
     });
   }

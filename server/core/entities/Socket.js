@@ -8,10 +8,11 @@ module.exports = class Socket {
     this.guid = socket.guid;
   }
 
-  joinRoom(id) {
+  joinRoom(id, occupantName) {
     this.state.room = state.rooms[id] = state.rooms[id] || new Room(id);
-    this.state.room.addListener(
+    this.state.room.addOccupent(
       this.guid,
+      occupantName,
       (event, data) => this.emit(event, data)
     );
   }
@@ -21,7 +22,7 @@ module.exports = class Socket {
       return;
     }
 
-    this.state.room.removeListener(this.guid);
+    this.state.room.removeOccupent(this.guid);
     if (this.state.room.size === 0) {
       delete state.rooms[this.state.room.id];
     }

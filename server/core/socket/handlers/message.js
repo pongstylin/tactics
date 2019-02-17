@@ -40,7 +40,7 @@ module.exports = async (socket, data) => {
   }
 
   socket[socketEmitMethod]('message.received', {
-    player: data.player,
+    player: { username: data.player.username },
     message: messageText,
     type,
     timestamp: Date.now(),

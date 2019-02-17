@@ -32,11 +32,13 @@ module.exports = async (socket, data) => {
 
   if (game.playerOneId === socket.state.player.id || game.playerTwoId === socket.state.player.id) {
     socket.emit('joinGame.succeeded', game.id);
-    socket.joinRoom(game.id)
+    socket.joinRoom(game.id, socket.state.player.username);
+    socket.broadcastRoom('roomOccupantsChanged', { occupants: socket.room.occupantList });
   } else if (game.playerTwoId === null) {
     await game.setPlayerTwo(socket.state.player);
     socket.emit('joinGame.succeeded', game.id);
-    socket.joinRoom(game.id)
+    socket.joinRoom(game.id, socket.state.player.username);
+    socket.broadcastRoom('roomOccupantsChanged', { occupants: socket.room.occupantList });
   } else {
     console.error('[error] Game is full');
     socket.emit('joinGame.failed', ['Game is full']);

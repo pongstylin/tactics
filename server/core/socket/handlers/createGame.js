@@ -9,5 +9,5 @@ module.exports = async socket => {
 
   const game = await models.game.create({playerOneId: socket.state.player.id});
   socket.emit('createGame.succeeded', game.id);
-  socket.joinRoom(game.id);
+  socket.joinRoom(game.id, socket.state.player.username);
 };

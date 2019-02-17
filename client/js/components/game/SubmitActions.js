@@ -1,11 +1,9 @@
 import React, { Component, createRef } from 'react'
 
 import config from '../../config'
-import GameContextConsumer from './context/GameContextConsumer'
 import socket from '../../core/socket'
 import validator from '../../../../shared/validator/index'
 
-@GameContextConsumer
 export default class SubmitActions extends Component {
   actions = createRef();
 
