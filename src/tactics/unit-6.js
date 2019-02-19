@@ -86,7 +86,7 @@
       },
       animBlackSpike: function (target, first) {
         let anim = new Tactics.Animation();
-        let parent = Tactics.stage;
+        let parent = Tactics.stage.children[1];
 
         let pos = target.getCenter();
         let container = new PIXI.Container();
