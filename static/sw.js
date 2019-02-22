@@ -9,25 +9,48 @@
  * updating the service worker.
  */
 
-// These bundles are cached during the install phase.
-const INSTALLED_BUNDLES = [
-  {
-    name: 'app-v0.2.5',
-    urls: [
-      '/',
-      '/tactics.min.js',
-      '/classic.html',
-      '/classic-app.min.js',
-      '/faceoff.html',
-      '/faceoff-app.min.js',
-      '/chaos.html',
-      '/chaos-app.min.js',
-    ],
-  },
+// Application files are fetched and installed as a unit to ensure they are
+// compatible with each other.  If a file can change between app versions and
+// the change can break the app, it should be referenced here.
+const APP_FILES = [
+  '/',
+  '/install.js',
+  '/tactics.min.js',
+  '/classic.html',
+  '/classic-app.min.js',
+  '/faceoff.html',
+  '/faceoff-app.min.js',
+  '/chaos.html',
+  '/chaos-app.min.js',
 ];
 
-// Other files are cached as-needed.
-const DYNAMIC_BUNDLE = 'dynamic';
+const DATE_INSTALLED = new Date().toISOString()
+  .slice(0, 19)
+  .replace(/[\-:]/g, '.')
+  .replace('T', '_');
+
+// The default version value is the date the app was installed.  This is good
+// enough for development and testing, but should be replaced with a constant
+// value when deploying the app so that all users have the same version value.
+//
+// Every change to application files should be represented as a version change.
+const VERSION = DATE_INSTALLED;
+
+// Application files are installed and cached with a version-specific name.  The
+// currently installed app version remains unaffected while installing the new.
+const INSTALL_CACHE_NAME = 'app'+(VERSION ? '-'+VERSION : '');
+
+// Other files within the scope of this service worker are fetched and cached as
+// needed.  They are not expected to change often or at all so this cache is
+// shared between versions and is not normally cleared.  This cache is expected
+// to contain image, sound, and data files or even 3rd-party dependencies.  The
+// cache can be cleared manually by bumping the cache version for these reasons:
+//   1) A minor change to a file has taken place (e.g. changing an image)
+//   2) A file is moved from the fetch cache to the install cache.
+//   3) One or more files are no longer used by a new app version.
+const FETCH_CACHE_NAME = 'dynamic-v2';
+
+const ACTIVE_CACHE_NAMES = [INSTALL_CACHE_NAME, FETCH_CACHE_NAME];
 
 // Fetch all resources using these parameters.
 const OPTIONS = {
@@ -42,26 +65,19 @@ const OPTIONS = {
 };
 
 self.addEventListener('install', event => {
-  // Livin' on the edge.  Remove if this causes issues during updates.
-  self.skipWaiting();
-
   event.waitUntil(
-    Promise.all(
-      INSTALLED_BUNDLES.map(bundle =>
-        caches.open(bundle.name)
-          .then(cache =>
-            Promise.all(
-              bundle.urls.map(url =>
-                fetch(url, OPTIONS)
-                  .then(response => {
-                    if (response && response.status === 200)
-                      return cache.put(url, response);
-                  })
-              )
-            )
+    caches.open(INSTALL_CACHE_NAME)
+      .then(cache =>
+        Promise.all(
+          APP_FILES.map(url =>
+            fetch(url, OPTIONS).then(response => {
+              if (response && response.status === 200)
+                return cache.put(url, response);
+            })
           )
+        )
       )
-    )
+      .then(() => self.skipWaiting())
   )
 });
 
@@ -73,8 +89,7 @@ self.addEventListener('install', event => {
  * The cache can be used to create or replace a request/response.
  */
 function getCache(url) {
-  return caches.keys().then(cacheNames =>
-    cacheNames.reduce((promise, cacheName) =>
+  return ACTIVE_CACHE_NAMES.reduce((promise, cacheName) =>
       promise.then(hit => hit ||
         caches.open(cacheName).then(cache =>
           cache.match(url).then(response => response && [cache, response])
@@ -82,9 +97,8 @@ function getCache(url) {
       ),
       Promise.resolve(),
     )
-  )
     .then(hit => hit ||
-      caches.open(DYNAMIC_BUNDLE).then(cache => [cache, null])
+      caches.open(FETCH_CACHE_NAME).then(cache => [cache, null])
     );
 }
 
@@ -121,18 +135,31 @@ self.addEventListener('fetch', event => {
 
 // Delete the dynamic cache and previous version caches.
 self.addEventListener('activate', event => {
-  let activeCacheNames = INSTALLED_BUNDLES.map(bundle => bundle.name);
-
   event.waitUntil(
     caches.keys()
       .then(cacheNames => {
         return Promise.all(
           cacheNames.map(cacheName => {
-            if (activeCacheNames.indexOf(cacheName) === -1)
+            if (ACTIVE_CACHE_NAMES.indexOf(cacheName) === -1)
               return caches.delete(cacheName);
           })
         );
       })
+      // Since all game resources are fetched on page load, forcing clients to
+      // use the new service worker would not affect fetched resources.  Rather,
+      // this is done to inform clients that a new version is available via the
+      // 'controllerchange' event.
       .then(() => clients.claim())
   );
+});
+
+self.addEventListener('message', event => {
+  let client  = event.source;
+  let message = event.data;
+
+  if (message.type === 'getVersion')
+    client.postMessage({
+      type: 'version',
+      version: VERSION,
+    });
 });
