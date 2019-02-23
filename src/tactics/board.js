@@ -995,7 +995,8 @@ Tactics.Board = function () {
         if (unit.mBlocking < 0)
           notices.push('Vulnerable!');
 
-        notices.push(unit.title);
+        if (unit.title)
+          notices.push(unit.title);
 
         if (!notice) {
           notice = notices.shift();
