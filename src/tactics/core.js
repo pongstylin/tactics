@@ -2,89 +2,17 @@ Tactics = (function () {
   'use strict';
 
   var self = {};
-  var stage;
-  var renderer;
-  var rendering = false;
-  var render = () => {
-    self.emit({type:'render'});
 
-    // This is a hammer.  Without it, the mouse cursor will not change to a
-    // pointer and back when needed without moving the mouse.
-    renderer.plugins.interaction.update();
-
-    //console.log('render', +new Date());
-    renderer.render(stage);
-    rendering = false;
-  };
+  // We don't need an infinite loop, thanks.
+  PIXI.ticker.shared.autoStart = false;
 
   utils.addEvents.call(self);
 
   $.extend(self, {
     width:  22 + 88*9 + 22,
     height: 44 + 4 + 56*9,
-    utils:{},
-    animators: {},
+    utils:  {},
 
-    init: function (container) {
-      // We don't need an infinite loop, thanks.
-      PIXI.ticker.shared.autoStart = false;
-
-      stage = self.stage = new PIXI.Container();
-
-      renderer = PIXI.autoDetectRenderer(self.width, self.height);
-
-      // Let's not go crazy with the move events.
-      renderer.plugins.interaction.moveWhenInside = true;
-
-      let canvas = self.canvas = renderer.view;
-      canvas.id = 'board';
-      container.appendChild(canvas);
-
-      self.board = new Tactics.Board();
-      self.panzoom = panzoom({
-        target: canvas,
-        locked: true,
-      });
-    },
-    /*
-     * Allow touch devices to upscale to normal size.
-     */
-    resize: function () {
-      if (!self.canvas) return;
-
-      self.canvas.style.width  = null;
-      self.canvas.style.height = null;
-
-      let container = self.canvas.parentNode;
-      let width     = container.clientWidth;
-      let height    = container.clientHeight;
-
-      if (window.innerHeight < height) {
-        let rect = self.canvas.getBoundingClientRect();
-
-        height  = window.innerHeight;
-        height -= rect.top;
-        //height -= window.innerHeight - rect.bottom;
-        //console.log(window.innerHeight, rect.bottom);
-      }
-      else
-        height -= self.canvas.offsetTop;
-
-      let width_ratio  = width  / self.width;
-      let height_ratio = height / self.height;
-      let elementScale = Math.min(1, width_ratio, height_ratio);
-
-      if (elementScale < 1)
-        if (width_ratio < height_ratio)
-          self.canvas.style.width = '100%';
-        else
-          self.canvas.style.height = height+'px';
-
-      self.panzoom.maxScale = 1 / elementScale;
-      self.panzoom.reset();
-
-      return self;
-    },
     draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};
       var elements = {};
@@ -124,87 +52,6 @@ Tactics = (function () {
       });
 
       return elements;
-    },
-    /*
-     * Most games have a "render loop" that refreshes all display objects on the
-     * stage every time the screen refreshes - about 60 frames per second.  The
-     * animations in this game runs at about 12 frames per second and do not run
-     * at all times.  To improve battery life on mobile devices, it is better to
-     * only render when needed.  Only two things may cause the stage to change:
-     *   1) An animation is being run.
-     *   2) The user interacted with the game.
-     *
-     * So, call this method once per animation frame or once after handling a
-     * user interaction event.  If this causes the render method to be called
-     * more frequently than the screen refresh rate (which is very possible
-     * just by whipping around the mouse over the game board), then the calls
-     * will be throttled thanks to requestAnimationFrame().
-     */
-    render: function () {
-      if (rendering) return;
-      rendering = true;
-
-      requestAnimationFrame(render);
-    },
-    //
-    // This clever function will call your animator every throttle millseconds
-    // and render the result.  The animator must return false when the animation
-    // is complete.  The animator is passed the number of frames that should be
-    // skipped to maintain speed.
-    //
-    renderAnim: function (anim, fps) {
-      let self = this;
-      let throttle = 1000 / fps;
-      let animators = [anim];
-      let start;
-      let delay = 0;
-      let count = 0;
-      let skip = 0;
-      let i;
-
-      let loop = now => {
-        skip = 0;
-
-        // stop the loop if all animators returned false
-        if (animators.length) {
-          if (count) {
-            delay = (now - start) - (count * throttle);
-
-            if (delay > throttle) {
-              skip = Math.floor(delay / throttle);
-              count += skip;
-
-              requestAnimationFrame(loop);
-            }
-            else {
-              setTimeout(() => requestAnimationFrame(loop), throttle - delay);
-            }
-          }
-          else {
-            start = now;
-            setTimeout(() => requestAnimationFrame(loop), throttle);
-          }
-
-          // Iterate backward since elements may be removed.
-          for (i = animators.length-1; i > -1; i--) {
-            if (animators[i](skip) === false)
-              animators.splice(i, 1);
-          }
-          render();
-          count++;
-        }
-        else {
-          delete self.animators[fps];
-        }
-      };
-
-      // Stack multiple animations using the same FPS into one loop.
-      if (fps in self.animators)
-        self.animators[fps].push(anim);
-      else {
-        self.animators[fps] = animators;
-        requestAnimationFrame(loop);
-      }
     },
     images: [
       'board.jpg',
@@ -1145,7 +992,6 @@ Tactics = (function () {
         mType:   'teleport',
         mRadius: 4,
         mPass:   false,
-        mPath:   false,
         aType:   'magic',
         aLOS:    true,
         aLinear: true,

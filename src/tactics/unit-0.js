@@ -4,7 +4,7 @@
     var _super = Object.assign({}, self);
     var data = Tactics.units[self.type];
     var sounds = $.extend({},Tactics.sounds,data.sounds);
-    var board = Tactics.board;
+    var board = Tactics.game.board;
     var pixi = self.pixi;
     var type = self.type;
     var stills = {};
@@ -17,7 +17,7 @@
     {
       draw:function (direction,assignment)
       {
-        self.color = Tactics.colors[board.teams[self.team].color];
+        self.color = Tactics.colors[self.team.colorId];
 
         $.each(data.stills,function (direction,still)
         {
@@ -182,8 +182,7 @@
         sprite.position = new PIXI.Point(ibase.x,ibase.y);
         container.addChild(sprite);
 
-        if (frame.color)
-        {
+        if (frame.color) {
           sprite = PIXI.Sprite.fromImage(imageBase+'color/image'+icolor.src+'.png');
           sprite.position = new PIXI.Point(icolor.x,icolor.y);
           sprite.tint = self.color;
@@ -192,7 +191,7 @@
 
         return container;
       },
-      playAttack: function (action) {
+      attack: function (action) {
         let anim       = new Tactics.Animation();
         let attackAnim = self.animAttack(action.direction);
 
@@ -216,7 +215,7 @@
       },
       animMove: function (assignment) {
         var anim = new Tactics.Animation();
-        var tiles = self.findPath(assignment);
+        var tiles = board.findPath(self, assignment);
         var origin = self.assignment;
 
         // Turn 90deg to the right before we start walking in the opposite direction.
@@ -283,7 +282,7 @@
             },
             repeat: attacks[direction].length
           },
-          () => self.stand(),
+          () => self.stand(direction),
         ]);
 
         anim.splice(0, () => sounds.attack1.play());

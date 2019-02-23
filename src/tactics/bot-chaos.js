@@ -2,29 +2,29 @@
   // Bot class.
   Tactics.Bot.Chaos = function (options) {
     var self = this;
-    var board = Tactics.board;
+    var game = Tactics.game;
     var agent;
 
     $.extend(self, {
-      startTurn: function (teamId) {
-        self.team = board.teams[teamId];
+      startTurn: function (team) {
+        self.team = team;
         agent = self.team.units[0];
 
         if (agent.name === 'Chaos Seed') {
           let action = { type:'endTurn' };
 
-          board.takeAction(action);
+          game.takeAction(action);
         }
         else
-          self.startTurnDragon(teamId);
+          self.startTurnDragon(team);
       },
-      startTurnDragon: function (teamId) {
+      startTurnDragon: function (team) {
         self.choices = [];
         self.friends = [agent];
         self.enemies = [];
 
-        board.teams.forEach(team => {
-          if (team.color === self.team.color) return;
+        game.teams.forEach(team => {
+          if (team.colorId === self.team.colorId) return;
 
           self.enemies.push(...team.units);
         });
@@ -33,12 +33,12 @@
         setTimeout(() => {
           let calc;
 
-          self.addChoice(self.calcTeamFuture(teamId));
+          self.addChoice(self.calcTeamFuture(team));
 
           if (self.inRange())
             self.considerUnit();
           else {
-            self.considerPosition(teamId);
+            self.considerPosition();
 
             if (agent.mRecovery === 0 && agent.mHealth < 0) {
               self.choices[0].first  = 'attack';

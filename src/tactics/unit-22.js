@@ -2,7 +2,9 @@
   Tactics.units[22].extend = function (self) {
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
-    var board = Tactics.board;
+    var game = Tactics.game;
+    var stage = game.stage;
+    var board = game.board;
 
     data.frames.forEach((frame, i) => {
       if (!frame) return;
@@ -18,7 +20,7 @@
       title:  'Awakened!',
       banned: [],
 
-      playAttack: function (action) {
+      attack: function (action) {
         let anim = new Tactics.Animation({fps:10});
 
         // Make sure we strike the actual target (LOS can change it).
@@ -40,29 +42,29 @@
         else
           banned = self.banned;
 
-        let teamsData = board.getWinningTeams().reverse();
-        let color_id = null;
+        let teamsData = game.getWinningTeams().reverse();
+        let colorId = null;
 
         if (teamsData.length > 1) {
           teamsData = teamsData.filter(teamData => banned.indexOf(teamData.id) === -1);
 
           if (teamsData.length)
-            color_id = board.teams[teamsData[0].id].color;
+            colorId = game.teams[teamsData[0].id].colorId;
         }
 
-        if (color_id === board.teams[self.team].color)
+        if (colorId === self.team.colorId)
           return Promise.resolve();
 
-        return self.animPhase(color_id).play();
+        return self.animPhase(colorId).play();
       },
-      animPhase: function (color_id) {
+      animPhase: function (colorId) {
         let old_color = self.color;
-        let new_color = color_id === null ? 0xFFFFFF : Tactics.colors[color_id];
+        let new_color = colorId === null ? 0xFFFFFF : Tactics.colors[colorId];
 
         return new Tactics.Animation({frames: [
           () => {
             sounds.phase.play();
-            board.teams[self.team].color = color_id;
+            self.team.colorId = colorId;
             self.color = new_color;
           },
           {
@@ -144,13 +146,13 @@
           })
           .splice(5, () => {
             self.drawStreaks(container, target,source,adjust);
-            Tactics.stage.addChild(container);
+            stage.addChild(container);
           })
           .splice(6, () => {
             self.drawStreaks(container, target,source,adjust);
           })
           .splice(7, () => {
-            Tactics.stage.removeChild(container);
+            stage.removeChild(container);
             sounds.buzz.stop();
           });
 
@@ -158,7 +160,7 @@
       },
       drawStreaks: function (container,target,source,adjust) {
         // Make sure bounds are set correctly.
-        Tactics.stage.children[1].updateTransform();
+        stage.children[1].updateTransform();
 
         let sprite = self.frame.children[source];
         let bounds = sprite.getBounds();
@@ -266,7 +268,7 @@
           },
         }];
       },
-      playAttackSpecial: function (action) {
+      attackSpecial: function (action) {
         let anim  = new Tactics.Animation();
         let block = data.animations[self.direction].block;
 
@@ -299,7 +301,7 @@
             tile: self.assignment,
             results: [{
               unit:   self.assignment,
-              banned: [...self.banned, attacker.team],
+              banned: [...self.banned, attacker.team.id],
             }],
           };
       },

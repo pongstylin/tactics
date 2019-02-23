@@ -4,7 +4,7 @@ import Impetus from 'impetus';
 import touchPinch from 'touch-pinch';
 import { EventEmitter } from 'events';
 
-function panzoom (options) {
+export function PanZoom (options) {
   let target;
   if (typeof options.target === 'string')
     target = document.querySelector(options.target);
@@ -20,9 +20,16 @@ function panzoom (options) {
   let locked = !!options.locked;
   let minScale = options.minScale || 1;
   let maxScale = options.maxScale || 1;
-  let panWidth = options.panWidth || target.parentElement.clientWidth;
-  let panHeight = options.panHeight || target.parentElement.clientHeight;
+  let panWidth = options.panWidth;
+  let panHeight = options.panHeight;
   let emitter = new EventEmitter();
+
+  if (target.parentElement) {
+    if (!panWidth)
+      panWidth = target.parentElement.clientWidth;
+    if (!panHeight)
+      panHeight = target.parentElement.clientHeight;
+  }
 
   /*
    * ** For Testing Only **
@@ -105,10 +112,19 @@ function panzoom (options) {
     ox -= target.offsetLeft;
     oy -= target.offsetTop;
 
-    let minX = (ox - Math.max(0, w*s - panWidth))  / s;
-    let maxX = (ox + Math.max(0, panWidth - w*s))  / s;
-    let minY = (oy - Math.max(0, h*s - panHeight)) / s;
-    let maxY = (oy + Math.max(0, panHeight - h*s)) / s;
+    let minX = ox / s;
+    let maxX = ox / s;
+    if (panWidth) {
+      minX -= Math.max(0, w*s - panWidth) / s;
+      maxX += Math.max(0, panWidth - w*s) / s;
+    }
+
+    let minY = oy / s;
+    let maxY = oy / s;
+    if (panHeight) {
+      minY -= Math.max(0, h*s - panHeight) / s;
+      maxY += Math.max(0, panHeight - h*s) / s;
+    }
 
     return {
       x: {min:minX, max:maxX},
@@ -408,8 +424,3 @@ function panzoom (options) {
 
   return instance;
 }
-
-if (window)
-  window.panzoom = panzoom;
-
-export { panzoom };

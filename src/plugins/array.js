@@ -66,20 +66,6 @@ Array.prototype.getNextIndex = function (index, filter) {
 };
 Object.defineProperty(Array.prototype, 'getNextIndex', {enumerable: false});
 
-/*
- * Get an array of the array's indexes with an optional start index.
- */
-Array.prototype.getAllIndexes = function (start) {
-  let array = this;
-  let indexes = array.map((item, i) => i);
-
-  if (start)
-    while (start--) indexes.push(indexes.shift());
-
-  return indexes;
-};
-Object.defineProperty(Array.prototype, 'getAllIndexes', {enumerable: false});
-
 Array.prototype.findLastIndex = function (filter) {
   let array = this;
 

@@ -234,7 +234,7 @@
         return new Promise((resolve, reject) => {
           data.resolver = resolve;
 
-          Tactics.renderAnim(skip => {
+          Tactics.game.renderAnim(skip => {
             if (!data.playing) return false;
             if (render(skip) === false || (cursor == frames.length && data.loop === null)) {
               self.stop();
