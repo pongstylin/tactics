@@ -3,13 +3,12 @@
 
   Tactics.units[8].extend = function (self) {
     var _super = Object.assign({}, self);
-    var board = Tactics.board;
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
     var effects = Object.assign({}, Tactics.effects, data.effects);
 
     Object.assign(self, {
-      playAttack: function (action) {
+      attack: function (action) {
         let anim = new Tactics.Animation();
 
         let attackAnim = self.animAttack(action.direction);

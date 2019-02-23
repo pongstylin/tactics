@@ -2,31 +2,33 @@
   Tactics.units[15].extend = function (self) {
     var data   = Tactics.units[self.type];
     var sounds = $.extend({},Tactics.sounds,data.sounds);
-    var board  = Tactics.board;
+    var game   = Tactics.game;
+    var stage  = game.stage;
+    var board  = game.board;
 
     $.extend(self, {
       title: '...sleeps...',
 
       phase: function () {
-        let teamsData = board.getWinningTeams().reverse();
-        let color_id = null;
+        let teamsData = game.getWinningTeams().reverse();
+        let colorId = null;
 
         if (teamsData.length)
-          color_id = board.teams[teamsData[0].id].color;
+          colorId = game.teams[teamsData[0].id].colorId;
 
-        if (color_id === board.teams[self.team].color)
+        if (colorId === self.team.colorId)
           return Promise.resolve();
 
-        return self.animPhase(color_id).play();
+        return self.animPhase(colorId).play();
       },
-      animPhase: function (color_id) {
+      animPhase: function (colorId) {
         let old_color = self.color;
-        let new_color = color_id === null ? 0xFFFFFF : Tactics.colors[color_id];
+        let new_color = colorId === null ? 0xFFFFFF : Tactics.colors[colorId];
 
         return new Tactics.Animation({frames: [
           () => {
             sounds.phase.play();
-            board.teams[self.team].color = color_id;
+            self.team.colorId = colorId;
             self.color = new_color;
           },
           {
@@ -41,18 +43,18 @@
       getCounterAction: function (attacker, result) {
         if (result.miss) {
           // Blocked
-          let team;
+          let units;
           if (attacker.color === self.color)
-            team = board.teams[attacker.team];
+            units = attacker.team.units;
           else {
-            team = board.teams.find(
-              (team, i) => i !== self.team && Tactics.colors[team.color] === self.color
+            units = board.teamsUnits.find((units, teamId) =>
+              teamId !== self.team.id && units.length && units[0].color === self.color
             );
 
-            if (!team) return;
+            if (!units) return;
           }
 
-          let target_units = team.units.filter(unit => unit.mHealth < 0);
+          let target_units = units.filter(unit => unit.mHealth < 0);
           if (!target_units.length) return;
 
           let target_unit = target_units.random();
@@ -71,20 +73,20 @@
         else if (result.changes && 'mHealth' in result.changes) {
           if (result.changes.mHealth > -self.health) {
             // Cracked
-            let team;
+            let units;
             if (attacker.color === self.color) {
-              let teamsData = board.getWinningTeams()
+              let teamsData = game.getWinningTeams()
                 // Don't count the team that just attacked.
-                .filter(teamData => teamData.id !== attacker.team);
+                .filter(teamData => teamData.id !== attacker.team.id);
               let choices = teamsData
                 .filter(teamData => teamData.score === teamsData[0].score);
 
-              team = board.teams[choices.random().id];
+              units = game.teams[choices.random().id].units;
             }
             else
-              team = board.teams[attacker.team];
+              units = attacker.team.units;
 
-            let target_unit = team.units.random();
+            let target_unit = units.random();
             let power       = self.power + self.mPower;
             let armor       = target_unit.armor + target_unit.mArmor;
             let mHealth     = target_unit.mHealth - Math.round(power * (1 - armor / 100));
@@ -113,7 +115,7 @@
           }
         }
       },
-      playAttack: function (action) {
+      attack: function (action) {
         let anim  = new Tactics.Animation();
         let winds = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
         let target_unit = action.tile.assigned;
@@ -234,7 +236,7 @@
             repeat: 12,
           });
 
-        return anim.play().then(() => board.playResults(action.results));
+        return anim.play();
       },
       animStagger: function (attacker) {
         let anim      = new Tactics.Animation();
@@ -281,7 +283,8 @@
         let caption;
         let dragon;
         let hatch       = Tactics.units[22].animations[direction].hatch;
-        let team        = board.teams[self.team],tint = self.color;
+        let team        = self.team;
+        let tint        = self.color;
         let death       = new PIXI.Container();
         let winds       = ['wind1','wind2','wind3','wind4','wind5'];
 
@@ -318,11 +321,11 @@
           .splice(36, () => {
             board
               .dropUnit(self)
-              .addUnit(self.team, {
-                t: 22,
-                assignment: assignment,
+              .addUnit({
+                type:      'ChaosDragon',
+                tile:      assignment,
                 direction: direction,
-              });
+              }, self.team);
 
             dragon = team.units[0];
             dragon.color = 0xFFFFFF;
@@ -427,7 +430,7 @@
               let y = myPos.y + Math.round(Math.random() * 28 * po) * ym + 28;
 
               anim.splice(i, new Tactics.Animation.fromData(
-                Tactics.stage.children[1],
+                stage.children[1],
                 Tactics.animations.death,
                 {x:x, y:y, s:2, a:ao},
               ));

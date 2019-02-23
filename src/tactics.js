@@ -1,5 +1,6 @@
 import 'pixi.js';
 import 'howler';
+import 'plugins/string.js';
 import 'plugins/array.js';
 import 'plugins/math.js';
 import 'plugins/pixi.js';

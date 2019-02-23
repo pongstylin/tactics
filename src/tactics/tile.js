@@ -119,7 +119,6 @@
           event.stopPropagation();
 
           self.emit({type: 'select', target: self});
-          Tactics.render();
         }
       },
       onFocus: function (event) {
@@ -134,7 +133,6 @@
           pointerType: pointerType,
           pixiEvent:   event,
         });
-        Tactics.render();
       },
       onBlur: function (event) {
         if (!self.focused) return;
@@ -154,8 +152,6 @@
           pointerType: pointerType,
           pixiEvent:   event,
         });
-
-        Tactics.render();
       },
 
       toJSON: function () {

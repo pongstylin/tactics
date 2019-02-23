@@ -2,13 +2,15 @@
   'use strict';
 
   Tactics.units[7].extend = function (self) {
-    var board = Tactics.board;
+    var game = Tactics.game;
+    var stage = game.stage;
+    var board = game.board;
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
     var special_ready = false;
 
     Object.assign(self, {
-      playAttack: function (action) {
+      attack: function (action) {
         let anim = new Tactics.Animation();
 
         let attackAnim = self.animAttack(action.direction);
@@ -38,10 +40,7 @@
        * Special Attack Configuration
        */
       canSpecial: function () {
-        if (!self.canAttack())
-          return false;
-        else
-          return (self.health + self.mHealth) < 5;
+        return (self.health + self.mHealth) < 5;
       },
       getAttackSpecialResults: function () {
         let results = [];
@@ -74,7 +73,7 @@
 
         return results;
       },
-      playAttackSpecial: function (action) {
+      attackSpecial: function (action) {
         let anim = self.animSpecial();
 
         let targets = self.getAttackTiles();
@@ -141,7 +140,7 @@
       },
       animExplode: function (tile) {
         let anim = new Tactics.Animation();
-        let parent = Tactics.stage.children[1];
+        let parent = stage.children[1];
         let whiten = [0.60, 1, 0.80, 0.60, 0];
 
         let pos = tile.getCenter();

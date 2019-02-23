@@ -6,7 +6,7 @@
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
     Object.assign(self, {
-      playAttack: function (action) {
+      attack: function (action) {
         let anim       = new Tactics.Animation();
         let attackAnim = self.animAttack();
         attackAnim.splice(5, () => sounds.attack.play());

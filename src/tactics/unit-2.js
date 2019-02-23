@@ -2,12 +2,12 @@
   'use strict';
 
   Tactics.units[2].extend = function (self) {
-    var board = Tactics.board;
+    var board = Tactics.game.board;
     var data = Tactics.units[self.type];
     var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
     Object.assign(self, {
-      playAttack: function (action) {
+      attack: function (action) {
         let anim = new Tactics.Animation();
 
         let attackAnim = self.animAttack(action.direction);
