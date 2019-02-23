@@ -135,6 +135,15 @@ Tactics.App = (function ($, window, document) {
 
       board = Tactics.board;
 
+      let $card = $('#card')
+        .on('transitionend', event => {
+          // An invisible overlapping card should not intercept the pointer.
+          let opacity = $card.css('opacity');
+          let pointerEvents = opacity === '0' ? 'none' : '';
+
+          $card.css({ pointerEvents:pointerEvents });
+        });
+
       board
         .on('select-mode-change', event => {
           let panzoom     = Tactics.panzoom;
@@ -183,8 +192,6 @@ Tactics.App = (function ($, window, document) {
             buttons.lock($('BUTTON[name=lock]'));
         })
         .on('card-change', event => {
-          let $card = $('#card');
-
           if (event.nvalue && event.ovalue === null)
             $card.addClass('show');
           else if (event.nvalue === null)
