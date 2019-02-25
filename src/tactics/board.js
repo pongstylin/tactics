@@ -1267,7 +1267,12 @@ Tactics.Board = function () {
       self.teams.forEach(t => Array.prototype.push.apply(units, t.units));
 
       let activated = self.viewed || self.selected;
-      if (activated) activated.hideMode();
+      if (activated) {
+        activated.hideMode();
+
+        if (activated.target)
+          activated.target = self.getTileRotation(activated.target, degree);
+      }
 
       units.forEach(unit => {
         unit.assign(self.getTileRotation(unit.assignment, degree));
