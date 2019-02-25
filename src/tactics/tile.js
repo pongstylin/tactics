@@ -97,8 +97,22 @@
 
         return self;
       },
-      set_interactive: function (bool) {
-        self.pixi.buttonMode = bool;
+      set_interactive: function (interactive) {
+        if (self.pixi.buttonMode === interactive)
+          return;
+
+        // A focused tile should be blurred before becoming interactive.
+        if (self.focused && !interactive)
+          self.emit({ type:'blur', target:self });
+
+        self.pixi.buttonMode = interactive;
+
+        // A focused tile should be focused after becoming interactive.
+        if (self.focused && interactive)
+          self.emit({ type:'focus', target:self });
+      },
+      is_interactive: function () {
+        return self.pixi.buttonMode;
       },
       setAlpha: function (alpha) {
         self.pixi.alpha = alpha;
@@ -121,22 +135,27 @@
           self.emit({type: 'select', target: self});
         }
       },
+      /*
+       * All tiles are interactive at all times so that we can keep track of the
+       * currently focused tile even if it isn't in buttonMode (yet).
+       *
+       * But events only only emitted when in buttonMode.
+       */
       onFocus: function (event) {
         if (self.focused) return;
-        let pointerType = event.data.pointerType;
 
-        self.focused = pointerType;
+        self.focused = true;
 
+        // Events are posted even if not interactive so that the board can track
+        // the currently focused tile.
         self.emit({
-          type:        'focus',
-          target:      self,
-          pointerType: pointerType,
-          pixiEvent:   event,
+          type:      'focus',
+          target:    self,
+          pixiEvent: event,
         });
       },
       onBlur: function (event) {
         if (!self.focused) return;
-        let pointerType = event.data.pointerType;
 
         // Chrome has been observed posting "pointerleave" events after a "click".
         // That is not the desired behavior, so this heuristic ignores them.
@@ -146,11 +165,12 @@
 
         self.focused = false;
 
+        // Events are posted even if not interactive so that the board can track
+        // the currently focused tile.
         self.emit({
-          type:        'blur',
-          target:      self,
-          pointerType: pointerType,
-          pixiEvent:   event,
+          type:      'blur',
+          target:    self,
+          pixiEvent: event,
         });
       },
 
