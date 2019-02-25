@@ -55,7 +55,7 @@
       assignment: undefined,
 
       title:     undefined,
-      notice:    undefined,
+      notice:    null,
       activated: false,
       focused:   false,
 
@@ -65,6 +65,7 @@
       mPass:   data.mPass,
       mRadius: data.mRadius,
       aRadius: data.aRadius,
+      aAll:    data.aAll,
 
       health:      data.health,
       blocking:    data.blocking,
@@ -768,119 +769,6 @@
 
         return self;
       },
-      highlightMove: function () {
-        let tiles = self.getMoveTiles();
-        let focused_tile;
-
-        tiles.forEach(tile => {
-          board.setHighlight({
-            action: 'move',
-            tile:   tile,
-            color:  0x0088FF,
-            select: self.onMoveSelect,
-            focus:  self.onMoveFocus,
-            blur:   self.onMoveBlur,
-          }, self.viewed);
-
-          if (!self.viewed && tile.focused)
-            focused_tile = tile;
-        });
-
-        if (focused_tile)
-          self.onMoveFocus({
-            target:      focused_tile,
-            pointerType: focused_tile.focused,
-          });
-
-        return self;
-      },
-      highlightAttack: function () {
-        let tiles = self.getAttackTiles();
-        let focused_tile;
-
-        if (!self.viewed && data.aAll) {
-          self.target = null;
-          return self.highlightTarget();
-        }
-
-        tiles.forEach(tile => {
-          board.setHighlight({
-            action: 'attack',
-            tile:   tile,
-            color:  0xFF8800,
-            select: self.onAttackSelect,
-            focus:  self.onAttackFocus,
-            blur:   self.onAttackBlur,
-          }, self.viewed);
-
-          if (!self.viewed && tile.focused)
-            focused_tile = tile;
-        });
-
-        if (focused_tile)
-          self.onAttackFocus({
-            target:      focused_tile,
-            pointerType: focused_tile.focused,
-          });
-
-        return self;
-      },
-      highlightTarget: function () {
-        let tiles = self.getTargetTiles(self.target);
-        let focused_tile;
-
-        tiles.forEach(tile => {
-          board.setHighlight({
-            action: 'target',
-            tile:   tile,
-            color:  0xFF3300,
-            select: self.onTargetSelect,
-            focus:  self.onTargetFocus,
-            blur:   self.onTargetBlur,
-          }, self.viewed);
-
-          if (tile.focused)
-            focused_tile = tile;
-        });
-
-        if (focused_tile)
-          self.onTargetFocus({target:focused_tile});
-
-        return self.showTarget();
-      },
-      showTarget: function () {
-        let target       = self.target;
-        let target_units = self.getTargetUnits(target);
-
-        if (target_units.length === 1) {
-          self.onTargetFocus({target:target_units[0].assignment});
-          board.drawCard(target_units[0]);
-        }
-        else if (target && target.assigned)
-          self.onTargetFocus({target:target});
-
-        // Activate targeted units
-        target_units.forEach(unit => {
-          if (unit !== self) unit.activate();
-        });
-
-        return self;
-      },
-      hideTarget: function () {
-        // Reset the targeted units
-        self.getTargetUnits(self.target).forEach(unit => {
-          // Clear target info notice
-          unit.notice = null;
-
-          if (unit !== self)
-            unit.deactivate();
-        });
-
-        self.target = null;
-        board.drawCard();
-
-        return self;
-      },
       assign: function (assignment) {
         if (self.assignment && self.assignment.assigned === self) self.assignment.dismiss();
         self.assignment = assignment;
@@ -1053,55 +941,13 @@
         if (self.focused) return;
         self.focused = true;
 
-        if (!self.assignment.painted)
-          self.assignment.paint('focus', 0.3);
-        else
-          self.assignment.setAlpha(Math.min(0.6, self.assignment.pixi.alpha * 2));
-
         return self.assignment.painted === 'focus' && !pulse && !viewed ? startPulse(6) : self;
       },
       blur: function () {
         if (!self.focused) return self;
         self.focused = false;
-        self.notice = undefined;
-
-        if (self.assignment.painted === 'focus')
-          self.assignment.strip();
-        else
-          self.assignment.setAlpha(self.assignment.pixi.alpha / 2);
 
         return pulse && !self.activated ? stopPulse() : self;
-      },
-      showMode: function () {
-        let mode = self.activated;
-        if (mode === true)
-          return;
-
-        board.hideTurnOptions();
-        board.clearHighlight();
-
-        if (mode === 'move')
-          self.highlightMove();
-        else if (mode === 'attack')
-          self.highlightAttack();
-        else if (mode === 'target')
-          self.highlightTarget();
-        else if (mode === 'turn') {
-          if (self.viewed)
-            board.showDirection(self);
-          else
-            board.showTurnOptions(self);
-        }
-        else if (mode === 'direction')
-          self.showDirection();
-      },
-      hideMode: function () {
-        if (self.activated && self.activated !== true) {
-          board.hideTurnOptions();
-          board.clearHighlight();
-        }
-
-        return self;
       },
       /*
        * A unit is activated when it is selected either directly or indirectly.
@@ -1119,20 +965,16 @@
        * A unit may be activated in 'view'-only mode.  This typically occurs
        * when selecting an enemy unit to view its movement or attack range.
        */
-      activate: function (mode, view) {
+      activate: function (mode, view_only) {
         mode = mode || self.activated || true;
-        self.viewed = view;
-        if (self.activated == mode) return;
+        if (self.activated === mode) return;
 
         self.activated = mode;
-        self.showMode();
 
-        return view ? self : startPulse(4, 2);
+        return view_only ? self : startPulse(4, 2);
       },
       deactivate: function () {
         if (!self.activated) return self;
-
-        self.hideMode();
         self.activated = false;
 
         return stopPulse();
@@ -1712,150 +1554,22 @@
           options,
         );
       },
-      onMoveSelect: function (event) {
-        game.takeAction({
-          type: 'move',
-          tile: event.target,
-        });
-      },
-      onMoveFocus: function (event) {
-        event.target.setAlpha(0.6);
-      },
-      onMoveBlur: function (event) {
-        event.target.setAlpha(0.3);
-      },
-      onAttackSelect: function (event) {
-        // This makes it possible to click the attack button to switch from target
-        // mode to attack mode.
-        self.target = event.target;
-        game.selectMode = 'target';
-      },
-      onAttackFocus: function (event) {
-        let tile = event.target;
+      setTargetNotice: function (target_unit, target) {
+        let calc = self.calcAttack(target_unit, null, target);
+        let notice;
 
-        // Single-click attacks are only enabled for mouse pointers.
-        if (event.pointerType !== 'mouse')
-          return self.onTargetFocus(event);
+        if (calc.effect === 'paralyze')
+          notice = 'Paralyze!';
+        else if (calc.effect === 'poison')
+          notice = 'Poison!';
+        else if (calc.damage === 0)
+          notice = calc.damage+' ('+Math.round(calc.chance)+'%)';
+        else if (calc.damage < 0)
+          notice = '+'+Math.abs(calc.damage)+' ('+Math.round(calc.chance)+'%)';
         else
-          tile.setAlpha(0.6);
+          notice = '-'+calc.damage+' ('+Math.round(calc.chance)+'%)';
 
-        // Show target tiles
-        self.getTargetTiles(tile).forEach(target => {
-          if (target === tile)
-            // Reconfigure the focused tile to be a target tile.
-            board.setHighlight({
-              action: 'target',
-              tile:   target,
-              color:  0xFF3300,
-              select: self.onTargetSelect,
-              focus:  self.onTargetFocus,
-              blur:   self.onAttackBlur, // not a typo
-            }, self.viewed);
-          else
-            // This attack tile only looks like a target tile.
-            board.setHighlight({
-              action: 'attack',
-              tile:   target,
-              color:  0xFF3300,
-              select: self.onAttackSelect,
-              focus:  self.onAttackFocus,
-              blur:   self.onAttackBlur,
-            }, self.viewed);
-        });
-
-        // Configure the target in case the attack is initiated.
-        self.target = tile;
-
-        self.showTarget();
-      },
-      onAttackBlur: function (event) {
-        let tile = event.target;
-
-        // Single-click attacks are only enabled for mouse pointers.
-        if (event.pointerType !== 'mouse')
-          return self.onTargetBlur(event);
-        else
-          tile.setAlpha(0.3);
-
-        if (self.target) {
-          let attackTiles = self.getAttackTiles();
-
-          // Reset target tiles to attack tiles
-          self.getTargetTiles(tile).forEach(target => {
-            if (attackTiles.indexOf(target) > -1)
-              board.setHighlight({
-                action: 'attack',
-                tile:   target,
-                color:  0xFF8800,
-                select: self.onAttackSelect,
-                focus:  self.onAttackFocus,
-                blur:   self.onAttackBlur,
-              }, self.viewed);
-            else
-              board.clearHighlight(target);
-          });
-
-          self.hideTarget();
-        }
-      },
-      onTargetSelect: function (event) {
-        let target = self.target || event.target;
-        let action = {
-          type: 'attack',
-        };
-
-        // Units that attack all targets don't have a specific target tile.
-        if (self.target)
-          action.tile = target;
-        else {
-          // Set unit to face the direction of the tapped tile.
-          // (This is an aesthetic data point that needs no server validation)
-          let direction = board.getDirection(self.assignment, target, self.direction);
-          if (direction !== self.direction)
-            action.direction = direction;
-        }
-
-        self.hideTarget();
-
-        game.takeAction(action);
-      },
-      onTargetFocus: function (event) {
-        let tile = event.target;
-        let unit = tile.assigned;
-
-        if (unit) {
-          let calc = self.calcAttack(unit, null, self.target);
-
-          if (calc.effect === 'paralyze')
-            unit.change({
-              notice: 'Paralyze!',
-            });
-          else if (calc.effect === 'poison')
-            unit.change({
-              notice: 'Poison!',
-            });
-          else if (calc.damage === 0)
-            unit.change({
-              notice: calc.damage+' ('+Math.round(calc.chance)+'%)'
-            });
-          else if (calc.damage < 0)
-            unit.change({
-              notice: '+'+Math.abs(calc.damage)+' ('+Math.round(calc.chance)+'%)'
-            });
-          else
-            unit.change({
-              notice: '-'+calc.damage+' ('+Math.round(calc.chance)+'%)'
-            });
-        }
-        else
-          // Setting alpha is only required for unassigned tiles.
-          // unit.focus() handles setting alpha for assigned tiles.
-          tile.setAlpha(0.6);
-      },
-      onTargetBlur: function (event) {
-        // Ignore assigned targets since the unit.blur will halve alpha
-        if (!event.target.assigned)
-          event.target.setAlpha(0.3);
+        target_unit.change({ notice:notice });
       },
       validateAction: function (action) {
         let validate = 'validate'+action.type.capitalize()+'Action';

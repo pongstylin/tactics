@@ -12,6 +12,7 @@ const DEFAULT_PROPERTIES = {
   _units:         [],
   _actions:       [],
 
+  _selectMode: 'move',
   _tranformToRestore: null,
 
   _notice: null,
@@ -24,6 +25,15 @@ export class Game {
 
     Object.assign(this, DEFAULT_PROPERTIES);
 
+    /*
+     * Crude tracking of the pointer type being used.  Ideally, this should
+     * reflect the last pointer type to fire an event on the board.
+     */
+    if ('ontouchstart' in window)
+      this.pointerType = 'touch';
+    else
+      this.pointerType = 'mouse';
+
     this._renderer = PIXI.autoDetectRenderer(Tactics.width, Tactics.height);
     this._canvas   = this._renderer.view;
     this._stage    = new PIXI.Container();
@@ -34,6 +44,8 @@ export class Game {
 
     // Let's not go crazy with the move events.
     this._renderer.plugins.interaction.moveWhenInside = true;
+
+    Tactics.game = this;
 
     this._board = new Tactics.Board();
     this._board
@@ -56,7 +68,7 @@ export class Game {
       .on('deselect', () => {
         if (this.viewed)
           this.viewed = null;
-        else if (this.selected && !this._actions.length)
+        else if (this.selected && !this._actions.length && this._selectMode !== 'target')
           this.selected = null;
       })
       // 'move' and 'attack' events do not yet come from the board.
@@ -68,8 +80,6 @@ export class Game {
       .on('lock-change', event => this._emit(event));
 
     this._emitter = new EventEmitter();
-
-    Tactics.game = this;
   }
 
   /*****************************************************************************
@@ -127,11 +137,13 @@ export class Game {
 
     if (selected !== old_selected) {
       if (old_viewed) {
+        board.hideMode();
         old_viewed.deactivate();
         board.viewed = null;
       }
 
       if (old_selected) {
+        board.clearMode();
         old_selected.deactivate();
         board.selected = null;
       }
@@ -146,12 +158,11 @@ export class Game {
       this.drawCard();
     }
     else if (old_viewed) {
+      board.hideMode();
       old_viewed.deactivate();
       board.viewed = null;
 
-      if (selected)
-        selected.showMode();
-
+      this.selectMode = selected.activated;
       this.drawCard();
     }
 
@@ -167,6 +178,7 @@ export class Game {
 
     if (viewed !== old_viewed) {
       if (old_viewed) {
+        board.hideMode();
         old_viewed.deactivate();
         board.viewed = null;
       }
@@ -174,29 +186,20 @@ export class Game {
       let selected = board.selected;
 
       if (viewed) {
-        if (selected)
-          selected.hideMode();
-
         board.viewed = viewed;
         this.selectMode = this._pickSelectMode();
       }
-      else if (selected) {
-        selected.showMode();
-
-        this.selectMode = selected.activated;
-      }
       else
-        this.selectMode = 'move';
+        this.selectMode = selected ? selected.activated : 'move';
 
       this.drawCard();
-      this.render();
     }
 
     return this;
   }
 
   get selectMode() {
-    return this._board.selectMode;
+    return this._selectMode;
   }
   set selectMode(selectMode) {
     /*
@@ -234,11 +237,12 @@ export class Game {
     if (!team.bot)
       this._emit({
         type:   'selectMode-change',
-        ovalue: board.selectMode,
+        ovalue: this._selectMode,
         nvalue: selectMode,
       });
 
-    board.selectMode = selectMode;
+    this._selectMode = selectMode;
+    board.showMode();
     this.render();
 
     return this;
@@ -708,6 +712,7 @@ export class Game {
     let selected = this.selected;
 
     if (selected) {
+      this._board.clearMode();
       selected.deactivate();
 
       if (!action.type.startsWith('end'))
@@ -895,9 +900,6 @@ export class Game {
   }
 
   drawCard(unit) {
-    if (unit === undefined)
-      unit = this.focused || this.viewed || this.selected;
-
     this._board.drawCard(unit, this._notice);
     return this;
   }
@@ -964,10 +966,6 @@ export class Game {
 
     renderer.render(this._stage);
     this._rendering = false;
-  }
-
-  _targetModeListener(event) {
-    this.selectMode = 'target';
   }
 
   // This will ultimately call a server, when appropriate.

@@ -1,12 +1,19 @@
 Tactics.Board = function () {
   'use strict';
 
-  const TILE_WIDTH       = 88;
-  const TILE_HEIGHT      = 56;
-  const HALF_TILE_WIDTH  = 44;
-  const HALF_TILE_HEIGHT = 28;
+  const TILE_WIDTH        = 88;
+  const TILE_HEIGHT       = 56;
+  const HALF_TILE_WIDTH   = 44;
+  const HALF_TILE_HEIGHT  = 28;
+  const MOVE_TILE_COLOR   = 0x0088FF;
+  const ATTACK_TILE_COLOR = 0xFF8800;
+  const TARGET_TILE_COLOR = 0xFF3300;
 
   var self = this;
+  var game = Tactics.game;
+
+  // Keep track of the currently focused tile.
+  var focused_tile = null;
 
   // Map unit names to IDs until we get rid of the IDs.
   var unit_type_to_id_map = {};
@@ -26,7 +33,7 @@ Tactics.Board = function () {
       let target = event.target;
 
       Tactics.sounds.select.play();
-      self.hideTurnOptions();
+      self._hideTurnOptions();
       event.currentTarget.filters = null;
 
       if (target.data.direction === self.selected.direction)
@@ -94,7 +101,7 @@ Tactics.Board = function () {
       });
     }
   };
-  var highlighted = [];
+  var highlighted = new Set();
 
   card.canvas = card.renderer.view;
 
@@ -224,7 +231,7 @@ Tactics.Board = function () {
     focused:    null,
     viewed:     null,
     selected:   null,
-    selectMode: 'move',
+    targeted:   null,
 
     rotation:   'N',
 
@@ -455,40 +462,42 @@ Tactics.Board = function () {
        * A select event occurs when a unit and/or an action tile is selected.
        */
       var selectEvent = event => {
-        if (self.locked) return;
-
         let tile = event.target;
-        if (tile.action) return;
+        let action = tile.action;
 
-        let unit = tile.assigned;
-
-        self.emit({ type:'select', unit:unit });
+        if (action === 'move')
+          self.onMoveSelect(tile);
+        else if (action === 'attack')
+          self.onAttackSelect(tile);
+        else if (action === 'target')
+          self.onTargetSelect(tile);
+        else
+          self.onUnitSelect(tile);
       };
 
-      var focused_tile = null;
       var focusEvent = event => {
+        let type = event.type;
+        let tile = event.target;
+
         /*
          * Make sure tiles are blurred before focusing on a new one.
          */
-        if (event.type === 'focus') {
-          // Beware: unlock() calls tile.emit() to focus on the focused tile.
-          if (focused_tile && focused_tile !== event.target)
+        if (type === 'focus') {
+          if (focused_tile && focused_tile !== tile)
             focused_tile.onBlur(event.pixiEvent);
-          focused_tile = event.target;
+          focused_tile = tile;
+        }
+        else if (type === 'blur') {
+          if (focused_tile === tile)
+            focused_tile = null;
         }
 
-        if (self.locked) return;
+        if (!tile.is_interactive()) return;
 
-        let type = event.type;
-        let unit = event.target.assigned;
-        let focused = self.focused;
-
-        if (type === 'focus' && (focused === unit || !unit))
-          return;
-        if (type === 'blur'  && (focused !== unit || !focused))
-          return;
-
-        self.emit({ type:type, unit:unit });
+        if (type === 'focus')
+          self.onTileFocus(tile);
+        else
+          self.onTileBlur(tile);
       };
 
       for (let x = 0; x < 11; x++) {
@@ -687,7 +696,7 @@ Tactics.Board = function () {
       let important = 0;
 
       if (unit === undefined)
-        unit = self.focused || self.viewed || self.selected;
+        unit = self.focused || self.viewed || self.targeted || self.selected;
 
       if (els.healthBar.children.length) els.healthBar.removeChildren();
 
@@ -984,14 +993,17 @@ Tactics.Board = function () {
       let degree    = self.getDegree(self.rotation, rotation);
       let activated = self.viewed || self.selected
 
-      if (activated) activated.hideMode();
+      if (activated) self.hideMode();
+
+      if (self.target)
+        self.target = self.getTileRotation(self.target, degree);
 
       units.forEach(unit => {
         unit.assign(self.getTileRotation(unit.assignment, degree));
         unit.stand(self.getRotation(unit.direction, degree));
       });
 
-      if (activated) activated.showMode();
+      if (activated) self.showMode();
 
       self.rotation = rotation;
 
@@ -1000,12 +1012,6 @@ Tactics.Board = function () {
 
     lock: function (value) {
       if (self.locked === value) return;
-      if (self.focused)
-        self.focused.assignment.emit({
-          type:        'blur',
-          target:      self.focused.assignment,
-          pointerType: self.focused.assignment.focused,
-        });
       self.locked = value || true;
 
       self.tiles.forEach(tile => tile.set_interactive(false));
@@ -1024,13 +1030,6 @@ Tactics.Board = function () {
 
       self.tiles.forEach(tile => {
         tile.set_interactive(!!(tile.action || tile.assigned));
-
-        if (tile.focused)
-          tile.emit({
-            type:        'focus',
-            target:      tile,
-            pointerType: tile.focused,
-          });
       });
 
       self.emit({
@@ -1119,15 +1118,103 @@ Tactics.Board = function () {
       return self;
     },
 
-    hideTurnOptions: function () {
-      let stage = Tactics.game.stage;
-      if (stage.children.indexOf(turnOptions) > -1)
-        stage.removeChild(turnOptions);
+    showMode: function () {
+      let selected = self.selected;
+      if (selected && selected.activated === 'target')
+        self.hideMode();
+      else
+        self.clearMode();
+
+      let unit = self.viewed || selected;
+      if (!unit) return;
+
+      let mode = unit.activated;
+      let view_only = !!self.viewed;
+
+      if (mode === 'move')
+        self._highlightMove(unit, view_only);
+      else if (mode === 'attack')
+        self._highlightAttack(unit, view_only);
+      else if (mode === 'target')
+        self._highlightTarget(unit);
+      else if (mode === 'turn') {
+        if (self.viewed)
+          self._showDirection(unit);
+        else
+          self._showTurnOptions(unit);
+      }
 
       return self;
     },
-    showTurnOptions: function (unit) {
-      let stage = Tactics.game.stage;
+    hideMode: function () {
+      let unit = self.viewed || self.selected;
+      if (!unit) return;
+
+      let mode = unit.activated;
+
+      // Useful when clearing an attack or target mode
+      if (self.focused)
+        self.focused.change({ notice:null });
+
+      if (self.target || (mode === 'attack' && unit.aAll))
+        self.hideTargets();
+
+      self._clearHighlight();
+      self._hideTurnOptions();
+
+      return self;
+    },
+    clearMode: function () {
+      self.hideMode();
+      self.target = null;
+
+      return self;
+    },
+
+    showTargets: function () {
+      let selected     = self.selected;
+      let target       = self.target;
+      let target_units = selected.getTargetUnits(target);
+
+      // Units affected by the attack will pulsate.
+      target_units.forEach(tu => {
+        if (tu !== selected) tu.activate();
+      });
+
+      // If only one unit is affected, draw card.
+      if (target_units.length === 1) {
+        selected.setTargetNotice(target_units[0], target);
+        self.targeted = target_units[0];
+        self.drawCard(self.targeted);
+      }
+
+      return self;
+    },
+    hideTargets: function () {
+      let selected     = self.selected;
+      let target       = self.target;
+      let target_units = selected.getTargetUnits(target);
+
+      target_units.forEach(tu => {
+        // Edge case: A pyro can target himself.
+        if (tu === selected)
+          tu.change({ notice:null });
+        else
+          tu.deactivate();
+      });
+
+      let targeted = self.targeted;
+      if (targeted) {
+        targeted.change({ notice:null });
+        self.targeted = null;
+        self.drawCard();
+      }
+
+      return self;
+    },
+
+    _showTurnOptions: function (unit) {
+      let stage = game.stage;
 
       turnOptions.data = { unit:unit };
       turnOptions.position = unit.assignment.getTop().clone();
@@ -1143,8 +1230,8 @@ Tactics.Board = function () {
 
       return self;
     },
-    showDirection: function (unit) {
-      let stage = Tactics.game.stage;
+    _showDirection: function (unit) {
+      let stage = game.stage;
 
       turnOptions.data = { unit:unit };
       turnOptions.position = unit.assignment.getTop().clone();
@@ -1160,25 +1247,254 @@ Tactics.Board = function () {
 
       return self;
     },
+    _hideTurnOptions: function () {
+      let stage = game.stage;
+      if (stage.children.indexOf(turnOptions) > -1)
+        stage.removeChild(turnOptions);
 
-    clearHighlight: function (tile) {
+      return self;
+    },
+
+    _highlightMove: function (unit, view_only) {
+      let tiles = unit.getMoveTiles();
+
+      self.setHighlight(tiles, {
+        action: 'move',
+        color:  MOVE_TILE_COLOR,
+      }, view_only);
+
+      return self;
+    },
+    _highlightAttack: function (unit, view_only) {
+      if (!view_only && unit.aAll)
+        return self._highlightTarget(unit);
+
+      let tiles = unit.getAttackTiles();
+
+      self.setHighlight(tiles, {
+        action: 'attack',
+        color:  ATTACK_TILE_COLOR,
+      }, view_only);
+
+      return self;
+    },
+    _highlightTarget: function (unit) {
+      let tiles = unit.getTargetTiles(self.target);
+
+      self.setHighlight(tiles, {
+        action: 'target',
+        color:  TARGET_TILE_COLOR,
+      });
+
+      self.showTargets();
+
+      return self;
+    },
+
+    _highlightTargetMix: function (target) {
+      let selected = self.selected;
+
+      // Show target tiles
+      selected.getTargetTiles(target).forEach(tile => {
+        if (tile === target)
+          // Reconfigure the focused tile to be a target tile.
+          self.setHighlight(tile, {
+            action: 'target',
+            color:  TARGET_TILE_COLOR,
+          });
+        else
+          // This attack tile only looks like a target tile.
+          self.setHighlight(tile, {
+            action: 'attack',
+            color:  TARGET_TILE_COLOR,
+          });
+      });
+
+      // Configure the target in case the attack is initiated.
+      self.target = target;
+      self.showTargets();
+
+      return self;
+    },
+    _clearTargetMix: function (target) {
+      let selected = self.selected;
+      if (selected.aAll) return;
+
+      let attackTiles = selected.getAttackTiles();
+
+      // Reset target tiles to attack tiles
+      selected.getTargetTiles(target).forEach(tile => {
+        if (attackTiles.indexOf(tile) > -1)
+          self.setHighlight(tile, {
+            action: 'attack',
+            color:  ATTACK_TILE_COLOR,
+          });
+        else
+          self._clearHighlight(tile);
+      });
+
+      self.hideTargets();
+      self.target = null;
+    },
+
+    onTileFocus: function (tile) {
+      /*
+       * Brighten the tile to show that it is being focused.
+       */
+      if (tile.action)
+        tile.setAlpha(0.6);
+      else if (tile.painted && tile.painted !== 'focus')
+        tile.setAlpha(0.3);
+      else
+        tile.paint('focus', 0.3);
+
+      let selected = self.selected;
+      let unit = tile.assigned;
+
+      if (tile.action === 'attack') {
+        // Single-click attacks are only enabled for mouse pointers.
+        if (game.pointerType === 'mouse')
+          self._highlightTargetMix(tile);
+        else if (unit)
+          selected.setTargetNotice(unit);
+      }
+      else if (tile.action === 'target') {
+        if (unit)
+          selected.setTargetNotice(unit);
+      }
+
+      /*
+       * Emit a change in unit focus.
+       */
+      let focused = self.focused;
+      if (focused === unit || !unit)
+        return;
+
+      self.emit({ type:'focus', unit:unit });
+    },
+    onTileBlur: function (tile) {
+      /*
+       * Darken the tile when no longer focused.
+       */
+      if (tile.action)
+        tile.setAlpha(0.3);
+      else if (tile.painted && tile.painted !== 'focus')
+        tile.setAlpha(0.15);
+      else
+        tile.strip();
+
+      let unit = tile.assigned;
+
+      // Single-click attacks are only enabled for mouse pointers.
+      if (tile.action === 'attack') {
+        if (unit)
+          unit.change({ notice:null });
+      }
+      else if (tile.action === 'target') {
+        if (unit && unit !== self.targeted)
+          unit.change({ notice:null });
+
+        if (game.pointerType === 'mouse')
+          self._clearTargetMix(tile);
+      }
+
+      /*
+       * Emit a change in unit focus.
+       */
+      let focused = self.focused;
+      if (focused !== unit || !focused)
+        return;
+
+      self.emit({ type:'blur', unit:unit });
+    },
+
+    onMoveSelect: function (tile) {
+      self.emit({
+        type: 'move',
+        tile: tile,
+      });
+    },
+    onAttackSelect: function (tile) {
+      self.target = tile;
+      game.selectMode = 'target';
+    },
+    onTargetSelect: function (tile) {
+      let selected = self.selected;
+      let target = self.target;
+      let action = {
+        type: 'attack',
+      };
+
+      // Units that attack all targets don't have a specific target tile.
+      if (target)
+        action.tile = target;
+      else {
+        // Set unit to face the direction of the tapped tile.
+        // (This is an aesthetic data point that needs no server validation)
+        let direction = self.getDirection(
+          selected.assignment,
+          target || tile,
+          selected.direction
+        );
+        if (direction !== selected.direction)
+          action.direction = direction;
+      }
+
+      self.emit(action);
+    },
+    onUnitSelect: function (tile) {
+      let unit = tile.assigned;
+
+      self.emit({ type:'select', unit:unit });
+    },
+
+    setHighlight: function (tiles, highlight, viewed) {
+      if (!Array.isArray(tiles)) tiles = [tiles];
+
+      // Trigger the 'focus' event when highlighting the focused tile.
+      let trigger_focus = false;
+
+      tiles.forEach(tile => {
+        let alpha = viewed ? 0.15 : 0.3;
+        if (tile.focused && (tile.is_interactive() || !viewed))
+          alpha *= 2;
+
+        tile.paint(highlight.action, alpha, highlight.color);
+
+        if (!viewed) {
+          tile.action = highlight.action;
+
+          if (tile === focused_tile)
+            trigger_focus = true;
+          else
+            tile.set_interactive(true);
+        }
+
+        highlighted.add(tile);
+      });
+
+      // The 'focus' event is delayed until all tiles are highlighted.
+      if (trigger_focus)
+        if (focused_tile.is_interactive())
+          self.onTileFocus(focused_tile);
+        else
+          focused_tile.set_interactive(true);
+    },
+    _clearHighlight: function (tile) {
       let highlights = [];
 
       if (tile) {
-        let h = highlighted.findIndex(h => h.tile === tile);
-        if (h > -1) {
-          highlights.push(highlighted[h]);
-          highlighted.splice(h, 1);
+        if (highlighted.has(tile)) {
+          highlights.push(tile);
+          highlighted.delete(tile);
         }
       }
       else {
         highlights  = highlighted;
-        highlighted = [];
+        highlighted = new Set();
       }
 
-      highlights.forEach(highlight => {
-        var tile = highlight.tile;
-
+      highlights.forEach(tile => {
         if (tile.focused && tile.assigned && !self.locked)
           tile.paint('focus', 0.3);
         else
@@ -1191,34 +1507,9 @@ Tactics.Board = function () {
         if (tile.action) {
           tile.action = '';
           tile.set_interactive(!!tile.assigned);
-          tile.off('select', highlight.select);
-          tile.off('focus',  highlight.focus);
-          tile.off('blur',   highlight.blur);
         }
       });
     },
-    setHighlight: function (highlight, viewed) {
-      var tile = highlight.tile;
-
-      // Clobber an existing highlight on this tile.
-      self.clearHighlight(highlight.tile);
-
-      let alpha =
-        viewed ? 0.15 :
-        tile.focused ? 0.6 : 0.3;
-
-      tile.paint(highlight.action, alpha, highlight.color);
-
-      if (!viewed) {
-        tile.action = highlight.action;
-        tile.set_interactive(true);
-        tile.on('select', highlight.select);
-        tile.on('focus',  highlight.focus);
-        tile.on('blur',   highlight.blur);
-      }
-
-      highlighted.push(highlight);
-    }
   });
 
   return self;
