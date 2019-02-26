@@ -149,9 +149,8 @@
         // Events are posted even if not interactive so that the board can track
         // the currently focused tile.
         self.emit({
-          type:      'focus',
-          target:    self,
-          pixiEvent: event,
+          type:   'focus',
+          target: self,
         });
       },
       onBlur: function (event) {
@@ -159,18 +158,19 @@
 
         // Chrome has been observed posting "pointerleave" events after a "click".
         // That is not the desired behavior, so this heuristic ignores them.
-        event = event.data.originalEvent;
-        if (event.type === 'pointerleave' && event.relatedTarget === null)
-          return;
+        if (event) {
+          event = event.data.originalEvent;
+          if (event.type === 'pointerleave' && event.relatedTarget === null)
+            return;
+        }
 
         self.focused = false;
 
         // Events are posted even if not interactive so that the board can track
         // the currently focused tile.
         self.emit({
-          type:      'blur',
-          target:    self,
-          pixiEvent: event,
+          type:   'blur',
+          target: self,
         });
       },
 

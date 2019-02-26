@@ -484,7 +484,7 @@ Tactics.Board = function () {
          */
         if (type === 'focus') {
           if (focused_tile && focused_tile !== tile)
-            focused_tile.onBlur(event.pixiEvent);
+            focused_tile.onBlur();
           focused_tile = tile;
         }
         else if (type === 'blur') {
@@ -943,7 +943,7 @@ Tactics.Board = function () {
 
         let value = unit_data[key];
 
-        if (key === 'focusing')
+        if (key === 'focusing' || key === 'paralyzed' || key === 'poisoned')
           value = value.map(xy => self.getTile(...xy));
 
         unit[key] = value;
@@ -1075,7 +1075,7 @@ Tactics.Board = function () {
 
           properties.forEach(prop => {
             if (unit[prop])
-              if (prop === 'focusing')
+              if (prop === 'focusing' || prop === 'paralyzed' || prop === 'poisoned')
                 unit_data[prop] = unit[prop].map(tile => [tile.x, tile.y]);
               else
                 unit_data[prop] = unit[prop];
