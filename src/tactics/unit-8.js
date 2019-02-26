@@ -36,7 +36,9 @@
               ...self.focusing.map(tile => ({
                 unit: tile,
                 changes: {
-                  paralyzed: false,
+                  paralyzed: tile.assigned.paralyzed.length === 1
+                    ? false
+                    : tile.assigned.paralyzed.filter(t => t !== self.assignment),
                 },
               })),
             ],

@@ -1016,16 +1016,12 @@ export class Game {
       else if (action.type === 'attackSpecial' && attacked) return;
 
       // Focusing units must break focus before taking action.
-      if (unit.focusing) {
-        let breakFocusAction = unit.validateAction({
+      if (unit.focusing)
+        validated.push({
           type:    'breakFocus',
           unit:    unit.assignment,
           results: unit.getBreakFocusResults(),
         });
-        if (!breakFocusAction) return;
-
-        validated.push(breakFocusAction);
-      }
 
       validated.push(action);
 
@@ -1068,10 +1064,7 @@ export class Game {
 
         // Paralyzed units can cause the game to end.
         if ('paralyzed' in changes)
-          if (typeof changes.paralyzed === 'boolean')
-            watch.paralyzed += changes.paralyzed ? 1 : -1;
-          else
-            watch.paralyzed = changes.paralyzed;
+          watch.paralyzed = changes.paralyzed;
 
         watchChanges(subResults);
       });

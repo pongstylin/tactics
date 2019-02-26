@@ -64,6 +64,7 @@
       mType:   data.mType,
       mPass:   data.mPass,
       mRadius: data.mRadius,
+      aType:   data.aType,
       aRadius: data.aRadius,
       aAll:    data.aAll,
 
@@ -83,13 +84,11 @@
       ability:   data.ability,
       specialty: data.specialty,
 
-      // May be set to an array of units being focused upon
+      // May be set to an array of assigned tiles
       focusing:  false,
-
-      // The number of units applying the status effect
-      poisoned:  0,
-      paralyzed: 0,
-      barriered: 0,
+      poisoned:  false,
+      paralyzed: false,
+      barriered: false,
 
       getMoveTiles: function (start) {
         start = start || self.assignment;
@@ -341,26 +340,39 @@
         return calc;
       },
       getAttackResults: function (action) {
+        let assignment   = self.assignment;
         let results      = [];
         let target       = action.tile;
         let target_units = self.getTargetUnits(target);
         let focusing     = [];
+        let unitsData    = [];
 
         results.push(...target_units.map(unit => {
           let result = { unit:unit.assignment };
-          let calc   = self.calcAttack(unit, self.assignment, target);
+          let calc   = self.calcAttack(unit, assignment, target);
 
           if (calc.effect) {
+            let property;
             if (calc.effect === 'paralyze')
-              result.changes = { paralyzed:true };
+              property = 'paralyzed';
             else if (calc.effect === 'poisoned')
-              result.changes = { poisoned:true };
+              property = 'poisoned';
+
+            let currentValue = unit[property];
+
+            // Anticipate breaking focus before attacking this unit again.
+            if (self.focusing && self.focusing.find(t => t === unit.assignment))
+              currentValue = currentValue.filter(t => t !== self.assignment);
+
+            result.changes = {
+              [property]: [...(currentValue || []), assignment],
+            };
 
             if (data.aFocus) {
               focusing.push(unit.assignment);
 
               result.results = [{
-                unit: self.assignment,
+                unit: assignment,
                 changes: { focusing:focusing.slice() },
               }];
             }
@@ -372,7 +384,7 @@
               Object.assign(result, {
                 miss: 'blocked',
                 changes: {
-                  direction: board.getDirection(unit.assignment, self.assignment, unit.direction),
+                  direction: board.getDirection(unit.assignment, assignment, unit.direction),
                   mBlocking: unit.mBlocking - calc.penalty,
                 },
               });
@@ -403,7 +415,7 @@
               result.changes = {};
 
               if (unit.directional !== false)
-                result.changes.direction = board.getDirection(unit.assignment, self.assignment, unit.direction);
+                result.changes.direction = board.getDirection(unit.assignment, assignment, unit.direction);
 
               if (calc.penalty)
                 result.changes.mBlocking = unit.mBlocking - calc.penalty;
@@ -421,30 +433,34 @@
        * Apply sub-results that are after-effects of certain results.
        */
       getAttackSubResults: function (results) {
-        // Keep track of changes to focus from one result to another.
-        let focusingUnits = [];
+        // Keep track of changes to unit data from one result to another.
+        let unitsData = [];
 
         results.forEach(result => {
           let unit    = result.unit.assigned;
           let changes = result.changes;
 
-          // Break the focus of attacked units
-          if (unit.focusing) {
+          let resultUnit = unitsData.find(ud => ud.unit === unit);
+          if (!resultUnit)
+            unitsData.push(resultUnit = {
+              unit:      unit,
+              focusing:  unit.focusing  && unit.focusing.slice(),
+              paralyzed: unit.paralyzed && unit.paralyzed.slice(),
+              poisoned:  unit.poisoned  && unit.poisoned.slice(),
+            });
+
+          if (changes.paralyzed)
+            resultUnit.paralyzed = changes.paralyzed;
+          if (changes.poisoned)
+            resultUnit.poisoned = changes.poisoned;
+
+          // Break the focus of attacked focusing units
+          if (resultUnit.focusing) {
             if (
               !changes.paralyzed &&
               !changes.poisoned &&
               !('mHealth' in changes && changes.mHealth < unit.mHealth)
             ) return;
-
-            let focusingUnit = focusingUnits.find(fu => fu.unit === unit);
-            if (!focusingUnit)
-              focusingUnits.push(focusingUnit = {
-                unit: unit,
-                focusing: unit.focusing.slice(),
-              });
-
-            // Skip units that aren't focusing anymore.
-            if (focusingUnit.focusing === false) return;
 
             let subResults = result.results || (result.results = []);
             subResults.push({
@@ -452,23 +468,35 @@
               changes: { focusing:false },
             });
 
-            let aType = Tactics.units[unit.type].aType;
-            focusingUnit.focusing.forEach(tile => {
+            resultUnit.focusing.forEach(tile => {
               let fUnit = tile.assigned;
-              let changes = {};
+              let focusedUnit = unitsData.find(ud => ud.unit === fUnit);
+              if (!focusedUnit)
+                unitsData.push(focusedUnit = {
+                  unit:      fUnit,
+                  focusing:  fUnit.focusing  && fUnit.focusing.slice(),
+                  paralyzed: fUnit.paralyzed && fUnit.paralyzed.slice(),
+                  poisoned:  fUnit.poisoned  && fUnit.poisoned.slice(),
+                });
 
-              if (aType === 'paralyze')
-                changes.paralyzed = false;
-              else if (aType === 'poisoned')
-                changes.poisoned = false;
+              let property;
+              if (unit.aType === 'paralyze')
+                property = 'paralyzed';
+              else if (unit.aType === 'poison')
+                property = 'poisoned';
+
+              focusedUnit[property] =
+                focusedUnit[property].length === 1
+                  ? false
+                  : focusedUnit[property].filter(t => t !== unit.assignment);
 
               subResults.push({
                 unit: tile,
-                changes: changes,
+                changes: { [property]:focusedUnit[property] },
               });
             });
 
-            focusingUnit.focusing = false;
+            resultUnit.focusing = false;
           }
           // Remove focus from dead units
           else if (unit.paralyzed || unit.poisoned) {
@@ -476,55 +504,49 @@
             if (changes.mHealth > -unit.health) return;
 
             let subResults = [];
+            let focusingUnits = [
+              ...(unit.paralyzed || []),
+              ...(unit.poisoned  || []),
+            ];
 
-            // Find all units that are focusing upon this dead one.
-            board.teamsUnits.flat().forEach(fUnit => {
-              // Skip units that weren't focusing in the first place.
-              if (fUnit.focusing === false) return;
-
-              let focusingUnit = focusingUnits.find(fu => fu.unit === fUnit);
+            // All units focusing on this dead unit can stop.
+            focusingUnits.forEach(tile => {
+              let fUnit = tile.assigned;
+              let focusingUnit = unitsData.find(ud => ud.unit === fUnit);
               if (!focusingUnit)
-                focusingUnits.push(focusingUnit = {
-                  unit: fUnit,
-                  focusing: fUnit.focusing.slice(),
+                unitsData.push(focusingUnit = {
+                  unit:      fUnit,
+                  focusing:  fUnit.focusing  && fUnit.focusing.slice(),
+                  paralyzed: fUnit.paralyzed && fUnit.paralyzed.slice(),
+                  poisoned:  fUnit.poisoned  && fUnit.poisoned.slice(),
                 });
 
               // Skip units that aren't focusing anymore.
               if (focusingUnit.focusing === false) return;
 
-              let focusing = focusingUnit.focusing.filter(tile => tile !== unit.assignment);
-
-              // Skip units that are focusing somewhere else.
-              if (focusing.length === focusingUnit.focusing.length) return;
-
-              if (focusing.length === 0)
-                focusingUnit.focusing = false;
-              else
-                focusingUnit.focusing = focusing;
+              focusingUnit.focusing =
+                focusingUnit.focusing.length === 1
+                  ? false
+                  : focusingUnit.focusing.filter(t => t !== unit.assignment);
 
               subResults.push({
-                unit: fUnit.assignment,
+                unit: tile,
                 changes: { focusing:focusingUnit.focusing },
               });
-
-              if (focusingUnit.focusing === false) {
-                let aType = Tactics.units[fUnit.type].aType;
-                let changes = {};
-
-                if (aType === 'paralyze')
-                  changes.paralyzed = false;
-                else if (aType === 'poison')
-                  changes.poisoned = false;
-
-                subResults.push({
-                  unit: unit.assignment,
-                  changes: changes,
-                });
-              }
             });
 
-            if (subResults.length)
-              result.results = subResults;
+            let subChanges = {};
+            if (unit.paralyzed)
+              subChanges.paralyzed = false;
+            if (unit.poisoned)
+              subChanges.poisoned = false;
+
+            subResults.push({
+              unit: unit.assignment,
+              changes: subChanges,
+            });
+
+            result.results = subResults;
           }
         });
       },
@@ -800,7 +822,7 @@
        * This is called before a focusing unit moves, attacks, or turns.
        */
       breakFocus: function (action) {
-        return self;
+        return Promise.resolve();
       },
       // Animate from one tile to the next
       move: function (action) {
@@ -980,9 +1002,6 @@
         return stopPulse();
       },
       change: function (changes) {
-        if (typeof changes.paralyzed === 'boolean')
-          changes.paralyzed = self.paralyzed + (changes.paralyzed ? 1 : -1);
-
         Object.assign(self, changes);
 
         self.emit({type:'change', changes:changes});
@@ -1610,6 +1629,8 @@
             return null;
 
           // Not opinionated on presence or absense of 'direction'
+          if (validate.direction)
+            action.direction = validate.direction;
         }
         else {
           // Tile data is required when not attacking all tiles.
