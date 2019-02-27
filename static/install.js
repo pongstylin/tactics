@@ -1,10 +1,6 @@
 if ('serviceWorker' in navigator) {
   let sw = navigator.serviceWorker;
 
-  sw.addEventListener('controllerchange', event => {
-    notify('update', 'A new update has been installed.  <A href="javascript:location.reload()">Reload</A>');
-  });
-
   /*
   function getAppVersion() {
     sw.getRegistration()
@@ -25,8 +21,19 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('load', event => {
     sw.register('/sw.js').then(reg => {
-      if (!reg.installing)
-        reg.update();
+      if (reg.active)
+        sw.addEventListener('controllerchange', event => {
+          notify('update', 'A new update is available.  <A href="javascript:location.reload()">Reload</A>');
+        });
+
+      /*
+       * If no update was found automatically within 30 seconds, manually check.
+       */
+      if (!reg.installing) {
+        let checkUpdate = setTimeout(() => reg.update(), 30000);
+        reg.addEventListener('updatefound', () => clearTimeout(checkUpdate));
+      }
+
       /*
       let state = 0;
 
