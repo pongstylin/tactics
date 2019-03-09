@@ -1,5 +1,3 @@
-import { Game } from 'tactics/game.js';
-
 Tactics.App = (function ($, window, document) {
   'use strict';
 
@@ -7,31 +5,27 @@ Tactics.App = (function ($, window, document) {
   var game;
   var pointer;
   var fullscreen = Tactics.fullscreen;
-
-  // Ultimately, game data will be retreived from the game server.
+  var set = [
+    {tile:[4, 2], type:'Knight'},
+    {tile:[5, 2], type:'Knight'},
+    {tile:[6, 2], type:'Knight'},
+  ];
+  var teams = [
+    {
+      name: 'Bot',
+      colorId: 'Blue',
+      bot: true,
+      set: set,
+    },
+    {
+      name: null,
+      colorId: 'Red',
+      bot: false,
+      set: set,
+    },
+  ];
   var gameData = {
-    teams: [
-      {
-        name: 'Bot',
-        colorId: 10,
-        bot: true,
-        units: [
-          {tile:[4, 2], direction:'S', type:'Knight'},
-          {tile:[5, 2], direction:'S', type:'Knight'},
-          {tile:[6, 2], direction:'S', type:'Knight'},
-        ],
-      },
-      {
-        name: null,
-        colorId: 2,
-        bot: false,
-        units: [
-          {tile:[4, 8], direction:'N', type:'Knight'},
-          {tile:[5, 8], direction:'N', type:'Knight'},
-          {tile:[6, 8], direction:'N', type:'Knight'},
-        ],
-      },
-    ],
+    teams: [null, null],
   };
 
   $(window)
@@ -109,7 +103,7 @@ Tactics.App = (function ($, window, document) {
           $('#popup BUTTON[name=yes]').data('handler', () => {
             $('#popup #message').text('One moment...');
 
-            game.randomStart().then(() => {
+            game.restart().then(() => {
               $('#overlay,#popup').hide();
             });
           });
@@ -139,7 +133,8 @@ Tactics.App = (function ($, window, document) {
         visibility:'visible'
       });
 
-      game = new Game(gameData);
+      game = new Tactics.Game(Tactics.GameState.create(gameData));
+      teams.forEach(team => game.join(team));
 
       let $card = $(game.card.canvas)
         .attr('id', 'card')
@@ -223,26 +218,26 @@ Tactics.App = (function ($, window, document) {
         })
         .on('progress', event => {
           let $progress = $('#progress');
-          let action = pointer === 'mouse' ? 'Click' : 'Tap';
           let percent = event.percent;
 
           $progress.width(percent);
-
-          if (percent === 100)
-            $('#loader')
-              .addClass('complete')
-              .one('click', () => {
-                $('.message').text('One moment...');
-
-                game.randomStart().then(() => {
-                  $('#splash').hide();
-                  $('#app').css('visibility','visible');
-                });
-              })
-              .find('.message')
-                .text(action+' here to play!')
         })
-        .load();
+        .on('ready', () => {
+          let action = pointer === 'mouse' ? 'Click' : 'Tap';
+
+          $('#loader')
+            .addClass('complete')
+            .one('click', () => {
+              $('.message').text('One moment...');
+
+              game.start().then(() => {
+                $('#splash').hide();
+                $('#app').css('visibility','visible');
+              });
+            })
+            .find('.message')
+              .text(action+' here to play!')
+        });
 
       if (!fullscreen.isAvailable())
         $('BUTTON[name=resize]').toggleClass('hidden');

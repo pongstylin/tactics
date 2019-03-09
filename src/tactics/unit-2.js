@@ -1,21 +1,18 @@
 (function () {
   'use strict';
 
-  Tactics.units[2].extend = function (self) {
-    var board = Tactics.game.board;
-    var data = Tactics.units[self.type];
-    var sounds = Object.assign({}, Tactics.sounds, data.sounds);
-
+  Tactics.units[2].extend = function (self, data, board) {
     Object.assign(self, {
       attack: function (action) {
-        let anim = new Tactics.Animation();
+        let anim   = new Tactics.Animation();
+        let sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
         let attackAnim = self.animAttack(action.direction);
         attackAnim.splice(4, () => sounds.attack.play());
 
         // Zero or one result expected.
         action.results.forEach(result => {
-          let unit = result.unit.assigned;
+          let unit = result.unit;
 
           // Simulate how long it takes for the arrow to travel.
           let index = 9 + Math.ceil(

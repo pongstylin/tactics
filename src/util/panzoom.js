@@ -2,9 +2,9 @@
 
 import Impetus from 'impetus';
 import touchPinch from 'touch-pinch';
-import { EventEmitter } from 'events';
+import EventEmitter from 'events';
 
-export function PanZoom (options) {
+export default function (options) {
   let target;
   if (typeof options.target === 'string')
     target = document.querySelector(options.target);

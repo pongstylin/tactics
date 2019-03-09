@@ -1,11 +1,8 @@
 (function ()
 {
-  Tactics.units[0].extend = function (self) {
+  Tactics.units[0].extend = function (self, data, board) {
     var _super = Object.assign({}, self);
-    var data = Tactics.units[self.type];
-    var sounds = $.extend({},Tactics.sounds,data.sounds);
-    var board = Tactics.game.board;
-    var pixi = self.pixi;
+    var pixi;
     var type = self.type;
     var stills = {};
     var walks = {};
@@ -15,9 +12,13 @@
 
     $.extend(self,
     {
-      draw:function (direction,assignment)
+      /*
+       * Before drawing a unit, it must first have an assignment and direction.
+       */
+      draw: function ()
       {
-        self.color = Tactics.colors[self.team.colorId];
+        pixi = self.pixi = new PIXI.Container();
+        pixi.position = self.assignment.getCenter().clone();
 
         $.each(data.stills,function (direction,still)
         {
@@ -76,10 +77,7 @@
           turns[direction] = self.compileFrame(turn);
         });
 
-        self.assign(assignment);
-        self.direction = direction;
-
-        return self.drawFrame(stills[self.directional === false ? 'S' : direction]);
+        return self.drawStand();
       },
       compileFrame:function (data)
       {
@@ -197,7 +195,7 @@
 
         // Animate a target unit's reaction starting with the 4th attack frame.
         action.results.forEach(result => {
-          let unit = result.unit.assigned;
+          let unit = result.unit;
 
           if (result.miss === 'blocked')
             attackAnim
@@ -239,7 +237,8 @@
         return anim;
       },
       animStepBack: function (direction) {
-        var step = 7;
+        let sounds = $.extend({}, Tactics.sounds, data.sounds);
+        let step   = 7;
 
         return new Tactics.Animation({frames: [
           {
@@ -256,7 +255,8 @@
         ]});
       },
       animStepForward: function (direction) {
-        var step = 4;
+        let sounds = $.extend({}, Tactics.sounds, data.sounds);
+        let step   = 4;
 
         return new Tactics.Animation({frames: [
           {
@@ -270,8 +270,9 @@
         ]});
       },
       animAttack: function (direction) {
-        let anim = new Tactics.Animation();
-        let swing = 0;
+        let anim   = new Tactics.Animation();
+        let sounds = $.extend({}, Tactics.sounds, data.sounds);
+        let swing  = 0;
 
         if (!direction) direction = self.direction;
 
@@ -291,6 +292,7 @@
         return anim;
       },
       animBlock: function (attacker) {
+        let sounds    = $.extend({}, Tactics.sounds, data.sounds);
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
         return new Tactics.Animation({frames:
@@ -347,37 +349,40 @@
         if (!direction) direction = self.direction;
         if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
 
-        let center = self.assignment.getCenter();
-        let offsetX;
-        let offsetY;
+        if (self.pixi) {
+          let center = self.assignment.getCenter();
+          let offsetX;
+          let offsetY;
 
-        if (offset) {
-          // This will actually offset the unit in the opposite direction.
-          if (direction === 'S') {
-            offsetX = -88 * offset;
-            offsetY = -56 * offset;
-          }
-          else if (direction === 'N') {
-            offsetX =  88 * offset;
-            offsetY =  56 * offset;
-          }
-          else if (direction === 'E') {
-            offsetX = -88 * offset;
-            offsetY =  56 * offset;
+          if (offset) {
+            // This will actually offset the unit in the opposite direction.
+            if (direction === 'S') {
+              offsetX = -88 * offset;
+              offsetY = -56 * offset;
+            }
+            else if (direction === 'N') {
+              offsetX =  88 * offset;
+              offsetY =  56 * offset;
+            }
+            else if (direction === 'E') {
+              offsetX = -88 * offset;
+              offsetY =  56 * offset;
+            }
+            else {
+              offsetX =  88 * offset;
+              offsetY = -56 * offset;
+            }
+
+            pixi.position.x = center.x + offsetX;
+            pixi.position.y = center.y + offsetY;
           }
           else {
-            offsetX =  88 * offset;
-            offsetY = -56 * offset;
+            pixi.position = center.clone();
           }
 
-          pixi.position.x = center.x + offsetX;
-          pixi.position.y = center.y + offsetY;
-        }
-        else {
-          pixi.position = center.clone();
+          self.drawStand(direction);
         }
 
-        self.drawStand(direction);
         if (!offset)
           self.direction = direction;
 
@@ -443,10 +448,11 @@
     });
 
     function animTravel(ftile,dtile,ntile) {
-      var anim = new Tactics.Animation();
-      var direction = board.getDirection(ftile,dtile);
-      var edirection,ddirection;
-      var funit,dunit;
+      let anim      = new Tactics.Animation();
+      let sounds    = $.extend({}, Tactics.sounds, data.sounds);
+      let direction = board.getDirection(ftile,dtile);
+      let edirection,ddirection;
+      let funit,dunit;
 
       // Add the frames for walking from one tile to the next.
       anim.addFrame({

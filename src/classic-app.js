@@ -1,5 +1,3 @@
-import { Game } from 'tactics/game.js';
-
 Tactics.App = (function ($, window, document) {
   'use strict';
 
@@ -7,49 +5,33 @@ Tactics.App = (function ($, window, document) {
   var game;
   var pointer;
   var fullscreen = Tactics.fullscreen;
-
-  // Ultimately, game data will be retreived from the game server.
+  var set = [
+    // Back Row
+    {tile:[5, 0], type:'Cleric'},
+    // Middle Row
+    {tile:[2, 1], type:'DarkMagicWitch'},
+    {tile:[3, 1], type:'Pyromancer'},
+    {tile:[7, 1], type:'Pyromancer'},
+    {tile:[8, 1], type:'Enchantress'},
+    // Front Row
+    {tile:[1, 2], type:'Assassin'},
+    {tile:[4, 2], type:'Knight'},
+    {tile:[5, 2], type:'Knight'},
+    {tile:[6, 2], type:'Knight'},
+    {tile:[9, 2], type:'Scout'},
+  ];
+  var teams = [
+    {
+      colorId: 'Blue',
+      set: set,
+    },
+    {
+      colorId: 'Red',
+      set: set,
+    },
+  ];
   var gameData = {
-    teams: [
-      {
-        name: 'Blue',
-        colorId: 10,
-        units: [
-          // Back Row
-          {tile:[5, 0], direction:'S', type:'Cleric'},
-          // Middle Row
-          {tile:[2, 1], direction:'S', type:'DarkMagicWitch'},
-          {tile:[3, 1], direction:'S', type:'Pyromancer'},
-          {tile:[7, 1], direction:'S', type:'Pyromancer'},
-          {tile:[8, 1], direction:'S', type:'Enchantress'},
-          // Front Row
-          {tile:[1, 2], direction:'S', type:'Assassin'},
-          {tile:[4, 2], direction:'S', type:'Knight'},
-          {tile:[5, 2], direction:'S', type:'Knight'},
-          {tile:[6, 2], direction:'S', type:'Knight'},
-          {tile:[9, 2], direction:'S', type:'Scout'},
-        ],
-      },
-      {
-        name: 'Red',
-        colorId: 2,
-        units: [
-          // Front Row
-          {tile:[1, 8], direction:'N', type:'Scout'},
-          {tile:[4, 8], direction:'N', type:'Knight'},
-          {tile:[5, 8], direction:'N', type:'Knight'},
-          {tile:[6, 8], direction:'N', type:'Knight'},
-          {tile:[9, 8], direction:'N', type:'Assassin'},
-          // Middle Row
-          {tile:[2, 9], direction:'N', type:'Enchantress'},
-          {tile:[3, 9], direction:'N', type:'Pyromancer'},
-          {tile:[7, 9], direction:'N', type:'Pyromancer'},
-          {tile:[8, 9], direction:'N', type:'DarkMagicWitch'},
-          // Back Row
-          {tile:[5, 10], direction:'N', type:'Cleric'},
-        ],
-      },
-    ],
+    teams: [null, null],
   };
 
   $(window)
@@ -127,7 +109,7 @@ Tactics.App = (function ($, window, document) {
           $('#popup BUTTON[name=yes]').data('handler', () => {
             $('#popup #message').text('One moment...');
 
-            game.randomStart().then(() => {
+            game.restart().then(() => {
               $('#overlay,#popup').hide();
             });
           });
@@ -157,7 +139,8 @@ Tactics.App = (function ($, window, document) {
         visibility:'visible'
       });
 
-      game = new Game(gameData);
+      game = new Tactics.Game(Tactics.GameState.create(gameData));
+      teams.forEach(team => game.join(team));
 
       let $card = $(game.card.canvas)
         .attr('id', 'card')
@@ -241,26 +224,26 @@ Tactics.App = (function ($, window, document) {
         })
         .on('progress', event => {
           let $progress = $('#progress');
-          let action = pointer === 'mouse' ? 'Click' : 'Tap';
           let percent = event.percent;
 
           $progress.width(percent);
-
-          if (percent === 100)
-            $('#loader')
-              .addClass('complete')
-              .one('click', () => {
-                $('.message').text('One moment...');
-
-                game.randomStart().then(() => {
-                  $('#splash').hide();
-                  $('#app').css('visibility','visible');
-                });
-              })
-              .find('.message')
-                .text(action+' here to play!')
         })
-        .load();
+        .on('ready', () => {
+          let action = pointer === 'mouse' ? 'Click' : 'Tap';
+
+          $('#loader')
+            .addClass('complete')
+            .one('click', () => {
+              $('.message').text('One moment...');
+
+              game.start().then(() => {
+                $('#splash').hide();
+                $('#app').css('visibility','visible');
+              });
+            })
+            .find('.message')
+              .text(action+' here to play!')
+        });
 
       if (!fullscreen.isAvailable())
         $('BUTTON[name=resize]').toggleClass('hidden');

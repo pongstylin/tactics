@@ -1,13 +1,7 @@
 (function () {
   'use strict';
 
-  Tactics.units[6].extend = function (self) {
-    var game = Tactics.game;
-    var stage = game.stage;
-    var board = game.board;
-    var data = Tactics.units[self.type];
-    var sounds = Object.assign({}, Tactics.sounds, data.sounds);
-
+  Tactics.units[6].extend = function (self, data, board) {
     Object.assign(self, {
       getTargetTiles: function (target) {
         let direction = board.getDirection(self.assignment, target);
@@ -24,6 +18,7 @@
         return targets;
       },
       attack: function (action) {
+        let sounds    = Object.assign({}, Tactics.sounds, data.sounds);
         let targets   = self.getTargetTiles(action.tile);
         let first     = targets[0];
         let anim      = new Tactics.Animation();
@@ -52,7 +47,8 @@
         return anim.play();
       },
       animBlock: function (attacker) {
-        let anim = new Tactics.Animation();
+        let anim      = new Tactics.Animation();
+        let sounds    = Object.assign({}, Tactics.sounds, data.sounds);
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
         anim.addFrame(() => {
@@ -88,7 +84,7 @@
       },
       animBlackSpike: function (target, first) {
         let anim = new Tactics.Animation();
-        let parent = stage.children[1];
+        let parent = Tactics.game.stage.children[1];
 
         let pos = target.getCenter();
         let container = new PIXI.Container();

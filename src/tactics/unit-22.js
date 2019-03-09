@@ -1,10 +1,10 @@
+'use strict';
+
+import colorMap from 'tactics/colorMap.js';
+
 (function () {
-  Tactics.units[22].extend = function (self) {
-    var data = Tactics.units[self.type];
-    var sounds = Object.assign({}, Tactics.sounds, data.sounds);
-    var game = Tactics.game;
-    var stage = game.stage;
-    var board = game.board;
+  Tactics.units[22].extend = function (self, data, board) {
+    let _super = Object.assign({}, self);
 
     data.frames.forEach((frame, i) => {
       if (!frame) return;
@@ -35,42 +35,54 @@
 
         return anim.play();
       },
-      phase: function (action) {
-        let banned;
-        if (action.results)
-          banned = self.banned = action.results[0].banned;
-        else
-          banned = self.banned;
+      getPhaseAction: function (attacker, result) {
+        let banned = self.banned.slice();
+        if (attacker)
+          banned.push(attacker.team.id);
 
-        let teamsData = game.getWinningTeams().reverse();
-        let colorId = null;
+        let teamsData = board.getWinningTeams().reverse();
+        let colorId = 'White';
 
         if (teamsData.length > 1) {
           teamsData = teamsData.filter(teamData => banned.indexOf(teamData.id) === -1);
 
           if (teamsData.length)
-            colorId = game.teams[teamsData[0].id].colorId;
+            colorId = board.teams[teamsData[0].id].colorId;
         }
 
-        if (colorId === self.team.colorId)
-          return Promise.resolve();
+        if (colorMap.get(colorId) === self.color)
+          return;
 
-        return self.animPhase(colorId).play();
+        let phaseAction = {
+          type:    'phase',
+          unit:    self,
+          colorId: colorId,
+        };
+
+        if (attacker)
+          phaseAction.results = [{
+            unit:   self,
+            banned: banned,
+          }];
+
+        return phaseAction;
+      },
+      phase: function (action) {
+        return self.animPhase(action.colorId).play();
       },
       animPhase: function (colorId) {
+        let sounds    = $.extend({}, Tactics.sounds, data.sounds);
         let old_color = self.color;
-        let new_color = colorId === null ? 0xFFFFFF : Tactics.colors[colorId];
+        let new_color = colorMap.get(colorId);
 
         return new Tactics.Animation({frames: [
-          () => {
-            sounds.phase.play();
-            self.team.colorId = colorId;
-            self.color = new_color;
-          },
+          () => sounds.phase.play(),
           {
             script: frame => {
               let step = frame.repeat_index + 1;
-              self.frame.children[2].tint = Tactics.utils.getColorStop(old_color, new_color, step / 12);
+              let color = Tactics.utils.getColorStop(old_color, new_color, step / 12);
+              self.change({ color:color });
+              self.frame.children[2].tint = self.color;
             },
             repeat: 12,
           }
@@ -78,6 +90,7 @@
       },
       animMove: function (assignment) {
         let anim        = new Tactics.Animation({fps:10});
+        let sounds      = $.extend({}, Tactics.sounds, data.sounds);
         let frame_index = 0;
 
         anim.addFrame(() => self.assignment.dismiss());
@@ -104,6 +117,8 @@
       },
       animAttack: function (target) {
         var anim      = new Tactics.Animation();
+        let stage     = Tactics.game.stage;
+        let sounds    = $.extend({}, Tactics.sounds, data.sounds);
         var tunit     = target.assigned;
         var direction = board.getDirection(self.assignment, target, 1);
         var attack    = data.animations[direction].attack, frame=0;
@@ -159,6 +174,8 @@
         return anim;
       },
       drawStreaks: function (container,target,source,adjust) {
+        let stage = Tactics.game.stage;
+
         // Make sure bounds are set correctly.
         stage.children[1].updateTransform();
 
@@ -231,6 +248,7 @@
       },
       animBlock: function (attacker) {
         let anim      = new Tactics.Animation();
+        let sounds    = $.extend({}, Tactics.sounds, data.sounds);
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
         let block     = data.animations[direction].block;
 
@@ -262,7 +280,7 @@
       },
       getAttackSpecialResults: function (action) {
         return [{
-          unit: self.assignment,
+          unit: self,
           changes: {
             mHealth: Math.min(0, self.mHealth + self.power),
           },
@@ -295,15 +313,16 @@
       },
       getCounterAction: function (attacker, result) {
         if (attacker !== self && attacker.color === self.color)
-          return {
-            type: 'phase',
-            unit: self.assignment,
-            tile: self.assignment,
-            results: [{
-              unit:   self.assignment,
-              banned: [...self.banned, attacker.team.id],
-            }],
-          };
+          return self.getPhaseAction(attacker, result);
+      },
+
+      toJSON() {
+        let data = _super.toJSON();
+
+        if (self.banned.length)
+          data.banned = self.banned.slice();
+
+        return data;
       },
     });
 
