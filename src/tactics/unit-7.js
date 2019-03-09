@@ -1,24 +1,18 @@
 (function () {
   'use strict';
 
-  Tactics.units[7].extend = function (self) {
-    var game = Tactics.game;
-    var stage = game.stage;
-    var board = game.board;
-    var data = Tactics.units[self.type];
-    var sounds = Object.assign({}, Tactics.sounds, data.sounds);
-    var special_ready = false;
-
+  Tactics.units[7].extend = function (self, data, board) {
     Object.assign(self, {
       attack: function (action) {
-        let anim = new Tactics.Animation();
+        let anim   = new Tactics.Animation();
+        let sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
         let attackAnim = self.animAttack(action.direction);
         attackAnim.splice(1, () => sounds.attack1.play());
         attackAnim.splice(3, () => sounds.attack2.play());
 
         action.results.forEach(result => {
-          let unit = result.unit.assigned;
+          let unit = result.unit;
 
           // Animate the target unit's reaction starting with the 4th attack frame.
           if (result.miss === 'blocked')
@@ -51,7 +45,7 @@
           let target_unit = tile.assigned;
           if (!target_unit) return;
 
-          let result = {unit:target_unit.assignment};
+          let result = {unit:target_unit};
 
           if (target_unit.barriered)
             result.miss = 'deflected';
@@ -64,7 +58,7 @@
         });
 
         results.push({
-          unit:    self.assignment,
+          unit:    self,
           notice:  taunts.shuffle()[0],
           changes: { mHealth:-self.health },
         });
@@ -74,7 +68,8 @@
         return results;
       },
       attackSpecial: function (action) {
-        let anim = self.animSpecial();
+        let anim   = self.animSpecial();
+        let sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
         let targets = self.getAttackTiles();
         targets.push(self.assignment);
@@ -91,7 +86,8 @@
        * Also plays a sound sprite instead of the full sound.
        */
       animBlock: function (attacker) {
-        let anim = new Tactics.Animation();
+        let anim      = new Tactics.Animation();
+        let sounds    = Object.assign({}, Tactics.sounds, data.sounds);
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
         anim.addFrame(() => {
@@ -140,7 +136,7 @@
       },
       animExplode: function (tile) {
         let anim = new Tactics.Animation();
-        let parent = stage.children[1];
+        let parent = Tactics.game.stage.children[1];
         let whiten = [0.60, 1, 0.80, 0.60, 0];
 
         let pos = tile.getCenter();

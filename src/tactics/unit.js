@@ -1,55 +1,31 @@
-(function () {
-  'use strict';
+'use strict';
 
+import Polygon from 'util/Polygon.js';
+import unitsData from 'tactics/unitsData.js';
+import { reverseColorMap } from 'tactics/colorMap.js';
+
+(function () {
+  const HALF_TILE_WIDTH  = 44;
   const HALF_TILE_HEIGHT = 28;
 
-  var shocks;
-
-  function prerenderShocks() {
-    shocks = [
-      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png'),
-      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png'),
-      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png')
-    ];
-
-    shocks[0].anchor = new PIXI.Point(0.5,0.5);
-    shocks[0].scale = new PIXI.Point(4.65,0.65);
-    shocks[0].rotation = 0.5;
-
-    shocks[1].anchor = new PIXI.Point(0.5,0.5);
-    shocks[1].scale = new PIXI.Point(2,0.7);
-    shocks[1].rotation = 0.5;
-
-    shocks[2].anchor = new PIXI.Point(0.5,0.5);
-    shocks[2].scale = new PIXI.Point(0.4,3);
-    shocks[2].rotation = 0.5;
-    shocks[2].alpha = 0.5;
-  }
-
-  Tactics.Unit = function (type) {
-    if (shocks === undefined)
-      prerenderShocks();
-
+  Tactics.Unit = function (unitTypeID, board) {
     var self = this;
-    var pixi = new PIXI.Container();
-    var data = Tactics.units[type];
-    var game  = Tactics.game;
-    var stage = game.stage;
-    var board = game.board;
+    var data = unitsData[unitTypeID];
     var pulse;
-    var sounds = Object.assign({}, Tactics.sounds, data.sounds);
     var shock;
 
     utils.addEvents.call(self);
 
     Object.assign(self, {
+      id: null,
+
       // Public properties
-      pixi:    pixi,
+      pixi:    null,
       filters: {},
 
       team:       undefined,
       color:      0,
-      type:       type,
+      type:       unitTypeID,
       name:       data.name,
       sprite:     undefined,
       assignment: undefined,
@@ -98,10 +74,10 @@
         let path;
         let mType  = data.mType;
         let radius = data.mRadius;
-        let minX   = start.x - radius;
-        let maxX   = start.x + radius;
-        let minY   = start.y - radius;
-        let maxY   = start.y + radius;
+        let minX   = Math.max(0,  start.x - radius);
+        let maxX   = Math.min(10, start.x + radius);
+        let minY   = Math.max(0,  start.y - radius);
+        let maxY   = Math.min(10, start.y + radius);
 
         for (let x = minX; x <= maxX; x++) {
           for (let y = minY; y <= maxY; y++) {
@@ -172,19 +148,17 @@
       getLOSTargetTiles: function (target, source) {
         source = source || self.assignment;
 
-        // Get the absolute position of the line.
-        let source_point = source.pixi.toGlobal(new PIXI.Point(44, 28));
-        let target_point = target.pixi.toGlobal(new PIXI.Point(44, 28));
+        // Get the absolute position of the line of sight.
+        // The line is drawn between the center of the source and target tiles.
+        let lineOfSight = [
+          source.position[0] + HALF_TILE_WIDTH,
+          source.position[1] + HALF_TILE_HEIGHT,
+          target.position[0] + HALF_TILE_WIDTH,
+          target.position[1] + HALF_TILE_HEIGHT,
+        ];
 
-        /* For testing LOS
-        let line = new PIXI.Graphics();
-        line.lineStyle(1, 0x00ff00);
-        line.moveTo(source_point.x, source_point.y);
-        line.lineTo(target_point.x, target_point.y);
-        stage.addChild(line);
-        */
-
-        let hit_area = new PIXI.Polygon([
+        // Define a slightly smaller tile shape for targeting.
+        let hit_area = new Polygon([
           43, 12, // top-left
           46, 12, // top-right
           70, 26, // right-top
@@ -193,16 +167,16 @@
           43, 44, // bottom-left
           18, 29, // left-bottom
           18, 26, // left-top
-          43, 10, // close
+          43, 12, // close
         ]);
 
         // Set oneX and oneY to 1 or -1 depending on attack direction.
         let oneX = target.x === source.x
           ? 1 // Could be any number
-          : (target.x - source.x) / Math.abs(target.x - source.x)
+          : (target.x - source.x) / Math.abs(target.x - source.x);
         let oneY = target.y === source.y
           ? 1 // Could be any number
-          : (target.y - source.y) / Math.abs(target.y - source.y)
+          : (target.y - source.y) / Math.abs(target.y - source.y);
 
         // Trace a path from source to target, testing tiles along the way.
         let target_tiles = [];
@@ -211,25 +185,15 @@
             let tile = board.getTile(x, y);
             if (!tile || tile === source) continue;
  
-            /* For testing LOS
-            let child = new PIXI.Graphics();
-            child.lineStyle(1, 0xff0000);
-            child.drawPolygon(hit_area.points);
-            tile.pixi.addChild(child);
-            */
+            // Get the relative position of the line of sight to the tile.
+            let relativeLineOfSight = [
+              lineOfSight[0] - tile.position[0],
+              lineOfSight[1] - tile.position[1],
+              lineOfSight[2] - tile.position[0],
+              lineOfSight[3] - tile.position[1],
+            ];
 
-            // Get the relative position of the line to the tile.
-            let local_source_point = tile.pixi.toLocal(source_point);
-            let local_target_point = tile.pixi.toLocal(target_point);
-
-            let intersects = hit_area.intersects(
-              local_source_point.x,
-              local_source_point.y,
-              local_target_point.x,
-              local_target_point.y,
-            );
-
-            if (intersects)
+            if (hit_area.intersects(...relativeLineOfSight))
               target_tiles.push(tile);
           }
         }
@@ -348,7 +312,7 @@
         let unitsData    = [];
 
         results.push(...target_units.map(unit => {
-          let result = { unit:unit.assignment };
+          let result = { unit:unit };
           let calc   = self.calcAttack(unit, assignment, target);
 
           if (calc.effect) {
@@ -358,21 +322,20 @@
             else if (calc.effect === 'poisoned')
               property = 'poisoned';
 
-            let currentValue = unit[property];
-
-            // Anticipate breaking focus before attacking this unit again.
-            if (self.focusing && self.focusing.find(t => t === unit.assignment))
-              currentValue = currentValue.filter(t => t !== self.assignment);
+            // Get a list of units currently focused upon this one...
+            //  ...excluding units that are being attacked.
+            let currentValue = (unit[property] || [])
+              .filter(u => !target_units.find(tu => tu === u));
 
             result.changes = {
-              [property]: [...(currentValue || []), assignment],
+              [property]: [...currentValue, self],
             };
 
             if (data.aFocus) {
-              focusing.push(unit.assignment);
+              focusing.push(unit);
 
               result.results = [{
-                unit: assignment,
+                unit: self,
                 changes: { focusing:focusing.slice() },
               }];
             }
@@ -437,7 +400,7 @@
         let unitsData = [];
 
         results.forEach(result => {
-          let unit    = result.unit.assigned;
+          let unit    = result.unit;
           let changes = result.changes;
 
           let resultUnit = unitsData.find(ud => ud.unit === unit);
@@ -464,12 +427,11 @@
 
             let subResults = result.results || (result.results = []);
             subResults.push({
-              unit: unit.assignment,
+              unit: unit,
               changes: { focusing:false },
             });
 
-            resultUnit.focusing.forEach(tile => {
-              let fUnit = tile.assigned;
+            resultUnit.focusing.forEach(fUnit => {
               let focusedUnit = unitsData.find(ud => ud.unit === fUnit);
               if (!focusedUnit)
                 unitsData.push(focusedUnit = {
@@ -485,13 +447,11 @@
               else if (unit.aType === 'poison')
                 property = 'poisoned';
 
-              focusedUnit[property] =
-                focusedUnit[property].length === 1
-                  ? false
-                  : focusedUnit[property].filter(t => t !== unit.assignment);
+              let newValue = focusedUnit[property].filter(u => u !== unit);
+              focusedUnit[property] = newValue.length ? newValue : false;
 
               subResults.push({
-                unit: tile,
+                unit: fUnit,
                 changes: { [property]:focusedUnit[property] },
               });
             });
@@ -510,8 +470,7 @@
             ];
 
             // All units focusing on this dead unit can stop.
-            focusingUnits.forEach(tile => {
-              let fUnit = tile.assigned;
+            focusingUnits.forEach(fUnit => {
               let focusingUnit = unitsData.find(ud => ud.unit === fUnit);
               if (!focusingUnit)
                 unitsData.push(focusingUnit = {
@@ -524,13 +483,11 @@
               // Skip units that aren't focusing anymore.
               if (focusingUnit.focusing === false) return;
 
-              focusingUnit.focusing =
-                focusingUnit.focusing.length === 1
-                  ? false
-                  : focusingUnit.focusing.filter(t => t !== unit.assignment);
+              let newValue = focusingUnit.focusing.filter(u => u !== unit);
+              focusingUnit.focusing = newValue.length ? newValue : false;
 
               subResults.push({
-                unit: tile,
+                unit: fUnit,
                 changes: { focusing:focusingUnit.focusing },
               });
             });
@@ -542,7 +499,7 @@
               subChanges.poisoned = false;
 
             subResults.push({
-              unit: unit.assignment,
+              unit: unit,
               changes: subChanges,
             });
 
@@ -550,11 +507,15 @@
           }
         });
       },
-      // Public methods
-      draw: function (direction, assignment) {
-        let colorId = self.team.colorId;
+      /*
+       * Before drawing a unit, it must first have an assignment and direction.
+       */
+      draw: function () {
         let frames = data.frames.map(frame => self.compileFrame(frame, data));
         let effects = {};
+
+        self.pixi = new PIXI.Container();
+        self.pixi.position = self.assignment.getCenter().clone();
 
         if (data.effects)
           Object.keys(data.effects).forEach(name => {
@@ -564,11 +525,8 @@
 
         self.frames = frames;
         self.effects = effects;
-        self.color = colorId === null ? 0xFFFFFF : Tactics.colors[colorId];
-        self.assign(assignment);
-        self.stand(self.directional === false ? 'S' : direction);
 
-        return self;
+        return self.drawStand();
       },
       compileFrame: function (frame, data) {
         let container = new PIXI.Container();
@@ -610,7 +568,7 @@
             }
             else if ('id' in shape) {
               // Legacy
-              shape.image = 'https://legacy.taorankings.com/units/'+type+'/image'+shape.id+'.png';
+              shape.image = 'https://legacy.taorankings.com/units/'+unitTypeID+'/image'+shape.id+'.png';
               delete shape.id;
             }
             else {
@@ -699,6 +657,7 @@
         return self.compileFrame(data.frames[data.stills.S], data);
       },
       drawFrame: function (index, context) {
+        let pixi = self.pixi;
         let frame = self.frames[index];
         let focus;
 
@@ -792,12 +751,17 @@
         return self;
       },
       assign: function (assignment) {
-        if (self.assignment && self.assignment.assigned === self) self.assignment.dismiss();
+        let pixi = self.pixi;
+
+        if (self.assignment && self.assignment.assigned === self)
+          self.assignment.dismiss();
         self.assignment = assignment;
 
         if (assignment) {
           assignment.assign(self);
-          pixi.position = assignment.getCenter().clone();
+
+          if (pixi)
+            pixi.position = assignment.getCenter().clone();
         }
 
         return self;
@@ -815,8 +779,9 @@
           if (!isNaN(direction)) direction = board.getRotation(self.direction, direction);
         }
 
-        self.drawStand(direction);
         self.direction = direction;
+        if (self.pixi)
+          self.drawStand();
       },
       /*
        * This is called before a focusing unit moves, attacks, or turns.
@@ -840,6 +805,8 @@
         return self.animTurn(action.direction).play();
       },
       shock: function (direction, frameId, block) {
+        let stage = Tactics.game.stage;
+        let shocks = board.shocks;
         let anchor = self.assignment.getCenter();
         let frame;
 
@@ -1112,6 +1079,7 @@
       },
       animWalk: function (assignment) {
         let anim        = new Tactics.Animation();
+        let sounds      = Object.assign({}, Tactics.sounds, data.sounds);
         let path        = board.findPath(self, assignment);
         let frame_index = 0;
 
@@ -1176,7 +1144,8 @@
         return anim;
       },
       animStepBack: function (direction) {
-        let anim = new Tactics.Animation();
+        let anim   = new Tactics.Animation();
+        let sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
         let indexes = [];
         for (let index = data.backSteps[direction][0]; index <= data.backSteps[direction][1]; index++) {
@@ -1190,7 +1159,8 @@
         return anim;
       },
       animStepForward: function (direction) {
-        let anim = new Tactics.Animation();
+        let anim   = new Tactics.Animation();
+        let sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
         let indexes = [];
         for (let index = data.foreSteps[direction][0]; index <= data.foreSteps[direction][1]; index++) {
@@ -1221,7 +1191,8 @@
         return anim;
       },
       animBlock: function (attacker) {
-        let anim = new Tactics.Animation();
+        let anim      = new Tactics.Animation();
+        let sounds    = Object.assign({}, Tactics.sounds, data.sounds);
         let direction = board.getDirection(self.assignment, attacker.assignment, self.direction);
 
         anim.addFrame(() => sounds.block.play());
@@ -1236,7 +1207,7 @@
           indexes.forEach((index, i) => anim.splice(i, () => self.drawFrame(index)));
 
           // Kinda hacky.  It seems that shocks should be rendered by the attacker, not defender.
-          if (attacker.type === 2)
+          if (attacker.name === 'Scout')
             anim.splice(1, [
               () => self.shock(direction, 1, true),
               () => self.shock(direction, 2, true),
@@ -1335,7 +1306,8 @@
         return anim;
       },
       animStrike: function (defender) {
-        let anim = new Tactics.Animation();
+        let anim      = new Tactics.Animation();
+        let sounds    = Object.assign({}, Tactics.sounds, data.sounds);
         let direction = board.getDirection(
           defender.assignment,
           self.assignment,
@@ -1372,6 +1344,7 @@
         return anim;
       },
       animDeath: function () {
+        let pixi = self.pixi;
         let container = new PIXI.Container();
         let anim = Tactics.Animation.fromData(container, Tactics.animations.death);
 
@@ -1387,10 +1360,7 @@
               },
               repeat:7
             },
-            () => {
-              if (self.assignment.painted === 'focus') self.assignment.strip();
-              board.dropUnit(self);
-            }
+            () => board.dropUnit(self),
           ])
           .splice(0, {
             script: () => {
@@ -1403,6 +1373,8 @@
       },
       animLightning: function (target) {
         let anim      = new Tactics.Animation();
+        let stage     = Tactics.game.stage;
+        let sounds    = Object.assign({}, Tactics.sounds, data.sounds);
         let pos       = target.getCenter();
         let tunit     = target.assigned;
         let whiten    = [0.30,0.60,0.90,0.60,0.30,0];
@@ -1459,7 +1431,8 @@
         return anim;
       },
       animHeal: function (target_units) {
-        let anim = new Tactics.Animation();
+        let anim   = new Tactics.Animation();
+        let sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
         if (!Array.isArray(target_units)) target_units = [target_units];
 
@@ -1613,7 +1586,16 @@
 
         action.tile = validate.tile;
 
-        // TODO: Validate and generate direction after moving.
+        let path = board.findPath(self, action.tile);
+        path.unshift(self.assignment);
+
+        if (self.directional !== false) {
+          let direction = board.getDirection(path[path.length-2], path[path.length-1]);
+          if (validate.direction && validate.direction !== direction)
+            return null;
+          if (direction !== self.direction)
+            action.direction = direction;
+        }
 
         return action;
       },
@@ -1649,7 +1631,7 @@
             if (validate.direction !== self.direction)
               action.direction = direction;
           }
-          else {
+          else if (self.directional !== false) {
             let direction = board.getDirection(self.assignment, validate.tile, self.direction);
             if (direction !== self.direction)
               action.direction = direction;
@@ -1681,9 +1663,6 @@
         if (!validate.direction)
           return null;
 
-        if (validate.direction === self.direction)
-          return null;
-
         action.direction = validate.direction;
 
         return action;
@@ -1696,6 +1675,43 @@
       },
       isPassable: function () {
         return self.focusing === false && !self.paralyzed && self.mPass !== false;
+      },
+
+      toJSON: function () {
+        let state = {
+          id:   self.id,
+          type: self.type,
+          tile: [self.assignment.x, self.assignment.y],
+        };
+
+        if (self.directional !== false)
+          state.direction = self.direction;
+
+        let colorId = reverseColorMap.get(self.color);
+        if (colorId !== self.team.colorId)
+          state.colorId = colorId;
+
+        let properties = [
+          'mHealth',
+          'mBlocking',
+          'mPower',
+          'mArmor',
+          'mRecovery',
+          'focusing',
+          'paralyzed',
+          'poisoned',
+          'barriered',
+        ];
+
+        properties.forEach(prop => {
+          if (self[prop])
+            if (prop === 'focusing' || prop === 'paralyzed' || prop === 'poisoned')
+              state[prop] = self[prop].map(u => u.id);
+            else
+              state[prop] = self[prop];
+        });
+
+        return state;
       },
     });
 
@@ -1755,6 +1771,7 @@
 
     function animText(text, style, options) {
       let anim = new Tactics.Animation();
+      let pixi = self.pixi;
       let container = new PIXI.Container();
       let w = 0;
 
@@ -1789,6 +1806,6 @@
       ]});
     }
 
-    return data.extend ? data.extend(self) : self;
+    return data.extend ? data.extend(self, data, board) : self;
   };
 })();

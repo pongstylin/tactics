@@ -36,6 +36,7 @@
       // Public methods
       draw: function () {
         var pixi = self.pixi = new PIXI.Graphics();
+        pixi.position = new PIXI.Point(...self.position);
 
         pixi.alpha = 0;
         pixi.lineStyle(1,0xFFFFFF,1);
@@ -46,6 +47,7 @@
         pixi.hitArea = new PIXI.Polygon(points.slice());
 
         pixi.interactive = true;
+        pixi.buttonMode  = false;
         pixi.pointertap  = self.onSelect;
         pixi.pointerover = self.onFocus;
         pixi.pointerout  = self.onBlur;
@@ -72,8 +74,7 @@
           Math.floor(bounds.y)
         );
       },
-      getCenter: function ()
-      {
+      getCenter: function () {
         // Warning, this is only accurate if called after pixi transform is updated.
         var bounds;
 
@@ -87,13 +88,13 @@
       },
       dismiss: function () {
         self.assigned = null;
-        self.set_interactive(false);
+        self.emit({ type:'dismiss', target:self });
 
         return self;
       },
       assign: function (unit) {
         self.assigned = unit;
-        self.set_interactive(true);
+        self.emit({ type:'assign', target:self });
 
         return self;
       },
@@ -121,6 +122,8 @@
         self.painted    = name;
         self.pixi.tint  = color || 0xFFFFFF;
         self.pixi.alpha = alpha;
+
+        return self;
       },
       strip: function () {
         self.painted    = null;
@@ -172,10 +175,6 @@
           type:   'blur',
           target: self,
         });
-      },
-
-      toJSON: function () {
-        return [self.x, self.y];
       },
     });
 

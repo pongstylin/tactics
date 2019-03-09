@@ -1,10 +1,8 @@
 (function () {
   'use strict';
 
-  Tactics.units[3].extend = function (self) {
+  Tactics.units[3].extend = function (self, data, board) {
     var _super = Object.assign({}, self);
-    var data   = Tactics.units[self.type];
-    var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
     Object.assign(self, {
       getAttackTiles: function () {
@@ -31,7 +29,10 @@
       getAttackResults: function (action) {
         let results = _super.getAttackResults(action);
 
-        results.sort((a, b) => a.unit.y - b.unit.y || a.unit.x - b.unit.x);
+        results.sort((a, b) =>
+          a.unit.assignment.y - b.unit.assignment.y ||
+          a.unit.assignment.x - b.unit.assignment.x
+        );
 
         return results;
       },

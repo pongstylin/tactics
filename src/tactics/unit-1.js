@@ -1,13 +1,8 @@
 (function () {
   'use strict';
 
-  Tactics.units[1].extend = function (self) {
+  Tactics.units[1].extend = function (self, data, board) {
     var _super = Object.assign({}, self);
-    var game = Tactics.game;
-    var stage = game.stage;
-    var board = game.board;
-    var data = Tactics.units[self.type];
-    var sounds = Object.assign({}, Tactics.sounds, data.sounds);
 
     Object.assign(self, {
       getAttackTiles: function () {
@@ -33,6 +28,7 @@
         return targets;
       },
       attack: function (action) {
+        let sounds  = Object.assign({}, Tactics.sounds, data.sounds);
         let targets = self.getTargetTiles(action.tile);
         let anim    = new Tactics.Animation();
 
@@ -57,7 +53,7 @@
       },
       animFireBlast: function (target, center) {
         let anim = new Tactics.Animation();
-        let parent = stage.children[1];
+        let parent = Tactics.game.stage.children[1];
         let lightness = [0.6, 0.8, 0.8, 0.6, 0.4, 0];
 
         let pos = target.getCenter();

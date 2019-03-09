@@ -23,49 +23,6 @@ Array.prototype.shuffle = function () {
 };
 Object.defineProperty(Array.prototype, 'shuffle', {enumerable: false});
 
-/*
- * Imagine spinning a wheel such that it may stop at any given position.  An
- * array that contains a sequence of repeatable items is like a wheel.  Spinning
- * the wheel does not change the order of the items, but it does randomize the
- * beginning of the sequence.
- *
- * Additionally, this method has a 50/50 chance of reversing the order.
- *
- * This modifies the original array.
- *
- * Examples:
- *   [1, 2, 3, 4] => [3, 4, 1, 2]
- *   [1, 2, 3, 4] => [2, 1, 4, 3]
- */
-Array.prototype.spin = function () {
-  var arr = this;
-  var index = Math.floor(Math.random() * arr.length);
-  while (index--) arr.push(arr.shift());
-
-  if (Math.random() < 0.5) arr.reverse();
-
-  return arr;
-};
-Object.defineProperty(Array.prototype, 'spin', {enumerable: false});
-
-/*
- * Get the next index, which may be zero if given the last index.
- * Optionally filter the next index chosen using a callback function.
- */
-Array.prototype.getNextIndex = function (index, filter) {
-  let array = this;
-  let length = array.length;
-
-  index = (index + 1) % length;
-
-  if (filter)
-    while (!filter(array[index], index))
-      index = (index + 1) % length;
-
-  return index;
-};
-Object.defineProperty(Array.prototype, 'getNextIndex', {enumerable: false});
-
 Array.prototype.findLastIndex = function (filter) {
   let array = this;
 
@@ -76,3 +33,4 @@ Array.prototype.findLastIndex = function (filter) {
 
   return -1;
 };
+Object.defineProperty(Array.prototype, 'findLastIndex', {enumerable: false});

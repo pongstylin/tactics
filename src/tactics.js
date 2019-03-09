@@ -3,19 +3,13 @@ import 'howler';
 import 'plugins/string.js';
 import 'plugins/array.js';
 import 'plugins/math.js';
-import 'plugins/pixi.js';
 
 import 'util/event.js';
-import 'util/panzoom.js';
 
 import 'tactics/core.scss';
 import 'tactics/core.js';
 import 'tactics/animation.js';
-import 'tactics/board.js';
-import 'tactics/bot.js';
-import 'tactics/bot-chaos.js';
 import 'tactics/fullscreen.js';
-import 'tactics/log.js';
 import 'tactics/tile.js';
 import 'tactics/unit.js';
 import 'tactics/unit-0.js';
