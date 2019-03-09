@@ -246,8 +246,9 @@ Tactics.App = (function ($, window, document) {
           let selected = board.selected;
           let readySpecial = selected.readySpecial();
           let button = event.target;
+          let eventType = pointer === 'touch' ? 'touchend' : 'mouseup';
 
-          $(document).one('mouseup touchend', event => {
+          $(document).one(eventType, event => {
             if (event.target === button)
               readySpecial.release();
             else
