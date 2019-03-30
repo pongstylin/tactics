@@ -22,6 +22,7 @@ const APP_FILES = [
   '/faceoff-app.min.js',
   '/chaos.html',
   '/chaos-app.min.js',
+  '/ww.min.js',
 ];
 
 const DATE_INSTALLED = new Date().toISOString()

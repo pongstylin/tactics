@@ -4,9 +4,9 @@ import EventEmitter from 'events';
 import Board from 'tactics/Board.js';
 import botFactory from 'tactics/botFactory.js';
 import colorMap from 'tactics/colorMap.js';
-import unitsData, { unitTypeToIDMap } from 'tactics/unitsData.js';
+import unitDataMap from 'tactics/unitData.js';
 
-export default class GameState {
+export default class Game {
   /*****************************************************************************
    * Constructors
    ****************************************************************************/
@@ -15,21 +15,19 @@ export default class GameState {
    */
   constructor(gameData) {
     let board = new Board();
-    let history = gameData.history || [];
-    delete gameData.history;
+    let turns = gameData.turns || [];
+    delete gameData.turns;
 
     Object.assign(this, gameData, {
       winnerId: null,
 
-      _history: history,
+      _turns:   turns,
       _board:   board,
       _emitter: new EventEmitter(),
     });
 
     if (this.units)
       board.setState(this.units, this.teams);
-
-    this.whenReady = new Promise(resolve => { this._ready = resolve });
   }
 
   /*
@@ -63,7 +61,7 @@ export default class GameState {
       }
     );
 
-    let gameState = new GameState(gameData);
+    let gameState = new Game(gameData);
 
     teams.forEach((team, slot) => {
       if (team) gameState.join(team, slot);
@@ -78,7 +76,7 @@ export default class GameState {
    * The existing game may or may not have been started yet.
    */
   static load(gameData) {
-    let state = new GameState(gameData);
+    let state = new Game(gameData);
 
     if (typeof gameData.created === 'string')
       gameData.created = new Date(gameData.created);
@@ -86,9 +84,6 @@ export default class GameState {
       gameData.started = new Date(gameData.started);
     if (typeof gameData.ended === 'string')
       gameData.ended = new Date(gameData.ended);
-
-    if (gameData.started)
-      state._ready();
 
     return state;
   }
@@ -100,7 +95,7 @@ export default class GameState {
     return this._board;
   }
   get currentTurnId() {
-    return this._history.length;
+    return this._turns.length;
   }
   get currentTeamId() {
     return this.currentTurnId % this.teams.length;
@@ -115,7 +110,7 @@ export default class GameState {
     return this.teams.filter(team =>
       !!team.units.find(unit => {
         // Wards don't count.
-        if (unit.type === 4 || unit.type === 5)
+        if (unit.type === 'BarrierWard' || unit.type === 'LightningWard')
           return false;
 
         // Paralyzed units don't count.
@@ -182,7 +177,7 @@ export default class GameState {
 
     if (slot === undefined)
       slot = teams.findIndex(t => !t);
-    if (slot in teams)
+    if (slot >= teams.length)
       throw new TypeError('The slot does not exist');
     if (teams[slot])
       throw new TypeError('The slot is taken');
@@ -191,18 +186,24 @@ export default class GameState {
       throw new TypeError('A set is required for the team');
 
     team.joined = new Date();
-    team.originalID = slot;
+    team.originalId = slot;
     teams[slot] = team;
+
+    this._emit({
+      type: 'joined',
+      slot: slot,
+      team: team,
+    });
 
     // If all slots are filled, start the game.
     if (teams.findIndex(t => !t) === -1)
-      this.start();
+      this._start();
   }
 
   /*
    * Start the game.
    */
-  start() {
+  _start() {
     let teams = this.teams;
 
     /*
@@ -221,32 +222,32 @@ export default class GameState {
     //  Team ID 3: East
     if (this.type === 'Chaos')
       teams.unshift({
-        originalID: 0,
+        originalId: 0,
         name: 'Chaos',
         colorId: 'White',
         bot: 'Chaos',
         set: [{
           type: 'ChaosSeed',
-          tile: [5, 5],
+          assignment: [5, 5],
         }],
       });
 
-    teams.forEach((team, teamID) => { team.id = teamID });
+    teams.forEach((team, teamId) => { team.id = teamId });
 
     let board   = this._board;
     let degrees = teams.length === 2 ? [0, 180] : [0, 90, 180, 270];
-    let unitID  = 1;
+    let unitId  = 1;
 
     this.units = teams.map(team => team.set.map(unitSetData => {
       // Team placement is based on the original team order.
-      let degree   = degrees[team.originalID];
-      let tile     = board.getTileRotation(unitSetData.tile, degree);
-      let unitData = unitsData[unitTypeToIDMap.get(unitSetData.type)];
+      let degree   = degrees[team.originalId];
+      let tile     = board.getTileRotation(unitSetData.assignment, degree);
+      let unitData = unitDataMap.get(unitSetData.type);
 
       let unitState = {
-        id:   unitID++,
+        id: unitId++,
         type: unitSetData.type,
-        tile: [tile.x, tile.y],
+        assignment: [tile.x, tile.y],
       };
 
       if (unitData.directional !== false)
@@ -258,18 +259,17 @@ export default class GameState {
     board.setState(this.units, teams);
 
     this.started = new Date();
-    this._ready();
 
     this._bots = teams
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
 
+    this._emit({ type:'startGame', data:this.getGameData() });
     this._emit({
-      type: 'startTurn',
+      type:   'startTurn',
+      turnId: this.currentTurnId,
       teamId: this.currentTeamId,
     });
-
-    return this;
   }
   restart() {
     let teams = this.teams;
@@ -286,27 +286,48 @@ export default class GameState {
     }
 
     this._actions.length = 0;
-    this._history.length = 0;
+    this._turns.length = 0;
     this.ended = null;
     this.winnerId = null;
 
     this._bots.forEach(b => b.destroy());
-
-    return this.start();
+    this.start();
   }
 
+  getGameData() {
+    let teams = this.teams.map(team => {
+      team = {...team};
+      delete team.units;
+
+      return team;
+    });
+
+    return {
+      type:          this.type,
+      teams:         teams,
+
+      created:       this.created,
+      started:       this.started,
+      ended:         this.ended,
+
+      currentTurnId: this.currentTurnId,
+      currentTeamId: this.currentTeamId,
+      units:         this.units,
+      actions:       this.actions,
+    };
+  }
   getTurnData(turnId) {
     let turnData;
 
     if (turnId === this.currentTurnId)
       turnData = {
-        units: this.units,
+        units:   this.units,
         actions: this.actions,
       };
     else
-      turnData = this._history[turnId];
+      turnData = this._turns[turnId];
 
-    return Promise.resolve(turnData);
+    return turnData;
   }
   getTurnActions(turnId) {
     let turnActions;
@@ -314,9 +335,9 @@ export default class GameState {
     if (turnId === this.currentTurnId)
       turnActions = this.actions;
     else
-      turnActions = this._history[turnId].actions;
+      turnActions = this._turns[turnId].actions;
 
-    return Promise.resolve(turnActions);
+    return turnActions;
   }
 
   postAction(actions) {
@@ -335,7 +356,6 @@ export default class GameState {
       action.teamId = this.currentTeamId;
 
       new_actions.push(action);
-      this._actions.push(action);
       this._applyAction(action);
     };
 
@@ -453,8 +473,8 @@ export default class GameState {
 
         let passedTurnLimit = this.teams.length * 3;
         let passedTurnCount = 0;
-        for (let i=this._history.length-1; i > -1; i--) {
-          let actions = this._history[i].actions;
+        for (let i=this._turns.length-1; i > -1; i--) {
+          let actions = this._turns[i].actions;
           if (actions.length > 1) break;
 
           passedTurnCount++;
@@ -492,15 +512,15 @@ export default class GameState {
     else if (turnEnded)
       this._emit({
         type: 'startTurn',
+        turnId: this.currentTurnId,
         teamId: this.currentTeamId,
       });
-
-    return this;
   }
 
   undo() {
+    let board   = this._board;
     let teams   = this.teams;
-    let actions = this._actions;
+    let actions = this.actions; // encoded, on purpose
 
     if (teams.length === 2 && !teams[0].bot && !teams[1].bot) {
       // Be very permissive for the classic app
@@ -513,36 +533,36 @@ export default class GameState {
       // Only undo actions that did not involve luck.
       if (actions.length === 0) return;
 
+      let unitId = actions[0].unit;
       let lastLuckyActionIndex = actions.findLastIndex(action =>
+        // Counter-attacks can't be undone.
+        action.unit !== unitId ||
+        // Luck-involved attacks can't be undone.
         action.results && !!action.results.find(result => 'luck' in result)
       );
-
       if (lastLuckyActionIndex === (actions.length - 1))
         return;
-
-      // Re-apply actions that required luck.
-      let luckyActions = actions.slice(0, lastLuckyActionIndex + 1);
 
       // Reset all actions.
       this._resetTurn();
 
+      // Re-apply actions that required luck.
+      // Decoding is necessary after a _resetTurn().
+      let luckyActions = board.decodeAction(actions.slice(0, lastLuckyActionIndex + 1));
       if (luckyActions.length)
-        luckyActions.forEach(action => {
-          let unit = action.unit;
-
-          actions.push(action);
-
-          if (action.type === 'move')
-            unit.assign(action.tile);
-
-          this._applyChangeResults(action.results);
-        });
+        luckyActions.forEach(action => this._applyAction(action));
     }
+
+    // Just in case the game ended right before undo was submitted.
+    this.ended = null;
+    this.winnerId = null;
 
     this._emit({
       type:    'reset',
-      actions: actions,
-      units:   this._board.getState(),
+      turnId:  this.currentTurnId,
+      teamId:  this.currentTeamId,
+      actions: this.actions,
+      units:   board.getState(),
     });
   }
 
@@ -553,6 +573,31 @@ export default class GameState {
   off() {
     this._emitter.removeListener(...arguments);
     return this;
+  }
+
+  /*
+   * Intended for serializing game data for persistent storage.
+   */
+  toJSON() {
+    let teams = this.teams.map(team => {
+      team = {...team};
+      delete team.units;
+
+      return team;
+    });
+
+    return {
+      type:    this.type,
+      teams:   teams,
+
+      created: this.created && this.created.toISOString(),
+      started: this.started && this.started.toISOString(),
+      ended:   this.ended   && this.ended.toISOString(),
+
+      turns:   this._turns,
+      units:   this.units,
+      actions: this.actions,
+    };
   }
 
   /*****************************************************************************
@@ -641,10 +686,13 @@ export default class GameState {
   }
 
   _applyAction(action) {
+    this._actions.push(action);
+
     let unit = action.unit;
+
     if (unit) {
-      if (action.type === 'move')
-        unit.assign(action.tile);
+      if (action.assignment)
+        unit.assign(action.assignment);
       if (action.direction)
         unit.direction = action.direction;
       if (action.colorId)
@@ -657,7 +705,7 @@ export default class GameState {
     let board = this._board;
     board.teamsUnits.flat().forEach(unit => {
       // Chaos Seed doesn't die.  It hatches.
-      if (unit.type === 15) return;
+      if (unit.type === 'ChaosSeed') return;
 
       if (unit.mHealth === -unit.health)
         board.dropUnit(unit);
@@ -666,9 +714,6 @@ export default class GameState {
     if (action.type === 'endTurn')
       this._pushHistory();
   }
-  /*
-   * Note: This method is duplicated with the Game class.
-   */
   _applyChangeResults(results) {
     if (!results) return;
 
@@ -688,11 +733,11 @@ export default class GameState {
           unit = this._board
             .dropUnit(unit)
             .addUnit({
-              id:        unit.id,
-              type:      changes.type,
-              tile:      assignment,
-              direction: unit.direction,
-              color:     unit.color,
+              id:         unit.id,
+              type:       changes.type,
+              assignment: assignment,
+              direction:  unit.direction,
+              color:      unit.color,
             }, unit.team);
           delete changes.type;
         }
@@ -713,7 +758,7 @@ export default class GameState {
   _pushHistory() {
     let board = this._board;
 
-    this._history.push({
+    this._turns.push({
       units:   this.units,
       actions: this.actions,
     });
@@ -724,10 +769,10 @@ export default class GameState {
     return this;
   }
   _popHistory() {
-    let history = this._history;
-    if (history.length === 0) return;
+    let turns = this._turns;
+    if (turns.length === 0) return;
 
-    let turnData = history.pop();
+    let turnData = turns.pop();
 
     Object.assign(this, {
       units:    turnData.units,

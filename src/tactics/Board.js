@@ -1,7 +1,8 @@
 'use strict';
 
 import EventEmitter from 'events';
-import { unitTypeToIDMap } from 'tactics/unitsData.js';
+import Tile from 'tactics/Tile.js';
+import unitFactory from 'tactics/unitFactory.js';
 import colorMap from 'tactics/colorMap.js';
 
 export const TILE_WIDTH        = 88;
@@ -29,7 +30,7 @@ export default class {
 
       for (let y = start; y < stop; y++) {
         let index = x + y*11;
-        let tile  = tiles[index] = new Tactics.Tile(x, y);
+        let tile  = tiles[index] = new Tile(x, y);
 
         // Even when operating in headless mode, the relative position of tiles
         // still need to be known to facilitate LOS targetting.
@@ -223,9 +224,136 @@ export default class {
   getTile(x, y) {
     return this.tiles[x+y*11];
   }
+  /*
+   * Get all tiles that are within range.
+   *  start: (Tile) The start tile.
+   *  min: (Number) The minimum range.  Use zero to include start tile.
+   *  max: (Number) The maximum range.  Should be greater than 'min'.
+   *  isUnassigned: (Boolean) Whether tiles must be unassigned.
+   *
+   * Example: Determine Dragon movement range.
+   *  getTileRange(unit.assignment, 1, 3, true);
+   *
+   * Example: Determine Pyromancer attack range.
+   *  getTileRange(unit.assignment, 0, 3);
+   *
+   * Example: Determine Pyromancer target range.
+   *  getTileRange(unit.assignment, 0, 1);
+   *
+   * Example: Determine Ambusher attack range.
+   *  getTileRange(unit.assignment, 2, 5);
+   *
+   * Code must be as optimized as possible.
+   */
+  getTileRange(start, min, max, isUnassigned) {
+    let tiles = this.tiles;
+    let ylb = Math.max(0,  start.y - max);     // Y Lower-Bound (inclusive)
+    let yub = Math.min(10, start.y + max) + 1; // Y Upper-Bound (exclusive)
+    let xlb = Math.max(0,  start.x - max);
+    let xub = Math.min(10, start.x + max) + 1;
+    let distance = 0;
+    let sx = start.x, sy = start.y;
+    let x, y;
+    let tile;
+    let range = [];
 
-  getUnit(x, y) {
-    return this.getTile(x, y).assigned;
+    for (y = ylb; y < yub; y++) {
+      for (x = xlb; x < xub; x++) {
+        distance = Math.abs(sy - y) + Math.abs(sx - x);
+        if (distance < min) continue;
+        if (distance > max) continue;
+
+        tile = tiles[y*11 + x];
+        if (!tile || (isUnassigned && tile.assigned))
+          continue;
+
+        range.push(tile);
+      }
+    }
+
+    return range;
+  }
+  getTileLinearRange(start, radius) {
+    let tiles = [];
+    let north = start.N;
+    let south = start.S;
+    let east = start.E;
+    let west = start.W;
+
+    for (let x = 0; x < radius; x++) {
+      if (north) {
+        tiles.push(north);
+        north = north.N;
+      }
+      if (south) {
+        tiles.push(south);
+        south = south.S;
+      }
+      if (east) {
+        tiles.push(east);
+        east = east.E;
+      }
+      if (west) {
+        tiles.push(west);
+        west = west.W;
+      }
+    }
+
+    return tiles;
+  }
+  /*
+   * Get all tiles that are within movement path range.
+   *
+   * Example: Determine Knight path range.
+   *  getUnitRange(unit);
+   *
+   * Code must be as optimized as possible.
+   */
+  getUnitPathRange(unit) {
+    let start   = unit.assignment;
+    let max     = unit.mRadius;
+    let tiles   = [];
+    let search  = [[start,0]];
+    let checked = new Set([start]);
+    let tile;
+    let tUnit;
+    let distance;
+
+    for (let i=0; i<search.length; i++) {
+      tile = search[i][0];
+      tUnit = tile.assigned;
+      distance = search[i][1];
+
+      if (tUnit) {
+        if (tUnit !== unit)
+          if (tUnit.team !== unit.team || !tUnit.isPassable())
+            continue;
+      }
+      else
+        tiles.push(tile);
+
+      if (distance < max) {
+        distance++;
+        if (tile.N && !checked.has(tile.N)) {
+          checked.add(tile.N);
+          search.push([tile.N, distance]);
+        }
+        if (tile.E && !checked.has(tile.E)) {
+          checked.add(tile.E);
+          search.push([tile.E, distance]);
+        }
+        if (tile.S && !checked.has(tile.S)) {
+          checked.add(tile.S);
+          search.push([tile.S, distance]);
+        }
+        if (tile.W && !checked.has(tile.W)) {
+          checked.add(tile.W);
+          search.push([tile.W, distance]);
+        }
+      }
+    }
+
+    return tiles;
   }
 
   // Public functions
@@ -352,13 +480,13 @@ export default class {
     return null;
   }
 
-  findPath(unit, dest, start) {
+  findPath(unit, dest) {
     // http://en.wikipedia.org/wiki/A*_search_algorithm
     // Modified to avoid tiles with enemy or unpassable units.
     // Modified to favor a path with no friendly units.
     // Modified to pick a preferred direction, all things being equal.
-    start = start || unit.assignment;
 
+    let start    = unit.assignment;
     let path     = [];
     let opened   = [];
     let closed   = [];
@@ -366,7 +494,9 @@ export default class {
     let gScore   = {};
     let fScore   = {};
     let current;
-    let directions = ['N','S','E','W'],direction;
+    let directions = ['N','S','E','W'], direction;
+    // This is the desired final direction, if possible.
+    let fdirection = this.getDirection(start, dest, unit.direction);
     let i,neighbor,score;
 
     opened.push(start);
@@ -387,27 +517,26 @@ export default class {
 
       closed.push(current);
 
-      // Apply directional preference and factor it into the score.
-      direction = this.getDirection(current, dest);
-      directions.sort((a,b) => direction.indexOf(b) - direction.indexOf(a));
-
       for (i = 0; i < directions.length; i++) {
-        if (!(neighbor = current[directions[i]])) continue;
+        direction = directions[i];
+
+        if (!(neighbor = current[direction])) continue;
         if (neighbor.assigned) {
           if (neighbor.assigned.team !== unit.team) continue;
           if (!neighbor.assigned.isPassable()) continue;
         }
-        if (closed.indexOf(neighbor) > -1) continue;
+        if (closed.includes(neighbor)) continue;
 
-        score = gScore[current.id] + 1 + (i*.1);
+        // Use anything but the final direction for a score tie breaker.
+        score = gScore[current.id] + 1 + (direction === fdirection ? 0.1 : 0);
         if (neighbor.assigned) score += 0.4;
 
-        if (opened.indexOf(neighbor) === -1 || score < gScore[neighbor.id]) {
+        if (!opened.includes(neighbor) || score < gScore[neighbor.id]) {
           cameFrom[neighbor.id] = current;
           gScore[neighbor.id] = score;
           fScore[neighbor.id] = score + this.getDistance(neighbor, dest);
 
-          if (opened.indexOf(neighbor) === -1)
+          if (!opened.includes(neighbor))
             opened.push(neighbor);
 
           opened.sort((a, b) => fScore[a.id] - fScore[b.id]);
@@ -517,7 +646,7 @@ export default class {
     this.drawTurnOptions();
 
     // Preload the Trophy data URLs
-    this._trophy = new Tactics.Unit(19, self);
+    this._trophy = unitFactory('Champion', this);
     this._trophy.drawAvatar();
 
     return this;
@@ -765,7 +894,7 @@ export default class {
       //  Status Detection
       //
       if (unit.mHealth === -unit.health) {
-        if (unit.type === 15)
+        if (unit.type === 'ChaosSeed')
           notice = 'Hatched!';
         else
           notice = 'Dead!';
@@ -968,31 +1097,32 @@ export default class {
     return this;
   }
   eraseCard() {
-    if (!this.card) return;
-    if (!this.carded) return;
+    let card = this.card;
+    if (!card) return;
 
-    this.card.stage.buttonMode = false;
+    let carded = this.carded;
+    if (!carded) return;
 
-    this.carded.off('change',card.listener);
-    this._emit({type:'card-change',ovalue:this.carded,nvalue:null});
+    card.stage.buttonMode = false;
+
+    carded.off('change', card.listener);
+    this._emit({ type:'card-change', ovalue:carded, nvalue:null });
     this.carded = null;
 
     return this;
   }
 
   addUnit(unitState, team) {
-    if (typeof unitState.type !== 'number')
-      unitState.type = unitTypeToIDMap.get(unitState.type);
-    if (Array.isArray(unitState.tile))
-      unitState.tile = this.getTile(...unitState.tile);
+    if (Array.isArray(unitState.assignment))
+      unitState.assignment = this.getTile(...unitState.assignment);
 
-    let unit = new Tactics.Unit(unitState.type, this);
+    let unit = unitFactory(unitState.type, this);
     unit.id = unitState.id;
     unit.team = team;
     unit.color = 'color' in unitState
       ? unitState.color
       : colorMap.get('colorId' in unitState ? unitState.colorId : team.colorId);
-    unit.assign(unitState.tile);
+    unit.assign(unitState.assignment);
     unit.stand(unit.directional === false ? 'S' : unitState.direction);
 
     let units_container = this._units_container;
@@ -1106,13 +1236,18 @@ export default class {
    * Encode unit and tile references without modifying original object.
    */
   encodeAction(action) {
+    let degree = this.getDegree(this.rotation, 'N');
     let encode = obj => {
       let encoded = {...obj};
 
       if ('unit' in encoded)
         encoded.unit = encoded.unit.id;
-      if ('tile' in encoded)
-        encoded.tile = [encoded.tile.x, encoded.tile.y];
+      if ('assignment' in encoded)
+        encoded.assignment = this.getTileRotation(encoded.assignment, degree).coords;
+      if ('target' in encoded)
+        encoded.target = this.getTileRotation(encoded.target, degree).coords;
+      if ('direction' in encoded)
+        encoded.direction = this.getRotation(encoded.direction, degree);
       if (encoded.focusing)
         encoded.focusing = encoded.focusing.map(u => u.id);
       if (encoded.paralyzed)
@@ -1137,20 +1272,25 @@ export default class {
    * Decode unit and tile references by modifying original object.
    */
   decodeAction(action) {
+    let degree = this.getDegree('N', this.rotation);
     let units = this.teamsUnits.flat();
     let decode = obj => {
       let decoded = {...obj};
 
       if ('unit' in decoded)
         decoded.unit = units.find(u => u.id === decoded.unit);
-      if ('tile' in decoded)
-        decoded.tile = this.getTile(...decoded.tile);
+      if ('assignment' in decoded)
+        decoded.assignment = this.getTileRotation(decoded.assignment, degree);
+      if ('target' in decoded)
+        decoded.target = this.getTileRotation(decoded.target, degree);
+      if ('direction' in decoded)
+        decoded.direction = this.getRotation(decoded.direction, degree);
       if (decoded.focusing)
-        decoded.focusing = decoded.focusing.map(uID => units.find(u => u.id === uID));
+        decoded.focusing = decoded.focusing.map(uId => units.find(u => u.id === uId));
       if (decoded.paralyzed)
-        decoded.paralyzed = decoded.paralyzed.map(uID => units.find(u => u.id === uID));
+        decoded.paralyzed = decoded.paralyzed.map(uId => units.find(u => u.id === uId));
       if (decoded.poisoned)
-        decoded.poisoned = decoded.poisoned.map(uID => units.find(u => u.id === uID));
+        decoded.poisoned = decoded.poisoned.map(uId => units.find(u => u.id === uId));
 
       if ('changes' in decoded)
         decoded.changes = decode(decoded.changes);
@@ -1167,8 +1307,8 @@ export default class {
   }
 
   getState() {
-    // Right now, degree will always be zero since only the GameState class
-    // calls this method and the GameState board instance is never rotated.
+    // Right now, degree will always be zero since only the Game class
+    // calls this method and the Game board instance is never rotated.
     let degree = this.getDegree(this.rotation, 'N');
 
     return this.teamsUnits.map(units => units.map(unit => {
@@ -1176,8 +1316,8 @@ export default class {
       if (!degree) return unitState;
 
       // Normalize assignment and direction based on North board rotation.
-      let tile = this.getTileRotation(unitState.tile, degree);
-      unitState.tile = [tile.x, tile.y];
+      let assignment = this.getTileRotation(unitState.assignment, degree);
+      unitState.assignment = [assignment.x, assignment.y];
 
       if (unitState.direction)
         unitState.direction = this.getRotation(unitState.direction, degree);
@@ -1203,7 +1343,7 @@ export default class {
 
         // Adjust assignment and direction based on current board rotation.
         if (degree) {
-          unitState.tile = this.getTileRotation(unitState.tile, degree);
+          unitState.assignment = this.getTileRotation(unitState.assignment, degree);
           if (unitState.direction)
             unitState.direction = this.getRotation(unitState.direction, degree);
         }
@@ -1216,11 +1356,11 @@ export default class {
     let units = this.teamsUnits.flat();
     units.forEach(unit => {
       if (unit.focusing)
-        unit.focusing = unit.focusing.map(uID => units.find(u => u.id === uID));
+        unit.focusing = unit.focusing.map(uId => units.find(u => u.id === uId));
       if (unit.paralyzed)
-        unit.paralyzed = unit.paralyzed.map(uID => units.find(u => u.id === uID));
+        unit.paralyzed = unit.paralyzed.map(uId => units.find(u => u.id === uId));
       if (unit.poisoned)
-        unit.poisoned = unit.poisoned.map(uID => units.find(u => u.id === uID));
+        unit.poisoned = unit.poisoned.map(uId => units.find(u => u.id === uId));
     });
 
     return this;
@@ -1379,7 +1519,7 @@ export default class {
       arrow.visible = true;
     });
 
-    if (stage.children.indexOf(turnOptions) === -1)
+    if (!stage.children.includes(turnOptions))
       stage.addChild(turnOptions);
 
     return this;
@@ -1397,7 +1537,7 @@ export default class {
       arrow.visible = unit.directional === false || arrow.data.direction == unit.direction;
     });
 
-    if (stage.children.indexOf(turnOptions) === -1)
+    if (!stage.children.includes(turnOptions))
       stage.addChild(turnOptions);
 
     return this;
@@ -1406,7 +1546,7 @@ export default class {
     let stage = Tactics.game.stage;
     let turnOptions = this._turnOptions;
 
-    if (stage.children.indexOf(turnOptions) > -1)
+    if (stage.children.includes(turnOptions))
       stage.removeChild(turnOptions);
 
     return this;
@@ -1481,7 +1621,7 @@ export default class {
 
     // Reset target tiles to attack tiles
     selected.getTargetTiles(target).forEach(tile => {
-      if (attackTiles.indexOf(tile) > -1)
+      if (attackTiles.includes(tile))
         this.setHighlight(tile, {
           action: 'attack',
           color:  ATTACK_TILE_COLOR,
@@ -1570,7 +1710,7 @@ export default class {
   onMoveSelect(tile) {
     this._emit({
       type: 'move',
-      tile: tile,
+      assignment: tile,
     });
   }
   onAttackSelect(tile) {
@@ -1586,7 +1726,7 @@ export default class {
 
     // Units that attack all targets don't have a specific target tile.
     if (target)
-      action.tile = target;
+      action.target = target;
     else {
       // Set unit to face the direction of the tapped tile.
       // (This is an aesthetic data point that needs no server validation)
