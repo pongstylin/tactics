@@ -7,6 +7,7 @@ module.exports = {
     'faceoff-app': path.resolve(__dirname, 'src', 'faceoff-app.js'),
     'chaos-app': path.resolve(__dirname, 'src', 'chaos-app.js'),
     'classic-app': path.resolve(__dirname, 'src', 'classic-app.js'),
+    'ww': path.resolve(__dirname, 'src', 'ww.js'),
   },
   module: {
     rules: [

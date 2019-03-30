@@ -70,7 +70,7 @@ export default class {
         if (unit.color === defender.color) continue;
 
         // Don't consider Chaos Seed an enemy in this context.
-        if (unit.type === 15) continue;
+        if (unit.type === 'ChaosSeed') continue;
 
         this.calcAllThreats(unit, defender, maxTurns).forEach(threat => {
           threat.unit = unit;
@@ -140,13 +140,13 @@ export default class {
     return threat_score > 100 ? 0 : 100 - threat_score;
   }
 
-  // How many turns must I wait before I can attack?
+  // How many turns must attacker wait before he can attack?
   // Turn count does not include the turn in which the attack is made.
   // -1 is returned if no movement required (unless simple is set)
   calcThreatTurns(attacker, target, simple) {
     let board = this.state.board;
     let turns = Math.ceil(
-      (board.getDistance(attacker.assignment, target.assignment) - attacker.aRadius) / attacker.mRadius
+      (board.getDistance(attacker.assignment, target.assignment) - attacker.aRange[1]) / attacker.mRadius
     ) - 1;
 
     if (turns < 0 && (attacker.mRecovery || simple))
@@ -369,8 +369,8 @@ export default class {
         // Hack to make sure bot actually attacks.
         var at = 0,bt = 0;
 
-        if (a.target && a.target.assigned.type === 15) as++;
-        if (b.target && b.target.assigned.type === 15) bs++;
+        if (a.target && a.target.assigned.type === 'ChaosSeed') as++;
+        if (b.target && b.target.assigned.type === 'ChaosSeed') bs++;
 
         if (a.target && a.target !== a.unit.assignment) {
           at = this.calcThreat(a.unit, a.target.assigned, a.first === 'attack' ? a.unit.assignment : a.end);
@@ -405,9 +405,9 @@ export default class {
     let pushMoveAction = () => {
       if (chosen.end)
         actions.push({
-          type: 'move',
-          unit: chosen.unit,
-          tile: chosen.end,
+          type:       'move',
+          unit:       chosen.unit,
+          assignment: chosen.end,
         });
     };
     let pushAttackAction = () => {
@@ -419,9 +419,9 @@ export default class {
           });
         else
           actions.push({
-            type:  'attack',
-            unit: chosen.unit,
-            tile: chosen.target,
+            type:   'attack',
+            unit:   chosen.unit,
+            target: chosen.target,
           });
     };
 
@@ -466,12 +466,12 @@ export default class {
       this.enemies.forEach(enemy => {
         var weight = board.getDistance(enemy.assignment,friend.assignment);
 
-        if (enemy.type === 15) return;
+        if (enemy.type === 'ChaosSeed') return;
 
         choices.push({
           enemy:  enemy,
           friend: friend,
-          weight: weight + Math.random()
+          weight: weight + Math.random(),
         });
       });
     });
@@ -493,7 +493,7 @@ export default class {
           distance:
             board.getDistance(friend.assignment, choice.friend.assignment) +
             board.getDistance(friend.assignment, choice.enemy.assignment) +
-            Math.random()
+            Math.random(),
         });
       });
 
@@ -694,6 +694,8 @@ export default class {
       // If all directions are equally defensible, pick something intelligent.
       // Sum up the danger from each direction.
       for (i=0; i<enemies.length; i++) {
+        if (!enemies[i].aRange) continue;
+
         d = board.getDirection(unit.assignment, enemies[i].assignment);
         t = this.calcThreatTurns(enemies[i], unit);
         w = 1;
@@ -732,10 +734,10 @@ export default class {
       let target = targets[i];
       let target_unit = target.assigned;
 
-      if (!target_unit || this.enemies.indexOf(target_unit) === -1) continue;
+      if (!target_unit || !this.enemies.includes(target_unit)) continue;
 
       // Set defense to zero to try to priorize target.
-      if (target_unit.type === 15)
+      if (target_unit.type === 'ChaosSeed')
         targetsData.push({
           tile:    target,
           target:  target_unit,
@@ -767,7 +769,9 @@ export default class {
 
     for (i=0; i<friends.length; i++) {
       for (j=0; j<enemies.length; j++) {
-        if (this.calcThreatTurns(friends[i], enemies[j]) < 1 || this.calcThreatTurns(enemies[j], friends[i]) < 1)
+        if (friends[i].aRange && this.calcThreatTurns(friends[i], enemies[j]) < 1)
+          return 1;
+        if (enemies[j].aRange && this.calcThreatTurns(enemies[j], friends[i]) < 1)
           return 1;
       }
     }
@@ -811,6 +815,9 @@ export default class {
 
             // if the same color, not an enemy
             if (eunit.color === funit.color) continue;
+
+            // If no attack range, assume the enemy is harmless. (Chaos Seed, Cleric)
+            if (!eunit.aRange) continue;
 
             // A dead man is not a threat.
             if (target && target.target === eunit && target.threat === 100) continue;

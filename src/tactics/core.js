@@ -1,6 +1,5 @@
-import unitsData from 'tactics/unitsData.js';
+import LocalTransport from 'tactics/LocalTransport.js';
 import Game from 'tactics/Game.js';
-import GameState from 'tactics/GameState.js';
 
 window.Tactics = (function () {
   'use strict';
@@ -9,8 +8,6 @@ window.Tactics = (function () {
 
   // We don't need an infinite loop, thanks.
   PIXI.ticker.shared.autoStart = false;
-
-  utils.addEvents.call(self);
 
   $.extend(self, {
     width:  22 + 88*9 + 22,
@@ -56,6 +53,19 @@ window.Tactics = (function () {
       });
 
       return elements;
+    },
+    createLocalGame: function (gameData) {
+      let teams = gameData.teams;
+      gameData.teams = teams.map(t => null);
+
+      let transport = LocalTransport.createGame(gameData);
+
+      return transport.whenReady.then(() => {
+        let game = new Game(transport);
+        teams.forEach((t, i) => game.join(t, i));
+
+        return game;
+      });
     },
     images: [
       'board.jpg',
@@ -121,9 +131,6 @@ window.Tactics = (function () {
         ],
       ],
     },
-    units: unitsData,
-    Game: Game,
-    GameState: GameState,
   });
 
   return self;

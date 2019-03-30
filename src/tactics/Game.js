@@ -9,12 +9,12 @@ import Board, {
   ATTACK_TILE_COLOR,
 } from 'tactics/Board.js';
 
-import unitsData from 'tactics/unitsData.js';
+import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
 
 export default class {
   /*
    * Arguments:
-   *  state: An object supporting the GameState class interface.
+   *  state: An object supporting the Game class interface.
    */
   constructor(state) {
     if (!state)
@@ -91,9 +91,12 @@ export default class {
 
     Tactics.game = this;
 
-    // whenReady is a promise that is either already resolved or not yet.
-    // Regardless of current state, load resources when game state is ready.
-    state.whenReady.then(() => this._load());
+    state.whenReady.then(() => {
+      if (state.started)
+        this._load();
+      else
+        state.on('startGame', () => this._load());
+    });
   }
 
   /*****************************************************************************
@@ -308,7 +311,7 @@ export default class {
     if (!team.bot)
       this._localTeamIds.push(slot);
 
-    this.state.join(team, slot);
+    return this.state.join(team, slot);
   }
   isMyTeam(team) {
     if (team === undefined)
@@ -317,7 +320,7 @@ export default class {
     if (typeof team === 'number')
       team = this.teams[team];
 
-    return this._localTeamIds.indexOf(team.originalID) > -1;
+    return this._localTeamIds.includes(team.originalId);
   }
 
   /*
@@ -573,16 +576,21 @@ export default class {
   }
 
   canUndo() {
+    let state   = this.state;
     let teams   = this._teams;
     let actions = this.actions;
 
     if (this.isLocalGame)
       // Allow unrestricted undo when all teams are local.
-      return !!actions.length || !!this.state.currentTurnId;
-    else {
+      return !!actions.length || !!state.currentTurnId;
+    else if (this.isMyTeam(state.currentTeamId)) {
       if (actions.length === 0) return false;
 
+      let unitId = actions[0].unit;
       let lastLuckyActionIndex = actions.findLastIndex(action =>
+        // Counter-attacks can't be undone.
+        action.unit !== unitId ||
+        // Luck-involved attacks can't be undone.
         action.results && !!action.results.find(result => 'luck' in result)
       );
 
@@ -724,38 +732,39 @@ export default class {
       });
     });
 
-    let trophy_url = unitsData[19].frames_url;
+    let trophy_url = unitDataMap.get('Champion').frames_url;
     resources.push(trophy_url);
 
     $.getJSON(trophy_url).then(renderData => {
-      Object.assign(unitsData[19], renderData);
+      Object.assign(unitDataMap.get('Champion'), renderData);
       progress();
     });
 
     this.state.teams.forEach(team => {
-      let teamUnits = team.units.slice();
+      let teamUnits = team.set.slice();
 
       // The Chaos Dragon is not yet a member of a team, but must be loaded.
       if (team.name === 'Chaos')
-        teamUnits.push({type:22});
+        teamUnits.push({type:'ChaosDragon'});
 
-      teamUnits.forEach(({type:unitTypeID}) => {
-        let unit    = unitsData[unitTypeID];
-        let sprites = [];
+      teamUnits.forEach(({type:unitType}) => {
+        let unitData   = unitDataMap.get(unitType);
+        let unitTypeId = unitTypeToIdMap.get(unitType);
+        let sprites    = [];
 
-        if (loadedUnitTypes.indexOf(unitTypeID) > -1)
+        if (loadedUnitTypes.includes(unitTypeId))
           return;
-        loadedUnitTypes.push(unitTypeID);
+        loadedUnitTypes.push(unitTypeId);
 
-        if (unit.sounds) {
-          Object.keys(unit.sounds).forEach(name => {
-            let sound = unit.sounds[name];
+        if (unitData.sounds) {
+          Object.keys(unitData.sounds).forEach(name => {
+            let sound = unitData.sounds[name];
             if (typeof sound === 'string')
               sound = {file: sound};
 
             let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
-            unit.sounds[name] = new Howl({
+            unitData.sounds[name] = new Howl({
               src:         [url+'.mp3', url+'.ogg'],
               sprite:      sound.sprite,
               volume:      sound.volume || 1,
@@ -768,9 +777,9 @@ export default class {
           });
         }
 
-        if (unit.effects) {
-          Object.keys(unit.effects).forEach(name => {
-            let effect_url = unit.effects[name].frames_url;
+        if (unitData.effects) {
+          Object.keys(unitData.effects).forEach(name => {
+            let effect_url = unitData.effects[name].frames_url;
 
             if (!(effect_url in effects)) {
               resources.push(effect_url);
@@ -782,18 +791,18 @@ export default class {
             }
   
             effects[effect_url].then(renderData => {
-              Object.assign(unit.effects[name], renderData);
+              Object.assign(unitData.effects[name], renderData);
               return renderData;
             });
           });
         }
 
-        if (unit.frames_url) {
-          let frames_url = unit.frames_url;
+        if (unitData.frames_url) {
+          let frames_url = unitData.frames_url;
           resources.push(frames_url);
 
           $.getJSON(frames_url).then(renderData => {
-            Object.assign(unit, renderData);
+            Object.assign(unitData, renderData);
 
             // Preload data URIs.
             renderData.images.forEach(image_url => {
@@ -804,13 +813,13 @@ export default class {
           });
         }
         // Legacy
-        else if (unit.frames) {
-          unit.frames.forEach(frame => {
+        else if (unitData.frames) {
+          unitData.frames.forEach(frame => {
             if (!frame) return;
 
             frame.c.forEach(sprite => {
-              let url = 'https://legacy.taorankings.com/units/'+unitTypeID+'/image'+sprite.id+'.png';
-              if (resources.indexOf(url) !== -1)
+              let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+sprite.id+'.png';
+              if (resources.includes(url))
                 return;
 
               resources.push(url);
@@ -820,24 +829,24 @@ export default class {
         }
         // Legacy
         else {
-          sprites.push.apply(sprites, Object.values(unit.stills));
+          sprites.push.apply(sprites, Object.values(unitData.stills));
 
-          if (unit.walks)
-            sprites.push.apply(sprites, [].concat.apply([], Object.values(unit.walks)));
+          if (unitData.walks)
+            sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.walks)));
 
-          if (unit.attacks)
-            sprites.push.apply(sprites, [].concat.apply([], Object.values(unit.attacks)));
+          if (unitData.attacks)
+            sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.attacks)));
 
-          if (unit.blocks)
-            sprites.push.apply(sprites, [].concat.apply([], Object.values(unit.blocks)));
+          if (unitData.blocks)
+            sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.blocks)));
 
           sprites.forEach(sprite => {
             Object.keys(sprite).forEach(name => {
               let image = sprite[name];
               if (!image.src) return;
 
-              let url = 'https://legacy.taorankings.com/units/'+unitTypeID+'/'+name+'/image'+image.src+'.png';
-              if (resources.indexOf(url) !== -1)
+              let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/'+name+'/image'+image.src+'.png';
+              if (resources.includes(url))
                 return;
 
               resources.push(url);
@@ -859,6 +868,10 @@ export default class {
 
     this._board.setState(turnData.units, this._teams);
     this._startTurn(this.state.currentTeamId);
+
+    let actions = this.actions;
+    if (actions.length)
+      this.selected = actions[0].unit;
   }
 
   /*
@@ -912,7 +925,7 @@ export default class {
           if (actionType === 'move') {
             // Show the player where the unit will move.
             painted.push(
-              action.tile.paint('move', 0.3, MOVE_TILE_COLOR)
+              action.assignment.paint('move', 0.3, MOVE_TILE_COLOR)
             );
 
             selected.activate();
@@ -929,7 +942,7 @@ export default class {
             let attacker = action.unit;
 
             // Show the player the units that will be attacked.
-            let target = action.tile;
+            let target = action.target;
             let target_units = attacker.getTargetUnits(target);
 
             if (target_units.length) {
@@ -990,7 +1003,7 @@ export default class {
           // Only applicable to Chaos Seed counter-attack
           else if (actionType === 'heal') {
             // Show the player the unit that will be healed.
-            let target_unit = action.tile.assigned;
+            let target_unit = action.target.assigned;
             target_unit.activate();
             this.drawCard(target_unit);
 
@@ -1168,12 +1181,12 @@ export default class {
     };
 
     return results.reduce(
-      (promise, result) => promise.then(() =>
-        showResult(result))
-          .then(() => {
-            let unit = result.unit;
-            if (unit) unit.change({notice: null});
-          }),
+      (promise, result) => promise
+        .then(() => showResult(result))
+        .then(() => {
+          let unit = result.unit;
+          if (unit) unit.change({notice: null});
+        }),
       Promise.resolve(),
     ).then(() => this.drawCard());
   }
@@ -1245,7 +1258,7 @@ export default class {
     if (this.state.type === 'Chaos')
       if ('newPlayerTeam' in action) {
         let newPlayerTeam = this.teams[action.newPlayerTeam];
-        this._localTeamIds.push(newPlayerTeam.originalID);
+        this._localTeamIds.push(newPlayerTeam.originalId);
       }
 
     this._applyChangeResults(action.results);
@@ -1281,7 +1294,7 @@ export default class {
     can.push('direction');
 
     let selectMode = this.selectMode;
-    if (selectMode === null || can.indexOf(selectMode) === -1)
+    if (selectMode === null || !can.includes(selectMode))
       selectMode = can.shift();
 
     return selectMode;
