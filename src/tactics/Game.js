@@ -95,7 +95,7 @@ export default class {
       if (state.started)
         this._load();
       else
-        state.on('startGame', () => this._load());
+        state.once('startGame', () => this._load());
     });
   }
 
@@ -370,6 +370,8 @@ export default class {
         .off('reset', this._onStateEventListener)
         .off('undo', this._onStateEventListener)
         .off('endGame', this._onStateEventListener)
+
+    this.notice = null;
 
     // Inform game state to restart.
     state.restart();

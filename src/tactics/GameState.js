@@ -291,7 +291,7 @@ export default class Game {
     this.winnerId = null;
 
     this._bots.forEach(b => b.destroy());
-    this.start();
+    this._start();
   }
 
   getGameData() {

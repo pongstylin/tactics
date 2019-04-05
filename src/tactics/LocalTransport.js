@@ -48,6 +48,14 @@ export default class LocalTransport {
 
     return this;
   }
+  once(eventType, fn) {
+    let listener = () => {
+      this.off(eventType, listener);
+      fn();
+    };
+
+    this.on(eventType, listener);
+  }
   off() {
     this._emitter.removeListener(...arguments);
 
