@@ -27,7 +27,7 @@
     "babel-loader": "^8.0.4",
     "core-js": "^2.5.7",
     "css-loader": "^1.0.0",
-    "cssnano": "^4.1.7",
+    "cssnano": "^4.1.10",
     "extract-text-webpack-plugin": "^4.0.0-beta.0",
     "file-loader": "^2.0.0",
     "html-loader": "^0.5.5",
@@ -38,7 +38,7 @@
     "sass-loader": "^7.1.0",
     "webpack": "^4.20.2",
     "webpack-cli": "^3.1.2",
-    "webpack-dev-server": "^3.1.10",
+    "webpack-dev-server": "^3.2.1",
     "webpack-notifier": "^1.6.0"
   },
   "dependencies": {
