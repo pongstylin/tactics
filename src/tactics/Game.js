@@ -1,7 +1,7 @@
 'use strict';
 
 import EventEmitter from 'events';
-import PanZoom from 'util/panzoom.js';
+import PanZoom from 'utils/panzoom.js';
 
 import Board, {
   FOCUS_TILE_COLOR,

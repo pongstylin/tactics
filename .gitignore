@@ -1,3 +1,4 @@
 node_modules
 dist
 static/*.min.js
+src/data/files

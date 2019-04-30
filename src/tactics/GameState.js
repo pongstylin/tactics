@@ -6,19 +6,24 @@ import botFactory from 'tactics/botFactory.js';
 import colorMap from 'tactics/colorMap.js';
 import unitDataMap from 'tactics/unitData.js';
 
-export default class Game {
+const GAME_TYPES = new Set([
+  'classic', // Must be a 2-player game with classic, a.k.a. default gray, sets.
+  'chaos',   // Knights of Order vs the Seed of Chaos
+]);
+
+export default class GameState {
   /*****************************************************************************
    * Constructors
    ****************************************************************************/
   /*
    * The default constructor is intended for internal use only.
    */
-  constructor(gameData) {
+  constructor(stateData) {
     let board = new Board();
-    let turns = gameData.turns || [];
-    delete gameData.turns;
+    let turns = stateData.turns || [];
+    delete stateData.turns;
 
-    Object.assign(this, gameData, {
+    Object.assign(this, stateData, {
       winnerId: null,
 
       _turns:   turns,
@@ -38,21 +43,28 @@ export default class Game {
    * will be filled later via the 'join' method.  Once all team slots are
    * filled, the game is started.
    */
-  static create(gameData) {
-    if (!gameData || !gameData.teams || gameData.teams.length < 2)
+  static create(stateData) {
+    if (stateData.type) {
+      if (!GAME_TYPES.has(stateData.type))
+        throw new TypeError('Invalid game type');
+
+      if (stateData.type === 'classic')
+        stateData.teams = [null, null];
+    }
+
+    if (!stateData || !stateData.teams || stateData.teams.length < 2)
       throw new TypeError('Required teams length');
 
-    let teams = gameData.teams;
-    delete gameData.teams;
+    let teams = stateData.teams;
+    delete stateData.teams;
 
-    gameData = Object.assign(
+    stateData = Object.assign(
       // These settings may be overwritten
       {
         randomFirstTurn: true,
       },
-      gameData,
+      stateData,
       {
-        created:  new Date(),
         started:  null,
         ended:    null,
         teams:    new Array(teams.length),
@@ -61,7 +73,7 @@ export default class Game {
       }
     );
 
-    let gameState = new Game(gameData);
+    let gameState = new GameState(stateData);
 
     teams.forEach((team, slot) => {
       if (team) gameState.join(team, slot);
@@ -75,17 +87,22 @@ export default class Game {
    *
    * The existing game may or may not have been started yet.
    */
-  static load(gameData) {
-    let state = new Game(gameData);
+  static load(stateData) {
+    // Clone the data since we'll be modifying it.
+    stateData = Object.assign({}, stateData);
 
-    if (typeof gameData.created === 'string')
-      gameData.created = new Date(gameData.created);
-    if (typeof gameData.started === 'string')
-      gameData.started = new Date(gameData.started);
-    if (typeof gameData.ended === 'string')
-      gameData.ended = new Date(gameData.ended);
+    stateData._turns = stateData.turns;
+    delete stateData.turns;
 
-    return state;
+    stateData._actions = stateData.actions;
+    delete stateData.actions;
+
+    if (typeof stateData.started === 'string')
+      stateData.started = new Date(stateData.started);
+    if (typeof stateData.ended === 'string')
+      stateData.ended = new Date(stateData.ended);
+
+    return new GameState(stateData);
   }
 
   /*****************************************************************************
@@ -182,7 +199,23 @@ export default class Game {
     if (teams[slot])
       throw new TypeError('The slot is taken');
 
-    if (!team.set)
+    if (this.type === 'classic')
+      team.set = [
+        // Back Row
+        {assignment:[5, 0], type:'Cleric'},
+        // Middle Row
+        {assignment:[2, 1], type:'DarkMagicWitch'},
+        {assignment:[3, 1], type:'Pyromancer'},
+        {assignment:[7, 1], type:'Pyromancer'},
+        {assignment:[8, 1], type:'Enchantress'},
+        // Front Row
+        {assignment:[1, 2], type:'Assassin'},
+        {assignment:[4, 2], type:'Knight'},
+        {assignment:[5, 2], type:'Knight'},
+        {assignment:[6, 2], type:'Knight'},
+        {assignment:[9, 2], type:'Scout'},
+      ];
+    else if (!team.set)
       throw new TypeError('A set is required for the team');
 
     team.joined = new Date();
@@ -306,7 +339,6 @@ export default class Game {
       type:          this.type,
       teams:         teams,
 
-      created:       this.created,
       started:       this.started,
       ended:         this.ended,
 
@@ -580,8 +612,10 @@ export default class Game {
    */
   toJSON() {
     let teams = this.teams.map(team => {
-      team = {...team};
-      delete team.units;
+      if (team) {
+        team = {...team};
+        delete team.units;
+      }
 
       return team;
     });
@@ -590,7 +624,6 @@ export default class Game {
       type:    this.type,
       teams:   teams,
 
-      created: this.created && this.created.toISOString(),
       started: this.started && this.started.toISOString(),
       ended:   this.ended   && this.ended.toISOString(),
 

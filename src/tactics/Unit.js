@@ -1,7 +1,7 @@
 'use strict';
 
 import EventEmitter from 'events';
-import Polygon from 'util/Polygon.js';
+import Polygon from 'utils/Polygon.js';
 import { unitTypeToIdMap } from 'tactics/unitData.js';
 import { reverseColorMap } from 'tactics/colorMap.js';
 

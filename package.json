@@ -11,25 +11,37 @@
     "url": "git@github.com:pongstylin/tactics.git"
   },
   "scripts": {
-    "start": "NODE_ENV=development webpack --watch --progress --hide-modules & node src/app.js || true",
+    "start": "NODE_ENV=development webpack --watch --progress --hide-modules & node --experimental-modules --loader ./resolver.mjs --require dotenv/config src/server.js || true",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dist": "NODE_ENV=production webpack --progress --hide-modules"
+    "dist": "NODE_ENV=production webpack --progress --hide-modules",
+    "clean": "rm -f src/data/files/*.json",
+    "createKeyPair": "node bin/createKeyPair.js"
   },
   "author": "Dave Clark",
   "license": "Unlicense",
   "devDependencies": {
     "css-loader": "^1.0.0",
-    "node-sass": "^4.9.4",
+    "debug": "^4.1.1",
+    "dotenv": "^7.0.0",
+    "dotenv-webpack": "^1.7.0",
+    "node-sass": "^4.12.0",
     "sass-loader": "^7.1.0",
     "style-loader": "^0.23.1",
     "webpack": "^4.23.1",
     "webpack-cli": "^3.1.2"
   },
   "dependencies": {
+    "ajv": "^6.10.0",
+    "bufferutil": "^4.0.1",
     "express": "^4.16.4",
+    "howler": "^2.1.1",
     "impetus": "^0.8.8",
+    "jsonwebtoken": "^8.5.1",
     "pixi.js": "^4.8.2",
+    "socket.io-client": "^2.2.0",
     "touch-pinch": "^1.0.1",
-    "howler": "^2.1.1"
+    "utf-8-validate": "^5.0.2",
+    "uuid": "^3.3.2",
+    "ws": "^6.2.1"
   }
 }
