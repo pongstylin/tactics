@@ -8,6 +8,8 @@ import Ajv from 'ajv';
 import { services } from 'server/Service.js';
 import ServerError from 'server/Error.js';
 
+const CLOSE_GOING_AWAY = 1001;
+
 let debug = DebugLogger('service:router');
 // Verbose debug logger
 let debugV = DebugLogger('service-v:router');
@@ -26,10 +28,11 @@ let schema = {
           type: 'object',
           properties: {
             service: { type:'string' },
+            group: { type:'string' },
             type: { type:'string' },
             data: { },
           },
-          required: ['service','type','data'],
+          required: ['service','group','type','data'],
           additionalProperties: false,
         },
         ack: { type:'number', minimum:0 },
@@ -156,25 +159,62 @@ let closedSessions = new Set();
  ******************************************************************************/
 let groups = new Map();
 
-function joinGroup(serviceName, {groupName, client}) {
-  let groupId = [serviceName, groupName];
+function joinGroup(serviceName, { client:clientId, body }) {
+  let groupId = [serviceName, body.group].join(':');
   let group = groups.get(groupId)
   if (!group)
-    groups.set(groupId, group = new Set());
+    groups.set(groupId, group = new Map());
 
-  group.add(client.session);
+  /*
+   * A user can join the group from multiple sessions, so build a list of
+   * unique users in the group.  This list will be sent to the new session.
+   */
+  let groupUserIds = new Set();
+  let groupUsers = [];
+  for (let user of group.values()) {
+    if (groupUserIds.has(user.id)) continue;
+    groupUserIds.add(user.id);
+
+    groupUsers.push(user);
+  }
+
+  // Let everybody know this user has joined the group, if we haven't already.
+//  if (!groupUserIds.has(body.user.id)) {
+  if (true) {
+    let messageBody = {
+      service: serviceName,
+      group: body.group,
+      user: body.user,
+    };
+
+    for (let sessionId of group.keys()) {
+      enqueue(sessions.get(sessionId), 'joined', messageBody);
+    }
+
+    groupUsers.push(body.user);
+  }
+
+  group.set(clientId, body.user);
+
+  let session = sessions.get(clientId);
+
+  enqueue(session, 'join', {
+    service: serviceName,
+    group: body.group,
+    users: groupUsers,
+  });
 }
 services.forEach(service =>
   service.on('join', event => joinGroup(service.name, event))
 );
 
-function leaveGroup(serviceName, {groupName, client}) {
-  let groupId = [serviceName, groupName];
+function leaveGroup(serviceName, { clientId, body }) {
+  let groupId = [serviceName, groupName].join(':');
   let group = groups.get(groupId);
   if (!group)
     return;
 
-  group.delete(client.session);
+  group.delete(clientId);
 
   if (group.size === 0)
     groups.delete(groupId);
@@ -196,33 +236,20 @@ function purgeAcknowledgedMessages(session, message) {
   }
 }
 
-function sendEvent(event) {
-  let serviceName = event.serviceName;
-  let targetType = event.targetType;
-  let target = event.target;
-  let messageBody = Object.assign({
-    service: serviceName,
-    type: event.type,
-    data: event.data,
-  }, event.data);
+function sendEvent(serviceName, { body }) {
+  let messageBody = { service:serviceName, ...body };
 
-  if (targetType === 'group') {
-    let groupId = [serviceName, target].join('\0');
-    let group = groups.get(groupId);
+  let groupId = [serviceName, body.group].join(':');
+  let group = groups.get(groupId);
+  if (!group) return;
 
-    messageBody.group = target;
-
-    group.forEach(session => enqueue(session, 'event', messageBody));
+  for (let sessionId of group.keys()) {
+    enqueue(sessions.get(sessionId), 'event', messageBody);
   }
-  else if (targetType === 'client') {
-    let session = sessions.get(target);
-
-    enqueue(session, 'event', messageBody);
-  }
-  else
-    throw new Error(`Unsupported target type: ${targetType}`);
 }
-services.forEach(service => service.on('event', sendEvent));
+services.forEach(service =>
+  service.on('event', event => sendEvent(service.name, event))
+);
 
 function sendErrorResponse(client, requestId, error) {
   if (!(error instanceof ServerError)) {
@@ -385,7 +412,7 @@ function onMessage(data) {
         /*
          * Discard repeat messages.  Resync if a message was skipped.
          */
-        let expectedMessageId = session.serverMessageId + 1;
+        let expectedMessageId = session.clientMessageId + 1;
         if (message.id < expectedMessageId)
           return;
         if (message.id > expectedMessageId)
@@ -401,7 +428,7 @@ function onMessage(data) {
       else if (message.type === 'request')
         onRequestMessage(client, message);
       else if (message.type === 'join')
-        onLeaveMessage(client, message);
+        onJoinMessage(client, message);
       else if (message.type === 'leave')
         onLeaveMessage(client, message);
       else if (message.type === 'sync')
@@ -468,9 +495,14 @@ function onEventMessage(client, message) {
   if (!(method in service))
     throw new ServerError(404, 'No such event type');
 
-  service.will(client, message.type);
+  let groupId = [body.service, body.group].join(':');
+  let group = groups.get(groupId);
+  if (!group || !group.has(client.id))
+    throw new ServerError(409, 'Must first join the group');
 
-  service[method](client, body.data);
+  service.will(client, message.type, body.type);
+
+  service[method](client, body.group, body.data);
 }
 
 function onRequestMessage(client, message) {
@@ -486,7 +518,7 @@ function onRequestMessage(client, message) {
     throw new ServerError(404, 'No such request method');
 
   try {
-    service.will(client, message.type);
+    service.will(client, message.type, body.method);
 
     let response = service[method](client, ...body.args);
 
@@ -514,7 +546,14 @@ function onJoinMessage(client, message) {
   if (!(method in service))
     throw new ServerError(501, 'Service does not support joining groups');
 
+  let groupId = [body.service, body.group].join(':');
+  let group = groups.get(groupId);
+  if (group && group.has(client.id))
+    throw new ServerError(409, 'Already joined group');
+
   try {
+    service.will(client, 'join', body.group);
+
     let response = service[method](client, body.group);
 
     if (response instanceof Promise)
@@ -537,6 +576,13 @@ function onLeaveMessage(client, message) {
     throw new ServerError(404, 'No such service');
   if (!('onLeaveGroup' in service))
     throw new ServerError(501, 'Service does not support leaving groups');
+
+  let groupId = [body.service, body.group].join(':');
+  let group = groups.get(groupId);
+  if (!group || !group.has(client.id))
+    return;
+
+  service.will(client, 'leave', body.group);
 
   service.onLeaveGroup(client, body.group);
 }
@@ -566,7 +612,7 @@ function onOpenMessage(client, message) {
   client.id = session.id;
   session.client = client;
 
-  sessions.set(session.id, session);
+  sessions.set(client.id, session);
 
   send(client, {
     type: 'session',
@@ -614,9 +660,9 @@ function onResumeMessage(client, message) {
   });
 }
 
-//function onClose({target:client, code, reason}) {
 function onClose(code, reason) {
   let client = this;
+  let session = client.session;
 
   debug(`disconnect: client=${client.id}; [${code}] ${reason}`);
 
@@ -624,11 +670,22 @@ function onClose(code, reason) {
   inboundClients.delete(client);
   outboundClients.delete(client);
 
-  // Enforce a timeout for the session.
-  let session = client.session;
   if (session) {
-    session.closedAt = new Date().getTime();
-    closedSessions.add(session);
+    if (code === CLOSE_GOING_AWAY) {
+      // Delete the session immediately since the client won't come back.
+      // This code is used when the websocket webpage is refreshed or closed.
+      sessions.delete(client.id);
+
+      groups.forEach(group => group.delete(client.id));
+
+      services.forEach(service => service.dropClient(client));
+    }
+    else {
+      // Maintain the session in case the client comes back.
+      // The session will be deleted once it times out.
+      session.closedAt = new Date().getTime();
+      closedSessions.add(session);
+    }
   }
 }
 
@@ -690,8 +747,8 @@ setInterval(() => {
     sessions.delete(session.id);
     closedSessions.delete(session);
 
-    groups.forEach(group => group.delete(session));
+    groups.forEach(group => group.delete(session.id));
 
-    services.forEach(service => service.dropClient(session.client));
+    services.forEach(service => service.dropClient(session.id));
   }
 }, 1000);

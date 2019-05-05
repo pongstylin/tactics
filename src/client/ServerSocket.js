@@ -30,7 +30,18 @@ export default class ServerSocket {
       _closeTimeout: null,
 
       // Track a session across connections
-      _session: null,
+      _session: {
+        // Used to restore a session upon reconnection.
+        id: null,
+        // (ack) Used to detect missed server messages.
+        serverMessageId: 0,
+        // Used to determine last sent message Id.
+        clientMessageId: 0,
+        // Outgoing message queue.
+        outbox: [],
+        // Pending response routes
+        responseRoutes: new Map(),
+      },
 
       // Used to detect successful connection to the server.
       _openListener: event => this._onOpen(event),
@@ -53,9 +64,10 @@ export default class ServerSocket {
   off() {
     this._emitter.removeListener(...arguments);
   }
-  send(eventType, data) {
+  send(serviceName, groupPath, eventType, data) {
     this._enqueue('event', {
-      service: this.name,
+      service: serviceName,
+      group: groupPath,
       type: eventType,
       data: data,
     });
@@ -79,6 +91,16 @@ export default class ServerSocket {
       service: serviceName,
       method: methodName,
       args: args,
+    });
+
+    return new Promise((resolve, reject) => {
+      this._session.responseRoutes.set(requestId, {resolve, reject});
+    });
+  }
+  join(serviceName, groupPath) {
+    let requestId = this._enqueue('join', {
+      service: serviceName,
+      group: groupPath,
     });
 
     return new Promise((resolve, reject) => {
@@ -118,9 +140,15 @@ export default class ServerSocket {
   }
   _sendOpen() {
     let session = this._session;
-    if (session) {
+    if (session.id) {
       session.responseRoutes.forEach(route => route.reject('Connection reset'));
-      this._session = null;
+      session.id = null;
+      session.serverMessageId = 0;
+      session.clientMessageId = 0;
+      session.outbox.length = 0;
+      session.responseRoutes.clear();
+
+      this._emit({ type:'reset' });
     }
 
     this._send({ type:'open' });
@@ -139,7 +167,7 @@ export default class ServerSocket {
     let socket = this._socket;
     if (socket && socket.readyState === SOCKET_OPEN) {
       let session = this._session;
-      if (session)
+      if (session.id)
         message.ack = session.serverMessageId;
 
       clearTimeout(this._syncTimeout);
@@ -173,6 +201,10 @@ export default class ServerSocket {
     socket.close();
   }
 
+  _emit(event) {
+    this._emitter.emit(event.type, event);
+  }
+
   /*****************************************************************************
    * Socket Event Handlers
    ****************************************************************************/
@@ -188,7 +220,7 @@ export default class ServerSocket {
     socket.addEventListener('close', this._closeListener);
     this._socket = socket;
 
-    if (this._session)
+    if (this._session.id)
       this._sendResume();
     else
       this._sendOpen();
@@ -216,7 +248,7 @@ export default class ServerSocket {
     /*
      * Discard repeat messages.  Resync if a message was skipped.
      */
-    if (session) {
+    if (session.id) {
       if ('ack' in message)
         this._purgeAcknowledgedMessages(message.ack);
 
@@ -235,7 +267,7 @@ export default class ServerSocket {
      * Route the message.
      */
     if (message.type === 'event')
-      this._emitter.emit('event', message.body);
+      this._emit({ type:'event', body:message.body });
     else if (message.type === 'response')
       this._onResponseMessage(message.body);
     else if (message.type === 'sync')
@@ -271,19 +303,9 @@ export default class ServerSocket {
     }
   }
   _onSessionMessage(message) {
-    if (!this._session)
-      this._session = {
-        // Used to restore a session upon reconnection.
-        id: message.body.sessionId,
-        // (ack) Used to detect missed server messages.
-        serverMessageId: 0,
-        // Used to determine last sent message Id.
-        clientMessageId: 0,
-        // Outgoing message queue.
-        outbox: [],
-        // Pending response routes
-        responseRoutes: new Map(),
-      };
+    let session = this._session;
+    if (!session.id)
+      session.id = message.body.sessionId;
 
     this._purgeAcknowledgedMessages(message.ack);
     this._onSyncMessage(message);
@@ -297,7 +319,8 @@ export default class ServerSocket {
       this._sendOpen();
     else {
       if (source.id) {
-        let route = this._session.responseRoutes.get(source.id);
+        let session = this._session;
+        let route = session.responseRoutes.get(source.id);
         if (route)
           route.reject({
             code: 500,
@@ -322,7 +345,7 @@ export default class ServerSocket {
     this._socket = null;
 
     // Notify clients that messages are being queued.
-    this._emitter.emit('close');
+    this._emit({ type:'close' });
 
     if (this.autoConnect)
       this._open();

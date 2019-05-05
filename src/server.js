@@ -3,14 +3,15 @@ import http from 'http';
 import express from 'express';
 import ws from 'ws';
 
-import router from 'server/router.js';
-
 /*
  * Normally, different services would run on different servers.
  * But the dev environment runs all services in one.
  */
 import 'server/AuthService.js';
 import 'server/GameService.js';
+
+// Order matters, services must be loaded before router.
+import router from 'server/router.js';
 
 // Object extensions/polyfills
 import 'plugins/array.js';

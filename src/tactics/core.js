@@ -1,5 +1,23 @@
+import clientFactory from 'client/clientFactory.js';
+import RemoteTransport from 'tactics/RemoteTransport.js';
 import LocalTransport from 'tactics/LocalTransport.js';
 import Game from 'tactics/Game.js';
+
+var authClient = clientFactory('auth');
+var gameClient = clientFactory('game');
+var refreshTimeout = null;
+
+authClient.on('token', ({ token }) => {
+  authClient.authorize();
+  gameClient.authorize(token);
+
+  // Being lazy and assuming a 1h token expiration period.
+  // So we'll refresh in 45 minutes.
+  clearTimeout(refreshTimeout);
+  refreshTimeout = setTimeout(() => authClient.refreshToken(), 45 * 60000);
+});
+
+authClient.refreshTokenIfPresent();
 
 window.Tactics = (function () {
   'use strict';
@@ -54,17 +72,42 @@ window.Tactics = (function () {
 
       return elements;
     },
-    createLocalGame: function (gameData) {
-      let teams = gameData.teams;
-      gameData.teams = teams.map(t => null);
+    createLocalGame: function (stateData) {
+      let transport = LocalTransport.createGame(stateData);
+      let localTeamIds = stateData.teams
+        .filter(team => !team.bot)
+        .map((team, i) => i);
 
-      let transport = LocalTransport.createGame(gameData);
+      return transport.whenReady
+        .then(() => new Game(transport, localTeamIds));
+    },
+    getRemoteGameData: function (gameId) {
+      return gameClient.getGameData(gameId);
+    },
+    getMyIdentity: function () {
+      return Promise.resolve({
+        id: authClient.userId,
+        name: authClient.userName,
+      });
+    },
+    joinRemoteGame: function (playerName, gameId) {
+      return authClient.setAccountName(playerName)
+        .then(() => gameClient.joinGame(gameId));
+    },
+    loadRemoteGame: function (gameId, gameData) {
+      let promise;
+      if (gameData)
+        promise = Promise.resolve(gameData);
+      else
+        promise = gameClient.getGameData(gameId);
 
-      return transport.whenReady.then(() => {
-        let game = new Game(transport);
-        teams.forEach((t, i) => game.join(t, i));
+      return promise.then(gameData => {
+        let transport = new RemoteTransport(gameData);
+        let localTeamIds = gameData.state.teams
+          .filter(team => team.playerId === authClient.userId)
+          .map(team => team.originalId);
 
-        return game;
+        return new Game(transport, localTeamIds);
       });
     },
     images: [

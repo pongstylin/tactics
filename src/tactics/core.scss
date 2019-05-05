@@ -12,7 +12,7 @@ HTML, BODY, #app, #field {
   height: 100%;
 }
 
-#splash, #app {
+#error, #join, #splash, #app {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -165,6 +165,10 @@ BODY {
     text-align: left;
 
     BUTTON {
+      // Collapse whitespace
+      display: block;
+      float: left;
+
       background: none no-repeat center transparent;
       box-sizing: content-box;
       color: #DED8D5;

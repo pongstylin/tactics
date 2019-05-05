@@ -1,5 +1,8 @@
 import ws from 'ws';
 import DebugLogger from 'debug';
+import EventEmitter from 'events';
+
+import ServerError from 'server/Error.js';
 
 // Keep track of all registered services
 export const services = new Map();
@@ -19,9 +22,18 @@ export default class {
       // Keys: Clients
       // Values: Action stats maps
       _throttles: new Map(),
+
+      _emitter: new EventEmitter(),
     }, data);
 
     services.set(this.name, this);
+  }
+
+  on() {
+    this._emitter.addListener(...arguments);
+  }
+  off() {
+    this._emitter.removeListener(...arguments);
   }
 
   /*
@@ -51,12 +63,6 @@ export default class {
 
     if (groups.has(groupName))
       groups.get(groupName).delete(client);
-  }
-
-  throwError(code, message) {
-    let error = new Error(message);
-    error.code = code;
-    throw error;
   }
 
   sendResponse(client, message, data) {
@@ -161,8 +167,12 @@ export default class {
       actionHits.shift();
 
     if (actionHits.length === limit)
-      this.throwError(429, 'Too Many Requests: ' + actionName);
+      throw new ServerError(429, 'Too Many Requests: ' + actionName);
 
     actionHits.push(new Date());
+  }
+
+  _emit(event) {
+    this._emitter.emit(event.type, event);
   }
 };

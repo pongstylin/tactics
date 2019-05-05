@@ -455,6 +455,13 @@ export default class {
     // 3 = directions.length-1; 4 = directions.length;
     return directions.slice(index > 7 ? index-8 : index)[0];
   }
+  /*
+   * Get the degree difference between direction and rotation.
+   *
+   * Example: getDegree('N', 'E') =  90 degrees
+   * Example: getDegree('N', 'W') = 270 degrees
+   * Example: getDegree('S', 'E') = -90 degrees
+   */
   getDegree(direction, rotation) {
     var directions = ['N','NE','E','SE','S','SW','W','NW'];
 
@@ -1180,11 +1187,18 @@ export default class {
     This does not actually rotate the board - that causes all kinds of
     complexity.  Rather, it rearranges the units so that it appears the
     board has rotated.  This means unit coordinates and directions must
-    be translated to an API based on our current rotation.
+    be translated to a server based on our current rotation.
   */
   rotate(rotation) {
+    let degree;
+    if (typeof rotation === 'number') {
+      degree = rotation;
+      rotation = this.getRotation(this.rotation, degree);
+    }
+    else
+      degree = this.getDegree(this.rotation, rotation);
+
     let units     = this.teamsUnits.flat();
-    let degree    = this.getDegree(this.rotation, rotation);
     let activated = this.viewed || this.selected
 
     if (activated) this.hideMode();

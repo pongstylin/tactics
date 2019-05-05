@@ -70,7 +70,7 @@ export default class Player {
       deviceId: deviceId,
     }, config.privateKey, {
       algorithm: 'RS512',
-      expiresIn: '1d',
+      expiresIn: '1h',
       subject: this.id,
     });
 

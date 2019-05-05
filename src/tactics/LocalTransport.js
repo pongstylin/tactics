@@ -82,9 +82,6 @@ export default class LocalTransport {
     return this._getData('actions');
   }
 
-  get created() {
-    return this._getData('created');
-  }
   get started() {
     return this._getData('started');
   }

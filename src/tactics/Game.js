@@ -16,7 +16,7 @@ export default class {
    * Arguments:
    *  state: An object supporting the Game class interface.
    */
-  constructor(state) {
+  constructor(state, localTeamIds = []) {
     if (!state)
       throw new TypeError('Required game state');
 
@@ -67,7 +67,7 @@ export default class {
       _stateEventStack: null,
 
       _teams: [],
-      _localTeamIds: [],
+      _localTeamIds: localTeamIds,
 
       _renderer: renderer,
       _rendering: false,
@@ -304,15 +304,6 @@ export default class {
   /*****************************************************************************
    * Public Methods
    ****************************************************************************/
-  join(team, slot) {
-    if (!slot)
-      slot = this.state.teams.findIndex(t => !t);
-
-    if (!team.bot)
-      this._localTeamIds.push(slot);
-
-    return this.state.join(team, slot);
-  }
   isMyTeam(team) {
     if (team === undefined)
       throw new TypeError('Required team argument');
@@ -333,7 +324,33 @@ export default class {
       // Let the caller finish what they are doing.
       setTimeout(() => {
         // Clone teams since board.setState() applies a units property to each.
-        this._teams = state.teams.map(team => ({...team}));
+        let teams = this._teams = state.teams.map(team => ({...team}));
+
+        // Rotate the board such that the first local team is south/red.
+        let board = this._board;
+        let degree = 0;
+        if (this._localTeamIds.length) {
+          let teamId = Math.min(...this._localTeamIds);
+          let team = teams.find(t => t.originalId === teamId);
+          degree = board.getDegree(team.position, 'S');
+
+          board.rotate(degree);
+        }
+
+        /*
+         * Apply team colors based on the team's (rotated?) position.
+         */
+        let colorIds = new Map([
+          ['N', 'Blue'  ],
+          ['E', 'Yellow'],
+          ['S', 'Red'   ],
+          ['W', 'Green' ],
+        ]);
+        teams.forEach(team => {
+          let position = board.getRotation(team.position, degree);
+
+          team.colorId = colorIds.get(position);
+        });
 
         this._onStateEventListener = this._onStateEvent.bind(this);
 
@@ -1239,15 +1256,17 @@ export default class {
     });
   }
   _startTurn(teamId) {
-    let team = this.teams[teamId];
+    let teams = this.teams;
+    let team = teams[teamId];
 
     if (this.isMyTeam(team)) {
       if (this.hasOneLocalTeam)
         this.notice = 'Your Turn!';
+      else if (team.name && teams.filter(t => t.name === team.name).length > 1)
+        this.notice = 'Go '+team.colorId+'!';
       else
-        this.notice = 'Go '+(team.name || team.colorId)+'!';
+        this.notice = 'Go '+team.name+'!';
 
-      this.selectMode = 'move';
       this.unlock();
     }
     else
@@ -1341,26 +1360,26 @@ export default class {
    * This method ensures state events are processed synchronously.
    * Otherwise, 'startTurn' or 'endGame' may trigger while performing actions.
    */
-  _onStateEvent(event) {
+  _onStateEvent({ type, data }) {
     // Event handlers are expected to either return a promise that resolves when
     // handling is complete or nothing at all.
     let eventHandler;
-    if (event.type === 'startTurn')
-      eventHandler = () => this._startTurn(event.teamId);
-    else if (event.type === 'action')
-      eventHandler = () => this._performActions(event.actions);
-    else if (event.type === 'reset')
-      eventHandler = () => this._reset(event);
+    if (type === 'startTurn')
+      eventHandler = () => this._startTurn(data.teamId);
+    else if (type === 'action')
+      eventHandler = () => this._performActions(data);
+    else if (type === 'reset')
+      eventHandler = () => this._reset(data);
     /*
-    else if (event.type === 'undo')
+    else if (type === 'undo')
       eventHandler = event => {
         // TODO: Prompt user to approve undo request.
       };
     */
-    else if (event.type === 'endGame')
-      eventHandler = () => this._endGame(event.winnerId);
+    else if (type === 'endGame')
+      eventHandler = () => this._endGame(data.winnerId);
     else
-      throw new Error('Unhandled event: '+event.type);
+      throw new Error('Unhandled event: '+type);
 
     this._stateEventStack = this._stateEventStack.then(eventHandler);
   }

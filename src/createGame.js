@@ -14,21 +14,20 @@ window.addEventListener('DOMContentLoaded', () => {
   let divLink = document.querySelector('.link');
   let divError = document.querySelector('.setup .error');
 
-  authClient.getMyIdentity().then(identity => {
-    if (identity) {
-      greeting.innerHTML = `
-        Welcome back, ${identity.name}!  You may change your name here.<BR>
-        Note: This won't change your name on previously created games.
-      `;
-      playerName.value = identity.name;
-    }
-    else {
-      greeting.innerHTML = `Welcome!  Choose your game name.`;
-      playerName.value = 'Noob';
-    }
+  let userName = authClient.userName;
+  if (userName !== null) {
+    greeting.innerHTML = `
+      Welcome back, ${userName}!  You may change your name here.<BR>
+      Note: This won't change your name on previously created/joined games.
+    `;
+    playerName.value = userName;
+  }
+  else {
+    greeting.innerHTML = `Welcome!  Choose your game name.`;
+    playerName.value = 'Noob';
+  }
 
-    divSetup.style.display = null;
-  });
+  divSetup.style.display = null;
 
   btnCreate.addEventListener('click', () => {
     divSetup.style.display = 'none';

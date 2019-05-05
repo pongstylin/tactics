@@ -90,12 +90,12 @@ class AuthService extends Service {
     else {
       let device = player.getDevice(claims.deviceId);
       if (!device)
-        this.throwError(401, 'Device deleted');
+        throw new ServerError(401, 'Device deleted');
       if (device.disabled)
-        this.throwError(401, 'Device disabled');
+        throw new ServerError(401, 'Device disabled');
 
       if (device.token !== token)
-        this.throwError(401, 'Token revoked');
+        throw new ServerError(401, 'Token revoked');
 
       /*
        * Maintain a history of addresses and agents on this device and the last

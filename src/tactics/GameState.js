@@ -20,8 +20,15 @@ export default class GameState {
    */
   constructor(stateData) {
     let board = new Board();
+
+    // Clone the stateData since we'll be modifying it.
+    stateData = Object.assign({}, stateData);
+
     let turns = stateData.turns || [];
     delete stateData.turns;
+
+    let actions = stateData.actions || [];
+    delete stateData.actions;
 
     Object.assign(this, stateData, {
       winnerId: null,
@@ -31,8 +38,9 @@ export default class GameState {
       _emitter: new EventEmitter(),
     });
 
-    if (this.units)
-      board.setState(this.units, this.teams);
+    board.setState(this.units, this.teams);
+
+    this._actions = board.decodeAction(actions);
   }
 
   /*
@@ -65,11 +73,10 @@ export default class GameState {
       },
       stateData,
       {
-        started:  null,
-        ended:    null,
-        teams:    new Array(teams.length),
-        units:    [],
-        _actions: [],
+        started: null,
+        ended:   null,
+        teams:   new Array(teams.length),
+        units:   [],
       }
     );
 
@@ -88,15 +95,6 @@ export default class GameState {
    * The existing game may or may not have been started yet.
    */
   static load(stateData) {
-    // Clone the data since we'll be modifying it.
-    stateData = Object.assign({}, stateData);
-
-    stateData._turns = stateData.turns;
-    delete stateData.turns;
-
-    stateData._actions = stateData.actions;
-    delete stateData.actions;
-
     if (typeof stateData.started === 'string')
       stateData.started = new Date(stateData.started);
     if (typeof stateData.ended === 'string')
@@ -222,10 +220,25 @@ export default class GameState {
     team.originalId = slot;
     teams[slot] = team;
 
+    /*
+     * Position teams on the board according to original team order.
+     * Team order is based on the index (id) of the team in the teams array.
+     * Team order is clockwise starting in the North.
+     *  2 Players: 0:North, 1:South
+     *  4 Players: 0:North, 1:East, 2:South, 3:West
+     */
+    let positions = new Map([[0,'N'], [90,'W'], [180,'S'], [270,'E']]);
+    let degrees   = teams.length === 2 ? [0, 180] : [0, 90, 180, 270];
+    let degree    = degrees[slot];
+
+    team.position = positions.get(degree);
+
     this._emit({
       type: 'joined',
-      slot: slot,
-      team: team,
+      data: {
+        slot: slot,
+        team: team,
+      },
     });
 
     // If all slots are filled, start the game.
@@ -248,11 +261,6 @@ export default class GameState {
       teams.unshift(...teams.splice(index, teams.length - index));
     }
 
-    // Position units on the board according to team placement.
-    //  Team ID 0: North
-    //  Team ID 1: South
-    //  Team ID 2: West
-    //  Team ID 3: East
     if (this.type === 'Chaos')
       teams.unshift({
         originalId: 0,
@@ -263,17 +271,17 @@ export default class GameState {
           type: 'ChaosSeed',
           assignment: [5, 5],
         }],
+        position: 'C',
       });
 
     teams.forEach((team, teamId) => { team.id = teamId });
 
-    let board   = this._board;
-    let degrees = teams.length === 2 ? [0, 180] : [0, 90, 180, 270];
-    let unitId  = 1;
+    let board  = this._board;
+    let unitId = 1;
 
+    // Place the units according to team position.
     this.units = teams.map(team => team.set.map(unitSetData => {
-      // Team placement is based on the original team order.
-      let degree   = degrees[team.originalId];
+      let degree   = board.getDegree('N', team.position);
       let tile     = board.getTileRotation(unitSetData.assignment, degree);
       let unitData = unitDataMap.get(unitSetData.type);
 
@@ -297,11 +305,13 @@ export default class GameState {
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
 
-    this._emit({ type:'startGame', data:this.getGameData() });
+    this._emit({ type:'startGame', data:this.getData() });
     this._emit({
-      type:   'startTurn',
-      turnId: this.currentTurnId,
-      teamId: this.currentTeamId,
+      type: 'startTurn',
+      data: {
+        turnId: this.currentTurnId,
+        teamId: this.currentTeamId,
+      },
     });
   }
   restart() {
@@ -327,7 +337,7 @@ export default class GameState {
     this._start();
   }
 
-  getGameData() {
+  getData() {
     let teams = this.teams.map(team => {
       team = {...team};
       delete team.units;
@@ -533,19 +543,21 @@ export default class GameState {
     if (new_actions.length)
       this._emit({
         type: 'action',
-        actions: this._board.encodeAction(new_actions),
+        data: this._board.encodeAction(new_actions),
       });
 
     if (this.ended)
       this._emit({
         type: 'endGame',
-        winnerId: this.winnerId,
+        data: { winnerId:this.winnerId },
       });
     else if (turnEnded)
       this._emit({
         type: 'startTurn',
-        turnId: this.currentTurnId,
-        teamId: this.currentTeamId,
+        data: {
+          turnId: this.currentTurnId,
+          teamId: this.currentTeamId,
+        },
       });
   }
 
@@ -590,11 +602,13 @@ export default class GameState {
     this.winnerId = null;
 
     this._emit({
-      type:    'reset',
-      turnId:  this.currentTurnId,
-      teamId:  this.currentTeamId,
-      actions: this.actions,
-      units:   board.getState(),
+      type: 'reset',
+      data: {
+        turnId:  this.currentTurnId,
+        teamId:  this.currentTeamId,
+        actions: this.actions,
+        units:   board.getState(),
+      },
     });
   }
 

@@ -24,7 +24,11 @@ class GameService extends Service {
   /*
    * Test if the service will handle the eventName from client
    */
-  will(client, eventName) {
+  will(client, messageType, bodyType) {
+    // No authorization required
+    if (bodyType === 'getGame') return true;
+
+    // Authorization required
     let session = this.sessions.get(client.id);
     if (!session)
       throw new ServerError(401, 'Authorization is required');
@@ -35,8 +39,8 @@ class GameService extends Service {
   dropClient(client) {
     let session = this.sessions.get(client.id);
     if (session) {
-      this.gameWatches.forEach(gameWatch =>
-        this.onUnwatchGameEvent(client, gameWatch.game)
+      this.gameWatches.forEach((gameWatch, gameId) =>
+        this.onLeaveGameGroup(client, `/games/${gameId}`, gameId)
       );
 
       this.sessions.delete(client.id);
@@ -73,34 +77,51 @@ class GameService extends Service {
     return game.id;
   }
 
-  onGetGameEvent(client, gameId) {
-    return this._getGame(gameId);
+  onGetGameRequest(client, gameId) {
+    /*
+     * When getting a game, leave out the turn history as an efficiency measure.
+     */
+    let game = this._getGame(gameId).toJSON();
+    game.state = game.state.getData();
+
+    // Conditionally leave out the team sets as a security measure.  We don't
+    // want people getting set information about teams before the game starts.
+    if (!game.state.started)
+      game.state.teams.forEach(t => delete t.set);
+
+    return game;
   }
 
   /*
    * Start sending change events to the client about this game.
    */
-  onWatchGameEvent(client, gameId) {
+  onJoinGroup(client, groupPath) {
+    let match;
+    if (match = groupPath.match(/^\/games\/(.+)$/))
+      this.onJoinGameGroup(client, groupPath, match[1]);
+    else
+      throw new ServerError(404, 'No such group');
+  }
+
+  onJoinGameGroup(client, groupPath, gameId) {
     let session = this.sessions.get(client.id);
     let game = this._getGame(gameId);
 
-    // Ignore an attempt to watch an ended game.
-    if (game.ended) return game;
-
-    let groupName = 'game-' + gameId;
-
-    // Already watching?
-    if (this.isClientInGroup(groupName, client))
-      return game;
-    this.addClientToGroup(groupName, client);
+    // Can't watch ended games.
+    if (game.ended)
+      throw new ServerError(409, 'The game has ended');
 
     if (this.gameWatches.has(gameId))
       this.gameWatches.get(gameId).clients++;
     else {
       let listener = event => {
-        this.sendToGroup(groupName, {
-          type: event.type,
-          data: { gameId:gameId, event },
+        this._emit({
+          type: 'event',
+          body: {
+            group: groupPath,
+            type:  event.type,
+            data:  event.data,
+          },
         });
 
         if (event.type === 'joined' || event.type === 'action')
@@ -122,13 +143,23 @@ class GameService extends Service {
       });
     }
 
-    return game;
+    this._emit({
+      type:   'join',
+      client: client.id,
+      body: {
+        group: groupPath,
+        user: {
+          id:   session.playerId,
+          name: session.name,
+        },
+      },
+    });
   }
 
   /*
    * No longer send change events to the client about this game.
    */
-  onUnwatchGameEvent(client, gameId) {
+  onLeaveGameGroup(client, groupPath, gameId) {
     let session = this.sessions.get(client.id);
     let game = gameId instanceof Game ? gameId : this._getGame(gameId);
     let groupName = 'game-' + game.id;
@@ -159,7 +190,7 @@ class GameService extends Service {
     return true;
   }
 
-  onJoinGameRequest(client, gameId, {set, slot}) {
+  onJoinGameRequest(client, gameId, {set, slot} = {}) {
     let session = this.sessions.get(client.id);
     let game = this._getGame(gameId);
 
@@ -173,12 +204,26 @@ class GameService extends Service {
     game.state.join(team, slot);
     dataAdapter.saveGame(game);
   }
+  onGetTurnDataRequest(client, gameId, ...args) {
+    return this._getGame(gameId).state.getTurnData(...args);
+  }
+  onGetTurnActionsRequest(client, gameId, ...args) {
+    return this._getGame(gameId).state.getTurnActions(...args);
+  }
+  onUndoRequest(client, gameId, ...args) {
+    return this._getGame(gameId).state.undo(...args);
+  }
+  onRestartRequest(client, gameId, ...args) {
+    return this._getGame(gameId).state.restart(...args);
+  }
 
   /*
    * Taking an action in a game automatically watches it.
    */
-  onActionEvent(client, gameId, action) {
-    let game = this.onWatchGameEvent(client, gameId);
+  onActionEvent(client, groupPath, action) {
+    let gameId = groupPath.replace(/^\/games\//, '');
+    let game = this._getGame(gameId);
+
     game.state.postAction(action);
   }
 
