@@ -556,7 +556,7 @@ export default class {
 
   // Public methods
   draw(stage) {
-    var pixi = this.pixi = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/board.jpg');
+    var pixi = this.pixi = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/board.png');
     var tiles = this.tiles;
 
     // The board itself is interactive since we want to detect a tap on a

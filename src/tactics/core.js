@@ -111,7 +111,7 @@ window.Tactics = (function () {
       });
     },
     images: [
-      'board.jpg',
+      'https://tactics.taorankings.com/images/board.png',
       'shock.png',
       'particle.png',
       'lightning-1.png',

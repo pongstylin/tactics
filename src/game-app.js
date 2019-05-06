@@ -161,6 +161,15 @@ Tactics.App = (function ($, window, document) {
         .then(g => {
           game = g;
 
+          game.state.teams.forEach(team => {
+            let ePlayerId = 'player-'+team.position.toLowerCase();
+            let $player = $('#'+ePlayerId);
+
+            $player
+              .addClass('active bronze')
+              .find('.name').text(team.name);
+          });
+
           $('#join').hide();
           $('#splash').show();
           loadThenStartGame();

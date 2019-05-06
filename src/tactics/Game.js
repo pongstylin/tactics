@@ -20,7 +20,7 @@ export default class {
     if (!state)
       throw new TypeError('Required game state');
 
-    let renderer = PIXI.autoDetectRenderer(Tactics.width, Tactics.height);
+    let renderer = PIXI.autoDetectRenderer(Tactics.width, Tactics.height, { transparent:true });
 
     // Let's not go crazy with the move events.
     renderer.plugins.interaction.moveWhenInside = true;
@@ -708,7 +708,9 @@ export default class {
     };
 
     Tactics.images.forEach(image_url => {
-      let url = 'https://legacy.taorankings.com/images/'+image_url;
+      let url = image_url;
+      if (!url.startsWith('http'))
+        url = 'https://legacy.taorankings.com/images/'+url;
 
       resources.push(url);
       loader.add({ url:url });
@@ -886,7 +888,10 @@ export default class {
     this.selected = this.viewed = null;
 
     this._board.setState(turnData.units, this._teams);
+    this.render();
+
     this._startTurn(this.state.currentTeamId);
+    this.selectMode = 'move';
 
     let actions = this.actions;
     if (actions.length)
