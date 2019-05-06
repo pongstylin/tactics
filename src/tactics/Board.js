@@ -1428,7 +1428,9 @@ export default class {
     if (focused && focused.notice)
       focused.change({ notice:null });
 
-    if (this.target || (mode === 'attack' && unit.aAll))
+    if (this.target)
+      this.hideTargets();
+    else if (mode === 'attack' && unit.aAll && this.selected)
       this.hideTargets();
 
     this._clearHighlight();

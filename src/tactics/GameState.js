@@ -33,6 +33,7 @@ export default class GameState {
     Object.assign(this, stateData, {
       winnerId: null,
 
+      _bots:    [],
       _turns:   turns,
       _board:   board,
       _emitter: new EventEmitter(),
@@ -334,6 +335,8 @@ export default class GameState {
     this.winnerId = null;
 
     this._bots.forEach(b => b.destroy());
+    this._bots.length = 0;
+
     this._start();
   }
 
@@ -356,6 +359,8 @@ export default class GameState {
       currentTeamId: this.currentTeamId,
       units:         this.units,
       actions:       this.actions,
+
+      winnerId:      this.winnerId,
     };
   }
   getTurnData(turnId) {
@@ -395,7 +400,7 @@ export default class GameState {
     let new_actions = [];
     let pushAction = action => {
       action.created = new Date();
-      action.teamId = this.currentTeamId;
+      action.teamId = action.teamId || this.currentTeamId;
 
       new_actions.push(action);
       this._applyAction(action);
@@ -405,6 +410,19 @@ export default class GameState {
     let turnEnded = !!actions.find(action => {
       if (action.type === 'endTurn')
         return true;
+
+      if (action.type === 'surrender') {
+        let team = this.teams[action.teamId];
+        if (!team || !team.units.length) return;
+
+        pushAction({
+          type: 'surrender',
+          teamId: action.teamId,
+          results: this._getSurrenderResults(),
+        });
+
+        return true;
+      }
 
       /*
        * Validate and populate the action
@@ -635,15 +653,17 @@ export default class GameState {
     });
 
     return {
-      type:    this.type,
-      teams:   teams,
+      type:     this.type,
+      teams:    teams,
 
-      started: this.started && this.started.toISOString(),
-      ended:   this.ended   && this.ended.toISOString(),
+      started:  this.started && this.started.toISOString(),
+      ended:    this.ended   && this.ended.toISOString(),
 
-      turns:   this._turns,
-      units:   this.units,
-      actions: this.actions,
+      turns:    this._turns,
+      units:    this.units,
+      actions:  this.actions,
+
+      winnerId: this.winnerId,
     };
   }
 
@@ -730,6 +750,19 @@ export default class GameState {
     }
 
     return action;
+  }
+  _getSurrenderResults() {
+    let results = [];
+    let team = this.currentTeam;
+
+    team.units.forEach(unit => {
+      results.push({
+        unit:    unit,
+        changes: { mHealth:-unit.health },
+      });
+    });
+
+    return results;
   }
 
   _applyAction(action) {

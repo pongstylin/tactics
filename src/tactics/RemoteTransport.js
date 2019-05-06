@@ -26,8 +26,13 @@ export default class RemoteTransport {
       this._emit(body);
     });
 
-    gameClient.watchGame(gameId, this._listener)
-      .then(() => this._startSync(gameData));
+    if (gameData.state.ended)
+      this._ready();
+    else
+      gameClient.watchGame(gameId, this._listener).then(() => {
+        this._startSync(gameData)
+        this._ready();
+      });
   }
 
   /*
@@ -68,8 +73,14 @@ export default class RemoteTransport {
   get currentTeamId() {
     return this._getStateData('currentTeamId');
   }
+  get units() {
+    return this._getStateData('units');
+  }
   get actions() {
     return this._getStateData('actions');
+  }
+  get winnerId() {
+    return this._getStateData('winnerId');
   }
 
   get created() {
@@ -110,32 +121,33 @@ export default class RemoteTransport {
    * Other Private Methods
    */
   _startSync(gameData) {
-    this._data = gameData;
-
-    if (!gameData.state.ended)
-      this
-        .on('startGame', ({data:stateData}) => {
-          this._data.state = stateData;
-        })
-        .on('startTurn', ({data}) => {
-          Object.assign(this._data.state, {
-            currentTurnId: data.turnId,
-            currentTeamId: data.teamId,
-            actions:       [],
-          });
-        })
-        .on('action', ({data:actions}) => {
-          this._data.state.actions.push(...actions);
-        })
-        .on('reset', ({data}) => {
-          Object.assign(this._data.state, {
-            currentTurnId: data.turnId,
-            currentTeamId: data.teamId,
-            actions:       data.actions,
-          });
+    this
+      .on('startGame', ({ data:stateData }) => {
+        gameData.state = stateData;
+      })
+      .on('startTurn', ({ data }) => {
+        Object.assign(gameData.state, {
+          currentTurnId: data.turnId,
+          currentTeamId: data.teamId,
+          actions:       [],
         });
-
-    this._ready();
+      })
+      .on('action', ({ data:actions }) => {
+        gameData.state.actions.push(...actions);
+      })
+      .on('reset', ({ data }) => {
+        Object.assign(gameData.state, {
+          currentTurnId: data.turnId,
+          currentTeamId: data.teamId,
+          actions:       data.actions,
+        });
+      })
+      .on('endGame', ({ data }) => {
+        Object.assign(gameData.state, {
+          winnerId: data.winnerId,
+          ended:    new Date().toISOString(),
+        });
+      });
   }
 
   _getData(name) {

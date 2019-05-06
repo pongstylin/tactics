@@ -218,11 +218,31 @@ class GameService extends Service {
   }
 
   /*
-   * Taking an action in a game automatically watches it.
+   * Make sure the connected client is authorized to post this event.
+   *
+   * The GameState class is responsible for making sure the authorized client
+   * may make the provided action.
    */
   onActionEvent(client, groupPath, action) {
+    let session = this.sessions.get(client.id);
     let gameId = groupPath.replace(/^\/games\//, '');
     let game = this._getGame(gameId);
+
+    if (!Array.isArray(action))
+      action = [action];
+
+    let myTeams = game.state.teams.filter(t => t.playerId === session.playerId);
+    if (myTeams.length === 0)
+      throw new ServerError(401, 'You are not a player in this game.');
+    else if (action[0].type === 'surrender')
+      if (myTeams.length === game.state.teams.length)
+        action[0].teamId = game.state.currentTeamId;
+      else
+        action = myTeams.map(t => ({ type:'surrender', teamId:t.id }));
+    else if (myTeams.includes(game.state.currentTeam))
+      action.forEach(a => a.teamId = game.state.currentTeamId);
+    else
+      throw new ServerError(401, 'Not your turn!');
 
     game.state.postAction(action);
   }

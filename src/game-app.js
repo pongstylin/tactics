@@ -31,27 +31,21 @@ Tactics.App = (function ($, window, document) {
         game.panzoom.unlock();
     },
     rotate: function ($button) {
-      var cls,per;
+      let classesToToggle;
 
-      if ($button.hasClass('fa-rotate-90')) {
-        cls = 'fa-rotate-90 fa-rotate-180';
-        per = 'W';
-      }
-      else if ($button.hasClass('fa-rotate-180')) {
-        cls = 'fa-rotate-180 fa-rotate-270';
-        per = 'N';
-      }
-      else if ($button.hasClass('fa-rotate-270')) {
-        cls = 'fa-rotate-270';
-        per = 'E';
-      }
-      else {
-        cls = 'fa-rotate-90';
-        per = 'S';
-      }
+      if ($button.hasClass('fa-rotate-90'))
+        classesToToggle = 'fa-rotate-90 fa-rotate-180';
+      else if ($button.hasClass('fa-rotate-180'))
+        classesToToggle = 'fa-rotate-180 fa-rotate-270';
+      else if ($button.hasClass('fa-rotate-270'))
+        classesToToggle = 'fa-rotate-270';
+      else
+        classesToToggle = 'fa-rotate-90';
 
-      $button.toggleClass(cls);
-      game.rotateBoard(per);
+      $button.toggleClass(classesToToggle);
+      game.rotateBoard(90);
+
+      resetPlayerBanners();
     },
     sound: function ($button) {
       $button.toggleClass('fa-bell fa-bell-slash');
@@ -75,13 +69,11 @@ Tactics.App = (function ($, window, document) {
       game.pass();
     },
     surrender: function () {
-      $('#popup #message').text('Are you sure you want to reset the game?');
+      $('#popup #message').text('Do you surrender?');
       $('#popup BUTTON[name=yes]').data('handler', () => {
-        $('#popup #message').text('One moment...');
+        $('#overlay,#popup').hide();
 
-        game.restart().then(() => {
-          $('#overlay,#popup').hide();
-        });
+        game.surrender();
       });
       $('#overlay,#popup').show();
     }
@@ -161,15 +153,6 @@ Tactics.App = (function ($, window, document) {
         .then(g => {
           game = g;
 
-          game.state.teams.forEach(team => {
-            let ePlayerId = 'player-'+team.position.toLowerCase();
-            let $player = $('#'+ePlayerId);
-
-            $player
-              .addClass('active bronze')
-              .find('.name').text(team.name);
-          });
-
           $('#join').hide();
           $('#splash').show();
           loadThenStartGame();
@@ -239,6 +222,23 @@ Tactics.App = (function ($, window, document) {
     });
   }
 
+  function resetPlayerBanners() {
+    let board = game.board;
+    let degree = board.getDegree('N', board.rotation);
+
+    $('.player').removeClass('active bronze');
+
+    game.state.teams.forEach(team => {
+      let position = board.getRotation(team.position, degree);
+      let ePlayerId = 'player-'+position.toLowerCase();
+      let $player = $('#'+ePlayerId);
+
+      $player
+        .addClass('active bronze')
+        .find('.name').text(team.name);
+    });
+  }
+
   function loadThenStartGame() {
     let $card = $(game.card.canvas)
       .attr('id', 'card')
@@ -294,6 +294,12 @@ Tactics.App = (function ($, window, document) {
         else
           $('BUTTON[name=select][value=turn]').removeClass('ready');
 
+        if (game.isViewOnly) {
+          $('BUTTON[name=pass]').hide();
+          $('BUTTON[name=surrender]').hide();
+          $('BUTTON[name=undo]').hide();
+        }
+
         if (new_mode === 'ready')
           $('BUTTON[name=pass]').addClass('ready');
         else
@@ -310,10 +316,13 @@ Tactics.App = (function ($, window, document) {
           $card.removeClass('show');
       })
       .on('lock-change', event => {
-        if (event.nvalue === 'gameover')
-          $('#app').addClass('gameover');
-        else
-          $('#app').removeClass('gameover');
+        if (event.nvalue === 'gameover') {
+          $('BUTTON[name=pass]').hide();
+          $('BUTTON[name=surrender]').hide();
+          $('BUTTON[name=undo]').hide();
+          game.unlock();
+          return;
+        }
 
         if (event.nvalue)
           $('#app').addClass('locked');
@@ -335,6 +344,8 @@ Tactics.App = (function ($, window, document) {
             $('.message').text('One moment...');
 
             game.start().then(() => {
+              resetPlayerBanners();
+
               $('#splash').hide();
               $('#app').css('visibility','visible');
             });

@@ -279,14 +279,29 @@ export default class {
   get activeTeams() {
     return this._teams.filter(team => !!team.units.length);
   }
+  get winningTeams() {
+    return this.teams.filter(team =>
+      !!team.units.find(unit => {
+        // Wards don't count.
+        if (unit.type === 'BarrierWard' || unit.type === 'LightningWard')
+          return false;
+
+        // Paralyzed units don't count.
+        if (unit.paralyzed)
+          return false;
+
+        return true;
+      })
+    );
+  }
   get currentTeam() {
     return this._teams[this.state.currentTeamId];
   }
   get isLocalGame() {
     return this._localTeamIds.length === this.state.teams.length;
   }
-  get hasOneLocalTeam() {
-    return this._localTeamIds.length === 1;
+  get isViewOnly() {
+    return this.state.ended || this._localTeamIds.length === 0;
   }
 
   get actions() {
@@ -312,6 +327,11 @@ export default class {
       team = this.teams[team];
 
     return this._localTeamIds.includes(team.originalId);
+  }
+  hasOneLocalTeam(team) {
+    if (team && !this.isMyTeam(team)) return false;
+
+    return this._localTeamIds.length === 1;
   }
 
   /*
@@ -361,8 +381,31 @@ export default class {
           .on('undo', this._onStateEventListener)
           .on('endGame', this._onStateEventListener);
 
-        this._stateEventStack = this._replay()
-          .then(() => this._startTurn(this.state.currentTeamId));
+        if (state.ended) {
+          board.setState(state.units, teams);
+          this.actions.forEach(action => {
+            // Allow the user to see the loser's units at time of surrender.
+            if (action.type === 'surrender') return;
+
+            this._applyAction(action);
+          });
+          this.render();
+
+          let winner = this.teams[state.winnerId];
+          let winnerMoniker;
+
+          if (winner.name && teams.filter(t => t.name === winner.name).length === 1)
+            winnerMoniker = winner.name;
+          else
+            winnerMoniker = winner.colorId;
+
+          this.notice = winnerMoniker+'!';
+          this.selectMode = 'move';
+          this.unlock();
+        }
+        else
+          this._stateEventStack = this._replay()
+            .then(() => this._startTurn(this.state.currentTeamId));
 
         resolve();
       }, 100); // A "zero" delay is sometimes not long enough
@@ -388,6 +431,7 @@ export default class {
         .off('undo', this._onStateEventListener)
         .off('endGame', this._onStateEventListener)
 
+    this._board.rotation = 'N';
     this.notice = null;
 
     // Inform game state to restart.
@@ -525,7 +569,11 @@ export default class {
     if (selected && selected !== unit && this.state.actions.length)
       return false;
 
-    return unit.team === this.currentTeam && !unit.mRecovery && !unit.paralyzed;
+    return !this.isViewOnly
+      && unit.team === this.currentTeam
+      && this.isMyTeam(unit.team)
+      && !unit.mRecovery
+      && !unit.paralyzed;
   }
 
   /*
@@ -591,12 +639,14 @@ export default class {
   }
 
   pass() {
-    this._postAction({type:'endTurn'});
+    this._postAction({ type:'endTurn' });
+  }
+  surrender() {
+    this._postAction({ type:'surrender' });
   }
 
   canUndo() {
     let state   = this.state;
-    let teams   = this._teams;
     let actions = this.actions;
 
     if (this.isLocalGame)
@@ -891,7 +941,6 @@ export default class {
     this.render();
 
     this._startTurn(this.state.currentTeamId);
-    this.selectMode = 'move';
 
     let actions = this.actions;
     if (actions.length)
@@ -902,7 +951,7 @@ export default class {
    * Initiate an action, whether it be moving, attacking, turning, or passing.
    */
   _postAction(action) {
-    if (action.type !== 'endTurn')
+    if (action.type !== 'endTurn' && action.type !== 'surrender')
       action.unit = this.selected;
 
     this.selected = null;
@@ -1073,6 +1122,11 @@ export default class {
   _performAction(action) {
     if (action.type === 'endTurn')
       return this._endTurn(action);
+    else if (action.type === 'surrender') {
+      if (this.winningTeams.length > 2)
+        return this._playSurrender(action);
+      return Promise.resolve();
+    }
 
     let unit = action.unit;
 
@@ -1214,6 +1268,30 @@ export default class {
       Promise.resolve(),
     ).then(() => this.drawCard());
   }
+  _playSurrender(action) {
+    let team = this.teams[action.teamId];
+    let anim = new Tactics.Animation();
+    let notice = `${team.name}\nSurrenders!`;
+
+    anim.addFrame(() => this.notice = notice);
+
+    action.results.forEach(result => {
+      let unit = result.unit;
+
+      anim.splice(0, unit.animDeath());
+    });
+
+    // Show the notice for 2 seconds.
+    let timeout = 2000 - (anim.frames.length * anim.fps);
+
+    return anim.play().then(() => new Promise((resolve, reject) => {
+      // Give the user some time to take in the notice.
+      setTimeout(() => {
+        this.notice = null;
+        resolve();
+      }, timeout);
+    }));
+  }
 
   _render() {
     let renderer = this._renderer;
@@ -1263,19 +1341,24 @@ export default class {
   _startTurn(teamId) {
     let teams = this.teams;
     let team = teams[teamId];
+    let teamMoniker;
+
+    if (team.name && teams.filter(t => t.name === team.name).length === 1)
+      teamMoniker = team.name;
+    else
+      teamMoniker = team.colorId;
 
     if (this.isMyTeam(team)) {
-      if (this.hasOneLocalTeam)
+      if (this.hasOneLocalTeam())
         this.notice = 'Your Turn!';
-      else if (team.name && teams.filter(t => t.name === team.name).length > 1)
-        this.notice = 'Go '+team.colorId+'!';
       else
-        this.notice = 'Go '+team.name+'!';
+        this.notice = `Go ${teamMoniker}!`;
 
+      this.selectMode = this._pickSelectMode();
       this.unlock();
     }
     else
-      this.delayNotice('Waiting for '+(team.name || team.colorId));
+      this.delayNotice(`Waiting for ${teamMoniker}`);
 
     return this;
   }
@@ -1295,11 +1378,19 @@ export default class {
     if (winnerId === null)
       this.notice = 'Draw!';
     else {
-      let winner = this._teams[winnerId];
-      if (this.isMyTeam(winner) && this.hasOneLocalTeam)
+      let teams = this.teams;
+      let winner = teams[winnerId];
+      let winnerMoniker;
+
+      if (winner.name && teams.filter(t => t.name === winner.name).length === 1)
+        winnerMoniker = winner.name;
+      else
+        winnerMoniker = winner.colorId;
+
+      if (this.hasOneLocalTeam(winner))
         this.notice = 'You win!';
       else
-        this.notice = (winner.name || winner.colorId)+' Wins!';
+        this.notice = `${winnerMoniker}!`;
     }
 
     this.selected = null;
@@ -1326,6 +1417,30 @@ export default class {
     return selectMode;
   }
 
+  _applyAction(action) {
+    let unit = action.unit;
+
+    if (unit) {
+      if (action.assignment)
+        unit.assign(action.assignment);
+      if (action.direction)
+        unit.direction = action.direction;
+      if (action.colorId)
+        unit.color = colorMap.get(action.colorId);
+    }
+
+    this._applyChangeResults(action.results);
+
+    // Remove dead units.
+    let board = this._board;
+    board.teamsUnits.flat().forEach(unit => {
+      // Chaos Seed doesn't die.  It hatches.
+      if (unit.type === 'ChaosSeed') return;
+
+      if (unit.mHealth === -unit.health)
+        board.dropUnit(unit);
+    });
+  }
   _applyChangeResults(results) {
     if (!results) return;
 
