@@ -305,7 +305,7 @@ BODY {
 /*
  * Sometimes buttons need to be disabled or hidden.
  */
-#app.locked {
+#app.locked:not(.readonly) {
   #game-play.buttons BUTTON:not([name=swapbar]) {
     // Make the button appear disabled.
     opacity: 0.4;
@@ -317,7 +317,7 @@ BODY {
   }
 }
 
-#app.locked:not(.gameover) {
+#app.locked:not(.gameover):not(.readonly) {
   #game-settings.buttons BUTTON[name=rotate],
   #game-settings.buttons BUTTON[name=undo] {
     // Make the button appear disabled.

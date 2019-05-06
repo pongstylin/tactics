@@ -282,6 +282,7 @@ Tactics.App = (function ($, window, document) {
 
         $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
         $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
+        $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn());
         $('BUTTON[name=undo]').prop('disabled', !can_undo);
 
         if (new_mode === 'attack' && can_special)
@@ -293,12 +294,6 @@ Tactics.App = (function ($, window, document) {
           $('BUTTON[name=select][value=turn]').addClass('ready');
         else
           $('BUTTON[name=select][value=turn]').removeClass('ready');
-
-        if (game.isViewOnly) {
-          $('BUTTON[name=pass]').hide();
-          $('BUTTON[name=surrender]').hide();
-          $('BUTTON[name=undo]').hide();
-        }
 
         if (new_mode === 'ready')
           $('BUTTON[name=pass]').addClass('ready');
@@ -320,9 +315,12 @@ Tactics.App = (function ($, window, document) {
           $('BUTTON[name=pass]').hide();
           $('BUTTON[name=surrender]').hide();
           $('BUTTON[name=undo]').hide();
-          game.unlock();
-          return;
         }
+
+        if (event.nvalue === 'readonly' || event.nvalue === 'gameover')
+          $('#app').addClass('readonly');
+        else
+          $('#app').removeClass('readonly');
 
         if (event.nvalue)
           $('#app').addClass('locked');

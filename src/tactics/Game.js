@@ -319,6 +319,9 @@ export default class {
   /*****************************************************************************
    * Public Methods
    ****************************************************************************/
+  isMyTurn() {
+    return this.isMyTeam(this.currentTeam);
+  }
   isMyTeam(team) {
     if (team === undefined)
       throw new TypeError('Required team argument');
@@ -401,7 +404,7 @@ export default class {
 
           this.notice = winnerMoniker+'!';
           this.selectMode = 'move';
-          this.unlock();
+          this.lock('gameover');
         }
         else
           this._stateEventStack = this._replay()
@@ -570,6 +573,7 @@ export default class {
       return false;
 
     return !this.isViewOnly
+      && !this._board.locked
       && unit.team === this.currentTeam
       && this.isMyTeam(unit.team)
       && !unit.mRecovery
@@ -961,13 +965,14 @@ export default class {
     this.state.postAction(this._board.encodeAction(action));
   }
   _performActions(actions) {
+    // Clear or cancel the 'Sending order' notice
+    this.notice = null;
+
     // The actions array can be empty due to the _replay() method.
     if (actions.length === 0) return Promise.resolve();
 
     let board = this._board;
     actions = board.decodeAction(actions);
-
-    this.notice = null;
 
     let painted = [];
     let selected;
@@ -1108,15 +1113,20 @@ export default class {
       painted.forEach(tile => tile.strip());
     });
 
-    // If the action didn't result in ending the turn, then set mode.
-    let lastAction = actions[actions.length-1];
-    if (lastAction.type !== 'endTurn' && this.isMyTeam(lastAction.teamId))
-      promise = promise.then(() => {
+    // Change a readonly lock to a full lock
+    board.lock();
+
+    return promise.then(() => {
+      // If the action didn't result in ending the turn, then set mode.
+      let lastAction = actions[actions.length-1];
+      if (lastAction.type !== 'endTurn' && this.isMyTeam(lastAction.teamId)) {
         this.unlock();
         this.selected = actions[0].unit;
-      });
-
-    return promise;
+      }
+      else
+        // Change a full lock to a readonly lock
+        this.lock('readonly');
+    });
   }
   // Act out the action on the board.
   _performAction(action) {

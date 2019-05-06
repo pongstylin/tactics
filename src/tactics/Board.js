@@ -564,7 +564,7 @@ export default class {
     // functionality needs to be provided by an 'undo' button.
     pixi.interactive = true;
     pixi.pointertap = event => {
-      if (this.locked) return;
+      if (this.locked === true) return;
 
       let unit = this.selected || this.viewed;
       if (!unit) return;
@@ -1222,7 +1222,8 @@ export default class {
     if (this.locked === value) return;
     this.locked = value || true;
 
-    this.tiles.forEach(tile => tile.set_interactive(false));
+    if (this.locked === true)
+      this.tiles.forEach(tile => tile.set_interactive(false));
 
     this._emit({
       type:   'lock-change',
@@ -1235,9 +1236,10 @@ export default class {
     if (!old_locked) return;
     this.locked = false;
 
-    this.tiles.forEach(tile => {
-      tile.set_interactive(!!(tile.action || tile.assigned));
-    });
+    if (old_locked === true)
+      this.tiles.forEach(tile => {
+        tile.set_interactive(!!(tile.action || tile.assigned));
+      });
 
     this._emit({
       type:   'lock-change',
