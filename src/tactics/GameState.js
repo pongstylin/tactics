@@ -656,6 +656,8 @@ export default class GameState {
       type:     this.type,
       teams:    teams,
 
+      randomFirstTurn: this.randomFirstTurn,
+
       started:  this.started && this.started.toISOString(),
       ended:    this.ended   && this.ended.toISOString(),
 

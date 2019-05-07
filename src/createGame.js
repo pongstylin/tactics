@@ -38,7 +38,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let slot = 0;
 
     if (turnOrder === 'random')
-      stateData.randomStart = true;
+      stateData.randomFirstTurn = true;
     else if (turnOrder === '2nd')
       slot = 1;
 
