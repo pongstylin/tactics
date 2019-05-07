@@ -54,7 +54,7 @@ export default class {
     Object.assign(this, {
       tiles:        tiles,
       pixi:         undefined,
-      locked:       true,
+      locked:       'readonly',
       focused_tile: null,
 
       card:         null,
@@ -620,7 +620,7 @@ export default class {
       tile.on('select',     selectEvent);
       tile.on('focus blur', focusEvent);
       tile.on('assign', event => {
-        if (!this.locked)
+        if (this.locked !== true)
           event.target.set_interactive(true);
       });
       tile.on('dismiss', event => {

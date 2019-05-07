@@ -418,7 +418,7 @@ export default class GameState {
         pushAction({
           type: 'surrender',
           teamId: action.teamId,
-          results: this._getSurrenderResults(),
+          results: this._getSurrenderResults(team),
         });
 
         return true;
@@ -753,9 +753,8 @@ export default class GameState {
 
     return action;
   }
-  _getSurrenderResults() {
+  _getSurrenderResults(team) {
     let results = [];
-    let team = this.currentTeam;
 
     team.units.forEach(unit => {
       results.push({

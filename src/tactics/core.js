@@ -85,6 +85,8 @@ window.Tactics = (function () {
       return gameClient.getGameData(gameId);
     },
     getMyIdentity: function () {
+      if (!authClient.token) return Promise.resolve();
+
       return Promise.resolve({
         id: authClient.userId,
         name: authClient.userName,
@@ -124,11 +126,13 @@ window.Tactics = (function () {
       'turn_br.png'  // Inefficient.  Better to flip the bl horizontally.
     ],
     sounds: {
-      step:   'sound10',
-      block:  'sound11',
-      focus:  'sound15',
-      select: 'sound14',
-      strike: 'sound6',
+      victory: 'sound1',
+      defeat:  'sound3',
+      step:    'sound10',
+      block:   'sound11',
+      focus:   'sound15',
+      select:  'sound14',
+      strike:  'sound6',
     },
     effects: {
       focus: {

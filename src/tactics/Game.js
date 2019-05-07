@@ -394,15 +394,20 @@ export default class {
           });
           this.render();
 
-          let winner = this.teams[state.winnerId];
-          let winnerMoniker;
+          if (state.winnerId) {
+            let winner = this.teams[state.winnerId];
+            let winnerMoniker;
 
-          if (winner.name && teams.filter(t => t.name === winner.name).length === 1)
-            winnerMoniker = winner.name;
+            if (winner.name && teams.filter(t => t.name === winner.name).length === 1)
+              winnerMoniker = winner.name;
+            else
+              winnerMoniker = winner.colorId;
+
+            this.notice = winnerMoniker+'!';
+          }
           else
-            winnerMoniker = winner.colorId;
+            this.notice = 'Draw!';
 
-          this.notice = winnerMoniker+'!';
           this.selectMode = 'move';
           this.lock('gameover');
         }
@@ -982,7 +987,7 @@ export default class {
         if (this.isMyTeam(action.teamId))
           return this._performAction(action);
 
-        if (action.type === 'endTurn') {
+        if (action.type === 'endTurn' || action.type === 'surrender') {
           painted.forEach(tile => tile.strip());
 
           return this._performAction(action);
@@ -1368,7 +1373,7 @@ export default class {
       this.unlock();
     }
     else
-      this.delayNotice(`Waiting for ${teamMoniker}`);
+      this.delayNotice(`Go ${teamMoniker}!`);
 
     return this;
   }
@@ -1385,8 +1390,11 @@ export default class {
     return this;
   }
   _endGame(winnerId) {
-    if (winnerId === null)
+    if (winnerId === null) {
       this.notice = 'Draw!';
+
+      Tactics.sounds.defeat.play();
+    }
     else {
       let teams = this.teams;
       let winner = teams[winnerId];
@@ -1401,6 +1409,11 @@ export default class {
         this.notice = 'You win!';
       else
         this.notice = `${winnerMoniker}!`;
+
+      if (this.isMyTeam(winnerId))
+        Tactics.sounds.victory.play();
+      else
+        Tactics.sounds.defeat.play();
     }
 
     this.selected = null;

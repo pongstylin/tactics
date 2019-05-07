@@ -203,7 +203,7 @@ Tactics.App = (function ($, window, document) {
           playerName.value = 'Noob';
         }
 
-        if (creatorTeam.playerId === identity.id)
+        if (identity && creatorTeam.playerId === identity.id)
           challenge.textContent = `Your opponent hasn't joined the game yet.  Or, you could play yourself?`;
         else
           challenge.textContent = `${creatorTeam.name} is waiting for an opponent.  Want to play?`;
