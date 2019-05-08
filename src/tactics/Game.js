@@ -297,8 +297,13 @@ export default class {
   get currentTeam() {
     return this._teams[this.state.currentTeamId];
   }
-  get isLocalGame() {
-    return this._localTeamIds.length === this.state.teams.length;
+  get isBotGame() {
+    let botTeams = this.state.teams.filter(t => !!t.bot);
+    if (botTeams.length === 0)
+      return false;
+
+    let playerTeams = this.state.teams.filter(t => !t.bot);
+    return this._localTeamIds.length === playerTeams.length;
   }
   get isViewOnly() {
     return this.state.ended || this._localTeamIds.length === 0;
@@ -658,24 +663,28 @@ export default class {
     let state   = this.state;
     let actions = this.actions;
 
-    if (this.isLocalGame)
-      // Allow unrestricted undo when all teams are local.
-      return !!actions.length || !!state.currentTurnId;
-    else if (this.isMyTeam(state.currentTeamId)) {
-      if (actions.length === 0) return false;
+    // Bots only allow luckless undo.
+    if (this.isBotGame) {
+      if (this.isMyTeam(state.currentTeamId)) {
+        if (actions.length === 0) return false;
 
-      let unitId = actions[0].unit;
-      let lastLuckyActionIndex = actions.findLastIndex(action =>
-        // Counter-attacks can't be undone.
-        action.unit !== unitId ||
-        // Luck-involved attacks can't be undone.
-        action.results && !!action.results.find(result => 'luck' in result)
-      );
+        let unitId = actions[0].unit;
+        let lastLuckyActionIndex = actions.findLastIndex(action =>
+          // Counter-attacks can't be undone.
+          action.unit !== unitId ||
+          // Luck-involved attacks can't be undone.
+          action.results && !!action.results.find(result => 'luck' in result)
+        );
 
-      return lastLuckyActionIndex < (actions.length - 1);
+        return lastLuckyActionIndex < (actions.length - 1);
+      }
+
+      return false;
     }
 
-    return false;
+    // Players may undo at any time, assuming there is something to undo.
+    // Note that the opponent will need to approve the undo request.
+    return !!actions.length || !!state.currentTurnId;
   }
   undo() {
     this.selected = null;
@@ -1364,16 +1373,25 @@ export default class {
       teamMoniker = team.colorId;
 
     if (this.isMyTeam(team)) {
-      if (this.hasOneLocalTeam())
+      if (this.hasOneLocalTeam()) {
         this.notice = 'Your Turn!';
+        Tactics.sounds.newturn.play();
+      }
       else
         this.notice = `Go ${teamMoniker}!`;
 
       this.selectMode = this._pickSelectMode();
       this.unlock();
     }
-    else
+    else {
       this.delayNotice(`Go ${teamMoniker}!`);
+      this.lock('readonly');
+    }
+
+    this._emit({
+      type: 'startTurn',
+      teamId: teamId,
+    });
 
     return this;
   }

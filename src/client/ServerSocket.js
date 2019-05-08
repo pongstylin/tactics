@@ -165,16 +165,22 @@ export default class ServerSocket {
   }
   _send(message) {
     let socket = this._socket;
-    if (socket && socket.readyState === SOCKET_OPEN) {
-      let session = this._session;
-      if (session.id)
-        message.ack = session.serverMessageId;
+    let session = this._session;
 
-      clearTimeout(this._syncTimeout);
-      this._syncTimeout = setTimeout(() => this._sync(), 5000);
+    // Can't send messages until the connection is established.
+    if (socket && socket.readyState !== SOCKET_OPEN)
+      return;
+    // Wait until session is confirmed before sending queued messages.
+    if (!session.id && message.id)
+      return;
 
-      socket.send(JSON.stringify(message));
-    }
+    if (session.id)
+      message.ack = session.serverMessageId;
+
+    clearTimeout(this._syncTimeout);
+    this._syncTimeout = setTimeout(() => this._sync(), 5000);
+
+    socket.send(JSON.stringify(message));
   }
   _purgeAcknowledgedMessages(messageId) {
     let session = this._session;

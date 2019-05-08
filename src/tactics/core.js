@@ -127,6 +127,7 @@ window.Tactics = (function () {
     ],
     sounds: {
       victory: 'sound1',
+      newturn: 'sound2',
       defeat:  'sound3',
       step:    'sound10',
       block:   'sound11',

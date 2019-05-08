@@ -260,6 +260,10 @@ Tactics.App = (function ($, window, document) {
     $(window).trigger('resize');
 
     game
+      .on('startTurn', event => {
+        $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn());
+        $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+      })
       .on('selectMode-change', event => {
         let panzoom     = game.panzoom;
         let old_mode    = event.ovalue;
@@ -267,7 +271,6 @@ Tactics.App = (function ($, window, document) {
         let can_move    = game.canSelectMove();
         let can_attack  = game.canSelectAttack();
         let can_special = game.canSelectSpecial();
-        let can_undo    = game.canUndo();
 
         $('BUTTON[name=select]').removeClass('selected');
         $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
@@ -285,7 +288,7 @@ Tactics.App = (function ($, window, document) {
         $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
         $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
         $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn());
-        $('BUTTON[name=undo]').prop('disabled', !can_undo);
+        $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
 
         if (new_mode === 'attack' && can_special)
           $('BUTton[name=select][value=attack]').addClass('ready');
