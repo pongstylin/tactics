@@ -1066,9 +1066,9 @@ export default class {
 
       els.name.text = 'Champion';
 
-      els.notice.x = 74;
+      els.notice.x = 110;
       els.notice.y = 32;
-      els.notice.anchor.x = 0;
+      els.notice.anchor.x = 0.5;
       els.notice.style.fontSize = '12px';
       els.notice.text = defaultNotice;
 

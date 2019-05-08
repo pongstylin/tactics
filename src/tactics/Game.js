@@ -394,7 +394,9 @@ export default class {
           });
           this.render();
 
-          if (state.winnerId) {
+          if (state.winnerId === null)
+            this.notice = 'Draw!';
+          else {
             let winner = this.teams[state.winnerId];
             let winnerMoniker;
 
@@ -405,8 +407,6 @@ export default class {
 
             this.notice = winnerMoniker+'!';
           }
-          else
-            this.notice = 'Draw!';
 
           this.selectMode = 'move';
           this.lock('gameover');

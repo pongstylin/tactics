@@ -100,8 +100,15 @@ export default class AuthClient {
   }
 
   _getIdentity(token) {
-    // Unpack the payload in the JWT.
-    let claims = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    // Decode the Base64 encoded payload in the JWT.
+    let payload = atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'));
+    // Convert UTF-8 sequences to characters.
+    payload = decodeURIComponent(
+      payload.split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    let claims = JSON.parse(payload);
 
     return {
       id: claims.sub,

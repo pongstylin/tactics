@@ -160,7 +160,9 @@ Tactics.App = (function ($, window, document) {
         .catch(error => {
           console.error(error);
 
-          if (error.code === 404)
+          if (error.code === 403)
+            $('#error').text(error.message);
+          else if (error.code === 404)
             $('#error').text("The game doesn't exist");
 
           $('#join').hide();
