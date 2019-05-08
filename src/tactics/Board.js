@@ -1218,12 +1218,17 @@ export default class {
     return this;
   }
 
-  lock(value) {
-    if (this.locked === value) return;
-    this.locked = value || true;
+  lock(value = true) {
+    let old_locked = this.locked;
+    if (old_locked === value) return;
+    this.locked = value;
 
     if (this.locked === true)
       this.tiles.forEach(tile => tile.set_interactive(false));
+    if (old_locked === true)
+      this.tiles.forEach(tile => {
+        tile.set_interactive(!!(tile.action || tile.assigned));
+      });
 
     this._emit({
       type:   'lock-change',

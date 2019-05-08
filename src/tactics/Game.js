@@ -665,7 +665,7 @@ export default class {
 
     // Bots only allow luckless undo.
     if (this.isBotGame) {
-      if (this.isMyTeam(state.currentTeamId)) {
+      if (this.isMyTurn()) {
         if (actions.length === 0) return false;
 
         let unitId = actions[0].unit;
