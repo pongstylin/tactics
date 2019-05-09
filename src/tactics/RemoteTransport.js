@@ -11,11 +11,12 @@ export default class RemoteTransport {
    */
   constructor(gameData) {
     Object.assign(this, {
-      whenReady:   new Promise(resolve => this._ready = resolve),
+      playerStatus: {},
+      whenReady:    new Promise(resolve => this._ready = resolve),
 
-      _data:       gameData,
-      _emitter:    new EventEmitter(),
-      _listener:   event => this._emit(event),
+      _data:        gameData,
+      _emitter:     new EventEmitter(),
+      _listener:    event => this._emit(event),
     });
 
     let gameId = gameData.id;
@@ -26,11 +27,17 @@ export default class RemoteTransport {
       this._emit(body);
     });
 
+    this._startSync(gameData);
+
     if (gameData.state.ended)
       this._ready();
     else
-      gameClient.watchGame(gameId, this._listener).then(() => {
-        this._startSync(gameData)
+      gameClient.watchGame(gameId, this._listener).then(playerStatus => {
+        playerStatus.forEach(ps => this._emit({
+          type: 'playerStatus',
+          data: ps,
+        }));
+
         this._ready();
       });
   }
@@ -122,6 +129,9 @@ export default class RemoteTransport {
    */
   _startSync(gameData) {
     this
+      .on('playerStatus', ({ data }) => {
+        this.playerStatus[data.playerId] = data.status;
+      })
       .on('startGame', ({ data:stateData }) => {
         gameData.state = stateData;
       })

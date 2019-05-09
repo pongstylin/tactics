@@ -15,10 +15,6 @@ export default class {
     Object.assign(this, {
       debug: DebugLogger('service:' + data.name),
 
-      // Keys: Group names
-      // Values: Sets of clients that are part of the group
-      groups: new Map(),
-
       // Keys: Clients
       // Values: Action stats maps
       _throttles: new Map(),
@@ -41,28 +37,7 @@ export default class {
    */
   will(client, messageType, bodyType) {
   }
-
-  isClientInGroup(groupName, client) {
-    let group = this.groups.get(groupName);
-
-    return group && group.has(client);
-  }
-  addClientToGroup(groupName, client) {
-    let groups = this.groups;
-
-    if (groups.has(groupName))
-      groups.get(groupName).add(client);
-    else
-      groups.set(groupName, new Set([client]));
-  }
-  dropClient(client) {
-    this.groups.forEach(group => group.delete(client));
-  }
-  dropClientFromGroup(groupName, client) {
-    let groups = this.groups;
-
-    if (groups.has(groupName))
-      groups.get(groupName).delete(client);
+  dropClient() {
   }
 
   sendResponse(client, message, data) {
@@ -91,49 +66,6 @@ export default class {
       id:    message.id,
       error: errorData,
     });
-  }
-
-  /*
-   * Send data to all clients within a group.
-   * Returns a promise resolved when sending of data is complete.
-   * The promise may be rejected with a Map of all clients with errors.
-   */
-  sendToGroup(groupName, message) {
-    let recipients = this.groups.get(groupName) || [];
-    let errors = new Map();
-
-    this.debug(`message-out: group=${groupName}; ${message.type}`);
-
-    let promises = [...recipients].map(client =>
-      this.sendToClient(client, message, false)
-        .catch(error => errors.set(client, error))
-    );
-
-    return Promise.all(promises).then(() => {
-      if (errors.size) throw errors;
-    });
-  }
-  sendToClient(client, message, debugIt = true) {
-    if (debugIt)
-      if (message.error)
-        this.debug(`message-error: client=${client.id}; ${message.type}; [${message.error.code}] ${message.error.message}`);
-      else if (message.id)
-        this.debug(`message-reply: client=${client.id}; ${message.type}`);
-      else
-        this.debug(`message-out: client=${client.id}; ${message.type}`);
-
-    message.service = this.name;
-
-    return new Promise((resolve, reject) =>
-      client.send(
-        JSON.stringify(message),
-        { binary:false },
-        error => {
-          if (error) return reject(error);
-          resolve();
-        },
-      )
-    );
   }
 
   /*

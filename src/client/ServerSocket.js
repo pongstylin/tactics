@@ -60,9 +60,11 @@ export default class ServerSocket {
 
   on() {
     this._emitter.addListener(...arguments);
+    return this;
   }
   off() {
     this._emitter.removeListener(...arguments);
+    return this;
   }
   send(serviceName, groupPath, eventType, data) {
     this._enqueue('event', {

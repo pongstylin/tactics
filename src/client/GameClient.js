@@ -8,21 +8,28 @@ export default class GameClient {
       _server: server,
 
       _emitter: new EventEmitter(),
+      _listener: event => {
+        if (event.body.service !== this.name) return;
+
+        this._emit(event);
+      },
     });
 
-    server.on('event', event => {
-      if (event.body.service !== this.name) return;
-
-      this._emit(event);
-      this._emit(event.body);
-    });
+    server
+      .on('event', this._listener)
+      .on('join',  this._listener)
+      .on('leave', this._listener)
+      .on('enter', this._listener)
+      .on('exit',  this._listener);
   }
 
   on() {
     this._emitter.addListener(...arguments);
+    return this;
   }
   off() {
     this._emitter.removeListener(...arguments);
+    return this;
   }
 
   authorize(token) {

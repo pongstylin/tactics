@@ -13,11 +13,22 @@ class GameService extends Service {
     super({
       name: 'game',
 
-      // Session data for each client.
-      sessions: new Map(),
+      /*
+       * Entity: Any identifiable thing that exists apart from any other thing.
+       *   Example: A player.
+       * Data: Commonly the data that represents an entity.
+       *   Example: A player's name.
+       * Paradata: The data surrounding an entity, but doesn't describe it.
+       *   Example: A player's session.
+       */
+      // Paradata about each active client by client ID.
+      clientPara: new Map(),
 
-      // Game watch data by game ID.
-      gameWatches: new Map(),
+      // Paradata about each watched game by game ID.
+      gamePara: new Map(),
+
+      // Paradata about each online player by player ID.
+      playerPara: new Map(),
     });
   }
 
@@ -29,21 +40,32 @@ class GameService extends Service {
     if (bodyType === 'getGame') return true;
 
     // Authorization required
-    let session = this.sessions.get(client.id);
-    if (!session)
+    let clientPara = this.clientPara.get(client.id);
+    if (!clientPara)
       throw new ServerError(401, 'Authorization is required');
-    if (session.expires < (new Date() / 1000))
+    if (clientPara.expires < (new Date() / 1000))
       throw new ServerError(401, 'Token is expired');
   }
 
   dropClient(client) {
-    let session = this.sessions.get(client.id);
-    if (session) {
-      this.gameWatches.forEach((gameWatch, gameId) =>
-        this.onLeaveGameGroup(client, `/games/${gameId}`, gameId)
-      );
+    let clientPara = this.clientPara.get(client.id);
+    if (clientPara) {
+      if (clientPara.watchedGames)
+        clientPara.watchedGames.forEach(game =>
+          this.onLeaveGameGroup(client, `/games/${game.id}`, game.id)
+        );
 
-      this.sessions.delete(client.id);
+      let playerPara = this.playerPara.get(clientPara.playerId);
+      if (playerPara.clients.size > 1)
+        playerPara.clients.delete(clientPara);
+      else {
+        this.playerPara.delete(clientPara.playerId);
+
+        // Let people who needs to know that this player went offline.
+        this.onPlayerOffline(clientPara.playerId);
+      }
+
+      this.clientPara.delete(client.id);
     }
 
     super.dropClient(client);
@@ -56,28 +78,83 @@ class GameService extends Service {
     if (!token)
       throw new ServerError(422, 'Required authorization token');
 
-    let session = this.sessions.get(client.id) || {};
+    let clientPara = this.clientPara.get(client.id) || {};
     let claims = jwt.verify(token, config.publicKey);
 
-    session.playerId = claims.sub;
-    session.deviceId = claims.deviceId;
-    session.name = claims.name;
-    session.expires = claims.exp;
-    this.sessions.set(client.id, session);
+    let playerId = clientPara.playerId = claims.sub;
+    clientPara.deviceId = claims.deviceId;
+    clientPara.name = claims.name;
+    clientPara.expires = claims.exp;
+    this.clientPara.set(client.id, clientPara);
+
+    let playerPara = this.playerPara.get(playerId);
+    if (playerPara)
+      // This operation would be redundant if client authorizes more than once.
+      playerPara.clients.add(clientPara);
+    else {
+      this.playerPara.set(playerId, {
+        clients: new Set([clientPara]),
+        watchedGames: new Map(),
+      });
+
+      // Let people who needs to know that this player is online.
+      this.onPlayerOnline(playerId);
+    }
+  }
+
+  onGameEnd(gameId) {
+    let gamePara = this.gamePara.get(gameId);
+    gamePara.clients.forEach(clientPara =>
+      clientPara.watchedGames.delete(gameId)
+    );
+    this.gamePara.delete(gameId);
+
+    this._emit({
+      type:   'closeGroup',
+      client: client.id,
+      body: {
+        group: groupPath,
+      },
+    });
+
+    // Save the game before it is wiped from memory.
+    dataAdapter.saveGame(gamePara.game);
+  }
+  onPlayerOnline(playerId) {
+    this.gamePara.forEach(gamePara => {
+      let game = gamePara.game;
+      let gamePlayerIds = game.state.teams.map(t => t.playerId);
+      if (!gamePlayerIds.includes(playerId))
+        return;
+
+      this._emitPlayerStatus(`/games/${game.id}`, playerId, 'online');
+    });
+  }
+  onPlayerOffline(playerId) {
+    this.gamePara.forEach(gamePara => {
+      let game = gamePara.game;
+      let gamePlayerIds = game.state.teams.map(t => t.playerId);
+      if (!gamePlayerIds.includes(playerId))
+        return;
+
+      this._emitPlayerStatus(`/games/${game.id}`, playerId, 'offline');
+    });
   }
 
   /*
    * Create a new game and save it to persistent storage.
    */
   onCreateGameRequest(client, stateData) {
-    let session = this.sessions.get(client.id);
-    this.throttle(session.deviceId, 'createGame');
+    let clientPara = this.clientPara.get(client.id);
+    this.throttle(clientPara.playerId, 'createGame');
 
     let game = dataAdapter.createGame(stateData);
     return game.id;
   }
 
   onGetGameRequest(client, gameId) {
+    this.throttle(client.address, 'getGame');
+
     /*
      * When getting a game, leave out the turn history as an efficiency measure.
      */
@@ -98,22 +175,24 @@ class GameService extends Service {
   onJoinGroup(client, groupPath) {
     let match;
     if (match = groupPath.match(/^\/games\/(.+)$/))
-      this.onJoinGameGroup(client, groupPath, match[1]);
+      return this.onJoinGameGroup(client, groupPath, match[1]);
     else
       throw new ServerError(404, 'No such group');
   }
 
   onJoinGameGroup(client, groupPath, gameId) {
-    let session = this.sessions.get(client.id);
-    let game = this._getGame(gameId);
+    let clientPara = this.clientPara.get(client.id);
+    let playerPara = this.playerPara.get(clientPara.playerId);
+    let gamePara = this.gamePara.get(gameId);
+    let game = gamePara ? gamePara.game : this._getGame(gameId);
 
-    // Can't watch ended games.
-    if (game.ended)
-      throw new ServerError(409, 'The game has ended');
-
-    if (this.gameWatches.has(gameId))
-      this.gameWatches.get(gameId).clients++;
+    if (gamePara)
+      gamePara.clients.add(clientPara);
     else {
+      // Can't watch ended games.
+      if (game.ended)
+        throw new ServerError(409, 'The game has ended');
+
       let listener = event => {
         this._emit({
           type: 'event',
@@ -124,8 +203,13 @@ class GameService extends Service {
           },
         });
 
-        if (event.type === 'joined' || event.type === 'action')
+        if (event.type === 'joined' || event.type === 'action' || event.type === 'reset')
+          // Since games are saved before they are removed from memory this only
+          // serves as a precaution against a server crash.  It would also be
+          // useful in a multi-server context, but that requires more thinking.
           dataAdapter.saveGame(game);
+        else if (event.type === 'endGame')
+          this.onGameEnd(gameId);
       };
 
       game.state
@@ -136,23 +220,51 @@ class GameService extends Service {
         .on('reset', listener)
         .on('endGame', listener);
 
-      this.gameWatches.set(gameId, {
+      this.gamePara.set(gameId, gamePara = {
         game:     game,
-        clients:  1,
+        clients:  new Set([clientPara]),
         listener: listener,
       });
     }
 
+    if (clientPara.watchedGames)
+      clientPara.watchedGames.set(game.id, game);
+    else
+      clientPara.watchedGames = new Map([[game.id, game]]);
+
+    if (playerPara.watchedGames.has(game.id))
+      playerPara.watchedGames.get(game.id).add(client.id);
+    else {
+      playerPara.watchedGames.set(game.id, new Set([client.id]));
+      this._emitPlayerStatus(groupPath, clientPara.playerId, 'ingame');
+    }
+
     this._emit({
-      type:   'join',
+      type: 'joinGroup',
       client: client.id,
       body: {
         group: groupPath,
         user: {
-          id:   session.playerId,
-          name: session.name,
+          id:   clientPara.playerId,
+          name: clientPara.name,
         },
       },
+    });
+
+    return game.state.teams.map(team => {
+      if (!team) return null;
+      let playerId = team.playerId;
+      let teamPlayerPara = this.playerPara.get(playerId);
+
+      let status;
+      if (!teamPlayerPara)
+        status = 'offline';
+      else if (!teamPlayerPara.watchedGames.has(game.id))
+        status = 'online';
+      else
+        status = 'ingame';
+
+      return { playerId, status };
     });
   }
 
@@ -160,21 +272,22 @@ class GameService extends Service {
    * No longer send change events to the client about this game.
    */
   onLeaveGameGroup(client, groupPath, gameId) {
-    let session = this.sessions.get(client.id);
+    let clientPara = this.clientPara.get(client.id);
+    let playerPara = this.playerPara.get(clientPara.playerId);
     let game = gameId instanceof Game ? gameId : this._getGame(gameId);
-    let groupName = 'game-' + game.id;
 
     // Already not watching?
-    if (!this.isClientInGroup(groupName, client))
-      return game;
-    this.dropClientFromGroup(groupName, client);
+    if (!clientPara.watchedGames)
+      return;
+    if (!clientPara.watchedGames.has(game.id))
+      return;
 
-    let gameWatch = this.gameWatches.get(game.id);
-    if (gameWatch.clients > 1)
-      gameWatch.clients--;
+    let gamePara = this.gamePara.get(game.id);
+    if (gamePara.clients.size > 1)
+      gamePara.clients.delete(clientPara);
     else {
       // TODO: Don't shut down the game state until all bots have made their turns.
-      let listener = gameWatch.listener;
+      let listener = gamePara.listener;
 
       game.state
         .off('joined', listener)
@@ -184,19 +297,50 @@ class GameService extends Service {
         .off('reset', listener)
         .off('endGame', listener);
 
-      this.gameWatches.delete(game.id);
+      this.gamePara.delete(game.id);
+
+      // Save the game before it is wiped from memory.
+      dataAdapter.saveGame(gamePara.game);
     }
 
-    return true;
+    if (clientPara.watchedGames.size === 1)
+      delete clientPara.watchedGames;
+    else
+      clientPara.watchedGames.delete(game.id);
+
+    let watchingClientIds = playerPara.watchedGames.get(game.id);
+
+    // Only say the player is online if another client isn't ingame.
+    if (watchingClientIds.size === 1) {
+      playerPara.watchedGames.delete(game.id);
+
+      // Don't say the player is online if the player is going offline.
+      if (playerPara.clients.size > 1 || !client.closing)
+        this._emitPlayerStatus(groupPath, clientPara.playerId, 'online');
+    }
+    else
+      watchingClientIds.delete(client.id);
+
+    this._emit({
+      type:   'leaveGroup',
+      client: client.id,
+      body: {
+        group: groupPath,
+        user: {
+          id:   clientPara.playerId,
+          name: clientPara.name,
+        },
+      },
+    });
   }
 
   onJoinGameRequest(client, gameId, {set, slot} = {}) {
-    let session = this.sessions.get(client.id);
+    let clientPara = this.clientPara.get(client.id);
     let game = this._getGame(gameId);
 
     let team = {
-      playerId: session.playerId,
-      name: session.name,
+      playerId: clientPara.playerId,
+      name: clientPara.name,
     };
     if (set)
       team.set = set;
@@ -224,14 +368,14 @@ class GameService extends Service {
    * may make the provided action.
    */
   onActionEvent(client, groupPath, action) {
-    let session = this.sessions.get(client.id);
+    let playerId = this.clientPara.get(client.id).playerId;
     let gameId = groupPath.replace(/^\/games\//, '');
     let game = this._getGame(gameId);
 
     if (!Array.isArray(action))
       action = [action];
 
-    let myTeams = game.state.teams.filter(t => t.playerId === session.playerId);
+    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
     if (myTeams.length === 0)
       throw new ServerError(401, 'You are not a player in this game.');
     else if (action[0].type === 'surrender')
@@ -252,12 +396,23 @@ class GameService extends Service {
    ******************************************************************************/
   _getGame(gameId) {
     let game;
-    if (this.gameWatches.has(gameId))
-      game = this.gameWatches.get(gameId).game;
+    if (this.gamePara.has(gameId))
+      game = this.gamePara.get(gameId).game;
     else
       game = dataAdapter.getGame(gameId);
 
     return game;
+  }
+
+  _emitPlayerStatus(groupPath, playerId, status) {
+    this._emit({
+      type: 'event',
+      body: {
+        group: groupPath,
+        type: 'playerStatus',
+        data: { playerId, status },
+      },
+    });
   }
 }
 

@@ -31,6 +31,8 @@ window.Tactics = (function () {
     width:  22 + 88*9 + 22,
     height: 44 + 4 + 56*9,
     utils:  {},
+    authClient: clientFactory('auth'),
+    gameClient: clientFactory('game'),
 
     draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};

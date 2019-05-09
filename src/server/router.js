@@ -179,16 +179,15 @@ function joinGroup(serviceName, { client:clientId, body }) {
   }
 
   // Let everybody know this user has joined the group, if we haven't already.
-//  if (!groupUserIds.has(body.user.id)) {
-  if (true) {
+  if (!groupUserIds.has(body.user.id)) {
     let messageBody = {
       service: serviceName,
       group: body.group,
       user: body.user,
     };
 
-    for (let sessionId of group.keys()) {
-      enqueue(sessions.get(sessionId), 'joined', messageBody);
+    for (let groupedClientId of group.keys()) {
+      enqueue(sessions.get(groupedClientId), 'enter', messageBody);
     }
 
     groupUsers.push(body.user);
@@ -196,31 +195,72 @@ function joinGroup(serviceName, { client:clientId, body }) {
 
   group.set(clientId, body.user);
 
-  let session = sessions.get(clientId);
-
-  enqueue(session, 'join', {
+  enqueue(sessions.get(clientId), 'join', {
     service: serviceName,
     group: body.group,
     users: groupUsers,
   });
 }
 services.forEach(service =>
-  service.on('join', event => joinGroup(service.name, event))
+  service.on('joinGroup', event => joinGroup(service.name, event))
 );
 
 function leaveGroup(serviceName, { clientId, body }) {
-  let groupId = [serviceName, groupName].join(':');
+  let groupId = [serviceName, body.group].join(':');
   let group = groups.get(groupId);
   if (!group)
     return;
 
   group.delete(clientId);
-
   if (group.size === 0)
     groups.delete(groupId);
+  else {
+    /*
+     * Does the user ID still exist in the group under a different session?
+     */
+    let exists = [...group.values()].find(u => u.id === body.user.id);
+    if (!exists) {
+      let messageBody = {
+        service: serviceName,
+        group: body.group,
+        user: body.user,
+      };
+
+      for (let groupedClientId of group.keys()) {
+        enqueue(sessions.get(groupedClientId), 'exit', messageBody);
+      }
+    }
+  }
+
+  // The session won't exist if the user left as the result of disconnecting.
+  let session = sessions.get(clientId);
+  if (session)
+    enqueue(session, 'leave', {
+      service: serviceName,
+      group: body.group,
+    });
 }
 services.forEach(service =>
-  service.on('leave', event => leaveGroup(service.name, event))
+  service.on('leaveGroup', event => leaveGroup(service.name, event))
+);
+
+function closeGroup(serviceName, { clientId, body }) {
+  let groupId = [serviceName, body.group].join(':');
+  let group = groups.get(groupId);
+  if (!group)
+    return;
+
+  groups.delete(groupId);
+
+  group.forEach(clientId =>
+    enqueue(sessions.get(clientId), 'leave', {
+      service: serviceName,
+      group: body.group,
+    })
+  );
+}
+services.forEach(service =>
+  service.on('closeGroup', event => closeGroup(service.name, event))
 );
 
 /*******************************************************************************
@@ -670,6 +710,8 @@ function onClose(code, reason) {
   inboundClients.delete(client);
   outboundClients.delete(client);
 
+  client.closing = { code, reason };
+
   if (session) {
     if (code === CLOSE_GOING_AWAY) {
       // Delete the session immediately since the client won't come back.
@@ -743,6 +785,8 @@ setInterval(() => {
   for (let session of closedSessions) {
     if (session.closedAt > sessionTimeout)
       break;
+
+    session.client.closing.timeout = true;
 
     sessions.delete(session.id);
     closedSessions.delete(session);

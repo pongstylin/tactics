@@ -153,6 +153,14 @@ Tactics.App = (function ($, window, document) {
         .then(g => {
           game = g;
 
+          game.state.on('playerStatus', resetPlayerBanners);
+
+          if (game.isViewOnly) {
+            $('BUTTON[name=pass]').hide();
+            $('BUTTON[name=surrender]').hide();
+            $('BUTTON[name=undo]').hide();
+          }
+
           $('#join').hide();
           $('#splash').show();
           loadThenStartGame();
@@ -180,48 +188,64 @@ Tactics.App = (function ($, window, document) {
   function initGame() {
     let gameId = location.search.slice(1);
 
-    return Tactics.getRemoteGameData(gameId).then(gameData => {
-      if (gameData.state.started)
-        // An account is not required to view an existing game.
-        return Tactics.loadRemoteGame(gameId, gameData);
+    return Tactics.getRemoteGameData(gameId)
+      .then(gameData => {
+        // An account is not required to view an ended game.
+        if (gameData.state.ended) return gameData;
 
-      let creatorTeam = gameData.state.teams.find(t => !!t);
+        return Tactics.getMyIdentity().then(identity => {
+          let greeting = document.querySelector('.greeting');
+          let playerName = document.querySelector('INPUT[name=playerName]');
+          let challenge = document.querySelector('.challenge');
+          let btnJoin = document.querySelector('BUTTON[name=join]');
 
-      return Tactics.getMyIdentity().then(identity => {
-        let greeting = document.querySelector('.greeting');
-        let playerName = document.querySelector('INPUT[name=playerName]');
-        let challenge = document.querySelector('.challenge');
-        let btnJoin = document.querySelector('BUTTON[name=join]');
+          if (identity) {
+            // If an account exists and the game started, start watching!
+            if (gameData.state.started) return gameData;
 
-        if (identity) {
-          greeting.innerHTML = `
-            Welcome back, ${identity.name}!  You may change your name here.<BR>
-            Note: This won't change your name on previously created/joined games.
-          `;
-          playerName.value = identity.name;
-        }
-        else {
-          greeting.innerHTML = `Welcome!  Choose your game name.`;
-          playerName.value = 'Noob';
-        }
+            greeting.innerHTML = `
+              Welcome back, ${identity.name}!  You may change your name here.<BR>
+              Note: This won't change your name on previously created/joined games.
+            `;
+            playerName.value = identity.name;
+          }
+          else {
+            greeting.innerHTML = `Welcome!  Choose your game name.`;
+            playerName.value = 'Noob';
+          }
 
-        if (identity && creatorTeam.playerId === identity.id)
-          challenge.textContent = `Your opponent hasn't joined the game yet.  Or, you could play yourself?`;
-        else
-          challenge.textContent = `${creatorTeam.name} is waiting for an opponent.  Want to play?`;
+          if (gameData.state.started) {
+            btnJoin.textContent = 'Watch Game';
 
-        return new Promise((resolve, reject) => {
-          btnJoin.addEventListener('click', event => {
-            Tactics.joinRemoteGame(playerName.value, gameId)
-              .then(() => Tactics.loadRemoteGame(gameId))
-              .then(game => resolve(game))
-              .catch(error => reject(error));
-          });
+            return new Promise((resolve, reject) => {
+              btnJoin.addEventListener('click', event => {
+                Tactics.authClient.setAccountName(playerName.value)
+                  .then(() => resolve(gameData));
+              });
 
-          document.querySelector('#join').style.display = null;
+              document.querySelector('#join').style.display = null;
+            });
+          }
+          else {
+            let creatorTeam = gameData.state.teams.find(t => !!t);
+            if (identity && creatorTeam.playerId === identity.id)
+              challenge.textContent = `Your opponent hasn't joined the game yet.  Or, you could play yourself?`;
+            else
+              challenge.textContent = `${creatorTeam.name} is waiting for an opponent.  Want to play?`;
+
+            return new Promise((resolve, reject) => {
+              btnJoin.addEventListener('click', event => {
+                Tactics.joinRemoteGame(playerName.value, gameId)
+                  .then(() => resolve(gameData))
+                  .catch(error => reject(error));
+              });
+
+              document.querySelector('#join').style.display = null;
+            });
+          }
         });
-      });
-    });
+      })
+      .then(gameData => Tactics.loadRemoteGame(gameId, gameData));
   }
 
   function resetPlayerBanners() {
@@ -237,6 +261,8 @@ Tactics.App = (function ($, window, document) {
 
       $player
         .addClass('active bronze')
+        .removeClass('offline online ingame')
+        .addClass(game.state.playerStatus[team.playerId])
         .find('.name').text(team.name);
     });
   }
