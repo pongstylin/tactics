@@ -36,7 +36,8 @@ export function resolve(specifier, parentModuleURL = baseURL, defaultResolve) {
     resolved = new URL(fullRelativePath, baseURL);
   }
   // Make root paths relative to nodejs root.
-  else if (/^\/(?![a-z]:\/)/i.test(specifier))
+  // Except for the entry point: src/server.js
+  else if (/^\/(?:!.+\/src\/server\.js)$/.test(specifier))
     resolved = new URL(specifier.slice(1), baseURL);
   // Resolve node_modules
   else if (!/^\.{0,2}[/]/.test(specifier) && !specifier.startsWith('file:'))
