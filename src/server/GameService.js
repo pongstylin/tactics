@@ -354,9 +354,6 @@ class GameService extends Service {
   onGetTurnActionsRequest(client, gameId, ...args) {
     return this._getGame(gameId).state.getTurnActions(...args);
   }
-  onUndoRequest(client, gameId, ...args) {
-    return this._getGame(gameId).state.undo(...args);
-  }
   onRestartRequest(client, gameId, ...args) {
     return this._getGame(gameId).state.restart(...args);
   }
@@ -368,9 +365,12 @@ class GameService extends Service {
    * may make the provided action.
    */
   onActionEvent(client, groupPath, action) {
-    let playerId = this.clientPara.get(client.id).playerId;
     let gameId = groupPath.replace(/^\/games\//, '');
-    let game = this._getGame(gameId);
+    let gamePara = this.gamePara.get(gameId);
+    if (!gamePara || gamePara.undoRequest) return;
+
+    let playerId = this.clientPara.get(client.id).playerId;
+    let game = gamePara.game;
 
     if (!Array.isArray(action))
       action = [action];
@@ -390,6 +390,82 @@ class GameService extends Service {
 
     game.state.postAction(action);
   }
+  // Undo mechanic is not yet complete.  The following code is incomplete.
+  /*
+  onUndoEvent(client, gamePath) {
+    let gameId = groupPath.replace(/^\/games\//, '');
+    let game = this._getGame(gameId);
+    if (game.undoRequest) return;
+
+    let clientPara = this.clientPara.get(client.id);
+
+    // TODO: Conditionally request an undo depending on luck.
+    if (false) {
+      game.undoRequest = {
+        playerId: clientPara.playerId,
+        accepts: new Set([clientPara.playerId]),
+      };
+      dataAdapter.saveGame(game);
+
+      this._emit({
+        type: 'event',
+        body: {
+          group: groupPath,
+          data: {
+            type: 'undoRequest',
+            requestedBy: {
+              id:   clientPara.playerId,
+              name: clientPara.name,
+            },
+          },
+        },
+      });
+    }
+    else
+      // TODO: Determine how much to undo since the undo request may be made by
+      // either the current turn's player or a previous turn's player.
+      game.state.undo();
+  }
+  onUndoRejectEvent(client, gamePath) {
+    let gameId = groupPath.replace(/^\/games\//, '');
+    let game = this._getGame(gameId);
+    if (!game.undoRequest) return;
+
+    delete game.undoRequest;
+    dataAdapter.saveGame(game);
+
+    this._emit({
+      type: 'event',
+      body: {
+        group: groupPath,
+        data: {
+          type: 'undoReject',
+          rejectedBy: {
+            id:   clientPara.playerId,
+            name: clientPara.name,
+          },
+        },
+      },
+    });
+  }
+  onUndoAcceptEvent(client, gamePath) {
+    let gameId = groupPath.replace(/^\/games\//, '');
+    let game = this._getGame(gameId);
+    if (!game.undoRequest) return;
+
+    let clientPara = this.clientPara.get(client.id);
+
+    game.undoRequest.accepts.add(clientPara.playerId);
+
+    if (game.undoRequest.accepts.size === game.state.teams.length) {
+      delete game.undoRequest;
+
+      game.state.undo();
+    }
+
+    dataAdapter.saveGame(game);
+  }
+  */
 
   /*******************************************************************************
    * Helpers

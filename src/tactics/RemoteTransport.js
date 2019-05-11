@@ -9,17 +9,15 @@ export default class RemoteTransport {
   /*
    * The default constructor is not intended for public use.
    */
-  constructor(gameData) {
+  constructor(gameId) {
     Object.assign(this, {
       playerStatus: {},
       whenReady:    new Promise(resolve => this._ready = resolve),
 
-      _data:        gameData,
+      _data:        null,
       _emitter:     new EventEmitter(),
       _listener:    event => this._emit(event),
     });
-
-    let gameId = gameData.id;
 
     gameClient.on('event', ({ body }) => {
       if (body.group !== `/games/${gameId}`) return;
@@ -27,19 +25,22 @@ export default class RemoteTransport {
       this._emit(body);
     });
 
-    this._startSync(gameData);
+    this._watchForDataChanges();
 
-    if (gameData.state.ended)
-      this._ready();
-    else
-      gameClient.watchGame(gameId, this._listener).then(playerStatus => {
+    gameClient.getGameData(gameId).then(gameData => {
+      this._data = gameData;
+      if (this._data.state.started)
+        this._ready();
+
+      if (gameData.state.ended) return;
+
+      return gameClient.watchGame(gameId).then(playerStatus => {
         playerStatus.forEach(ps => this._emit({
           type: 'playerStatus',
           data: ps,
         }));
-
-        this._ready();
       });
+    });
   }
 
   /*
@@ -127,33 +128,34 @@ export default class RemoteTransport {
   /*
    * Other Private Methods
    */
-  _startSync(gameData) {
+  _watchForDataChanges(gameData) {
     this
       .on('playerStatus', ({ data }) => {
         this.playerStatus[data.playerId] = data.status;
       })
       .on('startGame', ({ data:stateData }) => {
-        gameData.state = stateData;
+        this._data.state = stateData;
+        this._ready();
       })
       .on('startTurn', ({ data }) => {
-        Object.assign(gameData.state, {
+        Object.assign(this._data.state, {
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions:       [],
         });
       })
       .on('action', ({ data:actions }) => {
-        gameData.state.actions.push(...actions);
+        this._data.state.actions.push(...actions);
       })
       .on('reset', ({ data }) => {
-        Object.assign(gameData.state, {
+        Object.assign(this._data.state, {
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions:       data.actions,
         });
       })
       .on('endGame', ({ data }) => {
-        Object.assign(gameData.state, {
+        Object.assign(this._data.state, {
           winnerId: data.winnerId,
           ended:    new Date().toISOString(),
         });

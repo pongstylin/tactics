@@ -160,6 +160,10 @@ Tactics.App = (function ($, window, document) {
             $('BUTTON[name=surrender]').hide();
             $('BUTTON[name=undo]').hide();
           }
+          else {
+            // Undo button not yet supported
+            $('BUTTON[name=undo]').hide();
+          }
 
           $('#join').hide();
           $('#splash').show();
@@ -236,7 +240,7 @@ Tactics.App = (function ($, window, document) {
             return new Promise((resolve, reject) => {
               btnJoin.addEventListener('click', event => {
                 Tactics.joinRemoteGame(playerName.value, gameId)
-                  .then(() => resolve(gameData))
+                  .then(() => resolve())
                   .catch(error => reject(error));
               });
 
@@ -245,7 +249,7 @@ Tactics.App = (function ($, window, document) {
           }
         });
       })
-      .then(gameData => Tactics.loadRemoteGame(gameId, gameData));
+      .then(() => Tactics.loadRemoteGame(gameId));
   }
 
   function resetPlayerBanners() {

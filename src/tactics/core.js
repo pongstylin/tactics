@@ -98,16 +98,11 @@ window.Tactics = (function () {
       return authClient.setAccountName(playerName)
         .then(() => gameClient.joinGame(gameId));
     },
-    loadRemoteGame: function (gameId, gameData) {
-      let promise;
-      if (gameData)
-        promise = Promise.resolve(gameData);
-      else
-        promise = gameClient.getGameData(gameId);
+    loadRemoteGame: function (gameId) {
+      let transport = new RemoteTransport(gameId);
 
-      return promise.then(gameData => {
-        let transport = new RemoteTransport(gameData);
-        let localTeamIds = gameData.state.teams
+      return transport.whenReady.then(() => {
+        let localTeamIds = transport.teams
           .filter(team => team.playerId === authClient.userId)
           .map(team => team.originalId);
 
