@@ -1035,15 +1035,15 @@ export default class {
 
             // Show the player the units that will be attacked.
             let target = action.target;
+            let target_tiles = attacker.getTargetTiles(target);
             let target_units = attacker.getTargetUnits(target);
 
+            target_tiles.forEach(tile => {
+              painted.push(tile.paint('attack', 0.3, ATTACK_TILE_COLOR));
+            });
+
             if (target_units.length) {
-              target_units.forEach(tu => {
-                tu.activate();
-                painted.push(
-                  tu.assignment.paint('attack', 0.3, ATTACK_TILE_COLOR)
-                );
-              });
+              target_units.forEach(tu => tu.activate());
 
               if (target_units.length === 1) {
                 attacker.setTargetNotice(target_units[0], target);
@@ -1052,8 +1052,6 @@ export default class {
               else
                 this.drawCard(attacker);
             }
-            else
-              target.paint('attack', 0.3, ATTACK_TILE_COLOR);
 
             attacker.activate();
 
