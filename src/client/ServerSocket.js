@@ -170,7 +170,7 @@ export default class ServerSocket {
     let session = this._session;
 
     // Can't send messages until the connection is established.
-    if (socket && socket.readyState !== SOCKET_OPEN)
+    if (!socket || socket.readyState !== SOCKET_OPEN)
       return;
     // Wait until session is confirmed before sending queued messages.
     if (!session.id && message.id)
