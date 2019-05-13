@@ -985,6 +985,9 @@ export default class {
     // The actions array can be empty due to the _replay() method.
     if (actions.length === 0) return Promise.resolve();
 
+    // Just in case an action was submitted by another session/tab/device.
+    this.selected = null;
+
     let board = this._board;
     actions = board.decodeAction(actions);
 
@@ -1126,7 +1129,7 @@ export default class {
     });
 
     // Change a readonly lock to a full lock
-    board.lock();
+    this.lock();
 
     return promise.then(() => {
       // If the action didn't result in ending the turn, then set mode.

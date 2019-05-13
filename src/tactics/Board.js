@@ -52,20 +52,20 @@ export default class {
     });
 
     Object.assign(this, {
-      tiles:        tiles,
-      pixi:         undefined,
-      locked:       'readonly',
-      focused_tile: null,
+      tiles:       tiles,
+      pixi:        undefined,
+      locked:      'readonly',
+      focusedTile: null,
 
-      card:         null,
-      carded:       null,
+      card:        null,
+      carded:      null,
 
-      focused:      null,
-      viewed:       null,
-      selected:     null,
-      targeted:     null,
+      focused:     null,
+      viewed:      null,
+      selected:    null,
+      targeted:    null,
 
-      rotation:     'N',
+      rotation:    'N',
 
       teams: [],
       teamsUnits: [], // 2-dimensional array of the units for each team.
@@ -597,15 +597,17 @@ export default class {
       /*
        * Make sure tiles are blurred before focusing on a new one.
        */
-      let focused_tile = this.focused_tile;
+      let focusedTile = this.focusedTile;
       if (type === 'focus') {
-        if (focused_tile && focused_tile !== tile)
-          focused_tile.onBlur();
-        this.focused_tile = tile;
+        if (focusedTile && focusedTile !== tile)
+          focusedTile.onBlur();
+        this.focusedTile = tile;
       }
       else if (type === 'blur') {
-        if (focused_tile === tile)
-          this.focused_tile = null;
+        // The tile might not actually be blurred if the blur event was fired in
+        // response to the board becoming locked and tile non-interactive
+        if (!this.focusedTile.focused)
+          this.focusedTile = null;
       }
 
       if (!tile.is_interactive()) return;
@@ -1775,7 +1777,7 @@ export default class {
 
     let highlighted = this._highlighted;
     // Trigger the 'focus' event when highlighting the focused tile.
-    let focused_tile = this.focused_tile;
+    let focusedTile = this.focusedTile;
     let trigger_focus = false;
 
     tiles.forEach(tile => {
@@ -1788,7 +1790,7 @@ export default class {
       if (!viewed) {
         tile.action = highlight.action;
 
-        if (tile === focused_tile)
+        if (tile === focusedTile)
           trigger_focus = true;
         else
           tile.set_interactive(true);
@@ -1799,10 +1801,10 @@ export default class {
 
     // The 'focus' event is delayed until all tiles are highlighted.
     if (trigger_focus)
-      if (focused_tile.is_interactive())
-        this.onTileFocus(focused_tile);
+      if (focusedTile.is_interactive())
+        this.onTileFocus(focusedTile);
       else
-        focused_tile.set_interactive(true);
+        focusedTile.set_interactive(true);
   }
   _clearHighlight(tile) {
     let highlighted = this._highlighted;
