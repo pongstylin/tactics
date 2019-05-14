@@ -172,15 +172,15 @@ class GameService extends Service {
   /*
    * Start sending change events to the client about this game.
    */
-  onJoinGroup(client, groupPath) {
+  onJoinGroup(client, groupPath, params) {
     let match;
     if (match = groupPath.match(/^\/games\/(.+)$/))
-      return this.onJoinGameGroup(client, groupPath, match[1]);
+      return this.onJoinGameGroup(client, groupPath, match[1], params);
     else
       throw new ServerError(404, 'No such group');
   }
 
-  onJoinGameGroup(client, groupPath, gameId) {
+  onJoinGameGroup(client, groupPath, gameId, params) {
     let clientPara = this.clientPara.get(client.id);
     let playerPara = this.playerPara.get(clientPara.playerId);
     let gamePara = this.gamePara.get(gameId);
@@ -203,7 +203,7 @@ class GameService extends Service {
           },
         });
 
-        if (event.type === 'joined' || event.type === 'action' || event.type === 'reset')
+        if (event.type === 'joined' || event.type === 'action' || event.type === 'revert')
           // Since games are saved before they are removed from memory this only
           // serves as a precaution against a server crash.  It would also be
           // useful in a multi-server context, but that requires more thinking.
@@ -217,7 +217,7 @@ class GameService extends Service {
         .on('startGame', listener)
         .on('startTurn', listener)
         .on('action', listener)
-        .on('reset', listener)
+        .on('revert', listener)
         .on('endGame', listener);
 
       this.gamePara.set(gameId, gamePara = {
@@ -251,7 +251,9 @@ class GameService extends Service {
       },
     });
 
-    return game.state.teams.map(team => {
+    let response = {};
+
+    response.playerStatus = game.state.teams.map(team => {
       if (!team) return null;
       let playerId = team.playerId;
       let teamPlayerPara = this.playerPara.get(playerId);
@@ -266,6 +268,34 @@ class GameService extends Service {
 
       return { playerId, status };
     });
+
+    if (params) {
+      // Get any additional actions made in the provided turn.
+      let actions = game.state.getTurnActions(params.turnId)
+        .slice(params.actions);
+
+      // Get actions made in any subsequent turn.
+      for (let i = params.turnId; i < game.state.currentTurnId; i++) {
+        actions.push(...game.state.getTurnActions(i));
+      }
+
+      response.events = [];
+      if (actions.length)
+        response.events.push({ type:'action', data:actions });
+      if (game.state.ended)
+        response.events.push({
+          type: 'endGame',
+          data: { winnerId:game.state.winnerId },
+        });
+    }
+    else {
+      let gameData = game.toJSON();
+      gameData.state = game.state.getData();
+
+      response.gameData = gameData;
+    }
+
+    return response;
   }
 
   /*
@@ -294,7 +324,7 @@ class GameService extends Service {
         .off('startGame', listener)
         .off('startTurn', listener)
         .off('action', listener)
-        .off('reset', listener)
+        .off('revert', listener)
         .off('endGame', listener);
 
       this.gamePara.delete(game.id);

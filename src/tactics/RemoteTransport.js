@@ -11,35 +11,48 @@ export default class RemoteTransport {
    */
   constructor(gameId) {
     Object.assign(this, {
-      playerStatus: {},
+      playerStatus: new Map(),
       whenReady:    new Promise(resolve => this._ready = resolve),
 
-      _data:        null,
-      _emitter:     new EventEmitter(),
-      _listener:    event => this._emit(event),
+      _data:    null,
+      _emitter: new EventEmitter(),
     });
 
-    gameClient.on('event', ({ body }) => {
-      if (body.group !== `/games/${gameId}`) return;
+    gameClient
+      .on('event', ({ body }) => {
+        if (body.group !== `/games/${gameId}`) return;
 
-      this._emit(body);
-    });
+        this._emit(body);
+      })
+      .on('close', () => {
+        let playerStatus = [...this.playerStatus].map(([playerId]) =>
+          ({ playerId, status:'unavailable' })
+        );
+
+        this._emit({ type:'playerStatus', data:playerStatus });
+      })
+      .on('reset', () => {
+        let resume = {
+          turnId: this._data.state.currentTurnId,
+          actions: this._data.state.actions.length,
+        };
+
+        // Instead of watching the game from its current point, resume watching
+        // the game from the point we lost connection.
+        gameClient.watchGame(gameId, resume).then(({playerStatus, events}) => {
+          this._emit({ type:'playerStatus', data:playerStatus });
+
+          events.forEach(e => this._emit(e));
+        });
+      });
 
     this._watchForDataChanges();
 
-    gameClient.getGameData(gameId).then(gameData => {
+    gameClient.watchGame(gameId).then(({playerStatus, gameData}) => {
+      this._emit({ type:'playerStatus', data:playerStatus });
+
       this._data = gameData;
-      if (this._data.state.started)
-        this._ready();
-
-      if (gameData.state.ended) return;
-
-      return gameClient.watchGame(gameId).then(playerStatus => {
-        playerStatus.forEach(ps => this._emit({
-          type: 'playerStatus',
-          data: ps,
-        }));
-      });
+      this._ready();
     });
   }
 
@@ -121,17 +134,16 @@ export default class RemoteTransport {
     gameClient.postAction(this._data.id, action);
   }
 
-  destroy() {
-    gameClient.unwatchGame(this._data.id, this._listener);
-  }
-
   /*
    * Other Private Methods
    */
   _watchForDataChanges(gameData) {
     this
       .on('playerStatus', ({ data }) => {
-        this.playerStatus[data.playerId] = data.status;
+        if (!Array.isArray(data))
+          data = [data];
+
+        data.forEach(ps => this.playerStatus.set(ps.playerId, ps.status));
       })
       .on('startGame', ({ data:stateData }) => {
         this._data.state = stateData;

@@ -183,6 +183,21 @@ BODY {
       background: radial-gradient(circle at 50% 50%, rgba(255, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
     }
 
+    .fa-spinner {
+      display: none;
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      line-height: 20px;
+      border-radius: 50%;
+
+      background-color: black;
+      text-align: center;
+    }
+    &.unavailable .fa-spinner {
+      display: block;
+    }
+
     .name {
       padding: 0 18px;
     }
@@ -194,6 +209,9 @@ BODY {
 
       .status {
         left: 3px;
+      }
+      .fa-spinner {
+        left: 0;
       }
 
       &:after {
@@ -219,6 +237,9 @@ BODY {
 
       .status {
         right: 3px;
+      }
+      .fa-spinner {
+        right: 0;
       }
 
       &:after {

@@ -20,7 +20,9 @@ export default class GameClient {
       .on('join',  this._listener)
       .on('leave', this._listener)
       .on('enter', this._listener)
-      .on('exit',  this._listener);
+      .on('exit',  this._listener)
+      .on('reset', event => this._emit(event))
+      .on('close', event => this._emit(event));
   }
 
   on() {
@@ -51,8 +53,8 @@ export default class GameClient {
     return this._server.request(this.name, 'getGame', [gameId]);
   }
 
-  watchGame(gameId) {
-    return this._server.join(this.name, `/games/${gameId}`);
+  watchGame(gameId, resume) {
+    return this._server.join(this.name, `/games/${gameId}`, resume);
   }
   getTurnData() {
     return this._server.request(this.name, 'getTurnData', [...arguments]);

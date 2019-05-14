@@ -265,8 +265,8 @@ Tactics.App = (function ($, window, document) {
 
       $player
         .addClass('active bronze')
-        .removeClass('offline online ingame')
-        .addClass(game.state.playerStatus[team.playerId])
+        .removeClass('offline online ingame unavailable')
+        .addClass(game.state.playerStatus.get(team.playerId))
         .find('.name').text(team.name);
     });
   }

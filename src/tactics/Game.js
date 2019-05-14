@@ -385,7 +385,7 @@ export default class {
         state
           .on('startTurn', this._onStateEventListener)
           .on('action', this._onStateEventListener)
-          .on('reset', this._onStateEventListener)
+          .on('revert', this._onStateEventListener)
           .on('undo', this._onStateEventListener)
           .on('endGame', this._onStateEventListener);
 
@@ -440,7 +440,7 @@ export default class {
       state
         .off('startTurn', this._onStateEventListener)
         .off('action', this._onStateEventListener)
-        .off('reset', this._onStateEventListener)
+        .off('revert', this._onStateEventListener)
         .off('undo', this._onStateEventListener)
         .off('endGame', this._onStateEventListener)
 
@@ -952,7 +952,7 @@ export default class {
 
     return this;
   }
-  _reset(turnData) {
+  _revert(turnData) {
     this.selected = this.viewed = null;
 
     this._board.setState(turnData.units, this._teams);
@@ -1530,9 +1530,9 @@ export default class {
       eventHandler = () => this._startTurn(data.teamId);
     else if (type === 'action')
       eventHandler = () => this._performActions(data);
-    else if (type === 'reset')
-      eventHandler = () => this._reset(data);
     /*
+    else if (type === 'revert')
+      eventHandler = () => this._revert(data);
     else if (type === 'undo')
       eventHandler = event => {
         // TODO: Prompt user to approve undo request.

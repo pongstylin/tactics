@@ -68,6 +68,7 @@ let schema = {
           properties: {
             service: { type:'string' },
             group: { type:'string' },
+            params: { type:'object' },
           },
           required: ['service','group'],
           additionalProperties: false,
@@ -594,7 +595,7 @@ function onJoinMessage(client, message) {
   try {
     service.will(client, 'join', body.group);
 
-    let response = service[method](client, body.group);
+    let response = service[method](client, body.group, body.params);
 
     if (response instanceof Promise)
       response

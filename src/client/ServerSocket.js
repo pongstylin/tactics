@@ -41,6 +41,8 @@ export default class ServerSocket {
         outbox: [],
         // Pending response routes
         responseRoutes: new Map(),
+        // Authorization by service
+        authorization: new Map(),
       },
 
       // Used to detect successful connection to the server.
@@ -76,13 +78,16 @@ export default class ServerSocket {
   }
 
   authorize(serviceName, data) {
+    let session = this._session;
     let requestId = this._enqueue('authorize', {
       service: serviceName,
       data: data,
     });
 
     return new Promise((resolve, reject) => {
-      this._session.responseRoutes.set(requestId, {resolve, reject});
+      session.responseRoutes.set(requestId, {resolve, reject});
+    }).then(() => {
+      session.authorization.set(serviceName, data);
     });
   }
   request(serviceName, methodName, args) {
@@ -99,11 +104,16 @@ export default class ServerSocket {
       this._session.responseRoutes.set(requestId, {resolve, reject});
     });
   }
-  join(serviceName, groupPath) {
-    let requestId = this._enqueue('join', {
+  join(serviceName, groupPath, params) {
+    let messageBody = {
       service: serviceName,
       group: groupPath,
-    });
+    };
+
+    if (params)
+      messageBody.params = params;
+
+    let requestId = this._enqueue('join', messageBody);
 
     return new Promise((resolve, reject) => {
       this._session.responseRoutes.set(requestId, {resolve, reject});
@@ -141,27 +151,13 @@ export default class ServerSocket {
     this._send({ type:'sync' });
   }
   _sendOpen() {
-    let session = this._session;
-    if (session.id) {
-      session.responseRoutes.forEach(route => route.reject('Connection reset'));
-      session.id = null;
-      session.serverMessageId = 0;
-      session.clientMessageId = 0;
-      session.outbox.length = 0;
-      session.responseRoutes.clear();
-
-      this._emit({ type:'reset' });
-    }
-
     this._send({ type:'open' });
   }
   _sendResume() {
-    let session = this._session;
-
     this._send({
       type: 'resume',
       body: {
-        sessionId: session.id,
+        sessionId: this._session.id,
       },
     });
   }
@@ -176,7 +172,7 @@ export default class ServerSocket {
     if (!session.id && message.id)
       return;
 
-    if (session.id)
+    if (session.id && message.type !== 'open')
       message.ack = session.serverMessageId;
 
     clearTimeout(this._syncTimeout);
@@ -312,11 +308,47 @@ export default class ServerSocket {
   }
   _onSessionMessage(message) {
     let session = this._session;
-    if (!session.id)
-      session.id = message.body.sessionId;
 
-    this._purgeAcknowledgedMessages(message.ack);
-    this._onSyncMessage(message);
+    if (session.id === message.body.sessionId) {
+      // Resume the session
+      this._purgeAcknowledgedMessages(message.ack);
+      this._onSyncMessage(message);
+    }
+    else if (session.id) {
+      // Reset the session
+      session.responseRoutes.forEach(route => route.reject('Connection reset'));
+
+      session.id = message.body.sessionId;
+      session.serverMessageId = 0;
+      session.clientMessageId = 0;
+      session.outbox.length = 0;
+      session.responseRoutes.clear();
+
+      // Inform listeners that the session was reset and whether authorization
+      // was restored.
+      [...session.authorization].reduce(
+        (promise, authorization) =>
+          promise.then(() => this.authorize(...authorization)),
+        Promise.resolve(),
+      )
+        .then(() => {
+          this._emit({
+            type:'reset',
+            data: { authorized:session.authorization.keys() },
+          });
+        })
+        .catch(() => {
+          session.authorization.clear();
+
+          this._emit({
+            type:'reset',
+            data: { authorized:false },
+          });
+        });
+    }
+    else
+      // Open new session
+      session.id = message.body.sessionId;
   }
   _onErrorMessage(message) {
     let error = message.error;
