@@ -794,6 +794,6 @@ setInterval(() => {
 
     groups.forEach(group => group.delete(session.id));
 
-    services.forEach(service => service.dropClient(session.id));
+    services.forEach(service => service.dropClient(session.client));
   }
 }, 1000);
