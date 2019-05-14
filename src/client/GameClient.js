@@ -21,6 +21,7 @@ export default class GameClient {
       .on('leave', this._listener)
       .on('enter', this._listener)
       .on('exit',  this._listener)
+      .on('open', event => this._emit(event))
       .on('reset', event => this._emit(event))
       .on('close', event => this._emit(event));
   }
@@ -51,6 +52,9 @@ export default class GameClient {
 
   getGameData(gameId) {
     return this._server.request(this.name, 'getGame', [gameId]);
+  }
+  getPlayerStatus(gameId) {
+    return this._server.request(this.name, 'getPlayerStatus', [gameId]);
   }
 
   watchGame(gameId, resume) {

@@ -310,6 +310,8 @@ export default class ServerSocket {
     let session = this._session;
 
     if (session.id === message.body.sessionId) {
+      this._emit({ type:'open' });
+
       // Resume the session
       this._purgeAcknowledgedMessages(message.ack);
       this._onSyncMessage(message);
@@ -346,9 +348,12 @@ export default class ServerSocket {
           });
         });
     }
-    else
+    else {
       // Open new session
       session.id = message.body.sessionId;
+
+      this._emit({ type:'open' });
+    }
   }
   _onErrorMessage(message) {
     let error = message.error;

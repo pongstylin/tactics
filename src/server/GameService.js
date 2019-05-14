@@ -79,7 +79,14 @@ class GameService extends Service {
       throw new ServerError(422, 'Required authorization token');
 
     let clientPara = this.clientPara.get(client.id) || {};
-    let claims = jwt.verify(token, config.publicKey);
+    let claims;
+    
+    try {
+      claims = jwt.verify(token, config.publicKey);
+    }
+    catch (error) {
+      throw new ServerError(401, error.message);
+    }
 
     let playerId = clientPara.playerId = claims.sub;
     clientPara.deviceId = claims.deviceId;
@@ -168,6 +175,25 @@ class GameService extends Service {
 
     return game;
   }
+  onGetPlayerStatusRequest(client, gameId) {
+    let game = gameId instanceof Game ? gameId : this._getGame(gameId);
+
+    return game.state.teams.map(team => {
+      if (!team) return null;
+      let playerId = team.playerId;
+      let playerPara = this.playerPara.get(playerId);
+
+      let status;
+      if (!playerPara)
+        status = 'offline';
+      else if (!playerPara.watchedGames.has(game.id))
+        status = 'online';
+      else
+        status = 'ingame';
+
+      return { playerId, status };
+    });
+  }
 
   /*
    * Start sending change events to the client about this game.
@@ -251,23 +277,9 @@ class GameService extends Service {
       },
     });
 
-    let response = {};
-
-    response.playerStatus = game.state.teams.map(team => {
-      if (!team) return null;
-      let playerId = team.playerId;
-      let teamPlayerPara = this.playerPara.get(playerId);
-
-      let status;
-      if (!teamPlayerPara)
-        status = 'offline';
-      else if (!teamPlayerPara.watchedGames.has(game.id))
-        status = 'online';
-      else
-        status = 'ingame';
-
-      return { playerId, status };
-    });
+    let response = {
+      playerStatus: this.onGetPlayerStatusRequest(client, game),
+    };
 
     if (params) {
       // Get any additional actions made in the provided turn.

@@ -3,6 +3,7 @@
 import EventEmitter from 'events';
 import clientFactory from 'client/clientFactory.js';
 
+let authClient = clientFactory('auth');
 let gameClient = clientFactory('game');
 
 export default class RemoteTransport {
@@ -24,10 +25,26 @@ export default class RemoteTransport {
 
         this._emit(body);
       })
-      .on('close', () => {
-        let playerStatus = [...this.playerStatus].map(([playerId]) =>
-          ({ playerId, status:'unavailable' })
+      .on('open', () => {
+        let myPlayerId = authClient.userId;
+
+        this._emit({
+          type: 'playerStatus',
+          data: { playerId:myPlayerId, status:'online' },
+        });
+
+        gameClient.getPlayerStatus(gameId).then(playerStatus =>
+          this._emit({ type:'playerStatus', data:playerStatus })
         );
+      })
+      .on('close', () => {
+        let myPlayerId = authClient.userId;
+        let playerStatus = [...this.playerStatus].map(([playerId]) => {
+          if (playerId === myPlayerId)
+            return { playerId, status:'offline' };
+          else
+            return { playerId, status:'unavailable' };
+        });
 
         this._emit({ type:'playerStatus', data:playerStatus });
       })

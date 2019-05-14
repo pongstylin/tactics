@@ -41,7 +41,14 @@ class AuthService extends Service {
    ****************************************************************************/
   onAuthorize(client, { token }) {
     let session = this.sessions.get(client.id);
-    let claims = jwt.verify(token, config.publicKey);
+    let claims;
+    
+    try {
+      claims = jwt.verify(token, config.publicKey);
+    }
+    catch (error) {
+      throw new ServerError(401, error.message);
+    }
 
     this.sessions.set(client.id, { token });
   }
