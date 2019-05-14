@@ -144,6 +144,7 @@ unitDataMap.set('Pyromancer', {
   mRadius:  3,
   aType:    'magic',
   aRange:   [0, 3],
+  waitFirstTurn: true,
   sounds:   {
     attack: 'sound431',
   },
@@ -211,6 +212,7 @@ unitDataMap.set('Scout', {
   aType:    'melee',
   aRange:   [1, 6],
   aLOS:     true,
+  waitFirstTurn: true,
   sounds:   {
     attack: 'sound812',
   },
@@ -316,6 +318,7 @@ unitDataMap.set('Cleric', {
 
 unitDataMap.set('BarrierWard', {
   name: 'Barrier Ward',
+  waitFirstTurn: true,
 });
 
 unitDataMap.set('LightningWard', {
@@ -378,6 +381,7 @@ unitDataMap.set('DarkMagicWitch', {
   aType:    'magic',
   aRange:   [1, 4],
   aLinear:  true,
+  waitFirstTurn: true,
   sounds:   {
     attack1: 'sound431',
     attack2: 'sound1602',
@@ -603,6 +607,7 @@ unitDataMap.set('StoneGolem', {
 
 unitDataMap.set('DragonTyrant', {
   name: 'Dragon Tyrant',
+  waitFirstTurn: true,
   sounds: {
     fire: 'sound431',
     impact: 'sound1602'
@@ -800,7 +805,8 @@ unitDataMap.set('BeastRider', {
 });
 
 unitDataMap.set('DragonspeakerMage', {
-  name:'Dragonspeaker Mage'
+  name:'Dragonspeaker Mage',
+  waitFirstTurn: true,
 });
 
 unitDataMap.set('ChaosSeed', {
@@ -859,6 +865,7 @@ unitDataMap.set('ChaosSeed', {
 
 unitDataMap.set('Wisp', {
   name: 'Wisp',
+  waitFirstTurn: true,
 });
 
 unitDataMap.set('Furgon', {
@@ -878,6 +885,7 @@ unitDataMap.set('Champion', {
 
 unitDataMap.set('Ambusher', {
   name:'Ambusher',
+  waitFirstTurn: true,
 });
 
 unitDataMap.set('Berserker', {

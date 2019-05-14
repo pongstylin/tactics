@@ -295,6 +295,10 @@ export default class GameState {
       if (unitData.directional !== false)
         unitState.direction = board.getRotation('S', degree);
 
+      // Apply a 1-turn wait to units in the team that goes first.
+      if (team.id === 0 && unitData.waitFirstTurn)
+        unitState.mRecovery = 1;
+
       return unitState;
     }));
 
