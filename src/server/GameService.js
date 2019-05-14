@@ -171,7 +171,10 @@ class GameService extends Service {
     // Conditionally leave out the team sets as a security measure.  We don't
     // want people getting set information about teams before the game starts.
     if (!game.state.started)
-      game.state.teams.forEach(t => delete t.set);
+      game.state.teams.forEach(t => {
+        if (!t) return;
+        delete t.set;
+      });
 
     return game;
   }

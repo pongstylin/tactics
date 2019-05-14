@@ -342,15 +342,19 @@ export default class GameState {
 
   getData() {
     let teams = this.teams.map(team => {
-      team = {...team};
-      delete team.units;
+      if (team) {
+        team = {...team};
+        delete team.units;
+      }
 
       return team;
     });
 
     return {
-      type:          this.type,
-      teams:         teams,
+      type:  this.type,
+      teams: teams,
+
+      randomFirstTurn: this.randomFirstTurn,
 
       started:       this.started,
       ended:         this.ended,

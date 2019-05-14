@@ -33,14 +33,12 @@ window.addEventListener('DOMContentLoaded', () => {
     divSetup.style.display = 'none';
     divWaiting.style.display = null;
 
-    let turnOrder = document.querySelector('INPUT[name=turnOrder][checked]').value;
-    let stateData = { type:'classic' };
-    let slot = 0;
-
-    if (turnOrder === 'random')
-      stateData.randomFirstTurn = true;
-    else if (turnOrder === '2nd')
-      slot = 1;
+    let turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
+    let stateData = {
+      type:'classic',
+      randomFirstTurn: turnOrder === 'random',
+    };
+    let slot = turnOrder === '2nd' ? 1 : 0;
 
     authClient.setAccountName(playerName.value)
       .then(() => gameClient.authorize(authClient.token))

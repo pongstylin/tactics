@@ -200,6 +200,7 @@ Tactics.App = (function ($, window, document) {
         return Tactics.getMyIdentity().then(identity => {
           let greeting = document.querySelector('.greeting');
           let playerName = document.querySelector('INPUT[name=playerName]');
+          let details = document.querySelector('.details');
           let challenge = document.querySelector('.challenge');
           let btnJoin = document.querySelector('BUTTON[name=join]');
 
@@ -232,6 +233,17 @@ Tactics.App = (function ($, window, document) {
           }
           else {
             let creatorTeam = gameData.state.teams.find(t => !!t);
+
+            let person;
+            if (gameData.state.randomFirstTurn)
+              person = 'random';
+            else if (creatorTeam.originalId === 0)
+              person = creatorTeam.name;
+            else
+              person = 'you';
+
+            details.textContent = `The first person to move is ${person}.`;
+
             if (identity && creatorTeam.playerId === identity.id)
               challenge.textContent = `Your opponent hasn't joined the game yet.  Or, you could play yourself?`;
             else
