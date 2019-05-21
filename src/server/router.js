@@ -206,7 +206,7 @@ services.forEach(service =>
   service.on('joinGroup', event => joinGroup(service.name, event))
 );
 
-function leaveGroup(serviceName, { clientId, body }) {
+function leaveGroup(serviceName, { client:clientId, body }) {
   let groupId = [serviceName, body.group].join(':');
   let group = groups.get(groupId);
   if (!group)
@@ -245,7 +245,7 @@ services.forEach(service =>
   service.on('leaveGroup', event => leaveGroup(service.name, event))
 );
 
-function closeGroup(serviceName, { clientId, body }) {
+function closeGroup(serviceName, { body }) {
   let groupId = [serviceName, body.group].join(':');
   let group = groups.get(groupId);
   if (!group)
@@ -771,6 +771,8 @@ setInterval(() => {
     if (client.lastReceivedAt > inboundTimeout)
       break;
 
+    debug(`close: client=${client.id}; timeout`);
+
     client.close();
   }
 
@@ -782,6 +784,9 @@ setInterval(() => {
     sendSync(client);
   }
 
+  // When a connection is lost, the session will timeout after 30 seconds.
+  // A token is refreshed 60 seconds before it expires.  Make sure this buffer
+  // always exceeds the session timeout.
   let sessionTimeout = new Date() - 30000; // 30 seconds ago
   for (let session of closedSessions) {
     if (session.closedAt > sessionTimeout)

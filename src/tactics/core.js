@@ -5,19 +5,8 @@ import Game from 'tactics/Game.js';
 
 var authClient = clientFactory('auth');
 var gameClient = clientFactory('game');
-var refreshTimeout = null;
 
-authClient.on('token', ({ token }) => {
-  authClient.authorize();
-  gameClient.authorize(token);
-
-  // Being lazy and assuming a 1h token expiration period.
-  // So we'll refresh in 45 minutes.
-  clearTimeout(refreshTimeout);
-  refreshTimeout = setTimeout(() => authClient.refreshToken(), 45 * 60000);
-});
-
-authClient.refreshTokenIfPresent();
+authClient.on('token', ({data:token}) => gameClient.authorize(token));
 
 window.Tactics = (function () {
   'use strict';
@@ -87,11 +76,13 @@ window.Tactics = (function () {
       return gameClient.getGameData(gameId);
     },
     getMyIdentity: function () {
-      if (!authClient.token) return Promise.resolve();
+      return authClient.whenReady.then(() => {
+        if (!authClient.token) return;
 
-      return Promise.resolve({
-        id: authClient.userId,
-        name: authClient.userName,
+        return {
+          id: authClient.userId,
+          name: authClient.userName,
+        };
       });
     },
     joinRemoteGame: function (playerName, gameId) {

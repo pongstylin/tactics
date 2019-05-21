@@ -96,16 +96,23 @@ class AuthService extends Service {
     if (session.token)
       token = session.token;
 
-    let claims = jwt.verify(token, config.publicKey, {
-      ignoreExpiration: true,
-    });
+    let claims;
+    try {
+      claims = jwt.verify(token, config.publicKey, {
+        ignoreExpiration: true,
+      });
+    }
+    catch (error) {
+      throw new ServerError(401, error.message);
+    }
+
     // Get the player here to make sure it still exists.
     let player = dataAdapter.getPlayer(claims.sub);
     let newToken;
 
-    // Cowardly refuse to refresh a token less than 1 hour old.
+    // Cowardly refuse to refresh a token less than 5m old.
     let diff = (now / 1000) - claims.iat;
-    if (diff < 3600)
+    if (diff < 300)
       newToken = token;
     else {
       let device = player.getDevice(claims.deviceId);

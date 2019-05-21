@@ -117,8 +117,7 @@ class GameService extends Service {
     this.gamePara.delete(gameId);
 
     this._emit({
-      type:   'closeGroup',
-      client: client.id,
+      type: 'closeGroup',
       body: {
         group: groupPath,
       },

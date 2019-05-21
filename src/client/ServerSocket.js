@@ -41,8 +41,6 @@ export default class ServerSocket {
         outbox: [],
         // Pending response routes
         responseRoutes: new Map(),
-        // Authorization by service
-        authorization: new Map(),
       },
 
       // Used to detect successful connection to the server.
@@ -77,6 +75,12 @@ export default class ServerSocket {
     });
   }
 
+  isOpen() {
+    let socket = this._socket;
+
+    return socket && socket.readyState === SOCKET_OPEN;
+  }
+
   authorize(serviceName, data) {
     let session = this._session;
     let requestId = this._enqueue('authorize', {
@@ -86,8 +90,6 @@ export default class ServerSocket {
 
     return new Promise((resolve, reject) => {
       session.responseRoutes.set(requestId, {resolve, reject});
-    }).then(() => {
-      session.authorization.set(serviceName, data);
     });
   }
   request(serviceName, methodName, args) {
@@ -156,9 +158,7 @@ export default class ServerSocket {
   _sendResume() {
     this._send({
       type: 'resume',
-      body: {
-        sessionId: this._session.id,
-      },
+      body: { sessionId:this._session.id },
     });
   }
   _send(message) {
@@ -166,7 +166,7 @@ export default class ServerSocket {
     let session = this._session;
 
     // Can't send messages until the connection is established.
-    if (!socket || socket.readyState !== SOCKET_OPEN)
+    if (!this.isOpen())
       return;
     // Wait until session is confirmed before sending queued messages.
     if (!session.id && message.id)
@@ -297,11 +297,13 @@ export default class ServerSocket {
     session.responseRoutes.delete(response.requestId);
   }
   _onSyncMessage(message) {
+    let session = this._session;
+
     /*
      * The message.ack id was already used to remove all acknowledged messages
      * from the outbox.  So, all remaining messages need to be sent.
      */
-    let outbox = this._session.outbox;
+    let outbox = session.outbox;
     for (let i = 0; i < outbox.length; i++) {
       this._send(outbox[i]);
     }
@@ -320,39 +322,24 @@ export default class ServerSocket {
       // Reset the session
       session.responseRoutes.forEach(route => route.reject('Connection reset'));
 
+      let outbox = session.outbox.slice();
+
       session.id = message.body.sessionId;
       session.serverMessageId = 0;
       session.clientMessageId = 0;
       session.outbox.length = 0;
       session.responseRoutes.clear();
 
-      // Inform listeners that the session was reset and whether authorization
-      // was restored.
-      [...session.authorization].reduce(
-        (promise, authorization) =>
-          promise.then(() => this.authorize(...authorization)),
-        Promise.resolve(),
-      )
-        .then(() => {
-          this._emit({
-            type:'reset',
-            data: { authorized:session.authorization.keys() },
-          });
-        })
-        .catch(() => {
-          session.authorization.clear();
-
-          this._emit({
-            type:'reset',
-            data: { authorized:false },
-          });
-        });
+      this._emit({ type:'reset', data:outbox });
     }
     else {
       // Open new session
       session.id = message.body.sessionId;
 
       this._emit({ type:'open' });
+
+      // Send queued messages
+      this._onSyncMessage(message);
     }
   }
   _onErrorMessage(message) {

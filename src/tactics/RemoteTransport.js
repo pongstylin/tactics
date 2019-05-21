@@ -48,7 +48,7 @@ export default class RemoteTransport {
 
         this._emit({ type:'playerStatus', data:playerStatus });
       })
-      .on('reset', () => {
+      .on('reset', ({ data:messages }) => {
         let resume = {
           turnId: this._data.state.currentTurnId,
           actions: this._data.state.actions.length,
@@ -60,6 +60,16 @@ export default class RemoteTransport {
           this._emit({ type:'playerStatus', data:playerStatus });
 
           events.forEach(e => this._emit(e));
+        });
+
+        // Resend specific lost messages
+        messages.forEach(message => {
+          if (message.type !== 'event') return;
+          let event = message.body;
+          if (event.group !== `/games/${this._data.id}`) return;
+
+          if (event.type === 'action')
+            gameClient.postAction(this._data.id, event.data);
         });
       });
 
@@ -176,7 +186,7 @@ export default class RemoteTransport {
       .on('action', ({ data:actions }) => {
         this._data.state.actions.push(...actions);
       })
-      .on('reset', ({ data }) => {
+      .on('revert', ({ data }) => {
         Object.assign(this._data.state, {
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,

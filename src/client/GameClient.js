@@ -5,6 +5,8 @@ export default class GameClient {
   constructor(server) {
     Object.assign(this, {
       name: 'game',
+      whenAuthorized: new Promise(resolve => this._nowAuthorized = resolve),
+
       _server: server,
 
       _emitter: new EventEmitter(),
@@ -22,7 +24,20 @@ export default class GameClient {
       .on('enter', this._listener)
       .on('exit',  this._listener)
       .on('open', event => this._emit(event))
-      .on('reset', event => this._emit(event))
+      .on('reset', event => {
+        // Filter lost messages to game events.
+        let emitEvent = {
+          type: 'reset',
+          data: event.data.filter(message => {
+            if (message.type !== 'event') return;
+            if (message.body.service !== 'game') return;
+            return true;
+          }),
+        };
+
+        this.whenAuthorized = new Promise(resolve => this._nowAuthorized = resolve)
+          .then(() => this._emit(emitEvent));
+      })
       .on('close', event => this._emit(event));
   }
 
@@ -36,7 +51,8 @@ export default class GameClient {
   }
 
   authorize(token) {
-    return this._server.authorize(this.name, { token });
+    return this._server.authorize(this.name, { token })
+      .then(this._nowAuthorized);
   }
 
   createGame(stateData) {
