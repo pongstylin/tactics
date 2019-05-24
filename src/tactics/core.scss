@@ -161,7 +161,8 @@ BODY {
     position: absolute;
     width: 200px;
     height: 20px;
-    padding: 0 8px;
+    box-sizing: border-box;
+    padding: 0 24px;
     line-height: 20px;
     color: white;
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
@@ -196,10 +197,6 @@ BODY {
     }
     &.unavailable .fa-spinner {
       display: block;
-    }
-
-    .name {
-      padding: 0 18px;
     }
 
     &.left {
@@ -495,18 +492,36 @@ A {
       // Stack 'em vertically
       flex-direction: column;
 
+      #player-n, #player-e {
+        top: 100px;
+      }
+
+      .player.active {
+        // Conserve space
+        width: 180px;
+      }
+
       // No longer place the card in the top-left corner of #field.
       // Rather, horizontally center the card at the top of #field.
       #card {
         position: relative;
+        top: auto;
         margin: 0 auto;
       }
 
       // No longer center the board within the #field.
       // Rather, it will be placed under the info card.
       #board {
-        margin: 0;
+        // Give sufficient margin to accommodate player banners
+        margin: 6px 0 24px 0;
       }
+    }
+
+    #game-play {
+      top: auto;
+    }
+    #game-settings {
+      bottom: auto;
     }
 
     // No longer place the buttons in the top-right corner of #app.
@@ -515,6 +530,8 @@ A {
       position: relative;
       padding: 6px;
       display: none;
+      // Expand to encapsulate the floated buttons
+      overflow: auto;
 
       // The swapbar button will be used to toggle the button bars.
       BUTTON[name=swapbar] {

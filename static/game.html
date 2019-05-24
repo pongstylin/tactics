@@ -32,12 +32,24 @@
   <SCRIPT type="text/javascript" src="install.js"></SCRIPT>
 
   <STYLE>
-    #join DIV {
-      box-sizing: border-box;
-      padding: 4px;
-      white-space: nowrap;
+    #join {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      align-items: center;
+      justify-content: center;
     }
-    #join .buttons {
+    #join .content > DIV {
+      padding: 8px;
+    }
+    #join .content .greeting {
+      margin-bottom: 16px;
+    }
+    #join .content DIV {
+      box-sizing: border-box;
+      line-height: 1.4em;
+    }
+    #join .content .buttons {
       text-align: center;
     }
 
@@ -52,16 +64,18 @@
     There was an error while loading the game.
   </DIV>
   <DIV id="join" style="display:none">
-    <DIV class="playerSetup">
-      <DIV class="greeting">Welcome!</DIV>
-      <DIV>
-        Name: <INPUT name="playerName" type="text" maxLength=20>
+    <DIV class="content">
+      <DIV class="playerSetup">
+        <DIV class="greeting">Welcome!</DIV>
+        <DIV>
+          Name: <INPUT name="playerName" type="text" maxLength=20>
+        </DIV>
       </DIV>
-    </DIV>
-    <DIV class="details"></DIV>
-    <DIV class="challenge"></DIV>
-    <DIV class="buttons">
-      <BUTTON name="join">Join Game</BUTTON>
+      <DIV class="details"></DIV>
+      <DIV class="challenge"></DIV>
+      <DIV class="buttons">
+        <BUTTON name="join">Join Game</BUTTON>
+      </DIV>
     </DIV>
   </DIV>
   <DIV id="splash" style="display:none">
