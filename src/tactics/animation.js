@@ -257,6 +257,11 @@
       }
     });
 
+    Object.defineProperty(self, 'fps', {
+      value: data.fps,
+      enumerable: true,
+    });
+
     if (data.frames)
       self.addFrames(data.frames);
 

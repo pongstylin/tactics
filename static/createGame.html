@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<HTML>
+<HEAD>
+  <TITLE>Tactics - Create Game</TITLE>
+  <META name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <META name="apple-mobile-web-app-capable" content="yes">
+  <META name="apple-mobile-web-app-status-bar-style" content="black">
+  <META name="mobile-web-app-capable" content="yes">
+
+  <LINK href="/manifest.json" rel="manifest">
+  <LINK href="/favicon.ico" rel="icon" sizes="16x16">
+  <LINK href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" rel="stylesheet" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+
+  <SCRIPT src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js" crossorigin="anonymous"></SCRIPT>
+  <SCRIPT type="text/javascript" src="createGame.min.js"></SCRIPT>
+
+  <STYLE>
+    HTML, BOdY, .content {
+      width:100%;
+      height:100%;
+    }
+
+    .content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .content > DIV {
+      max-height: 100%;
+      max-width: 100%;
+      overflow: auto;
+    }
+
+    DIV {
+      box-sizing: border-box;
+      padding: 4px;
+    }
+
+    .row {
+      padding: 8px 4px;
+    }
+
+    .error {
+      color: #ff0000;
+    }
+    .error:empty {
+      display: none;
+    }
+
+    .buttons {
+      text-align: center;
+    }
+
+    .link LI {
+      padding: 4px 0;
+    }
+
+    .link A {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      text-decoration: none;
+    }
+  </STYLE>
+</HEAD>
+<BODY>
+  <DIV class="content">
+    <DIV class="setup" style="display:none">
+      <DIV class="row error"></DIV>
+      <DIV class="row playerSetup">
+        <DIV class="greeting">Welcome!</DIV>
+        <DIV>
+          Name: <INPUT name="playerName" type="text" maxLength=20>
+        </DIV>
+      </DIV>
+      <DIV class="row gameSetup">
+        <DIV>Who gets first turn?</DIV>
+        <DIV>
+          <LABEL><INPUT type="radio" name="turnOrder" value="random" checked> Random</LABEL>
+          <LABEL><INPUT type="radio" name="turnOrder" value="1st"> You</LABEL>
+          <LABEL><INPUT type="radio" name="turnOrder" value="2nd"> Them</LABEL>
+        </DIV>
+      </DIV>
+      <DIV class="row buttons">
+        <BUTTON name="create">Create Game Link</BUTTON>
+      </DIV>
+    </DIV>
+    <DIV class="waiting" style="display:none">
+      <DIV>Please wait while your game is created...</DIV>
+    </DIV>
+    <DIV class="link" style="display:none">
+      <DIV>
+        <DIV>Game created.  Instructions:</DIV>
+        <UL>
+          <LI style="color:#ff0000">
+            Warning! You can only play the game with THIS device and browser.  If you clear "local storage" for this site, you will lose the ability to play the game.
+          </LI>
+          <LI>
+            Save this link someplace, e.g. a bookmark.<BR>
+            <A href=""></A>
+          </LI>
+          <LI>Share the link with your intended opponent, e.g. by text or email.</LI>
+          <LI>Visit the link to check if the opponent has joined the game or made their turn.</LI>
+          <LI>Once the game is in progress, it is safe to share the link with anybody else so that they can view the game.</LI>
+        </UL>
+        <DIV style="text-align:center">
+          <BUTTON name="setup">Configure Another Game</BUTTON>
+        </DIV>
+      </DIV>
+    </DIV>
+  </DIV>
+</BODY>
+</HTML>

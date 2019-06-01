@@ -18,11 +18,11 @@ self.addEventListener('message', ({data:message}) => {
 
   if (type === 'create') {
     self.state = state = GameState.create(data);
-    post('init', state.getGameData());
+    post('init', state.getData());
   }
   else if (type === 'load') {
     self.state = state = GameState.load(data);
-    post('init', state.getGameData());
+    post('init', state.getData());
   }
   else if (type === 'subscribe')
     state.on(data.type, event => post('event', event));

@@ -6,28 +6,42 @@ import botFactory from 'tactics/botFactory.js';
 import colorMap from 'tactics/colorMap.js';
 import unitDataMap from 'tactics/unitData.js';
 
-export default class Game {
+const GAME_TYPES = new Set([
+  'classic', // Must be a 2-player game with classic, a.k.a. default gray, sets.
+  'chaos',   // Knights of Order vs the Seed of Chaos
+]);
+
+export default class GameState {
   /*****************************************************************************
    * Constructors
    ****************************************************************************/
   /*
    * The default constructor is intended for internal use only.
    */
-  constructor(gameData) {
+  constructor(stateData) {
     let board = new Board();
-    let turns = gameData.turns || [];
-    delete gameData.turns;
 
-    Object.assign(this, gameData, {
+    // Clone the stateData since we'll be modifying it.
+    stateData = Object.assign({}, stateData);
+
+    let turns = stateData.turns || [];
+    delete stateData.turns;
+
+    let actions = stateData.actions || [];
+    delete stateData.actions;
+
+    Object.assign(this, stateData, {
       winnerId: null,
 
+      _bots:    [],
       _turns:   turns,
       _board:   board,
       _emitter: new EventEmitter(),
     });
 
-    if (this.units)
-      board.setState(this.units, this.teams);
+    board.setState(this.units, this.teams);
+
+    this._actions = board.decodeAction(actions);
   }
 
   /*
@@ -38,30 +52,36 @@ export default class Game {
    * will be filled later via the 'join' method.  Once all team slots are
    * filled, the game is started.
    */
-  static create(gameData) {
-    if (!gameData || !gameData.teams || gameData.teams.length < 2)
+  static create(stateData) {
+    if (stateData.type) {
+      if (!GAME_TYPES.has(stateData.type))
+        throw new TypeError('Invalid game type');
+
+      if (stateData.type === 'classic')
+        stateData.teams = [null, null];
+    }
+
+    if (!stateData || !stateData.teams || stateData.teams.length < 2)
       throw new TypeError('Required teams length');
 
-    let teams = gameData.teams;
-    delete gameData.teams;
+    let teams = stateData.teams;
+    delete stateData.teams;
 
-    gameData = Object.assign(
+    stateData = Object.assign(
       // These settings may be overwritten
       {
         randomFirstTurn: true,
       },
-      gameData,
+      stateData,
       {
-        created:  new Date(),
-        started:  null,
-        ended:    null,
-        teams:    new Array(teams.length),
-        units:    [],
-        _actions: [],
+        started: null,
+        ended:   null,
+        teams:   new Array(teams.length),
+        units:   [],
       }
     );
 
-    let gameState = new Game(gameData);
+    let gameState = new GameState(stateData);
 
     teams.forEach((team, slot) => {
       if (team) gameState.join(team, slot);
@@ -75,17 +95,13 @@ export default class Game {
    *
    * The existing game may or may not have been started yet.
    */
-  static load(gameData) {
-    let state = new Game(gameData);
+  static load(stateData) {
+    if (typeof stateData.started === 'string')
+      stateData.started = new Date(stateData.started);
+    if (typeof stateData.ended === 'string')
+      stateData.ended = new Date(stateData.ended);
 
-    if (typeof gameData.created === 'string')
-      gameData.created = new Date(gameData.created);
-    if (typeof gameData.started === 'string')
-      gameData.started = new Date(gameData.started);
-    if (typeof gameData.ended === 'string')
-      gameData.ended = new Date(gameData.ended);
-
-    return state;
+    return new GameState(stateData);
   }
 
   /*****************************************************************************
@@ -182,17 +198,48 @@ export default class Game {
     if (teams[slot])
       throw new TypeError('The slot is taken');
 
-    if (!team.set)
+    if (this.type === 'classic')
+      team.set = [
+        // Back Row
+        {assignment:[5, 0], type:'Cleric'},
+        // Middle Row
+        {assignment:[2, 1], type:'DarkMagicWitch'},
+        {assignment:[3, 1], type:'Pyromancer'},
+        {assignment:[7, 1], type:'Pyromancer'},
+        {assignment:[8, 1], type:'Enchantress'},
+        // Front Row
+        {assignment:[1, 2], type:'Assassin'},
+        {assignment:[4, 2], type:'Knight'},
+        {assignment:[5, 2], type:'Knight'},
+        {assignment:[6, 2], type:'Knight'},
+        {assignment:[9, 2], type:'Scout'},
+      ];
+    else if (!team.set)
       throw new TypeError('A set is required for the team');
 
     team.joined = new Date();
     team.originalId = slot;
     teams[slot] = team;
 
+    /*
+     * Position teams on the board according to original team order.
+     * Team order is based on the index (id) of the team in the teams array.
+     * Team order is clockwise starting in the North.
+     *  2 Players: 0:North, 1:South
+     *  4 Players: 0:North, 1:East, 2:South, 3:West
+     */
+    let positions = new Map([[0,'N'], [90,'W'], [180,'S'], [270,'E']]);
+    let degrees   = teams.length === 2 ? [0, 180] : [0, 90, 180, 270];
+    let degree    = degrees[slot];
+
+    team.position = positions.get(degree);
+
     this._emit({
       type: 'joined',
-      slot: slot,
-      team: team,
+      data: {
+        slot: slot,
+        team: team,
+      },
     });
 
     // If all slots are filled, start the game.
@@ -215,11 +262,6 @@ export default class Game {
       teams.unshift(...teams.splice(index, teams.length - index));
     }
 
-    // Position units on the board according to team placement.
-    //  Team ID 0: North
-    //  Team ID 1: South
-    //  Team ID 2: West
-    //  Team ID 3: East
     if (this.type === 'Chaos')
       teams.unshift({
         originalId: 0,
@@ -230,17 +272,17 @@ export default class Game {
           type: 'ChaosSeed',
           assignment: [5, 5],
         }],
+        position: 'C',
       });
 
     teams.forEach((team, teamId) => { team.id = teamId });
 
-    let board   = this._board;
-    let degrees = teams.length === 2 ? [0, 180] : [0, 90, 180, 270];
-    let unitId  = 1;
+    let board  = this._board;
+    let unitId = 1;
 
+    // Place the units according to team position.
     this.units = teams.map(team => team.set.map(unitSetData => {
-      // Team placement is based on the original team order.
-      let degree   = degrees[team.originalId];
+      let degree   = board.getDegree('N', team.position);
       let tile     = board.getTileRotation(unitSetData.assignment, degree);
       let unitData = unitDataMap.get(unitSetData.type);
 
@@ -253,6 +295,10 @@ export default class Game {
       if (unitData.directional !== false)
         unitState.direction = board.getRotation('S', degree);
 
+      // Apply a 1-turn wait to units in the team that goes first.
+      if (team.id === 0 && unitData.waitFirstTurn)
+        unitState.mRecovery = 1;
+
       return unitState;
     }));
 
@@ -264,11 +310,13 @@ export default class Game {
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
 
-    this._emit({ type:'startGame', data:this.getGameData() });
+    this._emit({ type:'startGame', data:this.getData() });
     this._emit({
-      type:   'startTurn',
-      turnId: this.currentTurnId,
-      teamId: this.currentTeamId,
+      type: 'startTurn',
+      data: {
+        turnId: this.currentTurnId,
+        teamId: this.currentTeamId,
+      },
     });
   }
   restart() {
@@ -291,22 +339,27 @@ export default class Game {
     this.winnerId = null;
 
     this._bots.forEach(b => b.destroy());
+    this._bots.length = 0;
+
     this._start();
   }
 
-  getGameData() {
+  getData() {
     let teams = this.teams.map(team => {
-      team = {...team};
-      delete team.units;
+      if (team) {
+        team = {...team};
+        delete team.units;
+      }
 
       return team;
     });
 
     return {
-      type:          this.type,
-      teams:         teams,
+      type:  this.type,
+      teams: teams,
 
-      created:       this.created,
+      randomFirstTurn: this.randomFirstTurn,
+
       started:       this.started,
       ended:         this.ended,
 
@@ -314,6 +367,8 @@ export default class Game {
       currentTeamId: this.currentTeamId,
       units:         this.units,
       actions:       this.actions,
+
+      winnerId:      this.winnerId,
     };
   }
   getTurnData(turnId) {
@@ -353,7 +408,7 @@ export default class Game {
     let new_actions = [];
     let pushAction = action => {
       action.created = new Date();
-      action.teamId = this.currentTeamId;
+      action.teamId = action.teamId || this.currentTeamId;
 
       new_actions.push(action);
       this._applyAction(action);
@@ -363,6 +418,19 @@ export default class Game {
     let turnEnded = !!actions.find(action => {
       if (action.type === 'endTurn')
         return true;
+
+      if (action.type === 'surrender') {
+        let team = this.teams[action.teamId];
+        if (!team || !team.units.length) return;
+
+        pushAction({
+          type: 'surrender',
+          teamId: action.teamId,
+          results: this._getSurrenderResults(team),
+        });
+
+        return true;
+      }
 
       /*
        * Validate and populate the action
@@ -501,19 +569,21 @@ export default class Game {
     if (new_actions.length)
       this._emit({
         type: 'action',
-        actions: this._board.encodeAction(new_actions),
+        data: this._board.encodeAction(new_actions),
       });
 
     if (this.ended)
       this._emit({
         type: 'endGame',
-        winnerId: this.winnerId,
+        data: { winnerId:this.winnerId },
       });
     else if (turnEnded)
       this._emit({
         type: 'startTurn',
-        turnId: this.currentTurnId,
-        teamId: this.currentTeamId,
+        data: {
+          turnId: this.currentTurnId,
+          teamId: this.currentTeamId,
+        },
       });
   }
 
@@ -558,11 +628,13 @@ export default class Game {
     this.winnerId = null;
 
     this._emit({
-      type:    'reset',
-      turnId:  this.currentTurnId,
-      teamId:  this.currentTeamId,
-      actions: this.actions,
-      units:   board.getState(),
+      type: 'reset',
+      data: {
+        turnId:  this.currentTurnId,
+        teamId:  this.currentTeamId,
+        actions: this.actions,
+        units:   board.getState(),
+      },
     });
   }
 
@@ -580,23 +652,28 @@ export default class Game {
    */
   toJSON() {
     let teams = this.teams.map(team => {
-      team = {...team};
-      delete team.units;
+      if (team) {
+        team = {...team};
+        delete team.units;
+      }
 
       return team;
     });
 
     return {
-      type:    this.type,
-      teams:   teams,
+      type:     this.type,
+      teams:    teams,
 
-      created: this.created && this.created.toISOString(),
-      started: this.started && this.started.toISOString(),
-      ended:   this.ended   && this.ended.toISOString(),
+      randomFirstTurn: this.randomFirstTurn,
 
-      turns:   this._turns,
-      units:   this.units,
-      actions: this.actions,
+      started:  this.started && this.started.toISOString(),
+      ended:    this.ended   && this.ended.toISOString(),
+
+      turns:    this._turns,
+      units:    this.units,
+      actions:  this.actions,
+
+      winnerId: this.winnerId,
     };
   }
 
@@ -683,6 +760,18 @@ export default class Game {
     }
 
     return action;
+  }
+  _getSurrenderResults(team) {
+    let results = [];
+
+    team.units.forEach(unit => {
+      results.push({
+        unit:    unit,
+        changes: { mHealth:-unit.health },
+      });
+    });
+
+    return results;
   }
 
   _applyAction(action) {

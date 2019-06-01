@@ -52,20 +52,20 @@ export default class {
     });
 
     Object.assign(this, {
-      tiles:        tiles,
-      pixi:         undefined,
-      locked:       true,
-      focused_tile: null,
+      tiles:       tiles,
+      pixi:        undefined,
+      locked:      'readonly',
+      focusedTile: null,
 
-      card:         null,
-      carded:       null,
+      card:        null,
+      carded:      null,
 
-      focused:      null,
-      viewed:       null,
-      selected:     null,
-      targeted:     null,
+      focused:     null,
+      viewed:      null,
+      selected:    null,
+      targeted:    null,
 
-      rotation:     'N',
+      rotation:    'N',
 
       teams: [],
       teamsUnits: [], // 2-dimensional array of the units for each team.
@@ -455,6 +455,13 @@ export default class {
     // 3 = directions.length-1; 4 = directions.length;
     return directions.slice(index > 7 ? index-8 : index)[0];
   }
+  /*
+   * Get the degree difference between direction and rotation.
+   *
+   * Example: getDegree('N', 'E') =  90 degrees
+   * Example: getDegree('N', 'W') = 270 degrees
+   * Example: getDegree('S', 'E') = -90 degrees
+   */
   getDegree(direction, rotation) {
     var directions = ['N','NE','E','SE','S','SW','W','NW'];
 
@@ -549,7 +556,7 @@ export default class {
 
   // Public methods
   draw(stage) {
-    var pixi = this.pixi = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/board.jpg');
+    var pixi = this.pixi = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/board.png');
     var tiles = this.tiles;
 
     // The board itself is interactive since we want to detect a tap on a
@@ -557,7 +564,7 @@ export default class {
     // functionality needs to be provided by an 'undo' button.
     pixi.interactive = true;
     pixi.pointertap = event => {
-      if (this.locked) return;
+      if (this.locked === true) return;
 
       let unit = this.selected || this.viewed;
       if (!unit) return;
@@ -590,15 +597,17 @@ export default class {
       /*
        * Make sure tiles are blurred before focusing on a new one.
        */
-      let focused_tile = this.focused_tile;
+      let focusedTile = this.focusedTile;
       if (type === 'focus') {
-        if (focused_tile && focused_tile !== tile)
-          focused_tile.onBlur();
-        this.focused_tile = tile;
+        if (focusedTile && focusedTile !== tile)
+          focusedTile.onBlur();
+        this.focusedTile = tile;
       }
       else if (type === 'blur') {
-        if (focused_tile === tile)
-          this.focused_tile = null;
+        // The tile might not actually be blurred if the blur event was fired in
+        // response to the board becoming locked and tile non-interactive
+        if (!this.focusedTile.focused)
+          this.focusedTile = null;
       }
 
       if (!tile.is_interactive()) return;
@@ -613,7 +622,7 @@ export default class {
       tile.on('select',     selectEvent);
       tile.on('focus blur', focusEvent);
       tile.on('assign', event => {
-        if (!this.locked)
+        if (this.locked !== true)
           event.target.set_interactive(true);
       });
       tile.on('dismiss', event => {
@@ -1059,9 +1068,9 @@ export default class {
 
       els.name.text = 'Champion';
 
-      els.notice.x = 74;
+      els.notice.x = 110;
       els.notice.y = 32;
-      els.notice.anchor.x = 0;
+      els.notice.anchor.x = 0.5;
       els.notice.style.fontSize = '12px';
       els.notice.text = defaultNotice;
 
@@ -1180,11 +1189,18 @@ export default class {
     This does not actually rotate the board - that causes all kinds of
     complexity.  Rather, it rearranges the units so that it appears the
     board has rotated.  This means unit coordinates and directions must
-    be translated to an API based on our current rotation.
+    be translated to a server based on our current rotation.
   */
   rotate(rotation) {
+    let degree;
+    if (typeof rotation === 'number') {
+      degree = rotation;
+      rotation = this.getRotation(this.rotation, degree);
+    }
+    else
+      degree = this.getDegree(this.rotation, rotation);
+
     let units     = this.teamsUnits.flat();
-    let degree    = this.getDegree(this.rotation, rotation);
     let activated = this.viewed || this.selected
 
     if (activated) this.hideMode();
@@ -1204,11 +1220,17 @@ export default class {
     return this;
   }
 
-  lock(value) {
-    if (this.locked === value) return;
-    this.locked = value || true;
+  lock(value = true) {
+    let old_locked = this.locked;
+    if (old_locked === value) return;
+    this.locked = value;
 
-    this.tiles.forEach(tile => tile.set_interactive(false));
+    if (this.locked === true)
+      this.tiles.forEach(tile => tile.set_interactive(false));
+    if (old_locked === true)
+      this.tiles.forEach(tile => {
+        tile.set_interactive(!!(tile.action || tile.assigned));
+      });
 
     this._emit({
       type:   'lock-change',
@@ -1221,9 +1243,10 @@ export default class {
     if (!old_locked) return;
     this.locked = false;
 
-    this.tiles.forEach(tile => {
-      tile.set_interactive(!!(tile.action || tile.assigned));
-    });
+    if (old_locked === true)
+      this.tiles.forEach(tile => {
+        tile.set_interactive(!!(tile.action || tile.assigned));
+      });
 
     this._emit({
       type:   'lock-change',
@@ -1414,7 +1437,9 @@ export default class {
     if (focused && focused.notice)
       focused.change({ notice:null });
 
-    if (this.target || (mode === 'attack' && unit.aAll))
+    if (this.target)
+      this.hideTargets();
+    else if (mode === 'attack' && unit.aAll && this.selected)
       this.hideTargets();
 
     this._clearHighlight();
@@ -1752,7 +1777,7 @@ export default class {
 
     let highlighted = this._highlighted;
     // Trigger the 'focus' event when highlighting the focused tile.
-    let focused_tile = this.focused_tile;
+    let focusedTile = this.focusedTile;
     let trigger_focus = false;
 
     tiles.forEach(tile => {
@@ -1765,7 +1790,7 @@ export default class {
       if (!viewed) {
         tile.action = highlight.action;
 
-        if (tile === focused_tile)
+        if (tile === focusedTile)
           trigger_focus = true;
         else
           tile.set_interactive(true);
@@ -1776,10 +1801,10 @@ export default class {
 
     // The 'focus' event is delayed until all tiles are highlighted.
     if (trigger_focus)
-      if (focused_tile.is_interactive())
-        this.onTileFocus(focused_tile);
+      if (focusedTile.is_interactive())
+        this.onTileFocus(focusedTile);
       else
-        focused_tile.set_interactive(true);
+        focusedTile.set_interactive(true);
   }
   _clearHighlight(tile) {
     let highlighted = this._highlighted;

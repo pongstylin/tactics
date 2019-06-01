@@ -1,7 +1,7 @@
 'use strict';
 
 import EventEmitter from 'events';
-import PanZoom from 'util/panzoom.js';
+import PanZoom from 'utils/panzoom.js';
 
 import Board, {
   FOCUS_TILE_COLOR,
@@ -16,11 +16,11 @@ export default class {
    * Arguments:
    *  state: An object supporting the Game class interface.
    */
-  constructor(state) {
+  constructor(state, localTeamIds = []) {
     if (!state)
       throw new TypeError('Required game state');
 
-    let renderer = PIXI.autoDetectRenderer(Tactics.width, Tactics.height);
+    let renderer = PIXI.autoDetectRenderer(Tactics.width, Tactics.height, { transparent:true });
 
     // Let's not go crazy with the move events.
     renderer.plugins.interaction.moveWhenInside = true;
@@ -67,7 +67,7 @@ export default class {
       _stateEventStack: null,
 
       _teams: [],
-      _localTeamIds: [],
+      _localTeamIds: localTeamIds,
 
       _renderer: renderer,
       _rendering: false,
@@ -279,14 +279,34 @@ export default class {
   get activeTeams() {
     return this._teams.filter(team => !!team.units.length);
   }
+  get winningTeams() {
+    return this.teams.filter(team =>
+      !!team.units.find(unit => {
+        // Wards don't count.
+        if (unit.type === 'BarrierWard' || unit.type === 'LightningWard')
+          return false;
+
+        // Paralyzed units don't count.
+        if (unit.paralyzed)
+          return false;
+
+        return true;
+      })
+    );
+  }
   get currentTeam() {
     return this._teams[this.state.currentTeamId];
   }
-  get isLocalGame() {
-    return this._localTeamIds.length === this.state.teams.length;
+  get isBotGame() {
+    let botTeams = this.state.teams.filter(t => !!t.bot);
+    if (botTeams.length === 0)
+      return false;
+
+    let playerTeams = this.state.teams.filter(t => !t.bot);
+    return this._localTeamIds.length === playerTeams.length;
   }
-  get hasOneLocalTeam() {
-    return this._localTeamIds.length === 1;
+  get isViewOnly() {
+    return this.state.ended || this._localTeamIds.length === 0;
   }
 
   get actions() {
@@ -304,14 +324,8 @@ export default class {
   /*****************************************************************************
    * Public Methods
    ****************************************************************************/
-  join(team, slot) {
-    if (!slot)
-      slot = this.state.teams.findIndex(t => !t);
-
-    if (!team.bot)
-      this._localTeamIds.push(slot);
-
-    return this.state.join(team, slot);
+  isMyTurn() {
+    return this.isMyTeam(this.currentTeam);
   }
   isMyTeam(team) {
     if (team === undefined)
@@ -321,6 +335,11 @@ export default class {
       team = this.teams[team];
 
     return this._localTeamIds.includes(team.originalId);
+  }
+  hasOneLocalTeam(team) {
+    if (team && !this.isMyTeam(team)) return false;
+
+    return this._localTeamIds.length === 1;
   }
 
   /*
@@ -333,19 +352,73 @@ export default class {
       // Let the caller finish what they are doing.
       setTimeout(() => {
         // Clone teams since board.setState() applies a units property to each.
-        this._teams = state.teams.map(team => ({...team}));
+        let teams = this._teams = state.teams.map(team => ({...team}));
+
+        // Rotate the board such that the first local team is south/red.
+        let board = this._board;
+        let degree = 0;
+        if (this._localTeamIds.length) {
+          let teamId = Math.min(...this._localTeamIds);
+          let team = teams.find(t => t.originalId === teamId);
+          degree = board.getDegree(team.position, 'S');
+
+          board.rotate(degree);
+        }
+
+        /*
+         * Apply team colors based on the team's (rotated?) position.
+         */
+        let colorIds = new Map([
+          ['N', 'Blue'  ],
+          ['E', 'Yellow'],
+          ['S', 'Red'   ],
+          ['W', 'Green' ],
+        ]);
+        teams.forEach(team => {
+          let position = board.getRotation(team.position, degree);
+
+          team.colorId = colorIds.get(position);
+        });
 
         this._onStateEventListener = this._onStateEvent.bind(this);
 
         state
           .on('startTurn', this._onStateEventListener)
           .on('action', this._onStateEventListener)
-          .on('reset', this._onStateEventListener)
+          .on('revert', this._onStateEventListener)
           .on('undo', this._onStateEventListener)
           .on('endGame', this._onStateEventListener);
 
-        this._stateEventStack = this._replay()
-          .then(() => this._startTurn(this.state.currentTeamId));
+        if (state.ended) {
+          board.setState(state.units, teams);
+          this.actions.forEach(action => {
+            // Allow the user to see the loser's units at time of surrender.
+            if (action.type === 'surrender') return;
+
+            this._applyAction(action);
+          });
+          this.render();
+
+          if (state.winnerId === null)
+            this.notice = 'Draw!';
+          else {
+            let winner = this.teams[state.winnerId];
+            let winnerMoniker;
+
+            if (winner.name && teams.filter(t => t.name === winner.name).length === 1)
+              winnerMoniker = winner.name;
+            else
+              winnerMoniker = winner.colorId;
+
+            this.notice = winnerMoniker+'!';
+          }
+
+          this.selectMode = 'move';
+          this.lock('gameover');
+        }
+        else
+          this._stateEventStack = this._replay()
+            .then(() => this._startTurn(this.state.currentTeamId));
 
         resolve();
       }, 100); // A "zero" delay is sometimes not long enough
@@ -367,10 +440,11 @@ export default class {
       state
         .off('startTurn', this._onStateEventListener)
         .off('action', this._onStateEventListener)
-        .off('reset', this._onStateEventListener)
+        .off('revert', this._onStateEventListener)
         .off('undo', this._onStateEventListener)
         .off('endGame', this._onStateEventListener)
 
+    this._board.rotation = 'N';
     this.notice = null;
 
     // Inform game state to restart.
@@ -508,7 +582,12 @@ export default class {
     if (selected && selected !== unit && this.state.actions.length)
       return false;
 
-    return unit.team === this.currentTeam && !unit.mRecovery && !unit.paralyzed;
+    return !this.isViewOnly
+      && !this._board.locked
+      && unit.team === this.currentTeam
+      && this.isMyTeam(unit.team)
+      && !unit.mRecovery
+      && !unit.paralyzed;
   }
 
   /*
@@ -574,32 +653,38 @@ export default class {
   }
 
   pass() {
-    this._postAction({type:'endTurn'});
+    this._postAction({ type:'endTurn' });
+  }
+  surrender() {
+    this._postAction({ type:'surrender' });
   }
 
   canUndo() {
     let state   = this.state;
-    let teams   = this._teams;
     let actions = this.actions;
 
-    if (this.isLocalGame)
-      // Allow unrestricted undo when all teams are local.
-      return !!actions.length || !!state.currentTurnId;
-    else if (this.isMyTeam(state.currentTeamId)) {
-      if (actions.length === 0) return false;
+    // Bots only allow luckless undo.
+    if (this.isBotGame) {
+      if (this.isMyTurn()) {
+        if (actions.length === 0) return false;
 
-      let unitId = actions[0].unit;
-      let lastLuckyActionIndex = actions.findLastIndex(action =>
-        // Counter-attacks can't be undone.
-        action.unit !== unitId ||
-        // Luck-involved attacks can't be undone.
-        action.results && !!action.results.find(result => 'luck' in result)
-      );
+        let unitId = actions[0].unit;
+        let lastLuckyActionIndex = actions.findLastIndex(action =>
+          // Counter-attacks can't be undone.
+          action.unit !== unitId ||
+          // Luck-involved attacks can't be undone.
+          action.results && !!action.results.find(result => 'luck' in result)
+        );
 
-      return lastLuckyActionIndex < (actions.length - 1);
+        return lastLuckyActionIndex < (actions.length - 1);
+      }
+
+      return false;
     }
 
-    return false;
+    // Players may undo at any time, assuming there is something to undo.
+    // Note that the opponent will need to approve the undo request.
+    return !!actions.length || !!state.currentTurnId;
   }
   undo() {
     this.selected = null;
@@ -691,7 +776,9 @@ export default class {
     };
 
     Tactics.images.forEach(image_url => {
-      let url = 'https://legacy.taorankings.com/images/'+image_url;
+      let url = image_url;
+      if (!url.startsWith('http'))
+        url = 'https://legacy.taorankings.com/images/'+url;
 
       resources.push(url);
       loader.add({ url:url });
@@ -865,10 +952,12 @@ export default class {
 
     return this;
   }
-  _reset(turnData) {
+  _revert(turnData) {
     this.selected = this.viewed = null;
 
     this._board.setState(turnData.units, this._teams);
+    this.render();
+
     this._startTurn(this.state.currentTeamId);
 
     let actions = this.actions;
@@ -880,7 +969,7 @@ export default class {
    * Initiate an action, whether it be moving, attacking, turning, or passing.
    */
   _postAction(action) {
-    if (action.type !== 'endTurn')
+    if (action.type !== 'endTurn' && action.type !== 'surrender')
       action.unit = this.selected;
 
     this.selected = null;
@@ -890,13 +979,17 @@ export default class {
     this.state.postAction(this._board.encodeAction(action));
   }
   _performActions(actions) {
+    // Clear or cancel the 'Sending order' notice
+    this.notice = null;
+
     // The actions array can be empty due to the _replay() method.
     if (actions.length === 0) return Promise.resolve();
 
+    // Just in case an action was submitted by another session/tab/device.
+    this.selected = null;
+
     let board = this._board;
     actions = board.decodeAction(actions);
-
-    this.notice = null;
 
     let painted = [];
     let selected;
@@ -906,7 +999,7 @@ export default class {
         if (this.isMyTeam(action.teamId))
           return this._performAction(action);
 
-        if (action.type === 'endTurn') {
+        if (action.type === 'endTurn' || action.type === 'surrender') {
           painted.forEach(tile => tile.strip());
 
           return this._performAction(action);
@@ -945,15 +1038,15 @@ export default class {
 
             // Show the player the units that will be attacked.
             let target = action.target;
+            let target_tiles = attacker.getTargetTiles(target);
             let target_units = attacker.getTargetUnits(target);
 
+            target_tiles.forEach(tile => {
+              painted.push(tile.paint('attack', 0.3, ATTACK_TILE_COLOR));
+            });
+
             if (target_units.length) {
-              target_units.forEach(tu => {
-                tu.activate();
-                painted.push(
-                  tu.assignment.paint('attack', 0.3, ATTACK_TILE_COLOR)
-                );
-              });
+              target_units.forEach(tu => tu.activate());
 
               if (target_units.length === 1) {
                 attacker.setTargetNotice(target_units[0], target);
@@ -962,8 +1055,6 @@ export default class {
               else
                 this.drawCard(attacker);
             }
-            else
-              target.paint('attack', 0.3, ATTACK_TILE_COLOR);
 
             attacker.activate();
 
@@ -1037,20 +1128,30 @@ export default class {
       painted.forEach(tile => tile.strip());
     });
 
-    // If the action didn't result in ending the turn, then set mode.
-    let lastAction = actions[actions.length-1];
-    if (lastAction.type !== 'endTurn' && this.isMyTeam(lastAction.teamId))
-      promise = promise.then(() => {
+    // Change a readonly lock to a full lock
+    this.lock();
+
+    return promise.then(() => {
+      // If the action didn't result in ending the turn, then set mode.
+      let lastAction = actions[actions.length-1];
+      if (lastAction.type !== 'endTurn' && this.isMyTeam(lastAction.teamId)) {
         this.unlock();
         this.selected = actions[0].unit;
-      });
-
-    return promise;
+      }
+      else
+        // Change a full lock to a readonly lock
+        this.lock('readonly');
+    });
   }
   // Act out the action on the board.
   _performAction(action) {
     if (action.type === 'endTurn')
       return this._endTurn(action);
+    else if (action.type === 'surrender') {
+      if (this.winningTeams.length > 2)
+        return this._playSurrender(action);
+      return Promise.resolve();
+    }
 
     let unit = action.unit;
 
@@ -1192,6 +1293,30 @@ export default class {
       Promise.resolve(),
     ).then(() => this.drawCard());
   }
+  _playSurrender(action) {
+    let team = this.teams[action.teamId];
+    let anim = new Tactics.Animation();
+    let notice = `${team.name}\nSurrenders!`;
+
+    anim.addFrame(() => this.notice = notice);
+
+    action.results.forEach(result => {
+      let unit = result.unit;
+
+      anim.splice(0, unit.animDeath());
+    });
+
+    // Show the notice for 2 seconds.
+    let timeout = 2000 - (anim.frames.length * anim.fps);
+
+    return anim.play().then(() => new Promise((resolve, reject) => {
+      // Give the user some time to take in the notice.
+      setTimeout(() => {
+        this.notice = null;
+        resolve();
+      }, timeout);
+    }));
+  }
 
   _render() {
     let renderer = this._renderer;
@@ -1239,19 +1364,35 @@ export default class {
     });
   }
   _startTurn(teamId) {
-    let team = this.teams[teamId];
+    let teams = this.teams;
+    let team = teams[teamId];
+    let teamMoniker;
+
+    if (team.name && teams.filter(t => t.name === team.name).length === 1)
+      teamMoniker = team.name;
+    else
+      teamMoniker = team.colorId;
 
     if (this.isMyTeam(team)) {
-      if (this.hasOneLocalTeam)
+      if (this.hasOneLocalTeam()) {
         this.notice = 'Your Turn!';
+        Tactics.sounds.newturn.play();
+      }
       else
-        this.notice = 'Go '+(team.name || team.colorId)+'!';
+        this.notice = `Go ${teamMoniker}!`;
 
-      this.selectMode = 'move';
+      this.selectMode = this._pickSelectMode();
       this.unlock();
     }
-    else
-      this.delayNotice('Waiting for '+(team.name || team.colorId));
+    else {
+      this.delayNotice(`Go ${teamMoniker}!`);
+      this.lock('readonly');
+    }
+
+    this._emit({
+      type: 'startTurn',
+      teamId: teamId,
+    });
 
     return this;
   }
@@ -1268,14 +1409,30 @@ export default class {
     return this;
   }
   _endGame(winnerId) {
-    if (winnerId === null)
+    if (winnerId === null) {
       this.notice = 'Draw!';
+
+      Tactics.sounds.defeat.play();
+    }
     else {
-      let winner = this._teams[winnerId];
-      if (this.isMyTeam(winner) && this.hasOneLocalTeam)
+      let teams = this.teams;
+      let winner = teams[winnerId];
+      let winnerMoniker;
+
+      if (winner.name && teams.filter(t => t.name === winner.name).length === 1)
+        winnerMoniker = winner.name;
+      else
+        winnerMoniker = winner.colorId;
+
+      if (this.hasOneLocalTeam(winner))
         this.notice = 'You win!';
       else
-        this.notice = (winner.name || winner.colorId)+' Wins!';
+        this.notice = `${winnerMoniker}!`;
+
+      if (this.isMyTeam(winnerId))
+        Tactics.sounds.victory.play();
+      else
+        Tactics.sounds.defeat.play();
     }
 
     this.selected = null;
@@ -1302,6 +1459,30 @@ export default class {
     return selectMode;
   }
 
+  _applyAction(action) {
+    let unit = action.unit;
+
+    if (unit) {
+      if (action.assignment)
+        unit.assign(action.assignment);
+      if (action.direction)
+        unit.direction = action.direction;
+      if (action.colorId)
+        unit.color = colorMap.get(action.colorId);
+    }
+
+    this._applyChangeResults(action.results);
+
+    // Remove dead units.
+    let board = this._board;
+    board.teamsUnits.flat().forEach(unit => {
+      // Chaos Seed doesn't die.  It hatches.
+      if (unit.type === 'ChaosSeed') return;
+
+      if (unit.mHealth === -unit.health)
+        board.dropUnit(unit);
+    });
+  }
   _applyChangeResults(results) {
     if (!results) return;
 
@@ -1341,26 +1522,26 @@ export default class {
    * This method ensures state events are processed synchronously.
    * Otherwise, 'startTurn' or 'endGame' may trigger while performing actions.
    */
-  _onStateEvent(event) {
+  _onStateEvent({ type, data }) {
     // Event handlers are expected to either return a promise that resolves when
     // handling is complete or nothing at all.
     let eventHandler;
-    if (event.type === 'startTurn')
-      eventHandler = () => this._startTurn(event.teamId);
-    else if (event.type === 'action')
-      eventHandler = () => this._performActions(event.actions);
-    else if (event.type === 'reset')
-      eventHandler = () => this._reset(event);
+    if (type === 'startTurn')
+      eventHandler = () => this._startTurn(data.teamId);
+    else if (type === 'action')
+      eventHandler = () => this._performActions(data);
     /*
-    else if (event.type === 'undo')
+    else if (type === 'revert')
+      eventHandler = () => this._revert(data);
+    else if (type === 'undo')
       eventHandler = event => {
         // TODO: Prompt user to approve undo request.
       };
     */
-    else if (event.type === 'endGame')
-      eventHandler = () => this._endGame(event.winnerId);
+    else if (type === 'endGame')
+      eventHandler = () => this._endGame(data.winnerId);
     else
-      throw new Error('Unhandled event: '+event.type);
+      throw new Error('Unhandled event: '+type);
 
     this._stateEventStack = this._stateEventStack.then(eventHandler);
   }

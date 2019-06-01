@@ -12,7 +12,7 @@ HTML, BODY, #app, #field {
   height: 100%;
 }
 
-#splash, #app {
+#error, #join, #splash, #app {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -45,7 +45,7 @@ BODY {
 
   #card {
     position: absolute;
-    top: 0;
+    top: 20px;
     left: 0;
 
     // The card must show above the board when they overlap.
@@ -153,6 +153,122 @@ BODY {
     }
   }
 
+  .player {
+    display: none;
+  }
+  .player.active {
+    display: block;
+    position: absolute;
+    width: 200px;
+    height: 20px;
+    box-sizing: border-box;
+    padding: 0 24px;
+    line-height: 20px;
+    color: white;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+
+    .status {
+      position: absolute;
+      top: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+
+      // offline color
+      background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.2) 25%, rgba(0,0,0,0.8));
+    }
+    &.ingame .status {
+      background: radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
+    }
+    &.online .status {
+      background: radial-gradient(circle at 50% 50%, rgba(255, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
+    }
+
+    .fa-spinner {
+      display: none;
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      line-height: 20px;
+      border-radius: 50%;
+
+      background-color: black;
+      text-align: center;
+    }
+    &.unavailable .fa-spinner {
+      display: block;
+    }
+
+    &.left {
+      left: 0;
+      text-align: left;
+      border-radius: 10px 0 0 10px;
+
+      .status {
+        left: 3px;
+      }
+      .fa-spinner {
+        left: 0;
+      }
+
+      &:after {
+        position: absolute;
+        top: 2px;
+        right: 0;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        border-width: 8px 20px 8px 0;
+        border-color: transparent black transparent transparent;
+        content: " ";
+      }
+
+      &.bronze {
+        background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%, black 102%);
+      }
+    }
+    &.right {
+      right: 0;
+      text-align: right;
+      border-radius: 0 10px 10px 0;
+
+      .status {
+        right: 3px;
+      }
+      .fa-spinner {
+        right: 0;
+      }
+
+      &:after {
+        position: absolute;
+        top: 2px;
+        left: 0;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        border-width: 8px 0 8px 20px;
+        border-color: transparent transparent transparent black;
+        content: " ";
+      }
+
+      &.bronze {
+        background-image: linear-gradient(to left, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%, black 102%);
+      }
+    }
+  }
+  #player-n {
+    top: 0;
+  }
+  #player-e {
+    top: 0;
+  }
+  #player-s {
+    bottom: 0;
+  }
+  #player-w {
+    bottom: 0;
+  }
+
   > .buttons {
     display: block;
     position: absolute;
@@ -165,6 +281,10 @@ BODY {
     text-align: left;
 
     BUTTON {
+      // Collapse whitespace
+      display: block;
+      float: left;
+
       background: none no-repeat center transparent;
       box-sizing: content-box;
       color: #DED8D5;
@@ -203,7 +323,7 @@ BODY {
 /*
  * Sometimes buttons need to be disabled or hidden.
  */
-#app.locked {
+#app.locked:not(.readonly) {
   #game-play.buttons BUTTON:not([name=swapbar]) {
     // Make the button appear disabled.
     opacity: 0.4;
@@ -215,7 +335,7 @@ BODY {
   }
 }
 
-#app.locked:not(.gameover) {
+#app.locked:not(.gameover):not(.readonly) {
   #game-settings.buttons BUTTON[name=rotate],
   #game-settings.buttons BUTTON[name=undo] {
     // Make the button appear disabled.
@@ -339,10 +459,10 @@ BODY {
 }
 
 #game-play {
-  top: 0;
+  top: 20px;
 }
 #game-settings {
-  bottom: 0;
+  bottom: 14px;
 }
 
 A {
@@ -372,18 +492,36 @@ A {
       // Stack 'em vertically
       flex-direction: column;
 
+      #player-n, #player-e {
+        top: 100px;
+      }
+
+      .player.active {
+        // Conserve space
+        width: 180px;
+      }
+
       // No longer place the card in the top-left corner of #field.
       // Rather, horizontally center the card at the top of #field.
       #card {
         position: relative;
+        top: auto;
         margin: 0 auto;
       }
 
       // No longer center the board within the #field.
       // Rather, it will be placed under the info card.
       #board {
-        margin: 0;
+        // Give sufficient margin to accommodate player banners
+        margin: 6px 0 24px 0;
       }
+    }
+
+    #game-play {
+      top: auto;
+    }
+    #game-settings {
+      bottom: auto;
     }
 
     // No longer place the buttons in the top-right corner of #app.
@@ -392,6 +530,8 @@ A {
       position: relative;
       padding: 6px;
       display: none;
+      // Expand to encapsulate the floated buttons
+      overflow: auto;
 
       // The swapbar button will be used to toggle the button bars.
       BUTTON[name=swapbar] {

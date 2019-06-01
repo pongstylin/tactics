@@ -1,5 +1,12 @@
+import clientFactory from 'client/clientFactory.js';
+import RemoteTransport from 'tactics/RemoteTransport.js';
 import LocalTransport from 'tactics/LocalTransport.js';
 import Game from 'tactics/Game.js';
+
+var authClient = clientFactory('auth');
+var gameClient = clientFactory('game');
+
+authClient.on('token', ({data:token}) => gameClient.authorize(token));
 
 window.Tactics = (function () {
   'use strict';
@@ -13,6 +20,8 @@ window.Tactics = (function () {
     width:  22 + 88*9 + 22,
     height: 44 + 4 + 56*9,
     utils:  {},
+    authClient: clientFactory('auth'),
+    gameClient: clientFactory('game'),
 
     draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};
@@ -54,21 +63,45 @@ window.Tactics = (function () {
 
       return elements;
     },
-    createLocalGame: function (gameData) {
-      let teams = gameData.teams;
-      gameData.teams = teams.map(t => null);
+    createLocalGame: function (stateData) {
+      let transport = LocalTransport.createGame(stateData);
+      let localTeamIds = stateData.teams
+        .filter(team => !team.bot)
+        .map((team, i) => i);
 
-      let transport = LocalTransport.createGame(gameData);
+      return transport.whenReady
+        .then(() => new Game(transport, localTeamIds));
+    },
+    getRemoteGameData: function (gameId) {
+      return gameClient.getGameData(gameId);
+    },
+    getMyIdentity: function () {
+      return authClient.whenReady.then(() => {
+        if (!authClient.token) return;
+
+        return {
+          id: authClient.userId,
+          name: authClient.userName,
+        };
+      });
+    },
+    joinRemoteGame: function (playerName, gameId) {
+      return authClient.setAccountName(playerName)
+        .then(() => gameClient.joinGame(gameId));
+    },
+    loadRemoteGame: function (gameId) {
+      let transport = new RemoteTransport(gameId);
 
       return transport.whenReady.then(() => {
-        let game = new Game(transport);
-        teams.forEach((t, i) => game.join(t, i));
+        let localTeamIds = transport.teams
+          .filter(team => team.playerId === authClient.userId)
+          .map(team => team.originalId);
 
-        return game;
+        return new Game(transport, localTeamIds);
       });
     },
     images: [
-      'board.jpg',
+      'https://tactics.taorankings.com/images/board.png',
       'shock.png',
       'particle.png',
       'lightning-1.png',
@@ -81,11 +114,14 @@ window.Tactics = (function () {
       'turn_br.png'  // Inefficient.  Better to flip the bl horizontally.
     ],
     sounds: {
-      step:   'sound10',
-      block:  'sound11',
-      focus:  'sound15',
-      select: 'sound14',
-      strike: 'sound6',
+      victory: 'sound1',
+      newturn: 'sound2',
+      defeat:  'sound3',
+      step:    'sound10',
+      block:   'sound11',
+      focus:   'sound15',
+      select:  'sound14',
+      strike:  'sound6',
     },
     effects: {
       focus: {
