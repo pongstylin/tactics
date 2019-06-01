@@ -253,12 +253,12 @@ function closeGroup(serviceName, { body }) {
 
   groups.delete(groupId);
 
-  group.forEach(clientId =>
-    enqueue(sessions.get(clientId), 'leave', {
+  for (let sessionId of group.keys()) {
+    enqueue(sessions.get(sessionId), 'leave', {
       service: serviceName,
       group: body.group,
-    })
-  );
+    });
+  }
 }
 services.forEach(service =>
   service.on('closeGroup', event => closeGroup(service.name, event))
@@ -726,7 +726,7 @@ function onClose(code, reason) {
     else {
       // Maintain the session in case the client comes back.
       // The session will be deleted once it times out.
-      session.closedAt = new Date().getTime();
+      session.closedAt = new Date();
       closedSessions.add(session);
     }
   }

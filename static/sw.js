@@ -108,7 +108,11 @@ function getCache(url) {
 }
 
 self.addEventListener('fetch', event => {
-  let url = event.request.url;
+  let request = event.request;
+  if (request.method !== 'GET')
+    return event.respondWith(fetch(request));
+
+  let url = request.url;
 
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {

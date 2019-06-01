@@ -35,5 +35,5 @@ server.listen(PORT, () => {
  * Clustering should be used in production environments.
  */
 process.on('uncaughtException', error => {
-  console.log('uncaught exception:', error);
+  console.log(new Date().toISOString() + ' uncaught exception:', error);
 });
