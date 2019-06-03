@@ -10,7 +10,7 @@ export default class RemoteTransport {
   /*
    * The default constructor is not intended for public use.
    */
-  constructor(gameId) {
+  constructor(gameId, gameData) {
     Object.assign(this, {
       playerStatus: new Map(),
       whenReady:    new Promise(resolve => this._ready = resolve),
@@ -75,12 +75,17 @@ export default class RemoteTransport {
 
     this._watchForDataChanges();
 
-    gameClient.watchGame(gameId).then(({playerStatus, gameData}) => {
-      this._emit({ type:'playerStatus', data:playerStatus });
-
+    if (gameData && gameData.state.ended) {
       this._data = gameData;
       this._ready();
-    });
+    }
+    else
+      gameClient.watchGame(gameId).then(({playerStatus, gameData}) => {
+        this._emit({ type:'playerStatus', data:playerStatus });
+
+        this._data = gameData;
+        this._ready();
+      });
   }
 
   /*

@@ -262,7 +262,7 @@ Tactics.App = (function ($, window, document) {
           }
         });
       })
-      .then(() => Tactics.loadRemoteGame(gameId));
+      .then(gameData => Tactics.loadRemoteGame(gameId, gameData));
   }
 
   function resetPlayerBanners() {

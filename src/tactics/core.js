@@ -89,8 +89,8 @@ window.Tactics = (function () {
       return authClient.setAccountName(playerName)
         .then(() => gameClient.joinGame(gameId));
     },
-    loadRemoteGame: function (gameId) {
-      let transport = new RemoteTransport(gameId);
+    loadRemoteGame: function (gameId, gameData) {
+      let transport = new RemoteTransport(gameId, gameData);
 
       return transport.whenReady.then(() => {
         let localTeamIds = transport.teams
