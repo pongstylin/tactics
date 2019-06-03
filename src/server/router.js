@@ -8,7 +8,11 @@ import Ajv from 'ajv';
 import { services } from 'server/Service.js';
 import ServerError from 'server/Error.js';
 
-const CLOSE_GOING_AWAY = 1001;
+const CLOSE_GOING_AWAY     = 1001;
+
+// Proprietary codes
+const CLOSE_CLIENT_TIMEOUT = 4000;
+const CLOSE_REPLACED       = 4001;
 
 let debug = DebugLogger('service:router');
 // Verbose debug logger
@@ -398,6 +402,55 @@ function debugMessage(client, message, inOrOut) {
       debug(prefix);
 }
 
+function closeClient(client, code, reason) {
+  // The client can already be closed if closing was initiated by the server.
+  if (client.closed) return;
+
+  client.closed = { code, reason };
+  debug(`disconnect: client=${client.id}; [${code}] ${reason}`);
+
+  if (client.readyState === ws.OPEN)
+    client.close(code, reason);
+  else if (client.readyState === ws.CONNECTING)
+    client.terminate();
+
+  // Stop monitoring the connection.
+  inboundClients.delete(client);
+  outboundClients.delete(client);
+
+  let session = client.session;
+  if (session)
+    if (code === CLOSE_GOING_AWAY)
+      deleteSession(session);
+    else
+      closeSession(session);
+}
+
+function closeSession(session) {
+  // Maintain the session in case the client comes back.
+  // The session will be deleted once it times out.
+  session.closedAt = new Date();
+  closedSessions.add(session);
+}
+
+function deleteSession(session) {
+  let client = session.client;
+  if (session.timeout)
+    debug(`gone: client=${client.id}; [${client.closed.code}] session timeout`);
+  else
+    debug(`gone: client=${client.id}; [${client.closed.code}] client exit`);
+
+  closedSessions.delete(session);
+
+  // Delete the session immediately since the client won't come back.
+  // This code is used when the websocket webpage is refreshed or closed.
+  sessions.delete(session.id);
+
+  groups.forEach(group => group.delete(session.id));
+
+  services.forEach(service => service.dropClient(client));
+}
+
 /*******************************************************************************
  * Client Event Handlers
  ******************************************************************************/
@@ -682,6 +735,9 @@ function onResumeMessage(client, message) {
   if (message.ack < minExpectedAck || message.ack > maxExpectedAck)
     throw new ServerError(401, 'Not authorized');
 
+  // Close the previous connection, if it isn't already closed.
+  closeClient(session.client, CLOSE_REPLACED);
+
   delete session.closedAt;
   closedSessions.delete(session);
 
@@ -703,33 +759,8 @@ function onResumeMessage(client, message) {
 
 function onClose(code, reason) {
   let client = this;
-  let session = client.session;
 
-  debug(`disconnect: client=${client.id}; [${code}] ${reason}`);
-
-  // Stop monitoring the connection.
-  inboundClients.delete(client);
-  outboundClients.delete(client);
-
-  client.closing = { code, reason };
-
-  if (session) {
-    if (code === CLOSE_GOING_AWAY) {
-      // Delete the session immediately since the client won't come back.
-      // This code is used when the websocket webpage is refreshed or closed.
-      sessions.delete(client.id);
-
-      groups.forEach(group => group.delete(client.id));
-
-      services.forEach(service => service.dropClient(client));
-    }
-    else {
-      // Maintain the session in case the client comes back.
-      // The session will be deleted once it times out.
-      session.closedAt = new Date();
-      closedSessions.add(session);
-    }
-  }
+  closeClient(client, code, reason);
 }
 
 export default (client, request) => {
@@ -766,39 +797,37 @@ let inboundClients = new Set();
 let outboundClients = new Set();
 
 setInterval(() => {
-  let inboundTimeout = new Date() - 10000; // 10 seconds ago
-  for (let client of inboundClients) {
-    if (client.lastReceivedAt > inboundTimeout)
-      break;
+  try {
+    let inboundTimeout = new Date() - 10000; // 10 seconds ago
+    for (let client of inboundClients) {
+      if (client.lastReceivedAt > inboundTimeout)
+        break;
 
-    debug(`close: client=${client.id}; timeout`);
+      closeClient(client, CLOSE_CLIENT_TIMEOUT);
+    }
 
-    client.close();
+    let outboundTimeout = new Date(new Date() - 5000); // 5 seconds ago
+    for (let client of outboundClients) {
+      if (client.lastSentAt > outboundTimeout)
+        break;
+
+      sendSync(client);
+    }
+
+    // When a connection is lost, the session will timeout after 30 seconds.
+    // A token is refreshed 60 seconds before it expires.  Make sure this buffer
+    // always exceeds the session timeout.
+    let sessionTimeout = new Date(new Date() - 30000); // 30 seconds ago
+    for (let session of closedSessions) {
+      if (session.closedAt > sessionTimeout)
+        break;
+
+      session.timeout = true;
+
+      deleteSession(session);
+    }
   }
-
-  let outboundTimeout = new Date() - 5000; // 5 seconds ago
-  for (let client of outboundClients) {
-    if (client.lastSentAt > outboundTimeout)
-      break;
-
-    sendSync(client);
-  }
-
-  // When a connection is lost, the session will timeout after 30 seconds.
-  // A token is refreshed 60 seconds before it expires.  Make sure this buffer
-  // always exceeds the session timeout.
-  let sessionTimeout = new Date() - 30000; // 30 seconds ago
-  for (let session of closedSessions) {
-    if (session.closedAt > sessionTimeout)
-      break;
-
-    session.client.closing.timeout = true;
-
-    sessions.delete(session.id);
-    closedSessions.delete(session);
-
-    groups.forEach(group => group.delete(session.id));
-
-    services.forEach(service => service.dropClient(session.client));
+  catch (error) {
+    console.error(error);
   }
 }, 1000);
