@@ -774,7 +774,7 @@ export default (client, request) => {
   });
   client.id = client.address;
 
-  debug(`connect: client=${client.id}`);
+  debug(`connect: client=${client.id}; agent=${client.agent}`);
 
   // Enforce an idle timeout for this connection
   client.lastReceivedAt = new Date().getTime();
