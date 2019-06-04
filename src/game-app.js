@@ -177,6 +177,8 @@ Tactics.App = (function ($, window, document) {
             $('#error').text(error.message);
           else if (error.code === 404)
             $('#error').text("The game doesn't exist");
+          else if (error.code === 429)
+            $('#error').text("Loading games too quickly");
 
           $('#join').hide();
           $('#error').show();
