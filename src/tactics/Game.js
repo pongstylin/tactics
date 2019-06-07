@@ -824,7 +824,7 @@ export default class {
     let trophy_url = unitDataMap.get('Champion').frames_url;
     resources.push(trophy_url);
 
-    $.getJSON(trophy_url).then(renderData => {
+    tacticsUtils.getWebResourceJSON(trophy_url).then(renderData => {
       Object.assign(unitDataMap.get('Champion'), renderData);
       progress();
     });

@@ -37,6 +37,7 @@
     "howler": "^2.1.1",
     "impetus": "^0.8.8",
     "jsonwebtoken": "^8.5.1",
+    "morgan": "^1.9.1",
     "pixi.js": "^4.8.2",
     "socket.io-client": "^2.2.0",
     "string-pixel-width": "^1.9.0",

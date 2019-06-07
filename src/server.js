@@ -1,6 +1,7 @@
 import uuid from 'uuid/v4';
 import http from 'http';
 import express from 'express';
+import morgan from 'morgan';
 import ws from 'ws';
 
 /*
@@ -21,6 +22,22 @@ const app    = express();
 const server = http.createServer(app);
 const wss    = new ws.Server({server});
 
+let requestId = 1;
+app.use((req, res, next) => {
+  req.id = requestId++;
+  next();
+});
+
+morgan.token('id', req => req.id);
+
+app.use(morgan(':date[iso] express [:id] request-in: ip=:remote-addr; ":method :url HTTP/:http-version"; agent=":user-agent"', {
+  immediate: true,
+}));
+
+app.use(morgan(':date[iso] express [:id] response-out: status=:status; delay=:response-time ms', {
+  immediate: false,
+}));
+
 app.use(express.static('static'));
 
 server.listen(PORT, () => {
@@ -35,5 +52,5 @@ server.listen(PORT, () => {
  * Clustering should be used in production environments.
  */
 process.on('uncaughtException', error => {
-  console.log('uncaught exception:', error);
+  console.log(new Date().toISOString() + ' uncaught exception:', error);
 });

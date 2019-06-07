@@ -30,14 +30,18 @@ export default class GameState {
     let actions = stateData.actions || [];
     delete stateData.actions;
 
-    Object.assign(this, stateData, {
-      winnerId: null,
-
-      _bots:    [],
-      _turns:   turns,
-      _board:   board,
-      _emitter: new EventEmitter(),
-    });
+    Object.assign(this,
+      {
+        winnerId: null,
+      },
+      stateData,
+      {
+        _bots:    [],
+        _turns:   turns,
+        _board:   board,
+        _emitter: new EventEmitter(),
+      }
+    );
 
     board.setState(this.units, this.teams);
 

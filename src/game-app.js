@@ -128,7 +128,7 @@ Tactics.App = (function ($, window, document) {
           });
         })
         .on('mouseover','#app BUTTON:enabled', event => {
-          var $button = $(event.target);
+          let $button = $(event.target);
 
           // Ignore disabled buttons
           if (window.getComputedStyle(event.target).cursor !== 'pointer')
@@ -137,8 +137,9 @@ Tactics.App = (function ($, window, document) {
           Tactics.sounds.focus.play();
         })
         .on('click','#app BUTTON:enabled', event => {
-          var $button = $(event.target);
-          var handler = $button.data('handler') || buttons[$button.attr('name')];
+          let $button = $(event.target);
+          let handler = $button.data('handler') || buttons[$button.attr('name')];
+          if (!handler) return;
 
           // Ignore disabled buttons
           if (window.getComputedStyle(event.target).cursor !== 'pointer')
@@ -172,10 +173,12 @@ Tactics.App = (function ($, window, document) {
         .catch(error => {
           console.error(error);
 
-          if (error.code === 403)
+          if (error.code === 403 || error.code === 409)
             $('#error').text(error.message);
           else if (error.code === 404)
             $('#error').text("The game doesn't exist");
+          else if (error.code === 429)
+            $('#error').text("Loading games too quickly");
 
           $('#join').hide();
           $('#error').show();
@@ -190,7 +193,7 @@ Tactics.App = (function ($, window, document) {
     });
 
   function initGame() {
-    let gameId = location.search.slice(1);
+    let gameId = location.search.slice(1).replace(/&.+$/, '');
 
     return Tactics.getRemoteGameData(gameId)
       .then(gameData => {
@@ -261,7 +264,7 @@ Tactics.App = (function ($, window, document) {
           }
         });
       })
-      .then(() => Tactics.loadRemoteGame(gameId));
+      .then(gameData => Tactics.loadRemoteGame(gameId, gameData));
   }
 
   function resetPlayerBanners() {

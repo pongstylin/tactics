@@ -119,7 +119,7 @@ class GameService extends Service {
     this._emit({
       type: 'closeGroup',
       body: {
-        group: groupPath,
+        group: `/games/${gameId}`,
       },
     });
 
@@ -381,6 +381,8 @@ class GameService extends Service {
   onJoinGameRequest(client, gameId, {set, slot} = {}) {
     let clientPara = this.clientPara.get(client.id);
     let game = this._getGame(gameId);
+    if (game.state.started)
+      throw new ServerError(409, 'The game has already started.');
 
     let team = {
       playerId: clientPara.playerId,

@@ -42,7 +42,8 @@ export default class AuthClient {
         .on('reset', event => {
           this.whenAuthorized = new Promise(resolve => this._nowAuthorized = resolve);
 
-          this._refreshToken();
+          if (this.token)
+            this._refreshToken();
         })
     );
   }
