@@ -1360,7 +1360,7 @@ export default class {
       board.setState(turnData.units, teams);
       this.render();
 
-      return replayActions(turnData.actions);
+      return Promise.wait(1000).then(() => replayActions(turnData.actions));
     });
   }
   _startTurn(teamId) {
