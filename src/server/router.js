@@ -36,7 +36,7 @@ let schema = {
             type: { type:'string' },
             data: { },
           },
-          required: ['service','group','type','data'],
+          required: ['service','group','type'],
           additionalProperties: false,
         },
         ack: { type:'number', minimum:0 },
@@ -331,11 +331,13 @@ function sendError(client, error, source) {
     error = new ServerError(500, 'Internal Server Error');
   }
 
-  if (source)
+  if (source) {
+    error.source = error.source || {};
+    error.source.type = source.type;
+
     if (source.id)
-      error.source = { id:source.id, type:source.type };
-    else
-      error.source = { type:source.type };
+      error.source.id = source.id;
+  }
 
   send(client, {
     type: 'error',
@@ -609,7 +611,11 @@ function onRequestMessage(client, message) {
   if (!service)
     throw new ServerError(404, 'No such service');
   if (!(method in service))
-    throw new ServerError(404, 'No such request method');
+    throw new ServerError({
+      code: 404,
+      message: 'No such request method',
+      source: { method:body.method },
+    });
 
   try {
     service.will(client, message.type, body.method);

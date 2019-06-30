@@ -301,6 +301,14 @@ class GameService extends Service {
           type: 'endGame',
           data: { winnerId:game.state.winnerId },
         });
+
+      // Make sure the client is aware of the last undo request.
+      if (game.undoRequest)
+        response.undoRequest = Object.assign({}, game.undoRequest, {
+          accepts: [...game.undoRequest.accepts],
+        });
+      else
+        response.undoRequest = null;
     }
     else {
       let gameData = game.toJSON();
@@ -413,18 +421,24 @@ class GameService extends Service {
   onActionEvent(client, groupPath, action) {
     let gameId = groupPath.replace(/^\/games\//, '');
     let gamePara = this.gamePara.get(gameId);
-    if (!gamePara || gamePara.undoRequest) return;
+    if (!gamePara)
+      throw new ServerError(403, 'You have not joined the game group');
 
     let playerId = this.clientPara.get(client.id).playerId;
-    let game = gamePara.game;
 
-    if (!Array.isArray(action))
-      action = [action];
+    let game = gamePara.game;
+    let undoRequest = game.undoRequest || {};
+    if (undoRequest.status === 'pending')
+      throw new ServerError(409, 'An undo request is still pending');
 
     let myTeams = game.state.teams.filter(t => t.playerId === playerId);
     if (myTeams.length === 0)
       throw new ServerError(401, 'You are not a player in this game.');
-    else if (action[0].type === 'surrender')
+
+    if (!Array.isArray(action))
+      action = [action];
+
+    if (action[0].type === 'surrender')
       if (myTeams.length === game.state.teams.length)
         action[0].teamId = game.state.currentTeamId;
       else
@@ -435,83 +449,166 @@ class GameService extends Service {
       throw new ServerError(401, 'Not your turn!');
 
     game.state.postAction(action);
+    // Clear a rejected undo request after an action is performed.
+    game.undoRequest = null;
+
+    dataAdapter.saveGame(game);
   }
-  // Undo mechanic is not yet complete.  The following code is incomplete.
-  /*
-  onUndoEvent(client, gamePath) {
+  onUndoEvent(client, groupPath) {
     let gameId = groupPath.replace(/^\/games\//, '');
-    let game = this._getGame(gameId);
-    if (game.undoRequest) return;
+    let gamePara = this.gamePara.get(gameId);
+    if (!gamePara)
+      throw new ServerError(403, 'You have not joined the game group');
 
-    let clientPara = this.clientPara.get(client.id);
+    let game = gamePara.game;
+    let playerId = this.clientPara.get(client.id).playerId;
 
-    // TODO: Conditionally request an undo depending on luck.
-    if (false) {
+    // Determine the team that is requesting the undo.
+    let team = game.state.currentTeam;
+    while (team.playerId !== playerId) {
+      let prevTeamId = (team.id === 0 ? game.state.teams.length : team.id) - 1;
+      team = game.state.teams[prevTeamId];
+    }
+
+    let undoRequest = game.undoRequest;
+    if (undoRequest) {
+      if (undoRequest.status === 'pending')
+        throw new ServerError(409, 'An undo request is still pending');
+      else if (undoRequest.status === 'rejected')
+        if (undoRequest.teamId === team.id)
+          throw new ServerError(403, 'Your undo request was rejected');
+    }
+
+    // In case a player controls multiple teams...
+    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
+    if (myTeams.length === 0)
+      throw new ServerError(401, 'You are not a player in this game.');
+
+    let canUndo = game.state.canUndo(team);
+    if (canUndo === false)
+      // The undo is rejected.
+      throw new ServerError(403, 'You can not undo right now');
+    else if (canUndo === true)
+      // The undo is auto-approved.
+      game.state.undo(team);
+    else {
+      // The undo request requires approval from the other player(s).
       game.undoRequest = {
-        playerId: clientPara.playerId,
-        accepts: new Set([clientPara.playerId]),
+        status: 'pending',
+        teamId: team.id,
+        accepts: new Set(myTeams.map(t => t.id)),
       };
-      dataAdapter.saveGame(game);
 
+      // The request is sent to all players.  The initiator may cancel.
       this._emit({
         type: 'event',
         body: {
           group: groupPath,
-          data: {
-            type: 'undoRequest',
-            requestedBy: {
-              id:   clientPara.playerId,
-              name: clientPara.name,
-            },
-          },
+          type:  'undoRequest',
+          data:  Object.assign({}, game.undoRequest, {
+            accepts: [...game.undoRequest.accepts],
+          }),
         },
       });
     }
-    else
-      // TODO: Determine how much to undo since the undo request may be made by
-      // either the current turn's player or a previous turn's player.
-      game.state.undo();
+
+    dataAdapter.saveGame(game);
   }
-  onUndoRejectEvent(client, gamePath) {
+  onUndoAcceptEvent(client, groupPath) {
     let gameId = groupPath.replace(/^\/games\//, '');
     let game = this._getGame(gameId);
-    if (!game.undoRequest) return;
+    let undoRequest = game.undoRequest;
+    if (!undoRequest)
+      throw new ServerError(400, 'No undo request');
+    else if (undoRequest.status !== 'pending')
+      throw new ServerError(400, 'Undo request is not pending');
 
-    delete game.undoRequest;
-    dataAdapter.saveGame(game);
+    let playerId = this.clientPara.get(client.id).playerId;
+    let teams = game.state.teams;
+    let myTeams = teams.filter(t => t.playerId === playerId);
+
+    myTeams.forEach(t => undoRequest.accepts.add(t.id));
 
     this._emit({
       type: 'event',
       body: {
         group: groupPath,
+        type:  'undoAccept',
         data: {
-          type: 'undoReject',
-          rejectedBy: {
-            id:   clientPara.playerId,
-            name: clientPara.name,
-          },
+          playerId: playerId,
         },
       },
     });
-  }
-  onUndoAcceptEvent(client, gamePath) {
-    let gameId = groupPath.replace(/^\/games\//, '');
-    let game = this._getGame(gameId);
-    if (!game.undoRequest) return;
 
-    let clientPara = this.clientPara.get(client.id);
+    if (undoRequest.accepts.size === teams.length) {
+      undoRequest.status = 'completed';
 
-    game.undoRequest.accepts.add(clientPara.playerId);
+      this._emit({
+        type: 'event',
+        body: {
+          group: groupPath,
+          type:  'undoComplete',
+        },
+      });
 
-    if (game.undoRequest.accepts.size === game.state.teams.length) {
-      delete game.undoRequest;
-
-      game.state.undo();
+      game.state.undo(teams[undoRequest.teamId], true);
     }
 
     dataAdapter.saveGame(game);
   }
-  */
+  onUndoRejectEvent(client, groupPath) {
+    let gameId = groupPath.replace(/^\/games\//, '');
+    let game = this._getGame(gameId);
+    let undoRequest = game.undoRequest;
+    if (!undoRequest)
+      throw new ServerError(400, 'No undo request');
+    else if (undoRequest.status !== 'pending')
+      throw new ServerError(400, 'Undo request is not pending');
+
+    let playerId = this.clientPara.get(client.id).playerId;
+
+    this._emit({
+      type: 'event',
+      body: {
+        group: groupPath,
+        type:  'undoReject',
+        data: {
+          playerId: playerId,
+        },
+      },
+    });
+
+    undoRequest.status = 'rejected';
+    undoRequest.rejectedBy = playerId;
+
+    dataAdapter.saveGame(game);
+  }
+  onUndoCancelEvent(client, groupPath) {
+    let gameId = groupPath.replace(/^\/games\//, '');
+    let game = this._getGame(gameId);
+    let undoRequest = game.undoRequest;
+    if (!undoRequest)
+      throw new ServerError(400, 'No undo request');
+    else if (undoRequest.status !== 'pending')
+      throw new ServerError(400, 'Undo request is not pending');
+
+    let playerId = this.clientPara.get(client.id).playerId;
+    let requestorId = game.state.teams[undoRequest.teamId].playerId;
+    if (playerId !== requestorId)
+      throw new ServerError(403, 'Only requesting player may cancel undo');
+
+    this._emit({
+      type: 'event',
+      body: {
+        group: groupPath,
+        type:  'undoCancel',
+      },
+    });
+
+    undoRequest.status = 'cancelled';
+
+    dataAdapter.saveGame(game);
+  }
 
   /*******************************************************************************
    * Helpers
