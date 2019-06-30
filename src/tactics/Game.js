@@ -1027,17 +1027,41 @@ export default class {
     return this;
   }
   _revert(turnData) {
+    let board = this._board;
+
     this.selected = this.viewed = null;
 
     this._lastTurnActions = turnData.lastActions || [];
-    this._board.setState(turnData.units, this._teams);
+    board.setState(turnData.units, this._teams);
     this.render();
 
     this._startTurn(this.state.currentTeamId);
 
     let actions = this.actions;
-    if (actions.length && this.isMyTurn())
-      this.selected = actions[0].unit;
+    if (actions.length)
+      if (this.isMyTurn())
+        this.selected = actions[0].unit;
+      else {
+        let selected = board.selected = actions[0].unit.activate();
+        this.drawCard();
+
+        // FIXME: Does not highlight the unit's origin tile before moving.
+        board.setHighlight(selected.assignment, { color:FOCUS_TILE_COLOR }, true);
+
+        actions.forEach(action => {
+          if (action.unit !== selected) return;
+
+          if (action.type === 'move')
+            board.setHighlight(action.assignment, { color:MOVE_TILE_COLOR }, true);
+          else if (action.type === 'attack') {
+            let target_tiles = selected.getTargetTiles(action.target);
+
+            target_tiles.forEach(tile => {
+              board.setHighlight(tile, { color:ATTACK_TILE_COLOR }, true);
+            });
+          }
+        });
+      }
 
     this._emit({ type:'revert' });
   }
@@ -1062,51 +1086,45 @@ export default class {
     // The actions array can be empty due to the _replay() method.
     if (actions.length === 0) return Promise.resolve();
 
-    // Just in case an action was submitted by another session/tab/device.
-    this.selected = null;
-
     let board = this._board;
     actions = board.decodeAction(actions);
 
-    let painted = [];
-    let selected;
+    let selected = this.selected;
     let promise = actions.reduce(
       (promise, action) => promise.then(() => {
         // Actions initiated by local players get a short performance.
         if (this.isMyTeam(action.teamId))
           return this._performAction(action);
 
-        if (action.type === 'endTurn' || action.type === 'surrender') {
-          painted.forEach(tile => tile.strip());
+        if (action.type === 'endTurn') {
+          this.selected = selected = null;
+          board.clearHighlight();
 
           return this._performAction(action);
         }
 
-        return new Promise(resolve => {
+        if (!selected) {
           // Show the player the unit that is about to act.
-          if (!selected) {
-            selected = action.unit;
+          board.selected = selected = action.unit;
+          selected.activate();
+          board.setHighlight(selected.assignment, { color:FOCUS_TILE_COLOR }, true);
+          this.drawCard();
+        }
 
-            painted.push(
-              selected.assignment.paint('focus', 0.3, FOCUS_TILE_COLOR)
-            );
-          }
-
+        return new Promise(resolve => {
           let actionType = action.type;
 
           if (actionType === 'move') {
             // Show the player where the unit will move.
-            painted.push(
-              action.assignment.paint('move', 0.3, MOVE_TILE_COLOR)
-            );
-
-            selected.activate();
-            this.drawCard(selected);
+            board.setHighlight(action.assignment, { color:MOVE_TILE_COLOR }, true);
 
             // Wait 2 seconds then move.
             setTimeout(() => {
               selected.deactivate();
-              this._performAction(action).then(resolve);
+              this._performAction(action).then(() => {
+                selected.activate();
+                resolve();
+              });
             }, 2000);
           }
           else if (actionType === 'attack') {
@@ -1119,7 +1137,7 @@ export default class {
             let target_units = attacker.getTargetUnits(target);
 
             target_tiles.forEach(tile => {
-              painted.push(tile.paint('attack', 0.3, ATTACK_TILE_COLOR));
+              board.setHighlight(tile, { color:ATTACK_TILE_COLOR }, true);
             });
 
             if (target_units.length) {
@@ -1133,7 +1151,11 @@ export default class {
                 this.drawCard(attacker);
             }
 
-            attacker.activate();
+            // Only possible for counter-attacks
+            if (selected !== attacker) {
+              selected.deactivate();
+              attacker.activate();
+            }
 
             // Wait 2 seconds then attack.
             setTimeout(() => {
@@ -1143,18 +1165,21 @@ export default class {
               });
 
               attacker.deactivate();
-              this._performAction(action).then(resolve);
+              this._performAction(action).then(() => {
+                selected.activate();
+                resolve();
+              });
             }, 2000);
           }
           else if (actionType === 'turn') {
             // Show the direction the unit turned for 2 seconds.
+            selected.deactivate();
             this._performAction(action).then(() => {
               board.showDirection(selected);
               selected.activate();
             });
 
             setTimeout(() => {
-              selected.deactivate();
               board.hideTurnOptions();
               resolve();
             }, 2000);
@@ -1200,10 +1225,6 @@ export default class {
       }),
       Promise.resolve(),
     );
-
-    promise.then(() => {
-      painted.forEach(tile => tile.strip());
-    });
 
     // Change a readonly lock to a full lock
     this.lock();
