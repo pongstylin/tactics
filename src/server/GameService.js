@@ -283,32 +283,44 @@ class GameService extends Service {
       playerStatus: this.onGetPlayerStatusRequest(client, game),
     };
 
+    // Parameters are used to resume a game from a given point.
     if (params) {
+      response.events = [];
+      response.undoRequest = null;
+
       // Get any additional actions made in the provided turn.
       let actions = game.state.getTurnActions(params.turnId)
         .slice(params.actions);
 
-      // Get actions made in any subsequent turn.
-      for (let i = params.turnId; i < game.state.currentTurnId; i++) {
-        actions.push(...game.state.getTurnActions(i));
-      }
-
-      response.events = [];
       if (actions.length)
         response.events.push({ type:'action', data:actions });
+
+      // Get actions made in any subsequent turns.
+      for (let i = params.turnId+1; i <= game.state.currentTurnId; i++) {
+        response.events.push({
+          type: 'startTurn',
+          data: {
+            turnId: i,
+            teamId: i % game.state.teams.length,
+          },
+        });
+
+        actions = game.state.getTurnActions(i);
+
+        if (actions.length)
+          response.events.push({ type:'action', data:actions });
+      }
+
       if (game.state.ended)
         response.events.push({
           type: 'endGame',
           data: { winnerId:game.state.winnerId },
         });
-
-      // Make sure the client is aware of the last undo request.
-      if (game.undoRequest)
+      else if (game.undoRequest)
+        // Make sure the client is aware of the last undo request.
         response.undoRequest = Object.assign({}, game.undoRequest, {
           accepts: [...game.undoRequest.accepts],
         });
-      else
-        response.undoRequest = null;
     }
     else {
       let gameData = game.toJSON();
