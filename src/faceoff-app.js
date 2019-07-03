@@ -10,7 +10,8 @@ Tactics.App = (function ($, window, document) {
     {assignment:[5, 2], type:'Knight'},
     {assignment:[6, 2], type:'Knight'},
   ];
-  var gameData = {
+  var gameData = { data: {} };
+  gameData.data = {
     teams: [
       {
         name: 'Bot',

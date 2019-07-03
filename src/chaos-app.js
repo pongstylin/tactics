@@ -11,7 +11,7 @@ Tactics.App = (function ($, window, document) {
     {assignment:[6, 1], type:'Knight'},
   ];
   var gameData = {
-    type: 'Chaos',
+    type: 'chaos',
     teams: [
       {
         colorId: 'Blue',

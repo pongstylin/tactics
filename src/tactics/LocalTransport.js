@@ -27,14 +27,14 @@ export default class LocalTransport {
    */
   static createGame(gameData) {
     let transport = new LocalTransport();
-    transport._post({ type:'create', data:gameData });
+    transport._post({ type:'create', data:gameData.data });
 
     return transport;
   }
 
   static loadGame(gameData) {
     let transport = new LocalTransport();
-    transport._post({ type:'load', data:gameData });
+    transport._post({ type:'load', data:gameData.data });
 
     return transport;
   }
@@ -67,26 +67,26 @@ export default class LocalTransport {
    * These are cached and kept in sync for arbitrary access.
    */
   get type() {
-    return this._getData('type');
+    return this._getStateData('type');
   }
   get teams() {
-    return this._getData('teams');
+    return this._getStateData('teams');
   }
   get currentTurnId() {
-    return this._getData('currentTurnId');
+    return this._getStateData('currentTurnId');
   }
   get currentTeamId() {
-    return this._getData('currentTeamId');
+    return this._getStateData('currentTeamId');
   }
   get actions() {
-    return this._getData('actions');
+    return this._getStateData('actions');
   }
 
   get started() {
-    return this._getData('started');
+    return this._getStateData('started');
   }
   get ended() {
-    return this._getData('ended');
+    return this._getStateData('ended');
   }
 
   /*
@@ -148,28 +148,29 @@ export default class LocalTransport {
    * Other Private Methods
    */
   _startSync(gameData) {
-    this._data = gameData;
+    this._data = {};
+    this._data.state = gameData;
 
     if (!gameData.ended)
       this
-        .on('startGame', ({data}) => {
-          this._data = data;
+        .on('startGame', ({data:stateData}) => {
+          this._data.state = stateData;
         })
-        .on('startTurn', ({turnId, teamId}) => {
-          Object.assign(this._data, {
-            currentTurnId: turnId,
-            currentTeamId: teamId,
+        .on('startTurn', ({ data }) => {
+          Object.assign(this._data.state, {
+            currentTurnId: data.turnId,
+            currentTeamId: data.teamId,
             actions:       [],
           });
         })
-        .on('action', ({actions}) => {
-          this._data.actions.push(...actions);
+        .on('action', ({data:actions}) => {
+          this._data.state.actions.push(...actions);
         })
-        .on('reset', ({turnId, teamId, actions}) => {
-          Object.assign(this._data, {
-            currentTurnId: turnId,
-            currentTeamId: teamId,
-            actions:       actions,
+        .on('reset', ({data}) => {
+          Object.assign(this._data.state, {
+            currentTurnId: data.turnId,
+            currentTeamId: data.teamId,
+            actions:       data.actions,
           });
         });
 
@@ -187,6 +188,19 @@ export default class LocalTransport {
     };
 
     return clone(this._data[name]);
+  }
+
+  _getStateData(name) {
+    if (!this._data)
+      throw new Error('Not ready');
+
+    let clone = value => {
+      if (typeof value === 'object' && value !== null)
+        return Array.isArray(value) ? [...value] : {...value};
+      return value;
+    };
+
+    return clone(this._data.state[name]);
   }
 
   _onMessage(message) {

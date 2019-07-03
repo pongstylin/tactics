@@ -65,7 +65,7 @@ window.Tactics = (function () {
     },
     createLocalGame: function (stateData) {
       let transport = LocalTransport.createGame(stateData);
-      let localTeamIds = stateData.teams
+      let localTeamIds = stateData.data.teams
         .filter(team => !team.bot)
         .map((team, i) => i);
 
