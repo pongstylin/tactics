@@ -20,7 +20,8 @@ Tactics.App = (function ($, window, document) {
     {assignment:[6, 2], type:'Knight'},
     {assignment:[9, 2], type:'Scout'},
   ];
-  var gameData = {
+  var gameData = { data: {} };
+  gameData.data = {
     teams: [
       {
         colorId: 'Blue',
