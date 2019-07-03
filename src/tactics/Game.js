@@ -64,10 +64,12 @@ export default class {
       pointerType: 'ontouchstart' in window ? 'touch' : 'mouse',
 
       state:            state,
+      undoAccepts:      new Set(),
       _stateEventStack: null,
 
       _teams: [],
       _localTeamIds: localTeamIds,
+      _lastTurnActions: [],
 
       _renderer: renderer,
       _rendering: false,
@@ -337,7 +339,7 @@ export default class {
     return this._localTeamIds.includes(team.originalId);
   }
   hasOneLocalTeam(team) {
-    if (team && !this.isMyTeam(team)) return false;
+    if (team !== undefined && !this.isMyTeam(team)) return false;
 
     return this._localTeamIds.length === 1;
   }
@@ -386,7 +388,11 @@ export default class {
           .on('startTurn', this._onStateEventListener)
           .on('action', this._onStateEventListener)
           .on('revert', this._onStateEventListener)
-          .on('undo', this._onStateEventListener)
+          .on('undoRequest', this._onStateEventListener)
+          .on('undoAccept', this._onStateEventListener)
+          .on('undoReject', this._onStateEventListener)
+          .on('undoCancel', this._onStateEventListener)
+          .on('undoComplete', this._onStateEventListener)
           .on('endGame', this._onStateEventListener);
 
         if (state.ended) {
@@ -418,7 +424,15 @@ export default class {
         }
         else
           this._stateEventStack = this._replay()
-            .then(() => this._startTurn(this.state.currentTeamId));
+            .then(() => this._startTurn(state.currentTeamId))
+            .then(() => {
+              let undoRequest = state.undoRequest;
+              if (undoRequest && undoRequest.status === 'pending')
+                this._emit({
+                  type: 'undoRequest',
+                  data: state.undoRequest,
+                });
+            });
 
         resolve();
       }, 100); // A "zero" delay is sometimes not long enough
@@ -441,7 +455,11 @@ export default class {
         .off('startTurn', this._onStateEventListener)
         .off('action', this._onStateEventListener)
         .off('revert', this._onStateEventListener)
-        .off('undo', this._onStateEventListener)
+        .off('undoRequest', this._onStateEventListener)
+        .off('undoAccept', this._onStateEventListener)
+        .off('undoReject', this._onStateEventListener)
+        .off('undoCancel', this._onStateEventListener)
+        .off('undoComplete', this._onStateEventListener)
         .off('endGame', this._onStateEventListener)
 
     this._board.rotation = 'N';
@@ -659,38 +677,94 @@ export default class {
     this._postAction({ type:'surrender' });
   }
 
+  /*
+   * Determine if provided team may request an undo.
+   * Also indicate if approval should be required of opponents.
+   */
   canUndo() {
     let state   = this.state;
-    let actions = this.actions;
+    let actions = state.actions;
 
-    // Bots only allow luckless undo.
-    if (this.isBotGame) {
-      if (this.isMyTurn()) {
-        if (actions.length === 0) return false;
-
-        let unitId = actions[0].unit;
-        let lastLuckyActionIndex = actions.findLastIndex(action =>
-          // Counter-attacks can't be undone.
-          action.unit !== unitId ||
-          // Luck-involved attacks can't be undone.
-          action.results && !!action.results.find(result => 'luck' in result)
-        );
-
-        return lastLuckyActionIndex < (actions.length - 1);
-      }
-
+    // Can't undo if there are no actions or turns to undo.
+    if (state.currentTurnId === 0 && actions.length === 0)
       return false;
+
+    if (this.isViewOnly)
+      return false;
+
+    // Determine the team that is requesting the undo.
+    let teams  = this.teams;
+    let myTeam = this.currentTeam;
+    while (!this.isMyTeam(myTeam)) {
+      let prevTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
+      myTeam = teams[prevTeamId];
     }
 
-    // Players may undo at any time, assuming there is something to undo.
-    // Note that the opponent will need to approve the undo request.
-    return !!actions.length || !!state.currentTurnId;
+    // Local games don't impose restrictions.
+    let bot      = teams.find(t => !!t.bot);
+    let opponent = teams.find(t => t.playerId !== myTeam.playerId);
+    if (!bot && !opponent)
+      return true;
+
+    let approve = bot ? false : true;
+
+    let undoRequest = state.undoRequest;
+    if (undoRequest)
+      if (undoRequest.status === 'rejected')
+        if (undoRequest.teamId === myTeam.id)
+          approve = false;
+
+    // If actions were made since the team's turn, approval is required.
+    if (myTeam !== this.currentTeam) {
+      let turnOffset = (-teams.length + (myTeam.id - this.currentTeam.id)) % teams.length;
+
+      // Can't undo if the team hasn't made a turn yet.
+      let turnId = state.currentTurnId + turnOffset;
+      if (turnId < 0)
+        return false;
+
+      // Need approval if multiple turns would be undone (for 4-player games)
+      if (turnOffset < -1)
+        return approve;
+
+      // Need approval if the current team has already submitted actions.
+      if (actions.length)
+        return approve;
+
+      // These actions will be inspected to determine if approval is required.
+      actions = this._lastTurnActions.filter(a => a.type !== 'endTurn');
+    }
+
+    // Can't undo unless there are actions to undo.
+    // Can't undo if the turn was passed (or forced to pass).
+    if (actions.length === 0)
+      return false;
+
+    let lastAction = actions[actions.length - 1];
+
+    // Requires approval if the last action was a counter-attack
+    let selectedUnitId = actions[0].unit;
+    if (selectedUnitId !== lastAction.unit)
+      return approve;
+
+    // Requires approval if the last action required luck
+    let isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
+    if (isLucky)
+      return approve;
+
+    return true;
   }
   undo() {
-    this.selected = null;
-
-    this.lock();
     this.state.undo();
+  }
+  acceptUndo() {
+    this.state.acceptUndo();
+  }
+  rejectUndo() {
+    this.state.rejectUndo();
+  }
+  cancelUndo() {
+    this.state.cancelUndo();
   }
 
   rotateBoard(rotation) {
@@ -953,16 +1027,43 @@ export default class {
     return this;
   }
   _revert(turnData) {
+    let board = this._board;
+
     this.selected = this.viewed = null;
 
-    this._board.setState(turnData.units, this._teams);
+    this._lastTurnActions = turnData.lastActions || [];
+    board.setState(turnData.units, this._teams);
     this.render();
 
     this._startTurn(this.state.currentTeamId);
 
     let actions = this.actions;
     if (actions.length)
-      this.selected = actions[0].unit;
+      if (this.isMyTurn())
+        this.selected = actions[0].unit;
+      else {
+        let selected = board.selected = actions[0].unit.activate();
+        this.drawCard();
+
+        // FIXME: Does not highlight the unit's origin tile before moving.
+        board.setHighlight(selected.assignment, { color:FOCUS_TILE_COLOR }, true);
+
+        actions.forEach(action => {
+          if (action.unit !== selected) return;
+
+          if (action.type === 'move')
+            board.setHighlight(action.assignment, { color:MOVE_TILE_COLOR }, true);
+          else if (action.type === 'attack') {
+            let target_tiles = selected.getTargetTiles(action.target);
+
+            target_tiles.forEach(tile => {
+              board.setHighlight(tile, { color:ATTACK_TILE_COLOR }, true);
+            });
+          }
+        });
+      }
+
+    this._emit({ type:'revert' });
   }
 
   /*
@@ -985,51 +1086,45 @@ export default class {
     // The actions array can be empty due to the _replay() method.
     if (actions.length === 0) return Promise.resolve();
 
-    // Just in case an action was submitted by another session/tab/device.
-    this.selected = null;
-
     let board = this._board;
     actions = board.decodeAction(actions);
 
-    let painted = [];
-    let selected;
+    let selected = this.selected;
     let promise = actions.reduce(
       (promise, action) => promise.then(() => {
         // Actions initiated by local players get a short performance.
         if (this.isMyTeam(action.teamId))
           return this._performAction(action);
 
-        if (action.type === 'endTurn' || action.type === 'surrender') {
-          painted.forEach(tile => tile.strip());
+        if (action.type === 'endTurn') {
+          this.selected = selected = null;
+          board.clearHighlight();
 
           return this._performAction(action);
         }
 
-        return new Promise(resolve => {
+        if (!selected) {
           // Show the player the unit that is about to act.
-          if (!selected) {
-            selected = action.unit;
+          board.selected = selected = action.unit;
+          selected.activate();
+          board.setHighlight(selected.assignment, { color:FOCUS_TILE_COLOR }, true);
+          this.drawCard();
+        }
 
-            painted.push(
-              selected.assignment.paint('focus', 0.3, FOCUS_TILE_COLOR)
-            );
-          }
-
+        return new Promise(resolve => {
           let actionType = action.type;
 
           if (actionType === 'move') {
             // Show the player where the unit will move.
-            painted.push(
-              action.assignment.paint('move', 0.3, MOVE_TILE_COLOR)
-            );
-
-            selected.activate();
-            this.drawCard(selected);
+            board.setHighlight(action.assignment, { color:MOVE_TILE_COLOR }, true);
 
             // Wait 2 seconds then move.
             setTimeout(() => {
               selected.deactivate();
-              this._performAction(action).then(resolve);
+              this._performAction(action).then(() => {
+                selected.activate();
+                resolve();
+              });
             }, 2000);
           }
           else if (actionType === 'attack') {
@@ -1042,7 +1137,7 @@ export default class {
             let target_units = attacker.getTargetUnits(target);
 
             target_tiles.forEach(tile => {
-              painted.push(tile.paint('attack', 0.3, ATTACK_TILE_COLOR));
+              board.setHighlight(tile, { color:ATTACK_TILE_COLOR }, true);
             });
 
             if (target_units.length) {
@@ -1056,7 +1151,11 @@ export default class {
                 this.drawCard(attacker);
             }
 
-            attacker.activate();
+            // Only possible for counter-attacks
+            if (selected !== attacker) {
+              selected.deactivate();
+              attacker.activate();
+            }
 
             // Wait 2 seconds then attack.
             setTimeout(() => {
@@ -1066,18 +1165,21 @@ export default class {
               });
 
               attacker.deactivate();
-              this._performAction(action).then(resolve);
+              this._performAction(action).then(() => {
+                selected.activate();
+                resolve();
+              });
             }, 2000);
           }
           else if (actionType === 'turn') {
             // Show the direction the unit turned for 2 seconds.
+            selected.deactivate();
             this._performAction(action).then(() => {
               board.showDirection(selected);
               selected.activate();
             });
 
             setTimeout(() => {
-              selected.deactivate();
               board.hideTurnOptions();
               resolve();
             }, 2000);
@@ -1124,10 +1226,6 @@ export default class {
       Promise.resolve(),
     );
 
-    promise.then(() => {
-      painted.forEach(tile => tile.strip());
-    });
-
     // Change a readonly lock to a full lock
     this.lock();
 
@@ -1152,6 +1250,9 @@ export default class {
         return this._playSurrender(action);
       return Promise.resolve();
     }
+
+    if (this.isMyTeam(action.teamId))
+      this._lastTurnActions.push(action);
 
     let unit = action.unit;
 
@@ -1374,6 +1475,9 @@ export default class {
       teamMoniker = team.colorId;
 
     if (this.isMyTeam(team)) {
+      // The last turn actions are no longer of interest.
+      this._lastTurnActions.length = 0;
+
       if (this.hasOneLocalTeam()) {
         this.notice = 'Your Turn!';
         Tactics.sounds.newturn.play();
@@ -1530,14 +1634,18 @@ export default class {
       eventHandler = () => this._startTurn(data.teamId);
     else if (type === 'action')
       eventHandler = () => this._performActions(data);
-    /*
     else if (type === 'revert')
       eventHandler = () => this._revert(data);
-    else if (type === 'undo')
-      eventHandler = event => {
-        // TODO: Prompt user to approve undo request.
-      };
-    */
+    else if (type === 'undoRequest')
+      eventHandler = () => this._emit({ type, data });
+    else if (type === 'undoAccept')
+      eventHandler = () => this._emit({ type, data });
+    else if (type === 'undoReject')
+      eventHandler = () => this._emit({ type, data });
+    else if (type === 'undoCancel')
+      eventHandler = () => this._emit({ type, data });
+    else if (type === 'undoComplete')
+      eventHandler = () => this._emit({ type, data });
     else if (type === 'endGame')
       eventHandler = () => this._endGame(data.winnerId);
     else

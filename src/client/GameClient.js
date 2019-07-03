@@ -82,8 +82,17 @@ export default class GameClient {
   getTurnActions() {
     return this._server.request(this.name, 'getTurnActions', [...arguments]);
   }
-  undo() {
-    return this._server.request(this.name, 'undo', [...arguments]);
+  undo(gameId) {
+    return this._server.send(this.name, `/games/${gameId}`, 'undo');
+  }
+  acceptUndo(gameId) {
+    return this._server.send(this.name, `/games/${gameId}`, 'undoAccept');
+  }
+  rejectUndo(gameId) {
+    return this._server.send(this.name, `/games/${gameId}`, 'undoReject');
+  }
+  cancelUndo(gameId) {
+    return this._server.send(this.name, `/games/${gameId}`, 'undoCancel');
   }
   restart() {
     return this._server.request(this.name, 'restart', [...arguments]);

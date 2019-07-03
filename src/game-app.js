@@ -81,21 +81,23 @@ Tactics.App = (function ($, window, document) {
 
   $(window)
     .on('load', function () {
-      $('#overlay').on('click', () => {
-        if ($('#popup').hasClass('error')) return;
-        $('#overlay,#popup').hide();
+      $('#overlay').on('click', event => {
+        let handler = $(event.target).data('handler');
+
+        handler();
       });
 
+      $('#overlay').data('handler', () => {
+        $('#overlay,#popup').hide();
+      });
       $('#popup BUTTON[name=no]').data('handler', () => {
         $('#overlay,#popup').hide();
       });
 
-      if ('ontouchstart' in window) {
+      if ('ontouchstart' in window)
         $('body').addClass(pointer = 'touch');
-      }
-      else {
+      else
         $('body').addClass(pointer = 'mouse');
-      }
 
       $('#loader').css({
         top:($(window).height()/2)-($('#loader').height()/2)+'px',
@@ -159,10 +161,6 @@ Tactics.App = (function ($, window, document) {
           if (game.isViewOnly) {
             $('BUTTON[name=pass]').hide();
             $('BUTTON[name=surrender]').hide();
-            $('BUTTON[name=undo]').hide();
-          }
-          else {
-            // Undo button not yet supported
             $('BUTTON[name=undo]').hide();
           }
 
@@ -394,13 +392,129 @@ Tactics.App = (function ($, window, document) {
             game.start().then(() => {
               resetPlayerBanners();
 
+              $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn());
+              $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+
               $('#splash').hide();
               $('#app').css('visibility','visible');
             });
           })
           .find('.message')
             .text(action+' here to play!')
+      })
+      .on('undoRequest', showUndoDialog)
+      .on('undoAccept', updateUndoDialog)
+      .on('undoReject', updateUndoDialog)
+      .on('undoCancel', updateUndoDialog)
+      .on('undoComplete', hideUndoDialog);
+  }
+
+  function showUndoDialog() {
+    $('#popup').addClass('undo');
+    updateUndoDialog();
+    $('#overlay,#popup').show();
+  }
+
+  function updateUndoDialog() {
+    if (!$('#popup').hasClass('undo')) return;
+
+    let undoRequest = game.state.undoRequest;
+    let teams = game.teams;
+    let myTeam = teams.find(t => game.isMyTeam(t));
+    let requestor = teams[undoRequest.teamId];
+
+    if (game.hasOneLocalTeam(undoRequest.teamId))
+      $('#popup .title').text(`Your Undo Request`);
+    else if (teams.filter(t => t.name === requestor.name).length > 1)
+      $('#popup .title').text(`Undo Request By ${requestor.color}`);
+    else
+      $('#popup .title').text(`Undo Request By ${requestor.name}`);
+
+    if (undoRequest.status !== 'pending') {
+      $('#overlay').data('handler', hideUndoDialog);
+
+      if (undoRequest.status === 'rejected') {
+        let rejector = teams.find(t => t.playerId === undoRequest.rejectedBy);
+
+        $('#popup #message').text(`Request rejected by ${rejector.name}.`);
+      }
+      else if (undoRequest.status === 'cancelled')
+        $('#popup #message').text(`The request was cancelled.`);
+
+      $('#popup BUTTON[name=yes]').hide();
+      $('#popup BUTTON[name=no]')
+        .text('Ok')
+        .data('handler', hideUndoDialog);
+
+      return;
+    }
+
+    $('#overlay').data('handler', () => {});
+
+    if (game.isMyTeam(undoRequest.teamId)) {
+      $('#popup #message').text(`Waiting for approval.`);
+      $('#popup BUTTON[name=yes]').hide();
+      $('#popup BUTTON[name=no]')
+        .text('Cancel')
+        .data('handler', () => {
+          game.cancelUndo();
+          hideUndoDialog();
+        });
+    }
+    else if (undoRequest.accepts.has(myTeam.id)) {
+      $('#popup #message').text(`Approval sent.  Waiting for others.`);
+      $('#popup BUTTON[name=yes]').hide();
+      $('#popup BUTTON[name=no]')
+        .text('Withdraw Approval')
+        .data('handler', () => {
+          game.rejectUndo();
+          hideUndoDialog();
+        });
+    }
+    else {
+      $('#popup #message').text(`Do you approve?`);
+      $('#popup BUTTON[name=yes]')
+        .text('Yes')
+        .data('handler', () => {
+          game.acceptUndo();
+          hideUndoDialog();
+        })
+        .show();
+      $('#popup BUTTON[name=no]')
+        .text('No')
+        .data('handler', () => {
+          game.rejectUndo();
+          hideUndoDialog();
+        });
+    }
+  }
+
+  function hideUndoDialog() {
+    if (!$('#popup').hasClass('undo')) return;
+
+    $('#overlay,#popup').hide();
+    $('#popup').removeClass('undo');
+    $('#popup .title').text('');
+
+    // Restore original state.
+    $('#overlay')
+      .data('handler', () => {
+        $('#overlay,#popup').hide();
       });
+    $('#popup BUTTON[name=yes]')
+      .text('Yes')
+      .data('handler', () => {
+        $('#overlay,#popup').hide();
+      })
+      .show();
+    $('#popup BUTTON[name=no]')
+      .text('No')
+      .data('handler', () => {
+        $('#overlay,#popup').hide();
+      });
+
+    // When a request is rejected, the undo button becomes disabled.
+    $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
   }
 
   return self;

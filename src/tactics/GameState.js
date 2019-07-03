@@ -591,53 +591,139 @@ export default class GameState {
       });
   }
 
-  undo() {
-    let board   = this._board;
+  /*
+   * Determine if provided team may request an undo.
+   * Also indicate if approval should be required of opponents.
+   */
+  canUndo(team = this.currentTeam) {
     let teams   = this.teams;
+    let turns   = this._turns;
     let actions = this.actions; // encoded, on purpose
 
-    if (teams.length === 2 && !teams[0].bot && !teams[1].bot) {
-      // Be very permissive for the classic app
+    // Can't undo if there are no actions or turns to undo.
+    if (turns.length === 0 && actions.length === 0)
+      return false;
+
+    // Local games don't impose restrictions.
+    let bot = teams.find(t => !!t.bot);
+    let opponent = teams.find(t => t.playerId !== team.playerId);
+    if (!bot && !opponent)
+      return true;
+
+    // Bots will never approve anything that requires approval.
+    let approve = bot ? false : 'approve';
+
+    // If actions were made since the team's turn, approval is required.
+    if (team !== this.currentTeam) {
+      let turnOffset = (-teams.length + (team.id - this.currentTeamId)) % teams.length;
+
+      // Can't undo if the team hasn't made a turn yet.
+      let turnId = turns.length + turnOffset;
+      if (turnId < 0)
+        return false;
+
+      // Need approval if multiple turns would be undone (for 4-player games)
+      if (turnOffset < -1)
+        return approve;
+
+      // Need approval if the current team has already submitted actions.
       if (actions.length)
-        this._resetTurn();
+        return approve;
+
+      // These actions will be inspected to determine if approval is required.
+      actions = turns[turnId].actions.filter(a => a.type !== 'endTurn');
+    }
+
+    // Can't undo unless there are actions to undo.
+    // Can't undo if the turn was passed (or forced to pass).
+    if (actions.length === 0)
+      return false;
+
+    let lastAction = actions[actions.length - 1];
+
+    // Requires approval if the last action was a counter-attack
+    let selectedUnitId = actions[0].unit;
+    if (selectedUnitId !== lastAction.unit)
+      return approve;
+
+    // Requires approval if the last action required luck
+    let isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
+    if (isLucky)
+      return approve;
+
+    return true;
+  }
+
+  /*
+   * Initiate an undo action by provided team (defaults to current turn's team)
+   */
+  undo(team = this.currentTeam, approved = false) {
+    let teams   = this.teams;
+    let turns   = this._turns;
+    let actions = this._actions;
+
+    // Can't undo if there are no actions or turns to undo.
+    if (turns.length === 0 && actions.length === 0)
+      return false;
+
+    // Local games don't impose restrictions.
+    let bot      = teams.find(t => !!t.bot);
+    let opponent = teams.find(t => t.playerId !== team.playerId);
+
+    if (!bot && !opponent) {
+      if (actions.length)
+        this.revert(this.currentTurnId);
       else
-        this._popHistory();
+        this.revert(this.currentTurnId - 1);
     }
     else {
-      // Only undo actions that did not involve luck.
-      if (actions.length === 0) return;
+      let turnOffset = (-teams.length + (team.id - this.currentTeamId)) % teams.length;
+      let turnId     = turns.length + turnOffset;
 
-      let unitId = actions[0].unit;
-      let lastLuckyActionIndex = actions.findLastIndex(action =>
-        // Counter-attacks can't be undone.
-        action.unit !== unitId ||
-        // Luck-involved attacks can't be undone.
-        action.results && !!action.results.find(result => 'luck' in result)
-      );
-      if (lastLuckyActionIndex === (actions.length - 1))
-        return;
-
-      // Reset all actions.
-      this._resetTurn();
-
-      // Re-apply actions that required luck.
-      // Decoding is necessary after a _resetTurn().
-      let luckyActions = board.decodeAction(actions.slice(0, lastLuckyActionIndex + 1));
-      if (luckyActions.length)
-        luckyActions.forEach(action => this._applyAction(action));
+      // Keep lucky actions if not approved.
+      this.revert(turnId, !approved);
     }
 
     // Just in case the game ended right before undo was submitted.
     this.ended = null;
     this.winnerId = null;
+  }
+  revert(turnId, keepLuckyActions = false) {
+    let board = this._board;
+    let actions;
+    if (turnId === this.currentTurnId)
+      actions = this._resetTurn();
+    else
+      actions = this._popHistory(turnId).actions.slice(0, -1);
+
+    if (keepLuckyActions) {
+      let selectedUnitId = actions[0].unit;
+      let lastLuckyActionIndex = actions.findLastIndex(action =>
+        // Restore counter-attacks
+        action.unit !== selectedUnitId ||
+        // Restore luck-involved attacks
+        action.results && !!action.results.find(r => 'luck' in r)
+      );
+
+      // Re-apply actions that required luck.
+      let luckyActions = board.decodeAction(actions.slice(0, lastLuckyActionIndex + 1));
+      if (luckyActions.length)
+        luckyActions.forEach(action => this._applyAction(action));
+    }
+
+    let lastActions = null;
+    let turns = this._turns;
+    if (turns.length)
+      lastActions = turns[turns.length-1].actions;
 
     this._emit({
-      type: 'reset',
+      type: 'revert',
       data: {
-        turnId:  this.currentTurnId,
-        teamId:  this.currentTeamId,
-        actions: this.actions,
-        units:   board.getState(),
+        turnId:      this.currentTurnId,
+        teamId:      this.currentTeamId,
+        actions:     this.actions,
+        lastActions: lastActions,
+        units:       board.getState(),
       },
     });
   }
@@ -845,8 +931,13 @@ export default class GameState {
   }
 
   _resetTurn() {
+    // Get and return the (encoded) actions that were reset.
+    let actions = this.actions;
+
     this._board.setState(this.units, this.teams);
     this._actions.length = 0;
+
+    return actions;
   }
   _pushHistory() {
     let board = this._board;
@@ -861,18 +952,30 @@ export default class GameState {
 
     return this;
   }
-  _popHistory() {
+  /*
+   * By default, reverts game state to the beginning of the previous turn.
+   * 'turnId' can be used to revert to any previous turn by ID.
+   */
+  _popHistory(turnId) {
     let turns = this._turns;
     if (turns.length === 0) return;
 
-    let turnData = turns.pop();
+    if (turnId === undefined)
+      turnId = turns.length - 1;
+
+    let turnData = turns[turnId];
+
+    // Truncate the turn history.
+    turns.length = turnId;
 
     Object.assign(this, {
       units:    turnData.units,
       _actions: [],
     });
 
-    return this._board.setState(this.units, this.teams);
+    this._board.setState(this.units, this.teams);
+
+    return turnData;
   }
 
   _emit(event) {

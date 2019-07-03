@@ -1394,6 +1394,7 @@ export default class {
     this.teamsUnits.flat().forEach(unit => this.dropUnit(unit));
     this.teamsUnits = [];
     this.teams = [];
+    this.clearHighlight();
 
     return this;
   }
@@ -1442,7 +1443,7 @@ export default class {
     else if (mode === 'attack' && unit.aAll && this.selected)
       this.hideTargets();
 
-    this._clearHighlight();
+    this.clearHighlight();
     this.hideTurnOptions();
 
     return this;
@@ -1652,7 +1653,7 @@ export default class {
           color:  ATTACK_TILE_COLOR,
         });
       else
-        this._clearHighlight(tile);
+        this.clearHighlight(tile);
     });
 
     this.hideTargets();
@@ -1806,7 +1807,7 @@ export default class {
       else
         focusedTile.set_interactive(true);
   }
-  _clearHighlight(tile) {
+  clearHighlight(tile) {
     let highlighted = this._highlighted;
     let highlights = [];
 

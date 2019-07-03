@@ -56,10 +56,17 @@ export default class RemoteTransport {
 
         // Instead of watching the game from its current point, resume watching
         // the game from the point we lost connection.
-        gameClient.watchGame(gameId, resume).then(({playerStatus, events}) => {
-          this._emit({ type:'playerStatus', data:playerStatus });
+        gameClient.watchGame(gameId, resume).then(data => {
+          this._emit({ type:'playerStatus', data:data.playerStatus });
 
-          events.forEach(e => this._emit(e));
+          data.events.forEach(e => this._emit(e));
+
+          this._data.undoRequest = data.undoRequest;
+          if (data.undoRequest && data.undoRequest.status === 'pending')
+            this._emit({
+              type: 'undoRequest',
+              data: data.undoRequest,
+            });
         });
 
         // Resend specific lost messages
@@ -81,7 +88,11 @@ export default class RemoteTransport {
     }
     else
       gameClient.watchGame(gameId).then(({playerStatus, gameData}) => {
+        // Event caught internally to set this.playerStatus.
         this._emit({ type:'playerStatus', data:playerStatus });
+
+        if (gameData.undoRequest)
+          gameData.undoRequest.accepts = new Set(gameData.undoRequest.accepts);
 
         this._data = gameData;
         this._ready();
@@ -146,6 +157,10 @@ export default class RemoteTransport {
     return this._getStateData('ended');
   }
 
+  get undoRequest() {
+    return this._getData('undoRequest');
+  }
+
   /*
    * Proxy these methods to the game client.
    * Returns a promise that resolves to the method result, if any.
@@ -156,14 +171,23 @@ export default class RemoteTransport {
   getTurnActions() {
     return gameClient.getTurnActions(this._data.id, ...arguments);
   }
-  undo() {
-    return gameClient.undo(this._data.id, ...arguments);
-  }
   restart() {
     return gameClient.restart(this._data.id, ...arguments);
   }
   postAction(action) {
     gameClient.postAction(this._data.id, action);
+  }
+  undo() {
+    gameClient.undo(this._data.id);
+  }
+  acceptUndo() {
+    gameClient.acceptUndo(this._data.id);
+  }
+  rejectUndo() {
+    gameClient.rejectUndo(this._data.id);
+  }
+  cancelUndo() {
+    gameClient.cancelUndo(this._data.id);
   }
 
   /*
@@ -190,6 +214,35 @@ export default class RemoteTransport {
       })
       .on('action', ({ data:actions }) => {
         this._data.state.actions.push(...actions);
+
+        // Clear the undo request to permit a new request.
+        this._data.undoRequest = null;
+      })
+      .on('undoRequest', ({ data }) => {
+        this._data.undoRequest = Object.assign({}, data, {
+          accepts: new Set(data.accepts),
+        });
+      })
+      .on('undoAccept', ({ data }) => {
+        let undoRequest = this._data.undoRequest;
+        let teams = this._data.state.teams;
+
+        teams.forEach(team => {
+          if (team.playerId === data.playerId)
+            undoRequest.accepts.add(team.id);
+        });
+      })
+      .on('undoReject', ({ data }) => {
+        let undoRequest = this._data.undoRequest;
+
+        undoRequest.status = 'rejected';
+        undoRequest.rejectedBy = data.playerId;
+      })
+      .on('undoCancel', () => {
+        this._data.undoRequest.status = 'cancelled';
+      })
+      .on('undoComplete', () => {
+        this._data.undoRequest.status = 'completed';
       })
       .on('revert', ({ data }) => {
         Object.assign(this._data.state, {

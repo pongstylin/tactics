@@ -32,6 +32,10 @@
   <SCRIPT type="text/javascript" src="install.js"></SCRIPT>
 
   <STYLE>
+    #app {
+      font-family: Arial;
+    }
+
     #join {
       display: flex;
       width: 100%;
@@ -51,6 +55,40 @@
     }
     #join .content .buttons {
       text-align: center;
+    }
+
+    #app > #overlay {
+      z-index: 2;
+    }
+    #app > #popup {
+      height: auto;
+      z-index: 3;
+    }
+    #app > #popup .title {
+      background-color: #6f634a;
+      padding: 4px;
+
+      color: #FFEECC;
+      font-weight: bold;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+    #app > #popup .title:empty {
+      display: none;
+    }
+    #app > #popup #message {
+      padding: 12px 8px;
+    }
+    #app > #popup .buttons {
+      position: relative;
+      padding: 12px 8px;
+    }
+    #app > #popup .buttons BUTTON {
+      width: 5em;
+      height: 2em;
+
+      font-size: inherit;
+      font-weight: bold;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     }
 
     #error {
@@ -128,6 +166,7 @@
     </FORM>
     <DIV id="overlay"></DIV>
     <DIV id="popup">
+      <DIV class="title"></DIV>
       <DIV id="message"></DIV>
       <FORM autocomplete="off" id="options" class="buttons">
         <BUTTON type="button" name="yes">Yes</BUTTON>

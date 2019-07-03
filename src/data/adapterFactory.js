@@ -1,10 +1,8 @@
 'use strict';
-/*
- * Ultimately, this factory needs to return the appropriate adapter based on
- * environment settings.
- */
+
 import FileAdapter from 'data/FileAdapter.js';
-import MySqlAdapter from 'data/MySqlAdapter.js';
+// Not yet ready for prime time.
+//import MySqlAdapter from 'data/MySqlAdapter.js';
 
 export default () => {
   let adapterType =  process.env.ADAPTER_TYPE;
