@@ -410,6 +410,9 @@ Tactics.App = (function ($, window, document) {
   }
 
   function showUndoDialog() {
+    if (game.isViewOnly)
+      return;
+
     $('#popup').addClass('undo');
     updateUndoDialog();
     $('#overlay,#popup').show();
