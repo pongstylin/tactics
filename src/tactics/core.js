@@ -6,8 +6,6 @@ import Game from 'tactics/Game.js';
 var authClient = clientFactory('auth');
 var gameClient = clientFactory('game');
 
-authClient.on('token', ({data:token}) => gameClient.authorize(token));
-
 window.Tactics = (function () {
   'use strict';
 
@@ -80,8 +78,8 @@ window.Tactics = (function () {
         if (!authClient.token) return;
 
         return {
-          id: authClient.userId,
-          name: authClient.userName,
+          id: authClient.playerId,
+          name: authClient.playerName,
         };
       });
     },
@@ -94,7 +92,7 @@ window.Tactics = (function () {
 
       return transport.whenReady.then(() => {
         let localTeamIds = transport.teams
-          .filter(team => team.playerId === authClient.userId)
+          .filter(team => team.playerId === authClient.playerId)
           .map(team => team.originalId);
 
         return new Game(transport, localTeamIds);

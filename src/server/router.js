@@ -459,6 +459,10 @@ function deleteSession(session) {
 function onMessage(data) {
   let client = this;
 
+  // Ignore messages sent right as the server starts closing the connection.
+  if (client.closed)
+    return;
+
   // Move the client to the back of the list, keeping idle clients forward.
   client.lastReceivedAt = new Date().getTime();
   inboundClients.delete(client);

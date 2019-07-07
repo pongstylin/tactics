@@ -36,7 +36,9 @@ export default class {
 
   _writeFile(name, data) {
     try {
-      fs.writeFileSync(`${filesDir}/${name}.json`, JSON.stringify(data));
+      // Avoid corrupting files when crashing by writing to a temporary file.
+      fs.writeFileSync(`${filesDir}/.${name}.json`, JSON.stringify(data));
+      fs.renameSync(`${filesDir}/.${name}.json`, `${filesDir}/${name}.json`);
     }
     catch (error) {
       if (error.code === 'ENOENT')

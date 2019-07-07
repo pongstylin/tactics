@@ -6,7 +6,7 @@ window.addEventListener('DOMContentLoaded', () => {
   let gameClient = clientFactory('game');
 
   let greeting = document.querySelector('.greeting');
-  let playerName = document.querySelector('INPUT[name=playerName]');
+  let txtPlayerName = document.querySelector('INPUT[name=playerName]');
   let btnCreate = document.querySelector('BUTTON[name=create]');
   let btnSetup = document.querySelector('BUTTON[name=setup]');
   let divSetup = document.querySelector('.setup');
@@ -15,17 +15,17 @@ window.addEventListener('DOMContentLoaded', () => {
   let divError = document.querySelector('.setup .error');
 
   authClient.whenReady.then(() => {
-    let userName = authClient.userName;
-    if (userName !== null) {
+    let playerName = authClient.playerName;
+    if (playerName !== null) {
       greeting.innerHTML = `
-        Welcome back, ${userName}!  You may change your name here.<BR>
+        Welcome back, ${playerName}!  You may change your name here.<BR>
         Note: This won't change your name on previously created/joined games.
       `;
-      playerName.value = userName;
+      txtPlayerName.value = playerName;
     }
     else {
       greeting.innerHTML = `Welcome!  Choose your game name.`;
-      playerName.value = 'Noob';
+      txtPlayerName.value = 'Noob';
     }
 
     divSetup.style.display = null;
@@ -42,7 +42,7 @@ window.addEventListener('DOMContentLoaded', () => {
     };
     let slot = turnOrder === '2nd' ? 1 : 0;
 
-    authClient.setAccountName(playerName.value)
+    authClient.setAccountName(txtPlayerName.value)
       .then(() => gameClient.authorize(authClient.token))
       .then(() => gameClient.createGame(stateData))
       .then(gameId =>

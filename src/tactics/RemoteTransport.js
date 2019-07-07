@@ -25,20 +25,14 @@ export default class RemoteTransport {
 
         this._emit(body);
       })
-      .on('open', () => {
-        let myPlayerId = authClient.userId;
-
-        this._emit({
-          type: 'playerStatus',
-          data: { playerId:myPlayerId, status:'online' },
-        });
-
-        gameClient.getPlayerStatus(gameId).then(playerStatus =>
-          this._emit({ type:'playerStatus', data:playerStatus })
-        );
+      .on('open', ({ data }) => {
+        if (data.reason === 'reset')
+          this._reset(data.outbox);
+        else
+          this._resume();
       })
       .on('close', () => {
-        let myPlayerId = authClient.userId;
+        let myPlayerId = authClient.playerId;
         let playerStatus = [...this.playerStatus].map(([playerId]) => {
           if (playerId === myPlayerId)
             return { playerId, status:'offline' };
@@ -47,37 +41,6 @@ export default class RemoteTransport {
         });
 
         this._emit({ type:'playerStatus', data:playerStatus });
-      })
-      .on('reset', ({ data:messages }) => {
-        let resume = {
-          turnId: this._data.state.currentTurnId,
-          actions: this._data.state.actions.length,
-        };
-
-        // Instead of watching the game from its current point, resume watching
-        // the game from the point we lost connection.
-        gameClient.watchGame(gameId, resume).then(data => {
-          this._emit({ type:'playerStatus', data:data.playerStatus });
-
-          data.events.forEach(e => this._emit(e));
-
-          this._data.undoRequest = data.undoRequest;
-          if (data.undoRequest && data.undoRequest.status === 'pending')
-            this._emit({
-              type: 'undoRequest',
-              data: data.undoRequest,
-            });
-        });
-
-        // Resend specific lost messages
-        messages.forEach(message => {
-          if (message.type !== 'event') return;
-          let event = message.body;
-          if (event.group !== `/games/${this._data.id}`) return;
-
-          if (event.type === 'action')
-            gameClient.postAction(this._data.id, event.data);
-        });
       });
 
     this._watchForDataChanges();
@@ -193,6 +156,56 @@ export default class RemoteTransport {
   /*
    * Other Private Methods
    */
+  _resume() {
+    let gameId = this._data.id;
+
+    gameClient.whenAuthorized.then(() => {
+      let myPlayerId = authClient.playerId;
+
+      this._emit({
+        type: 'playerStatus',
+        data: { playerId:myPlayerId, status:'online' },
+      });
+
+      gameClient.getPlayerStatus(gameId).then(playerStatus =>
+        this._emit({ type:'playerStatus', data:playerStatus })
+      );
+    });
+  }
+  _reset(outbox) {
+    let gameId = this._data.id;
+    let resume = {
+      turnId: this._data.state.currentTurnId,
+      actions: this._data.state.actions.length,
+    };
+
+    // Instead of watching the game from its current point, resume watching
+    // the game from the point we lost connection.
+    gameClient.watchGame(gameId, resume).then(data => {
+      this._emit({ type:'playerStatus', data:data.playerStatus });
+
+      data.events.forEach(e => this._emit(e));
+
+      this._data.undoRequest = data.undoRequest;
+      if (data.undoRequest && data.undoRequest.status === 'pending')
+        this._emit({
+          type: 'undoRequest',
+          data: data.undoRequest,
+        });
+    });
+
+    // Resend specific lost messages
+    outbox.forEach(message => {
+      if (message.service !== 'game') return;
+      if (message.type !== 'event') return;
+      let event = message.body;
+      if (event.group !== `/games/${gameId}`) return;
+
+      if (event.type === 'action')
+        gameClient.postAction(gameId, event.data);
+    });
+  }
+
   _watchForDataChanges(gameData) {
     this
       .on('playerStatus', ({ data }) => {

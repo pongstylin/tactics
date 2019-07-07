@@ -64,8 +64,7 @@ export default class Player {
   }
 
   createToken(deviceId) {
-    let device = this.devices.get(deviceId);
-    device.token = jwt.sign({
+    return jwt.sign({
       name: this.name,
       deviceId: deviceId,
     }, config.privateKey, {
@@ -73,8 +72,6 @@ export default class Player {
       expiresIn: '1h',
       subject: this.id,
     });
-
-    return device.token;
   }
 
   toJSON() {

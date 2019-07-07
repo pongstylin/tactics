@@ -28,6 +28,8 @@ export default class ServerSocket {
       _syncTimeout: null,
       // Close connection after 10 seconds of idle receives.
       _closeTimeout: null,
+      _whenAuthorized: new Map(),
+      _resolveAuthorized: new Map(),
 
       // Track a session across connections
       _session: {
@@ -41,6 +43,8 @@ export default class ServerSocket {
         outbox: [],
         // Pending response routes
         responseRoutes: new Map(),
+        // Is the socket connected and the session opened?
+        open: false,
       },
 
       // Used to detect successful connection to the server.
@@ -66,22 +70,49 @@ export default class ServerSocket {
     this._emitter.removeListener(...arguments);
     return this;
   }
-  send(serviceName, groupPath, eventType, data) {
-    this._enqueue('event', {
-      service: serviceName,
-      group: groupPath,
-      type: eventType,
-      data: data,
-    });
-  }
 
-  isOpen() {
+  get isConnected() {
     let socket = this._socket;
 
     return socket && socket.readyState === SOCKET_OPEN;
   }
+  get isOpen() {
+    return this._session.open;
+  }
 
+  /*
+   * Get a promise that resolves once the service becomes authorized.
+   */
+  whenAuthorized(serviceName) {
+    let whenAuthorized = this._whenAuthorized;
+
+    if (!whenAuthorized.has(serviceName)) {
+      let promise = new Promise(resolve => {
+        this._resolveAuthorized.set(serviceName, resolve);
+      });
+      promise.isResolved = false;
+
+      whenAuthorized.set(serviceName, promise);
+      return promise;
+    }
+
+    return whenAuthorized.get(serviceName);
+  }
+
+  close() {
+    this.autoConnect = false;
+    if (this._socket)
+      this._socket.close();
+  }
+
+  /*****************************************************************************
+   * Public Methods for sending messages
+   ****************************************************************************/
   authorize(serviceName, data) {
+    // No point in queueing authorization messages while offline.
+    if (!this.isOpen)
+      return;
+
     let session = this._session;
     let requestId = this._enqueue('authorize', {
       service: serviceName,
@@ -90,22 +121,13 @@ export default class ServerSocket {
 
     return new Promise((resolve, reject) => {
       session.responseRoutes.set(requestId, {resolve, reject});
+    }).then(() => {
+      let promise = this.whenAuthorized(serviceName);
+      promise.isResolved = true;
+      this._resolveAuthorized.get(serviceName)();
     });
   }
-  request(serviceName, methodName, args) {
-    if (!Array.isArray(args))
-      throw new TypeError('Arguments must be an array');
 
-    let requestId = this._enqueue('request', {
-      service: serviceName,
-      method: methodName,
-      args: args,
-    });
-
-    return new Promise((resolve, reject) => {
-      this._session.responseRoutes.set(requestId, {resolve, reject});
-    });
-  }
   join(serviceName, groupPath, params) {
     let messageBody = {
       service: serviceName,
@@ -121,11 +143,47 @@ export default class ServerSocket {
       this._session.responseRoutes.set(requestId, {resolve, reject});
     });
   }
+  emit(serviceName, groupPath, eventType, data) {
+    this._enqueue('event', {
+      service: serviceName,
+      group: groupPath,
+      type: eventType,
+      data: data,
+    });
+  }
 
-  close() {
-    this.autoConnect = false;
-    if (this._socket)
-      this._socket.close();
+  request(serviceName, methodName, args) {
+    if (!Array.isArray(args))
+      throw new TypeError('Arguments must be an array');
+
+    let requestId = this._enqueue('request', {
+      service: serviceName,
+      method: methodName,
+      args: args,
+    });
+
+    return new Promise((resolve, reject) => {
+      this._session.responseRoutes.set(requestId, {resolve, reject});
+    });
+  }
+
+  /*
+   * These methods delay sending messages until authorization is established.
+   */
+  joinAuthorized(serviceName, groupPath, params) {
+    return this._authorizeThen(serviceName, () =>
+      this.join(serviceName, groupPath, params)
+    );
+  }
+  emitAuthorized(serviceName, groupPath, eventType, data) {
+    return this._authorizeThen(serviceName, () =>
+      this.emit(serviceName, groupPath, eventType, data)
+    );
+  }
+  requestAuthorized(serviceName, methodName, args) {
+    return this._authorizeThen(serviceName, () =>
+      this.request(serviceName, methodName, args)
+    );
   }
 
   /*****************************************************************************
@@ -135,6 +193,27 @@ export default class ServerSocket {
     let socket = new WebSocket(this.endpoint);
     socket.addEventListener('open', this._openListener);
     socket.addEventListener('close', this._failListener);
+  }
+  _authorizeThen(serviceName, fn) {
+    let promise = this.whenAuthorized(serviceName);
+
+    return promise.then(fn)
+      .catch(error => {
+        if (error.code === 401) {
+          /*
+           * If there was an authorization failure, then authorization is
+           * assumed to have expired.  In that case, reset the authorization
+           * status (if it wasn't already reset by a prior attempt) and requeue
+           * the function for when authorization is reestablished.
+           */
+          if (this._whenAuthorized.get(serviceName) === promise)
+            this._whenAuthorized.delete(serviceName);
+
+          return this._authorizeThen(fn);
+        }
+
+        throw error;
+      });
   }
   _enqueue(messageType, body) {
     let session = this._session;
@@ -166,7 +245,7 @@ export default class ServerSocket {
     let session = this._session;
 
     // Can't send messages until the connection is established.
-    if (!this.isOpen())
+    if (!this.isConnected)
       return;
     // Wait until session is confirmed before sending queued messages.
     if (!session.id && message.id)
@@ -310,9 +389,10 @@ export default class ServerSocket {
   }
   _onSessionMessage(message) {
     let session = this._session;
+    session.open = true;
 
     if (session.id === message.body.sessionId) {
-      this._emit({ type:'open' });
+      this._emit({ type:'open', data:{ reason:'resume' }});
 
       // Resume the session
       this._purgeAcknowledgedMessages(message.ack);
@@ -330,13 +410,13 @@ export default class ServerSocket {
       session.outbox.length = 0;
       session.responseRoutes.clear();
 
-      this._emit({ type:'reset', data:outbox });
+      this._emit({ type:'open', data:{ reason:'reset', outbox }});
     }
     else {
       // Open new session
       session.id = message.body.sessionId;
 
-      this._emit({ type:'open' });
+      this._emit({ type:'open', data:{ reason:'new' }});
 
       // Send queued messages
       this._onSyncMessage(message);
@@ -368,6 +448,12 @@ export default class ServerSocket {
     clearTimeout(this._syncTimeout);
     clearTimeout(this._closeTimeout);
 
+    // Authorized services are no longer authorized.
+    this._whenAuthorized.forEach((promise, serviceName) => {
+      if (promise.isResolved)
+        this._whenAuthorized.delete(serviceName);
+    });
+
     let socket = event.target;
     socket.removeEventListener('message', this._messageListener);
     socket.removeEventListener('close', this._closeListener);
@@ -375,6 +461,7 @@ export default class ServerSocket {
     console.warn(`Connection closed: [${code}] ${reason}`);
 
     this._socket = null;
+    this._session.open = false;
 
     // Notify clients that messages are being queued.
     this._emit({ type:'close' });

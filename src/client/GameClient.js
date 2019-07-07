@@ -1,107 +1,90 @@
 import config from 'config/client.js';
-import EventEmitter from 'events';
+import Client from 'client/Client.js';
 
-export default class GameClient {
-  constructor(server) {
+export default class GameClient extends Client {
+  constructor(server, authClient) {
+    super('game', server);
+
     Object.assign(this, {
-      name: 'game',
-      whenAuthorized: new Promise(resolve => this._nowAuthorized = resolve),
-
-      _server: server,
-
-      _emitter: new EventEmitter(),
-      _listener: event => {
-        if (event.body.service !== this.name) return;
-
-        this._emit(event);
-      },
+      _authClient: authClient,
     });
 
+    authClient.on('token', ({data:token}) => this._authorize(token));
+
+    let listener = event => {
+      if (event.body.service !== this.name) return;
+
+      this._emit(event);
+    };
+
     server
-      .on('event', this._listener)
-      .on('join',  this._listener)
-      .on('leave', this._listener)
-      .on('enter', this._listener)
-      .on('exit',  this._listener)
-      .on('open', event => this._emit(event))
-      .on('reset', event => {
-        // Filter lost messages to game events.
-        let emitEvent = {
-          type: 'reset',
-          data: event.data.filter(message => {
-            if (message.type !== 'event') return;
-            if (message.body.service !== 'game') return;
-            return true;
-          }),
-        };
-
-        this.whenAuthorized = new Promise(resolve => this._nowAuthorized = resolve)
-          .then(() => this._emit(emitEvent));
-      })
-      .on('close', event => this._emit(event));
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
-  }
-
-  authorize(token) {
-    return this._server.authorize(this.name, { token })
-      .then(this._nowAuthorized);
+      .on('event', listener)
+      .on('join',  listener)
+      .on('leave', listener)
+      .on('enter', listener)
+      .on('exit',  listener);
   }
 
   createGame(stateData) {
-    return this._server.request(this.name, 'createGame', [stateData]);
+    this._server.requestAuthorized(this.name, 'createGame', [stateData])
   }
 
   joinGame(gameId, options) {
     let args = [gameId];
     if (options) args.push(options);
 
-    return this._server.request(this.name, 'joinGame', args);
+    this._server.requestAuthorized(this.name, 'joinGame', args)
   }
 
   getGameData(gameId) {
+    // Authorization not required
     return this._server.request(this.name, 'getGame', [gameId]);
   }
   getPlayerStatus(gameId) {
-    return this._server.request(this.name, 'getPlayerStatus', [gameId]);
+    return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId])
   }
 
   watchGame(gameId, resume) {
-    return this._server.join(this.name, `/games/${gameId}`, resume);
+    return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume)
   }
   getTurnData() {
-    return this._server.request(this.name, 'getTurnData', [...arguments]);
+    return this._server.requestAuthorized(this.name, 'getTurnData', [...arguments])
   }
   getTurnActions() {
-    return this._server.request(this.name, 'getTurnActions', [...arguments]);
-  }
-  undo(gameId) {
-    return this._server.send(this.name, `/games/${gameId}`, 'undo');
-  }
-  acceptUndo(gameId) {
-    return this._server.send(this.name, `/games/${gameId}`, 'undoAccept');
-  }
-  rejectUndo(gameId) {
-    return this._server.send(this.name, `/games/${gameId}`, 'undoReject');
-  }
-  cancelUndo(gameId) {
-    return this._server.send(this.name, `/games/${gameId}`, 'undoCancel');
+    return this._server.requestAuthorized(this.name, 'getTurnActions', [...arguments])
   }
   restart() {
-    return this._server.request(this.name, 'restart', [...arguments]);
+    return this._server.requestAuthorized(this.name, 'restart', [...arguments])
   }
 
   postAction(gameId, action) {
-    this._server.send(this.name, `/games/${gameId}`, 'action', action);
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'action', action);
   }
-  _emit(event) {
-    this._emitter.emit(event.type, event);
+  undo(gameId) {
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undo')
+  }
+  acceptUndo(gameId) {
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept')
+  }
+  rejectUndo(gameId) {
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoReject')
+  }
+  cancelUndo(gameId) {
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoCancel')
+  }
+
+  _onOpen({data}) {
+    let authClient = this._authClient;
+
+    // When the auth and game services share a server/connection, there is no
+    // need to get authorization from the auth client here.  This is because the
+    // auth client refreshes a token every time a connection is opened and emits
+    // the new token.  So, authorization will be sent upon token emit.
+    if (this._server === authClient._server)
+      return;
+
+    authClient.whenAuthorized.then(() => {
+      this._authorize(authClient.token);
+    });
   }
 }

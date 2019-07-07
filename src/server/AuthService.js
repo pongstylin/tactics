@@ -41,14 +41,10 @@ class AuthService extends Service {
    ****************************************************************************/
   onAuthorize(client, { token }) {
     let session = this.sessions.get(client.id);
-    let claims;
-    
-    try {
-      claims = jwt.verify(token, config.publicKey);
-    }
-    catch (error) {
-      throw new ServerError(401, error.message);
-    }
+    let tokenData = this._validateToken(client, token);
+
+    if (tokenData.isExpired)
+      throw new ServerError(401, 'Token expired');
 
     this.sessions.set(client.id, { token });
   }
@@ -76,11 +72,11 @@ class AuthService extends Service {
 
     let player = dataAdapter.createPlayer(playerData);
     let device = player.addDevice(deviceData);
-    let token  = player.createToken(device.id);
+    device.token = player.createToken(device.id);
 
     dataAdapter.savePlayer(player);
 
-    return token;
+    return device.token;
   }
 
   /*
@@ -90,51 +86,22 @@ class AuthService extends Service {
    */
   onRefreshTokenRequest(client, token) {
     let session = this.sessions.get(client.id) || {};
-    let now = new Date();
 
     // An authorized player does not have to provide the token.
     if (session.token)
       token = session.token;
 
-    let claims;
-    try {
-      claims = jwt.verify(token, config.publicKey, {
-        ignoreExpiration: true,
-      });
-    }
-    catch (error) {
-      throw new ServerError(401, error.message);
-    }
-
-    // Get the player here to make sure it still exists.
-    let player = dataAdapter.getPlayer(claims.sub);
+    let tokenData = this._validateToken(client, token);
     let newToken;
 
     // Cowardly refuse to refresh a token less than 5m old.
-    let diff = (now / 1000) - claims.iat;
-    if (diff < 300)
+    let diff = tokenData.now - tokenData.createdAt;
+    if (diff < 300000)
       newToken = token;
-    else {
-      let device = player.getDevice(claims.deviceId);
-      if (!device)
-        throw new ServerError(401, 'Device deleted');
-      if (device.disabled)
-        throw new ServerError(401, 'Device disabled');
-
-      if (device.token !== token)
-        throw new ServerError(401, 'Token revoked');
-
-      /*
-       * Maintain a history of addresses and agents on this device and the last
-       * time they were used.  This information can be made available to the
-       * account owner so that they can audit the security of their account.
-       */
-      device.addresses.set(client.address, now);
-      device.agents.set(client.agent, now);
-
-      newToken = player.createToken(device.id);
-      dataAdapter.savePlayer(player);
-    }
+    else
+      // A new token is generated but the old token is not revoked until the new
+      // token is used to ensure the client received it.
+      newToken = tokenData.player.createToken(tokenData.device.id);
 
     return newToken;
   }
@@ -155,10 +122,11 @@ class AuthService extends Service {
     let claims = jwt.verify(session.token, config.publicKey);
     let player = dataAdapter.getPlayer(claims.sub);
     player.update(profile);
-    let newToken = player.createToken(claims.deviceId);
     dataAdapter.savePlayer(player);
 
-    return newToken;
+    // A new token is generated with the new name, if any, but the old token is
+    // not revoked until the new token is used to ensure the client received it.
+    return player.createToken(claims.deviceId);
   }
 
   _validatePlayerName(name) {
@@ -181,6 +149,75 @@ class AuthService extends Service {
       throw new ServerError(403, 'Name may not contain consecutive spaces');
     if (name.includes('#'))
       throw new ServerError(403, 'The # symbol is reserved');
+  }
+
+  _validateToken(client, token) {
+    let now = new Date();
+
+    /*
+     * Get some information about the token.
+     */
+    let claims;
+
+    try {
+      claims = jwt.verify(token, config.publicKey, {
+        ignoreExpiration: true,
+      });
+    }
+    catch (error) {
+      throw new ServerError(401, error.message);
+    }
+
+    let playerId  = claims.sub;
+    let deviceId  = claims.deviceId;
+    let isExpired = now > new Date(claims.exp * 1000);
+    let createdAt = new Date(claims.iat * 1000);
+
+    let player = dataAdapter.getPlayer(playerId);
+    let device = player.getDevice(deviceId);
+
+    if (!device)
+      throw new ServerError(401, 'Device deleted');
+    if (device.disabled)
+      throw new ServerError(401, 'Device disabled');
+
+    /*
+     * Get some information about the old token.
+     */
+    let oldClaims = jwt.verify(token, config.publicKey, {
+      ignoreExpiration: true,
+    });
+    // Backdate the timestamp by 5 seconds to protect against race conditions.
+    let oldCreatedAt = new Date((oldClaims.iat - 5) * 1000);
+
+    /*
+     * Determine if the submitted token has been revoked.
+     * A token is revoked once a newer token is used.
+     */
+    if (createdAt < oldCreatedAt) {
+      this.debug(`Revoked token: playerId=${playerId}; token=${token}`);
+      throw new ServerError(401, 'Token revoked');
+    }
+
+    /*
+     * If the submitted token is newer, revoke the old token.
+     *
+     * Maintain a history of addresses and agents on this device and the last
+     * time they were used.  This information can be made available to the
+     * account owner so that they can audit the security of their account.
+     */
+    if (createdAt > oldCreatedAt) {
+      this.debug(`New token: playerId=${playerId}; token=${token}`);
+
+      device.addresses.set(client.address, now);
+      device.agents.set(client.agent, now);
+      device.token = token;
+      dataAdapter.savePlayer(player);
+    }
+    else
+      this.debug(`Accepted token: playerId=${playerId}; token=${token}`);
+
+    return { player, device, now, createdAt, isExpired };
   }
 }
 
