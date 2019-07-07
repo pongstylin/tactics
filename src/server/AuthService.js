@@ -96,7 +96,7 @@ class AuthService extends Service {
 
     // Cowardly refuse to refresh a token less than 5m old.
     let diff = tokenData.now - tokenData.createdAt;
-    if (diff < 300000)
+    if (diff < 300000 && !tokenData.isExpired)
       newToken = token;
     else
       // A new token is generated but the old token is not revoked until the new
@@ -153,6 +153,7 @@ class AuthService extends Service {
 
   _validateToken(client, token) {
     let now = new Date();
+    let tokenSig = token.split('.')[2];
 
     /*
      * Get some information about the token.
@@ -184,19 +185,19 @@ class AuthService extends Service {
     /*
      * Get some information about the old token.
      */
-    let oldClaims = jwt.verify(token, config.publicKey, {
+    let oldClaims = jwt.verify(device.token, config.publicKey, {
       ignoreExpiration: true,
     });
-    // Backdate the timestamp by 5 seconds to protect against race conditions.
-    let oldCreatedAt = new Date((oldClaims.iat - 5) * 1000);
+    let oldCreatedAt = new Date(oldClaims.iat * 1000);
 
     /*
      * Determine if the submitted token has been revoked.
+     * 5 seconds too old is permitted in case a race condition is responsible.
      * A token is revoked once a newer token is used.
      */
-    if (createdAt < oldCreatedAt) {
-      this.debug(`Revoked token: playerId=${playerId}; token=${token}`);
-      throw new ServerError(401, 'Token revoked');
+    if (createdAt < (oldCreatedAt - 5000)) {
+      this.debug(`Revoked token: playerId=${playerId}; deviceId=${deviceId}; token-sig=${tokenSig}`);
+      throw new ServerError(409, 'Token revoked');
     }
 
     /*
@@ -207,7 +208,7 @@ class AuthService extends Service {
      * account owner so that they can audit the security of their account.
      */
     if (createdAt > oldCreatedAt) {
-      this.debug(`New token: playerId=${playerId}; token=${token}`);
+      this.debug(`New token: playerId=${playerId}; deviceId=${deviceId}; token-sig=${tokenSig}`);
 
       device.addresses.set(client.address, now);
       device.agents.set(client.agent, now);
@@ -215,7 +216,7 @@ class AuthService extends Service {
       dataAdapter.savePlayer(player);
     }
     else
-      this.debug(`Accepted token: playerId=${playerId}; token=${token}`);
+      this.debug(`Accepted token: playerId=${playerId}; deviceId=${deviceId}; token-sig=${tokenSig}`);
 
     return { player, device, now, createdAt, isExpired };
   }

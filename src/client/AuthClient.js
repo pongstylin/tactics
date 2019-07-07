@@ -86,15 +86,22 @@ export default class AuthClient extends Client {
     clearTimeout(this._refreshTimeout);
   }
 
-  _refreshToken(token = this.token) {
+  _refreshToken() {
     // No point in queueing a token refresh if the session is not open.
     // A new attempt to refresh will be made once it is open.
     if (!this._server.isOpen)
       return this.whenAuthorized;
 
+    // Make sure to use the most recently stored token.
+    let token = this._getToken();
+
     return this._server.request(this.name, 'refreshToken', [token])
       .then(token => this._storeToken(token))
       .catch(error => {
+        // Ignore 'Revoked token' errors in the assumption that another tab
+        // is about to inform this one that a new token is available.
+        if (error.code === 409) return;
+
         if (error.code === 401 || error.code === 404) {
           localStorage.removeItem('token');
           this.token = null;
