@@ -186,12 +186,20 @@ export default class RemoteTransport {
 
       data.events.forEach(e => this._emit(e));
 
-      this._data.undoRequest = data.undoRequest;
-      if (data.undoRequest && data.undoRequest.status === 'pending')
+      if (data.undoRequest) {
+        this._data.undoRequest = data.undoRequest;
+        // Inform the game of a change in undo status, if any.
         this._emit({
           type: 'undoRequest',
           data: data.undoRequest,
         });
+      }
+      else if (this._data.undoRequest) {
+        this._data.undoRequest = null;
+        // Not sure if the request was rejected or accepted.
+        // But 'complete' will result in hiding the dialog, if any.
+        this._emit({ type:'undoComplete' });
+      }
     });
 
     // Resend specific lost messages

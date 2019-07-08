@@ -413,13 +413,24 @@ Tactics.App = (function ($, window, document) {
     if (game.isViewOnly)
       return;
 
-    $('#popup').addClass('undo');
-    updateUndoDialog();
-    $('#overlay,#popup').show();
+    let undoRequest = game.state.undoRequest;
+
+    if (undoRequest.status === 'pending') {
+      $('#popup').addClass('undo');
+      updateUndoDialog();
+      $('#overlay,#popup').show();
+    }
+    else
+      // If the dialog is already shown, update it.
+      updateUndoDialog();
   }
 
   function updateUndoDialog() {
-    if (!$('#popup').hasClass('undo')) return;
+    if (!$('#popup').hasClass('undo')) {
+      // When a request is rejected, the undo button becomes disabled.
+      $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+      return;
+    }
 
     let undoRequest = game.state.undoRequest;
     let teams = game.teams;
@@ -493,6 +504,9 @@ Tactics.App = (function ($, window, document) {
   }
 
   function hideUndoDialog() {
+    // When a request is rejected, the undo button becomes disabled.
+    $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+
     if (!$('#popup').hasClass('undo')) return;
 
     $('#overlay,#popup').hide();
@@ -515,9 +529,6 @@ Tactics.App = (function ($, window, document) {
       .data('handler', () => {
         $('#overlay,#popup').hide();
       });
-
-    // When a request is rejected, the undo button becomes disabled.
-    $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
   }
 
   return self;
