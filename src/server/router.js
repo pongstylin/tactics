@@ -738,7 +738,7 @@ function onResumeMessage(client, message) {
     throw new ServerError(401, 'Not authorized');
 
   let minExpectedAck = session.outbox.length
-    ? session.outbox[0].id
+    ? session.outbox[0].id - 1
     : session.serverMessageId;
   let maxExpectedAck = session.lastSentMessageId;
 
