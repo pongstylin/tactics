@@ -76,14 +76,21 @@ export default class AuthClient extends Client {
       .then(token => this._storeToken(token));
   }
 
-  _onOpen() {
-    if (this.token)
-      this._refreshToken().then(this._resolveReady);
+  _onOpen({ data }) {
+    if (this.token) {
+      // Since a connection can only be resumed for 30 seconds after disconnect
+      // and a token is refreshed 1 minute before it expires, a token refresh
+      // should not be immediately necessary after resuming a connection.
+      if (data.reason === 'resume')
+        this._setRefreshTimeout();
+      else
+        this._refreshToken().then(this._resolveReady);
+    }
     else
       this._resolveReady();
   }
   _onClose() {
-    clearTimeout(this._refreshTimeout);
+    this._clearRefreshTimeout();
   }
 
   _refreshToken() {
@@ -94,6 +101,7 @@ export default class AuthClient extends Client {
 
     // Make sure to use the most recently stored token.
     let token = this._getToken();
+    if (!token) return;
 
     return this._server.request(this.name, 'refreshToken', [token])
       .then(token => this._storeToken(token))
@@ -133,13 +141,23 @@ export default class AuthClient extends Client {
   _setToken(token) {
     this.token = token;
 
+    this._setRefreshTimeout();
+    this._authorize(token);
+    this._emit({ type:'token', data:token });
+  }
+  _setRefreshTimeout() {
+    this._clearRefreshTimeout();
+
+    let token = this.token;
+    // Being defensive.  Not expected to happen.
+    if (!token) return;
+
     // Remaining time before expiration minus a 1m safety buffer (in ms)
     let timeout = Math.max(0, token.expiresIn - 60000);
 
-    clearTimeout(this._refreshTimeout);
     this._refreshTimeout = setTimeout(() => this._refreshToken(), timeout);
-
-    this._authorize(token);
-    this._emit({ type:'token', data:token });
+  }
+  _clearRefreshTimeout() {
+    clearTimeout(this._refreshTimeout);
   }
 }

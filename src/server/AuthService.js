@@ -94,9 +94,8 @@ class AuthService extends Service {
     let tokenData = this._validateToken(client, token);
     let newToken;
 
-    // Cowardly refuse to refresh a token less than 5m old.
-    let diff = tokenData.now - tokenData.createdAt;
-    if (diff < 300000 && !tokenData.isExpired)
+    // Cowardly refuse to refresh a token that has lived for <10% of its life.
+    if (tokenData.age < (tokenData.ttl * 0.1))
       newToken = token;
     else
       // A new token is generated but the old token is not revoked until the new
@@ -171,8 +170,11 @@ class AuthService extends Service {
 
     let playerId  = claims.sub;
     let deviceId  = claims.deviceId;
-    let isExpired = now > new Date(claims.exp * 1000);
     let createdAt = new Date(claims.iat * 1000);
+    let expiresAt = new Date(claims.exp * 1000);
+    let age       = now - createdAt;
+    let ttl       = expiresAt - createdAt;
+    let isExpired = now > expiresAt;
 
     let player = dataAdapter.getPlayer(playerId);
     let device = player.getDevice(deviceId);
@@ -218,7 +220,7 @@ class AuthService extends Service {
     else
       this.debug(`Accepted token: playerId=${playerId}; deviceId=${deviceId}; token-sig=${tokenSig}`);
 
-    return { player, device, now, createdAt, isExpired };
+    return { player, device, age, ttl, isExpired };
   }
 }
 

@@ -73,7 +73,14 @@ export default class GameClient extends Client {
     this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoCancel')
   }
 
-  _onOpen({data}) {
+  _onOpen({ data }) {
+    // Since a token is refreshed 1 minute before it expires and a connection
+    // can only be resumed 30 seconds after disconnect, then authorization
+    // should still be valid after resuming a connection.  Even if auth client
+    // emits a new token while disconnected, authorization will be queued then
+    // sent once the connection resumes without needing to handle it here.
+    if (data.reason === 'resume') return;
+
     let authClient = this._authClient;
 
     // When the auth and game services share a server/connection, there is no
@@ -83,8 +90,9 @@ export default class GameClient extends Client {
     if (this._server === authClient._server)
       return;
 
-    authClient.whenAuthorized.then(() => {
+    // Only authorize if the auth client is already authorized.  If the auth
+    // client is not authorized, then we'll catch the emitted token once it is.
+    if (authClient.isAuthorized)
       this._authorize(authClient.token);
-    });
   }
 }

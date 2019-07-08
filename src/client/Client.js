@@ -26,6 +26,9 @@ export default class GameClient {
   get whenAuthorized() {
     return this._server.whenAuthorized(this.name);
   }
+  get isAuthorized() {
+    return this.whenAuthorized.isResolved;
+  }
 
   on() {
     this._emitter.addListener(...arguments);
