@@ -1,39 +1,55 @@
-Array.prototype.random = function () {
-  return this[Math.floor(Math.random() * this.length)];
-};
-Object.defineProperty(Array.prototype, 'random', {enumerable: false});
+Object.defineProperty(Array.prototype, 'random', {
+  writeable: false,
+  enumerable: false,
+  value: function () {
+    return this[Math.floor(Math.random() * this.length)];
+  },
+});
 
-Array.prototype.shuffle = function () {
-  var arr = this;
-  var currentIndex = arr.length, temporaryValue, randomIndex;
+Object.defineProperty(Array.prototype, 'shuffle', {
+  writeable: false,
+  enumerable: false,
+  value: function () {
+    let array = this;
+    let currentIndex = array.length, temporaryValue, randomIndex;
 
-  // While there remain elements to shuffle...
-  while (0 !== currentIndex) {
-    // Pick a remaining element...
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex -= 1;
+    // While there remain elements to shuffle...
+    while (0 !== currentIndex) {
+      // Pick a remaining element...
+      randomIndex = Math.floor(Math.random() * currentIndex);
+      currentIndex -= 1;
 
-    // And swap it with the current element.
-    temporaryValue = arr[currentIndex];
-    arr[currentIndex] = arr[randomIndex];
-    arr[randomIndex] = temporaryValue;
-  }
+      // And swap it with the current element.
+      temporaryValue = array[currentIndex];
+      array[currentIndex] = array[randomIndex];
+      array[randomIndex] = temporaryValue;
+    }
 
-  return arr;
-};
-Object.defineProperty(Array.prototype, 'shuffle', {enumerable: false});
+    return array;
+  },
+});
 
-Array.prototype.findLastIndex = function (filter) {
-  let array = this;
+Object.defineProperty(Array.prototype, 'findLastIndex', {
+  writeable: false,
+  enumerable: false,
+  value: function (filter) {
+    let array = this;
 
-  for (let i=array.length-1; i>-1; i--) {
-    if (filter(array[i], i))
-      return i;
-  }
+    for (let i=array.length-1; i>-1; i--) {
+      if (filter(array[i], i))
+        return i;
+    }
 
-  return -1;
-};
-Object.defineProperty(Array.prototype, 'findLastIndex', {enumerable: false});
+    return -1;
+  },
+});
+
+Object.defineProperty(Array.prototype, 'last', {
+  enumerable: false,
+  get: function () {
+    return this[this.length-1];
+  },
+});
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/flat
 // This is required for NodeJS 10.x

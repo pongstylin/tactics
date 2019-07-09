@@ -41,7 +41,11 @@ export default class GameClient extends Client {
     return this._server.request(this.name, 'getGame', [gameId]);
   }
   getPlayerStatus(gameId) {
-    return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId])
+    return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId]);
+  }
+
+  listMyGames(query) {
+    return this._server.requestAuthorized(this.name, 'listMyGames', [query]);
   }
 
   watchGame(gameId, resume) {

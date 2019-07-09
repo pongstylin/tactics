@@ -154,8 +154,7 @@ class GameService extends Service {
     let clientPara = this.clientPara.get(client.id);
     this.throttle(clientPara.playerId, 'createGame');
 
-    let game = dataAdapter.createGame(stateData);
-    return game.id;
+    return dataAdapter.createGame(stateData).then(game => game.id);
   }
 
   onGetGameRequest(client, gameId) {
@@ -195,6 +194,12 @@ class GameService extends Service {
 
       return { playerId, status };
     });
+  }
+
+  onListMyGamesRequest(client, query) {
+    let clientPara = this.clientPara.get(client.id);
+
+    return dataAdapter.listPlayerGames(clientPara.playerId, query);
   }
 
   /*
