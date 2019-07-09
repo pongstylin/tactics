@@ -76,7 +76,6 @@ export default class Player {
 
   toJSON() {
     let json = {...this};
-    json.created = json.created.toISOString();
     json.devices = [...json.devices].map(([id, data]) => [
       id,
       Object.assign(data, {

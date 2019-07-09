@@ -275,7 +275,7 @@ export default class RemoteTransport {
       .on('endGame', ({ data }) => {
         Object.assign(this._data.state, {
           winnerId: data.winnerId,
-          ended:    new Date().toISOString(),
+          ended:    new Date(),
         });
       });
   }

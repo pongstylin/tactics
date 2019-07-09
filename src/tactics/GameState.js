@@ -105,6 +105,18 @@ export default class GameState {
     if (typeof stateData.ended === 'string')
       stateData.ended = new Date(stateData.ended);
 
+    stateData.actions.forEach(action => {
+      if (typeof action.created === 'string')
+        action.created = new Date(action.created);
+    });
+
+    stateData.turns.forEach(turn => {
+      turn.actions.forEach(action => {
+        if (typeof action.created === 'string')
+          action.created = new Date(action.created);
+      });
+    });
+
     return new GameState(stateData);
   }
 
@@ -756,8 +768,8 @@ export default class GameState {
 
       randomFirstTurn: this.randomFirstTurn,
 
-      started:  this.started && this.started.toISOString(),
-      ended:    this.ended   && this.ended.toISOString(),
+      started:  this.started,
+      ended:    this.ended,
 
       turns:    this._turns,
       units:    this.units,
