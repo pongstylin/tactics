@@ -6,7 +6,7 @@
  * The auth service should have exclusive access to the private key.
  * Other services should use the public key to validate JWTs.
  */
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 let keys = crypto.generateKeyPairSync('rsa', {
   modulusLength: 1024,
