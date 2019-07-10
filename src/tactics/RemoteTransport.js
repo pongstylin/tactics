@@ -13,7 +13,15 @@ export default class RemoteTransport {
   constructor(gameId, gameData) {
     Object.assign(this, {
       playerStatus: new Map(),
-      whenReady:    new Promise(resolve => this._ready = resolve),
+
+      // Ready means the object is hydrated with game data.
+      whenReady: new Promise((resolve, reject) => {
+        this._resolveReady = resolve;
+        this._rejectReady = reject;
+      }),
+
+      // Started means the game has started (and possibly ended)
+      whenStarted: new Promise(resolve => this._resolveStarted = resolve),
 
       _data:    null,
       _emitter: new EventEmitter(),
@@ -47,19 +55,11 @@ export default class RemoteTransport {
 
     if (gameData && gameData.state.ended) {
       this._data = gameData;
-      this._ready();
+      this._resolveReady();
+      this._resolveStarted();
     }
     else
-      gameClient.watchGame(gameId).then(({playerStatus, gameData}) => {
-        // Event caught internally to set this.playerStatus.
-        this._emit({ type:'playerStatus', data:playerStatus });
-
-        if (gameData.undoRequest)
-          gameData.undoRequest.accepts = new Set(gameData.undoRequest.accepts);
-
-        this._data = gameData;
-        this._ready();
-      });
+      this._init(gameId);
   }
 
   /*
@@ -156,6 +156,27 @@ export default class RemoteTransport {
   /*
    * Other Private Methods
    */
+  _init(gameId) {
+    gameClient.watchGame(gameId).then(({playerStatus, gameData}) => {
+      // Event caught internally to set this.playerStatus.
+      this._emit({ type:'playerStatus', data:playerStatus });
+
+      if (gameData.undoRequest)
+        gameData.undoRequest.accepts = new Set(gameData.undoRequest.accepts);
+
+      this._data = gameData;
+      this._resolveReady();
+
+      if (gameData.state.started)
+        this._resolveStarted();
+    }).catch(error => {
+      if (error === 'Connection reset')
+        return this._init(gameId);
+
+      // The error is assumed to be permanent.
+      this._rejectReady(error);
+    });
+  }
   _resume() {
     let gameId = this._data.id;
 
@@ -173,6 +194,8 @@ export default class RemoteTransport {
     });
   }
   _reset(outbox) {
+    if (!this._data) return;
+
     let gameId = this._data.id;
     let resume = {
       turnId: this._data.state.currentTurnId,
@@ -222,9 +245,13 @@ export default class RemoteTransport {
 
         data.forEach(ps => this.playerStatus.set(ps.playerId, ps.status));
       })
-      .on('startGame', ({ data:stateData }) => {
-        this._data.state = stateData;
-        this._ready();
+      .on('startGame', ({ data }) => {
+        Object.assign(this._data.state, {
+          started: new Date(data.started),
+          teams:   data.teams,
+          units:   data.units,
+        });
+        this._resolveStarted();
       })
       .on('startTurn', ({ data }) => {
         Object.assign(this._data.state, {

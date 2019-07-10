@@ -326,7 +326,14 @@ export default class GameState {
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
 
-    this._emit({ type:'startGame', data:this.getData() });
+    this._emit({
+      type: 'startGame',
+      data: {
+        started: this.started,
+        teams: this.teams,
+        units: this.units,
+      },
+    });
     this._emit({
       type: 'startTurn',
       data: {
@@ -360,7 +367,15 @@ export default class GameState {
     this._start();
   }
 
+  /*
+   * This method is used when transmitting game state from the server to client.
+   * It does not include all of the data that is serialized by toJSON().
+   */
   getData() {
+    /*
+     * Hide the team's unit set.  This is particularly useful when the game has
+     * not started yet.  Don't want snooping on a team's set before joining.
+     */
     let teams = this.teams.map(team => {
       if (team) {
         team = {...team};

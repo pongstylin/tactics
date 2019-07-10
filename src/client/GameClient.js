@@ -26,14 +26,14 @@ export default class GameClient extends Client {
   }
 
   createGame(stateData) {
-    this._server.requestAuthorized(this.name, 'createGame', [stateData])
+    return this._server.requestAuthorized(this.name, 'createGame', [stateData])
   }
 
   joinGame(gameId, options) {
     let args = [gameId];
     if (options) args.push(options);
 
-    this._server.requestAuthorized(this.name, 'joinGame', args)
+    return this._server.requestAuthorized(this.name, 'joinGame', args);
   }
 
   getGameData(gameId) {

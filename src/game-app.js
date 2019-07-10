@@ -155,7 +155,6 @@ Tactics.App = (function ($, window, document) {
       initGame()
         .then(g => {
           game = g;
-
           game.state.on('playerStatus', resetPlayerBanners);
 
           if (game.isViewOnly) {
@@ -164,7 +163,6 @@ Tactics.App = (function ($, window, document) {
             $('BUTTON[name=undo]').hide();
           }
 
-          $('#join').hide();
           $('#splash').show();
           loadThenStartGame();
         })
@@ -196,73 +194,100 @@ Tactics.App = (function ($, window, document) {
     return Tactics.getRemoteGameData(gameId)
       .then(gameData => {
         // An account is not required to view an ended game.
-        if (gameData.state.ended) return gameData;
+        if (gameData.state.ended)
+          return Tactics.loadRemoteGame(gameId, gameData);
 
         return Tactics.getMyIdentity().then(identity => {
-          let greeting = document.querySelector('.greeting');
-          let playerName = document.querySelector('INPUT[name=playerName]');
-          let details = document.querySelector('.details');
-          let challenge = document.querySelector('.challenge');
-          let btnJoin = document.querySelector('BUTTON[name=join]');
+          // No account?  Provide a name before joining/watching!
+          if (!identity)
+            return showJoinIntro(identity, gameData);
 
-          if (identity) {
-            // If an account exists and the game started, start watching!
-            if (gameData.state.started) return gameData;
+          // Account exists and game started?  Immediately start watching!
+          if (gameData.state.started)
+            return Tactics.loadRemoteGame(gameId, gameData);
 
-            greeting.innerHTML = `
-              Welcome back, ${identity.name}!  You may change your name here.<BR>
-              Note: This won't change your name on previously created/joined games.
-            `;
-            playerName.value = identity.name;
-          }
-          else {
-            greeting.innerHTML = `Welcome!  Choose your game name.`;
-            playerName.value = 'Noob';
-          }
-
-          if (gameData.state.started) {
-            btnJoin.textContent = 'Watch Game';
-
-            return new Promise((resolve, reject) => {
-              btnJoin.addEventListener('click', event => {
-                Tactics.authClient.setAccountName(playerName.value)
-                  .then(() => resolve(gameData));
-              });
-
-              document.querySelector('#join').style.display = null;
-            });
-          }
-          else {
-            let creatorTeam = gameData.state.teams.find(t => !!t);
-
-            let person;
-            if (gameData.state.randomFirstTurn)
-              person = 'random';
-            else if (creatorTeam.originalId === 0)
-              person = creatorTeam.name;
-            else
-              person = 'you';
-
-            details.textContent = `The first person to move is ${person}.`;
-
-            if (identity && creatorTeam.playerId === identity.id)
-              challenge.textContent = `Your opponent hasn't joined the game yet.  Or, you could play yourself?`;
-            else
-              challenge.textContent = `${creatorTeam.name} is waiting for an opponent.  Want to play?`;
-
-            return new Promise((resolve, reject) => {
-              btnJoin.addEventListener('click', event => {
-                Tactics.joinRemoteGame(playerName.value, gameId)
-                  .then(() => resolve())
-                  .catch(error => reject(error));
-              });
-
-              document.querySelector('#join').style.display = null;
-            });
-          }
+          let hasJoined = gameData.state.teams.find(t => t && t.playerId === identity.id);
+          if (hasJoined)
+            return showWaitIntro(identity, gameData);
+          else
+            return showJoinIntro(identity, gameData);
         });
       })
-      .then(gameData => Tactics.loadRemoteGame(gameId, gameData));
+  }
+
+  function showWaitIntro(identity, gameData) {
+    let $greeting = $('#wait .greeting');
+
+    return Tactics.loadRemoteGame(gameData.id).then(game => {
+      $greeting.text($greeting.text().replace('{playerName}', identity.name));
+
+      $('#wait').show();
+
+      return game.whenStarted.then(() => {
+        $('#wait').hide();
+        return game;
+      })
+    });
+  }
+
+  function showJoinIntro(identity, gameData) {
+    let greeting = document.querySelector('#join .greeting');
+    let playerName = document.querySelector('INPUT[name=playerName]');
+    let details = document.querySelector('.details');
+    let challenge = document.querySelector('.challenge');
+    let btnJoin = document.querySelector('BUTTON[name=join]');
+
+    if (identity) {
+      greeting.innerHTML = `
+        Welcome back, ${identity.name}!  You may change your name here.<BR>
+        Note: This won't change your name on previously created/joined games.
+      `;
+      playerName.value = identity.name;
+    }
+    else {
+      greeting.innerHTML = `Welcome!  Choose your game name.`;
+      playerName.value = 'Noob';
+    }
+
+    if (gameData.state.started) {
+      btnJoin.textContent = 'Watch Game';
+
+      return new Promise((resolve, reject) => {
+        btnJoin.addEventListener('click', event => {
+          Tactics.authClient.setAccountName(playerName.value)
+            .then(() => resolve(gameData));
+        });
+
+        $('#join').show();
+      });
+    }
+    else {
+      let creatorTeam = gameData.state.teams.find(t => !!t);
+      let person;
+      if (gameData.state.randomFirstTurn)
+        person = 'random';
+      else if (creatorTeam.originalId === 0)
+        person = creatorTeam.name;
+      else
+        person = 'you';
+
+      details.textContent = `The first person to move is ${person}.`;
+      challenge.textContent = `${creatorTeam.name} is waiting for an opponent.  Want to play?`;
+
+      return new Promise((resolve, reject) => {
+        btnJoin.addEventListener('click', event => {
+          Tactics.joinRemoteGame(playerName.value, gameData.id)
+            .then(() => Tactics.loadRemoteGame(gameData.id, gameData))
+            .then(game => {
+              $('#join').hide();
+              resolve(game);
+            })
+            .catch(error => reject(error));
+        });
+
+        $('#join').show();
+      });
+    }
   }
 
   function resetPlayerBanners() {

@@ -92,8 +92,8 @@ window.Tactics = (function () {
 
       return transport.whenReady.then(() => {
         let localTeamIds = transport.teams
-          .filter(team => team.playerId === authClient.playerId)
-          .map(team => team.originalId);
+          .filter(t => t && t.playerId === authClient.playerId)
+          .map(t => t.originalId);
 
         return new Game(transport, localTeamIds);
       });

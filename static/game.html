@@ -36,25 +36,29 @@
       font-family: Arial;
     }
 
-    #join {
+    .intro {
       display: flex;
       width: 100%;
       height: 100%;
       align-items: center;
       justify-content: center;
     }
-    #join .content > DIV {
+    .intro .content > DIV {
       padding: 8px;
     }
-    #join .content .greeting {
+    .intro .content .greeting {
       margin-bottom: 16px;
     }
-    #join .content DIV {
+    .intro .content DIV {
       box-sizing: border-box;
       line-height: 1.4em;
     }
-    #join .content .buttons {
+    .intro .content .buttons {
       text-align: center;
+    }
+
+    #wait .content {
+      max-width: 450px;
     }
 
     #app > #overlay {
@@ -101,7 +105,14 @@
   <DIV id="error" style="display:none">
     There was an error while loading the game.
   </DIV>
-  <DIV id="join" style="display:none">
+  <DIV id="wait" style="display:none" class="intro">
+    <DIV class="content">
+      <DIV class="greeting">Hello, {playerName}!</DIV>
+      <DIV>Your game hasn't started yet.  The game will start automatically once all players have arrived.  Or, you can come back later.</DIV>
+      <DIV>Remember, the only way for somebody to join your game is if you share this page with them.</DIV>
+    </DIV>
+  </DIV>
+  <DIV id="join" style="display:none" class="intro">
     <DIV class="content">
       <DIV class="playerSetup">
         <DIV class="greeting">Welcome!</DIV>
@@ -118,7 +129,7 @@
   </DIV>
   <DIV id="splash" style="display:none">
     <DIV id="loader">
-      <SPAN class="message">Demo loading...</SPAN>
+      <SPAN class="message">Loading game...</SPAN>
       <DIV id="bar">
         <DIV id="progress"></DIV>
       </DIV>

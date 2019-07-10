@@ -129,8 +129,7 @@ class GameService extends Service {
   onPlayerOnline(playerId) {
     this.gamePara.forEach(gamePara => {
       let game = gamePara.game;
-      let gamePlayerIds = game.state.teams.map(t => t.playerId);
-      if (!gamePlayerIds.includes(playerId))
+      if (!game.state.teams.find(t => t && t.playerId === playerId))
         return;
 
       this._emitPlayerStatus(`/games/${game.id}`, playerId, 'online');
@@ -139,8 +138,7 @@ class GameService extends Service {
   onPlayerOffline(playerId) {
     this.gamePara.forEach(gamePara => {
       let game = gamePara.game;
-      let gamePlayerIds = game.state.teams.map(t => t.playerId);
-      if (!gamePlayerIds.includes(playerId))
+      if (!game.state.teams.find(t => t && t.playerId === playerId))
         return;
 
       this._emitPlayerStatus(`/games/${game.id}`, playerId, 'offline');
@@ -178,10 +176,14 @@ class GameService extends Service {
   }
   onGetPlayerStatusRequest(client, gameId) {
     let game = gameId instanceof Game ? gameId : this._getGame(gameId);
+    let playerStatus = new Map();
 
-    return game.state.teams.map(team => {
-      if (!team) return null;
+    game.state.teams.forEach(team => {
+      if (!team) return;
+
       let playerId = team.playerId;
+      if (playerStatus.has(playerId)) return;
+
       let playerPara = this.playerPara.get(playerId);
 
       let status;
@@ -192,8 +194,10 @@ class GameService extends Service {
       else
         status = 'ingame';
 
-      return { playerId, status };
+      playerStatus.set(playerId, { playerId, status });
     });
+
+    return [...playerStatus.values()];
   }
 
   onListMyGamesRequest(client, query) {
