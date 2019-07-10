@@ -25,16 +25,16 @@ export default class LocalTransport {
   /*
    * Constructors
    */
-  static createGame(gameData) {
+  static createGame(gameStateData) {
     let transport = new LocalTransport();
-    transport._post({ type:'create', data:gameData.data });
+    transport._post({ type:'create', data:gameStateData });
 
     return transport;
   }
 
-  static loadGame(gameData) {
+  static loadGame(gameStateData) {
     let transport = new LocalTransport();
-    transport._post({ type:'load', data:gameData.data });
+    transport._post({ type:'load', data:gameStateData });
 
     return transport;
   }
@@ -166,7 +166,7 @@ export default class LocalTransport {
         .on('action', ({data:actions}) => {
           this._data.state.actions.push(...actions);
         })
-        .on('reset', ({data}) => {
+        .on('revert', ({data}) => {
           Object.assign(this._data.state, {
             currentTurnId: data.turnId,
             currentTeamId: data.teamId,

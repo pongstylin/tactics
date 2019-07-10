@@ -10,8 +10,7 @@ Tactics.App = (function ($, window, document) {
     {assignment:[5, 2], type:'Knight'},
     {assignment:[6, 2], type:'Knight'},
   ];
-  var gameData = { data: {} };
-  gameData.data = {
+  var gameStateData = {
     teams: [
       {
         name: 'Bot',
@@ -179,7 +178,7 @@ Tactics.App = (function ($, window, document) {
           Tactics.sounds.select.play();
         });
 
-      Tactics.createLocalGame(gameData).then(g => {
+      Tactics.createLocalGame(gameStateData).then(g => {
         game = g;
         loadThenStartGame();
       });
