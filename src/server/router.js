@@ -459,6 +459,10 @@ function deleteSession(session) {
 function onMessage(data) {
   let client = this;
 
+  // Ignore messages sent right as the server starts closing the connection.
+  if (client.closed)
+    return;
+
   // Move the client to the back of the list, keeping idle clients forward.
   client.lastReceivedAt = new Date().getTime();
   inboundClients.delete(client);
@@ -734,7 +738,7 @@ function onResumeMessage(client, message) {
     throw new ServerError(401, 'Not authorized');
 
   let minExpectedAck = session.outbox.length
-    ? session.outbox[0].id
+    ? session.outbox[0].id - 1
     : session.serverMessageId;
   let maxExpectedAck = session.lastSentMessageId;
 

@@ -1,71 +1,55 @@
 import config from 'config/client.js';
-import EventEmitter from 'events';
+import Client from 'client/Client.js';
+import Token from 'client/Token.js';
 
-export default class AuthClient {
+export default class AuthClient extends Client {
   constructor(server) {
+    super('auth', server);
+
     Object.assign(this, {
-      name: 'auth',
-      token: null,
-      whenReady: new Promise(resolve => this._nowReady = resolve),
-      whenAuthorized: new Promise(resolve => this._nowAuthorized = resolve),
+      token: this._getToken(),
 
-      _identity: null,
+      // The client is ready once a current token, if any, is obtained.
+      whenReady: new Promise(resolve => this._resolveReady = resolve),
+
       _refreshTimeout: null,
-      _server: server,
-
-      _emitter: new EventEmitter(),
     });
 
-    let token = this._getToken();
-    if (token)
-      this._refreshToken(token).then(this._nowReady);
-    else
-      this._nowReady();
+    this.on('close', this._onClose.bind(this));
 
     /*
      * When a token is stored by another window/tab, this event gets fired.
-     * Handle the new token as if it was obtained locally
+     * Handle a newer token as if it was obtained locally.
      */
     window.addEventListener('storage', event => {
       if (event.key !== 'token') return;
-      let token = event.newValue;
+      let tokenValue = event.newValue;
 
-      if (token)
+      if (tokenValue) {
+        let token = new Token(tokenValue);
+
+        if (this.token) {
+          // Shouldn't happen, but shouldn't do anything either.
+          if (token.equals(this.token))
+            return;
+
+          // Replace an older token with a newer one.
+          if (token.createdAt < this.token.createdAt)
+            return this._storeToken(token.value);
+        }
+
         this._setToken(token);
+      }
       else
         this.token = null;
     });
-
-    this.whenReady.then(() =>
-      server
-        .on('open', event => this._authorize())
-        .on('reset', event => {
-          this.whenAuthorized = new Promise(resolve => this._nowAuthorized = resolve);
-
-          if (this.token)
-            this._refreshToken();
-        })
-    );
   }
 
-  get userId() {
-    return this._identity && this._identity.id;
+  get playerId() {
+    return this.token && this.token.playerId;
   }
-  get userName() {
-    return this._identity && this._identity.name;
-  }
-  get tokenCreatedAt() {
-    return this._identity && this._identity.createdAt;
-  }
-  get tokenExpiresAt() {
-    return this._identity && this._identity.expiresAt;
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
+  get playerName() {
+    return this.token && this.token.playerName;
   }
 
   /*
@@ -88,79 +72,92 @@ export default class AuthClient {
   }
 
   saveProfile(profile) {
-    return this._server.request(this.name, 'saveProfile', [profile])
+    return this._server.requestAuthorized(this.name, 'saveProfile', [profile])
       .then(token => this._storeToken(token));
   }
 
-  _refreshToken(token = this.token) {
+  _onOpen({ data }) {
+    if (this.token) {
+      // Since a connection can only be resumed for 30 seconds after disconnect
+      // and a token is refreshed 1 minute before it expires, a token refresh
+      // should not be immediately necessary after resuming a connection.
+      if (data.reason === 'resume')
+        this._setRefreshTimeout();
+      else
+        this._refreshToken().then(this._resolveReady);
+    }
+    else
+      this._resolveReady();
+  }
+  _onClose() {
+    this._clearRefreshTimeout();
+  }
+
+  _refreshToken() {
+    // No point in queueing a token refresh if the session is not open.
+    // A new attempt to refresh will be made once it is open.
+    if (!this._server.isOpen)
+      return this.whenAuthorized;
+
+    // Make sure to use the most recently stored token.
+    let token = this._getToken();
+    if (!token) return;
+
     return this._server.request(this.name, 'refreshToken', [token])
       .then(token => this._storeToken(token))
       .catch(error => {
-        // This usually means we lost a race with another window/tab refreshing
-        // a token at the same time.  So, wait for a storage event to inform us
-        // of the new token, if we haven't received one already.
-        if (error.message === 'Token revoked') return;
+        // Ignore 'Revoked token' errors in the assumption that another tab
+        // is about to inform this one that a new token is available.
+        if (error.code === 409) return;
 
-        localStorage.removeItem('token');
-        this.token = null;
+        if (error.code === 401 || error.code === 404) {
+          localStorage.removeItem('token');
+          this.token = null;
+        }
+
         throw error;
       });
   }
   _getToken() {
-    return this.token = localStorage.getItem('token');
+    let tokenValue = localStorage.getItem('token');
+
+    return tokenValue ? new Token(tokenValue) : null;
   }
-  _storeToken(token) {
-    localStorage.setItem('token', token);
-    this._setToken(token);
+  _storeToken(tokenValue) {
+    let oldToken = this._getToken();
+    let newToken = new Token(tokenValue);
+
+    // Guard against overwriting newer tokens with older tokens.
+    // A race condition can still occur between reading and writing, but any
+    // difference in created timestamps should be immaterial since the server
+    // offers a 5 second forgiveness differential.
+    if (newToken.createdAt > oldToken.createdAt)
+      localStorage.setItem('token', tokenValue);
+    else
+      newToken = oldToken;
+
+    this._setToken(newToken);
   }
   _setToken(token) {
-    // Decode the Base64 encoded payload in the JWT.
-    let payload = atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'));
-    // Convert UTF-8 sequences to characters.
-    payload = decodeURIComponent(
-      payload.split('')
-        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    let claims = JSON.parse(payload);
-
     this.token = token;
-    this._identity = {
-      id: claims.sub,
-      name: claims.name,
-      createdAt: new Date(claims.iat * 1000),
-      expiresAt: new Date(claims.exp * 1000),
-    };
 
-    // The absolute date the token expires
-    let expiresAt = this.tokenExpiresAt;
-    // Remaining time before expiration minus a 1m safety buffer (in ms)
-    let timeout = Math.max(0, expiresAt - new Date() - 60000);
-
-    clearTimeout(this._refreshTimeout);
-    this._refreshTimeout = setTimeout(() => this._refreshToken(), timeout);
-
-    this._authorize();
+    this._setRefreshTimeout();
+    this._authorize(token);
     this._emit({ type:'token', data:token });
   }
-  _authorize() {
+  _setRefreshTimeout() {
+    this._clearRefreshTimeout();
+
     let token = this.token;
+    // Being defensive.  Not expected to happen.
     if (!token) return;
 
-    /*
-     * Even if a connection to the server is not currently open, authorization
-     * will be sent upon a connection being opened.  At that point, the returned
-     * promise will be resolved.
-     */
-    let server = this._server;
-    if (server.isOpen())
-      return server.authorize(this.name, { token })
-        .then(() => this._nowAuthorized());
+    // Remaining time before expiration minus a 1m safety buffer (in ms)
+    let timeout = Math.max(0, token.expiresIn - 60000);
 
-    return this.whenAuthorized;
+    this._refreshTimeout = setTimeout(() => this._refreshToken(), timeout);
   }
-
-  _emit(event) {
-    this._emitter.emit(event.type, event);
+  _clearRefreshTimeout() {
+    clearTimeout(this._refreshTimeout);
   }
 }

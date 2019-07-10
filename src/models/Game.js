@@ -30,7 +30,6 @@ export default class Game {
 
   toJSON() {
     let json = {...this};
-    json.created = json.created.toISOString();
 
     if (json.undoRequest)
       json.undoRequest = Object.assign({}, json.undoRequest, {

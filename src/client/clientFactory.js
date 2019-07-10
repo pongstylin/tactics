@@ -11,6 +11,11 @@ let endpoints = new Map([
 let sockets = new Map();
 let clients = new Map();
 
+// Instantiate auth client first since it is required by other clients.
+let authEndpoint = endpoints.get('auth');
+sockets.set(authEndpoint, new ServerSocket(authEndpoint));
+clients.set('auth', new AuthClient(sockets.get(authEndpoint)));
+
 export default serviceName => {
   let endpointName = endpoints.get(serviceName);
 
@@ -20,10 +25,11 @@ export default serviceName => {
 
   // Only one client per service
   if (!clients.has(serviceName))
-    if (serviceName === 'auth')
-      clients.set(serviceName, new AuthClient(sockets.get(endpointName)));
-    else if (serviceName === 'game')
-      clients.set(serviceName, new GameClient(sockets.get(endpointName)));
+    if (serviceName === 'game')
+      clients.set(serviceName, new GameClient(
+        sockets.get(endpointName),
+        clients.get('auth'),
+      ));
     else
       throw new TypeError('No such service');
 
