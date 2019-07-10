@@ -12,7 +12,7 @@ export default class {
      * Detect when it is time to start this bot's turn.
      */
     let startTurnListener = event => {
-      if (event.teamId === this.team.id)
+      if (event.data.teamId === this.team.id)
         // Use setTimeout to allow other listeners to get their message.
         setTimeout(() => this.startTurn());
     };

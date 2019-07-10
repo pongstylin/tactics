@@ -20,7 +20,7 @@ Tactics.App = (function ($, window, document) {
     {assignment:[6, 2], type:'Knight'},
     {assignment:[9, 2], type:'Scout'},
   ];
-  var gameData = {
+  var gameStateData = {
     teams: [
       {
         colorId: 'Blue',
@@ -184,7 +184,7 @@ Tactics.App = (function ($, window, document) {
           Tactics.sounds.select.play();
         });
 
-      Tactics.createLocalGame(gameData).then(g => {
+      Tactics.createLocalGame(gameStateData).then(g => {
         game = g;
         loadThenStartGame();
       });
