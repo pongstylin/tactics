@@ -131,7 +131,7 @@ export default class AuthClient extends Client {
     // A race condition can still occur between reading and writing, but any
     // difference in created timestamps should be immaterial since the server
     // offers a 5 second forgiveness differential.
-    if (newToken.createdAt > oldToken.createdAt)
+    if (!oldToken || newToken.createdAt > oldToken.createdAt)
       localStorage.setItem('token', tokenValue);
     else
       newToken = oldToken;
