@@ -20,7 +20,7 @@
   "author": "Dave Clark",
   "license": "Unlicense",
   "devDependencies": {
-    "css-loader": "^1.0.0",
+    "css-loader": "^3.0.0",
     "debug": "^4.1.1",
     "dotenv": "^7.0.0",
     "dotenv-webpack": "^1.7.0",
