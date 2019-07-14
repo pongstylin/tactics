@@ -33,6 +33,19 @@ BODY {
   -webkit-touch-callout: none;
 }
 
+::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 8px;
+  border-right: 1px solid #444444;
+}
+::-webkit-scrollbar-track * {
+  background-color: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background-color: #666666;
+}
+
 #field {
   display: flex;
   position: relative;
@@ -467,6 +480,10 @@ BODY {
 
 A {
   color: #00FFFF;
+}
+A:hover {
+  color: #00FFFF;
+  text-decoration: underline;
 }
 
 /*

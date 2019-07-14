@@ -105,7 +105,7 @@ export default class {
    *     "results": [...],  // list of game summaries
    *   }
    */
-  listPlayerGames(playerId, query) {
+  searchPlayerGames(playerId, query) {
     query = Object.assign({
       page: 1,
       limit: 10,

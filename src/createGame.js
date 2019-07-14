@@ -5,10 +5,8 @@ window.addEventListener('DOMContentLoaded', () => {
   let authClient = clientFactory('auth');
   let gameClient = clientFactory('game');
 
-  let greeting = document.querySelector('.greeting');
   let txtPlayerName = document.querySelector('INPUT[name=playerName]');
   let btnCreate = document.querySelector('BUTTON[name=create]');
-  let btnSetup = document.querySelector('BUTTON[name=setup]');
   let divSetup = document.querySelector('.setup');
   let divWaiting = document.querySelector('.waiting');
   let divLink = document.querySelector('.link');
@@ -17,14 +15,9 @@ window.addEventListener('DOMContentLoaded', () => {
   authClient.whenReady.then(() => {
     let playerName = authClient.playerName;
     if (playerName !== null) {
-      greeting.innerHTML = `
-        Welcome back, ${playerName}!  You may change your name here.<BR>
-        Note: This won't change your name on previously created/joined games.
-      `;
       txtPlayerName.value = playerName;
     }
     else {
-      greeting.innerHTML = `Welcome!  Choose your game name.`;
       txtPlayerName.value = 'Noob';
     }
 
@@ -92,12 +85,6 @@ window.addEventListener('DOMContentLoaded', () => {
         divWaiting.style.display = 'none';
         divSetup.style.display = null;
       });
-  });
-
-  btnSetup.addEventListener('click', () => {
-    divLink.style.display = 'none';
-    divError.textContent = null;
-    divSetup.style.display = null;
   });
 
   document.querySelector('.content').style.display = null;

@@ -200,10 +200,8 @@ class GameService extends Service {
     return [...playerStatus.values()];
   }
 
-  onListMyGamesRequest(client, query) {
-    let clientPara = this.clientPara.get(client.id);
-
-    return dataAdapter.listPlayerGames(clientPara.playerId, query);
+  onSearchPlayerGamesRequest(client, playerId, query) {
+    return dataAdapter.searchPlayerGames(playerId, query);
   }
 
   /*
