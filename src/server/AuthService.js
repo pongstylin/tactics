@@ -2,6 +2,7 @@ import uuid from 'uuid/v4';
 import jwt from 'jsonwebtoken';
 import getTextWidth from 'string-pixel-width';
 import XRegExp from 'xregexp';
+import uaparser from 'ua-parser-js';
 
 import config from 'config/server.js';
 import Service from 'server/Service.js';
@@ -46,17 +47,21 @@ class AuthService extends Service {
     if (tokenData.isExpired)
       throw new ServerError(401, 'Token expired');
 
-    this.sessions.set(client.id, { token });
+    let player = tokenData.player;
+    let device = tokenData.device;
+
+    this.sessions.set(client.id, { token, player, device });
   }
 
   onRegisterRequest(client, playerData) {
     let session = this.sessions.get(client.id) || {};
     let now = new Date();
 
-    this._validatePlayerName(playerData.name);
-
     // An authorized player cannot register an account.
-    if (session.token) return;
+    if (session.token)
+      throw new ServerError(403, 'Already registered');
+
+    this._validatePlayerName(playerData.name);
 
     /*
      * More than one client may be registered to a given IP address, e.g.
@@ -65,14 +70,141 @@ class AuthService extends Service {
      */
     this.throttle(client.address, 'register', 1, 60);
 
-    let deviceData = {
-      addresses: new Map([[client.address, now]]),
-      agents: new Map([[client.agent, now]]),
-    };
-
     let player = dataAdapter.createPlayer(playerData);
-    let device = player.addDevice(deviceData);
-    device.token = player.createToken(device.id);
+    let device = player.addDevice({
+      agents: new Map([[
+        client.agent, 
+        new Map([[client.address, now]]),
+      ]]),
+    });
+    device.token = player.createAccessToken(device.id);
+
+    dataAdapter.savePlayer(player);
+
+    return device.token;
+  }
+
+  onCreateIdentityTokenRequest(client) {
+    let session = this.sessions.get(client.id) || {};
+    if (!session.token)
+      throw new ServerError(401, 'Authorization is required');
+
+    let player = session.player;
+    player.identityToken = player.createIdentityToken();
+
+    dataAdapter.savePlayer(player);
+
+    return player.identityToken;
+  }
+  onRevokeIdentityTokenRequest(client) {
+    let session = this.sessions.get(client.id) || {};
+    if (!session.token)
+      throw new ServerError(401, 'Authorization is required');
+
+    let player = session.player;
+    player.identityToken = null;
+
+    dataAdapter.savePlayer(player);
+  }
+
+  onGetIdentityTokenRequest(client) {
+    let session = this.sessions.get(client.id) || {};
+    if (!session.token)
+      throw new ServerError(401, 'Authorization is required');
+
+    let player = session.player;
+    let token = player.identityToken;
+    if (!token) return null;
+
+    let claims = jwt.verify(token, config.publicKey, {
+      ignoreExpiration: true,
+    });
+    let isExpired = new Date() > new Date(claims.exp * 1000);
+
+    return isExpired ? null : token;
+  }
+
+  onGetDevicesRequest(client) {
+    let session = this.sessions.get(client.id) || {};
+    if (!session.token)
+      throw new ServerError(401, 'Authorization is required');
+
+    let player = session.player;
+
+    return [...player.devices].map(([deviceId, device]) => ({
+      id: deviceId,
+      name: device.name,
+      agents: [...device.agents].map(([agent, addresses]) => {
+        let digest = uaparser(agent);
+
+        if (digest.device.vendor === undefined)
+          digest.device = null;
+
+        return {
+          agent: agent,
+          os: digest.os,
+          browser: digest.browser,
+          device: digest.device,
+          addresses: [...addresses].map(([address, lastSeenAt]) => ({
+            address: address,
+            lastSeenAt: lastSeenAt,
+          })),
+        }
+      }),
+    }));
+  }
+  onSetDeviceNameRequest(client, deviceId, deviceName) {
+    let session = this.sessions.get(client.id) || {};
+    if (!session.token)
+      throw new ServerError(401, 'Authorization is required');
+
+    if (deviceName !== null) {
+      if (typeof deviceName !== 'string')
+        throw new ServerError(400, 'Expected device name');
+      if (deviceName.length > 20)
+        throw new ServerError(400, 'Device name may not exceed 20 characters');
+    }
+
+    let player = session.player;
+    let device = player.getDevice(deviceId);
+    if (!device)
+      throw new ServerError(404, 'No such device');
+
+    device.name = deviceName;
+
+    dataAdapter.savePlayer(player);
+  }
+  onRemoveDeviceRequest(client, deviceId) {
+    let session = this.sessions.get(client.id) || {};
+    if (!session.token)
+      throw new ServerError(401, 'Authorization is required');
+    if (session.device.id === deviceId)
+      throw new ServerError(403, 'You may not remove the current device.');
+
+    let player = session.player;
+    player.removeDevice(deviceId);
+
+    dataAdapter.savePlayer(player);
+  }
+
+  /*
+   * Have identity token, want to create access token for a new device.
+   * (Authorization not required)
+   */
+  onCreateAccessTokenRequest(client, identityToken) {
+    let claims = jwt.verify(identityToken, config.publicKey);
+    let player = dataAdapter.getPlayer(claims.sub);
+    if (player.identityToken !== identityToken)
+      throw new ServerError(401, 'Identity token was revoked');
+
+    let device = player.addDevice({
+      agents: new Map([[
+        client.agent, 
+        new Map([[client.address, now]]),
+      ]]),
+    });
+    device.token = player.createAccessToken(device.id);
+    player.identityToken = null;
 
     dataAdapter.savePlayer(player);
 
@@ -80,15 +212,15 @@ class AuthService extends Service {
   }
 
   /*
-   * To refresh a token, a couple things must be true:
+   * To refresh an access token, a couple things must be true:
    *   1) It must be a verified JWT.  It may be expired, however.
-   *   2) The device must be associated with the token.
+   *   2) Token must not be revoked, which happens once a newer token is used.
    */
   onRefreshTokenRequest(client, token) {
     let session = this.sessions.get(client.id) || {};
 
     // An authorized player does not have to provide the token.
-    if (session.token)
+    if (!token)
       token = session.token;
 
     let tokenData = this._validateToken(client, token);
@@ -100,7 +232,7 @@ class AuthService extends Service {
     else
       // A new token is generated but the old token is not revoked until the new
       // token is used to ensure the client received it.
-      newToken = tokenData.player.createToken(tokenData.device.id);
+      newToken = tokenData.player.createAccessToken(tokenData.device.id);
 
     return newToken;
   }
@@ -119,13 +251,13 @@ class AuthService extends Service {
       this._validatePlayerName(profile.name);
 
     let claims = jwt.verify(session.token, config.publicKey);
-    let player = dataAdapter.getPlayer(claims.sub);
+    let player = session.player;
     player.update(profile);
     dataAdapter.savePlayer(player);
 
     // A new token is generated with the new name, if any, but the old token is
     // not revoked until the new token is used to ensure the client received it.
-    return player.createToken(claims.deviceId);
+    return player.createAccessToken(claims.deviceId);
   }
 
   _validatePlayerName(name) {
@@ -212,8 +344,11 @@ class AuthService extends Service {
     if (createdAt > oldCreatedAt) {
       this.debug(`New token: playerId=${playerId}; deviceId=${deviceId}; token-sig=${tokenSig}`);
 
-      device.addresses.set(client.address, now);
-      device.agents.set(client.agent, now);
+      if (device.agents.has(client.agent))
+        device.agents.get(client.agent).set(client.address, now);
+      else
+        device.agents.set(client.agent, new Map([[client.address, now]]));
+
       device.token = token;
       dataAdapter.savePlayer(player);
     }

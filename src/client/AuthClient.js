@@ -51,6 +51,9 @@ export default class AuthClient extends Client {
   get playerName() {
     return this.token && this.token.playerName;
   }
+  get deviceId() {
+    return this.token && this.token.deviceId;
+  }
 
   /*
    * The business logic in this method is specific to the MVP server release.
@@ -74,6 +77,43 @@ export default class AuthClient extends Client {
   saveProfile(profile) {
     return this._server.requestAuthorized(this.name, 'saveProfile', [profile])
       .then(token => this._storeToken(token));
+  }
+
+  getIdentityToken() {
+    return this._server.requestAuthorized(this.name, 'getIdentityToken')
+      .then(token => token ? new Token(token) : null);
+  }
+  createIdentityToken() {
+    return this._server.requestAuthorized(this.name, 'createIdentityToken')
+      .then(token => new Token(token));
+  }
+  revokeIdentityToken() {
+    return this._server.requestAuthorized(this.name, 'revokeIdentityToken');
+  }
+  createAccessToken(identityToken) {
+    return this._server.requestAuthorized(this.name, 'createAccessToken', [identityToken])
+      .then(token => this._storeToken(token));
+  }
+
+  getDevices() {
+    return this._server.requestAuthorized(this.name, 'getDevices')
+      .then(devices => {
+        devices.forEach(device => {
+          device.agents.forEach(agent => {
+            agent.addresses.forEach(address => {
+              address.lastSeenAt = new Date(address.lastSeenAt);
+            });
+          });
+        });
+
+        return devices;
+      });
+  }
+  setDeviceName(deviceId, deviceName) {
+    return this._server.requestAuthorized(this.name, 'setDeviceName', [deviceId, deviceName]);
+  }
+  removeDevice(deviceId) {
+    return this._server.requestAuthorized(this.name, 'removeDevice', [deviceId]);
   }
 
   _onOpen({ data }) {

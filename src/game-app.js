@@ -1,8 +1,11 @@
+import popup from 'components/popup.js';
+
 Tactics.App = (function ($, window, document) {
   'use strict';
 
   var self = {};
   var game;
+  var undoPopup;
   var pointer;
   var fullscreen = Tactics.fullscreen;
 
@@ -69,31 +72,23 @@ Tactics.App = (function ($, window, document) {
       game.pass();
     },
     surrender: function () {
-      $('#popup #message').text('Do you surrender?');
-      $('#popup BUTTON[name=yes]').data('handler', () => {
-        $('#overlay,#popup').hide();
-
-        game.surrender();
+      popup({
+        message: 'Do you surrender?',
+        buttons: [
+          {
+            label: 'Yes',
+            onClick: () => game.surrender(),
+          },
+          {
+            label: 'No',
+          },
+        ],
       });
-      $('#overlay,#popup').show();
     }
   };
 
   $(window)
     .on('load', function () {
-      $('#overlay').on('click', event => {
-        let handler = $(event.target).data('handler');
-
-        handler();
-      });
-
-      $('#overlay').data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
-      $('#popup BUTTON[name=no]').data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
-
       if ('ontouchstart' in window)
         $('body').addClass(pointer = 'touch');
       else
@@ -440,18 +435,12 @@ Tactics.App = (function ($, window, document) {
 
     let undoRequest = game.state.undoRequest;
 
-    if (undoRequest.status === 'pending') {
-      $('#popup').addClass('undo');
-      updateUndoDialog();
-      $('#overlay,#popup').show();
-    }
-    else
-      // If the dialog is already shown, update it.
-      updateUndoDialog();
+    // Only show the popup if it is already shown or if the undo is pending.
+    updateUndoDialog(undoRequest.status === 'pending');
   }
 
-  function updateUndoDialog() {
-    if (!$('#popup').hasClass('undo')) {
+  function updateUndoDialog(createIfNeeded = false) {
+    if (!undoPopup && !createIfNeeded) {
       // When a request is rejected, the undo button becomes disabled.
       $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
       return;
@@ -461,99 +450,71 @@ Tactics.App = (function ($, window, document) {
     let teams = game.teams;
     let myTeam = teams.find(t => game.isMyTeam(t));
     let requestor = teams[undoRequest.teamId];
+    let popupData = {
+      buttons: [],
+      onClose: () => {
+        // When a request is rejected, the undo button becomes disabled.
+        $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+
+        undoPopup = null;
+      },
+    };
 
     if (game.hasOneLocalTeam(undoRequest.teamId))
-      $('#popup .title').text(`Your Undo Request`);
+      popupData.title = `Your Undo Request`;
     else if (teams.filter(t => t.name === requestor.name).length > 1)
-      $('#popup .title').text(`Undo Request By ${requestor.color}`);
+      popupData.title = `Undo Request By ${requestor.color}`;
     else
-      $('#popup .title').text(`Undo Request By ${requestor.name}`);
+      popupData.title = `Undo Request By ${requestor.name}`;
 
     if (undoRequest.status !== 'pending') {
-      $('#overlay').data('handler', hideUndoDialog);
-
       if (undoRequest.status === 'rejected') {
         let rejector = teams.find(t => t.playerId === undoRequest.rejectedBy);
 
-        $('#popup #message').text(`Request rejected by ${rejector.name}.`);
+        popupData.message = `Request rejected by ${rejector.name}.`;
       }
       else if (undoRequest.status === 'cancelled')
-        $('#popup #message').text(`The request was cancelled.`);
+        popupData.message = `The request was cancelled.`;
 
-      $('#popup BUTTON[name=yes]').hide();
-      $('#popup BUTTON[name=no]')
-        .text('Ok')
-        .data('handler', hideUndoDialog);
+      popupData.buttons.push({ label:'Ok' });
 
-      return;
+      return undoPopup = popup(popupData);
     }
 
-    $('#overlay').data('handler', () => {});
+    popupData.onCancel = () => false;
 
     if (game.isMyTeam(undoRequest.teamId)) {
-      $('#popup #message').text(`Waiting for approval.`);
-      $('#popup BUTTON[name=yes]').hide();
-      $('#popup BUTTON[name=no]')
-        .text('Cancel')
-        .data('handler', () => {
-          game.cancelUndo();
-          hideUndoDialog();
-        });
+      popupData.message = `Waiting for approval.`;
+      popupData.buttons.push({
+        label: 'Cancel',
+        onClick: () => game.cancelUndo(),
+      });
     }
     else if (undoRequest.accepts.has(myTeam.id)) {
-      $('#popup #message').text(`Approval sent.  Waiting for others.`);
-      $('#popup BUTTON[name=yes]').hide();
-      $('#popup BUTTON[name=no]')
-        .text('Withdraw Approval')
-        .data('handler', () => {
-          game.rejectUndo();
-          hideUndoDialog();
-        });
+      popupData.message = `Approval sent.  Waiting for others.`;
+      popupData.buttons.push({
+        label: 'Withdraw Approval',
+        onClick: () => game.rejectUndo(),
+      });
     }
     else {
-      $('#popup #message').text(`Do you approve?`);
-      $('#popup BUTTON[name=yes]')
-        .text('Yes')
-        .data('handler', () => {
-          game.acceptUndo();
-          hideUndoDialog();
-        })
-        .show();
-      $('#popup BUTTON[name=no]')
-        .text('No')
-        .data('handler', () => {
-          game.rejectUndo();
-          hideUndoDialog();
-        });
+      popupData.message = `Do you approve?`;
+      popupData.buttons.push({
+        label: 'Yes',
+        onClick: () => game.acceptUndo(),
+      });
+      popupData.buttons.push({
+        label: 'No',
+        onClick: () => game.rejectUndo(),
+      });
     }
+
+    undoPopup = popup(popupData);
   }
 
   function hideUndoDialog() {
-    // When a request is rejected, the undo button becomes disabled.
-    $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
-
-    if (!$('#popup').hasClass('undo')) return;
-
-    $('#overlay,#popup').hide();
-    $('#popup').removeClass('undo');
-    $('#popup .title').text('');
-
-    // Restore original state.
-    $('#overlay')
-      .data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
-    $('#popup BUTTON[name=yes]')
-      .text('Yes')
-      .data('handler', () => {
-        $('#overlay,#popup').hide();
-      })
-      .show();
-    $('#popup BUTTON[name=no]')
-      .text('No')
-      .data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
+    if (undoPopup)
+      undoPopup.close();
   }
 
   return self;

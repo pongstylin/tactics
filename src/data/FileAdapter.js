@@ -116,7 +116,9 @@ export default class {
 
     let offset = (query.page - 1) * query.limit;
     let games = this._getPlayerGamesSummary(playerId);
-    let results = [...games.values()].filter(this._compileFilter(query.filter));
+    let results = [...games.values()]
+      .filter(this._compileFilter(query.filter))
+      .sort(this._compileSort(query.sort));
 
     return Promise.resolve({
       page: query.page,
@@ -243,5 +245,20 @@ export default class {
       throw new Error('Complex conditions are not implemented');
     else
       return item[field] === value;
+  }
+
+  _compileSort(sort) {
+    if (!sort)
+      return (a, b) => 0;
+
+    if (typeof sort === 'string')
+      return (a, b) => this._sortItemsByField(a, b, sort);
+    else
+      throw new ServerError(501, 'Only a string sort type is supported');
+  }
+  _sortItemsByField(a, b, str) {
+    if (a[str] < b[str]) return -1;
+    if (b[str] < a[str]) return 1;
+    return 0;
   }
 };

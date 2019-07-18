@@ -37,9 +37,22 @@
       max-height: 600px;
     }
 
-    .create {
-      margin: 16px 0;
-      text-align: center;
+    .intro {
+      display: flex;
+      flex-direction: row;
+      margin: 4px 4px 12px;
+    }
+    .intro .greeting {
+      flex-grow: 1;
+    }
+    .menu {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .menu > DIV {
+      margin-left: 16px;
     }
 
     #notice {
@@ -52,7 +65,7 @@
       padding: 0;
       border-bottom: 1px solid #DED8D5;
       width: 100%;
-      border-bottom-color: #DED8D5;
+      border-bottom-color: #804a00;
       justify-content: center;
     }
     .tabs LI {
@@ -62,14 +75,14 @@
       border-top-left-radius: 12px;
       border-top-right-radius: 12px;
       padding: 0.4em 0.8em;
-      border-bottom: 1px solid #DED8D5;
+      border-bottom: 1px solid transparent;
       margin-bottom: -1px;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
     .tabs LI.is-active {
-      background-color: #004444;
-      border-bottom-color: #00FFFF;
+      background: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
+      border-bottom-color: #DED8D5;
       cursor: default;
     }
     .tabs .label {
@@ -77,9 +90,12 @@
       text-align: center;
       padding: 0;
     }
-    .tabs LI:hover,
-    .tabs LI.is-active .label {
+    .tabs LI:hover {
       color: #00FFFF;
+    }
+    .tabs LI.is-active .label {
+      color: white;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     }
     .tabs LI .badge {
       flex: 0 0 auto;
@@ -149,12 +165,13 @@
 </HEAD>
 <BODY>
   <DIV class="page">
-    <DIV>
-      Create a game and share the link with your desired opponent or with a
-      group of people.  The first person to join gets to play you.  Anybody else
-      with the link can watch the game or view the result.
+    <DIV class="intro">
+      <DIV class="greeting" style="display:none">Welcome!</DIV>
+      <DIV class="menu">
+        <DIV><A href="/createGame.html">Create Game</A></DIV>
+        <DIV><A href="/account.html">Account</A></DIV>
+      </DIV>
     </DIV>
-    <DIV class="create"><A href="/createGame.html">Create Game</A></DIV>
     <DIV id="notice"></DIV>
     <DIV class="tabs" style="display:none">
       <UL>

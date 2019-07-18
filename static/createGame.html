@@ -15,15 +15,19 @@
   <SCRIPT type="text/javascript" src="createGame.min.js"></SCRIPT>
 
   <STYLE>
-    HTML, BOdY, .content {
+    HTML, BODY {
       width:100%;
       height:100%;
     }
 
-    .content {
+    BODY {
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    .content {
+      max-width: 600px;
     }
 
     .content > DIV {
@@ -67,6 +71,11 @@
   <DIV class="content">
     <DIV class="setup" style="display:none">
       <DIV class="row error"></DIV>
+      <DIV class="intro">
+        Create a game and share the link with your desired opponent or with a
+        group of people.  The first person to join gets to play you.  Anybody else
+        with the link can watch the game or view the result.
+      </DIV>
       <DIV class="row playerSetup">
         <DIV>What name would you like to use for this game?</DIV>
         <DIV>
@@ -97,19 +106,15 @@
       <DIV>
         <DIV>Game created.  Instructions:</DIV>
         <UL>
-          <LI style="color:#ff0000">
-            Warning! You can only play the game with THIS device and browser.  If you clear "local storage" for this site, you will lose the ability to play the game.
-          </LI>
           <LI>
-            Save this link someplace, e.g. a bookmark.<BR>
+            This game will now appear in your "Waiting Games" list.  It will be moved to your "Active Games" list once your opponent joins the game.<BR>
             <A href=""></A>
           </LI>
-          <LI>Share the link with your intended opponent, e.g. by text or email.</LI>
-          <LI>Visit the link to check if the opponent has joined the game or made their turn.</LI>
-          <LI>Once the game is in progress, it is safe to share the link with anybody else so that they can view the game.</LI>
+          <LI>If you want to play somebody specific, share the link with your intended opponent, e.g. by text or email.  Once they join the game, you can share the link with anybody else so that they can watch the game or see the result.</LI>
+          <LI>If you don't care who you play, then share the link with a group of people.  The first person to join your game gets to play you.</LI>
         </UL>
         <DIV style="text-align:center">
-          <A href="/online.html">Back to Online Games</A>
+          <A href="/online.html">Back to Game List</A>
         </DIV>
       </DIV>
     </DIV>

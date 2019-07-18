@@ -1,5 +1,6 @@
 import 'tactics/core.scss';
 import clientFactory from 'client/clientFactory.js';
+import copy from 'components/copy.js';
 
 let authClient = clientFactory('auth');
 let gameClient = clientFactory('game');
@@ -11,13 +12,20 @@ let games = {
 };
 
 window.addEventListener('DOMContentLoaded', () => {
+  let divGreeting = document.querySelector('.greeting');
   let divNotice = document.querySelector('#notice');
 
   if (!myPlayerId) {
+    divGreeting.style.display = '';
     divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
     return;
   }
   else {
+    authClient.whenReady.then(() => {
+      divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
+      divGreeting.style.display = '';
+    });
+
     divNotice.textContent = 'Loading your games...';
 
     /*
@@ -50,18 +58,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     let spnCopy = event.target.closest('.copy');
     if (spnCopy) {
-      let input = document.createElement('INPUT');
-      input.type = 'text';
-      input.value = link;
-      input.setAttribute('readonly', '');
-      input.style.position = 'absolute';
-      input.style.left = '-9999px';
-      document.body.appendChild(input);
-
-      input.select();
-      document.execCommand('copy', false);
-      input.remove();
-
+      copy(link);
       alert('Game link copied to clipboard.');
       return;
     }

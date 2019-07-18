@@ -15,6 +15,9 @@ export default class Token {
   get playerName() {
     return this.claims.name;
   }
+  get deviceId() {
+    return this.claims.deviceId;
+  }
   get createdAt() {
     return new Date(this.claims.iat * 1000);
   }
@@ -48,6 +51,9 @@ export default class Token {
     return JSON.parse(payload);
   }
 
+  toString() {
+    return this.value;
+  }
   toJSON() {
     return this.value;
   }

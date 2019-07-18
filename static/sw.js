@@ -16,16 +16,25 @@ const APP_FILES = [
   '/',
   '/install.js',
   '/tactics.min.js',
+
+  '/online.html',
+  '/online.min.js',
   '/createGame.html',
   '/createGame.min.js',
+  '/account.html',
+  '/account.min.js',
   '/game.html',
   '/game-app.min.js',
+
   '/classic.html',
   '/classic-app.min.js',
+
   '/faceoff.html',
   '/faceoff-app.min.js',
+
   '/chaos.html',
   '/chaos-app.min.js',
+
   '/ww.min.js',
 ];
 
