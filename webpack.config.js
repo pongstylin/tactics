@@ -13,6 +13,7 @@ module.exports = {
     'online': path.resolve(__dirname, 'src', 'online.js'),
     'createGame': path.resolve(__dirname, 'src', 'createGame.js'),
     'account': path.resolve(__dirname, 'src', 'account.js'),
+    'addDevice': path.resolve(__dirname, 'src', 'addDevice.js'),
   },
   module: {
     rules: [

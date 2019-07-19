@@ -118,7 +118,9 @@ export default class Player {
    * An identity token can be used to obtain an access token for a device.
    */
   createIdentityToken() {
-    return jwt.sign({}, config.privateKey, {
+    return jwt.sign({
+      name: this.name,
+    }, config.privateKey, {
       algorithm: 'RS512',
       expiresIn: config.IDENTITY_TOKEN_TTL || '30d',
       subject: this.id,

@@ -90,10 +90,6 @@ export default class AuthClient extends Client {
   revokeIdentityToken() {
     return this._server.requestAuthorized(this.name, 'revokeIdentityToken');
   }
-  createAccessToken(identityToken) {
-    return this._server.requestAuthorized(this.name, 'createAccessToken', [identityToken])
-      .then(token => this._storeToken(token));
-  }
 
   getDevices() {
     return this._server.requestAuthorized(this.name, 'getDevices')
@@ -108,6 +104,18 @@ export default class AuthClient extends Client {
 
         return devices;
       });
+  }
+  addDevice(identityToken) {
+    let promise;
+    if (this.token)
+      promise = this.removeDevice(this.deviceId);
+    else
+      promise = Promise.resolve();
+
+    return promise.then(() =>
+      this._server.request(this.name, 'addDevice', [identityToken])
+        .then(token => this._storeToken(token))
+    );
   }
   setDeviceName(deviceId, deviceName) {
     return this._server.requestAuthorized(this.name, 'setDeviceName', [deviceId, deviceName]);
@@ -150,9 +158,12 @@ export default class AuthClient extends Client {
         // is about to inform this one that a new token is available.
         if (error.code === 409) return;
 
+        // If the device was deleted or if the account doesn't exist anymore,
+        // pretend as if we were never authenticated in the first place.
         if (error.code === 401 || error.code === 404) {
           localStorage.removeItem('token');
           this.token = null;
+          return;
         }
 
         throw error;

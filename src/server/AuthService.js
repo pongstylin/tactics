@@ -153,6 +153,38 @@ class AuthService extends Service {
       }),
     }));
   }
+  /*
+   * Add device to account using the identity token.  Return access token.
+   * (Authorization not required)
+   */
+  onAddDeviceRequest(client, identityToken) {
+    let now = new Date();
+
+    let claims;
+    try {
+      claims = jwt.verify(identityToken, config.publicKey);
+    }
+    catch (error) {
+      throw new ServerError(401, error.message);
+    }
+
+    let player = dataAdapter.getPlayer(claims.sub);
+    if (player.identityToken !== identityToken)
+      throw new ServerError(403, 'Identity token was revoked');
+
+    let device = player.addDevice({
+      agents: new Map([[
+        client.agent, 
+        new Map([[client.address, now]]),
+      ]]),
+    });
+    device.token = player.createAccessToken(device.id);
+    player.identityToken = null;
+
+    dataAdapter.savePlayer(player);
+
+    return device.token;
+  }
   onSetDeviceNameRequest(client, deviceId, deviceName) {
     let session = this.sessions.get(client.id) || {};
     if (!session.token)
@@ -178,37 +210,11 @@ class AuthService extends Service {
     let session = this.sessions.get(client.id) || {};
     if (!session.token)
       throw new ServerError(401, 'Authorization is required');
-    if (session.device.id === deviceId)
-      throw new ServerError(403, 'You may not remove the current device.');
 
     let player = session.player;
     player.removeDevice(deviceId);
 
     dataAdapter.savePlayer(player);
-  }
-
-  /*
-   * Have identity token, want to create access token for a new device.
-   * (Authorization not required)
-   */
-  onCreateAccessTokenRequest(client, identityToken) {
-    let claims = jwt.verify(identityToken, config.publicKey);
-    let player = dataAdapter.getPlayer(claims.sub);
-    if (player.identityToken !== identityToken)
-      throw new ServerError(401, 'Identity token was revoked');
-
-    let device = player.addDevice({
-      agents: new Map([[
-        client.agent, 
-        new Map([[client.address, now]]),
-      ]]),
-    });
-    device.token = player.createAccessToken(device.id);
-    player.identityToken = null;
-
-    dataAdapter.savePlayer(player);
-
-    return device.token;
   }
 
   /*
@@ -315,8 +321,6 @@ class AuthService extends Service {
 
     if (!device)
       throw new ServerError(401, 'Device deleted');
-    if (device.disabled)
-      throw new ServerError(401, 'Device disabled');
 
     /*
      * Get some information about the old token.
