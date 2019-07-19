@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<HTML>
+<HEAD>
+  <TITLE>Tactics Online</TITLE>
+  <META name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <META name="apple-mobile-web-app-capable" content="yes">
+  <META name="apple-mobile-web-app-status-bar-style" content="black">
+  <META name="mobile-web-app-capable" content="yes">
+
+  <LINK href="/manifest.json" rel="manifest">
+  <LINK href="/favicon.ico" rel="icon" sizes="16x16">
+  <LINK href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" rel="stylesheet" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+
+  <SCRIPT src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js" crossorigin="anonymous"></SCRIPT>
+  <SCRIPT type="text/javascript" src="online.min.js"></SCRIPT>
+
+  <STYLE>
+    HTML, BODY {
+      width:100%;
+      height:100%;
+    }
+
+    BODY {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .page {
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      padding: 8px;
+      width: 100%;
+      max-width: 800px;
+      height: 100%;
+      max-height: 600px;
+    }
+
+    .intro {
+      display: flex;
+      flex-direction: row;
+      margin: 4px 4px 12px;
+    }
+    .intro .greeting {
+      flex-grow: 1;
+    }
+    .menu {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .menu > DIV {
+      margin-left: 16px;
+    }
+
+    #notice {
+      text-align: center;
+    }
+
+    .tabs UL {
+      display: flex;
+      margin: 0;
+      padding: 0;
+      border-bottom: 1px solid #DED8D5;
+      width: 100%;
+      border-bottom-color: #804a00;
+      justify-content: center;
+    }
+    .tabs LI {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      padding: 0.4em 0.8em;
+      border-bottom: 1px solid transparent;
+      margin-bottom: -1px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tabs LI.is-active {
+      background: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
+      border-bottom-color: #DED8D5;
+      cursor: default;
+    }
+    .tabs .label {
+      border-bottom-color: #DED8D5;
+      text-align: center;
+      padding: 0;
+    }
+    .tabs LI:hover {
+      color: #00FFFF;
+    }
+    .tabs LI.is-active .label {
+      color: white;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+    .tabs LI .badge {
+      flex: 0 0 auto;
+      border-radius: 12px;
+      background-color: #DED8D5;
+      color: #000;
+      height: 15px;
+      padding: 0 0.3em;
+      line-height: 14px;
+      text-align: center;
+      margin-left: 0.5em;
+    }
+
+    .tabContent {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .tabContent > DIV:empty::before {
+      display: block;
+      text-align: center;
+      content: 'No games!';
+    }
+
+    .tabContent HEADER {
+      text-align: center;
+      font-style: italic;
+      font-weight: bold;
+      margin: 8px 0 0;
+    }
+    .tabContent .game {
+      display: flex;
+      justify-content: space-between;
+      border: 1px solid #444444;
+      margin: 8px 0 0;
+      padding: 8px;
+      cursor: pointer;
+    }
+    .tabContent .game:hover {
+      border-color: #00FFFF;
+    }
+    .tabContent .game .left {
+      width: 18%;
+    }
+    .tabContent .game .middle {
+      text-align: center;
+    }
+    .tabContent .game .right {
+      width: 18%;
+      text-align: right;
+    }
+
+    .tabContent .game .share,
+    .tabContent .game .copy {
+      color: #00FFFF;
+      cursor: pointer;
+    }
+    .tabContent .game .share .label,
+    .tabContent .game .copy .label {
+      margin-left: 6px;
+    }
+    .tabContent .game .share:hover .label,
+    .tabContent .game .copy:hover .label {
+      text-decoration: underline;
+    }
+  </STYLE>
+</HEAD>
+<BODY>
+  <DIV class="page">
+    <DIV class="intro">
+      <DIV class="greeting" style="display:none">Welcome!</DIV>
+      <DIV class="menu">
+        <DIV><A href="/createGame.html">Create Game</A></DIV>
+        <DIV><A href="/account.html">Account</A></DIV>
+      </DIV>
+    </DIV>
+    <DIV id="notice"></DIV>
+    <DIV class="tabs" style="display:none">
+      <UL>
+        <LI class="active"><span class="label">Active Games</span><span class="badge"></span></LI>
+        <LI class="waiting"><span class="label">Waiting Games</span><span class="badge"></span></LI>
+        <LI class="complete"><span class="label">Complete Games</span><span class="badge"></span></LI>
+      </UL>
+    </DIV>
+    <DIV class="tabContent">
+      <DIV class="active" style="display:none"></DIV>
+      <DIV class="waiting" style="display:none"></DIV>
+      <DIV class="complete" style="display:none"></DIV>
+    </DIV>
+  </DIV>
+</BODY>
+</HTML>

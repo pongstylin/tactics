@@ -1,8 +1,11 @@
+import popup from 'components/popup.js';
+
 Tactics.App = (function ($, window, document) {
   'use strict';
 
   var self = {};
   var game;
+  var undoPopup;
   var pointer;
   var fullscreen = Tactics.fullscreen;
 
@@ -69,31 +72,23 @@ Tactics.App = (function ($, window, document) {
       game.pass();
     },
     surrender: function () {
-      $('#popup #message').text('Do you surrender?');
-      $('#popup BUTTON[name=yes]').data('handler', () => {
-        $('#overlay,#popup').hide();
-
-        game.surrender();
+      popup({
+        message: 'Do you surrender?',
+        buttons: [
+          {
+            label: 'Yes',
+            onClick: () => game.surrender(),
+          },
+          {
+            label: 'No',
+          },
+        ],
       });
-      $('#overlay,#popup').show();
     }
   };
 
   $(window)
     .on('load', function () {
-      $('#overlay').on('click', event => {
-        let handler = $(event.target).data('handler');
-
-        handler();
-      });
-
-      $('#overlay').data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
-      $('#popup BUTTON[name=no]').data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
-
       if ('ontouchstart' in window)
         $('body').addClass(pointer = 'touch');
       else
@@ -155,7 +150,6 @@ Tactics.App = (function ($, window, document) {
       initGame()
         .then(g => {
           game = g;
-
           game.state.on('playerStatus', resetPlayerBanners);
 
           if (game.isViewOnly) {
@@ -164,7 +158,6 @@ Tactics.App = (function ($, window, document) {
             $('BUTTON[name=undo]').hide();
           }
 
-          $('#join').hide();
           $('#splash').show();
           loadThenStartGame();
         })
@@ -196,73 +189,100 @@ Tactics.App = (function ($, window, document) {
     return Tactics.getRemoteGameData(gameId)
       .then(gameData => {
         // An account is not required to view an ended game.
-        if (gameData.state.ended) return gameData;
+        if (gameData.state.ended)
+          return Tactics.loadRemoteGame(gameId, gameData);
 
         return Tactics.getMyIdentity().then(identity => {
-          let greeting = document.querySelector('.greeting');
-          let playerName = document.querySelector('INPUT[name=playerName]');
-          let details = document.querySelector('.details');
-          let challenge = document.querySelector('.challenge');
-          let btnJoin = document.querySelector('BUTTON[name=join]');
+          // No account?  Provide a name before joining/watching!
+          if (!identity)
+            return showJoinIntro(identity, gameData);
 
-          if (identity) {
-            // If an account exists and the game started, start watching!
-            if (gameData.state.started) return gameData;
+          // Account exists and game started?  Immediately start watching!
+          if (gameData.state.started)
+            return Tactics.loadRemoteGame(gameId, gameData);
 
-            greeting.innerHTML = `
-              Welcome back, ${identity.name}!  You may change your name here.<BR>
-              Note: This won't change your name on previously created/joined games.
-            `;
-            playerName.value = identity.name;
-          }
-          else {
-            greeting.innerHTML = `Welcome!  Choose your game name.`;
-            playerName.value = 'Noob';
-          }
-
-          if (gameData.state.started) {
-            btnJoin.textContent = 'Watch Game';
-
-            return new Promise((resolve, reject) => {
-              btnJoin.addEventListener('click', event => {
-                Tactics.authClient.setAccountName(playerName.value)
-                  .then(() => resolve(gameData));
-              });
-
-              document.querySelector('#join').style.display = null;
-            });
-          }
-          else {
-            let creatorTeam = gameData.state.teams.find(t => !!t);
-
-            let person;
-            if (gameData.state.randomFirstTurn)
-              person = 'random';
-            else if (creatorTeam.originalId === 0)
-              person = creatorTeam.name;
-            else
-              person = 'you';
-
-            details.textContent = `The first person to move is ${person}.`;
-
-            if (identity && creatorTeam.playerId === identity.id)
-              challenge.textContent = `Your opponent hasn't joined the game yet.  Or, you could play yourself?`;
-            else
-              challenge.textContent = `${creatorTeam.name} is waiting for an opponent.  Want to play?`;
-
-            return new Promise((resolve, reject) => {
-              btnJoin.addEventListener('click', event => {
-                Tactics.joinRemoteGame(playerName.value, gameId)
-                  .then(() => resolve())
-                  .catch(error => reject(error));
-              });
-
-              document.querySelector('#join').style.display = null;
-            });
-          }
+          let hasJoined = gameData.state.teams.find(t => t && t.playerId === identity.id);
+          if (hasJoined)
+            return showWaitIntro(identity, gameData);
+          else
+            return showJoinIntro(identity, gameData);
         });
       })
-      .then(gameData => Tactics.loadRemoteGame(gameId, gameData));
+  }
+
+  function showWaitIntro(identity, gameData) {
+    let $greeting = $('#wait .greeting');
+
+    return Tactics.loadRemoteGame(gameData.id).then(game => {
+      $greeting.text($greeting.text().replace('{playerName}', identity.name));
+
+      $('#wait').show();
+
+      return game.whenStarted.then(() => {
+        $('#wait').hide();
+        return game;
+      })
+    });
+  }
+
+  function showJoinIntro(identity, gameData) {
+    let greeting = document.querySelector('#join .greeting');
+    let playerName = document.querySelector('INPUT[name=playerName]');
+    let details = document.querySelector('.details');
+    let challenge = document.querySelector('.challenge');
+    let btnJoin = document.querySelector('BUTTON[name=join]');
+
+    if (identity) {
+      greeting.innerHTML = `
+        Welcome back, ${identity.name}!  You may change your name here.<BR>
+        Note: This won't change your name on previously created/joined games.
+      `;
+      playerName.value = identity.name;
+    }
+    else {
+      greeting.innerHTML = `Welcome!  Choose your game name.`;
+      playerName.value = 'Noob';
+    }
+
+    if (gameData.state.started) {
+      btnJoin.textContent = 'Watch Game';
+
+      return new Promise((resolve, reject) => {
+        btnJoin.addEventListener('click', event => {
+          Tactics.authClient.setAccountName(playerName.value)
+            .then(() => resolve(gameData));
+        });
+
+        $('#join').show();
+      });
+    }
+    else {
+      let creatorTeam = gameData.state.teams.find(t => !!t);
+      let person;
+      if (gameData.state.randomFirstTurn)
+        person = 'random';
+      else if (creatorTeam.originalId === 0)
+        person = creatorTeam.name;
+      else
+        person = 'you';
+
+      details.textContent = `The first person to move is ${person}.`;
+      challenge.textContent = `${creatorTeam.name} is waiting for an opponent.  Want to play?`;
+
+      return new Promise((resolve, reject) => {
+        btnJoin.addEventListener('click', event => {
+          Tactics.joinRemoteGame(playerName.value, gameData.id)
+            .then(() => Tactics.loadRemoteGame(gameData.id, gameData))
+            .then(game => {
+              $('#join').hide();
+              resolve(game);
+            })
+            .catch(error => reject(error));
+        });
+
+        $('#join').show();
+      });
+    }
   }
 
   function resetPlayerBanners() {
@@ -415,18 +435,12 @@ Tactics.App = (function ($, window, document) {
 
     let undoRequest = game.state.undoRequest;
 
-    if (undoRequest.status === 'pending') {
-      $('#popup').addClass('undo');
-      updateUndoDialog();
-      $('#overlay,#popup').show();
-    }
-    else
-      // If the dialog is already shown, update it.
-      updateUndoDialog();
+    // Only show the popup if it is already shown or if the undo is pending.
+    updateUndoDialog(undoRequest.status === 'pending');
   }
 
-  function updateUndoDialog() {
-    if (!$('#popup').hasClass('undo')) {
+  function updateUndoDialog(createIfNeeded = false) {
+    if (!undoPopup && !createIfNeeded) {
       // When a request is rejected, the undo button becomes disabled.
       $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
       return;
@@ -436,99 +450,71 @@ Tactics.App = (function ($, window, document) {
     let teams = game.teams;
     let myTeam = teams.find(t => game.isMyTeam(t));
     let requestor = teams[undoRequest.teamId];
+    let popupData = {
+      buttons: [],
+      onClose: () => {
+        // When a request is rejected, the undo button becomes disabled.
+        $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+
+        undoPopup = null;
+      },
+    };
 
     if (game.hasOneLocalTeam(undoRequest.teamId))
-      $('#popup .title').text(`Your Undo Request`);
+      popupData.title = `Your Undo Request`;
     else if (teams.filter(t => t.name === requestor.name).length > 1)
-      $('#popup .title').text(`Undo Request By ${requestor.color}`);
+      popupData.title = `Undo Request By ${requestor.color}`;
     else
-      $('#popup .title').text(`Undo Request By ${requestor.name}`);
+      popupData.title = `Undo Request By ${requestor.name}`;
 
     if (undoRequest.status !== 'pending') {
-      $('#overlay').data('handler', hideUndoDialog);
-
       if (undoRequest.status === 'rejected') {
         let rejector = teams.find(t => t.playerId === undoRequest.rejectedBy);
 
-        $('#popup #message').text(`Request rejected by ${rejector.name}.`);
+        popupData.message = `Request rejected by ${rejector.name}.`;
       }
       else if (undoRequest.status === 'cancelled')
-        $('#popup #message').text(`The request was cancelled.`);
+        popupData.message = `The request was cancelled.`;
 
-      $('#popup BUTTON[name=yes]').hide();
-      $('#popup BUTTON[name=no]')
-        .text('Ok')
-        .data('handler', hideUndoDialog);
+      popupData.buttons.push({ label:'Ok' });
 
-      return;
+      return undoPopup = popup(popupData);
     }
 
-    $('#overlay').data('handler', () => {});
+    popupData.onCancel = () => false;
 
     if (game.isMyTeam(undoRequest.teamId)) {
-      $('#popup #message').text(`Waiting for approval.`);
-      $('#popup BUTTON[name=yes]').hide();
-      $('#popup BUTTON[name=no]')
-        .text('Cancel')
-        .data('handler', () => {
-          game.cancelUndo();
-          hideUndoDialog();
-        });
+      popupData.message = `Waiting for approval.`;
+      popupData.buttons.push({
+        label: 'Cancel',
+        onClick: () => game.cancelUndo(),
+      });
     }
     else if (undoRequest.accepts.has(myTeam.id)) {
-      $('#popup #message').text(`Approval sent.  Waiting for others.`);
-      $('#popup BUTTON[name=yes]').hide();
-      $('#popup BUTTON[name=no]')
-        .text('Withdraw Approval')
-        .data('handler', () => {
-          game.rejectUndo();
-          hideUndoDialog();
-        });
+      popupData.message = `Approval sent.  Waiting for others.`;
+      popupData.buttons.push({
+        label: 'Withdraw Approval',
+        onClick: () => game.rejectUndo(),
+      });
     }
     else {
-      $('#popup #message').text(`Do you approve?`);
-      $('#popup BUTTON[name=yes]')
-        .text('Yes')
-        .data('handler', () => {
-          game.acceptUndo();
-          hideUndoDialog();
-        })
-        .show();
-      $('#popup BUTTON[name=no]')
-        .text('No')
-        .data('handler', () => {
-          game.rejectUndo();
-          hideUndoDialog();
-        });
+      popupData.message = `Do you approve?`;
+      popupData.buttons.push({
+        label: 'Yes',
+        onClick: () => game.acceptUndo(),
+      });
+      popupData.buttons.push({
+        label: 'No',
+        onClick: () => game.rejectUndo(),
+      });
     }
+
+    undoPopup = popup(popupData);
   }
 
   function hideUndoDialog() {
-    // When a request is rejected, the undo button becomes disabled.
-    $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
-
-    if (!$('#popup').hasClass('undo')) return;
-
-    $('#overlay,#popup').hide();
-    $('#popup').removeClass('undo');
-    $('#popup .title').text('');
-
-    // Restore original state.
-    $('#overlay')
-      .data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
-    $('#popup BUTTON[name=yes]')
-      .text('Yes')
-      .data('handler', () => {
-        $('#overlay,#popup').hide();
-      })
-      .show();
-    $('#popup BUTTON[name=no]')
-      .text('No')
-      .data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
+    if (undoPopup)
+      undoPopup.close();
   }
 
   return self;

@@ -26,14 +26,14 @@ export default class GameClient extends Client {
   }
 
   createGame(stateData) {
-    this._server.requestAuthorized(this.name, 'createGame', [stateData])
+    return this._server.requestAuthorized(this.name, 'createGame', [stateData])
   }
 
   joinGame(gameId, options) {
     let args = [gameId];
     if (options) args.push(options);
 
-    this._server.requestAuthorized(this.name, 'joinGame', args)
+    return this._server.requestAuthorized(this.name, 'joinGame', args);
   }
 
   getGameData(gameId) {
@@ -44,8 +44,22 @@ export default class GameClient extends Client {
     return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId]);
   }
 
-  listMyGames(query) {
-    return this._server.requestAuthorized(this.name, 'listMyGames', [query]);
+  searchMyGames(query) {
+    let playerId = this._authClient.playerId;
+
+    return this._server.requestAuthorized(this.name, 'searchPlayerGames', [playerId, query])
+      .then(rsp => {
+        rsp.results.forEach(result => {
+          result.created = new Date(result.created);
+          result.updated = new Date(result.updated);
+          if (result.started)
+            result.started = new Date(result.started);
+          if (result.ended)
+            result.ended = new Date(result.ended);
+        });
+
+        return rsp;
+      });
   }
 
   watchGame(gameId, resume) {

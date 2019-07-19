@@ -27,15 +27,24 @@ export default class GameSummary {
     else
       updated = started || created;
 
-    return {
+    let summary = {
+      id: game.id,
       created: created,
       updated: updated,
       started: started,
-      isEnded: !!ended,
+      ended: ended,
+      randomFirstTurn: game.state.randomFirstTurn,
       teams: teams.map(t => t && {
         playerId: t.playerId,
         name: t.name,
       }),
     };
+
+    if (ended)
+      summary.winnerId = game.state.winnerId;
+    else if (started)
+      summary.currentTeamId = game.state.currentTeamId;
+
+    return summary;
   }
 }

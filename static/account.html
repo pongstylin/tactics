@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<HTML>
+<HEAD>
+  <TITLE>Tactics - Account</TITLE>
+  <META name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <META name="apple-mobile-web-app-capable" content="yes">
+  <META name="apple-mobile-web-app-status-bar-style" content="black">
+  <META name="mobile-web-app-capable" content="yes">
+
+  <LINK href="/manifest.json" rel="manifest">
+  <LINK href="/favicon.ico" rel="icon" sizes="16x16">
+  <LINK href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" rel="stylesheet" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+
+  <SCRIPT src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js" crossorigin="anonymous"></SCRIPT>
+  <SCRIPT type="text/javascript" src="account.min.js"></SCRIPT>
+
+  <STYLE>
+    HTML, BODY {
+      width:100%;
+      height:100%;
+    }
+
+    BODY {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    ::selection {
+      background: #b08d57;
+    }
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .page {
+      box-sizing: border-box;
+      padding: 8px;
+      width: 100%;
+      max-width: 800px;
+      height: 100%;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .section {
+      background: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      padding: 1px 12px;
+      margin-top: 12px;
+      text-align: center;
+      color: white;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+
+    .inputTextAutosave {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+
+      border-bottom: 1px solid #888888;
+    }
+    .inputTextAutosave INPUT[type=text] {
+      flex: 1 1 auto;
+
+      box-sizing: border-box;
+      background-color: black;
+      color: inherit;
+      border: 0 none;
+      padding: 4px;
+      width: 100%;
+    }
+    .inputTextAutosave INPUT[type=text]:focus {
+      outline: #b08d57 auto 1px;
+    }
+    .inputTextAutosave INPUT[type=text]::placeholder {
+      font-style: italic;
+      color: inherit;
+    }
+    .inputTextAutosave INPUT[type=text]:focus::placeholder {
+      opacity: 0;
+    }
+    .inputTextAutosave .icons {
+      flex: 0 0 auto;
+
+      padding: 4px;
+    }
+    .inputTextAutosave .icons > * {
+      margin-left: 4px;
+    }
+    .inputTextAutosave .icons .saved {
+      position: relative;
+    }
+    .inputTextAutosave .icons .saved .fa-spinner {
+      position: absolute;
+      top: 1px;
+      left: 0;
+    }
+    .inputTextAutosave .icons .saved .fa-spinner {
+      display: none;
+    }
+    .inputTextAutosave .icons .saved .fa-check-circle {
+      color: #444444;
+    }
+    .inputTextAutosave.is-saved .icons .saved .fa-check-circle {
+      color: #00CC00;
+    }
+    .inputTextAutosave.is-saving .icons .saved .fa-spinner {
+      display: block;
+    }
+    .inputTextAutosave.is-saving .icons .saved .fa-check-circle {
+      visibility: hidden;
+    }
+
+    .accountName {
+      text-align: center;
+    }
+
+    .manageLink .manage {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .manageLink .link {
+      color: #00FFFF;
+      margin: 4px 4px 4px 10px;
+
+      word-wrap: break-word;
+      word-break: break-all;
+      text-align: left;
+      text-align-last: left;
+
+      cursor: pointer;
+    }
+    .manageLink .link .label {
+      text-decoration: underline;
+    }
+
+    .device {
+      margin-bottom: 8px;
+    }
+    .device .header {
+      position: relative;
+    }
+    .device .header .inputTextAutosave {
+      width: 100%;
+    }
+    .device .header INPUT[name=deviceName] {
+      padding-left: 8px;
+    }
+    .device .header .icons .fa-trash {
+      cursor: pointer;
+    }
+    .device.current .header .icons .fa-trash {
+      display: none;
+    }
+    .device.current .header .icons::before {
+      font-style: italic;
+      text-align: right;
+      content: 'In Use';
+    }
+    .device .header .error {
+      padding: 4px 8px 0;
+      text-align: left;
+    }
+    .device .toggle {
+      color: #00FFFF;
+      padding: 4px 0 4px 8px;
+      cursor: pointer;
+    }
+    .device .toggle .label {
+      text-decoration: underline;
+    }
+    .device .toggle .fa-angle-double-up {
+      display: none;
+    }
+    .device.expanded .toggle .fa-angle-double-down {
+      display: none;
+    }
+    .device.expanded .toggle .fa-angle-double-up {
+      display: inline;
+    }
+    .device .details {
+      overflow: hidden;
+      transition: height 600ms ease-out;
+    }
+    .device .details .agents {
+      padding: 8px 8px 0;
+      margin: -1px 0 0 12px;
+    }
+    .agent {
+      margin: 0 0 8px;
+    }
+    .agent > .label {
+      color: #00FFFF;
+      cursor: pointer;
+    }
+
+    .addresses {
+      text-align: right;
+    }
+    .address {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      margin: 4px 0;
+    }
+    .address .label {
+      word-wrap: break-word;
+      word-break: break-word;
+      text-align: left;
+      text-align-last: left;
+    }
+    .address .lastSeenAt {
+      white-space: nowrap;
+      padding-left: 4px;
+    }
+    .address .lastSeenAt .short {
+      display: none;
+      width: 50px;
+    }
+
+    @media only screen and (max-width: 400px) {
+      .address .lastSeenAt .short {
+        display: block;
+      }
+      .address .lastSeenAt .long {
+        display: none;
+      }
+    }
+
+    DIV {
+      box-sizing: border-box;
+    }
+
+    .row {
+      padding: 4px 0;
+    }
+    .intro {
+      padding-bottom: 8px;
+      text-align: left;
+    }
+
+    .error {
+      text-align: center;
+      color: #ff0000;
+      padding: 4px;
+    }
+    .error:empty {
+      display: none;
+    }
+
+    @media (hover:hover) {
+      .manageLink .link:hover {
+        color: #CCFFFF;
+      }
+      .device .toggle:hover {
+        color: #CCFFFF;
+      }
+      .device .agent > .label:hover {
+        color: #CCFFFF;
+      }
+    }
+  </STYLE>
+</HEAD>
+<BODY>
+  <DIV class="page" style="display:none">
+    <DIV class="row back" style="text-align:center">
+      <A href="/online.html">Back to Game List</A>
+    </DIV>
+    <DIV class="section">
+      Account Name
+    </DIV>
+    <DIV class="row accountName">
+      <DIV class="intro">
+        What name do you want to use?  It does not have to be unique.  It will
+        be used as the <U>default</U> name when creating or joining games.
+      </DIV>
+      <DIV class="inputTextAutosave is-saved">
+        <INPUT
+          type="text"
+          name="name"
+          maxLength=20
+          spellcheck="false"
+        />
+        <DIV class="icons">
+          <SPAN class="saved">
+            <SPAN class="fa fa-spinner fa-pulse"></SPAN>
+            <SPAN class="fa fa-check-circle"></SPAN>
+          </SPAN>
+        </DIV>
+      </DIV>
+      <DIV class="error"></DIV>
+    </DIV>
+    <DIV class="section">
+      Account Security
+    </DIV>
+    <DIV class="row">
+      <DIV class="intro">
+        Your account is tied to this device and browser.  But, you can lose your
+        account if you clear local storage or lose your device.  To protect your
+        account or use it on another device, generate a secret link.  This link
+        is like a very long password.  It can only be used once and expires
+        after 30 days.  Keep it someplace safe.
+      </DIV>
+      <DIV class="manageLink"></DIV>
+    </DIV>
+    <DIV class="section">
+      Device List
+    </DIV>
+    <DIV class="row">
+      <DIV class="intro">
+        This is a list of devices tied to your account.  You can remove any
+        device except this one.  You may click on a device name to customize it.
+        The access details are fairly technical, but can be useful to detect
+        unauthorized access to your account.
+      </DIV>
+      <DIV class="devices"></DIV>
+    </DIV>
+  </DIV>
+</BODY>
+</HTML>

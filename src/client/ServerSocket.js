@@ -1,4 +1,5 @@
 import EventEmitter from 'events';
+import ServerError from 'server/Error.js';
 
 const SOCKET_CONNECTING = 0;
 const SOCKET_OPEN       = 1;
@@ -152,7 +153,7 @@ export default class ServerSocket {
     });
   }
 
-  request(serviceName, methodName, args) {
+  request(serviceName, methodName, args = []) {
     if (!Array.isArray(args))
       throw new TypeError('Arguments must be an array');
 
@@ -369,7 +370,7 @@ export default class ServerSocket {
     }
 
     if (response.error)
-      route.reject(response.error);
+      route.reject(new ServerError(response.error));
     else
       route.resolve(response.data);
 
@@ -434,10 +435,10 @@ export default class ServerSocket {
         let session = this._session;
         let route = session.responseRoutes.get(source.id);
         if (route)
-          route.reject({
+          route.reject(new ServerError({
             code: 500,
             message: 'Unexpected server error',
-          });
+          }));
       }
 
       console.error(error);

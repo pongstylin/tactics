@@ -13,7 +13,11 @@ export default class LocalTransport {
     worker.addEventListener('message', ({data:message}) => this._onMessage(message));
 
     Object.assign(this, {
-      whenReady:   new Promise(resolve => this._ready = resolve),
+      // Ready means the object is hydrated with state data.
+      whenReady: new Promise(resolve => this._resolveReady = resolve),
+
+      // Started means the game has started (and possibly ended)
+      whenStarted: new Promise(resolve => this._resolveStarted = resolve),
 
       _worker:     worker,
       _subscribed: new Set(),
@@ -147,14 +151,22 @@ export default class LocalTransport {
   /*
    * Other Private Methods
    */
-  _startSync(gameData) {
-    this._data = {};
-    this._data.state = gameData;
+  _startSync(stateData) {
+    this._data = { state:stateData };
+    this._resolveReady();
 
-    if (!gameData.ended)
+    if (stateData.started)
+      this._resolveStarted();
+
+    if (!stateData.ended)
       this
-        .on('startGame', ({data:stateData}) => {
-          this._data.state = stateData;
+        .on('startGame', ({data}) => {
+          Object.assign(this._data.state, {
+            started: new Date(data.started),
+            teams:   data.teams,
+            units:   data.units,
+          });
+          this._resolveStarted();
         })
         .on('startTurn', ({ data }) => {
           Object.assign(this._data.state, {
@@ -173,8 +185,6 @@ export default class LocalTransport {
             actions:       data.actions,
           });
         });
-
-    this._ready();
   }
 
   _getData(name) {

@@ -93,17 +93,16 @@ export default class {
 
     Tactics.game = this;
 
-    state.whenReady.then(() => {
-      if (state.started)
-        this._load();
-      else
-        state.once('startGame', () => this._load());
-    });
+    state.whenStarted.then(() => this._load());
   }
 
   /*****************************************************************************
    * Public Properties
    ****************************************************************************/
+  get whenStarted() {
+    return this.state.whenStarted;
+  }
+
   get card() {
     return this._board.card;
   }

@@ -20,7 +20,7 @@
   "author": "Dave Clark",
   "license": "Unlicense",
   "devDependencies": {
-    "css-loader": "^1.0.0",
+    "css-loader": "^3.0.0",
     "debug": "^4.1.1",
     "dotenv": "^7.0.0",
     "dotenv-webpack": "^1.7.0",
@@ -42,6 +42,7 @@
     "socket.io-client": "^2.2.0",
     "string-pixel-width": "^1.9.0",
     "touch-pinch": "^1.0.1",
+    "ua-parser-js": "^0.7.20",
     "utf-8-validate": "^5.0.2",
     "uuid": "^3.3.2",
     "ws": "^6.2.1",

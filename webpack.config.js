@@ -10,7 +10,9 @@ module.exports = {
     'classic-app': path.resolve(__dirname, 'src', 'classic-app.js'),
     'game-app': path.resolve(__dirname, 'src', 'game-app.js'),
     'ww': path.resolve(__dirname, 'src', 'ww.js'),
+    'online': path.resolve(__dirname, 'src', 'online.js'),
     'createGame': path.resolve(__dirname, 'src', 'createGame.js'),
+    'account': path.resolve(__dirname, 'src', 'account.js'),
   },
   module: {
     rules: [
@@ -41,8 +43,10 @@ module.exports = {
   resolve: {
     alias: {
       config: path.resolve(__dirname, 'config'),
+      server: path.resolve(__dirname, 'src', 'server'),
       client: path.resolve(__dirname, 'src', 'client'),
       models: path.resolve(__dirname, 'src', 'models'),
+      components: path.resolve(__dirname, 'src', 'components'),
       tactics: path.resolve(__dirname, 'src', 'tactics'),
       utils: path.resolve(__dirname, 'src', 'utils'),
       plugins: path.resolve(__dirname, 'src', 'plugins'),
