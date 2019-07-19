@@ -84,10 +84,13 @@ export default class Player {
   }
 
   addDevice(device) {
-    device.id = uuid();
-    this.devices.set(device.id, Object.assign({}, {
+    device = Object.assign({
+      id: uuid(),
       name: null,
-    }, device));
+      token: null,
+    }, device);
+
+    this.devices.set(device.id, device);
 
     return device;
   }
