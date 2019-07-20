@@ -75,6 +75,7 @@ export default class GameState {
       // These settings may be overwritten
       {
         randomFirstTurn: true,
+        turnTimeLimit: null,
       },
       stateData,
       {
@@ -102,6 +103,8 @@ export default class GameState {
   static load(stateData) {
     if (typeof stateData.started === 'string')
       stateData.started = new Date(stateData.started);
+    if (typeof stateData.turnStarted === 'string')
+      stateData.turnStarted = new Date(stateData.turnStarted);
     if (typeof stateData.ended === 'string')
       stateData.ended = new Date(stateData.ended);
 
@@ -321,6 +324,7 @@ export default class GameState {
     board.setState(this.units, teams);
 
     this.started = new Date();
+    this.turnStarted = this.started;
 
     this._bots = teams
       .filter(t => !!t.bot)
@@ -337,6 +341,7 @@ export default class GameState {
     this._emit({
       type: 'startTurn',
       data: {
+        started: this.turnStarted,
         turnId: this.currentTurnId,
         teamId: this.currentTeamId,
       },
@@ -390,10 +395,13 @@ export default class GameState {
       teams: teams,
 
       randomFirstTurn: this.randomFirstTurn,
+      turnTimeLimit: this.turnTimeLimit,
 
       started:       this.started,
       ended:         this.ended,
 
+      // Data about the current turn
+      turnStarted:   this.turnStarted,
       currentTurnId: this.currentTurnId,
       currentTeamId: this.currentTeamId,
       units:         this.units,
@@ -612,6 +620,7 @@ export default class GameState {
       this._emit({
         type: 'startTurn',
         data: {
+          started: this.turnStarted,
           turnId: this.currentTurnId,
           teamId: this.currentTeamId,
         },
@@ -746,6 +755,7 @@ export default class GameState {
     this._emit({
       type: 'revert',
       data: {
+        started:     this.turnStarted,
         turnId:      this.currentTurnId,
         teamId:      this.currentTeamId,
         actions:     this.actions,
@@ -782,13 +792,15 @@ export default class GameState {
       teams:    teams,
 
       randomFirstTurn: this.randomFirstTurn,
+      turnTimeLimit: this.turnTimeLimit,
 
       started:  this.started,
       ended:    this.ended,
 
-      turns:    this._turns,
-      units:    this.units,
-      actions:  this.actions,
+      turnStarted: this.turnStarted,
+      turns:       this._turns,
+      units:       this.units,
+      actions:     this.actions,
 
       winnerId: this.winnerId,
     };
@@ -970,10 +982,12 @@ export default class GameState {
     let board = this._board;
 
     this._turns.push({
+      started: this.turnStarted,
       units:   this.units,
       actions: this.actions,
     });
 
+    this.turnStarted = new Date();
     this.units = board.getState();
     this._actions.length = 0;
 
@@ -996,8 +1010,9 @@ export default class GameState {
     turns.length = turnId;
 
     Object.assign(this, {
-      units:    turnData.units,
-      _actions: [],
+      turnStarted: new Date(),
+      units:       turnData.units,
+      _actions:    [],
     });
 
     this._board.setState(this.units, this.teams);

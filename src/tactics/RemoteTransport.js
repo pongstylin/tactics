@@ -55,6 +55,11 @@ export default class RemoteTransport {
 
     if (gameData && gameData.state.ended) {
       this._data = gameData;
+      Object.assign(this._data.state, {
+        started:     new Date(gameData.state.started),
+        turnStarted: new Date(gameData.state.turnStarted),
+        ended:       new Date(gameData.state.ended),
+      });
       this._resolveReady();
       this._resolveStarted();
     }
@@ -94,12 +99,20 @@ export default class RemoteTransport {
   get teams() {
     return this._getStateData('teams');
   }
+  get turnTimeLimit() {
+    return this._getStateData('turnTimeLimit');
+  }
+  get turnStarted() {
+    return this._getStateData('turnStarted');
+  }
   get currentTurnId() {
     return this._getStateData('currentTurnId');
   }
   get currentTeamId() {
     return this._getStateData('currentTeamId');
   }
+  // This property is not actually kept in sync.  It is only accurate when
+  // when loading the game or starting the game.
   get units() {
     return this._getStateData('units');
   }
@@ -165,6 +178,10 @@ export default class RemoteTransport {
         gameData.undoRequest.accepts = new Set(gameData.undoRequest.accepts);
 
       this._data = gameData;
+      Object.assign(this._data.state, {
+        started:     new Date(gameData.state.started),
+        turnStarted: new Date(gameData.state.turnStarted),
+      });
       this._resolveReady();
 
       if (gameData.state.started)
@@ -247,14 +264,16 @@ export default class RemoteTransport {
       })
       .on('startGame', ({ data }) => {
         Object.assign(this._data.state, {
-          started: new Date(data.started),
-          teams:   data.teams,
-          units:   data.units,
+          started:     new Date(data.started),
+          turnStarted: new Date(data.turnStarted),
+          teams:       data.teams,
+          units:       data.units,
         });
         this._resolveStarted();
       })
       .on('startTurn', ({ data }) => {
         Object.assign(this._data.state, {
+          turnStarted:   new Date(data.started),
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions:       [],
@@ -294,6 +313,7 @@ export default class RemoteTransport {
       })
       .on('revert', ({ data }) => {
         Object.assign(this._data.state, {
+          turnStarted:   new Date(data.started),
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions:       data.actions,
@@ -311,27 +331,24 @@ export default class RemoteTransport {
     if (!this._data)
       throw new Error('Not ready');
 
-    let clone = value => {
-      if (typeof value === 'object' && value !== null)
-        return Array.isArray(value) ? [...value] : {...value};
-      return value;
-    };
-
-    return clone(this._data[name]);
+    return this._clone(this._data[name]);
   }
   _getStateData(name) {
     if (!this._data)
       throw new Error('Not ready');
 
-    let clone = value => {
-      if (typeof value === 'object' && value !== null)
-        return Array.isArray(value) ? [...value] : {...value};
-      return value;
-    };
-
-    return clone(this._data.state[name]);
+    return this._clone(this._data.state[name]);
   }
 
+  _clone(value) {
+    if (value instanceof Date)
+      return value;
+    else if (Array.isArray(value))
+      return [...value];
+    else if (typeof value === 'object' && value !== null)
+      return {...value};
+    return value;
+  }
   _emit(event) {
     this._emitter.emit(event.type, event);
   }
