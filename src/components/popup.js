@@ -43,6 +43,8 @@ class Popup {
 
     let divPopup = document.createElement('DIV');
     divPopup.classList.add('popup');
+    if (options.minWidth)
+      divPopup.style.minWidth = options.minWidth;
     divOverlay.append(divPopup);
 
     if (options.title) {

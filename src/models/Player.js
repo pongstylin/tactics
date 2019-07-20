@@ -25,39 +25,11 @@ export default class Player {
   static load(data) {
     if (typeof data.created === 'string')
       data.created = new Date(data.created);
-    if (Array.isArray(data.devices)) {
-      /*
-       * The list of addresses used to be a sibling of the list of agents.  But,
-       * this has changed so that the addresses are nested underneath agents.
-       * Convert the old format to the new until support for the old format can
-       * be safely removed.
-       */
-      if (data.devices[0] && data.devices[0][1].addresses)
-        data.devices.forEach(([id, device]) => {
-          let deviceAddresses = device.addresses;
-          delete device.addresses;
-
-          device.name = null;
-          device.agents.forEach(([agent, agentLastSeenAt], i) => {
-            let agentAddresses = [];
-
-            deviceAddresses.forEach(([address, addressLastSeenAt]) => {
-              agentAddresses.push([
-                address,
-                agentLastSeenAt < addressLastSeenAt
-                  ? agentLastSeenAt
-                  : addressLastSeenAt,
-              ]);
-            });
-
-            device.agents[i][1] = agentAddresses;
-          });
-        });
-
-      data.devices = new Map(data.devices.map(([id, data]) => [
-        id,
-        Object.assign(data, {
-          agents: new Map(data.agents.map(([agent, addresses]) => [
+    if (Array.isArray(data.devices))
+      data.devices = new Map(data.devices.map(device => [
+        device.id,
+        Object.assign(device, {
+          agents: new Map(device.agents.map(([agent, addresses]) => [
             agent,
             new Map(addresses.map(
               ([address, lastSeenAt]) => [address, new Date(lastSeenAt)]
@@ -65,7 +37,6 @@ export default class Player {
           ])),
         }),
       ]));
-    }
 
     return new Player(data);
   }
@@ -84,10 +55,13 @@ export default class Player {
   }
 
   addDevice(device) {
-    device.id = uuid();
-    this.devices.set(device.id, Object.assign({}, {
+    device = Object.assign({
+      id: uuid(),
       name: null,
-    }, device));
+      token: null,
+    }, device);
+
+    this.devices.set(device.id, device);
 
     return device;
   }
@@ -115,7 +89,9 @@ export default class Player {
    * An identity token can be used to obtain an access token for a device.
    */
   createIdentityToken() {
-    return jwt.sign({}, config.privateKey, {
+    return jwt.sign({
+      name: this.name,
+    }, config.privateKey, {
       algorithm: 'RS512',
       expiresIn: config.IDENTITY_TOKEN_TTL || '30d',
       subject: this.id,
@@ -124,14 +100,13 @@ export default class Player {
 
   toJSON() {
     let json = {...this};
-    json.devices = [...json.devices].map(([id, data]) => [
-      id,
-      Object.assign({}, data, {
-        agents: [...data.agents].map(
+    json.devices = [...json.devices.values()].map(device =>
+      Object.assign({}, device, {
+        agents: [...device.agents].map(
           ([agent, addresses]) => [agent, [...addresses]]
         ),
       }),
-    ]);
+    );
 
     return json;
   }

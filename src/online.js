@@ -4,7 +4,7 @@ import copy from 'components/copy.js';
 
 let authClient = clientFactory('auth');
 let gameClient = clientFactory('game');
-let myPlayerId = authClient.playerId;
+let myPlayerId = null;
 let games = {
   active: new Map(),
   waiting: new Map(),
@@ -15,30 +15,32 @@ window.addEventListener('DOMContentLoaded', () => {
   let divGreeting = document.querySelector('.greeting');
   let divNotice = document.querySelector('#notice');
 
-  if (!myPlayerId) {
-    divGreeting.style.display = '';
-    divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
-    return;
-  }
-  else {
-    authClient.whenReady.then(() => {
+  authClient.whenReady.then(() => {
+    myPlayerId = authClient.playerId;
+
+    if (myPlayerId) {
       divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
       divGreeting.style.display = '';
-    });
 
-    divNotice.textContent = 'Loading your games...';
+      divNotice.textContent = 'Loading your games...';
 
-    /*
-     * Get 50 of the most recent games.  Once the player creates or plays more
-     * than 50 games, the oldest ones will drop out of view.
-     */
-    gameClient.searchMyGames({ limit:50, sort:'updated' })
-      .then(rsp => renderGames(rsp.results))
-      .catch(error => {
-        divNotice.textContent = 'Sorry!  There was an error while loading your games.';
-        throw error;
-      });
-  }
+      /*
+       * Get 50 of the most recent games.  Once the player creates or plays more
+       * than 50 games, the oldest ones will drop out of view.
+       */
+      gameClient.searchMyGames({ limit:50, sort:'updated' })
+        .then(rsp => renderGames(rsp.results))
+        .catch(error => {
+          divNotice.textContent = 'Sorry!  There was an error while loading your games.';
+          throw error;
+        });
+    }
+    else {
+      divGreeting.style.display = '';
+      divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
+      return;
+    }
+  });
 
   document.querySelector('.tabs UL').addEventListener('click', event => {
     let liTab = event.target.closest('LI:not(.is-active)');

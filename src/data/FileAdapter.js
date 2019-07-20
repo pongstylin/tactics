@@ -1,6 +1,8 @@
 'use strict';
 
 import fs from 'fs';
+
+import migrate from 'data/migrate.js';
 import Player from 'models/Player.js';
 import Game from 'models/Game.js';
 import GameSummary from 'models/GameSummary.js';
@@ -19,7 +21,7 @@ export default class {
   }
   getPlayer(playerId) {
     let playerData = this._readFile(`player_${playerId}`);
-    return Player.load(playerData);
+    return Player.load(migrate('player', playerData));
   }
 
   createGame(stateData) {
@@ -38,7 +40,7 @@ export default class {
   }
   getGame(gameId) {
     let gameData = this._readFile(`game_${gameId}`);
-    return Game.load(gameData);
+    return Game.load(migrate('game', gameData));
   }
 
   /*

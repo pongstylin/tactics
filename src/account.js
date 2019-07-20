@@ -4,26 +4,22 @@ import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 
 let authClient = clientFactory('auth');
-let myPlayerId = authClient.playerId;
-let myDeviceId = authClient.deviceId;
 let identityToken;
 let devices;
 
 window.addEventListener('DOMContentLoaded', () => {
-  if (!myPlayerId)
-    authClient.register({ name:'Noob' })
-      .then(renderPage)
-      .catch(error => {
-        document.querySelectorAll('.page > DIV:not(.error):not(.back)').forEach(el => {
-          el.style.display = 'none';
-        });
-
-        document.querySelector('.error').textContent = 'There was an error while loading your account.';
-        document.querySelector('.page').style.display = '';
-      });
-  else
-    authClient.whenReady
-      .then(renderPage);
+  authClient.whenReady.then(() => {
+    if (!authClient.playerId)
+      authClient.register({ name:'Noob' })
+        .then(renderPage)
+        .catch(error => popup({
+          message: 'There was an error while loading your account.',
+          buttons: [],
+          onCancel: () => false,
+        }));
+    else
+      renderPage();
+  });
 
   document.body.addEventListener('focus', event => {
     let target = event.target;
@@ -202,7 +198,7 @@ function renderDeviceList() {
     divDevice.classList.add('device');
     divDevices.append(divDevice);
 
-    if (device.id === myDeviceId)
+    if (device.id === authClient.deviceId)
       divDevice.classList.add('current');
 
     let divHeader = document.createElement('DIV');
