@@ -8,7 +8,7 @@ import unitDataMap from 'tactics/unitData.js';
 
 const GAME_TYPES = new Set([
   'classic', // Must be a 2-player game with classic, a.k.a. default gray, sets.
-  'chaos',   // Knights of Order vs the Seed of Chaos
+  'Chaos',   // Knights of Order vs the Seed of Chaos
 ]);
 
 export default class GameState {
@@ -291,7 +291,7 @@ export default class GameState {
           type: 'ChaosSeed',
           assignment: [5, 5],
         }],
-        position: 'C',
+        position: 'N',
       });
 
     teams.forEach((team, teamId) => { team.id = teamId });
