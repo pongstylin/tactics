@@ -459,13 +459,14 @@ export default class GameState {
         return true;
 
       if (action.type === 'surrender') {
-        let team = this.teams[action.teamId];
-        if (!team || !team.units.length) return;
+        let team = this._validateSurrenderAction(action);
+        if (!team) return;
 
         pushAction({
           type: 'surrender',
           teamId: action.teamId,
           results: this._getSurrenderResults(team),
+          forced: action.forced,
         });
 
         return true;
@@ -687,6 +688,14 @@ export default class GameState {
     if (isLucky)
       return approve;
 
+    // Require approval if the turn time limit was reached.
+    if (this.turnTimeLimit) {
+      let now = new Date();
+      let turnTimeout = (this.turnStarted.getTime() + this.turnTimeLimit*1000) - now;
+      if (turnTimeout < 1)
+        return approve;
+    }
+
     return true;
   }
 
@@ -889,6 +898,24 @@ export default class GameState {
     }
 
     return action;
+  }
+  _validateSurrenderAction(action) {
+    let team = this.teams[action.teamId];
+    if (!team || !team.units.length) return;
+
+    // A surrender can only be forced if time's up.
+    if (action.forced) {
+      let now = new Date();
+      let lastAction = this._actions.last;
+      let lastActionAt = lastAction ? lastAction.created.getTime() : 0;
+      let actionTimeout = (lastActionAt + 10000) - now;
+      let turnTimeout = (this.turnStarted.getTime() + this.turnTimeLimit*1000) - now;
+      let timeout = Math.max(actionTimeout, turnTimeout);
+
+      if (timeout > 0) return;
+    }
+
+    return team;
   }
   _getSurrenderResults(team) {
     let results = [];

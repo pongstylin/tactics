@@ -29,6 +29,8 @@ class Popup {
 
     let divOverlay = document.createElement('DIV');
     divOverlay.classList.add('overlay');
+    if (options.zIndex)
+      divOverlay.style.zIndex = options.zIndex;
     divOverlay.addEventListener('click', event => {
       // Ignore clicks that bubbled from the popup.
       if (event.target !== divOverlay) return;
@@ -103,12 +105,24 @@ class Popup {
     if (this.isOpen)
       throw new TypeError('Already open');
 
-    let options = this.options;
-    let container = typeof options.container === 'string'
-      ? document.querySelector(options.container)
-      : options.container;
+    this.el = this.render();
 
-    container.append(this.el = this.render());
+    let options = this.options;
+    if (options.before) {
+      let sibling = typeof options.before === 'string'
+        ? document.querySelector(options.before)
+        : options.before;
+      let container = sibling.parentNode;
+
+      container.insertBefore(this.el, sibling);
+    }
+    else {
+      let container = typeof options.container === 'string'
+        ? document.querySelector(options.container)
+        : options.container;
+
+      container.append(this.el);
+    }
   }
 
   update(options) {

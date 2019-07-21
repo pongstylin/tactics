@@ -457,11 +457,17 @@ class GameService extends Service {
     if (!Array.isArray(action))
       action = [action];
 
-    if (action[0].type === 'surrender')
-      if (myTeams.length === game.state.teams.length)
+    if (action[0].type === 'surrender') {
+      if (action[0].teamId !== undefined) {
+        // If surrender is not requested for themself, it is forced.
+        if (!myTeams.find(t => t.id === action[0].teamId))
+          action[0].forced = true;
+      }
+      else if (myTeams.length === game.state.teams.length)
         action[0].teamId = game.state.currentTeamId;
       else
         action = myTeams.map(t => ({ type:'surrender', teamId:t.id }));
+    }
     else if (myTeams.includes(game.state.currentTeam))
       action.forEach(a => a.teamId = game.state.currentTeamId);
     else
