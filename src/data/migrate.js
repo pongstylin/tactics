@@ -90,3 +90,11 @@ export default (dataType, data) => {
 
   return data;
 };
+
+export function getLatestVersionNumber(dataType) {
+  let migrations = MIGRATIONS[dataType];
+  if (!migrations)
+    return 1;
+
+  return migrations.length + 1;
+};

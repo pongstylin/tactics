@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 
-import migrate from 'data/migrate.js';
+import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import Player from 'models/Player.js';
 import Game from 'models/Game.js';
 import GameSummary from 'models/GameSummary.js';
@@ -13,6 +13,8 @@ const filesDir = 'src/data/files';
 export default class {
   createPlayer(playerData) {
     let player = Player.create(playerData);
+    player.version = getLatestVersionNumber('player');
+
     this._writeFile(`player_${player.id}`, player);
     return player;
   }
@@ -26,6 +28,7 @@ export default class {
 
   createGame(stateData) {
     let game = Game.create(stateData);
+    game.version = getLatestVersionNumber('game');
 
     this._writeFile(`game_${game.id}`, game);
     this._saveGameSummary(game);
