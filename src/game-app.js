@@ -6,6 +6,7 @@ Tactics.App = (function ($, window, document) {
   var self = {};
   var game;
   var undoPopup;
+  var timeoutPopup;
   var pointer;
   var fullscreen = Tactics.fullscreen;
 
@@ -422,10 +423,30 @@ Tactics.App = (function ($, window, document) {
           .find('.message')
             .text(action+' here to play!')
       })
+      .on('timeout', () => {
+        timeoutPopup = popup({
+          title: "Time's up!",
+          message: 'The turn time limit has been reached.  You can continue to wait or force surrender.',
+          onCancel: () => false,
+          onClose: () => {
+            timeoutPopup = null;
+          },
+          buttons: [{
+            label: 'Force Surrender',
+            onClick: () => game.forceSurrender(),
+          }],
+          minWidth: '250px',
+          zIndex: 10,
+        });
+      })
+      .on('cancelTimeout', () => {
+        if (timeoutPopup)
+          timeoutPopup.close();
+      })
       .on('undoRequest', showUndoDialog)
-      .on('undoAccept', updateUndoDialog)
-      .on('undoReject', updateUndoDialog)
-      .on('undoCancel', updateUndoDialog)
+      .on('undoAccept', () => updateUndoDialog())
+      .on('undoReject', () => updateUndoDialog())
+      .on('undoCancel', () => updateUndoDialog())
       .on('undoComplete', hideUndoDialog);
   }
 
@@ -477,39 +498,43 @@ Tactics.App = (function ($, window, document) {
         popupData.message = `The request was cancelled.`;
 
       popupData.buttons.push({ label:'Ok' });
-
-      return undoPopup = popup(popupData);
-    }
-
-    popupData.onCancel = () => false;
-
-    if (game.isMyTeam(undoRequest.teamId)) {
-      popupData.message = `Waiting for approval.`;
-      popupData.buttons.push({
-        label: 'Cancel',
-        onClick: () => game.cancelUndo(),
-      });
-    }
-    else if (undoRequest.accepts.has(myTeam.id)) {
-      popupData.message = `Approval sent.  Waiting for others.`;
-      popupData.buttons.push({
-        label: 'Withdraw Approval',
-        onClick: () => game.rejectUndo(),
-      });
     }
     else {
-      popupData.message = `Do you approve?`;
-      popupData.buttons.push({
-        label: 'Yes',
-        onClick: () => game.acceptUndo(),
-      });
-      popupData.buttons.push({
-        label: 'No',
-        onClick: () => game.rejectUndo(),
-      });
+      popupData.onCancel = () => false;
+
+      if (game.isMyTeam(undoRequest.teamId)) {
+        popupData.message = `Waiting for approval.`;
+        popupData.buttons.push({
+          label: 'Cancel',
+          onClick: () => game.cancelUndo(),
+        });
+      }
+      else if (undoRequest.accepts.has(myTeam.id)) {
+        popupData.message = `Approval sent.  Waiting for others.`;
+        popupData.buttons.push({
+          label: 'Withdraw Approval',
+          onClick: () => game.rejectUndo(),
+        });
+      }
+      else {
+        popupData.message = `Do you approve?`;
+        popupData.buttons.push({
+          label: 'Yes',
+          onClick: () => game.acceptUndo(),
+        });
+        popupData.buttons.push({
+          label: 'No',
+          onClick: () => game.rejectUndo(),
+        });
+      }
     }
 
-    undoPopup = popup(popupData);
+    popupData.zIndex = 20;
+
+    if (undoPopup)
+      undoPopup.update(popupData);
+    else
+      undoPopup = popup(popupData);
   }
 
   function hideUndoDialog() {

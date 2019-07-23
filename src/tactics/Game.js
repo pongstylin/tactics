@@ -70,6 +70,7 @@ export default class {
       _teams: [],
       _localTeamIds: localTeamIds,
       _lastTurnActions: [],
+      _turnTimeout: null,
 
       _renderer: renderer,
       _rendering: false,
@@ -674,6 +675,9 @@ export default class {
   }
   surrender() {
     this._postAction({ type:'surrender' });
+  }
+  forceSurrender() {
+    this._postAction({ type:'surrender', teamId:this.state.currentTeamId });
   }
 
   /*
@@ -1464,6 +1468,8 @@ export default class {
     });
   }
   _startTurn(teamId) {
+    this._setTurnTimeout();
+
     let teams = this.teams;
     let team = teams[teamId];
     let teamMoniker;
@@ -1562,6 +1568,50 @@ export default class {
     return selectMode;
   }
 
+  /*
+   * Turns won't time out if an action was performed within the last 10 seconds.
+   */
+  _setTurnTimeout() {
+    let state = this.state;
+    if (!state.turnTimeLimit)
+      return;
+
+    if (typeof this._turnTimeout === 'number') {
+      clearTimeout(this._turnTimeout);
+      this._turnTimeout = null;
+    }
+
+    let timeout = Infinity;
+
+    if (!this.isMyTurn()) {
+      let now = new Date();
+      let lastAction = state.actions.last;
+      let lastActionAt = lastAction ? lastAction.created.getTime() : 0;
+      let actionTimeout = (lastActionAt + 10000) - now;
+      let turnTimeout = (state.turnStarted.getTime() + state.turnTimeLimit*1000) - now;
+
+      timeout = Math.max(actionTimeout, turnTimeout);
+    }
+
+    if (timeout > 0) {
+      if (this._turnTimeout === true) {
+        this._emit({ type:'cancelTimeout' });
+        this._turnTimeout = null;
+      }
+
+      if (timeout < Infinity)
+        this._turnTimeout = setTimeout(() => {
+          this._turnTimeout = true;
+          this._emit({ type:'timeout' });
+        }, timeout);
+    }
+    else {
+      if (this._turnTimeout !== true) {
+        this._turnTimeout = true;
+        this._emit({ type:'timeout' });
+      }
+    }
+  }
   _applyAction(action) {
     let unit = action.unit;
 
@@ -1632,7 +1682,10 @@ export default class {
     if (type === 'startTurn')
       eventHandler = () => this._startTurn(data.teamId);
     else if (type === 'action')
-      eventHandler = () => this._performActions(data);
+      eventHandler = () => {
+        this._setTurnTimeout();
+        this._performActions(data);
+      };
     else if (type === 'revert')
       eventHandler = () => this._revert(data);
     else if (type === 'undoRequest')

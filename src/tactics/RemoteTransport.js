@@ -182,6 +182,9 @@ export default class RemoteTransport {
         started:     new Date(gameData.state.started),
         turnStarted: new Date(gameData.state.turnStarted),
       });
+      this._data.state.actions.forEach(action => {
+        action.created = new Date(action.created);
+      });
       this._resolveReady();
 
       if (gameData.state.started)
@@ -280,7 +283,10 @@ export default class RemoteTransport {
         });
       })
       .on('action', ({ data:actions }) => {
-        this._data.state.actions.push(...actions);
+        this._data.state.actions = actions;
+        this._data.state.actions.forEach(action => {
+          action.created = new Date(action.created);
+        });
 
         // Clear the undo request to permit a new request.
         this._data.undoRequest = null;
@@ -317,6 +323,10 @@ export default class RemoteTransport {
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions:       data.actions,
+        });
+
+        this._data.state.actions.forEach(action => {
+          action.created = new Date(action.created);
         });
       })
       .on('endGame', ({ data }) => {

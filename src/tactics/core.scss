@@ -453,7 +453,8 @@ BODY {
 
       BUTTON {
         margin: 0 8px;
-        width: 5em;
+        width: max-content;
+        min-width: 5em;
       }
     }
   }

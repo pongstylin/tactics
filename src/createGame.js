@@ -47,6 +47,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let stateData = {
       type: 'classic',
       randomFirstTurn: vs === 'me' || turnOrder === 'random',
+      turnTimeLimit: 86400 * 7, // 7 days
     };
     let slot = turnOrder === '2nd' ? 1 : 0;
 
