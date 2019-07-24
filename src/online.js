@@ -52,7 +52,7 @@ window.addEventListener('DOMContentLoaded', () => {
     location.hash = '#' + tab;
   });
 
-  document.querySelector('.tabContent').addEventListener('click', event => {
+  let gameClickHandler = event => {
     let divGame = event.target.closest('.game');
     if (!divGame) return;
 
@@ -75,8 +75,18 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    location.href = link;
+    // Support common open-new-tab semantics
+    if (event.ctrlKey || event.metaKey || event.button === 1)
+      open(link, '_blank');
+    else
+      location.href = link;
+  };
+  document.querySelector('.tabContent').addEventListener('mouseup', event => {
+    // Detect and handle middle-click
+    if (event.button === 1)
+      gameClickHandler(event);
   });
+  document.querySelector('.tabContent').addEventListener('click', gameClickHandler);
 
   window.addEventListener('hashchange', event => {
     let tab = 'active';

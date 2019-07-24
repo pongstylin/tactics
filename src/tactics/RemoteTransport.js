@@ -179,8 +179,10 @@ export default class RemoteTransport {
 
       this._data = gameData;
       Object.assign(this._data.state, {
-        started:     new Date(gameData.state.started),
-        turnStarted: new Date(gameData.state.turnStarted),
+        started:
+          gameData.state.started && new Date(gameData.state.started),
+        turnStarted:
+          gameData.state.turnStarted && new Date(gameData.state.turnStarted),
       });
       this._data.state.actions.forEach(action => {
         action.created = new Date(action.created);
