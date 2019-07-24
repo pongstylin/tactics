@@ -43,6 +43,11 @@ export default class AuthClient extends Client {
       else
         this.token = null;
     });
+
+    // If the server connection is already open, fire the open event.
+    // The open event is typically used to send authorization.
+    if (server.isOpen)
+      this._emit({ type:'open', data:{ reason:'new' }});
   }
 
   get playerId() {

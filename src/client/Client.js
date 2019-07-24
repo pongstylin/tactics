@@ -1,7 +1,7 @@
 import config from 'config/client.js';
 import EventEmitter from 'events';
 
-export default class GameClient {
+export default class Client {
   constructor(serviceName, server) {
     Object.assign(this, {
       name: serviceName,
@@ -16,11 +16,6 @@ export default class GameClient {
     server
       .on('open',  event => this._emit(event))
       .on('close', event => this._emit(event));
-
-    // If the server connection is already open, fire the open event.
-    // The open event is typically used to send authorization.
-    if (server.isOpen)
-      this._emit({ type:'open', data:{ reason:'new' }});
   }
 
   get whenAuthorized() {

@@ -7,6 +7,7 @@
  * Other services should use the public key to validate JWTs.
  */
 import crypto from 'crypto';
+import webpush from 'web-push';
 
 let keys = crypto.generateKeyPairSync('rsa', {
   modulusLength: 1024,
@@ -20,9 +21,15 @@ let keys = crypto.generateKeyPairSync('rsa', {
   }
 });
 
+let vapidKeys = webpush.generateVAPIDKeys();
+
 let config = {
   publicKey: keys.publicKey,
   privateKey: keys.privateKey,
+  push: {
+    publicKey: vapidKeys.publicKey,
+    privateKey: vapidKeys.privateKey,
+  },
 };
 
 console.log(JSON.stringify(config, null, 2));

@@ -46,6 +46,26 @@ export default class {
     return Game.load(migrate('game', gameData));
   }
 
+  setPushSubscription(playerId, deviceId, subscription) {
+    let fileName = `player_${playerId}_push`;
+    let pushData = this._readFile(fileName, {
+      subscriptions: [],
+    });
+    pushData.subscriptions = new Map(pushData.subscriptions);
+    pushData.subscriptions.set(deviceId, subscription);
+    pushData.subscriptions = [...pushData.subscriptions];
+
+    this._writeFile(fileName, pushData);
+  }
+  getAllPushSubscriptions(playerId) {
+    let fileName = `player_${playerId}_push`;
+    let pushData = this._readFile(fileName, {
+      subscriptions: [],
+    });
+
+    return pushData.subscriptions.map(([k, v]) => v);
+  }
+
   /*
    * It doesn't matter what the query syntax is, so long as the client and the
    * data adapter can understand it.  As a rule, the server should not be in the
@@ -158,18 +178,7 @@ export default class {
    * Get all of the games in which the player is participating.
    */
   _getPlayerGamesSummary(playerId) {
-    let summaryList;
-    try {
-      summaryList = new Map(this._readFile(`player_${playerId}_games`));
-    }
-    catch (error) {
-      if (error.code === 404)
-        summaryList = new Map();
-      else
-        throw error;
-    }
-
-    return summaryList;
+    return new Map(this._readFile(`player_${playerId}_games`, []));
   }
   /*
    * Update the game summary for all participating players.
@@ -189,26 +198,21 @@ export default class {
   }
 
   _writeFile(name, data) {
-    try {
-      // Avoid corrupting files when crashing by writing to a temporary file.
-      fs.writeFileSync(`${filesDir}/.${name}.json`, JSON.stringify(data));
-      fs.renameSync(`${filesDir}/.${name}.json`, `${filesDir}/${name}.json`);
-    }
-    catch (error) {
-      if (error.code === 'ENOENT')
-        error = new ServerError(404, 'Not found');
-
-      throw error;
-    }
+    // Avoid corrupting files when crashing by writing to a temporary file.
+    fs.writeFileSync(`${filesDir}/.${name}.json`, JSON.stringify(data));
+    fs.renameSync(`${filesDir}/.${name}.json`, `${filesDir}/${name}.json`);
   }
-  _readFile(name) {
+  _readFile(name, initialValue) {
     try {
       let json = fs.readFileSync(`${filesDir}/${name}.json`, 'utf8');
       return JSON.parse(json);
     }
     catch (error) {
       if (error.code === 'ENOENT')
-        error = new ServerError(404, 'Not found');
+        if (initialValue === undefined)
+          error = new ServerError(404, 'Not found');
+        else
+          return initialValue;
 
       throw error;
     }

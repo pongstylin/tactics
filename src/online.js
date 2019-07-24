@@ -1,5 +1,7 @@
 import 'tactics/core.scss';
+import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
+import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 
 let authClient = clientFactory('auth');
@@ -10,6 +12,14 @@ let games = {
   waiting: new Map(),
   complete: new Map(),
 };
+
+let pushPublicKey = Uint8Array.from(
+  atob(
+    config.pushPublicKey
+      .replace(/-/g, '+').replace(/_/g, '/')
+  ),
+  chr => chr.charCodeAt(0),
+);
 
 window.addEventListener('DOMContentLoaded', () => {
   let divGreeting = document.querySelector('.greeting');
@@ -41,6 +51,9 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
   });
+
+  if (navigator.serviceWorker)
+    navigator.serviceWorker.ready.then(reg => renderPN());
 
   document.querySelector('.tabs UL').addEventListener('click', event => {
     let liTab = event.target.closest('LI:not(.is-active)');
@@ -98,6 +111,92 @@ window.addEventListener('DOMContentLoaded', () => {
     openTab(tab);
   });
 });
+
+function renderPN() {
+  let divPN = document.querySelector('#pn');
+
+  if (Notification.permission === 'denied') {
+    divPN.innerHTML = `
+      <DIV>Push notifications are currently <SPAN class="blocked">BLOCKED</SPAN>.</DIV>
+      <DIV>You will not get notified when it is your turn.</DIV>
+    `;
+    return;
+  }
+
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (!('pushManager' in reg)) {
+      divPN.innerHTML = 'Your browser does not support push notifications.';
+      return;
+    }
+
+    reg.pushManager.getSubscription().then(subscription => {
+      if (subscription) {
+        divPN.innerHTML = 'Push notifications are currently <SPAN class="toggle is-on">ON</SPAN>.';
+        divPN.querySelector('.toggle').addEventListener('click', () => {
+          popup({
+            title: 'Disable Push Notifications',
+            message: `Are you sure you don't want to be notified when it is your turn?`,
+            buttons: [
+              {
+                label: 'Yes',
+                onClick: () => unsubscribePN(),
+              },
+              { label: 'No' },
+            ],
+            minWidth: '250px',
+          });
+        });
+      }
+      else {
+        divPN.innerHTML = `
+          <DIV>Enable push notifications to know when it is your turn.</DIV>
+          <DIV><SPAN class="toggle">Turn on push notifications</SPAN></DIV>
+        `;
+        divPN.querySelector('.toggle').addEventListener('click', () => {
+          subscribePN();
+        });
+      }
+    });
+  });
+}
+function subscribePN() {
+  let divPN = document.querySelector('#pn');
+
+  return navigator.serviceWorker.getRegistration().then(reg => {
+    reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: pushPublicKey,
+    }).then(subscription => {
+      let pushClient = clientFactory('push');
+      pushClient.setSubscription(subscription);
+
+      renderPN();
+    })
+    .catch(error => {
+      if (Notification.permission === 'denied')
+        return renderPN();
+
+      console.error('subscribe:', error);
+
+      divPN.innerHTML = 'Failed to subscribe to push notifications.';
+    });
+  });
+}
+function unsubscribePN() {
+  let divPN = document.querySelector('#pn');
+
+  return navigator.serviceWorker.getRegistration().then(reg =>
+    reg.pushManager.getSubscription().then(subscription =>
+      subscription.unsubscribe()
+    )
+  ).then(() => {
+    renderPN();
+  })
+  .catch(error => {
+    console.error('unsubscribe', error);
+    divPN.innerHTML = 'Failed to unsubscribe.';
+  });
+}
 
 function renderGames(gms) {
   gms.forEach(g => {

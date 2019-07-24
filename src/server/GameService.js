@@ -5,6 +5,7 @@ import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import adapterFactory from 'data/adapterFactory.js';
 import Game from 'models/Game.js';
+import pushNotification from 'server/pushNotification.js';
 
 const dataAdapter = adapterFactory();
 
@@ -67,8 +68,6 @@ class GameService extends Service {
 
       this.clientPara.delete(client.id);
     }
-
-    super.dropClient(client);
   }
 
   /*****************************************************************************
@@ -184,17 +183,10 @@ class GameService extends Service {
       let playerId = team.playerId;
       if (playerStatus.has(playerId)) return;
 
-      let playerPara = this.playerPara.get(playerId);
-
-      let status;
-      if (!playerPara)
-        status = 'offline';
-      else if (!playerPara.watchedGames.has(game.id))
-        status = 'online';
-      else
-        status = 'ingame';
-
-      playerStatus.set(playerId, { playerId, status });
+      playerStatus.set(playerId, {
+        playerId: playerId,
+        status: this._getPlayerStatus(playerId, game.id),
+      });
     });
 
     return [...playerStatus.values()];
@@ -238,7 +230,9 @@ class GameService extends Service {
           },
         });
 
-        if (event.type === 'joined' || event.type === 'action' || event.type === 'revert')
+        if (event.type === 'startTurn')
+          this._notifyYourTurn(game, event.data);
+        else if (event.type === 'joined' || event.type === 'action' || event.type === 'revert')
           // Since games are saved before they are removed from memory this only
           // serves as a precaution against a server crash.  It would also be
           // useful in a multi-server context, but that requires more thinking.
@@ -646,6 +640,52 @@ class GameService extends Service {
       game = dataAdapter.getGame(gameId);
 
     return game;
+  }
+  _getPlayerStatus(playerId, gameId) {
+    let playerPara = this.playerPara.get(playerId);
+
+    let status;
+    if (!playerPara)
+      status = 'offline';
+    else if (!playerPara.watchedGames.has(gameId))
+      status = 'online';
+    else
+      status = 'ingame';
+
+    return status;
+  }
+
+  _notifyYourTurn(game, startTurnData) {
+    let teamId = startTurnData.teamId;
+    let playerId = game.state.teams[teamId].playerId;
+    let teams = game.state.teams;
+
+    // Only notify if the next player is not already in-game.
+    let status = this._getPlayerStatus(playerId, game.id);
+    if (status === 'ingame')
+      return;
+
+    // Search for the next opponent team after this team.
+    // Useful for 4-team games.
+    let opponentTeam;
+    for (let i=0; i<teams.length-1; i++) {
+      let nextTeam = teams[(teamId + 1) % teams.length];
+      if (nextTeam.playerId === playerId) continue;
+
+      opponentTeam = nextTeam;
+      break;
+    }
+
+    // Only notify if this is a multiplayer game.
+    if (!opponentTeam)
+      return;
+
+    pushNotification(playerId, {
+      type: 'yourTurn',
+      gameId: game.id,
+      opponent: opponentTeam.name,
+      turnStarted: startTurnData.started,
+    });
   }
 
   _emitPlayerStatus(groupPath, playerId, status) {

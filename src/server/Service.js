@@ -33,9 +33,10 @@ export default class {
   }
 
   /*
-   * Test if the service will handle the eventName from client
+   * Stubs to be implemented by subclasses
    */
   will(client, messageType, bodyType) {
+    return true;
   }
   dropClient() {
   }

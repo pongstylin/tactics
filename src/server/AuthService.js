@@ -32,9 +32,7 @@ class AuthService extends Service {
   }
 
   dropClient(client) {
-    super.dropClient(client);
-
-    this.sessions.delete(client);
+    this.sessions.delete(client.id);
   }
 
   /*****************************************************************************
