@@ -70,9 +70,6 @@
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
-    #pn .toggle:hover {
-      color: #CCFFFF;
-    }
     #pn .toggle.is-on {
       color: #00CC00;
       padding: 0;
@@ -114,9 +111,6 @@
       border-bottom-color: #DED8D5;
       text-align: center;
       padding: 0;
-    }
-    .tabs LI:hover {
-      color: #00FFFF;
     }
     .tabs LI.is-active .label {
       color: white;
@@ -160,9 +154,6 @@
       padding: 8px;
       cursor: pointer;
     }
-    .tabContent .game:hover {
-      border-color: #00FFFF;
-    }
     .tabContent .game .left {
       width: 18%;
     }
@@ -184,9 +175,24 @@
     .tabContent .game .copy .label {
       margin-left: 6px;
     }
-    .tabContent .game .share:hover .label,
-    .tabContent .game .copy:hover .label {
-      text-decoration: underline;
+
+    @media (hover:hover) {
+      #pn .toggle:hover {
+        color: #CCFFFF;
+      }
+
+      .tabs LI:hover {
+        color: #00FFFF;
+      }
+
+      .tabContent .game:hover {
+        border-color: #00FFFF;
+      }
+
+      .tabContent .game .share:hover .label,
+      .tabContent .game .copy:hover .label {
+        text-decoration: underline;
+      }
     }
   </STYLE>
 </HEAD>
