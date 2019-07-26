@@ -25,14 +25,26 @@ window.addEventListener('DOMContentLoaded', () => {
   let divGreeting = document.querySelector('.greeting');
   let divNotice = document.querySelector('#notice');
 
+  if (authClient.token) {
+    // Just in case fetching the most recent info is slow...
+    divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
+    divGreeting.style.display = '';
+
+    if (navigator.onLine === false)
+      divNotice.textContent = 'Your games will be loaded once you are online.';
+    else
+      divNotice.textContent = 'Loading your games...';
+  }
+  else {
+    divGreeting.style.display = '';
+    divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
+  }
+
   authClient.whenReady.then(() => {
     myPlayerId = authClient.playerId;
 
     if (myPlayerId) {
       divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
-      divGreeting.style.display = '';
-
-      divNotice.textContent = 'Loading your games...';
 
       /*
        * Get 50 of the most recent games.  Once the player creates or plays more
@@ -46,7 +58,7 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
     else {
-      divGreeting.style.display = '';
+      divGreeting.textContent = `Welcome!`;
       divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
       return;
     }
@@ -74,10 +86,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let spnCopy = event.target.closest('.copy');
     if (spnCopy) {
       copy(link);
-      popup({
-        message: 'Game link copied to clipboard.',
-        buttons: [{ label:'Ok' }],
-      });
+      popup({ message:'Game link copied to clipboard.' });
       return;
     }
 

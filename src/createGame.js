@@ -14,7 +14,25 @@ window.addEventListener('DOMContentLoaded', () => {
   let divReady = document.querySelector('.ready');
   let divError = document.querySelector('.setup .error');
 
+  let notice;
+  if (navigator.onLine === false)
+    notice = popup({
+      message: 'The page will load once you are online.',
+      buttons: [],
+      onCancel: () => false,
+    });
+  else if (!authClient.isOnline)
+    notice = popup({
+      message: 'Connecting to server...',
+      buttons: [],
+      onCancel: () => false,
+      open: 1000, // open after one second
+    });
+
   authClient.whenReady.then(() => {
+    if (notice)
+      notice.close();
+
     let playerName = authClient.playerName;
     if (playerName !== null) {
       txtPlayerName.value = playerName;
@@ -87,10 +105,7 @@ window.addEventListener('DOMContentLoaded', () => {
               });
             else {
               copy(absLink);
-              popup({
-                message: 'Game link copied to clipboard.',
-                buttons: [{ label:'Ok' }],
-              });
+              popup({ message:'Game link copied to clipboard.' });
             }
           });
 

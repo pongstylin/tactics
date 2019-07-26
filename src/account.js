@@ -8,7 +8,25 @@ let identityToken;
 let devices;
 
 window.addEventListener('DOMContentLoaded', () => {
+  let notice;
+  if (navigator.onLine === false)
+    notice = popup({
+      message: 'The page will load once you are online.',
+      buttons: [],
+      onCancel: () => false,
+    });
+  else if (!authClient.isOnline)
+    notice = popup({
+      message: 'Connecting to server...',
+      buttons: [],
+      onCancel: () => false,
+      open: 1000, // open after one second
+    });
+
   authClient.whenReady.then(() => {
+    if (notice)
+      notice.close();
+
     if (!authClient.playerId)
       authClient.register({ name:'Noob' })
         .then(renderPage)
