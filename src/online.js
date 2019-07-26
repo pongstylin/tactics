@@ -74,7 +74,10 @@ window.addEventListener('DOMContentLoaded', () => {
     let spnCopy = event.target.closest('.copy');
     if (spnCopy) {
       copy(link);
-      alert('Game link copied to clipboard.');
+      popup({
+        message: 'Game link copied to clipboard.',
+        buttons: [{ label:'Ok' }],
+      });
       return;
     }
 

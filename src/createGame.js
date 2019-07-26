@@ -1,5 +1,7 @@
 import 'tactics/core.scss';
 import clientFactory from 'client/clientFactory.js';
+import copy from 'components/copy.js';
+import popup from 'components/popup.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   let authClient = clientFactory('auth');
@@ -9,7 +11,7 @@ window.addEventListener('DOMContentLoaded', () => {
   let btnCreate = document.querySelector('BUTTON[name=create]');
   let divSetup = document.querySelector('.setup');
   let divWaiting = document.querySelector('.waiting');
-  let divLink = document.querySelector('.link');
+  let divReady = document.querySelector('.ready');
   let divError = document.querySelector('.setup .error');
 
   authClient.whenReady.then(() => {
@@ -62,17 +64,41 @@ window.addEventListener('DOMContentLoaded', () => {
             .then(() => gameId);
       })
       .then(gameId => {
-        let link = location.origin + '/game.html?' + gameId;
+        let relLink = '/game.html?' + gameId;
+        let absLink = location.origin + relLink;
 
         if (vs === 'me')
-          location.href = link;
+          location.href = relLink;
         else {
-          let anchor = document.querySelector('.link A');
-          anchor.href = link;
-          anchor.textContent = link;
+          let shareLink;
+          if (navigator.share)
+            shareLink = '<SPAN class="share"><SPAN class="fa fa-share"></SPAN><SPAN class="label">Share Game Link</SPAN></SPAN>';
+          else
+            shareLink = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Game Link</SPAN></SPAN>';
+
+          let divShareLink = divReady.querySelector('.shareLink');
+          divShareLink.innerHTML = shareLink;
+          divShareLink.addEventListener('click', event => {
+            if (navigator.share)
+              navigator.share({
+                title: 'Tactics',
+                text: 'Want to play?',
+                url: absLink,
+              });
+            else {
+              copy(absLink);
+              popup({
+                message: 'Game link copied to clipboard.',
+                buttons: [{ label:'Ok' }],
+              });
+            }
+          });
+
+          let divPlayLink = divReady.querySelector('.playLink');
+          divPlayLink.innerHTML = `<A href="${relLink}">Wait for Opponent</A>`;
 
           divWaiting.style.display = 'none';
-          divLink.style.display = null;
+          divReady.style.display = null;
         }
       })
       .catch(error => {
