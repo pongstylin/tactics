@@ -126,8 +126,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function renderPN() {
   let divPN = document.querySelector('#pn');
+  let pushClient = clientFactory('push');
 
   if (Notification.permission === 'denied') {
+    pushClient.setSubscription(null);
+
     divPN.innerHTML = `
       <DIV>Push notifications are currently <SPAN class="blocked">BLOCKED</SPAN>.</DIV>
       <DIV>You will not get notified when it is your turn.</DIV>
@@ -143,6 +146,8 @@ function renderPN() {
 
     reg.pushManager.getSubscription().then(subscription => {
       if (subscription) {
+        pushClient.setSubscription(subscription);
+
         divPN.innerHTML = 'Push notifications are currently <SPAN class="toggle is-on">ON</SPAN>.';
         divPN.querySelector('.toggle').addEventListener('click', () => {
           popup({
@@ -160,6 +165,8 @@ function renderPN() {
         });
       }
       else {
+        pushClient.setSubscription(null);
+
         divPN.innerHTML = `
           <DIV>Enable push notifications to know when it is your turn.</DIV>
           <DIV><SPAN class="toggle">Turn on push notifications</SPAN></DIV>
@@ -179,9 +186,7 @@ function subscribePN() {
       userVisibleOnly: true,
       applicationServerKey: pushPublicKey,
     }).then(subscription => {
-      let pushClient = clientFactory('push');
-      pushClient.setSubscription(subscription);
-
+      // renderPN() will sync the server with the current status.
       renderPN();
     })
     .catch(error => {
@@ -202,6 +207,7 @@ function unsubscribePN() {
       subscription.unsubscribe()
     )
   ).then(() => {
+    // renderPN() will sync the server with the current status.
     renderPN();
   })
   .catch(error => {

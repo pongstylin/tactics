@@ -52,7 +52,10 @@ export default class {
       subscriptions: [],
     });
     pushData.subscriptions = new Map(pushData.subscriptions);
-    pushData.subscriptions.set(deviceId, subscription);
+    if (subscription)
+      pushData.subscriptions.set(deviceId, subscription);
+    else
+      pushData.subscriptions.delete(deviceId);
     pushData.subscriptions = [...pushData.subscriptions];
 
     this._writeFile(fileName, pushData);
