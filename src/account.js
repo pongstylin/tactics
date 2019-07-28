@@ -1,4 +1,6 @@
 import 'tactics/core.scss';
+// Edge doesn't support the flat() function.
+import 'plugins/array.js';
 import clientFactory from 'client/clientFactory.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
@@ -209,7 +211,9 @@ function renderDeviceList() {
     });
 
     let deviceName = device.name === null ? '' : device.name;
-    let autoDeviceName = renderDeviceName(agents[0]);
+    let autoDeviceName = renderDeviceName(
+      agents.find(a => a.agent !== null) || agents[0]
+    );
 
     let divDevice = document.createElement('DIV');
     divDevice.id = device.id;
@@ -394,17 +398,20 @@ function renderDeviceList() {
  * The default device name is a shortened version of the user agent.
  */
 function renderDeviceName(agent) {
+  if (agent.agent === null)
+    return 'Unavailable';
+
   let name;
 
-  if (agent.device !== null)
+  if (agent.device)
     name = agent.device.vendor + ' ' + agent.device.model;
-  else if (agent.os.name !== undefined) {
+  else if (agent.os) {
     name = agent.os.name;
     if (agent.os.version !== undefined)
       name += ' ' + agent.os.version;
   }
 
-  if (agent.browser.name !== undefined) {
+  if (agent.browser) {
     if (name)
       name += ' / ';
 
@@ -418,6 +425,9 @@ function renderDeviceName(agent) {
  * Same as the default device name, but includes browser version.
  */
 function renderAgentName(agent) {
+  if (agent.agent === null)
+    return 'Unavailable';
+
   let name;
 
   if (agent.device !== null)

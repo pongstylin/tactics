@@ -780,7 +780,7 @@ export default (client, request) => {
     request: request,
     address: request.headers['x-forwarded-for']
       || request.connection.remoteAddress,
-    agent: request.headers['user-agent'],
+    agent: request.headers['user-agent'] || null,
   });
   client.id = client.address;
 

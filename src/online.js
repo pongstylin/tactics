@@ -65,7 +65,9 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   if (navigator.serviceWorker)
-    navigator.serviceWorker.ready.then(reg => renderPN());
+    navigator.serviceWorker.ready.then(renderPN);
+  else
+    document.querySelector('#pn').innerHTML = 'Your browser does not support push notifications.';
 
   document.querySelector('.tabs UL').addEventListener('click', event => {
     let liTab = event.target.closest('LI:not(.is-active)');
@@ -124,8 +126,14 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-function renderPN() {
+function renderPN(reg) {
   let divPN = document.querySelector('#pn');
+
+  if (!('pushManager' in reg)) {
+    divPN.innerHTML = 'Your browser does not support push notifications.';
+    return;
+  }
+
   let pushClient = clientFactory('push');
 
   if (Notification.permission === 'denied') {
@@ -138,66 +146,63 @@ function renderPN() {
     return;
   }
 
-  navigator.serviceWorker.getRegistration().then(reg => {
-    if (!('pushManager' in reg)) {
-      divPN.innerHTML = 'Your browser does not support push notifications.';
-      return;
+  reg.pushManager.getSubscription().then(subscription => {
+    if (subscription) {
+      pushClient.setSubscription(subscription);
+
+      divPN.innerHTML = 'Push notifications are currently <SPAN class="toggle is-on">ON</SPAN>.';
+      divPN.querySelector('.toggle').addEventListener('click', () => {
+        popup({
+          title: 'Disable Push Notifications',
+          message: `Are you sure you don't want to be notified when it is your turn?`,
+          buttons: [
+            {
+              label: 'Yes',
+              onClick: () => unsubscribePN(),
+            },
+            { label: 'No' },
+          ],
+          minWidth: '250px',
+        });
+      });
     }
+    else {
+      pushClient.setSubscription(null);
 
-    reg.pushManager.getSubscription().then(subscription => {
-      if (subscription) {
-        pushClient.setSubscription(subscription);
-
-        divPN.innerHTML = 'Push notifications are currently <SPAN class="toggle is-on">ON</SPAN>.';
-        divPN.querySelector('.toggle').addEventListener('click', () => {
-          popup({
-            title: 'Disable Push Notifications',
-            message: `Are you sure you don't want to be notified when it is your turn?`,
-            buttons: [
-              {
-                label: 'Yes',
-                onClick: () => unsubscribePN(),
-              },
-              { label: 'No' },
-            ],
-            minWidth: '250px',
-          });
-        });
-      }
-      else {
-        pushClient.setSubscription(null);
-
-        divPN.innerHTML = `
-          <DIV>Enable push notifications to know when it is your turn.</DIV>
-          <DIV><SPAN class="toggle">Turn on push notifications</SPAN></DIV>
-        `;
-        divPN.querySelector('.toggle').addEventListener('click', () => {
-          subscribePN();
-        });
-      }
-    });
+      divPN.innerHTML = `
+        <DIV>Enable push notifications to know when it is your turn.</DIV>
+        <DIV><SPAN class="toggle">Turn on push notifications</SPAN></DIV>
+      `;
+      divPN.querySelector('.toggle').addEventListener('click', () => {
+        subscribePN();
+      });
+    }
+  }).catch(error => {
+    // Encountered this in Firefox on my PC.  It is supposed to work.
+    console.error('getSubscription', error);
+    divPN.innerHTML = 'Push notifications are broken in this browser.';
   });
 }
 function subscribePN() {
   let divPN = document.querySelector('#pn');
 
-  return navigator.serviceWorker.getRegistration().then(reg => {
+  return navigator.serviceWorker.getRegistration().then(reg =>
     reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: pushPublicKey,
     }).then(subscription => {
       // renderPN() will sync the server with the current status.
-      renderPN();
+      renderPN(reg);
     })
     .catch(error => {
       if (Notification.permission === 'denied')
-        return renderPN();
+        return renderPN(reg);
 
       console.error('subscribe:', error);
 
       divPN.innerHTML = 'Failed to subscribe to push notifications.';
-    });
-  });
+    })
+  );
 }
 function unsubscribePN() {
   let divPN = document.querySelector('#pn');
@@ -205,15 +210,15 @@ function unsubscribePN() {
   return navigator.serviceWorker.getRegistration().then(reg =>
     reg.pushManager.getSubscription().then(subscription =>
       subscription.unsubscribe()
-    )
-  ).then(() => {
-    // renderPN() will sync the server with the current status.
-    renderPN();
-  })
-  .catch(error => {
-    console.error('unsubscribe', error);
-    divPN.innerHTML = 'Failed to unsubscribe.';
-  });
+    ).then(() => {
+      // renderPN() will sync the server with the current status.
+      renderPN(reg);
+    })
+    .catch(error => {
+      console.error('unsubscribe', error);
+      divPN.innerHTML = 'Failed to unsubscribe.';
+    })
+  );
 }
 
 function renderGames(gms) {
