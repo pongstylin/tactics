@@ -7,7 +7,7 @@ export default class AuthClient extends Client {
     super('auth', server);
 
     Object.assign(this, {
-      token: this._getToken(),
+      token: this._fetchToken(),
 
       // The client is ready once a current token, if any, is obtained.
       whenReady: new Promise(resolve => this._resolveReady = resolve),
@@ -25,21 +25,8 @@ export default class AuthClient extends Client {
       if (event.key !== 'token') return;
       let tokenValue = event.newValue;
 
-      if (tokenValue) {
-        let token = new Token(tokenValue);
-
-        if (this.token) {
-          // Shouldn't happen, but shouldn't do anything either.
-          if (token.equals(this.token))
-            return;
-
-          // Replace an older token with a newer one.
-          if (token.createdAt < this.token.createdAt)
-            return this._storeToken(token.value);
-        }
-
-        this._setToken(token);
-      }
+      if (tokenValue)
+        this._setToken(tokenValue);
       else
         this.token = null;
     });
@@ -76,12 +63,12 @@ export default class AuthClient extends Client {
 
   register(profile) {
     return this._server.request(this.name, 'register', [profile])
-      .then(token => this._storeToken(token));
+      .then(token => this._setToken(token));
   }
 
   saveProfile(profile) {
     return this._server.requestAuthorized(this.name, 'saveProfile', [profile])
-      .then(token => this._storeToken(token));
+      .then(token => this._setToken(token));
   }
 
   getIdentityToken() {
@@ -119,7 +106,7 @@ export default class AuthClient extends Client {
 
     return promise.then(() =>
       this._server.request(this.name, 'addDevice', [identityToken])
-        .then(token => this._storeToken(token))
+        .then(token => this._setToken(token))
     );
   }
   setDeviceName(deviceId, deviceName) {
@@ -153,11 +140,11 @@ export default class AuthClient extends Client {
       return this.whenAuthorized;
 
     // Make sure to use the most recently stored token.
-    let token = this._getToken();
+    let token = this._fetchToken();
     if (!token) return;
 
     return this._server.request(this.name, 'refreshToken', [token])
-      .then(token => this._storeToken(token))
+      .then(token => this._setToken(token))
       .catch(error => {
         // Ignore 'Revoked token' errors in the assumption that another tab
         // is about to inform this one that a new token is available.
@@ -174,27 +161,32 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
-  _getToken() {
+  _fetchToken() {
     let tokenValue = localStorage.getItem('token');
 
     return tokenValue ? new Token(tokenValue) : null;
   }
-  _storeToken(tokenValue) {
-    let oldToken = this._getToken();
-    let newToken = new Token(tokenValue);
-
-    // Guard against overwriting newer tokens with older tokens.
-    // A race condition can still occur between reading and writing, but any
-    // difference in created timestamps should be immaterial since the server
-    // offers a 5 second forgiveness differential.
-    if (!oldToken || newToken.createdAt > oldToken.createdAt)
-      localStorage.setItem('token', tokenValue);
-    else
-      newToken = oldToken;
-
-    this._setToken(newToken);
+  _storeToken(token) {
+    localStorage.setItem('token', token.value);
   }
-  _setToken(token) {
+  _setToken(tokenValue) {
+    let token = new Token(tokenValue);
+    let storedToken = this._fetchToken();
+    let myToken = this.token;
+
+    // Ignore the provided token if it is older than the stored token.
+    if (storedToken && storedToken.createdAt > token.createdAt)
+      token = storedToken;
+    // Ignore the provided token if it is older than my token.
+    if (myToken && myToken.createdAt > token.createdAt)
+      token = myToken;
+    // Store the newest token if it is newer than the stored token.
+    if (!storedToken || storedToken.createdAt < token.createdAt)
+      this._storeToken(token);
+
+    if (token.equals(myToken))
+      return;
+
     this.token = token;
 
     this._setRefreshTimeout();
