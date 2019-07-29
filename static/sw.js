@@ -171,6 +171,64 @@ self.addEventListener('activate', event => {
   );
 });
 
+self.addEventListener('push', event => {
+  let data = event.data.json();
+  let title;
+  let options;
+
+  if (data.type === 'yourTurn') {
+    title = `It's your turn!`;
+    options = {
+      body: `${data.opponent} is waiting.`,
+      icon: '/emblem_512.png',
+      timestamp: new Date(data.turnStarted),
+      requireInteraction: true,
+      tag: data.type,
+      data: data,
+    };
+  }
+  else
+    return
+
+  event.waitUntil(
+    self.registration.showNotification(title, options)
+  );
+});
+
+self.addEventListener('notificationclick', event => {
+  let data = event.notification.data || {
+    type: event.notification.tag,
+  };
+  let url;
+
+  if (data.type === 'yourTurn') {
+    if (data.gameId)
+      url = '/game.html?' + data.gameId;
+    else
+      url = '/online.html#active';
+  }
+  else
+    url = '/online.html#active';
+
+  if (url) {
+    let matchUrl = url;
+    if (matchUrl.startsWith('/'))
+      // Find an open window by absolute URL
+      matchUrl = self.registration.scope.slice(0, -1) + url;
+
+    event.waitUntil(
+      getClientByURL(matchUrl).then(client => {
+        if (client && client.focus)
+          return client.focus();
+        else
+          return self.clients.openWindow(url);
+      })
+    );
+  }
+
+  event.notification.close();
+});
+
 self.addEventListener('message', event => {
   let client  = event.source;
   let message = event.data;
@@ -181,3 +239,12 @@ self.addEventListener('message', event => {
       version: VERSION,
     });
 });
+
+function getClientByURL(url) {
+  return clients.matchAll({ type:'window' }).then(clients => {
+    for (let client of clients) {
+      if (client.url === url)
+        return client;
+    }
+  });
+}

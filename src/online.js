@@ -1,5 +1,7 @@
 import 'tactics/core.scss';
+import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
+import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 
 let authClient = clientFactory('auth');
@@ -11,18 +13,38 @@ let games = {
   complete: new Map(),
 };
 
+let pushPublicKey = Uint8Array.from(
+  atob(
+    config.pushPublicKey
+      .replace(/-/g, '+').replace(/_/g, '/')
+  ),
+  chr => chr.charCodeAt(0),
+);
+
 window.addEventListener('DOMContentLoaded', () => {
   let divGreeting = document.querySelector('.greeting');
   let divNotice = document.querySelector('#notice');
+
+  if (authClient.token) {
+    // Just in case fetching the most recent info is slow...
+    divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
+    divGreeting.style.display = '';
+
+    if (navigator.onLine === false)
+      divNotice.textContent = 'Your games will be loaded once you are online.';
+    else
+      divNotice.textContent = 'Loading your games...';
+  }
+  else {
+    divGreeting.style.display = '';
+    divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
+  }
 
   authClient.whenReady.then(() => {
     myPlayerId = authClient.playerId;
 
     if (myPlayerId) {
       divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
-      divGreeting.style.display = '';
-
-      divNotice.textContent = 'Loading your games...';
 
       /*
        * Get 50 of the most recent games.  Once the player creates or plays more
@@ -36,11 +58,16 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
     else {
-      divGreeting.style.display = '';
+      divGreeting.textContent = `Welcome!`;
       divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
       return;
     }
   });
+
+  if (navigator.serviceWorker)
+    navigator.serviceWorker.ready.then(renderPN);
+  else
+    document.querySelector('#pn').innerHTML = 'Your browser does not support push notifications.';
 
   document.querySelector('.tabs UL').addEventListener('click', event => {
     let liTab = event.target.closest('LI:not(.is-active)');
@@ -52,7 +79,7 @@ window.addEventListener('DOMContentLoaded', () => {
     location.hash = '#' + tab;
   });
 
-  document.querySelector('.tabContent').addEventListener('click', event => {
+  let gameClickHandler = event => {
     let divGame = event.target.closest('.game');
     if (!divGame) return;
 
@@ -61,7 +88,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let spnCopy = event.target.closest('.copy');
     if (spnCopy) {
       copy(link);
-      alert('Game link copied to clipboard.');
+      popup({ message:'Game link copied to clipboard.' });
       return;
     }
 
@@ -75,8 +102,18 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    location.href = link;
+    // Support common open-new-tab semantics
+    if (event.ctrlKey || event.metaKey || event.button === 1)
+      open(link, '_blank');
+    else
+      location.href = link;
+  };
+  document.querySelector('.tabContent').addEventListener('mouseup', event => {
+    // Detect and handle middle-click
+    if (event.button === 1)
+      gameClickHandler(event);
   });
+  document.querySelector('.tabContent').addEventListener('click', gameClickHandler);
 
   window.addEventListener('hashchange', event => {
     let tab = 'active';
@@ -88,6 +125,101 @@ window.addEventListener('DOMContentLoaded', () => {
     openTab(tab);
   });
 });
+
+function renderPN(reg) {
+  let divPN = document.querySelector('#pn');
+
+  if (!('pushManager' in reg)) {
+    divPN.innerHTML = 'Your browser does not support push notifications.';
+    return;
+  }
+
+  let pushClient = clientFactory('push');
+
+  if (Notification.permission === 'denied') {
+    pushClient.setSubscription(null);
+
+    divPN.innerHTML = `
+      <DIV>Push notifications are currently <SPAN class="blocked">BLOCKED</SPAN>.</DIV>
+      <DIV>You will not get notified when it is your turn.</DIV>
+    `;
+    return;
+  }
+
+  reg.pushManager.getSubscription().then(subscription => {
+    if (subscription) {
+      pushClient.setSubscription(subscription);
+
+      divPN.innerHTML = 'Push notifications are currently <SPAN class="toggle is-on">ON</SPAN>.';
+      divPN.querySelector('.toggle').addEventListener('click', () => {
+        popup({
+          title: 'Disable Push Notifications',
+          message: `Are you sure you don't want to be notified when it is your turn?`,
+          buttons: [
+            {
+              label: 'Yes',
+              onClick: () => unsubscribePN(),
+            },
+            { label: 'No' },
+          ],
+          minWidth: '250px',
+        });
+      });
+    }
+    else {
+      pushClient.setSubscription(null);
+
+      divPN.innerHTML = `
+        <DIV>Enable push notifications to know when it is your turn.</DIV>
+        <DIV><SPAN class="toggle">Turn on push notifications</SPAN></DIV>
+      `;
+      divPN.querySelector('.toggle').addEventListener('click', () => {
+        subscribePN();
+      });
+    }
+  }).catch(error => {
+    // Encountered this in Firefox on my PC.  It is supposed to work.
+    console.error('getSubscription', error);
+    divPN.innerHTML = 'Push notifications are broken in this browser.';
+  });
+}
+function subscribePN() {
+  let divPN = document.querySelector('#pn');
+
+  return navigator.serviceWorker.getRegistration().then(reg =>
+    reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: pushPublicKey,
+    }).then(subscription => {
+      // renderPN() will sync the server with the current status.
+      renderPN(reg);
+    })
+    .catch(error => {
+      if (Notification.permission === 'denied')
+        return renderPN(reg);
+
+      console.error('subscribe:', error);
+
+      divPN.innerHTML = 'Failed to subscribe to push notifications.';
+    })
+  );
+}
+function unsubscribePN() {
+  let divPN = document.querySelector('#pn');
+
+  return navigator.serviceWorker.getRegistration().then(reg =>
+    reg.pushManager.getSubscription().then(subscription =>
+      subscription.unsubscribe()
+    ).then(() => {
+      // renderPN() will sync the server with the current status.
+      renderPN(reg);
+    })
+    .catch(error => {
+      console.error('unsubscribe', error);
+      divPN.innerHTML = 'Failed to unsubscribe.';
+    })
+  );
+}
 
 function renderGames(gms) {
   gms.forEach(g => {

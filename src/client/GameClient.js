@@ -23,6 +23,11 @@ export default class GameClient extends Client {
       .on('leave', listener)
       .on('enter', listener)
       .on('exit',  listener);
+
+    // If the server connection is already open, fire the open event.
+    // The open event is typically used to send authorization.
+    if (server.isOpen)
+      this._emit({ type:'open', data:{ reason:'new' }});
   }
 
   createGame(stateData) {

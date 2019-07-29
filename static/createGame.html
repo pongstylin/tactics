@@ -39,6 +39,10 @@
       box-sizing: border-box;
       padding: 4px;
     }
+    UL {
+      margin: 0;
+      padding-left: 32px;
+    }
 
     .row {
       padding: 8px 4px;
@@ -55,14 +59,24 @@
       text-align: center;
     }
 
-    .link LI {
+    .ready LI {
       padding: 4px 0;
     }
 
-    .link A {
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      text-decoration: none;
+    .ready .share,
+    .ready .copy {
+      color: #00FFFF;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .ready .share .label,
+    .ready .copy .label {
+      margin-left: 6px;
+    }
+    .ready .share:hover .label,
+    .ready .copy:hover .label {
+      color: #CCFFFF;
+      text-decoration: underline;
     }
   </STYLE>
 </HEAD>
@@ -101,13 +115,17 @@
     <DIV class="waiting" style="display:none">
       <DIV>Please wait while your game is created...</DIV>
     </DIV>
-    <DIV class="link" style="display:none">
+    <DIV class="ready" style="display:none">
       <DIV>
-        <DIV>Game created.  Instructions:</DIV>
+        <DIV>Game created.</DIV>
+        <UL class="links">
+          <LI class="shareLink"></LI>
+          <LI class="playLink"></LI>
+        </UL>
+        <DIV>Instructions:</DIV>
         <UL>
           <LI>
-            This game will now appear in your "Waiting Games" list.  It will be moved to your "Active Games" list once your opponent joins the game.<BR>
-            <A href=""></A>
+            This game will now appear in your "Waiting Games" list.  It will be moved to your "Active Games" list once your opponent joins the game.
           </LI>
           <LI>If you want to play somebody specific, share the link with your intended opponent, e.g. by text or email.  Once they join the game, you can share the link with anybody else so that they can watch the game or see the result.</LI>
           <LI>If you don't care who you play, then share the link with a group of people.  The first person to join your game gets to play you.</LI>

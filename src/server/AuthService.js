@@ -32,9 +32,7 @@ class AuthService extends Service {
   }
 
   dropClient(client) {
-    super.dropClient(client);
-
-    this.sessions.delete(client);
+    this.sessions.delete(client.id);
   }
 
   /*****************************************************************************
@@ -137,6 +135,10 @@ class AuthService extends Service {
       agents: [...device.agents].map(([agent, addresses]) => {
         let digest = uaparser(agent);
 
+        if (digest.os.name === undefined)
+          digest.os = null;
+        if (digest.browser.name === undefined)
+          digest.browser = null;
         if (digest.device.vendor === undefined)
           digest.device = null;
 

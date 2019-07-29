@@ -400,6 +400,12 @@ export default class ServerSocket {
       this._onSyncMessage(message);
     }
     else if (session.id) {
+      // Authorized services are no longer authorized.
+      this._whenAuthorized.forEach((promise, serviceName) => {
+        if (promise.isResolved)
+          this._whenAuthorized.delete(serviceName);
+      });
+
       // Reset the session
       session.responseRoutes.forEach(route => route.reject('Connection reset'));
 
@@ -448,12 +454,6 @@ export default class ServerSocket {
   _onClose({code, reason}) {
     clearTimeout(this._syncTimeout);
     clearTimeout(this._closeTimeout);
-
-    // Authorized services are no longer authorized.
-    this._whenAuthorized.forEach((promise, serviceName) => {
-      if (promise.isResolved)
-        this._whenAuthorized.delete(serviceName);
-    });
 
     let socket = event.target;
     socket.removeEventListener('message', this._messageListener);

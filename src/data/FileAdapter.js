@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 
-import migrate from 'data/migrate.js';
+import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import Player from 'models/Player.js';
 import Game from 'models/Game.js';
 import GameSummary from 'models/GameSummary.js';
@@ -13,6 +13,8 @@ const filesDir = 'src/data/files';
 export default class {
   createPlayer(playerData) {
     let player = Player.create(playerData);
+    player.version = getLatestVersionNumber('player');
+
     this._writeFile(`player_${player.id}`, player);
     return player;
   }
@@ -26,6 +28,7 @@ export default class {
 
   createGame(stateData) {
     let game = Game.create(stateData);
+    game.version = getLatestVersionNumber('game');
 
     this._writeFile(`game_${game.id}`, game);
     this._saveGameSummary(game);
@@ -41,6 +44,29 @@ export default class {
   getGame(gameId) {
     let gameData = this._readFile(`game_${gameId}`);
     return Game.load(migrate('game', gameData));
+  }
+
+  setPushSubscription(playerId, deviceId, subscription) {
+    let fileName = `player_${playerId}_push`;
+    let pushData = this._readFile(fileName, {
+      subscriptions: [],
+    });
+    pushData.subscriptions = new Map(pushData.subscriptions);
+    if (subscription)
+      pushData.subscriptions.set(deviceId, subscription);
+    else
+      pushData.subscriptions.delete(deviceId);
+    pushData.subscriptions = [...pushData.subscriptions];
+
+    this._writeFile(fileName, pushData);
+  }
+  getAllPushSubscriptions(playerId) {
+    let fileName = `player_${playerId}_push`;
+    let pushData = this._readFile(fileName, {
+      subscriptions: [],
+    });
+
+    return pushData.subscriptions.map(([k, v]) => v);
   }
 
   /*
@@ -155,18 +181,7 @@ export default class {
    * Get all of the games in which the player is participating.
    */
   _getPlayerGamesSummary(playerId) {
-    let summaryList;
-    try {
-      summaryList = new Map(this._readFile(`player_${playerId}_games`));
-    }
-    catch (error) {
-      if (error.code === 404)
-        summaryList = new Map();
-      else
-        throw error;
-    }
-
-    return summaryList;
+    return new Map(this._readFile(`player_${playerId}_games`, []));
   }
   /*
    * Update the game summary for all participating players.
@@ -186,26 +201,21 @@ export default class {
   }
 
   _writeFile(name, data) {
-    try {
-      // Avoid corrupting files when crashing by writing to a temporary file.
-      fs.writeFileSync(`${filesDir}/.${name}.json`, JSON.stringify(data));
-      fs.renameSync(`${filesDir}/.${name}.json`, `${filesDir}/${name}.json`);
-    }
-    catch (error) {
-      if (error.code === 'ENOENT')
-        error = new ServerError(404, 'Not found');
-
-      throw error;
-    }
+    // Avoid corrupting files when crashing by writing to a temporary file.
+    fs.writeFileSync(`${filesDir}/.${name}.json`, JSON.stringify(data));
+    fs.renameSync(`${filesDir}/.${name}.json`, `${filesDir}/${name}.json`);
   }
-  _readFile(name) {
+  _readFile(name, initialValue) {
     try {
       let json = fs.readFileSync(`${filesDir}/${name}.json`, 'utf8');
       return JSON.parse(json);
     }
     catch (error) {
       if (error.code === 'ENOENT')
-        error = new ServerError(404, 'Not found');
+        if (initialValue === undefined)
+          error = new ServerError(404, 'Not found');
+        else
+          return initialValue;
 
       throw error;
     }

@@ -3,11 +3,15 @@ class Popup {
     Object.assign(this, {
       el: null,
       options: null,
+
+      _openTimeout: null,
     });
     this.setOptions(options);
 
-    if (this.options.open)
+    if (this.options.open === true)
       this.open();
+    else if (typeof this.options.open === 'number')
+      this._openTimeout = setTimeout(() => this.open(), this.options.open);
   }
 
   setOptions(options) {
@@ -137,7 +141,9 @@ class Popup {
   }
 
   close() {
-    // Silently fail.  Attempting to close a popup twice is normal.
+    // Popup was closed before it even opened?
+    clearTimeout(this._openTimeout);
+
     if (!this.isOpen) return;
 
     if (this.options.onClose)

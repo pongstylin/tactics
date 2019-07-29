@@ -179,8 +179,10 @@ export default class RemoteTransport {
 
       this._data = gameData;
       Object.assign(this._data.state, {
-        started:     new Date(gameData.state.started),
-        turnStarted: new Date(gameData.state.turnStarted),
+        started:
+          gameData.state.started && new Date(gameData.state.started),
+        turnStarted:
+          gameData.state.turnStarted && new Date(gameData.state.turnStarted),
       });
       this._data.state.actions.forEach(action => {
         action.created = new Date(action.created);
@@ -243,17 +245,17 @@ export default class RemoteTransport {
         // But 'complete' will result in hiding the dialog, if any.
         this._emit({ type:'undoComplete' });
       }
-    });
 
-    // Resend specific lost messages
-    outbox.forEach(message => {
-      if (message.service !== 'game') return;
-      if (message.type !== 'event') return;
-      let event = message.body;
-      if (event.group !== `/games/${gameId}`) return;
+      // Resend specific lost messages
+      outbox.forEach(message => {
+        if (message.type !== 'event') return;
+        let event = message.body;
+        if (event.service !== 'game') return;
+        if (event.group !== `/games/${gameId}`) return;
 
-      if (event.type === 'action')
-        gameClient.postAction(gameId, event.data);
+        if (event.type === 'action')
+          gameClient.postAction(gameId, event.data);
+      });
     });
   }
 
@@ -283,10 +285,10 @@ export default class RemoteTransport {
         });
       })
       .on('action', ({ data:actions }) => {
-        this._data.state.actions = actions;
-        this._data.state.actions.forEach(action => {
+        actions.forEach(action => {
           action.created = new Date(action.created);
         });
+        this._data.state.actions.push(...actions);
 
         // Clear the undo request to permit a new request.
         this._data.undoRequest = null;
