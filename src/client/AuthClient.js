@@ -184,7 +184,7 @@ export default class AuthClient extends Client {
     if (!storedToken || storedToken.createdAt < token.createdAt)
       this._storeToken(token);
 
-    if (token.equals(myToken))
+    if (this.isAuthorized && token.equals(myToken))
       return;
 
     this.token = token;
