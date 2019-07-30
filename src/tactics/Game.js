@@ -1684,7 +1684,7 @@ export default class {
     else if (type === 'action')
       eventHandler = () => {
         this._setTurnTimeout();
-        this._performActions(data);
+        return this._performActions(data);
       };
     else if (type === 'revert')
       eventHandler = () => this._revert(data);
