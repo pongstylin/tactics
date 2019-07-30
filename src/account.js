@@ -430,15 +430,15 @@ function renderAgentName(agent) {
 
   let name;
 
-  if (agent.device !== null)
+  if (agent.device)
     name = agent.device.vendor + ' ' + agent.device.model;
-  else if (agent.os.name !== undefined) {
+  else if (agent.os) {
     name = agent.os.name;
     if (agent.os.version !== undefined)
       name += ' ' + agent.os.version;
   }
 
-  if (agent.browser.name !== undefined) {
+  if (agent.browser) {
     if (name !== undefined)
       name += ' / ';
 
