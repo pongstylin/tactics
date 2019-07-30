@@ -121,7 +121,8 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET')
     return event.respondWith(fetch(request));
 
-  let url = request.url;
+  // Ignore the query string since it does not affect the response.
+  let url = request.url.replace(/\?.+$/, '');
 
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {
