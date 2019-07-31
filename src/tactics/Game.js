@@ -1105,6 +1105,8 @@ export default class {
 
           return this._performAction(action);
         }
+        else if (action.type === 'surrender')
+          return this._performAction(action);
 
         if (!selected) {
           // Show the player the unit that is about to act.
