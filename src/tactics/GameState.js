@@ -1048,8 +1048,7 @@ export default class GameState {
   }
 
   _emit(event) {
-    // Some event listeners will cause more events to be emitted.
-    // Use setTimeout to ensure all listeners receive events in the correct sequence.
-    setTimeout(() => this._emitter.emit(event.type, event));
+    this._emitter.emit('event', event);
+    this._emitter.emit(event.type, event);
   }
 }

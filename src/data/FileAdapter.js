@@ -26,6 +26,13 @@ export default class {
     return Player.load(migrate('player', playerData));
   }
 
+  removePlayerDevice(player, deviceId) {
+    player.removeDevice(deviceId);
+
+    this.savePlayer(player);
+    this.setPushSubscription(player.id, deviceId, null);
+  }
+
   createGame(stateData) {
     let game = Game.create(stateData);
     game.version = getLatestVersionNumber('game');
@@ -66,7 +73,7 @@ export default class {
       subscriptions: [],
     });
 
-    return pushData.subscriptions.map(([k, v]) => v);
+    return new Map(pushData.subscriptions);
   }
 
   /*

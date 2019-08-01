@@ -213,10 +213,7 @@ class AuthService extends Service {
     if (!session.token)
       throw new ServerError(401, 'Authorization is required');
 
-    let player = session.player;
-    player.removeDevice(deviceId);
-
-    dataAdapter.savePlayer(player);
+    dataAdapter.removePlayerDevice(session.player, deviceId);
   }
 
   /*
