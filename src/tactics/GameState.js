@@ -39,13 +39,13 @@ export default class GameState {
         _bots:    [],
         _turns:   turns,
         _board:   board,
+        _actions: [],
         _emitter: new EventEmitter(),
       }
     );
 
     board.setState(this.units, this.teams);
-
-    this._actions = board.decodeAction(actions);
+    board.decodeAction(actions).forEach(a => this._applyAction(a));
   }
 
   /*
