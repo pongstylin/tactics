@@ -1105,6 +1105,8 @@ export default class {
 
           return this._performAction(action);
         }
+        else if (action.type === 'surrender')
+          return this._performAction(action);
 
         if (!selected) {
           // Show the player the unit that is about to act.
@@ -1575,6 +1577,8 @@ export default class {
     let state = this.state;
     if (!state.turnTimeLimit)
       return;
+    if (this.isViewOnly)
+      return;
 
     if (typeof this._turnTimeout === 'number') {
       clearTimeout(this._turnTimeout);
@@ -1599,7 +1603,8 @@ export default class {
         this._turnTimeout = null;
       }
 
-      if (timeout < Infinity)
+      // Value must be less than a 32-bit signed integer.
+      if (timeout < 0x80000000)
         this._turnTimeout = setTimeout(() => {
           this._turnTimeout = true;
           this._emit({ type:'timeout' });
@@ -1684,7 +1689,7 @@ export default class {
     else if (type === 'action')
       eventHandler = () => {
         this._setTurnTimeout();
-        this._performActions(data);
+        return this._performActions(data);
       };
     else if (type === 'revert')
       eventHandler = () => this._revert(data);

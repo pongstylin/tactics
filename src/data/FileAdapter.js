@@ -26,6 +26,19 @@ export default class {
     return Player.load(migrate('player', playerData));
   }
 
+  /*
+   * This is a bit of a hack.  Ideally, each service may only access its own
+   * dedicated data store.  But this method modifies auth data and push data.
+   * The right thing to do is have the auth service ask the push service to
+   * delete its own data.
+   */
+  removePlayerDevice(player, deviceId) {
+    player.removeDevice(deviceId);
+
+    this.savePlayer(player);
+    this.setPushSubscription(player.id, deviceId, null);
+  }
+
   createGame(stateData) {
     let game = Game.create(stateData);
     game.version = getLatestVersionNumber('game');
@@ -66,7 +79,7 @@ export default class {
       subscriptions: [],
     });
 
-    return pushData.subscriptions.map(([k, v]) => v);
+    return new Map(pushData.subscriptions);
   }
 
   /*

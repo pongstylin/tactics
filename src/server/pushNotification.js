@@ -17,9 +17,9 @@ const debug = DebugLogger('service:push');
 
 export default (playerId, notification) => {
   let subscriptions = dataAdapter.getAllPushSubscriptions(playerId);
-  if (subscriptions.length === 0) return Promise.resolve([]);
+  if (subscriptions.size === 0) return Promise.resolve([]);
 
-  debug(`${notification.type}: playerId=${playerId}`);
+  debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}`);
 
   let payload = JSON.stringify(notification);
 
@@ -29,7 +29,13 @@ export default (playerId, notification) => {
     config.push.privateKey,
   );
 
-  return Promise.all(
-    subscriptions.map(s => webpush.sendNotification(s, payload))
-  );
+  return Promise.all([...subscriptions].map(([deviceId, subscription]) =>
+    webpush.sendNotification(subscription, payload).catch(error => {
+      // push subscription has unsubscribed or expired.
+      if (error.statusCode === 410)
+        dataAdapter.setPushSubscription(playerId, deviceId, null);
+
+      debug(`${notification.type}: playerId=${playerId}; deviceId=${deviceId}; error=[${error.statusCode}] ${error.body}`);
+    })
+  ));
 };

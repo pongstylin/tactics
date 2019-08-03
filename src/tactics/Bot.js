@@ -13,7 +13,8 @@ export default class {
      */
     let startTurnListener = event => {
       if (event.data.teamId === this.team.id)
-        // Use setTimeout to allow other listeners to get their message.
+        // setTimeout allows other listeners to get this event before we
+        // generate more events.
         setTimeout(() => this.startTurn());
     };
 
@@ -22,11 +23,11 @@ export default class {
       team:  team,
 
       _turnOrder: turnOrder,
-      _startTurnListener: startTurnListener.bind(this),
+      _startTurnListener: startTurnListener,
     });
 
     state
-      .on('startTurn', this._startTurnListener);
+      .on('startTurn', startTurnListener);
   }
 
   /*

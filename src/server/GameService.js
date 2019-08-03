@@ -241,13 +241,7 @@ class GameService extends Service {
           this.onGameEnd(gameId);
       };
 
-      game.state
-        .on('joined', listener)
-        .on('startGame', listener)
-        .on('startTurn', listener)
-        .on('action', listener)
-        .on('revert', listener)
-        .on('endGame', listener);
+      game.state.on('event', listener);
 
       this.gamePara.set(gameId, gamePara = {
         game:     game,
@@ -354,13 +348,7 @@ class GameService extends Service {
       // TODO: Don't shut down the game state until all bots have made their turns.
       let listener = gamePara.listener;
 
-      game.state
-        .off('joined', listener)
-        .off('startGame', listener)
-        .off('startTurn', listener)
-        .off('action', listener)
-        .off('revert', listener)
-        .off('endGame', listener);
+      game.state.off('event', listener);
 
       this.gamePara.delete(game.id);
 
@@ -412,7 +400,11 @@ class GameService extends Service {
     if (set)
       team.set = set;
 
+    let listener = event => this._notifyYourTurn(game, event.data);
+    game.state.on('startTurn', listener);
     game.state.join(team, slot);
+    game.state.off('startTurn', listener);
+
     dataAdapter.saveGame(game);
   }
   onGetTurnDataRequest(client, gameId, ...args) {

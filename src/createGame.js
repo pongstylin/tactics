@@ -44,13 +44,13 @@ window.addEventListener('DOMContentLoaded', () => {
     divSetup.style.display = null;
   });
 
-  document.querySelector('INPUT[name=vs][value=them').addEventListener('click', event => {
+  document.querySelector('INPUT[name=vs][value=them]').addEventListener('click', event => {
     document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = false;
     document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = false;
 
     btnCreate.textContent = 'Create Game Link';
   });
-  document.querySelector('INPUT[name=vs][value=me').addEventListener('click', event => {
+  document.querySelector('INPUT[name=vs][value=me]').addEventListener('click', event => {
     document.querySelector('INPUT[name=turnOrder][value=random]').checked = true;
     document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = true;
     document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = true;
