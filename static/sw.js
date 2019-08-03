@@ -63,8 +63,13 @@ const INSTALL_CACHE_NAME = 'app'+(VERSION ? '-'+VERSION : '');
 //   2) A file is moved from the fetch cache to the install cache.
 //   3) One or more files are no longer used by a new app version.
 const FETCH_CACHE_NAME = 'dynamic-v2';
+const LOCAL_CACHE_NAME = 'local';
 
-const ACTIVE_CACHE_NAMES = [INSTALL_CACHE_NAME, FETCH_CACHE_NAME];
+const ACTIVE_CACHE_NAMES = [
+  INSTALL_CACHE_NAME,
+  FETCH_CACHE_NAME,
+  LOCAL_CACHE_NAME,
+];
 
 // Fetch all resources using these parameters.
 const OPTIONS = {
@@ -116,13 +121,48 @@ function getCache(url) {
     );
 }
 
+/*
+ * This is the only way to share data between the browser and PWA on iOS.
+ */
+const LOCAL_ENDPOINT = self.registration.scope + 'local.json';
+
+function routeLocalRequest(request) {
+  let responseMeta = {
+    status: 200,
+    statusText: 'OK',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  };
+
+  self.test = request;
+  if (request.method === 'POST')
+    return request.json().then(data =>
+      caches.open(LOCAL_CACHE_NAME).then(cache => {
+        cache.put(LOCAL_ENDPOINT, new Response(JSON.stringify(data), responseMeta));
+
+        return new Response(null, {
+          status: 201,
+          statusText: 'Created',
+        });
+      })
+    );
+
+  return caches.open(LOCAL_CACHE_NAME)
+    .then(cache => cache.match(LOCAL_ENDPOINT)
+      .then(response => response || new Response('{}', responseMeta))
+    );
+}
+
 self.addEventListener('fetch', event => {
   let request = event.request;
-  if (request.method !== 'GET')
-    return event.respondWith(fetch(request));
-
   // Ignore the query string since it does not affect the response.
   let url = request.url.replace(/\?.+$/, '');
+
+  if (url === LOCAL_ENDPOINT)
+    return event.respondWith(routeLocalRequest(request));
+  if (request.method !== 'GET')
+    return event.respondWith(fetch(request));
 
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {

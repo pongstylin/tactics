@@ -2,6 +2,8 @@ import config from 'config/client.js';
 import Client from 'client/Client.js';
 import Token from 'client/Token.js';
 
+const LOCAL_ENDPOINT = '/local.json';
+
 export default class AuthClient extends Client {
   constructor(server) {
     super('auth', server);
@@ -9,7 +11,7 @@ export default class AuthClient extends Client {
     Object.assign(this, {
       token: this._fetchToken(),
 
-      // The client is ready once a current token, if any, is obtained.
+      // The client is ready once the token, if any, is refreshed.
       whenReady: new Promise(resolve => this._resolveReady = resolve),
 
       _refreshTimeout: null,
@@ -116,7 +118,14 @@ export default class AuthClient extends Client {
     return this._server.requestAuthorized(this.name, 'removeDevice', [deviceId]);
   }
 
-  _onOpen({ data }) {
+  async _onOpen({ data }) {
+    // On iOS (iPhone, iPad), the localStorage data is not shared between Safari
+    // and a PWA added to the home screen.  However, the Cache API in a service
+    // worker IS shared.  When opening a new connection, e.g. opening a page in
+    // Safari or opening the PWA, restore the token from cache to make sure both
+    // contexts use the same account and always have the most recent token.
+    await this._restoreToken();
+
     if (this.token) {
       // Since a connection can only be resumed for 30 seconds after disconnect
       // and a token is refreshed 1 minute before it expires, a token refresh
@@ -124,16 +133,29 @@ export default class AuthClient extends Client {
       if (data.reason === 'resume')
         this._setRefreshTimeout();
       else
-        this._refreshToken().then(this._resolveReady);
+        await this._refreshToken();
     }
-    else
+
+    if (data.reason === 'new')
       this._resolveReady();
   }
   _onClose() {
     this._clearRefreshTimeout();
   }
 
-  _refreshToken() {
+  async _restoreToken() {
+    let token = await this._fetchCachedToken();
+
+    if (token) {
+      if (!this.token)
+        this._storeToken(this.token = token);
+      else if (this.token.playerId !== token.playerId)
+        this._storeToken(this.token = token);
+      else if (this.token.createdAt < token.createdAt)
+        this._storeToken(this.token = token);
+    }
+  }
+  async _refreshToken() {
     // No point in queueing a token refresh if the session is not open.
     // A new attempt to refresh will be made once it is open.
     if (!this._server.isOpen)
@@ -169,6 +191,31 @@ export default class AuthClient extends Client {
   _storeToken(token) {
     localStorage.setItem('token', token.value);
   }
+  async _fetchCachedToken() {
+    // The local endpoint is handled by the service worker.
+    let sw = navigator.serviceWorker;
+    if (!sw || !sw.controller)
+      return null;
+
+    let response = await fetch(LOCAL_ENDPOINT);
+    let json = await response.json();
+
+    return json.token ? new Token(json.token) : null;
+  }
+  async _storeCachedToken(token) {
+    // The local endpoint is handled by the service worker.
+    let sw = navigator.serviceWorker;
+    if (!sw || !sw.controller)
+      return;
+
+    return await fetch(LOCAL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token }),
+    });
+  }
   _setToken(tokenValue) {
     let token = new Token(tokenValue);
     let storedToken = this._fetchToken();
@@ -181,8 +228,10 @@ export default class AuthClient extends Client {
     if (myToken && myToken.createdAt > token.createdAt)
       token = myToken;
     // Store the newest token if it is newer than the stored token.
-    if (!storedToken || storedToken.createdAt < token.createdAt)
+    if (!storedToken || storedToken.createdAt < token.createdAt) {
       this._storeToken(token);
+      this._storeCachedToken(token);
+    }
 
     if (this.isAuthorized && token.equals(myToken))
       return;
