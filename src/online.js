@@ -51,7 +51,7 @@ window.addEventListener('DOMContentLoaded', () => {
        * than 50 games, the oldest ones will drop out of view.
        */
       gameClient.searchMyGames({ limit:50, sort:'updated' })
-        .then(rsp => renderGames(rsp.results))
+        .then(result => renderGames(result.hits))
         .catch(error => {
           divNotice.textContent = 'Sorry!  There was an error while loading your games.';
           throw error;

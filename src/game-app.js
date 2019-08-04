@@ -1,4 +1,5 @@
 import popup from 'components/popup.js';
+import copy from 'components/copy.js';
 
 Tactics.App = (function ($, window, document) {
   'use strict';
@@ -204,25 +205,69 @@ Tactics.App = (function ($, window, document) {
 
           let hasJoined = gameData.state.teams.find(t => t && t.playerId === identity.id);
           if (hasJoined)
-            return showWaitIntro(identity, gameData);
+            if (gameData.isPublic)
+              return showPublicIntro(identity, gameData);
+            else
+              return showPrivateIntro(identity, gameData);
           else
             return showJoinIntro(identity, gameData);
         });
       })
   }
 
-  function showWaitIntro(identity, gameData) {
-    let $greeting = $('#wait .greeting');
+  function showPublicIntro(identity, gameData) {
+    renderShareLink(gameData.id, document.querySelector('#public .shareLink'));
+
+    let $greeting = $('#public .greeting');
+    let myTeam = gameData.state.teams.find(t => t && t.playerId === identity.id);
+    $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
 
     return Tactics.loadRemoteGame(gameData.id).then(game => {
-      $greeting.text($greeting.text().replace('{playerName}', identity.name));
-
-      $('#wait').show();
+      $('#public').show();
 
       return game.whenStarted.then(() => {
-        $('#wait').hide();
+        $('#public').hide();
         return game;
-      })
+      });
+    });
+  }
+  function showPrivateIntro(identity, gameData) {
+    renderShareLink(gameData.id, document.querySelector('#private .shareLink'));
+
+    let $greeting = $('#private .greeting');
+    let myTeam = gameData.state.teams.find(t => t && t.playerId === identity.id);
+    $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
+
+    return Tactics.loadRemoteGame(gameData.id).then(game => {
+      $('#private').show();
+
+      return game.whenStarted.then(() => {
+        $('#private').hide();
+        return game;
+      });
+    });
+  }
+  function renderShareLink(gameId, container) {
+    let link = location.origin + '/game.html?' + gameId;
+
+    let shareLink;
+    if (navigator.share)
+      shareLink = '<SPAN class="share"><SPAN class="fa fa-share"></SPAN><SPAN class="label">Share Game Link</SPAN></SPAN>';
+    else
+      shareLink = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Game Link</SPAN></SPAN>';
+
+    container.innerHTML = shareLink;
+    container.addEventListener('click', event => {
+      if (navigator.share)
+        navigator.share({
+          title: 'Tactics',
+          text: 'Want to play?',
+          url: link,
+        });
+      else {
+        copy(link);
+        popup({ message:'Game link copied to clipboard.' });
+      }
     });
   }
 

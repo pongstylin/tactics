@@ -1,17 +1,15 @@
 import 'tactics/core.scss';
 import clientFactory from 'client/clientFactory.js';
-import copy from 'components/copy.js';
 import popup from 'components/popup.js';
 
-window.addEventListener('DOMContentLoaded', () => {
-  let authClient = clientFactory('auth');
-  let gameClient = clientFactory('game');
+let authClient = clientFactory('auth');
+let gameClient = clientFactory('game');
 
+window.addEventListener('DOMContentLoaded', () => {
   let txtPlayerName = document.querySelector('INPUT[name=playerName]');
   let btnCreate = document.querySelector('BUTTON[name=create]');
   let divSetup = document.querySelector('.setup');
   let divWaiting = document.querySelector('.waiting');
-  let divReady = document.querySelector('.ready');
   let divError = document.querySelector('.setup .error');
 
   let notice;
@@ -34,28 +32,33 @@ window.addEventListener('DOMContentLoaded', () => {
       notice.close();
 
     let playerName = authClient.playerName;
-    if (playerName !== null) {
+    if (playerName !== null)
       txtPlayerName.value = playerName;
-    }
-    else {
+    else
       txtPlayerName.value = 'Noob';
-    }
 
     divSetup.style.display = null;
   });
 
-  document.querySelector('INPUT[name=vs][value=them]').addEventListener('click', event => {
-    document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = false;
-    document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = false;
+  document.querySelectorAll('INPUT[name=vs]').forEach(radio => {
+    radio.addEventListener('change', event => {
+      if (radio.value === 'you') {
+        document.querySelector('INPUT[name=turnOrder][value=random]').checked = true;
+        document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = true;
+        document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = true;
 
-    btnCreate.textContent = 'Create Game Link';
-  });
-  document.querySelector('INPUT[name=vs][value=me]').addEventListener('click', event => {
-    document.querySelector('INPUT[name=turnOrder][value=random]').checked = true;
-    document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = true;
-    document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = true;
+        btnCreate.textContent = 'Start Playing';
+      }
+      else {
+        document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = false;
+        document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = false;
 
-    btnCreate.textContent = 'Create and Join Game';
+        if (radio.value === 'public')
+          btnCreate.textContent = 'Create or Join Game';
+        else
+          btnCreate.textContent = 'Create Game Link';
+      }
+    });
   });
 
   btnCreate.addEventListener('click', () => {
@@ -64,57 +67,55 @@ window.addEventListener('DOMContentLoaded', () => {
 
     let vs = document.querySelector('INPUT[name=vs]:checked').value;
     let turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
-    let stateData = {
+    let gameOptions = {
       type: 'classic',
-      randomFirstTurn: vs === 'me' || turnOrder === 'random',
+      randomFirstTurn: vs === 'you' || turnOrder === 'random',
       turnTimeLimit: 86400 * 7, // 7 days
+      isPublic: vs === 'public',
     };
-    let slot = turnOrder === '2nd' ? 1 : 0;
+    let slot =
+      turnOrder === '1st' ? 0 :
+      turnOrder === '2nd' ? 1 : null;
+
+    let query;
+    if (gameOptions.isPublic) {
+      query = {
+        filter: {
+          // This player must not already be a participant.
+          '!': [{ 'teams[].playerId':authClient.playerId }],
+          // First turn randomization must match player preference.
+          randomFirstTurn: turnOrder === 'random',
+        },
+        sort: 'created',
+        limit: 1,
+      };
+
+      if (turnOrder === '1st')
+        // First turn must be available.
+        query.filter['teams[0]'] = null;
+      else if (turnOrder === '2nd')
+        // First turn must not be available.
+        query.filter['!'].push({ 'teams[0]':null });
+    }
 
     authClient.setAccountName(txtPlayerName.value)
-      .then(() => gameClient.createGame(stateData))
+      .then(() => joinOpenGame(query, slot))
       .then(gameId => {
-        if (vs === 'them')
-          return gameClient.joinGame(gameId, { slot }).then(() => gameId);
-        else
-          return gameClient.joinGame(gameId)
-            .then(() => gameClient.joinGame(gameId))
-            .then(() => gameId);
+        if (gameId)
+          return gameId;
+
+        return gameClient.createGame(gameOptions).then(gameId => {
+          if (vs === 'you')
+            return gameClient.joinGame(gameId)
+              .then(() => gameClient.joinGame(gameId))
+              .then(() => gameId);
+          else
+            return gameClient.joinGame(gameId, { slot })
+              .then(() => gameId);
+        });
       })
       .then(gameId => {
-        let relLink = '/game.html?' + gameId;
-        let absLink = location.origin + relLink;
-
-        if (vs === 'me')
-          location.href = relLink;
-        else {
-          let shareLink;
-          if (navigator.share)
-            shareLink = '<SPAN class="share"><SPAN class="fa fa-share"></SPAN><SPAN class="label">Share Game Link</SPAN></SPAN>';
-          else
-            shareLink = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Game Link</SPAN></SPAN>';
-
-          let divShareLink = divReady.querySelector('.shareLink');
-          divShareLink.innerHTML = shareLink;
-          divShareLink.addEventListener('click', event => {
-            if (navigator.share)
-              navigator.share({
-                title: 'Tactics',
-                text: 'Want to play?',
-                url: absLink,
-              });
-            else {
-              copy(absLink);
-              popup({ message:'Game link copied to clipboard.' });
-            }
-          });
-
-          let divPlayLink = divReady.querySelector('.playLink');
-          divPlayLink.innerHTML = `<A href="${relLink}">Wait for Opponent</A>`;
-
-          divWaiting.style.display = 'none';
-          divReady.style.display = null;
-        }
+        location.href = '/game.html?' + gameId;
       })
       .catch(error => {
         if (error.code)
@@ -131,3 +132,26 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.querySelector('.content').style.display = null;
 });
+
+async function joinOpenGame(query, slot) {
+  if (!query) return;
+
+  try {
+    let result = await gameClient.searchOpenGames(query);
+    if (!result.count) return;
+
+    let gameSummary = result.hits[0];
+
+    return gameClient.joinGame(gameSummary.id, { slot })
+      .then(() => gameSummary.id);
+  }
+  catch (error) {
+    // If somebody else beat us to joining the game, try again.
+    if (error.code === 409)
+      return joinOpenGame(query, slot);
+
+    // On any other error, bail out to create the game.
+    console.warn('Failed to join open game', error);
+    return;
+  }
+}

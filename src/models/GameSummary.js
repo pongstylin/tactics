@@ -34,6 +34,7 @@ export default class GameSummary {
       started: started,
       ended: ended,
       randomFirstTurn: game.state.randomFirstTurn,
+      isPublic: game.isPublic,
       teams: teams.map(t => t && {
         playerId: t.playerId,
         name: t.name,

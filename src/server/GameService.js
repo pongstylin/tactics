@@ -147,11 +147,11 @@ class GameService extends Service {
   /*
    * Create a new game and save it to persistent storage.
    */
-  onCreateGameRequest(client, stateData) {
+  onCreateGameRequest(client, gameOptions) {
     let clientPara = this.clientPara.get(client.id);
     this.throttle(clientPara.playerId, 'createGame');
 
-    return dataAdapter.createGame(stateData).then(game => game.id);
+    return dataAdapter.createGame(gameOptions).then(game => game.id);
   }
 
   onGetGameRequest(client, gameId) {
@@ -194,6 +194,9 @@ class GameService extends Service {
 
   onSearchPlayerGamesRequest(client, playerId, query) {
     return dataAdapter.searchPlayerGames(playerId, query);
+  }
+  onSearchOpenGamesRequest(client, query) {
+    return dataAdapter.searchOpenGames(query);
   }
 
   /*
@@ -388,6 +391,8 @@ class GameService extends Service {
   }
 
   onJoinGameRequest(client, gameId, {set, slot} = {}) {
+    this.debug(`joinGame: gameId=${gameId}; slot=${slot}`);
+
     let clientPara = this.clientPara.get(client.id);
     let game = this._getGame(gameId);
     if (game.state.started)

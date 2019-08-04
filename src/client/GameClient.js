@@ -30,8 +30,8 @@ export default class GameClient extends Client {
       this._emit({ type:'open', data:{ reason:'new' }});
   }
 
-  createGame(stateData) {
-    return this._server.requestAuthorized(this.name, 'createGame', [stateData])
+  createGame(gameOptions) {
+    return this._server.requestAuthorized(this.name, 'createGame', [gameOptions])
   }
 
   joinGame(gameId, options) {
@@ -53,17 +53,32 @@ export default class GameClient extends Client {
     let playerId = this._authClient.playerId;
 
     return this._server.requestAuthorized(this.name, 'searchPlayerGames', [playerId, query])
-      .then(rsp => {
-        rsp.results.forEach(result => {
-          result.created = new Date(result.created);
-          result.updated = new Date(result.updated);
-          if (result.started)
-            result.started = new Date(result.started);
-          if (result.ended)
-            result.ended = new Date(result.ended);
+      .then(result => {
+        result.hits.forEach(hit => {
+          hit.created = new Date(hit.created);
+          hit.updated = new Date(hit.updated);
+          if (hit.started)
+            hit.started = new Date(hit.started);
+          if (hit.ended)
+            hit.ended = new Date(hit.ended);
         });
 
-        return rsp;
+        return result;
+      });
+  }
+  async searchOpenGames(query) {
+    return this._server.requestAuthorized(this.name, 'searchOpenGames', [query])
+      .then(result => {
+        result.hits.forEach(hit => {
+          hit.created = new Date(hit.created);
+          hit.updated = new Date(hit.updated);
+          if (hit.started)
+            hit.started = new Date(hit.started);
+          if (hit.ended)
+            hit.ended = new Date(hit.ended);
+        });
+
+        return result;
       });
   }
 

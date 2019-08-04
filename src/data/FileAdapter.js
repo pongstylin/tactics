@@ -39,8 +39,8 @@ export default class {
     this.setPushSubscription(player.id, deviceId, null);
   }
 
-  createGame(stateData) {
-    let game = Game.create(stateData);
+  createGame(gameOptions) {
+    let game = Game.create(gameOptions);
     game.version = getLatestVersionNumber('game');
 
     this._writeFile(`game_${game.id}`, game);
@@ -104,21 +104,21 @@ export default class {
    *   similar to parenthetical groups of groups or conditions that are joined
    *   using a boolean 'OR' or 'AND' operator respectively.
    *
-   *   JSON: { "isEnded":true, "teams.playerId":[123,456] }
-   *   SQL : ( isEnded = true AND teams.playerId IN (123,456) )
+   *   JSON: { "isEnded":true, "teams[].playerId":[123,456] }
+   *   SQL : ( isEnded = true AND teams[].playerId IN (123,456) )
    *
-   *   JSON: [{ "started":null }, { "teams.playerId":[123,456] }]
-   *   SQL : (( started IS null ) OR ( teams.playerId IN (123,456)))"
+   *   JSON: [{ "started":null }, { "teams[].playerId":[123,456] }]
+   *   SQL : (( started IS null ) OR ( teams[].playerId IN (123,456)))"
    *
    *   The "NOT" operator can be applied to a group.  These expressions are the
    *   negated versions of the above.  Unlike most object filters, the "!"
-   *   property is not treated as a field name and should be the only property.
+   *   property is not treated as a field name.
    *
-   *   JSON: { "!": { "isEnded":true, "teams.playerId":[123,456] } }
-   *   SQL : NOT ( isEnded = true AND teams.playerId IN (123,456) )
+   *   JSON: { "!": { "isEnded":true }, "teams[].playerId":[123,456] } }
+   *   SQL : NOT ( isEnded = true ) AND teams[].playerId IN (123,456) )
    *
-   *   JSON: { "!": [{ "started":null }, { "teams.playerId":[123,456] }] }
-   *   SQL : NOT (( started IS null ) OR ( teams.playerId IN (123,456)))"
+   *   JSON: { "!": [{ "started":null }, { "teams[].playerId":[123,456] }] }
+   *   SQL : NOT (( started IS null ) OR ( teams[].playerId IN (123,456)))"
    *
    *   Besides the implied "=" and "IN" operators demonstrated above, other
    *   condition operators can also be used if the value is an object.
@@ -130,12 +130,22 @@ export default class {
    *   JSON: { "nameOfOptionalField": { "exists":true                  } }
    *   JSON: { "nameOfArrayField":    { "isDeeply":[1, 2, 3]           } }
    *
+   *   Also, you might have noticed the use of '[]' after 'teams'.  This is to
+   *   recognize that 'teams' is an array, so the filter is applied to each
+   *   element of the array to test if any of them is a hit.  To operate upon a
+   *   subset of elements, use this syntax:
+   *
+   *   teams[0]:null            // The first team must be null
+   *   teams[-1]:null           // The last team must be null
+   *   teams[0, 1]:null         // Either the first or second team is null.
+   *   teams[0-1]:null          // Same behavior as the previous example.
+   *
    * Sort structure:
    *   Each element in the sort list is either a string or object.  If a string,
    *   then it is the field name.  Nested fields use dot separators.
    *   {
-   *     "order": "asc" | "desc",
    *     "field": <field>,
+   *     "order": "asc" | "desc",
    *   }
    *
    * Return structure:
@@ -143,10 +153,22 @@ export default class {
    *     "page": #pageNumber#,
    *     "limit": #ResultsPerPage#,
    *     "count": #TotalResults#,
-   *     "results": [...],  // list of game summaries
+   *     "hits": [...],  // list of game summaries
    *   }
    */
   searchPlayerGames(playerId, query) {
+    let games = this._getPlayerGamesSummary(playerId);
+    let data = [...games.values()];
+
+    return this._search(data, query);
+  }
+  searchOpenGames(query) {
+    let games = this._getOpenGamesSummary();
+    let data = [...games.values()];
+
+    return this._search(data, query);
+  }
+  _search(data, query) {
     query = Object.assign({
       page: 1,
       limit: 10,
@@ -156,16 +178,15 @@ export default class {
       throw new ServerError(400, 'Maximum limit is 50');
 
     let offset = (query.page - 1) * query.limit;
-    let games = this._getPlayerGamesSummary(playerId);
-    let results = [...games.values()]
+    let hits = data
       .filter(this._compileFilter(query.filter))
       .sort(this._compileSort(query.sort));
 
     return Promise.resolve({
       page: query.page,
       limit: query.limit,
-      count: games.length,
-      results: results.slice(offset, offset+query.limit),
+      count: hits.length,
+      hits: hits.slice(offset, offset+query.limit),
     });
   }
 
@@ -190,6 +211,9 @@ export default class {
     });
   }
 
+  _getOpenGamesSummary() {
+    return new Map(this._readFile(`open_games`, []));
+  }
   /*
    * Get all of the games in which the player is participating.
    */
@@ -211,6 +235,25 @@ export default class {
 
       this._writeFile(`player_${playerId}_games`, [...summaryList]);
     });
+
+    if (game.isPublic) {
+      let summaryList = this._getOpenGamesSummary();
+      let isDirty = false;
+
+      if (game.state.started) {
+        if (summaryList.has(game.id)) {
+          summaryList.delete(game.id, summary);
+          isDirty = true;
+        }
+      }
+      else {
+        summaryList.set(game.id, summary);
+        isDirty = true;
+      }
+
+      if (isDirty)
+        this._writeFile(`open_games`, [...summaryList]);
+    }
   }
 
   _writeFile(name, data) {
@@ -244,32 +287,88 @@ export default class {
     if (Array.isArray(filter))
       // OR logic: return true for the first sub-filter that returns true.
       // Otherwise, return false.
-      return !!filter
-        .find(f => this._matchItem(item, f));
-    else if (filter !== null && typeof filter === 'object') {
-      if ('!' in filter)
-        return !this._matchItem(item, filter['!']);
-
+      return filter.findIndex(f => this._matchItem(item, f)) > -1;
+    else if (filter !== null && typeof filter === 'object')
       // AND logic: return false for the first sub-filter that returns false.
       // Otherwise, return true.
-      return !Object.keys(filter)
-        .find(f => !this._matchItemByCondition(item, f, filter[f]));
-    }
+      return Object.keys(filter)
+        .findIndex(f => !this._matchItemByCondition(item, f, filter[f])) === -1;
     else
       throw new Error('Malformed filter');
   }
-  _matchItemByCondition(item, field, value) {
-    if (field.includes('.'))
-      throw new Error('Filtering by nested fields is not implemented');
-    if (typeof item[field] === 'object' && typeof value !== 'object')
-      throw new Error('Complex conditions are required for complex fields');
+  _matchItemByCondition(item, path, condition) {
+    if (path === '!')
+      return !this._matchItem(item, condition);
 
-    if (Array.isArray(value))
-      return value.includes(item[field]);
-    else if (value !== null && typeof value === 'object')
+    let value = item;
+
+    if (path.length) {
+      let fields = path.split('.');
+      while (fields.length) {
+        if (value === null) break;
+
+        let field = fields.shift();
+        let slice = field.match(/\[.*?\]$/);
+        if (slice) {
+          field = field.slice(0, slice.index);
+          slice = slice[0].slice(1, -1);
+        }
+
+        if (field in value) {
+          value = value[field];
+
+          if (slice !== null) {
+            if (!Array.isArray(value))
+              throw new Error('Range applied to non-array value');
+
+            let elements = [];
+
+            if (slice.trim().length === 0)
+              elements = value;
+            else {
+              let indices = slice.split(/\s*,\s*/);
+              while (indices.length) {
+                let index = indices.shift();
+                let range = index.split(/\s*-\s*/);
+
+                if (range.length === 2)
+                  elements.push(...value.slice(...range));
+                else if (range.length === 1)
+                  elements.push(value[range]);
+                else
+                  throw new Error('Invalid range in filter array slice');
+              }
+            }
+
+            let subPath = fields.join('.');
+            return elements.findIndex(
+              el => this._matchItemByCondition(el, subPath, condition)
+            ) > -1;
+          }
+        }
+        else
+          value = null;
+      }
+    }
+
+    if (Array.isArray(condition) && typeof value === 'object')
+      throw new Error('Array conditions can only be used on primitive values');
+    else if (condition !== null && typeof condition === 'object')
       throw new Error('Complex conditions are not implemented');
-    else
-      return item[field] === value;
+
+    if (Array.isArray(value)) {
+      if (!slice)
+        throw new Error('Filtering by array field is not implemented');
+    }
+    else if (value !== null && typeof value === 'object') {
+      return false;
+    }
+    else {
+      if (Array.isArray(condition))
+        return condition.includes(value);
+      else
+        return value === condition;
+    }
   }
 
   _compileSort(sort) {

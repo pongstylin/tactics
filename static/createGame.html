@@ -58,11 +58,26 @@
     }
     UL {
       margin: 0;
-      padding-left: 32px;
+      padding-left: 12px;
+    }
+    LI {
+      list-style-type: none;
+    }
+    LABEL {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      padding: 4px;
+    }
+    INPUT[type=radio] {
+      margin: 2px 4px 0 0;
     }
 
     .row {
-      padding: 8px 4px;
+      padding: 4px;
+    }
+    .radioGroup {
+      padding: 0 0 0 12px;
     }
 
     .error {
@@ -73,27 +88,8 @@
     }
 
     .buttons {
+      margin-top: 4px;
       text-align: center;
-    }
-
-    .ready LI {
-      padding: 4px 0;
-    }
-
-    .ready .share,
-    .ready .copy {
-      color: #00FFFF;
-      cursor: pointer;
-      text-decoration: underline;
-    }
-    .ready .share .label,
-    .ready .copy .label {
-      margin-left: 6px;
-    }
-    .ready .share:hover .label,
-    .ready .copy:hover .label {
-      color: #CCFFFF;
-      text-decoration: underline;
     }
   </STYLE>
 </HEAD>
@@ -102,10 +98,8 @@
   <DIV class="content">
     <DIV class="setup" style="display:none">
       <DIV class="row error"></DIV>
-      <DIV class="intro">
-        Create a game and share the link with your desired opponent or with a
-        group of people.  The first person to join gets to play you.  Anybody else
-        with the link can watch the game or view the result.
+      <DIV class="row back" style="text-align:center">
+        <A href="/online.html">Back to Game List</A>
       </DIV>
       <DIV class="row playerSetup">
         <DIV>What name would you like to use for this game?</DIV>
@@ -115,43 +109,28 @@
       </DIV>
       <DIV class="row gameSetup">
         <DIV>
-          <DIV>Do you want to practice against yourself or play against someone else?</DIV>
-          <LABEL><INPUT type="radio" name="vs" value="them" checked> Someone Else</Label>
-          <LABEL><INPUT type="radio" name="vs" value="me"> Myself</Label>
+          <DIV>Who would you like to play?</DIV>
+          <UL class="radioGroup">
+            <LI><LABEL><INPUT type="radio" name="vs" value="public" checked> Anybody (Public)</Label></LI>
+            <LI><LABEL><INPUT type="radio" name="vs" value="private"> Invite Only (Private)</Label></LI>
+            <LI><LABEL><INPUT type="radio" name="vs" value="you"> Yourself (Practice)</Label></LI>
+          </UL>
         </DIV>
         <DIV>
           <DIV>Who gets first turn?</DIV>
-          <LABEL><INPUT type="radio" name="turnOrder" value="random" checked> Random</LABEL>
-          <LABEL><INPUT type="radio" name="turnOrder" value="1st"> You</LABEL>
-          <LABEL><INPUT type="radio" name="turnOrder" value="2nd"> Them</LABEL>
+          <DIV class="radioGroup">
+            <LABEL><INPUT type="radio" name="turnOrder" value="random" checked> Random</LABEL>
+            <LABEL><INPUT type="radio" name="turnOrder" value="1st"> You</LABEL>
+            <LABEL><INPUT type="radio" name="turnOrder" value="2nd"> Them</LABEL>
+          </DIV>
         </DIV>
       </DIV>
       <DIV class="row buttons">
-        <BUTTON name="create">Create Game Link</BUTTON>
+        <BUTTON name="create">Create or Join Game</BUTTON>
       </DIV>
     </DIV>
     <DIV class="waiting" style="display:none">
       <DIV>Please wait while your game is created...</DIV>
-    </DIV>
-    <DIV class="ready" style="display:none">
-      <DIV>
-        <DIV>Game created.</DIV>
-        <UL class="links">
-          <LI class="shareLink"></LI>
-          <LI class="playLink"></LI>
-        </UL>
-        <DIV>Instructions:</DIV>
-        <UL>
-          <LI>
-            This game will now appear in your "Waiting Games" list.  It will be moved to your "Active Games" list once your opponent joins the game.
-          </LI>
-          <LI>If you want to play somebody specific, share the link with your intended opponent, e.g. by text or email.  Once they join the game, you can share the link with anybody else so that they can watch the game or see the result.</LI>
-          <LI>If you don't care who you play, then share the link with a group of people.  The first person to join your game gets to play you.</LI>
-        </UL>
-        <DIV style="text-align:center">
-          <A href="/online.html">Back to Game List</A>
-        </DIV>
-      </DIV>
     </DIV>
   </DIV>
 </BODY>

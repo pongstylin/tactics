@@ -210,7 +210,7 @@ export default class GameState {
     if (this.started)
       throw new TypeError('Game already started');
 
-    if (slot === undefined)
+    if (slot === undefined || slot === null)
       slot = teams.findIndex(t => !t);
     if (slot >= teams.length)
       throw new TypeError('The slot does not exist');

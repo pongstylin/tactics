@@ -3,18 +3,40 @@
 import uuid from 'uuid/v4';
 import GameState from 'tactics/GameState.js';
 
+const gameOptions = new Set([
+  'isPublic',
+]);
+
+const stateOptions = new Set([
+  'type',
+  'randomFirstTurn',
+  'turnTimeLimit',
+  'teams',
+]);
+
 export default class Game {
   constructor(data) {
     Object.assign(this, data);
   }
 
-  static create(stateData) {
-    return new Game({
+  static create(gameOptions) {
+    let gameData = {
       id:          uuid(),
-      state:       GameState.create(stateData),
       created:     new Date(),
       undoRequest: null,
+    };
+
+    let stateData = {};
+    Object.keys(gameOptions).forEach(option => {
+      if (stateOptions.has(option))
+        stateData[option] = gameOptions[option];
+      else
+        gameData[option] = gameOptions[option];
     });
+
+    gameData.state = GameState.create(stateData);
+
+    return new Game(gameData);
   }
 
   static load(data) {
