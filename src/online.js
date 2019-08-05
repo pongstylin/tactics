@@ -317,16 +317,44 @@ function renderActiveGames() {
   }
 }
 
-function renderWaitingGames() {
+async function renderWaitingGames() {
   let divTabContent = document.querySelector('.tabContent .waiting');
-  let waitingGames = [...games.waiting.values()].sort((a, b) =>
-    b.updated - a.updated // ascending
-  );
 
-  for (let game of waitingGames) {
-    let divGame = renderGame(game);
+  /*
+   * Due to automated game-matching, there should not be any more than 1 game
+   * per public configuration permutation.
+   */
+  let openGames = await gameClient.searchOpenGames({
+    limit: 10,
+    sort: 'created',
+  });
 
-    divTabContent.append(divGame);
+  if (openGames.count) {
+    let header = document.createElement('HEADER');
+    header.innerHTML = 'Public Games!';
+    divTabContent.append(header);
+
+    for (let game of openGames.hits) {
+      let divGame = renderGame(game);
+
+      divTabContent.append(divGame);
+    }
+  }
+
+  if (games.waiting.size) {
+    let header = document.createElement('HEADER');
+    header.innerHTML = 'Private Games!';
+    divTabContent.append(header);
+
+    let waitingGames = [...games.waiting.values()].sort((a, b) =>
+      b.updated - a.updated // ascending
+    );
+
+    for (let game of waitingGames) {
+      let divGame = renderGame(game);
+
+      divTabContent.append(divGame);
+    }
   }
 }
 
@@ -349,22 +377,20 @@ function renderGame(game) {
     if (game.winnerId === null)
       left = 'Draw!';
     else if (game.teams[game.winnerId].playerId === myPlayerId)
-      left = 'You win!';
+      left = 'You Win!';
     else
-      left = 'You lose!';
+      left = 'You Lose!';
   }
   else if (game.started) {
     left = 'VS';
   }
   else {
-    if (navigator.share)
-      left = '<SPAN class="share"><SPAN class="fa fa-share"></SPAN><SPAN class="label">Link</SPAN></SPAN>';
-    else
-      left = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Link</SPAN></SPAN>';
+    left = game.randomFirstTurn ? 'Random' :
+      game.teams[0] === null ? 'You 1st' : 'You 2nd';
   }
 
   let middle;
-  if (game.started) {
+  if (game.started || game.isPublic) {
     // Use of 'Set' was to de-dup the names.
     // Only useful for 4-player games where 2 players have the same name.
     let opponents = [...new Set(
@@ -375,12 +401,10 @@ function renderGame(game) {
     middle = opponents.join(', ');
   }
   else {
-    if (game.randomFirstTurn)
-      middle = 'Random First Turn';
-    else if (game.teams[0] && game.teams[0].playerId === myPlayerId)
-      middle = 'You Go First';
+    if (navigator.share)
+      middle = '<SPAN class="share"><SPAN class="fa fa-share"></SPAN><SPAN class="label">Link</SPAN></SPAN>';
     else
-      middle = 'They Go First';
+      middle = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Link</SPAN></SPAN>';
   }
 
   let elapsed = (new Date() - game.updated) / 1000;
