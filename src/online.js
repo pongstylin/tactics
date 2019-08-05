@@ -402,9 +402,9 @@ function renderGame(game) {
   }
   else {
     if (navigator.share)
-      middle = '<SPAN class="share"><SPAN class="fa fa-share"></SPAN><SPAN class="label">Link</SPAN></SPAN>';
+      middle = '<SPAN class="share"><SPAN class="fa fa-share"></SPAN><SPAN class="label">Share Invite Link</SPAN></SPAN>';
     else
-      middle = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Link</SPAN></SPAN>';
+      middle = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Invite Link</SPAN></SPAN>';
   }
 
   let elapsed = (new Date() - game.updated) / 1000;
