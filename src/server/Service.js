@@ -4,9 +4,6 @@ import EventEmitter from 'events';
 
 import ServerError from 'server/Error.js';
 
-// Keep track of all registered services
-export const services = new Map();
-
 export default class {
   constructor(data) {
     if (data.name === undefined)
@@ -21,8 +18,6 @@ export default class {
 
       _emitter: new EventEmitter(),
     }, data);
-
-    services.set(this.name, this);
   }
 
   on() {

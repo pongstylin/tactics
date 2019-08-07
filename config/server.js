@@ -5,6 +5,15 @@ export default {
   publicKey: process.env.PUBLIC_KEY,
   privateKey: process.env.PRIVATE_KEY,
 
+  // Service endpoints required for inter-service communication.
+  // This server only accepts messages directed to 'local' services.
+  endpoints: new Map([
+    ['auth', 'local'],
+    ['game', 'local'],
+    ['chat', 'local'],
+    ['push', 'local'],
+  ]),
+
   /*
    * Push Service Configuration.
    */

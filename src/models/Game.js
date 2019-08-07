@@ -1,5 +1,3 @@
-'use strict';
-
 import uuid from 'uuid/v4';
 import GameState from 'tactics/GameState.js';
 

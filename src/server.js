@@ -4,19 +4,11 @@ import express from 'express';
 import morgan from 'morgan';
 import ws from 'ws';
 
-/*
- * High traffic sites should run different services on different servers.
- * But the dev environment can run all services in one.
- */
-import 'server/AuthService.js';
-import 'server/GameService.js';
-import 'server/PushService.js';
-
-// Order matters, services must be loaded before router.
-import router from 'server/router.js';
-
 // Object extensions/polyfills
 import 'plugins/array.js';
+import 'plugins/string.js';
+
+import router from 'server/router.js';
 
 const PORT   = process.env.PORT;
 const app    = express();
@@ -41,11 +33,14 @@ app.use(morgan(':date[iso] express [:id] response-out: status=:status; delay=:re
 
 app.use(express.static('static'));
 
-server.listen(PORT, () => {
-  console.log('Tactics now running at URL: http://localhost:'+PORT);
-  console.log('');
+// Don't start listening for connections until the router is ready.
+router.then(route => {
+  server.listen(PORT, () => {
+    console.log('Tactics now running at URL: http://localhost:'+PORT);
+    console.log('');
 
-  wss.on('connection', router);
+    wss.on('connection', route);
+  });
 });
 
 /*

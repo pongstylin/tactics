@@ -5,24 +5,29 @@ import fs from 'fs';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import Player from 'models/Player.js';
 import Game from 'models/Game.js';
+import Room from 'models/Room.js';
 import GameSummary from 'models/GameSummary.js';
 import ServerError from 'server/Error.js';
 
 const filesDir = 'src/data/files';
 
 export default class {
-  createPlayer(playerData) {
+  constructor() {
+    this._locks = new Map();
+  }
+
+  async createPlayer(playerData) {
     let player = Player.create(playerData);
     player.version = getLatestVersionNumber('player');
 
-    this._writeFile(`player_${player.id}`, player);
+    await this._createFile(`player_${player.id}`, player);
     return player;
   }
-  savePlayer(player) {
-    this._writeFile(`player_${player.id}`, player);
+  async savePlayer(player) {
+    await this._writeFile(`player_${player.id}`, player);
   }
-  getPlayer(playerId) {
-    let playerData = this._readFile(`player_${playerId}`);
+  async getPlayer(playerId) {
+    let playerData = await this._readFile(`player_${playerId}`);
     return Player.load(migrate('player', playerData));
   }
 
@@ -32,36 +37,50 @@ export default class {
    * The right thing to do is have the auth service ask the push service to
    * delete its own data.
    */
-  removePlayerDevice(player, deviceId) {
+  async removePlayerDevice(player, deviceId) {
     player.removeDevice(deviceId);
 
-    this.savePlayer(player);
-    this.setPushSubscription(player.id, deviceId, null);
+    await this.savePlayer(player);
+    await this.setPushSubscription(player.id, deviceId, null);
   }
 
-  createGame(gameOptions) {
+  async createGame(gameOptions) {
     let game = Game.create(gameOptions);
     game.version = getLatestVersionNumber('game');
 
-    this._writeFile(`game_${game.id}`, game);
-    this._saveGameSummary(game);
+    await this._createFile(`game_${game.id}`, game);
+    await this._saveGameSummary(game);
 
-    return Promise.resolve(game);
+    return game;
   }
-  saveGame(game) {
-    this._writeFile(`game_${game.id}`, game);
-    this._saveGameSummary(game);
-
-    return Promise.resolve(game);
+  async saveGame(game) {
+    await this._writeFile(`game_${game.id}`, game);
+    await this._saveGameSummary(game);
   }
-  getGame(gameId) {
-    let gameData = this._readFile(`game_${gameId}`);
+  async getGame(gameId) {
+    let gameData = await this._readFile(`game_${gameId}`);
     return Game.load(migrate('game', gameData));
   }
 
-  setPushSubscription(playerId, deviceId, subscription) {
+  async createRoom(players, options) {
+    let room = Room.create(players, options);
+    room.version = getLatestVersionNumber('room');
+
+    await this._createFile(`room_${room.id}`, room);
+
+    return room;
+  }
+  async saveRoom(room) {
+    await this._writeFile(`room_${room.id}`, room);
+  }
+  async getRoom(roomId) {
+    let roomData = await this._readFile(`room_${roomId}`);
+    return Player.load(migrate('room', roomData));
+  }
+
+  async setPushSubscription(playerId, deviceId, subscription) {
     let fileName = `player_${playerId}_push`;
-    let pushData = this._readFile(fileName, {
+    let pushData = await this._readFile(fileName, {
       subscriptions: [],
     });
     pushData.subscriptions = new Map(pushData.subscriptions);
@@ -71,11 +90,11 @@ export default class {
       pushData.subscriptions.delete(deviceId);
     pushData.subscriptions = [...pushData.subscriptions];
 
-    this._writeFile(fileName, pushData);
+    await this._writeFile(fileName, pushData);
   }
-  getAllPushSubscriptions(playerId) {
+  async getAllPushSubscriptions(playerId) {
     let fileName = `player_${playerId}_push`;
-    let pushData = this._readFile(fileName, {
+    let pushData = await this._readFile(fileName, {
       subscriptions: [],
     });
 
@@ -156,14 +175,14 @@ export default class {
    *     "hits": [...],  // list of game summaries
    *   }
    */
-  searchPlayerGames(playerId, query) {
-    let games = this._getPlayerGamesSummary(playerId);
+  async searchPlayerGames(playerId, query) {
+    let games = await this._getPlayerGamesSummary(playerId);
     let data = [...games.values()];
 
     return this._search(data, query);
   }
-  searchOpenGames(query) {
-    let games = this._getOpenGamesSummary();
+  async searchOpenGames(query) {
+    let games = await this._getOpenGamesSummary();
     let data = [...games.values()];
 
     return this._search(data, query);
@@ -211,70 +230,151 @@ export default class {
     });
   }
 
-  _getOpenGamesSummary() {
-    return new Map(this._readFile(`open_games`, []));
+  async _getOpenGamesSummary() {
+    return new Map(await this._readFile(`open_games`, []));
   }
   /*
    * Get all of the games in which the player is participating.
    */
-  _getPlayerGamesSummary(playerId) {
-    return new Map(this._readFile(`player_${playerId}_games`, []));
+  async _getPlayerGamesSummary(playerId) {
+    return new Map(await this._readFile(`player_${playerId}_games`, []));
   }
   /*
    * Update the game summary for all participating players.
    */
-  _saveGameSummary(game) {
+  async _saveGameSummary(game) {
     let summary = new GameSummary(game);
 
-    game.state.teams.forEach(team => {
-      let playerId = team && team.playerId;
-      if (!playerId) return;
+    // Get a unique list of player IDs from the teams.
+    let playerIds = new Set(
+      game.state.teams.filter(t => t && !!t.playerId).map(t => t.playerId)
+    );
 
-      let summaryList = this._getPlayerGamesSummary(playerId);
-      summaryList.set(game.id, summary);
+    // Convert the player IDs to a list of promises.
+    let promises = [...playerIds].map(playerId =>
+      this._getPlayerGamesSummary(playerId).then(summaryList => {
+        summaryList.set(game.id, summary);
 
-      this._writeFile(`player_${playerId}_games`, [...summaryList]);
+        return this._writeFile(`player_${playerId}_games`, [...summaryList]);
+      })
+    );
+
+    if (game.isPublic)
+      promises.push(
+        this._getOpenGamesSummary().then(summaryList => {
+          let isDirty = false;
+
+          if (game.state.started) {
+            if (summaryList.has(game.id)) {
+              summaryList.delete(game.id, summary);
+              isDirty = true;
+            }
+          }
+          else {
+            summaryList.set(game.id, summary);
+            isDirty = true;
+          }
+
+          if (isDirty)
+            return this._writeFile(`open_games`, [...summaryList])
+        })
+      )
+
+    await Promise.all(promises);
+  }
+
+  /*
+   * Not a true lock.  In a multi-process context, this would suffer.
+   *
+   * Locks ensure all started write operations are done before reading/writing.
+   */
+  async _lock(name, type, transaction) {
+    let lock = this._locks.get(name);
+
+    if (type === 'read')
+      return (lock ? lock.current : Promise.resolve()).then(transaction);
+
+    if (lock) {
+      lock.count++;
+      lock.current = lock.current.then(transaction);
+    }
+    else
+      this._locks.set(name, lock = {
+        count: 1,
+        current: Promise.resolve().then(transaction),
+      });
+
+    // Once all write locks on this file are released, remove from memory.
+    lock.current.finally(() => {
+      if (--lock.count === 0)
+        this._locks.delete(name);
     });
 
-    if (game.isPublic) {
-      let summaryList = this._getOpenGamesSummary();
-      let isDirty = false;
-
-      if (game.state.started) {
-        if (summaryList.has(game.id)) {
-          summaryList.delete(game.id, summary);
-          isDirty = true;
-        }
-      }
-      else {
-        summaryList.set(game.id, summary);
-        isDirty = true;
-      }
-
-      if (isDirty)
-        this._writeFile(`open_games`, [...summaryList]);
-    }
+    return lock.current;
   }
+  async _createFile(name, data) {
+    let fqName = `${filesDir}/${name}.json`;
 
-  _writeFile(name, data) {
-    // Avoid corrupting files when crashing by writing to a temporary file.
-    fs.writeFileSync(`${filesDir}/.${name}.json`, JSON.stringify(data));
-    fs.renameSync(`${filesDir}/.${name}.json`, `${filesDir}/${name}.json`);
+    return this._lock(name, 'write', () =>
+      new Promise((resolve, reject) => {
+        fs.writeFile(fqName, JSON.stringify(data), { flag:'wx' }, error => {
+          if (error) {
+            console.log('createFile', error);
+            reject(new ServerError(500, 'Create failed'));
+          }
+          else
+            resolve();
+        });
+      })
+    );
   }
-  _readFile(name, initialValue) {
-    try {
-      let json = fs.readFileSync(`${filesDir}/${name}.json`, 'utf8');
-      return JSON.parse(json);
-    }
-    catch (error) {
-      if (error.code === 'ENOENT')
-        if (initialValue === undefined)
-          error = new ServerError(404, 'Not found');
-        else
-          return initialValue;
+  async _writeFile(name, data) {
+    let fqNameTemp = `${filesDir}/.${name}.json`;
+    let fqName = `${filesDir}/${name}.json`;
 
-      throw error;
-    }
+    return this._lock(name, 'write', () =>
+      new Promise((resolve, reject) => {
+        fs.writeFile(fqNameTemp, JSON.stringify(data), error => {
+          if (error) {
+            console.log('writeFile', error);
+            reject(new ServerError(500, 'Save failed'));
+          }
+          else
+            resolve();
+        });
+      }).then(() => new Promise((resolve, reject) => {
+        fs.rename(fqNameTemp, fqName, error => {
+          if (error) {
+            console.log('rename', error);
+            reject(new ServerError(500, 'Save failed'));
+          }
+          else
+            resolve();
+        });
+      }))
+    );
+  }
+  async _readFile(name, initialValue) {
+    let fqName = `${filesDir}/${name}.json`;
+
+    return this._lock(name, 'read', () =>
+      new Promise((resolve, reject) => {
+        fs.readFile(fqName, 'utf8', (error, data) => {
+          if (error)
+            reject(error);
+          else
+            resolve(JSON.parse(data));
+        });
+      }).catch(error => {
+        if (error.code === 'ENOENT')
+          if (initialValue === undefined)
+            error = new ServerError(404, 'Not found');
+          else
+            return initialValue;
+
+        throw error;
+      })
+    );
   }
 
   _compileFilter(filter) {

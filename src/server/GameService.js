@@ -4,10 +4,12 @@ import config from 'config/server.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import adapterFactory from 'data/adapterFactory.js';
+import serviceFactory from 'server/serviceFactory.js';
 import Game from 'models/Game.js';
-import pushNotification from 'server/pushNotification.js';
 
 const dataAdapter = adapterFactory();
+const chatService = serviceFactory('chat');
+const pushService = serviceFactory('push');
 
 class GameService extends Service {
   constructor() {
@@ -34,7 +36,7 @@ class GameService extends Service {
   }
 
   /*
-   * Test if the service will handle the eventName from client
+   * Test if the service will handle the message from client
    */
   will(client, messageType, bodyType) {
     // No authorization required
@@ -50,24 +52,24 @@ class GameService extends Service {
 
   dropClient(client) {
     let clientPara = this.clientPara.get(client.id);
-    if (clientPara) {
-      if (clientPara.watchedGames)
-        clientPara.watchedGames.forEach(game =>
-          this.onLeaveGameGroup(client, `/games/${game.id}`, game.id)
-        );
+    if (!clientPara) return;
 
-      let playerPara = this.playerPara.get(clientPara.playerId);
-      if (playerPara.clients.size > 1)
-        playerPara.clients.delete(clientPara);
-      else {
-        this.playerPara.delete(clientPara.playerId);
+    if (clientPara.joinedGroups)
+      clientPara.joinedGroups.forEach(game =>
+        this.onLeaveGameGroup(client, `/games/${game.id}`, game.id)
+      );
 
-        // Let people who needs to know that this player went offline.
-        this.onPlayerOffline(clientPara.playerId);
-      }
+    let playerPara = this.playerPara.get(clientPara.playerId);
+    if (playerPara.clients.size > 1)
+      playerPara.clients.delete(clientPara);
+    else {
+      this.playerPara.delete(clientPara.playerId);
 
-      this.clientPara.delete(client.id);
+      // Let people who needs to know that this player went offline.
+      this.onPlayerOffline(clientPara.playerId);
     }
+
+    this.clientPara.delete(client.id);
   }
 
   /*****************************************************************************
@@ -88,7 +90,6 @@ class GameService extends Service {
     }
 
     let playerId = clientPara.playerId = claims.sub;
-    clientPara.deviceId = claims.deviceId;
     clientPara.name = claims.name;
     clientPara.expires = claims.exp;
     this.clientPara.set(client.id, clientPara);
@@ -100,7 +101,7 @@ class GameService extends Service {
     else {
       this.playerPara.set(playerId, {
         clients: new Set([clientPara]),
-        watchedGames: new Map(),
+        joinedGroups: new Map(),
       });
 
       // Let people who needs to know that this player is online.
@@ -111,7 +112,7 @@ class GameService extends Service {
   onGameEnd(gameId) {
     let gamePara = this.gamePara.get(gameId);
     gamePara.clients.forEach(clientPara =>
-      clientPara.watchedGames.delete(gameId)
+      clientPara.joinedGroups.delete(gameId)
     );
     this.gamePara.delete(gameId);
 
@@ -154,27 +155,28 @@ class GameService extends Service {
     return dataAdapter.createGame(gameOptions).then(game => game.id);
   }
 
-  onGetGameRequest(client, gameId) {
+  async onGetGameRequest(client, gameId) {
     this.throttle(client.address, 'getGame');
 
     /*
      * When getting a game, leave out the turn history as an efficiency measure.
      */
-    let game = this._getGame(gameId).toJSON();
-    game.state = game.state.getData();
+    let game = await this._getGame(gameId);
+    let gameData = game.toJSON();
+    gameData.state = gameData.state.getData();
 
     // Conditionally leave out the team sets as a security measure.  We don't
     // want people getting set information about teams before the game starts.
-    if (!game.state.started)
-      game.state.teams.forEach(t => {
+    if (!gameData.state.started)
+      gameData.state.teams.forEach(t => {
         if (!t) return;
         delete t.set;
       });
 
-    return game;
+    return gameData;
   }
-  onGetPlayerStatusRequest(client, gameId) {
-    let game = gameId instanceof Game ? gameId : this._getGame(gameId);
+  async onGetPlayerStatusRequest(client, gameId) {
+    let game = gameId instanceof Game ? gameId : await this._getGame(gameId);
     let playerStatus = new Map();
 
     game.state.teams.forEach(team => {
@@ -210,11 +212,11 @@ class GameService extends Service {
       throw new ServerError(404, 'No such group');
   }
 
-  onJoinGameGroup(client, groupPath, gameId, params) {
+  async onJoinGameGroup(client, groupPath, gameId, params) {
     let clientPara = this.clientPara.get(client.id);
     let playerPara = this.playerPara.get(clientPara.playerId);
     let gamePara = this.gamePara.get(gameId);
-    let game = gamePara ? gamePara.game : this._getGame(gameId);
+    let game = gamePara ? gamePara.game : await this._getGame(gameId);
 
     if (gamePara)
       gamePara.clients.add(clientPara);
@@ -253,15 +255,15 @@ class GameService extends Service {
       });
     }
 
-    if (clientPara.watchedGames)
-      clientPara.watchedGames.set(game.id, game);
+    if (clientPara.joinedGroups)
+      clientPara.joinedGroups.set(game.id, game);
     else
-      clientPara.watchedGames = new Map([[game.id, game]]);
+      clientPara.joinedGroups = new Map([[game.id, game]]);
 
-    if (playerPara.watchedGames.has(game.id))
-      playerPara.watchedGames.get(game.id).add(client.id);
+    if (playerPara.joinedGroups.has(game.id))
+      playerPara.joinedGroups.get(game.id).add(client.id);
     else {
-      playerPara.watchedGames.set(game.id, new Set([client.id]));
+      playerPara.joinedGroups.set(game.id, new Set([client.id]));
       this._emitPlayerStatus(groupPath, clientPara.playerId, 'ingame');
     }
 
@@ -333,15 +335,15 @@ class GameService extends Service {
   /*
    * No longer send change events to the client about this game.
    */
-  onLeaveGameGroup(client, groupPath, gameId) {
+  async onLeaveGameGroup(client, groupPath, gameId) {
     let clientPara = this.clientPara.get(client.id);
     let playerPara = this.playerPara.get(clientPara.playerId);
-    let game = gameId instanceof Game ? gameId : this._getGame(gameId);
+    let game = gameId instanceof Game ? gameId : await this._getGame(gameId);
 
     // Already not watching?
-    if (!clientPara.watchedGames)
+    if (!clientPara.joinedGroups)
       return;
-    if (!clientPara.watchedGames.has(game.id))
+    if (!clientPara.joinedGroups.has(game.id))
       return;
 
     let gamePara = this.gamePara.get(game.id);
@@ -359,16 +361,16 @@ class GameService extends Service {
       dataAdapter.saveGame(gamePara.game);
     }
 
-    if (clientPara.watchedGames.size === 1)
-      delete clientPara.watchedGames;
+    if (clientPara.joinedGroups.size === 1)
+      delete clientPara.joinedGroups;
     else
-      clientPara.watchedGames.delete(game.id);
+      clientPara.joinedGroups.delete(game.id);
 
-    let watchingClientIds = playerPara.watchedGames.get(game.id);
+    let watchingClientIds = playerPara.joinedGroups.get(game.id);
 
     // Only say the player is online if another client isn't ingame.
     if (watchingClientIds.size === 1) {
-      playerPara.watchedGames.delete(game.id);
+      playerPara.joinedGroups.delete(game.id);
 
       // Don't say the player is online if the player is going offline.
       if (playerPara.clients.size > 1 || !client.closing)
@@ -390,11 +392,11 @@ class GameService extends Service {
     });
   }
 
-  onJoinGameRequest(client, gameId, {set, slot} = {}) {
+  async onJoinGameRequest(client, gameId, {set, slot} = {}) {
     this.debug(`joinGame: gameId=${gameId}; slot=${slot}`);
 
     let clientPara = this.clientPara.get(client.id);
-    let game = this._getGame(gameId);
+    let game = await this._getGame(gameId);
     if (game.state.started)
       throw new ServerError(409, 'The game has already started.');
 
@@ -405,21 +407,64 @@ class GameService extends Service {
     if (set)
       team.set = set;
 
-    let listener = event => this._notifyYourTurn(game, event.data);
-    game.state.on('startTurn', listener);
-    game.state.join(team, slot);
-    game.state.off('startTurn', listener);
+    return new Promise((resolve, reject) => {
+      game.state.on('startTurn', resolve);
+      try {
+        game.state.join(team, slot);
+      }
+      catch (error) {
+        reject(error);
+      }
+      game.state.off('startTurn', resolve);
+      resolve();
+    }).then(async event => {
+      dataAdapter.saveGame(game);
+      if (!event) return;
 
-    dataAdapter.saveGame(game);
+      let teams = game.state.teams;
+      let players = new Map();
+
+      teams.forEach(team => {
+        let playerId = team.playerId;
+        if (!playerId || players.has(playerId))
+          return;
+
+        let teamName = team.name;
+        if (teams.filter(t => t.name === teamName).length > 1)
+          teamName = team.color;
+
+        players.set(playerId, teamName);
+      });
+
+      if (players.size > 1)
+        await chatService.createRoom(
+          [...players].map(([playerId, teamName]) => ({ playerId, teamName })),
+          { id:gameId }
+        );
+
+      /*
+       * Notify the player that goes first that it is their turn.
+       * ...unless the player to go first just joined.
+       */
+      let playerId = teams[event.data.teamId].playerId;
+      if (playerId !== clientPara.playerId)
+        this._notifyYourTurn(game, event.data);
+    });
   }
-  onGetTurnDataRequest(client, gameId, ...args) {
-    return this._getGame(gameId).state.getTurnData(...args);
+  async onGetTurnDataRequest(client, gameId, ...args) {
+    let game = await this._getGame(gameId);
+    
+    return game.state.getTurnData(...args);
   }
-  onGetTurnActionsRequest(client, gameId, ...args) {
-    return this._getGame(gameId).state.getTurnActions(...args);
+  async onGetTurnActionsRequest(client, gameId, ...args) {
+    let game = await this._getGame(gameId);
+    
+    return game.state.getTurnActions(...args);
   }
-  onRestartRequest(client, gameId, ...args) {
-    return this._getGame(gameId).state.restart(...args);
+  async onRestartRequest(client, gameId, ...args) {
+    let game = await this._getGame(gameId);
+    
+    return game.state.restart(...args);
   }
 
   /*
@@ -530,9 +575,9 @@ class GameService extends Service {
 
     dataAdapter.saveGame(game);
   }
-  onUndoAcceptEvent(client, groupPath) {
+  async onUndoAcceptEvent(client, groupPath) {
     let gameId = groupPath.replace(/^\/games\//, '');
-    let game = this._getGame(gameId);
+    let game = await this._getGame(gameId);
     let undoRequest = game.undoRequest;
     if (!undoRequest)
       throw new ServerError(400, 'No undo request');
@@ -572,9 +617,9 @@ class GameService extends Service {
 
     dataAdapter.saveGame(game);
   }
-  onUndoRejectEvent(client, groupPath) {
+  async onUndoRejectEvent(client, groupPath) {
     let gameId = groupPath.replace(/^\/games\//, '');
-    let game = this._getGame(gameId);
+    let game = await this._getGame(gameId);
     let undoRequest = game.undoRequest;
     if (!undoRequest)
       throw new ServerError(400, 'No undo request');
@@ -599,9 +644,9 @@ class GameService extends Service {
 
     dataAdapter.saveGame(game);
   }
-  onUndoCancelEvent(client, groupPath) {
+  async onUndoCancelEvent(client, groupPath) {
     let gameId = groupPath.replace(/^\/games\//, '');
-    let game = this._getGame(gameId);
+    let game = await this._getGame(gameId);
     let undoRequest = game.undoRequest;
     if (!undoRequest)
       throw new ServerError(400, 'No undo request');
@@ -629,12 +674,12 @@ class GameService extends Service {
   /*******************************************************************************
    * Helpers
    ******************************************************************************/
-  _getGame(gameId) {
+  async _getGame(gameId) {
     let game;
     if (this.gamePara.has(gameId))
       game = this.gamePara.get(gameId).game;
     else
-      game = dataAdapter.getGame(gameId);
+      game = await dataAdapter.getGame(gameId);
 
     return game;
   }
@@ -644,7 +689,7 @@ class GameService extends Service {
     let status;
     if (!playerPara)
       status = 'offline';
-    else if (!playerPara.watchedGames.has(gameId))
+    else if (!playerPara.joinedGroups.has(gameId))
       status = 'online';
     else
       status = 'ingame';
@@ -677,7 +722,7 @@ class GameService extends Service {
     if (!opponentTeam)
       return;
 
-    pushNotification(playerId, {
+    pushService.pushNotification(playerId, {
       type: 'yourTurn',
       gameId: game.id,
       opponent: opponentTeam.name,

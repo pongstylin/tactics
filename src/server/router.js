@@ -1,12 +1,34 @@
 import url from 'url';
 import uuid from 'uuid/v4';
-
 import DebugLogger from 'debug';
 import ws from 'ws';
 import Ajv from 'ajv';
 
-import { services } from 'server/Service.js';
+import config from 'config/server.js';
 import ServerError from 'server/Error.js';
+
+/*
+ * Import service classes based on server configuration.
+ */
+let services = new Map();
+
+export default Promise.all(
+  [...config.endpoints]
+    .filter(([serviceName, endpoint]) => endpoint === 'local')
+    .map(([serviceName, endpoint]) => {
+      let serviceModuleName = serviceName.toUpperCase('first');
+
+      return import(`server/${serviceModuleName}Service.js`).then(module => {
+        let service = module.default;
+        service.on('joinGroup', event => joinGroup(service.name, event));
+        service.on('leaveGroup', event => leaveGroup(service.name, event));
+        service.on('closeGroup', event => closeGroup(service.name, event));
+        service.on('event', event => sendEvent(service.name, event));
+
+        services.set(serviceName, service);
+      });
+    })
+).then(() => route);
 
 const CLOSE_GOING_AWAY     = 1001;
 
@@ -159,6 +181,30 @@ schema.oneOf.forEach((schema, i) => {
 let sessions = new Map();
 let closedSessions = new Set();
 
+/*
+ * This function is called to route a new connection.
+ */
+function route(client, request) {
+  Object.assign(client, {
+    id: null,
+    session: null,
+    request: request,
+    address: request.headers['x-forwarded-for']
+      || request.connection.remoteAddress,
+    agent: request.headers['user-agent'] || null,
+  });
+  client.id = client.address;
+
+  debug(`connect: client=${client.id}; agent=${client.agent}`);
+
+  // Enforce an idle timeout for this connection
+  client.lastReceivedAt = new Date().getTime();
+  inboundClients.add(client);
+
+  client.on('message', onMessage);
+  client.on('close', onClose);
+}
+
 /*******************************************************************************
  * Group Management
  ******************************************************************************/
@@ -206,9 +252,6 @@ function joinGroup(serviceName, { client:clientId, body }) {
     users: groupUsers,
   });
 }
-services.forEach(service =>
-  service.on('joinGroup', event => joinGroup(service.name, event))
-);
 
 function leaveGroup(serviceName, { client:clientId, body }) {
   let groupId = [serviceName, body.group].join(':');
@@ -245,9 +288,6 @@ function leaveGroup(serviceName, { client:clientId, body }) {
       group: body.group,
     });
 }
-services.forEach(service =>
-  service.on('leaveGroup', event => leaveGroup(service.name, event))
-);
 
 function closeGroup(serviceName, { body }) {
   let groupId = [serviceName, body.group].join(':');
@@ -264,9 +304,6 @@ function closeGroup(serviceName, { body }) {
     });
   }
 }
-services.forEach(service =>
-  service.on('closeGroup', event => closeGroup(service.name, event))
-);
 
 /*******************************************************************************
  * Message Sending
@@ -292,9 +329,6 @@ function sendEvent(serviceName, { body }) {
     enqueue(sessions.get(sessionId), 'event', messageBody);
   }
 }
-services.forEach(service =>
-  service.on('event', event => sendEvent(service.name, event))
-);
 
 function sendErrorResponse(client, requestId, error) {
   if (!(error instanceof ServerError)) {
@@ -588,7 +622,7 @@ function onAuthorizeMessage(client, message) {
 function onEventMessage(client, message) {
   let body = message.body;
   let service = services.get(body.service);
-  let method = 'on' + body.type.charAt(0).toUpperCase() + body.type.slice(1) + 'Event';
+  let method = 'on' + body.type.toUpperCase('first') + 'Event';
 
   if (!service)
     throw new ServerError(404, 'No such service');
@@ -610,7 +644,7 @@ function onRequestMessage(client, message) {
   let requestId = message.id;
   let body = message.body;
   let service = services.get(body.service);
-  let method = 'on' + body.method.charAt(0).toUpperCase() + body.method.slice(1) + 'Request';
+  let method = 'on' + body.method.toUpperCase('first') + 'Request';
 
   if (!service)
     throw new ServerError(404, 'No such service');
@@ -772,27 +806,6 @@ function onClose(code, reason) {
 
   closeClient(client, code, reason);
 }
-
-export default (client, request) => {
-  Object.assign(client, {
-    id: null,
-    session: null,
-    request: request,
-    address: request.headers['x-forwarded-for']
-      || request.connection.remoteAddress,
-    agent: request.headers['user-agent'] || null,
-  });
-  client.id = client.address;
-
-  debug(`connect: client=${client.id}; agent=${client.agent}`);
-
-  // Enforce an idle timeout for this connection
-  client.lastReceivedAt = new Date().getTime();
-  inboundClients.add(client);
-
-  client.on('message', onMessage);
-  client.on('close', onClose);
-};
 
 /*******************************************************************************
  * Connection and Session Monitoring

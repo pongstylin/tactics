@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import webpush from 'web-push';
 
 import config from 'config/server.js';
 import Service from 'server/Service.js';
@@ -15,6 +16,31 @@ class PushService extends Service {
       // Session data for each client.
       sessions: new Map(),
     });
+  }
+
+  async pushNotification(playerId, notification) {
+    let subscriptions = await dataAdapter.getAllPushSubscriptions(playerId);
+    if (subscriptions.size === 0) return Promise.resolve([]);
+
+    this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}`);
+
+    let payload = JSON.stringify(notification);
+
+    webpush.setVapidDetails(
+      config.push.subject,
+      config.push.publicKey,
+      config.push.privateKey,
+    );
+
+    return Promise.all([...subscriptions].map(([deviceId, subscription]) =>
+      webpush.sendNotification(subscription, payload).catch(error => {
+        // push subscription has unsubscribed or expired.
+        if (error.statusCode === 410)
+          dataAdapter.setPushSubscription(playerId, deviceId, null);
+
+        this.debug(`${notification.type}: playerId=${playerId}; deviceId=${deviceId}; error=[${error.statusCode}] ${error.body}`);
+      })
+    ));
   }
 
   dropClient(client) {

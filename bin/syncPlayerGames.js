@@ -14,9 +14,9 @@ dataAdapter.listAllGameIds().then(gameIds => {
   });
 });
 
-function syncGame(gameId) {
+async function syncGame(gameId) {
   console.log(`Syncing game ${gameId}...`);
 
-  let game = dataAdapter.getGame(gameId);
+  let game = await dataAdapter.getGame(gameId);
   return dataAdapter._saveGameSummary(game);
 }

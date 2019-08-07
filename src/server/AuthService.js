@@ -38,9 +38,9 @@ class AuthService extends Service {
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
-  onAuthorize(client, { token }) {
+  async onAuthorize(client, { token }) {
     let session = this.sessions.get(client.id);
-    let tokenData = this._validateToken(client, token);
+    let tokenData = await this._validateToken(client, token);
 
     if (tokenData.isExpired)
       throw new ServerError(401, 'Token expired');
@@ -159,7 +159,7 @@ class AuthService extends Service {
    * Add device to account using the identity token.  Return access token.
    * (Authorization not required)
    */
-  onAddDeviceRequest(client, identityToken) {
+  async onAddDeviceRequest(client, identityToken) {
     let now = new Date();
 
     let claims;
@@ -170,7 +170,7 @@ class AuthService extends Service {
       throw new ServerError(401, error.message);
     }
 
-    let player = dataAdapter.getPlayer(claims.sub);
+    let player = await dataAdapter.getPlayer(claims.sub);
     if (player.identityToken !== identityToken)
       throw new ServerError(403, 'Identity token was revoked');
 
@@ -221,14 +221,14 @@ class AuthService extends Service {
    *   1) It must be a verified JWT.  It may be expired, however.
    *   2) Token must not be revoked, which happens once a newer token is used.
    */
-  onRefreshTokenRequest(client, token) {
+  async onRefreshTokenRequest(client, token) {
     let session = this.sessions.get(client.id) || {};
 
     // An authorized player does not have to provide the token.
     if (!token)
       token = session.token;
 
-    let tokenData = this._validateToken(client, token);
+    let tokenData = await this._validateToken(client, token);
     let newToken;
 
     // Cowardly refuse to refresh a token that has lived for <10% of its life.
@@ -289,7 +289,7 @@ class AuthService extends Service {
       throw new ServerError(403, 'The name may not contain markup');
   }
 
-  _validateToken(client, token) {
+  async _validateToken(client, token) {
     let now = new Date();
     let tokenSig = token.split('.')[2];
 
@@ -315,7 +315,7 @@ class AuthService extends Service {
     let ttl       = expiresAt - createdAt;
     let isExpired = now > expiresAt;
 
-    let player = dataAdapter.getPlayer(playerId);
+    let player = await dataAdapter.getPlayer(playerId);
     let device = player.getDevice(deviceId);
 
     if (!device)

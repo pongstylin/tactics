@@ -1,4 +1,3 @@
-'use strict';
 /*
  * This model is used to generate JSON with a summary of a game.
  * The summary can be used to render a game in a list.
