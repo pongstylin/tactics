@@ -280,7 +280,7 @@ class GameService extends Service {
     });
 
     let response = {
-      playerStatus: this.onGetPlayerStatusRequest(client, game),
+      playerStatus: await this.onGetPlayerStatusRequest(client, game),
     };
 
     // Parameters are used to resume a game from a given point.
@@ -438,7 +438,7 @@ class GameService extends Service {
 
       if (players.size > 1)
         await chatService.createRoom(
-          [...players].map(([playerId, teamName]) => ({ playerId, teamName })),
+          [...players].map(([id, name]) => ({ id, name })),
           { id:gameId }
         );
 
