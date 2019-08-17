@@ -108,88 +108,88 @@ Tactics.App = (function ($, window, document) {
     }
   };
 
-  $(window)
-    .on('load', function () {
-      $('#overlay').on('click', () => {
-        if ($('#popup').hasClass('error')) return;
-        $('#overlay,#popup').hide();
-      });
-
-      $('#popup BUTTON[name=no]').data('handler', () => {
-        $('#overlay,#popup').hide();
-      });
-
-      if ('ontouchstart' in window) {
-        $('body').addClass(pointer = 'touch');
-      }
-      else {
-        $('body').addClass(pointer = 'mouse');
-      }
-
-      $('#loader').css({
-        top:($(window).height()/2)-($('#loader').height()/2)+'px',
-        left:($(window).width()/2)-($('#loader').width()/2)+'px',
-        visibility:'visible'
-      });
-
-      if (!fullscreen.isAvailable())
-        $('BUTTON[name=resize]').toggleClass('hidden');
-
-      if (Howler.noAudio)
-        $('BUTTON[name=sound]').toggleClass('hidden');
-
-      $('BODY')
-        /*
-         * Under these conditions a special attack can be triggered:
-         *   1) The unit is enraged and selected in attack mode. (selector)
-         *   2) The attack button is pressed for 2 seconds and released.
-         */
-        .on('mousedown touchstart', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
-          let readySpecial = game.readySpecial();
-          let button = event.target;
-          let eventType = pointer === 'touch' ? 'touchend' : 'mouseup';
-
-          $(document).one(eventType, event => {
-            if (event.target === button)
-              readySpecial.release();
-            else
-              readySpecial.cancel();
-          });
-        })
-        .on('mouseover','#app BUTTON:enabled', event => {
-          var $button = $(event.target);
-
-          // Ignore disabled buttons
-          if (window.getComputedStyle(event.target).cursor !== 'pointer')
-            return;
-
-          Tactics.sounds.focus.play();
-        })
-        .on('click','#app BUTTON:enabled', event => {
-          var $button = $(event.target);
-          var handler = $button.data('handler') || buttons[$button.attr('name')];
-
-          // Ignore disabled buttons
-          if (window.getComputedStyle(event.target).cursor !== 'pointer')
-            return;
-
-          handler($button);
-
-          Tactics.sounds.select.play();
-        });
-
-      Tactics.createLocalGame(gameStateData).then(g => {
-        game = g;
-        loadThenStartGame();
-      });
-    })
-    .on('resize', () => {
-      let $resize = $('BUTTON[name=resize]');
-      if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
-        $resize.toggleClass('fa-expand fa-compress');
-
-      if (game) game.resize();
+  $(() => {
+    $('#overlay').on('click', () => {
+      if ($('#popup').hasClass('error')) return;
+      $('#overlay,#popup').hide();
     });
+
+    $('#popup BUTTON[name=no]').data('handler', () => {
+      $('#overlay,#popup').hide();
+    });
+
+    if ('ontouchstart' in window) {
+      $('body').addClass(pointer = 'touch');
+    }
+    else {
+      $('body').addClass(pointer = 'mouse');
+    }
+
+    $('#loader').css({
+      top:($(window).height()/2)-($('#loader').height()/2)+'px',
+      left:($(window).width()/2)-($('#loader').width()/2)+'px',
+      visibility:'visible'
+    });
+
+    if (!fullscreen.isAvailable())
+      $('BUTTON[name=resize]').toggleClass('hidden');
+
+    if (Howler.noAudio)
+      $('BUTTON[name=sound]').toggleClass('hidden');
+
+    $('BODY')
+      /*
+       * Under these conditions a special attack can be triggered:
+       *   1) The unit is enraged and selected in attack mode. (selector)
+       *   2) The attack button is pressed for 2 seconds and released.
+       */
+      .on('mousedown touchstart', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
+        let readySpecial = game.readySpecial();
+        let button = event.target;
+        let eventType = pointer === 'touch' ? 'touchend' : 'mouseup';
+
+        $(document).one(eventType, event => {
+          if (event.target === button)
+            readySpecial.release();
+          else
+            readySpecial.cancel();
+        });
+      })
+      .on('mouseover','#app BUTTON:enabled', event => {
+        var $button = $(event.target);
+
+        // Ignore disabled buttons
+        if (window.getComputedStyle(event.target).cursor !== 'pointer')
+          return;
+
+        Tactics.sounds.focus.play();
+      })
+      .on('click','#app BUTTON:enabled', event => {
+        var $button = $(event.target);
+        var handler = $button.data('handler') || buttons[$button.attr('name')];
+
+        // Ignore disabled buttons
+        if (window.getComputedStyle(event.target).cursor !== 'pointer')
+          return;
+
+        handler($button);
+
+        Tactics.sounds.select.play();
+      });
+
+    Tactics.createLocalGame(gameStateData).then(g => {
+      game = g;
+      loadThenStartGame();
+    });
+  });
+
+  $(window).on('resize', () => {
+    let $resize = $('BUTTON[name=resize]');
+    if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
+      $resize.toggleClass('fa-expand fa-compress');
+
+    if (game) game.resize();
+  });
 
   function loadThenStartGame() {
     let $card = $(game.card.canvas)
@@ -288,7 +288,7 @@ Tactics.App = (function ($, window, document) {
 
             game.start().then(() => {
               $('#splash').hide();
-              $('#app').css('visibility','visible');
+              $('#app').addClass('show');
             });
           })
           .find('.message')
