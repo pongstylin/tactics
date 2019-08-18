@@ -418,7 +418,7 @@ TEXTAREA {
   }
 }
 
-#app.with-popupChat {
+#app.for-playing.with-popupChat {
   #chat {
     top: 100%;
     left: 0;
@@ -449,7 +449,7 @@ TEXTAREA {
     }
   }
 }
-#app.with-inlineChat {
+#app.for-playing.with-inlineChat {
   max-height: 658px;
 
   #game {
@@ -499,8 +499,6 @@ TEXTAREA {
 }
 
 #app:not(.for-playing) {
-  max-height: 552px;
-
   #game {
     BUTTON[name=chat] {
       display: none;
@@ -707,12 +705,7 @@ A {
  */
 @media (max-width: 835px) and (max-aspect-ratio: 2/3), (max-width: 440px) {
   #app {
-    justify-content: flex-end;
-
-    // No longer need a max-height on the #app.
-    max-height: none;
-    // Don't show the chat below the app.
-    overflow: hidden;
+    height: auto;
 
     #game {
       // Stack 'em vertically
@@ -753,10 +746,6 @@ A {
 
       #game-play {
         top: auto;
-
-        BUTTON[name=chat] {
-          display: inline-block;
-        }
       }
       #game-settings {
         bottom: auto;
@@ -806,7 +795,15 @@ A {
     }
   }
 
-  #app.with-inlineChat {
+  #app.for-playing.with-inlineChat {
+    justify-content: flex-end;
+
+    height: 100%;
+    // No longer need a max-height on the #app.
+    max-height: none;
+    // Don't show the chat below the app.
+    overflow: hidden;
+
     #game {
       height: auto;
     }
@@ -852,10 +849,6 @@ A {
  */
 @media (max-width: 812px) and (min-aspect-ratio: 5/3) {
   #app {
-    position: absolute !important;
-    height: 200vh;
-    max-height: none;
-
     #game {
       // No longer 100% width.  Exclude the width of the button bar.
       width: 100%;
@@ -916,8 +909,11 @@ A {
     }
   }
 
-  #app.with-popupChat {
+  #app.for-playing.with-popupChat {
+    position: absolute !important;
     top: 0;
+    height: 200vh;
+    max-height: none;
 
     &.chat-opening,
     &.chat-closing {
