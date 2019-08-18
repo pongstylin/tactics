@@ -1,12 +1,14 @@
 import ServerSocket from 'client/ServerSocket.js';
 import AuthClient from 'client/AuthClient.js';
 import GameClient from 'client/GameClient.js';
+import ChatClient from 'client/ChatClient.js';
 import PushClient from 'client/PushClient.js';
 import config from 'config/client.js';
 
 let endpoints = new Map([
   ['auth', config.authEndpoint],
   ['game', config.gameEndpoint],
+  ['chat', config.chatEndpoint],
   ['push', config.pushEndpoint],
 ]);
 
@@ -29,6 +31,11 @@ export default serviceName => {
   if (!clients.has(serviceName))
     if (serviceName === 'game')
       clients.set(serviceName, new GameClient(
+        sockets.get(endpointName),
+        clients.get('auth'),
+      ));
+    else if (serviceName === 'chat')
+      clients.set(serviceName, new ChatClient(
         sockets.get(endpointName),
         clients.get('auth'),
       ));

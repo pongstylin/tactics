@@ -35,6 +35,9 @@
     HTML {
       touch-action: none;
     }
+    BODY {
+      overflow: hidden;
+    }
 
     UL {
       margin: 0 0 8px 40px;
@@ -156,45 +159,52 @@
     </DIV>
   </DIV>
   <DIV id="app" class="left locked readonly">
-    <DIV id="field">
-      <DIV id="player-n" class="player left">
-        <SPAN class="status"></SPAN>
-        <SPAN class="fa fa-spinner fa-pulse"></SPAN>
-        <SPAN class="name"></SPAN>
+    <DIV id="game">
+      <DIV id="field">
+        <DIV id="player-n" class="player left">
+          <SPAN class="status"></SPAN>
+          <SPAN class="fa fa-spinner fa-pulse"></SPAN>
+          <SPAN class="name"></SPAN>
+        </DIV>
+        <DIV id="player-e" class="player right">
+          <SPAN class="status"></SPAN>
+          <SPAN class="fa fa-spinner fa-pulse"></SPAN>
+          <SPAN class="name"></SPAN>
+        </DIV>
+        <DIV id="player-s" class="player right">
+          <SPAN class="status"></SPAN>
+          <SPAN class="fa fa-spinner fa-pulse"></SPAN>
+          <SPAN class="name"></SPAN>
+        </DIV>
+        <DIV id="player-w" class="player left">
+          <SPAN class="status"></SPAN>
+          <SPAN class="fa fa-spinner fa-pulse"></SPAN>
+          <SPAN class="name"></SPAN>
+        </DIV>
       </DIV>
-      <DIV id="player-e" class="player right">
-        <SPAN class="status"></SPAN>
-        <SPAN class="fa fa-spinner fa-pulse"></SPAN>
-        <SPAN class="name"></SPAN>
-      </DIV>
-      <DIV id="player-s" class="player right">
-        <SPAN class="status"></SPAN>
-        <SPAN class="fa fa-spinner fa-pulse"></SPAN>
-        <SPAN class="name"></SPAN>
-      </DIV>
-      <DIV id="player-w" class="player left">
-        <SPAN class="status"></SPAN>
-        <SPAN class="fa fa-spinner fa-pulse"></SPAN>
-        <SPAN class="name"></SPAN>
-      </DIV>
+      <FORM autocomplete="off" id="game-play" class="buttons active">
+        <BUTTON type="button" name="chat"                     title="Chat"     class="fa fa-comments"></BUTTON>
+        <BUTTON type="button" name="select"    value="move"   title="Move"     class="selected"></BUTTON>
+        <BUTTON type="button" name="select"    value="attack" title="Attack"></BUTTON>
+        <BUTTON type="button" name="select"    value="turn"   title="Turn"></BUTTON>
+        <BUTTON type="button" name="pass"                     title="End Turn" disabled></BUTTON>
+        <BUTTON type="button" name="surrender"                title="New Game"></BUTTON>
+        <BUTTON type="button" name="swapbar"                  title="Swap Bar" class="fa fa-bars"></BUTTON>
+      </FORM>
+      <FORM autocomplete="off" id="game-settings" class="buttons">
+        <BUTTON type="button" name="resize"  title="Resize"   class="fa fa-expand"></BUTTON>
+        <BUTTON type="button" name="movebar" title="Move Bar" class="fa fa-eject fa-rotate-270"></BUTTON>
+        <BUTTON type="button" name="rotate"  title="Rotate"   class="fa fa-location-arrow fa-rotate-90"></BUTTON>
+        <BUTTON type="button" name="sound"   title="Sound"    class="fa fa-bell"></BUTTON>
+        <BUTTON type="button" name="lock"    title="Lock Pan/Zoom" class="fa fa-lock"></BUTTON>
+        <BUTTON type="button" name="undo"    title="Undo"     class="fa fa-undo"></BUTTON>
+        <BUTTON type="button" name="swapbar" title="Swap Bar" class="fa fa-bars"></BUTTON>
+      </FORM>
     </DIV>
-    <FORM autocomplete="off" id="game-play" class="buttons active">
-      <BUTTON type="button" name="select"    value="move"   title="Move" class="selected"></BUTTON>
-      <BUTTON type="button" name="select"    value="attack" title="Attack"></BUTTON>
-      <BUTTON type="button" name="select"    value="turn"   title="Turn"></BUTTON>
-      <BUTTON type="button" name="pass"                     title="End Turn" disabled></BUTTON>
-      <BUTTON type="button" name="surrender"                title="New Game"></BUTTON>
-      <BUTTON type="button" name="swapbar"                  title="Swap Bar" class="fa fa-bars"></BUTTON>
-    </FORM>
-    <FORM autocomplete="off" id="game-settings" class="buttons">
-      <BUTTON type="button" name="resize"  title="Resize"   class="fa fa-expand"></BUTTON>
-      <BUTTON type="button" name="movebar" title="Move Bar" class="fa fa-eject fa-rotate-270"></BUTTON>
-      <BUTTON type="button" name="rotate"  title="Rotate"   class="fa fa-location-arrow fa-rotate-90"></BUTTON>
-      <BUTTON type="button" name="sound"   title="Sound"    class="fa fa-bell"></BUTTON>
-      <BUTTON type="button" name="lock"    title="Lock Pan/Zoom" class="fa fa-lock"></BUTTON>
-      <BUTTON type="button" name="undo"    title="Undo"     class="fa fa-undo"></BUTTON>
-      <BUTTON type="button" name="swapbar" title="Swap Bar" class="fa fa-bars"></BUTTON>
-    </FORM>
+    <DIV id="chat">
+      <DIV id="messages"></DIV>
+      <TEXTAREA class="new-message" spellcheck="true" rows="1" maxLength=140 placeholder=""></TEXTAREA>
+    </DIV>
   </DIV>
 </BODY>
 </HTML>

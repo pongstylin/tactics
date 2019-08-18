@@ -29,11 +29,11 @@ Tactics.App = (function ($, window, document) {
 
   var buttons = {
     swapbar: function () {
-      var $active = $('#app > .buttons.active');
+      var $active = $('#game > .buttons.active');
       var $next = $active.next('.buttons');
 
       if (!$next.length)
-        $next = $('#app > .buttons').first();
+        $next = $('#game > .buttons').first();
 
       $active.removeClass('active');
       $next.addClass('active');

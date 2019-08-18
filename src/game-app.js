@@ -5,29 +5,31 @@ Tactics.App = (function ($, window, document) {
   'use strict';
 
   var self = {};
+  var gameId = location.search.slice(1).replace(/&.+$/, '');
   var game;
+  var chatMessages = [];
   var undoPopup;
   var timeoutPopup;
   var pointer;
   var fullscreen = Tactics.fullscreen;
 
   var buttons = {
-    swapbar: function () {
-      var $active = $('#app > .buttons.active');
+    swapbar: () => {
+      var $active = $('#game > .buttons.active');
       var $next = $active.next('.buttons');
 
       if (!$next.length)
-        $next = $('#app > .buttons').first();
+        $next = $('#game > .buttons').first();
 
       $active.removeClass('active');
       $next.addClass('active');
     },
     resize:fullscreen.toggle,
-    movebar: function ($button) {
+    movebar: $button => {
       $('#app').toggleClass('left right');
       $button.toggleClass('fa-rotate-270 fa-rotate-90');
     },
-    lock: function ($button) {
+    lock: $button => {
       $button.toggleClass('fa-lock fa-unlock');
 
       if ($button.hasClass('fa-lock'))
@@ -35,7 +37,7 @@ Tactics.App = (function ($, window, document) {
       else
         game.panzoom.unlock();
     },
-    rotate: function ($button) {
+    rotate: $button => {
       let classesToToggle;
 
       if ($button.hasClass('fa-rotate-90'))
@@ -52,15 +54,19 @@ Tactics.App = (function ($, window, document) {
 
       resetPlayerBanners();
     },
-    sound: function ($button) {
+    sound: $button => {
       $button.toggleClass('fa-bell fa-bell-slash');
 
       Howler.mute($button.hasClass('fa-bell-slash'));
     },
-    undo: function () {
+    undo: () => {
       game.undo();
     },
-    select: function ($button) {
+    select: $button => {
+      let $app = $('#app');
+      if ($app.hasClass('chat-open'))
+        buttons.chat();
+
       let mode = $button.val();
 
       if (mode == 'turn' && $button.hasClass('ready')) {
@@ -70,10 +76,10 @@ Tactics.App = (function ($, window, document) {
 
       game.selectMode = mode;
     },
-    pass: function () {
+    pass: () => {
       game.pass();
     },
-    surrender: function () {
+    surrender: () => {
       popup({
         message: 'Do you surrender?',
         buttons: [
@@ -86,108 +92,289 @@ Tactics.App = (function ($, window, document) {
           },
         ],
       });
-    }
+    },
+    chat: () => {
+      let $app = $('#app');
+      let $messages = $('#messages');
+
+      if ($app.hasClass('chat-open')) {
+        // Keep chat scrolled to bottom while reducing height.
+        let tickRequest;
+        let tick = () => {
+          $messages.scrollTop($messages.prop('scrollHeight'));
+          tickRequest = requestAnimationFrame(tick);
+        };
+
+        // Sometimes this bubbles up from the #chat
+        $app.one('transitionend', () => {
+          cancelAnimationFrame(tickRequest);
+          $app.toggleClass('chat-open chat-closing');
+        });
+
+        $app.addClass('chat-closing');
+        tick();
+      }
+      else {
+        // Sometimes this bubbles up from the #chat
+        $app.one('transitionend', () => {
+          $app.toggleClass('chat-open chat-opening');
+        });
+
+        $app.addClass('chat-opening');
+
+        // Keep chat scrolled to bottom after displaying input box
+        $messages.scrollTop($messages.prop('scrollHeight'));
+      }
+    },
   };
 
-  $(window)
-    .on('load', function () {
-      if ('ontouchstart' in window)
-        $('body').addClass(pointer = 'touch');
-      else
-        $('body').addClass(pointer = 'mouse');
+  $(() => {
+    if ('ontouchstart' in window)
+      $('body').addClass(pointer = 'touch');
+    else
+      $('body').addClass(pointer = 'mouse');
 
-      $('#loader').css({
-        top:($(window).height()/2)-($('#loader').height()/2)+'px',
-        left:($(window).width()/2)-($('#loader').width()/2)+'px',
-        visibility:'visible'
-      });
+    if (pointer === 'touch')
+      $('.new-message').attr('placeholder', 'Touch to chat!');
+    else
+      $('.new-message').attr('placeholder', 'Type to chat!');
 
-      if (!fullscreen.isAvailable())
-        $('BUTTON[name=resize]').toggleClass('hidden');
-
-      if (Howler.noAudio)
-        $('BUTTON[name=sound]').toggleClass('hidden');
-
-      $('BODY')
-        /*
-         * Under these conditions a special attack can be triggered:
-         *   1) The unit is enraged and selected in attack mode. (selector)
-         *   2) The attack button is pressed for 2 seconds and released.
-         */
-        .on('mousedown touchstart', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
-          let readySpecial = game.readySpecial();
-          let button = event.target;
-          let eventType = pointer === 'touch' ? 'touchend' : 'mouseup';
-
-          $(document).one(eventType, event => {
-            if (event.target === button)
-              readySpecial.release();
-            else
-              readySpecial.cancel();
-          });
-        })
-        .on('mouseover','#app BUTTON:enabled', event => {
-          let $button = $(event.target);
-
-          // Ignore disabled buttons
-          if (window.getComputedStyle(event.target).cursor !== 'pointer')
-            return;
-
-          Tactics.sounds.focus.play();
-        })
-        .on('click','#app BUTTON:enabled', event => {
-          let $button = $(event.target);
-          let handler = $button.data('handler') || buttons[$button.attr('name')];
-          if (!handler) return;
-
-          // Ignore disabled buttons
-          if (window.getComputedStyle(event.target).cursor !== 'pointer')
-            return;
-
-          handler($button);
-
-          Tactics.sounds.select.play();
-        });
-
-      initGame()
-        .then(g => {
-          game = g;
-          game.state.on('playerStatus', resetPlayerBanners);
-
-          if (game.isViewOnly) {
-            $('BUTTON[name=pass]').hide();
-            $('BUTTON[name=surrender]').hide();
-            $('BUTTON[name=undo]').hide();
-          }
-
-          $('#splash').show();
-          loadThenStartGame();
-        })
-        .catch(error => {
-          console.error(error);
-
-          if (error.code === 403 || error.code === 409)
-            $('#error').text(error.message);
-          else if (error.code === 404)
-            $('#error').text("The game doesn't exist");
-          else if (error.code === 429)
-            $('#error').text("Loading games too quickly");
-
-          $('#join').hide();
-          $('#error').show();
-        });
-    })
-    .on('resize', () => {
-      let $resize = $('BUTTON[name=resize]');
-      if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
-        $resize.toggleClass('fa-expand fa-compress');
-
-      if (game) game.resize();
+    $('#loader').css({
+      top:($(window).height()/2)-($('#loader').height()/2)+'px',
+      left:($(window).width()/2)-($('#loader').width()/2)+'px',
+      visibility:'visible'
     });
 
-  function initGame() {
-    let gameId = location.search.slice(1).replace(/&.+$/, '');
+    if (!fullscreen.isAvailable())
+      $('BUTTON[name=resize]').toggleClass('hidden');
 
+    if (Howler.noAudio)
+      $('BUTTON[name=sound]').toggleClass('hidden');
+
+    $('BODY')
+      /*
+       * Under these conditions a special attack can be triggered:
+       *   1) The unit is enraged and selected in attack mode. (selector)
+       *   2) The attack button is pressed for 2 seconds and released.
+       */
+      .on('mousedown touchstart', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
+        let readySpecial = game.readySpecial();
+        let button = event.target;
+        let eventType = pointer === 'touch' ? 'touchend' : 'mouseup';
+
+        $(document).one(eventType, event => {
+          if (event.target === button)
+            readySpecial.release();
+          else
+            readySpecial.cancel();
+        });
+      })
+      .on('mouseover', '#app BUTTON:enabled', event => {
+        let $button = $(event.target);
+
+        // Ignore disabled buttons
+        if (window.getComputedStyle(event.target).cursor !== 'pointer')
+          return;
+
+        Tactics.sounds.focus.play();
+      })
+      .on('click', '#app BUTTON:enabled', event => {
+        let $button = $(event.target);
+        let handler = $button.data('handler') || buttons[$button.attr('name')];
+        if (!handler) return;
+
+        // Ignore disabled buttons
+        if (window.getComputedStyle(event.target).cursor !== 'pointer')
+          return;
+
+        handler($button);
+
+        Tactics.sounds.select.play();
+      })
+      .on('keydown', event => {
+        let $app = $('#app');
+        let $chat = $('#chat');
+        let $messages = $chat.find('#messages');
+        let $newMessage = $chat.find('.new-message');
+        let keyChar = event.key;
+
+        // Open chat, but otherwise ignore input until input box is ready.
+        if ($app.is('.chat-opening'))
+          return;
+        else if ($app.is('.with-popupChat:not(.chat-open)'))
+          return buttons.chat();
+
+        if (!$newMessage.is(':focus')) {
+          if (keyChar === 'ArrowUp') {
+            event.preventDefault();
+            $messages.scrollTop($messages.scrollTop() - 18);
+          }
+          else if (keyChar === 'ArrowDown') {
+            event.preventDefault();
+            $messages.scrollTop($messages.scrollTop() + 18);
+          }
+          else if (keyChar === 'PageUp') {
+            event.preventDefault();
+            $messages.scrollTop($messages.scrollTop() - 90);
+          }
+          else if (keyChar === 'PageDown') {
+            event.preventDefault();
+            $messages.scrollTop($messages.scrollTop() + 90);
+          }
+        }
+
+        if (keyChar === 'Enter') {
+          // Disallow line breaks.
+          event.preventDefault();
+
+          if (!$newMessage.is(':focus'))
+            return $newMessage[0].focus({ preventScroll:true });
+
+          let message = $newMessage.val().trim();
+          if (!message.length)
+            if ($newMessage.is(':focus'))
+              return $newMessage.blur();
+
+          if (!event.shiftKey && !event.metaKey)
+            Tactics.chatClient.postGameMessage(gameId, message).then(() => {
+              $newMessage.val('');
+              $newMessage.trigger('input');
+            });
+        }
+        else if (keyChar === 'Escape') {
+          if ($app.hasClass('chat-open')) {
+            $newMessage.blur();
+            buttons.chat();
+          }
+        }
+        else if (keyChar.length === 1 && !$newMessage.is(':focus')) {
+          $newMessage[0].focus({ preventScroll:true });
+        }
+      })
+      .on('blur', '#chat .new-message', event => {
+        setTimeout(() => {
+          let $newMessage = $('#chat.active .new-message');
+          if ($newMessage.length)
+            $newMessage[0].focus({ preventScroll:true });
+        });
+      });
+
+    $('#chat').on('transitionend', ({ originalEvent:event }) => {
+      let $messages = $('#messages');
+
+      if (event.propertyName === 'height')
+        $messages.scrollTop($messages.prop('scrollHeight'));
+    });
+
+    // It takes some JS-work to base a TEXTAREA's height on its content.
+    $('TEXTAREA')
+      .on('input', function () {
+        this.style.height = 'auto';
+        let style = window.getComputedStyle(this);
+        let paddingHeight = parseInt(style.paddingTop) + parseInt(style.paddingBottom);
+
+        let height = this.scrollHeight;
+        if (style.boxSizing === 'content-box') {
+          height -= paddingHeight;
+          // The initial height can be computed as zero in some cases (flexbox?)
+          height = Math.max(height, 18);
+        }
+        else {
+          // The initial height can be computed as zero in some cases (flexbox?)
+          height = Math.max(height, 18 + paddingHeight);
+        }
+
+        this.style.height = `${height}px`;
+
+        // As the height of the textarea increases, the height of the messages
+        // decreases.  As it does so, make sure it remains scrolled to bottom.
+        if (style.position === 'relative')
+          $('#messages').scrollTop($('#messages').prop('scrollHeight'));
+      })
+      .each(function () {
+        $(this).trigger('input');
+      });
+
+    initGame()
+      .then(g => {
+        game = g;
+        game.state.on('playerStatus', resetPlayerBanners);
+
+        if (game.isViewOnly)
+          $('#app').addClass('for-viewing');
+        else if (game.hasOneLocalTeam()) {
+          $('#app').addClass('for-playing');
+
+          let chatClient = Tactics.chatClient;
+          let groupId = `/rooms/${gameId}`;
+
+          chatClient.on('open', ({ data }) => {
+            if (data.reason !== 'reset') return;
+
+            let resume = chatMessages.last ? chatMessages.last.id : null;
+
+            chatClient.joinGameChat(gameId, { id:resume }).then(({ events }) => {
+              appendMessages(events.filter(e => e.type === 'message'));
+            });
+          });
+
+          chatClient.on('event', event => {
+            if (event.body.group !== groupId) return;
+            if (event.body.type !== 'message') return;
+
+            let message = event.body.data;
+            appendMessages(message);
+          });
+
+          chatClient.joinGameChat(gameId).then(({ events }) => {
+            initMessages(events.filter(e => e.type === 'message'));
+          });
+        }
+        else
+          $('#app').addClass('for-practice');
+
+        $('#splash').show();
+        loadThenStartGame();
+      })
+      .catch(error => {
+        console.error(error);
+
+        if (error.code === 403 || error.code === 409)
+          $('#error').text(error.message);
+        else if (error.code === 404)
+          $('#error').text("The game doesn't exist");
+        else if (error.code === 429)
+          $('#error').text("Loading games too quickly");
+
+        $('#join').hide();
+        $('#error').show();
+      });
+  });
+
+  $(window).on('resize', () => {
+    let $resize = $('BUTTON[name=resize]');
+    if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
+      $resize.toggleClass('fa-expand fa-compress');
+
+    // Temporarily remove chat-open and inlineChat so that the game can
+    // calculate the biggest board size it can.
+    let chatMode = $('#app').hasClass('chat-open');
+    $('#app').removeClass('chat-open with-inlineChat');
+
+    if (game) game.resize();
+
+    let bodyHeight = $('BODY').prop('clientHeight');
+    let appHeight = $('#board').prop('clientHeight') + 106;
+    $('#app').toggleClass('with-inlineChat', appHeight <= bodyHeight);
+    $('#app').toggleClass('with-popupChat', appHeight > bodyHeight);
+    if (chatMode) $('#app').addClass('chat-open');
+
+    // Useful for orientation changes
+    $('#messages').scrollTop($('#messages').prop('scrollHeight'));
+    $('#chat .new-message').trigger('input');
+  });
+
+  function initGame() {
     return Tactics.getRemoteGameData(gameId)
       .then(gameData => {
         // An account is not required to view an ended game.
@@ -213,6 +400,34 @@ Tactics.App = (function ($, window, document) {
             return showJoinIntro(identity, gameData);
         });
       })
+  }
+
+  function initMessages(messages) {
+    $('#messages').empty();
+
+    chatMessages = messages;
+    messages.forEach(m => renderMessage(m));
+
+    let $messages = $('#messages');
+    $messages.scrollTop($messages.prop('scrollHeight'));
+  }
+  function appendMessages(messages) {
+    if (!Array.isArray(messages))
+      messages = [messages];
+
+    chatMessages.push(...messages);
+    messages.forEach(m => renderMessage(m));
+
+    let $messages = $('#messages');
+    $messages.scrollTop($messages.prop('scrollHeight'));
+  }
+  function renderMessage(message) {
+    $('#messages').append(`
+      <DIV class="message">
+        <SPAN class="player">${message.player.name}</SPAN>
+        <SPAN class="content">${message.content}</SPAN>
+      </DIV>
+    `);
   }
 
   function showPublicIntro(identity, gameData) {
@@ -453,7 +668,7 @@ Tactics.App = (function ($, window, document) {
         $('#loader')
           .addClass('complete')
           .one('click', () => {
-            $('.message').text('One moment...');
+            $('#loader .message').text('One moment...');
 
             game.start().then(() => {
               resetPlayerBanners();
@@ -462,7 +677,7 @@ Tactics.App = (function ($, window, document) {
               $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
 
               $('#splash').hide();
-              $('#app').css('visibility','visible');
+              $('#app').addClass('show');
             });
           })
           .find('.message')

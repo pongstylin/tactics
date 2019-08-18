@@ -458,7 +458,7 @@ function closeClient(client, code, reason) {
   if (session)
     if (code === CLOSE_GOING_AWAY)
       deleteSession(session);
-    else
+    else if (code !== CLOSE_REPLACED)
       closeSession(session);
 }
 
@@ -779,11 +779,14 @@ function onResumeMessage(client, message) {
   if (message.ack < minExpectedAck || message.ack > maxExpectedAck)
     throw new ServerError(401, 'Not authorized');
 
-  // Close the previous connection, if it isn't already closed.
-  closeClient(session.client, CLOSE_REPLACED);
-
-  delete session.closedAt;
-  closedSessions.delete(session);
+  if (session.closedAt) {
+    // Reopen the session
+    delete session.closedAt;
+    closedSessions.delete(session);
+  }
+  else
+    // Close the previous client, but not the session
+    closeClient(session.client, CLOSE_REPLACED);
 
   client.session = session;
   client.id = session.id;

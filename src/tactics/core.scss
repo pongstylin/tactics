@@ -7,19 +7,16 @@ HTML {
  * The app takes up all the space it can up to the maximum size of the board.
  * The board itself is positioned in the center of the app.
  */
-HTML, BODY, #app, #field {
+HTML, BODY {
   width: 100%;
   height: 100%;
 }
 
-#error, #join, #splash, #app {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
 BODY {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -30,6 +27,12 @@ BODY {
 
   -webkit-text-size-adjust: none;
   -webkit-touch-callout: none;
+}
+
+TEXTAREA {
+  // No scrollbars.  The chat TEXTAREA will grow to fit content.
+  overflow: hidden;
+  resize: none;
 }
 
 ::-webkit-scrollbar {
@@ -43,30 +46,6 @@ BODY {
 ::-webkit-scrollbar-thumb {
   border-radius: 8px;
   background-color: #666666;
-}
-
-#field {
-  display: flex;
-  position: relative;
-  overflow: hidden;
-
-  CANVAS {
-    display: block;
-    padding: 0;
-  }
-
-  #card {
-    position: absolute;
-    top: 20px;
-    left: 0;
-
-    // The card must show above the board when they overlap.
-    z-index: 1;
-  }
-
-  #board {
-    margin: auto;
-  }
 }
 
 /*
@@ -145,198 +124,414 @@ BODY {
  * General Look & Feel for the app.
  */
 #app {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  width: 100%;
+  height: 100%;
   max-width: 836px;
   max-height: 552px;
+
+  position: absolute;
   visibility: hidden;
-
-  #field {
-    #card {
-      background: rgba(0, 0, 0, 0.5);
-      border-radius: 8px;
-
-      // Fade out the card, somewhat slowly.
-      transition: opacity 600ms linear;
-      opacity: 0;
-    }
-    #card.show {
-      // Fade in the card, somewhat quickly.
-      transition: opacity 400ms linear;
-      opacity: 1;
-    }
+  &.show {
+    position: relative;
+    visibility: visible;
   }
 
-  .player {
-    display: none;
-  }
-  .player.active {
-    display: block;
-    position: absolute;
-    width: 200px;
-    height: 20px;
-    box-sizing: border-box;
-    padding: 0 24px;
-    line-height: 20px;
-    color: white;
-    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  #game {
+    position: relative;
+    height: 100%;
+    max-height: 552px;
 
-    .status {
-      position: absolute;
-      top: 2px;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
+    #field {
+      display: flex;
+      position: relative;
+      height: 100%;
 
-      // offline color
-      background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.2) 25%, rgba(0,0,0,0.8));
-    }
-    &.ingame .status {
-      background: radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
-    }
-    &.online .status {
-      background: radial-gradient(circle at 50% 50%, rgba(255, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
-    }
-
-    .fa-spinner {
-      display: none;
-      position: absolute;
-      width: 20px;
-      height: 20px;
-      line-height: 20px;
-      border-radius: 50%;
-
-      background-color: black;
-      text-align: center;
-    }
-    &.unavailable .fa-spinner {
-      display: block;
-    }
-
-    &.left {
-      left: 0;
-      text-align: left;
-      border-radius: 10px 0 0 10px;
-
-      .status {
-        left: 3px;
-      }
-      .fa-spinner {
-        left: 0;
+      CANVAS {
+        display: block;
+        padding: 0;
       }
 
-      &:after {
+      #card {
         position: absolute;
-        top: 2px;
-        right: 0;
-        width: 0;
-        height: 0;
-        border-style: solid;
-        border-width: 8px 20px 8px 0;
-        border-color: transparent black transparent transparent;
-        content: " ";
+        top: 20px;
+        left: 0;
+
+        // The card must show above the board when they overlap.
+        z-index: 1;
+
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 8px;
+
+        // Fade out the card, somewhat slowly.
+        transition: opacity 600ms linear;
+        opacity: 0;
+        &.show {
+          // Fade in the card, somewhat quickly.
+          transition: opacity 400ms linear;
+          opacity: 1;
+        }
       }
 
-      &.bronze {
-        background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%, black 102%);
+      #board {
+        margin: auto;
+      }
+
+      .player {
+        display: none;
+      }
+      .player.active {
+        display: block;
+        position: absolute;
+        width: 200px;
+        height: 20px;
+        box-sizing: border-box;
+        padding: 0 24px;
+        line-height: 20px;
+        color: white;
+        text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+
+        .status {
+          position: absolute;
+          top: 2px;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+
+          // offline color
+          background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.2) 25%, rgba(0,0,0,0.8));
+        }
+        &.ingame .status {
+          background: radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
+        }
+        &.online .status {
+          background: radial-gradient(circle at 50% 50%, rgba(255, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
+        }
+
+        .fa-spinner {
+          display: none;
+          position: absolute;
+          width: 20px;
+          height: 20px;
+          line-height: 20px;
+          border-radius: 50%;
+
+          background-color: black;
+          text-align: center;
+        }
+        &.unavailable .fa-spinner {
+          display: block;
+        }
+
+        &.left {
+          left: 0;
+          text-align: left;
+          border-radius: 10px 0 0 10px;
+
+          .status {
+            left: 3px;
+          }
+          .fa-spinner {
+            left: 0;
+          }
+
+          &:after {
+            position: absolute;
+            top: 2px;
+            right: 0;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 8px 20px 8px 0;
+            border-color: transparent black transparent transparent;
+            content: " ";
+          }
+
+          &.bronze {
+            background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%, black 102%);
+          }
+        }
+        &.right {
+          right: 0;
+          text-align: right;
+          border-radius: 0 10px 10px 0;
+
+          .status {
+            right: 3px;
+          }
+          .fa-spinner {
+            right: 0;
+          }
+
+          &:after {
+            position: absolute;
+            top: 2px;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 8px 0 8px 20px;
+            border-color: transparent transparent transparent black;
+            content: " ";
+          }
+
+          &.bronze {
+            background-image: linear-gradient(to left, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%, black 102%);
+          }
+        }
+      }
+      #player-n {
+        top: 0;
+      }
+      #player-e {
+        top: 0;
+      }
+      #player-s {
+        bottom: 0;
+      }
+      #player-w {
+        bottom: 0;
       }
     }
-    &.right {
+
+    #game-play {
+      top: 20px;
+    }
+    #game-settings {
+      bottom: 16px;
+    }
+    .buttons {
+      display: block;
+      position: absolute;
       right: 0;
-      text-align: right;
-      border-radius: 0 10px 10px 0;
-
-      .status {
-        right: 3px;
-      }
-      .fa-spinner {
-        right: 0;
-      }
-
-      &:after {
-        position: absolute;
-        top: 2px;
-        left: 0;
-        width: 0;
-        height: 0;
-        border-style: solid;
-        border-width: 8px 0 8px 20px;
-        border-color: transparent transparent transparent black;
-        content: " ";
-      }
-
-      &.bronze {
-        background-image: linear-gradient(to left, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%, black 102%);
-      }
-    }
-  }
-  #player-n {
-    top: 0;
-  }
-  #player-e {
-    top: 0;
-  }
-  #player-s {
-    bottom: 0;
-  }
-  #player-w {
-    bottom: 0;
-  }
-
-  > .buttons {
-    display: block;
-    position: absolute;
-    right: 0;
-    box-sizing: border-box;
-    background-color: transparent;
-    margin: 0;
-    padding: 6px;
-    font-size: 18px;
-    text-align: left;
-
-    BUTTON {
-      // Collapse whitespace
-      display: block;
-      float: left;
-
-      background: none no-repeat center transparent;
-      box-sizing: content-box;
-      color: #DED8D5;
-      width: 34px;
-      height: 34px;
-      margin: 3px;
-      border: 0 solid #DED8D5;
-      padding: 0;
-      cursor: pointer;
+      box-sizing: border-box;
+      background-color: transparent;
+      margin: 0;
+      padding: 6px;
       font-size: 18px;
-      line-height: 34px;
-      text-align: center;
-      vertical-align: bottom;  /* removes bottom spacing */
-      -webkit-tap-highlight-color: transparent;
+      text-align: left;
+      flex: 0 0 auto;
+
+      BUTTON {
+        // Collapse whitespace
+        display: block;
+        float: left;
+
+        background: none no-repeat center transparent;
+        box-sizing: content-box;
+        color: #DED8D5;
+        width: 34px;
+        height: 34px;
+        margin: 3px;
+        border: 0 solid #DED8D5;
+        padding: 0;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 34px;
+        text-align: center;
+        vertical-align: bottom;  /* removes bottom spacing */
+        -webkit-tap-highlight-color: transparent;
+      }
+      BUTTON:focus {
+        outline: none;
+      }
+      BUTTON.selected {
+        margin: 1px;
+        border-width: 2px;
+        cursor: default;
+      }
+      BUTTON[disabled] {
+        opacity: 0.4;
+        cursor: default;
+      }
     }
-    BUTTON:focus {
-      outline: none;
+  }
+
+  #chat {
+    display: flex;
+    position: absolute;
+
+    box-sizing: border-box;
+    width: 100%;
+
+    flex-direction: column;
+    justify-content: flex-end;
+
+    flex: 0 0 auto;
+    padding: 8px;
+    background-color: black;
+    z-index: 20;
+
+    #messages {
+      display: flex;
+      flex-direction: column;
+
+      overflow: auto;
+      scrollbar-width: thin; /* Firefox only */
+      scrollbar-color: #666666; /* Firefox only */
+
+      .message {
+        line-height: 18px;
+        word-break: break-word;
+
+        .player {
+          color: #b08d57;
+          font-weight: bold;
+
+          &::after {
+            content: ':';
+          }
+        }
+        .content {
+          white-space: pre-wrap;
+        }
+      }
     }
-    BUTTON.selected {
-      margin: 1px;
-      border-width: 2px;
-      cursor: default;
+
+    .new-message {
+      box-sizing: border-box;
+      border: 0 none;
+      border-left: 1px solid #b08d57;
+      margin-top: 4px;
+      padding: 4px;
+      width: 100%;
+
+      background-color: transparent;
+      color: inherit;
+      flex: 0 0 auto;
+      line-height: 18px;
     }
-    BUTTON[disabled] {
-      opacity: 0.4;
-      cursor: default;
+    .new-message:focus {
+      outline: #b08d57 auto 1px;
+    }
+    .new-message::placeholder {
+      padding-left: 4px;
+      color: #b08d57;
+      font-weight: bold;
+    }
+    .new-message:focus::placeholder {
+      opacity: 0;
     }
   }
 }
 
-.mouse #app > .buttons BUTTON:not(.selected):enabled:hover {
-  margin: 2px;
-  border-width: 1px;
+#app.with-popupChat {
+  #chat {
+    top: 100%;
+    left: 0;
+    height: calc(100% - 20px - 52px);
+
+    border: 1px solid #804a00;
+    border-bottom: 0 none;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+  }
+
+  &.chat-opening,
+  &.chat-closing {
+    #chat {
+      transition: top 400ms linear;
+    }
+  }
+
+  &.chat-opening,
+  &.chat-open {
+    #chat {
+      top: calc(20px + 52px);
+    }
+  }
+  &.chat-closing {
+    #chat {
+      top: 100%;
+    }
+  }
+}
+#app.with-inlineChat {
+  max-height: 658px;
+
+  #game {
+    height: calc(100% - 106px);
+  }
+
+  #chat {
+    bottom: 0;
+  }
+
+  &:not(.chat-opening):not(.chat-open) {
+    #chat {
+      height: 106px;
+
+      .new-message {
+        position: absolute;
+        // use 'bottom' so that box can increase in height upward, not downward.
+        bottom: 142px;
+        left: 8px;
+        width: 200px;
+      }
+    }
+  }
+
+  &.chat-opening,
+  &.chat-closing {
+    #chat {
+      transition: height 400ms linear;
+    }
+  }
+
+  &.chat-opening,
+  &.chat-open {
+    #chat {
+      height: calc(100% - 20px - 52px);
+      border: 1px solid #804a00;
+      border-bottom: 0 none;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+    }
+  }
+  &.chat-closing {
+    #chat {
+      height: 106px;
+    }
+  }
+}
+
+#app:not(.for-playing) {
+  max-height: 552px;
+
+  #game {
+    BUTTON[name=chat] {
+      display: none;
+    }
+  }
+
+  #chat {
+    display: none;
+  }
+}
+
+#app.for-viewing {
+  BUTTON[name=pass],
+  BUTTON[name=surrender],
+  BUTTON[name=undo] {
+    display: none;
+  }
+}
+
+@media (hover:hover) {
+  #app #game > .buttons BUTTON:not(.selected):enabled:hover {
+    margin: 2px;
+    border-width: 1px;
+  }
 }
 
 /*
  * Sometimes buttons need to be disabled or hidden.
  */
 #app.locked:not(.readonly) {
-  #game-play.buttons BUTTON:not([name=swapbar]) {
+  #game-play.buttons BUTTON:not([name=chat]):not([name=swapbar]) {
     // Make the button appear disabled.
     opacity: 0.4;
     cursor: default;
@@ -360,17 +555,17 @@ BODY {
   }
 }
 
-#app > .buttons BUTTON[name=movebar],
-#app > .buttons BUTTON[name=swapbar],
-.mouse #app > .buttons BUTTON[name=lock],
-#app > .buttons BUTTON.hidden {
+#app #game > .buttons BUTTON[name=movebar],
+#app #game > .buttons BUTTON[name=swapbar],
+.mouse #app #game > .buttons BUTTON[name=lock],
+#app #game > .buttons BUTTON.hidden {
   display: none;
 }
 
 /*
  * Customize the look of game-play buttons.
  */
-#app > .buttons {
+#app #game > .buttons {
   BUTTON[name=select][value=move] {
     background-image: url('https://legacy.taorankings.com/images/move.png');
     border-color: #0088FF;
@@ -402,8 +597,8 @@ BODY {
   100% { box-shadow: none;                     }
 }
 
-#app.locked.gameover > .buttons BUTTON[name=surrender],
-#app:not(.locked) > .buttons BUTTON.ready {
+#app.locked.gameover #game > .buttons BUTTON[name=surrender],
+#app:not(.locked) #game > .buttons BUTTON.ready {
   animation: glow ease-in-out 1s infinite;
 
   /* Intended to override locked surrender button */
@@ -491,19 +686,14 @@ BUTTON:empty {
   display: none;
 }
 
-#game-play {
-  top: 20px;
-}
-#game-settings {
-  bottom: 14px;
-}
-
 A {
   color: #00FFFF;
 }
-A:hover {
-  color: #CCFFFF;
-  text-decoration: underline;
+@media (hover:hover) {
+  A:hover {
+    color: #CCFFFF;
+    text-decoration: underline;
+  }
 }
 
 /*
@@ -515,73 +705,139 @@ A:hover {
  *
  * Buttons are placed low for easier thumb manipulation on phones.
  */
-@media (max-width: 440px) and (max-aspect-ratio: 2/3), (max-width: 381px) {
-  // No longer take up the full height of the page.
-  #app, #field {
-    height: auto;
-  }
-
+@media (max-width: 835px) and (max-aspect-ratio: 2/3), (max-width: 440px) {
   #app {
+    justify-content: flex-end;
+
     // No longer need a max-height on the #app.
     max-height: none;
+    // Don't show the chat below the app.
+    overflow: hidden;
 
-    #field {
+    #game {
       // Stack 'em vertically
+      display: flex;
       flex-direction: column;
+      flex: 0 0 auto;
 
-      #player-n, #player-e {
-        top: 100px;
+      height: auto;
+
+      #field {
+        flex-direction: column;
+        height: auto;
+
+        #player-n, #player-e {
+          top: 100px;
+        }
+
+        .player.active {
+          // Conserve space
+          width: 180px;
+        }
+
+        // No longer place the card in the top-left corner of #field.
+        // Rather, horizontally center the card at the top of #field.
+        #card {
+          position: relative;
+          top: auto;
+          margin: 0 auto;
+        }
+
+        // No longer center the board within the #field.
+        // Rather, it will be placed under the info card.
+        #board {
+          // Give sufficient margin to accommodate player banners
+          margin: 6px 0 24px 0;
+        }
       }
 
-      .player.active {
-        // Conserve space
-        width: 180px;
-      }
-
-      // No longer place the card in the top-left corner of #field.
-      // Rather, horizontally center the card at the top of #field.
-      #card {
-        position: relative;
+      #game-play {
         top: auto;
-        margin: 0 auto;
+
+        BUTTON[name=chat] {
+          display: inline-block;
+        }
+      }
+      #game-settings {
+        bottom: auto;
       }
 
-      // No longer center the board within the #field.
-      // Rather, it will be placed under the info card.
-      #board {
-        // Give sufficient margin to accommodate player banners
-        margin: 6px 0 24px 0;
+      // No longer place the buttons in the top-right corner of #app.
+      // Rather, it will be placed under the #field.
+      .buttons {
+        // Don't show chat behind the buttons.
+        background-color: black;
+        z-index: 30;
+
+        position: relative;
+        padding: 6px;
+        display: none;
+        // Expand to encapsulate the floated buttons
+        overflow: auto;
+
+        // The swapbar button will be used to toggle the button bars.
+        BUTTON[name=chat] {
+          position: absolute;
+
+          // 6px (pad) + 34px (swapbar button) + 6px (pad)
+          right: 46px;
+          bottom: 6px;
+        }
+
+        // The swapbar button will be used to toggle the button bars.
+        BUTTON[name=swapbar] {
+          display: inline-block;
+          position: absolute;
+
+          // Imitate padding.
+          right: 6px;
+          bottom: 6px;
+        }
+      }
+      .buttons.active {
+        display: block;
       }
     }
 
-    #game-play {
-      top: auto;
+    #chat {
+      position: relative;
+      border: 0 none !important;
+      padding-top: 0;
     }
-    #game-settings {
+  }
+
+  #app.with-inlineChat {
+    #game {
+      height: auto;
+    }
+    #chat {
       bottom: auto;
     }
 
-    // No longer place the buttons in the top-right corner of #app.
-    // Rather, it will be placed under the #field.
-    > .buttons {
-      position: relative;
-      padding: 6px;
-      display: none;
-      // Expand to encapsulate the floated buttons
-      overflow: auto;
+    &:not(.chat-opening):not(.chat-open) {
+      #chat {
+        height: 98px;
 
-      // The swapbar button will be used to toggle the button bars.
-      BUTTON[name=swapbar] {
-        display: inline-block;
-        position: absolute;
-
-        // Imitate padding.
-        right: 6px;
-        bottom: 6px;
+        .new-message {
+          display: none;
+        }
       }
     }
-    > .buttons.active {
-      display: block;
+
+    &.chat-opening,
+    &.chat-open {
+      #chat {
+        height: calc(100% - 52px);
+      }
+    }
+    &.chat-closing {
+      #chat {
+        height: 98px;
+
+        .new-message {
+          display: none;
+        }
+      }
     }
   }
 }
@@ -594,64 +850,120 @@ A:hover {
  *
  * Buttons are placed on left/right edge for easier thumb manipulation on phones.
  */
-@media (max-height: 440px) and (min-aspect-ratio: 3/2) {
+@media (max-width: 812px) and (min-aspect-ratio: 5/3) {
   #app {
-    #field {
-      position: absolute;
+    position: absolute !important;
+    height: 200vh;
+    max-height: none;
 
+    #game {
       // No longer 100% width.  Exclude the width of the button bar.
-      width: calc(100% - 52px);
+      width: 100%;
+      height: 100vh;
 
-      // Avoid card overlap by moving board flush to the right.
-      #board {
-        margin: auto 0 auto auto;
-      }
-    }
-
-    > .buttons {
-      top: 0;
-      width: 52px;
-      height: 100%;
-      margin: 0;
-      display: none;
-
-      // Allow moving the bar to the left/right
-      BUTTON[name=movebar] {
-        display: inline-block;
-      }
-
-      // Segregate the menu button from the rest.
-      BUTTON[name=swapbar] {
-        display: inline-block;
+      #field {
         position: absolute;
+        top: 0;
+        width: calc(100% - 52px);
 
-        // Imitate padding
-        right: 6px;
-        bottom: 6px;
+        // Avoid card overlap by moving board flush to the right.
+        #board {
+          margin: auto 0 auto auto;
+        }
+      }
+
+      .buttons {
+        position: fixed;
+        top: 0 !important;
+        width: 52px;
+        height: 100vh;
+        margin: 0;
+        display: none;
+
+        BUTTON[name=chat] {
+          position: absolute;
+          right: 6px;
+          // 6px (padding) + 34px (swapbar button) + 6px (padding)
+          bottom: 46px;
+        }
+
+        // Allow moving the bar to the left/right
+        BUTTON[name=movebar] {
+          display: inline-block;
+        }
+
+        // Segregate the menu button from the rest.
+        BUTTON[name=swapbar] {
+          display: inline-block;
+          position: absolute;
+
+          // Imitate padding
+          right: 6px;
+          bottom: 6px;
+        }
+      }
+      .buttons.active {
+        display: inline-block;
       }
     }
-    > .buttons.active {
-      display: inline-block;
+
+    #chat {
+      top: 100vh !important;
+      width: calc(100% - 46px);
+      height: 100vh !important;
+      margin: 0;
+      border: 0 none !important;
+    }
+  }
+
+  #app.with-popupChat {
+    top: 0;
+
+    &.chat-opening,
+    &.chat-closing {
+      // Slide the chat window from the bottom
+      transition: top 300ms linear;
+    }
+
+    &.chat-opening,
+    &.chat-open {
+      top: -100vh;
+    }
+    &.chat-closing {
+      top: 0;
     }
   }
 
   #app.left {
-    #field {
-      left: 0;
+    #game {
+      #field {
+        left: 0;
+      }
+
+      > .buttons {
+        right: 0;
+      }
     }
 
-    > .buttons {
-      right: 0;
+    #chat {
+      left: 0;
     }
   }
 
   #app.right {
-    #field {
-      right: 0;
+    #game {
+      #field {
+        right: 0;
+      }
+
+      > .buttons {
+        left: 0;
+      }
     }
 
-    > .buttons {
-      left: 0;
+    #chat {
+      left: auto;
+      right: 0;
     }
   }
 }

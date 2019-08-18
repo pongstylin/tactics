@@ -15,7 +15,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "NODE_ENV=production webpack --progress --hide-modules",
     "clean": "rm -f src/data/files/*.json",
-    "bin": "node --experimental-modules --loader ./resolver.mjs --require dotenv/config"
+    "script": "node --experimental-modules --loader ./resolver.mjs --require dotenv/config"
   },
   "author": "Dave Clark",
   "license": "Unlicense",

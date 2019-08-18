@@ -4,6 +4,7 @@ import config from 'config/server.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import adapterFactory from 'data/adapterFactory.js';
+import Room from 'models/Room.js';
 
 const dataAdapter = adapterFactory();
 
@@ -52,14 +53,6 @@ class ChatService extends Service {
     if (!token)
       throw new ServerError(422, 'Required authorization token');
 
-    this.sessions.set(client.id, {
-      playerId: claims.sub,
-      playerName: claims.name,
-    });
-
-    if (!claims.deviceId)
-      throw new ServerError(401, 'Required access token');
-
     let clientPara = this.clientPara.get(client.id) || {};
     let claims;
     
@@ -89,7 +82,7 @@ class ChatService extends Service {
    * become of a participant of an existing room.  However, when a game starts,
    * a room is created with the game participants.
    */
-  async onJoinRoomGroup(client, groupPath, roomId) {
+  async onJoinRoomGroup(client, groupPath, roomId, resume) {
     let clientPara = this.clientPara.get(client.id);
     let playerId = clientPara.playerId;
     let roomPara = this.roomPara.get(roomId);
@@ -124,9 +117,13 @@ class ChatService extends Service {
       },
     });
 
+    let events = room.events;
+    if (resume)
+      events = events.filter(m => m.id > resume.id);
+
     return {
-      players: room.players.map(({id, name}) => { id, name }),
-      messages: room.messages,
+      players: room.players.map(({id, name}) => ({ id, name })),
+      events: events,
     };
   }
 
@@ -173,7 +170,47 @@ class ChatService extends Service {
     });
   }
 
-  onMessageEvent() {
+  onMessageEvent(client, groupPath, messageContent) {
+    let roomId = groupPath.replace(/^\/rooms\//, '');
+    let roomPara = this.roomPara.get(roomId);
+    if (!roomPara)
+      throw new ServerError(403, 'You have not joined the room group');
+
+    let playerId = this.clientPara.get(client.id).playerId;
+    let room = roomPara.room;
+
+    let player = room.players.find(p => p.id === playerId);
+    if (player === null)
+      throw new ServerError(403, 'You are not a member of this room.');
+
+    messageContent = messageContent.trim();
+
+    if (messageContent.length === 0)
+      throw new ServerError(400, 'Required message');
+    if (messageContent.length > 140)
+      throw new ServerError(403, 'The message is too long.');
+
+    // Make the message HTML-safe.
+    messageContent = messageContent
+      .replace('&', '&amp;')
+      .replace('<', '&lt;')
+      .replace('>', '&gt;');
+
+    let message = {
+      player: player,
+      content: messageContent,
+    };
+
+    dataAdapter.pushRoomMessage(room, message).then(() => {
+      this._emit({
+        type: 'event',
+        body: {
+          group: groupPath,
+          type: 'message',
+          data: message,
+        },
+      });
+    });
   }
 
   /*******************************************************************************

@@ -83,32 +83,32 @@ export default class GameClient extends Client {
   }
 
   watchGame(gameId, resume) {
-    return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume)
+    return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume);
   }
   getTurnData() {
-    return this._server.requestAuthorized(this.name, 'getTurnData', [...arguments])
+    return this._server.requestAuthorized(this.name, 'getTurnData', [...arguments]);
   }
   getTurnActions() {
-    return this._server.requestAuthorized(this.name, 'getTurnActions', [...arguments])
+    return this._server.requestAuthorized(this.name, 'getTurnActions', [...arguments]);
   }
   restart() {
-    return this._server.requestAuthorized(this.name, 'restart', [...arguments])
+    return this._server.requestAuthorized(this.name, 'restart', [...arguments]);
   }
 
   postAction(gameId, action) {
     this._server.emitAuthorized(this.name, `/games/${gameId}`, 'action', action);
   }
   undo(gameId) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undo')
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undo');
   }
   acceptUndo(gameId) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept')
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept');
   }
   rejectUndo(gameId) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoReject')
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoReject');
   }
   cancelUndo(gameId) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoCancel')
+    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoCancel');
   }
 
   _onOpen({ data }) {

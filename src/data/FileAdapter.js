@@ -73,9 +73,14 @@ export default class {
   async saveRoom(room) {
     await this._writeFile(`room_${room.id}`, room);
   }
+  async pushRoomMessage(room, message) {
+    room.pushMessage(message);
+
+    return this.saveRoom(room);
+  }
   async getRoom(roomId) {
     let roomData = await this._readFile(`room_${roomId}`);
-    return Player.load(migrate('room', roomData));
+    return Room.load(migrate('room', roomData));
   }
 
   async setPushSubscription(playerId, deviceId, subscription) {

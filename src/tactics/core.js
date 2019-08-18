@@ -5,6 +5,7 @@ import Game from 'tactics/Game.js';
 
 var authClient = clientFactory('auth');
 var gameClient = clientFactory('game');
+var chatClient = clientFactory('chat');
 
 window.Tactics = (function () {
   'use strict';
@@ -20,6 +21,7 @@ window.Tactics = (function () {
     utils:  {},
     authClient: clientFactory('auth'),
     gameClient: clientFactory('game'),
+    chatClient: clientFactory('chat'),
 
     draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};
