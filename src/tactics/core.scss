@@ -22,17 +22,24 @@ BODY {
   padding: 0;
   background-color: black;
   color: #DED8D5;
-  font-family: Verdana;
+  font-family: 'Open Sans', Arial, Verdana;
   font-size: 0.8125em;
 
   -webkit-text-size-adjust: none;
   -webkit-touch-callout: none;
 }
 
+INPUT, BUTTON {
+  font-family: inherit;
+  font-size: inherit;
+}
+
 TEXTAREA {
   // No scrollbars.  The chat TEXTAREA will grow to fit content.
   overflow: hidden;
   resize: none;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 ::-webkit-scrollbar {
@@ -661,8 +668,6 @@ BUTTON {
   border-radius: 8px;
   padding: 4px 8px;
 
-  font-family: Arial;
-  font-size: inherit;
   font-weight: bold;
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
   cursor: pointer;

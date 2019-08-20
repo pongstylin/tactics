@@ -163,6 +163,9 @@ self.addEventListener('fetch', event => {
     return event.respondWith(routeLocalRequest(request));
   if (request.method !== 'GET')
     return event.respondWith(fetch(request));
+  // Google Fonts API disallows CORS requests.
+  if (url.startsWith('https://fonts.googleapis.com/css'))
+    return event.respondWith(fetch(request));
 
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {
