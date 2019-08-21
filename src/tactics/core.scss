@@ -342,6 +342,9 @@ TEXTAREA {
         vertical-align: bottom;  /* removes bottom spacing */
         -webkit-tap-highlight-color: transparent;
       }
+      BUTTON.fa.ready {
+        border-radius: 20px;
+      }
       BUTTON:focus {
         outline: none;
       }
@@ -354,6 +357,14 @@ TEXTAREA {
         opacity: 0.4;
         cursor: default;
       }
+
+      BUTTON[name=chat]::after {
+        position: absolute;
+        top: 0;
+        right: 0;
+        line-height: 1em;
+        content: attr(badge);
+      }
     }
   }
 
@@ -365,7 +376,6 @@ TEXTAREA {
     width: 100%;
 
     flex-direction: column;
-    justify-content: flex-end;
 
     flex: 0 0 auto;
     padding: 8px;
@@ -418,6 +428,8 @@ TEXTAREA {
       padding-left: 4px;
       color: #b08d57;
       font-weight: bold;
+      opacity: 1; // Override Firefox default
+      font-style: italic;
     }
     .new-message:focus::placeholder {
       opacity: 0;
@@ -427,6 +439,8 @@ TEXTAREA {
 
 #app.for-playing.with-popupChat {
   #chat {
+    justify-content: flex-end;
+
     top: 100%;
     left: 0;
     height: calc(100% - 20px - 52px);
@@ -464,6 +478,8 @@ TEXTAREA {
   }
 
   #chat {
+    justify-content: flex-start;
+
     bottom: 0;
   }
 
@@ -603,6 +619,7 @@ TEXTAREA {
 }
 
 #app.locked.gameover #game > .buttons BUTTON[name=surrender],
+#app.locked #game > .buttons BUTTON[name=chat].ready,
 #app:not(.locked) #game > .buttons BUTTON.ready {
   animation: glow ease-in-out 1s infinite;
 

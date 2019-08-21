@@ -7,6 +7,7 @@ Tactics.App = (function ($, window, document) {
   var self = {};
   var gameId = location.search.slice(1).replace(/&.+$/, '');
   var game;
+  var lastSeenEventId;
   var chatMessages = [];
   var undoPopup;
   var timeoutPopup;
@@ -109,6 +110,7 @@ Tactics.App = (function ($, window, document) {
         $app.one('transitionend', () => {
           cancelAnimationFrame(tickRequest);
           $app.toggleClass('chat-open chat-closing');
+          updateChatButton();
         });
 
         $app.addClass('chat-closing');
@@ -118,6 +120,7 @@ Tactics.App = (function ($, window, document) {
         // Sometimes this bubbles up from the #chat
         $app.one('transitionend', () => {
           $app.toggleClass('chat-open chat-opening');
+          updateChatButton();
         });
 
         $app.addClass('chat-opening');
@@ -236,7 +239,7 @@ Tactics.App = (function ($, window, document) {
               return $newMessage.blur();
 
           if (!event.shiftKey && !event.metaKey)
-            Tactics.chatClient.postGameMessage(gameId, message).then(() => {
+            Tactics.chatClient.postMessage(gameId, message).then(() => {
               $newMessage.val('');
               $newMessage.trigger('input');
             });
@@ -297,6 +300,8 @@ Tactics.App = (function ($, window, document) {
 
     initGame()
       .then(g => {
+        $('#splash').show();
+
         game = g;
         game.state.on('playerStatus', resetPlayerBanners);
 
@@ -307,13 +312,14 @@ Tactics.App = (function ($, window, document) {
 
           let chatClient = Tactics.chatClient;
           let groupId = `/rooms/${gameId}`;
+          let playerId = Tactics.authClient.playerId;
 
           chatClient.on('open', ({ data }) => {
             if (data.reason !== 'reset') return;
 
             let resume = chatMessages.last ? chatMessages.last.id : null;
 
-            chatClient.joinGameChat(gameId, { id:resume }).then(({ events }) => {
+            chatClient.joinChat(gameId, { id:resume }).then(({ events }) => {
               appendMessages(events.filter(e => e.type === 'message'));
             });
           });
@@ -326,14 +332,18 @@ Tactics.App = (function ($, window, document) {
             appendMessages(message);
           });
 
-          chatClient.joinGameChat(gameId).then(({ events }) => {
+          return chatClient.joinChat(gameId).then(({ players, events }) => {
+            lastSeenEventId = players
+              .find(p => p.id === playerId).lastSeenEventId;
+
             initMessages(events.filter(e => e.type === 'message'));
+
+            loadThenStartGame();
           });
         }
         else
           $('#app').addClass('for-practice');
 
-        $('#splash').show();
         loadThenStartGame();
       })
       .catch(error => {
@@ -346,6 +356,7 @@ Tactics.App = (function ($, window, document) {
         else if (error.code === 429)
           $('#error').text("Loading games too quickly");
 
+        $('#splash').hide();
         $('#join').hide();
         $('#error').show();
       });
@@ -372,6 +383,8 @@ Tactics.App = (function ($, window, document) {
     // Useful for orientation changes
     $('#messages').scrollTop($('#messages').prop('scrollHeight'));
     $('#chat .new-message').trigger('input');
+
+    setTimeout(updateChatButton);
   });
 
   function initGame() {
@@ -420,6 +433,8 @@ Tactics.App = (function ($, window, document) {
 
     let $messages = $('#messages');
     $messages.scrollTop($messages.prop('scrollHeight'));
+
+    updateChatButton();
   }
   function renderMessage(message) {
     $('#messages').append(`
@@ -546,6 +561,30 @@ Tactics.App = (function ($, window, document) {
     }
   }
 
+  function updateChatButton() {
+    if (!chatMessages.length) return;
+
+    let playerId = Tactics.authClient.playerId;
+    let $button = $('BUTTON[name=chat]');
+
+    if ($('#app').is('.show.with-inlineChat, .chat-open')) {
+      $button.removeClass('ready').attr('badge', '');
+
+      if (lastSeenEventId < chatMessages.last.id) {
+        lastSeenEventId = chatMessages.last.id;
+
+        Tactics.chatClient.seen(gameId, lastSeenEventId);
+      }
+    }
+    else {
+      if (chatMessages.last.player.id !== playerId)
+        $button.attr('badge', '+');
+      else
+        $button.attr('badge', '');
+
+      $button.toggleClass('ready', chatMessages.last.id > lastSeenEventId);
+    }
+  }
   function resetPlayerBanners() {
     let board = game.board;
     let degree = board.getDegree('N', board.rotation);
@@ -668,7 +707,7 @@ Tactics.App = (function ($, window, document) {
         $('#loader')
           .addClass('complete')
           .one('click', () => {
-            $('#loader .message').text('One moment...');
+            $('#splash .message').text('One moment...');
 
             game.start().then(() => {
               resetPlayerBanners();
@@ -729,7 +768,7 @@ Tactics.App = (function ($, window, document) {
 
     let undoRequest = game.state.undoRequest;
     let teams = game.teams;
-    let myTeam = teams.find(t => game.isMyTeam(t));
+    let myTeam = game.myTeam;
     let requestor = teams[undoRequest.teamId];
     let popupData = {
       buttons: [],

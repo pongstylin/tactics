@@ -30,11 +30,14 @@ export default class ChatClient extends Client {
       this._emit({ type:'open', data:{ reason:'new' }});
   }
 
-  joinGameChat(gameId, resume) {
-    return this._server.joinAuthorized(this.name, `/rooms/${gameId}`, resume);
+  joinChat(roomId, resume) {
+    return this._server.joinAuthorized(this.name, `/rooms/${roomId}`, resume);
   }
-  postGameMessage(gameId, message) {
-    return this._server.emitAuthorized(this.name, `/rooms/${gameId}`, 'message', message);
+  postMessage(roomId, message) {
+    return this._server.emitAuthorized(this.name, `/rooms/${roomId}`, 'message', message);
+  }
+  seen(roomId, eventId) {
+    return this._server.emitAuthorized(this.name, `/rooms/${roomId}`, 'seen', eventId);
   }
 
   _onOpen({ data }) {

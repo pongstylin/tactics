@@ -29,6 +29,7 @@ export default class Room {
         id: eventId++,
         type: 'join',
         player: player,
+        lastSeenEventId: 0,
         createdAt: data.createdAt,
       });
     });
@@ -40,9 +41,9 @@ export default class Room {
     if (typeof data.createdAt === 'string')
       data.createdAt = new Date(data.createdAt);
 
-    data.events.forEach(event => {
-      if (typeof event.createdAt === 'string')
-        data.createdAt = new Date(event.createdAt);
+    data.events.forEach(evt => {
+      if (typeof evt.createdAt === 'string')
+        evt.createdAt = new Date(evt.createdAt);
     });
 
     return new Room(data);
@@ -57,10 +58,19 @@ export default class Room {
     let events = this.events;
 
     events.push(Object.assign(message, {
-      id: ++events.last.id,
+      id: events.last.id + 1,
       type: 'message',
       createdAt: new Date(),
     }));
+
+    this.seenEvent(message.player.id, events.last.id);
+  }
+  seenEvent(playerId, eventId) {
+    let player = this.players.find(p => p.id === playerId);
+    if (!player)
+      throw new Error('The player ID does not exist in this room');
+
+    player.lastSeenEventId = eventId;
   }
 
   toJSON() {

@@ -122,7 +122,8 @@ class ChatService extends Service {
       events = events.filter(m => m.id > resume.id);
 
     return {
-      players: room.players.map(({id, name}) => ({ id, name })),
+      players: room.players
+        .map(({id, name, lastSeenEventId}) => ({id, name, lastSeenEventId})),
       events: events,
     };
   }
@@ -171,17 +172,11 @@ class ChatService extends Service {
   }
 
   onMessageEvent(client, groupPath, messageContent) {
-    let roomId = groupPath.replace(/^\/rooms\//, '');
+    let roomId = groupPath.replace('/rooms/', '');
     let roomPara = this.roomPara.get(roomId);
-    if (!roomPara)
-      throw new ServerError(403, 'You have not joined the room group');
-
-    let playerId = this.clientPara.get(client.id).playerId;
     let room = roomPara.room;
-
+    let playerId = this.clientPara.get(client.id).playerId;
     let player = room.players.find(p => p.id === playerId);
-    if (player === null)
-      throw new ServerError(403, 'You are not a member of this room.');
 
     messageContent = messageContent.trim();
 
@@ -208,6 +203,29 @@ class ChatService extends Service {
           group: groupPath,
           type: 'message',
           data: message,
+        },
+      });
+    });
+  }
+  onSeenEvent(client, groupPath, eventId) {
+    let roomId = groupPath.replace('/rooms/', '');
+    let roomPara = this.roomPara.get(roomId);
+    let room = roomPara.room;
+    let playerId = this.clientPara.get(client.id).playerId;
+    let player = room.players.find(p => p.id === playerId);
+
+    if (eventId > room.events.last.id)
+      eventId = room.events.last.id;
+    if (eventId === player.lastSeenEventId)
+      return;
+
+    dataAdapter.seenRoomEvent(room, playerId, eventId).then(() => {
+      this._emit({
+        type: 'event',
+        body: {
+          group: groupPath,
+          type: 'seen',
+          data: { player, eventId },
         },
       });
     });

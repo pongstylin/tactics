@@ -276,7 +276,7 @@ export default class {
   }
 
   get teams() {
-    return this._teams;
+    return this._teams.length ? this._teams : this.state.teams;
   }
   get activeTeams() {
     return this._teams.filter(team => !!team.units.length);
@@ -295,6 +295,18 @@ export default class {
         return true;
       })
     );
+  }
+  /*
+   * Find first team in play order starting with current team that is my team.
+   */
+  get myTeam() {
+    let currentTeamId = this.state.currentTeamId;
+    let teams = this.teams;
+    teams = teams
+      .slice(this.state.currentTeamId)
+      .concat(teams.slice(0, this.state.currentTeamId));
+
+    return teams.find(t => this.isMyTeam(t));
   }
   get currentTeam() {
     return this._teams[this.state.currentTeamId];

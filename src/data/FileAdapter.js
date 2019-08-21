@@ -78,6 +78,11 @@ export default class {
 
     return this.saveRoom(room);
   }
+  async seenRoomEvent(room, playerId, eventId) {
+    room.seenEvent(playerId, eventId);
+
+    return this.saveRoom(room);
+  }
   async getRoom(roomId) {
     let roomData = await this._readFile(`room_${roomId}`);
     return Room.load(migrate('room', roomData));
