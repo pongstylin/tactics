@@ -254,12 +254,11 @@ Tactics.App = (function ($, window, document) {
           $newMessage[0].focus({ preventScroll:true });
         }
       })
-      .on('blur', '#chat .new-message', event => {
-        setTimeout(() => {
-          let $newMessage = $('#chat.active .new-message');
-          if ($newMessage.length)
-            $newMessage[0].focus({ preventScroll:true });
-        });
+      .on('focus', '#chat .new-message', () => {
+        $('#app').addClass('chat-input-mode');
+      })
+      .on('blur', '#chat .new-message', () => {
+        $('#app').removeClass('chat-input-mode');
       });
 
     $('#chat').on('transitionend', ({ originalEvent:event }) => {

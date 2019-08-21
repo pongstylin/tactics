@@ -370,12 +370,11 @@ TEXTAREA {
 
   #chat {
     display: flex;
-    position: absolute;
+    flex-direction: column;
 
+    position: absolute;
     box-sizing: border-box;
     width: 100%;
-
-    flex-direction: column;
 
     flex: 0 0 auto;
     padding: 8px;
@@ -435,12 +434,14 @@ TEXTAREA {
       opacity: 0;
     }
   }
+
+  &.chat-opening, &.chat-open, &.chat-closing {
+    #chat { justify-content: flex-end }
+  }
 }
 
 #app.for-playing.with-popupChat {
   #chat {
-    justify-content: flex-end;
-
     top: 100%;
     left: 0;
     height: calc(100% - 20px - 52px);
@@ -478,8 +479,6 @@ TEXTAREA {
   }
 
   #chat {
-    justify-content: flex-start;
-
     bottom: 0;
   }
 
@@ -717,11 +716,10 @@ A {
 }
 
 /*
- * Vertical Layout
- *   Use this layout for portrait orientation.
+ * Portrait Layout
  *   Useful when narrow width causes the board and info card to overlap.
  *   Useful when excess vertical space is available.
- *   Required when card and buttons overlap (width < 382px).
+ *   Required when card and buttons overlap (width < 440px).
  *
  * Buttons are placed low for easier thumb manipulation on phones.
  */
@@ -739,7 +737,6 @@ A {
 
       #field {
         flex-direction: column;
-        height: auto;
 
         #player-n, #player-e {
           top: 100px;
@@ -811,7 +808,6 @@ A {
     }
 
     #chat {
-      position: relative;
       border: 0 none !important;
       padding-top: 0;
     }
@@ -828,8 +824,11 @@ A {
 
     #game {
       height: auto;
+
+      #field { height:auto }
     }
     #chat {
+      position: relative;
       bottom: auto;
     }
 
@@ -859,11 +858,39 @@ A {
       }
     }
   }
+
+  #app.for-playing.with-popupChat {
+    position: absolute !important;
+    top: 0;
+    height: 200%;
+    max-height: none;
+
+    #game {
+      height: 50% !important;
+    }
+    #chat {
+      top: calc(50% + 52px) !important;
+      height: calc(50% - 52px) !important;
+    }
+
+    &.chat-opening,
+    &.chat-closing {
+      // Slide the chat window from the bottom
+      transition: top 300ms linear;
+    }
+
+    &.chat-opening,
+    &.chat-open {
+      top: -100%;
+    }
+    &.chat-closing {
+      top: 0;
+    }
+  }
 }
 
 /*
- * Horizontal Layout
- *   Use this layout for landscape orientation.
+ * Landscape Layout
  *   Useful when narrow height causes the board and info card to overlap.
  *   Useful when excess horizontal space is available.
  *
@@ -872,13 +899,12 @@ A {
 @media (max-width: 812px) and (min-aspect-ratio: 5/3) {
   #app {
     #game {
-      // No longer 100% width.  Exclude the width of the button bar.
       width: 100%;
-      height: 100vh;
 
       #field {
         position: absolute;
         top: 0;
+        // Override 100% width by excluding the width of the button bar.
         width: calc(100% - 52px);
 
         // Avoid card overlap by moving board flush to the right.
@@ -891,14 +917,14 @@ A {
         position: fixed;
         top: 0 !important;
         width: 52px;
-        height: 100vh;
+        height: 100%;
         margin: 0;
         display: none;
 
         BUTTON[name=chat] {
           position: absolute;
           right: 6px;
-          // 6px (padding) + 34px (swapbar button) + 6px (padding)
+          // 40px (swapbar button) + 6px padding
           bottom: 46px;
         }
 
@@ -923,19 +949,28 @@ A {
     }
 
     #chat {
-      top: 100vh !important;
       width: calc(100% - 46px);
-      height: 100vh !important;
       margin: 0;
       border: 0 none !important;
+    }
+    &.chat-input-mode {
+      #game .buttons { display:none }
+      #chat { width:100% }
     }
   }
 
   #app.for-playing.with-popupChat {
     position: absolute !important;
     top: 0;
-    height: 200vh;
+    height: 200%;
     max-height: none;
+
+    #game, #chat {
+      height: 50% !important;
+    }
+    #chat {
+      top: 50% !important;
+    }
 
     &.chat-opening,
     &.chat-closing {
@@ -945,7 +980,7 @@ A {
 
     &.chat-opening,
     &.chat-open {
-      top: -100vh;
+      top: -100%;
     }
     &.chat-closing {
       top: 0;
