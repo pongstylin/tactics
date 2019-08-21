@@ -51,7 +51,7 @@ class AuthService extends Service {
     this.sessions.set(client.id, { token, player, device });
   }
 
-  onRegisterRequest(client, playerData) {
+  async onRegisterRequest(client, playerData) {
     let session = this.sessions.get(client.id) || {};
     let now = new Date();
 
@@ -68,7 +68,7 @@ class AuthService extends Service {
      */
     this.throttle(client.address, 'register', 1, 60);
 
-    let player = dataAdapter.createPlayer(playerData);
+    let player = await dataAdapter.createPlayer(playerData);
     let device = player.addDevice({
       agents: new Map([[
         client.agent, 
@@ -77,9 +77,7 @@ class AuthService extends Service {
     });
     device.token = player.createAccessToken(device.id);
 
-    dataAdapter.savePlayer(player);
-
-    return device.token;
+    return dataAdapter.savePlayer(player).then(() => device.token);
   }
 
   onCreateIdentityTokenRequest(client) {
@@ -90,9 +88,7 @@ class AuthService extends Service {
     let player = session.player;
     player.identityToken = player.createIdentityToken();
 
-    dataAdapter.savePlayer(player);
-
-    return player.identityToken;
+    return dataAdapter.savePlayer(player).then(() => player.identityToken);
   }
   onRevokeIdentityTokenRequest(client) {
     let session = this.sessions.get(client.id) || {};
