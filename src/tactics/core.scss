@@ -358,12 +358,21 @@ TEXTAREA {
         cursor: default;
       }
 
-      BUTTON[name=chat]::after {
-        position: absolute;
-        top: 0;
-        right: 0;
-        line-height: 1em;
-        content: attr(badge);
+      BUTTON[name=chat] {
+        position: relative;
+
+        &::after {
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 16px;
+          height: 16px;
+          font-family: 'Open Sans';
+          font-size: 16px;
+          line-height: 16px;
+          text-align: center;
+          content: attr(badge);
+        }
       }
     }
   }

@@ -716,6 +716,7 @@ Tactics.App = (function ($, window, document) {
 
               $('#splash').hide();
               $('#app').addClass('show');
+              updateChatButton();
             });
           })
           .find('.message')
