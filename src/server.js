@@ -31,6 +31,13 @@ app.use(morgan(':date[iso] express [:id] response-out: status=:status; delay=:re
   immediate: false,
 }));
 
+app.use(express.json());
+
+app.post('/errors', (req, res) => {
+  console.log('client errors:', req.body);
+  res.send(true);
+});
+
 app.use(express.static('static'));
 
 // Don't start listening for connections until the router is ready.

@@ -14,6 +14,7 @@
 // the change can break the app, it should be referenced here.
 const APP_FILES = [
   '/',
+  '/errors.js',
   '/install.js',
   '/tactics.min.js',
 
