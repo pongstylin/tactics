@@ -6,7 +6,7 @@ if (window.sessionStorage) {
     reportErrors(JSON.stringify(logs));
 }
 
-window.onerror = (message, source, lineno, colno, error) => {
+window.onerror = function (message, source, lineno, colno, error) {
   try {
     logs.push({
       createdAt: new Date(),
@@ -33,7 +33,7 @@ window.onerror = (message, source, lineno, colno, error) => {
   }
 };
 
-window.onunhandledrejection = event => {
+window.onunhandledrejection = function (event) {
   try {
     var log = {
       createdAt: new Date(),
@@ -74,12 +74,12 @@ function reportErrors(data) {
     url: '/errors',
     contentType: 'application/json',
     data: data,
-  }).done(() => {
+  }).done(function () {
     if (window.sessionStorage)
       window.sessionStorage.removeItem('logs');
     logs.length = 0;
-  }).fail(() => {
-    setTimeout(() => {
+  }).fail(function () {
+    setTimeout(function () {
       if (window.sessionStorage)
         data = window.sessionStorage.getItem('logs');
       if (data)
