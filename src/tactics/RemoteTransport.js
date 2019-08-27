@@ -34,10 +34,10 @@ export default class RemoteTransport {
         this._emit(body);
       })
       .on('open', ({ data }) => {
-        if (data.reason === 'reset')
-          this._reset(data.outbox);
-        else
+        if (data.reason === 'resume')
           this._resume();
+        else
+          this._reset(data.outbox);
       })
       .on('close', () => {
         let myPlayerId = authClient.playerId;
@@ -245,6 +245,8 @@ export default class RemoteTransport {
         // But 'complete' will result in hiding the dialog, if any.
         this._emit({ type:'undoComplete' });
       }
+
+      if (!outbox) return;
 
       // Resend specific lost messages
       outbox.forEach(message => {

@@ -119,7 +119,10 @@ export default class ServerSocket {
     this._socket = null;
     this._session.open = false;
 
-    console.warn(`Connection closed: [${code}] ${reason}`);
+    let reopen = code < CLOSE_SHUTDOWN;
+
+    if (reopen)
+      console.warn(`Connection closed: [${code}] ${reason}`);
 
     socket.removeEventListener('message', this._messageListener);
     socket.removeEventListener('close', this._closeListener);
@@ -136,10 +139,10 @@ export default class ServerSocket {
     // Notify clients that messages are being queued.
     this._emit({ type:'close' });
 
-    if (code === CLOSE_ABNORMAL) this.open();
-    else if (code === CLOSE_CLIENT_TIMEOUT) this.open();
-    else if (code === CLOSE_SERVER_TIMEOUT) this.open();
-    else this._resetSession();
+    if (reopen)
+      this.open();
+    else
+      this._resetSession();
   }
 
   /*****************************************************************************

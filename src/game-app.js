@@ -314,7 +314,7 @@ Tactics.App = (function ($, window, document) {
           let playerId = Tactics.authClient.playerId;
 
           chatClient.on('open', ({ data }) => {
-            if (data.reason !== 'reset') return;
+            if (data.reason === 'resume') return;
 
             let resume = chatMessages.last ? chatMessages.last.id : null;
 
