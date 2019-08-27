@@ -30,7 +30,9 @@ if ('serviceWorker' in navigator) {
        * If no update was found automatically within 30 seconds, manually check.
        */
       if (!reg.installing) {
-        let checkUpdate = setTimeout(() => reg.update(), 30000);
+        // The manual update returns a promise that is rejected if the update
+        // failed due to lack of connectivity.  Ignore the rejection.
+        let checkUpdate = setTimeout(() => reg.update().catch(() => {}), 30000);
         reg.addEventListener('updatefound', () => clearTimeout(checkUpdate));
       }
 

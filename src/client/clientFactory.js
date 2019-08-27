@@ -1,4 +1,4 @@
-import ServerSocket from 'client/ServerSocket.js';
+import ServerSocket, { CLOSE_INACTIVE } from 'client/ServerSocket.js';
 import AuthClient from 'client/AuthClient.js';
 import GameClient from 'client/GameClient.js';
 import ChatClient from 'client/ChatClient.js';
@@ -49,3 +49,21 @@ export default serviceName => {
 
   return clients.get(serviceName);
 };
+
+let terminating = false;
+
+window.addEventListener('pagehide', event => {
+  terminating = !event.persisted;
+});
+
+document.addEventListener('visibilitychange', event => {
+  // When possible, detect when the document is hidden as the result of closing
+  // or navigating away from the page.  This allows the server to receive the
+  // right WebSocket termination code (CLOSE_GOING_AWAY) when this event occurs.
+  if (terminating) return;
+
+  if (document.hidden)
+    sockets.forEach(s => s.close(CLOSE_INACTIVE));
+  else
+    sockets.forEach(s => s.open());
+});

@@ -32,9 +32,12 @@ export default Promise.all(
 
 const CLOSE_GOING_AWAY     = 1001;
 
-// Proprietary codes
+// Proprietary codes used by server
 const CLOSE_CLIENT_TIMEOUT = 4000;
 const CLOSE_REPLACED       = 4001;
+
+// Proprietary codes used by client
+const CLOSE_SERVER_TIMEOUT = 4100;
 
 let debug = DebugLogger('service:router');
 // Verbose debug logger
@@ -456,7 +459,7 @@ function closeClient(client, code, reason) {
 
   let session = client.session;
   if (session)
-    if (code === CLOSE_GOING_AWAY)
+    if (code === CLOSE_GOING_AWAY || code > CLOSE_SERVER_TIMEOUT)
       deleteSession(session);
     else if (code !== CLOSE_REPLACED)
       closeSession(session);
