@@ -1,7 +1,6 @@
 import 'pixi.js';
 import 'howler';
 import 'plugins/array.js';
-import 'plugins/promise.js';
 
 import 'utils/WebResource.js'
 import 'utils/event.js';

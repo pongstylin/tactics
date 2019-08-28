@@ -1,5 +1,3 @@
-'use strict';
-
 import EventEmitter from 'events';
 import PanZoom from 'utils/panzoom.js';
 
@@ -1478,7 +1476,11 @@ export default class {
       board.setState(turnData.units, teams);
       this.render();
 
-      return Promise.wait(1000).then(() => replayActions(turnData.actions));
+      return new Promise(resolve => {
+        setTimeout(() => {
+          resolve(replayActions(turnData.actions));
+        }, 1000);
+      });
     });
   }
   _startTurn(teamId) {
