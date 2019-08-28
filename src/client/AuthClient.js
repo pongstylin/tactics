@@ -198,6 +198,15 @@ export default class AuthClient extends Client {
       return null;
 
     let response = await fetch(LOCAL_ENDPOINT);
+    // Log evidence described a user visiting the site and registering service
+    // worker for the first time.  Somehow, the above 'controller' check passed,
+    // but the fetch to the local endpoint was not handled by the controller.
+    // The request either bypassed or passed through the service worker and was
+    // received by the server, which returned a 404 error.  An error was thrown
+    // by 'response.json' since the response was not in JSON format.  The root
+    // cause escapes me, but the next line handles this condition.
+    if (!response.ok) return null;
+
     let json = await response.json();
 
     return json.token ? new Token(json.token) : null;
