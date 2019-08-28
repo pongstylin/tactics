@@ -88,7 +88,10 @@ window.addEventListener('DOMContentLoaded', () => {
     let spnCopy = event.target.closest('.copy');
     if (spnCopy) {
       copy(link);
-      popup({ message:'Game link copied to clipboard.' });
+      popup({
+        message:'Copied the game link.  Paste the link to invite using your app of choice.',
+        minWidth: '250px',
+      });
       return;
     }
 
@@ -98,6 +101,18 @@ window.addEventListener('DOMContentLoaded', () => {
         title: 'Tactics',
         text: 'Want to play?',
         url: link,
+      }).catch(error => {
+        copy(link);
+        if (error.message.startsWith('Internal error:'))
+          popup({
+            message: 'Copied the game link since app sharing failed.  Paste the link to invite using your app of choice.',
+            minWidth: '250px',
+          });
+        else
+          popup({
+            message: 'Copied the game link since app sharing was cancelled.  Paste the link to invite using your app of choice.',
+            minWidth: '250px',
+          });
       });
       return;
     }
