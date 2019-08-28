@@ -217,6 +217,7 @@ export default class RemoteTransport {
   }
   _reset(outbox) {
     if (!this._data) return;
+    if (this._data.state.ended) return;
 
     let gameId = this._data.id;
     let resume = {
