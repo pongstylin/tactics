@@ -316,13 +316,16 @@ TEXTAREA {
 
       position: absolute;
       right: 0;
+
+      flex: 0 0 auto;
       box-sizing: border-box;
-      background-color: transparent;
       margin: 0;
       padding: 6px;
+
+      background-color: transparent;
       font-size: 18px;
       text-align: left;
-      flex: 0 0 auto;
+      pointer-events: none;
 
       BUTTON {
         display: block; /* collapse whitespace */
@@ -534,7 +537,8 @@ TEXTAREA {
 #app:not(.for-playing) {
   #game {
     BUTTON[name=chat] {
-      display: none;
+      visibility: hidden;
+      pointer-events: none;
     }
   }
 
