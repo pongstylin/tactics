@@ -1,5 +1,6 @@
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
+import share from 'components/share.js';
 
 Tactics.App = (function ($, window, document) {
   'use strict';
@@ -488,13 +489,13 @@ Tactics.App = (function ($, window, document) {
     container.innerHTML = shareLink;
     container.addEventListener('click', event => {
       if (navigator.share)
-        navigator.share({
+        share({
           title: 'Tactics',
           text: 'Want to play?',
           url: link,
         }).catch(error => {
           copy(link);
-          if (error.message.startsWith('Internal error:'))
+          if (error.name === 'InternalError')
             popup({
               message: 'Copied the game link since app sharing failed.  Paste the link to invite using your app of choice.',
               minWidth: '250px',

@@ -3,6 +3,7 @@ import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
+import share from 'components/share.js';
 
 let authClient = clientFactory('auth');
 let gameClient = clientFactory('game');
@@ -97,13 +98,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     let spnShare = event.target.closest('.share');
     if (spnShare) {
-      navigator.share({
+      share({
         title: 'Tactics',
         text: 'Want to play?',
         url: link,
       }).catch(error => {
         copy(link);
-        if (error.message.startsWith('Internal error:'))
+        if (error.name === 'InternalError')
           popup({
             message: 'Copied the game link since app sharing failed.  Paste the link to invite using your app of choice.',
             minWidth: '250px',
