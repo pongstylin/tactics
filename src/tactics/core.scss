@@ -311,7 +311,9 @@ TEXTAREA {
       bottom: 16px;
     }
     .buttons {
-      display: block;
+      display: flex;
+      flex-direction: row;
+
       position: absolute;
       right: 0;
       box-sizing: border-box;
@@ -323,24 +325,24 @@ TEXTAREA {
       flex: 0 0 auto;
 
       BUTTON {
-        // Collapse whitespace
-        display: block;
-        float: left;
+        display: block; /* collapse whitespace */
+        flex: 0 0 auto;
 
-        background: none no-repeat center transparent;
         box-sizing: content-box;
-        color: #DED8D5;
-        width: 34px;
-        height: 34px;
         margin: 3px;
         border: 0 solid #DED8D5;
         padding: 0;
-        cursor: pointer;
+        width: 34px;
+        height: 34px;
+
+        background: none no-repeat center transparent;
+        color: #DED8D5;
         font-size: 18px;
         line-height: 34px;
         text-align: center;
         vertical-align: bottom;  /* removes bottom spacing */
         -webkit-tap-highlight-color: transparent;
+        cursor: pointer;
       }
       BUTTON.fa.ready {
         border-radius: 20px;
@@ -788,37 +790,44 @@ A {
 
         position: relative;
         padding: 6px;
+
         display: none;
-        // Expand to encapsulate the floated buttons
-        overflow: auto;
+        overflow-y: hidden;
+        overflow-x: auto;
 
-        // The swapbar button will be used to toggle the button bars.
-        BUTTON[name=chat] {
-          position: absolute;
-
-          // 6px (pad) + 34px (swapbar button) + 6px (pad)
-          right: 46px;
-          bottom: 6px;
+        BUTTON {
+          flex: 0 0 auto;
         }
-
-        // The swapbar button will be used to toggle the button bars.
+        BUTTON[name=chat] {
+          order: 10;
+        }
         BUTTON[name=swapbar] {
           display: inline-block;
-          position: absolute;
-
-          // Imitate padding.
-          right: 6px;
-          bottom: 6px;
+          order: 11;
         }
       }
       .buttons.active {
-        display: block;
+        display: flex;
       }
     }
 
     #chat {
       border: 0 none !important;
       padding-top: 0;
+    }
+  }
+
+  @media (min-width: 292px) {
+    // The chat and swapbar button are aligned to the right
+    #game-play {
+      BUTTON[name=chat] {
+        margin-left: auto !important;
+      }
+    }
+    #game-settings {
+      BUTTON[name=swapbar] {
+        margin-left: auto !important;
+      }
     }
   }
 
@@ -928,32 +937,28 @@ A {
         width: 52px;
         height: 100%;
         margin: 0;
-        display: none;
 
-        BUTTON[name=chat] {
-          position: absolute;
-          right: 6px;
-          // 40px (swapbar button) + 6px padding
-          bottom: 46px;
-        }
+        display: none;
+        flex-direction: column;
+        overflow-y: auto;
+        overflow-x: hidden;
 
         // Allow moving the bar to the left/right
         BUTTON[name=movebar] {
           display: inline-block;
         }
 
-        // Segregate the menu button from the rest.
+        // The chat and swapbar buttons are aligned to the bottom
+        BUTTON[name=chat] {
+          order: 10;
+        }
         BUTTON[name=swapbar] {
           display: inline-block;
-          position: absolute;
-
-          // Imitate padding
-          right: 6px;
-          bottom: 6px;
+          order: 11;
         }
       }
       .buttons.active {
-        display: inline-block;
+        display: flex;
       }
     }
 
@@ -965,6 +970,19 @@ A {
     &.chat-input-mode {
       #game .buttons { display:none }
       #chat { width:100% }
+    }
+  }
+
+  @media (min-height: 292px) {
+    #game-play {
+      BUTTON[name=chat] {
+        margin-top: auto !important;
+      }
+    }
+    #game-settings {
+      BUTTON[name=swapbar] {
+        margin-top: auto !important;
+      }
     }
   }
 
