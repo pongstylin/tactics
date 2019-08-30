@@ -315,12 +315,10 @@ export default class {
       });
 
     // Once all write locks on this file are released, remove from memory.
-    lock.current.finally(() => {
+    return lock.current = lock.current.finally(() => {
       if (--lock.count === 0)
         this._locks.delete(name);
     });
-
-    return lock.current;
   }
   async _createFile(name, data) {
     let fqName = `${filesDir}/${name}.json`;

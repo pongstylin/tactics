@@ -50,13 +50,15 @@ class GameService extends Service {
       throw new ServerError(401, 'Token is expired');
   }
 
-  dropClient(client) {
+  async dropClient(client) {
     let clientPara = this.clientPara.get(client.id);
     if (!clientPara) return;
 
     if (clientPara.joinedGroups)
-      clientPara.joinedGroups.forEach(game =>
-        this.onLeaveGameGroup(client, `/games/${game.id}`, game.id)
+      await Promise.all(
+        [...clientPara.joinedGroups.values()].map(game =>
+          this.onLeaveGameGroup(client, `/games/${game.id}`, game.id)
+        )
       );
 
     let playerPara = this.playerPara.get(clientPara.playerId);
