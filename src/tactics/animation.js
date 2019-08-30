@@ -158,7 +158,7 @@
         else if (!(anim instanceof Tactics.Animation))
           anim = new Tactics.Animation({frames:[anim]});
 
-        offsets.forEach((offset, i) => {
+        offsets.forEach(offset => {
           if (offset > frames.length) throw 'Start index too high';
           if (offset < 0) {
             offset = frames.length + offset;
