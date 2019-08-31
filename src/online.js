@@ -51,7 +51,7 @@ window.addEventListener('DOMContentLoaded', () => {
        * Get 50 of the most recent games.  Once the player creates or plays more
        * than 50 games, the oldest ones will drop out of view.
        */
-      gameClient.searchMyGames({ limit:50, sort:'updated' })
+      gameClient.searchMyGames({ limit:50, sort:{ field:'updated', order:'desc' } })
         .then(result => renderGames(result.hits))
         .catch(error => {
           divNotice.textContent = 'Sorry!  There was an error while loading your games.';

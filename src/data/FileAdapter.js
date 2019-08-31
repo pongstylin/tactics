@@ -485,12 +485,20 @@ export default class {
 
     if (typeof sort === 'string')
       return (a, b) => this._sortItemsByField(a, b, sort);
+    else if (Array.isArray(sort))
+      throw new ServerError(501, 'Sorting by multiple fields is not supported');
+    else if (sort !== null && typeof sort === 'object') {
+      if (sort.order === 'desc')
+        return (a, b) => this._sortItemsByField(b, a, sort.field);
+      else
+        return (a, b) => this._sortItemsByField(a, b, sort.field);
+    }
     else
-      throw new ServerError(501, 'Only a string sort type is supported');
+      throw new ServerError(400, 'Unexpected sort data type');
   }
-  _sortItemsByField(a, b, str) {
-    if (a[str] < b[str]) return -1;
-    if (b[str] < a[str]) return 1;
+  _sortItemsByField(a, b, field) {
+    if (a[field] < b[field]) return -1;
+    if (b[field] < a[field]) return 1;
     return 0;
   }
 };
