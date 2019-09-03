@@ -897,6 +897,11 @@ export default class {
         resources.push(effect_url);
 
         effects[effect_url] = $.getJSON(effect_url).then(renderData => {
+          // Preload data URIs.
+          renderData.images.forEach(image_url => {
+            PIXI.BaseTexture.from(image_url);
+          });
+
           progress();
           return renderData;
         });
@@ -913,6 +918,12 @@ export default class {
 
     tacticsUtils.getWebResourceJSON(trophy_url).then(renderData => {
       Object.assign(unitDataMap.get('Champion'), renderData);
+
+      // Preload data URIs.
+      renderData.images.forEach(image_url => {
+        PIXI.BaseTexture.from(image_url);
+      });
+
       progress();
     });
 
@@ -961,6 +972,11 @@ export default class {
               resources.push(effect_url);
 
               effects[effect_url] = $.getJSON(effect_url).then(renderData => {
+                // Preload data URIs.
+                renderData.images.forEach(image_url => {
+                  PIXI.BaseTexture.from(image_url);
+                });
+
                 progress();
                 return renderData;
               });
