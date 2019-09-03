@@ -202,6 +202,14 @@ Tactics.App = (function ($, window, document) {
         let $newMessage = $chat.find('.new-message');
         let keyChar = event.key;
 
+        if (keyChar === undefined) {
+          let keyCode = event.which || event.keyCode;
+          if (keyCode === 13)
+            keyChar = 'Enter';
+          else
+            keyChar = String.fromCharCode(keyCode);
+        }
+
         // Open chat, but otherwise ignore input until input box is ready.
         if ($app.is('.chat-opening'))
           return;

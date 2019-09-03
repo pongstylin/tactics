@@ -606,7 +606,7 @@ export default class {
       else if (type === 'blur') {
         // The tile might not actually be blurred if the blur event was fired in
         // response to the board becoming locked and tile non-interactive
-        if (!this.focusedTile.focused)
+        if (focusedTile && !focusedTile.focused)
           this.focusedTile = null;
       }
 
@@ -1438,10 +1438,15 @@ export default class {
     if (focused && focused.notice)
       focused.change({ notice:null });
 
-    if (this.target)
-      this.hideTargets();
-    else if (mode === 'attack' && unit.aAll && this.selected)
-      this.hideTargets();
+    /*
+     * Hide targets if the unit is selected (not viewed).
+     */
+    if (unit === this.selected) {
+      if (this.target)
+        this.hideTargets();
+      else if (mode === 'attack' && unit.aAll)
+        this.hideTargets();
+    }
 
     this.clearHighlight();
     this.hideTurnOptions();

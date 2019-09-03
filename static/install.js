@@ -1,3 +1,5 @@
+'use strict';
+
 if ('serviceWorker' in navigator) {
   let sw = navigator.serviceWorker;
 
