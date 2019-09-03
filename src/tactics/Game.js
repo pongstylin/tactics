@@ -198,20 +198,34 @@ export default class {
     let old_viewed = board.viewed;
 
     if (viewed !== old_viewed) {
+      let selected = board.selected;
+
       if (old_viewed) {
         board.hideMode();
-        old_viewed.deactivate();
+        if (old_viewed === selected)
+          // The unit can only be selected AND viewed if it is selected by an
+          // opposing team and viewed by you.  So, by unviewing it, it needs to
+          // be restored to an 'activated = true' state.
+          selected.activated = true;
+        else
+          old_viewed.deactivate();
         board.viewed = null;
       }
-
-      let selected = board.selected;
 
       if (viewed) {
         board.viewed = viewed;
         this.selectMode = this._pickSelectMode();
       }
+      else if (selected) {
+        if (this.isMyTeam(selected.team))
+          this.selectMode = selected.activated;
+        else {
+          this._showActions();
+          this.selectMode = 'move';
+        }
+      }
       else
-        this.selectMode = selected ? selected.activated : 'move';
+        this.selectMode = 'move';
 
       this.drawCard();
     }
@@ -244,8 +258,13 @@ export default class {
 
     if (viewed)
       viewed.activate(selectMode, true);
-    else if (selected)
+    else if (selected && this.isMyTurn)
       selected.activate(selectMode);
+
+    if (viewed || this.isMyTurn) {
+      board.showMode();
+      this.render();
+    }
 
     this._emit({
       type:   'selectMode-change',
@@ -254,8 +273,6 @@ export default class {
     });
 
     this._selectMode = selectMode;
-    board.showMode();
-    this.render();
 
     return this;
   }
@@ -320,6 +337,9 @@ export default class {
   get isViewOnly() {
     return this.state.ended || this._localTeamIds.length === 0;
   }
+  get isMyTurn() {
+    return this.isMyTeam(this.currentTeam);
+  }
 
   get actions() {
     return this._board.decodeAction(this.state.actions);
@@ -336,9 +356,6 @@ export default class {
   /*****************************************************************************
    * Public Methods
    ****************************************************************************/
-  isMyTurn() {
-    return this.isMyTeam(this.currentTeam);
-  }
   isMyTeam(team) {
     if (team === undefined)
       throw new TypeError('Required team argument');
@@ -627,8 +644,12 @@ export default class {
       return !!viewed.getMoveTiles().length;
 
     let selected = this.selected;
-    if (selected)
-      return !this.moved && selected.getMoveTiles().length;
+    if (selected) {
+      if (this.moved && this.isMyTeam(selected.team))
+        return false;
+
+      return !!selected.getMoveTiles().length;
+    }
 
     return true;
   }
@@ -638,8 +659,12 @@ export default class {
       return !!viewed.getAttackTiles().length;
 
     let selected = this.selected;
-    if (selected)
-      return !this.attacked && selected.getAttackTiles().length;
+    if (selected) {
+      if (this.attacked && this.isMyTeam(selected.team))
+        return false;
+
+      return !!selected.getAttackTiles().length;
+    }
 
     return true;
   }
@@ -651,9 +676,13 @@ export default class {
     return false;
   }
   canSelectTurn() {
-    let unit = this.viewed || this.selected;
-    if (unit)
-      return unit.directional !== false;
+    let viewed = this.viewed;
+    if (viewed)
+      return viewed.directional !== false;
+
+    let selected = this.selected;
+    if (selected)
+      return selected.directional !== false;
 
     return true;
   }
@@ -1068,28 +1097,13 @@ export default class {
 
     let actions = this.actions;
     if (actions.length)
-      if (this.isMyTurn())
+      if (this.isMyTurn)
         this.selected = actions[0].unit;
       else {
         let selected = board.selected = actions[0].unit.activate();
         this.drawCard();
 
-        // FIXME: Does not highlight the unit's origin tile before moving.
-        board.setHighlight(selected.assignment, { color:FOCUS_TILE_COLOR }, true);
-
-        actions.forEach(action => {
-          if (action.unit !== selected) return;
-
-          if (action.type === 'move')
-            board.setHighlight(action.assignment, { color:MOVE_TILE_COLOR }, true);
-          else if (action.type === 'attack') {
-            let target_tiles = selected.getTargetTiles(action.target);
-
-            target_tiles.forEach(tile => {
-              board.setHighlight(tile, { color:ATTACK_TILE_COLOR }, true);
-            });
-          }
-        });
+        this._showActions(actions);
       }
 
     this._emit({ type:'revert' });
@@ -1138,7 +1152,10 @@ export default class {
           // Show the player the unit that is about to act.
           board.selected = selected = action.unit;
           selected.activate();
-          board.setHighlight(selected.assignment, { color:FOCUS_TILE_COLOR }, true);
+          board.setHighlight(selected.assignment, {
+            action: 'focus',
+            color: FOCUS_TILE_COLOR,
+          }, true);
           this.drawCard();
         }
 
@@ -1147,7 +1164,10 @@ export default class {
 
           if (actionType === 'move') {
             // Show the player where the unit will move.
-            board.setHighlight(action.assignment, { color:MOVE_TILE_COLOR }, true);
+            board.setHighlight(action.assignment, {
+              action: 'move',
+              color: MOVE_TILE_COLOR,
+            }, true);
 
             // Wait 2 seconds then move.
             setTimeout(() => {
@@ -1168,7 +1188,10 @@ export default class {
             let target_units = attacker.getTargetUnits(target);
 
             target_tiles.forEach(tile => {
-              board.setHighlight(tile, { color:ATTACK_TILE_COLOR }, true);
+              board.setHighlight(tile, {
+                action: 'attack',
+                color: ATTACK_TILE_COLOR,
+              }, true);
             });
 
             if (target_units.length) {
@@ -1289,6 +1312,37 @@ export default class {
 
     return unit[action.type](action)
       .then(() => this._playResults(action.results));
+  }
+  _showActions(actions = this.actions) {
+    let board = this._board;
+    let selected = this.selected;
+    let degree = board.getDegree('N', board.rotation);
+    let origin = this.state.units.flat().find(u => u.id === selected.id).assignment;
+
+    board.setHighlight(board.getTileRotation(origin, degree), {
+      action: 'focus',
+      color: FOCUS_TILE_COLOR,
+    }, true);
+
+    actions.forEach(action => {
+      if (action.unit !== selected) return;
+
+      if (action.type === 'move')
+        board.setHighlight(action.assignment, {
+          action: 'move',
+          color: MOVE_TILE_COLOR,
+        }, true);
+      else if (action.type === 'attack') {
+        let target_tiles = selected.getTargetTiles(action.target);
+
+        target_tiles.forEach(tile => {
+          board.setHighlight(tile, {
+            action: 'attack',
+            color: ATTACK_TILE_COLOR,
+          }, true);
+        });
+      }
+    });
   }
   /*
    * Show the player the results of an attack
@@ -1547,6 +1601,9 @@ export default class {
 
     this._applyChangeResults(action.results);
 
+    // Get the new board state to keep track of a unit's origin next turn.
+    this.state.units = this._board.getState();
+
     return this;
   }
   _endGame(winnerId) {
@@ -1617,7 +1674,7 @@ export default class {
 
     let timeout = Infinity;
 
-    if (!this.isMyTurn()) {
+    if (!this.isMyTurn) {
       let now = new Date();
       let lastAction = state.actions.last;
       let lastActionAt = lastAction ? lastAction.created.getTime() : 0;

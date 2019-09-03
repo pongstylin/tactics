@@ -644,7 +644,7 @@ Tactics.App = (function ($, window, document) {
 
     game
       .on('startTurn', event => {
-        $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn());
+        $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
         $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
       })
       .on('selectMode-change', event => {
@@ -670,13 +670,13 @@ Tactics.App = (function ($, window, document) {
 
         $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
         $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
-        $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn());
+        $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
         $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
 
         if (new_mode === 'attack' && can_special)
-          $('BUTton[name=select][value=attack]').addClass('ready');
+          $('BUTTON[name=select][value=attack]').addClass('ready');
         else
-          $('BUTton[name=select][value=attack]').removeClass('ready');
+          $('BUTTON[name=select][value=attack]').removeClass('ready');
 
         if (new_mode === 'turn' && panzoom.canZoom() && game.selected && !game.viewed)
           $('BUTTON[name=select][value=turn]').addClass('ready');
@@ -732,7 +732,7 @@ Tactics.App = (function ($, window, document) {
             game.start().then(() => {
               resetPlayerBanners();
 
-              $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn());
+              $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
               $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
 
               $('#splash').hide();

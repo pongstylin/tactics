@@ -111,10 +111,14 @@ export default class RemoteTransport {
   get currentTeamId() {
     return this._getStateData('currentTeamId');
   }
-  // This property is not actually kept in sync.  It is only accurate when
-  // when loading the game or starting the game.
+  // This property is not natively actually kept in sync.  The server only sends
+  // units' data at initialization or starting the game.  But, the game object
+  // will keep it in sync as each turn ends.
   get units() {
     return this._getStateData('units');
+  }
+  set units(units) {
+    this._data.state.units = units;
   }
   get actions() {
     return this._getStateData('actions');

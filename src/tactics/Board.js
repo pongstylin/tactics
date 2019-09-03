@@ -1336,14 +1336,17 @@ export default class {
 
     return this.teamsUnits.map(units => units.map(unit => {
       let unitState = unit.toJSON();
-      if (!degree) return unitState;
 
-      // Normalize assignment and direction based on North board rotation.
-      let assignment = this.getTileRotation(unitState.assignment, degree);
-      unitState.assignment = [assignment.x, assignment.y];
+      if (degree) {
+        // Normalize assignment and direction based on North board rotation.
+        let assignment = this.getTileRotation(unitState.assignment, degree);
+        unitState.assignment = [assignment.x, assignment.y];
 
-      if (unitState.direction)
-        unitState.direction = this.getRotation(unitState.direction, degree);
+        if (unitState.direction)
+          unitState.direction = this.getRotation(unitState.direction, degree);
+      }
+
+      return unitState;
     }));
   }
   setState(teamsUnits, teams) {
