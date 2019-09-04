@@ -29,7 +29,6 @@ export default class Room {
         id: eventId++,
         type: 'join',
         player: player,
-        lastSeenEventId: 0,
         createdAt: data.createdAt,
       });
     });

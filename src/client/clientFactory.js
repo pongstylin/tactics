@@ -52,20 +52,19 @@ export default serviceName => {
 
 let terminating = false;
 
-window.addEventListener('beforeunload', event => {
-  terminating = true;
-});
 window.addEventListener('pagehide', event => {
-  terminating = true;
+  terminating = !event.persisted;
 });
 document.addEventListener('visibilitychange', event => {
-  // When possible, detect when the document is hidden as the result of closing
-  // or navigating away from the page.  This allows the server to receive the
-  // right WebSocket termination code (CLOSE_GOING_AWAY) when this event occurs.
-  if (terminating) return;
-
-  if (document.hidden)
+  if (document.hidden) {
+    // When possible, detect if document is hidden while closing or navigating
+    // away from the page (terminating).  This allows the server to receive the
+    // right WebSocket termination code (CLOSE_GOING_AWAY) when this is true.
+    if (terminating) return;
     sockets.forEach(s => s.close(CLOSE_INACTIVE));
-  else
+  }
+  else {
+    terminating = false;
     sockets.forEach(s => s.open());
+  }
 });
