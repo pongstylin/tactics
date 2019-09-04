@@ -1,3 +1,5 @@
+import popup from 'components/popup.js';
+
 Tactics.App = (function ($, window, document) {
   'use strict';
 
@@ -105,28 +107,29 @@ Tactics.App = (function ($, window, document) {
       game.pass();
     },
     surrender: function () {
-      $('#popup #message').text('Are you sure you want to reset the game?');
-      $('#popup BUTTON[name=yes]').data('handler', () => {
-        $('#popup #message').text('One moment...');
+      let resetPopup = popup({
+        message: 'Are you sure you want to reset the game?',
+        buttons: [
+          {
+            label: 'Yes',
+            onClick: () => {
+              let momentPopup = popup({
+                message: 'One moment...',
+                buttons: [],
+              });
 
-        game.restart().then(() => {
-          $('#overlay,#popup').hide();
-        });
+              game.restart().then(() => momentPopup.close());
+            },
+          },
+          {
+            label: 'No',
+          },
+        ],
       });
-      $('#overlay,#popup').show();
     }
   };
 
   $(() => {
-    $('#overlay').on('click', () => {
-      if ($('#popup').hasClass('error')) return;
-      $('#overlay,#popup').hide();
-    });
-
-    $('#popup BUTTON[name=no]').data('handler', () => {
-      $('#overlay,#popup').hide();
-    });
-
     if ('ontouchstart' in window) {
       $('body').addClass(pointer = 'touch');
     }

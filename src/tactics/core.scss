@@ -536,8 +536,7 @@ TEXTAREA {
 #app:not(.for-playing) {
   #game {
     BUTTON[name=chat] {
-      visibility: hidden;
-      pointer-events: none;
+      display: none;
     }
   }
 
@@ -684,6 +683,8 @@ TEXTAREA {
         margin: 0 8px;
         width: max-content;
         min-width: 5em;
+
+        -webkit-tap-highlight-color: transparent;
       }
     }
   }
@@ -823,8 +824,8 @@ A {
   @media (min-width: 292px) {
     // The chat and swapbar button are aligned to the right
     #game-play {
-      BUTTON[name=chat] {
-        margin-left: auto !important;
+      BUTTON[name=surrender] {
+        margin-right: auto !important;
       }
     }
     #game-settings {
@@ -978,8 +979,8 @@ A {
 
   @media (min-height: 292px) {
     #game-play {
-      BUTTON[name=chat] {
-        margin-top: auto !important;
+      BUTTON[name=surrender] {
+        margin-bottom: auto !important;
       }
     }
     #game-settings {
