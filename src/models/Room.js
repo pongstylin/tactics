@@ -24,6 +24,7 @@ export default class Room {
 
     players.forEach(player => {
       player.joinedAt = data.createdAt;
+      player.lastSeenEventId = 0;
 
       data.events.push({
         id: eventId++,
