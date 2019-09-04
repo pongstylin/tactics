@@ -65,12 +65,14 @@ window.Tactics = (function () {
     },
     createLocalGame: function (stateData) {
       let transport = LocalTransport.createGame(stateData);
-      let localTeamIds = stateData.teams
-        .filter(team => !team.bot)
-        .map((team, i) => i);
 
-      return transport.whenReady
-        .then(() => new Game(transport, localTeamIds));
+      return transport.whenReady.then(() => {
+        let localTeamIds = transport.teams
+          .filter(team => !team.bot)
+          .map(team => team.originalId);
+
+        return new Game(transport, localTeamIds);
+      });
     },
     getRemoteGameData: function (gameId) {
       return gameClient.getGameData(gameId);
