@@ -880,7 +880,7 @@ export default class GameState {
 
     // If the player team was killed, he can take over for a bot team.
     // This behavior is restricted to the Chaos app.
-    if (this.type === 'Chaos') {
+    if (this.type === 'chaos') {
       let activeTeams = this.activeTeams;
 
       // If we can't find an active player team...

@@ -1594,7 +1594,7 @@ export default class {
   }
   _endTurn(action) {
     // Assuming control of a bot team is specific to the chaos game type.
-    if (this.state.type === 'Chaos')
+    if (this.state.type === 'chaos')
       if ('newPlayerTeam' in action) {
         let newPlayerTeam = this.teams[action.newPlayerTeam];
         this._localTeamIds.push(newPlayerTeam.originalId);
