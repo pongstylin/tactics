@@ -1152,7 +1152,8 @@ export default class {
         if (!selected) {
           // Show the player the unit that is about to act.
           board.selected = selected = action.unit;
-          selected.activate();
+          if (action.type !== 'phase')
+            selected.activate();
           board.setHighlight(selected.assignment, {
             action: 'focus',
             color: FOCUS_TILE_COLOR,
