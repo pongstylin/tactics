@@ -263,7 +263,8 @@ export default class GameState {
 
     // If all slots are filled, start the game.
     if (teams.findIndex(t => !t) === -1)
-      this._start();
+      // Use setTimeout to give the caller time to listen for events.
+      setTimeout(() => this._start());
   }
 
   /*
@@ -281,9 +282,9 @@ export default class GameState {
       teams.unshift(...teams.splice(index, teams.length - index));
     }
 
-    if (this.type === 'Chaos')
+    if (this.type === 'chaos')
       teams.unshift({
-        originalId: 0,
+        originalId: 4,
         name: 'Chaos',
         colorId: 'White',
         bot: 'Chaos',

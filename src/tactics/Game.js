@@ -402,6 +402,7 @@ export default class {
           ['E', 'Yellow'],
           ['S', 'Red'   ],
           ['W', 'Green' ],
+          ['C', 'White' ], // Chaos starts in a center position
         ]);
         teams.forEach(team => {
           let position = board.getRotation(team.position, degree);

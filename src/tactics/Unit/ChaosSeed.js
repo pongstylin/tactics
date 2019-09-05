@@ -1,5 +1,3 @@
-'use strict';
-
 import Unit from 'tactics/Unit.js';
 import unitDataMap from 'tactics/unitData.js';
 import colorMap from 'tactics/colorMap.js';

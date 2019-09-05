@@ -448,6 +448,8 @@ export default class {
     return direction;
   }
   getRotation(direction, degree) {
+    if (direction === 'C') return direction;
+
     var directions = ['N','NE','E','SE','S','SW','W','NW'];
     // 90 = 360 / directions.length;
     var index = directions.indexOf(direction) + (degree / 45);
@@ -463,6 +465,8 @@ export default class {
    * Example: getDegree('S', 'E') = -90 degrees
    */
   getDegree(direction, rotation) {
+    if (direction === 'C' || rotation === 'C') return 0;
+
     var directions = ['N','NE','E','SE','S','SW','W','NW'];
 
     return (directions.indexOf(rotation) - directions.indexOf(direction)) * 45;

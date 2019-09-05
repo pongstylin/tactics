@@ -19,11 +19,38 @@ export default class LocalTransport {
       // Started means the game has started (and possibly ended)
       whenStarted: new Promise(resolve => this._resolveStarted = resolve),
 
-      _worker:     worker,
-      _subscribed: new Set(),
-      _resolvers:  new Map(),
-      _emitter:    new EventEmitter(),
+      _worker:    worker,
+      _resolvers: new Map(),
+      _emitter:   new EventEmitter(),
     });
+
+    this
+      .on('startGame', ({ data }) => {
+        Object.assign(this._data.state, {
+          started: new Date(data.started),
+          teams:   data.teams,
+          units:   data.units,
+        });
+
+        this._resolveStarted();
+      })
+      .on('startTurn', ({ data }) => {
+        Object.assign(this._data.state, {
+          currentTurnId: data.turnId,
+          currentTeamId: data.teamId,
+          actions:       [],
+        });
+      })
+      .on('action', ({ data:actions }) => {
+        this._data.state.actions.push(...actions);
+      })
+      .on('revert', ({ data }) => {
+        Object.assign(this._data.state, {
+          currentTurnId: data.turnId,
+          currentTeamId: data.teamId,
+          actions:       data.actions,
+        });
+      });
   }
 
   /*
@@ -48,7 +75,6 @@ export default class LocalTransport {
    */
   on(eventType, fn) {
     this._emitter.addListener(...arguments);
-    this._subscribe(eventType);
 
     return this;
   }
@@ -119,17 +145,6 @@ export default class LocalTransport {
   /*
    * Private methods that send messages to the worker.
    */
-  _subscribe(eventType) {
-    let subscribed = this._subscribed;
-    if (subscribed.has(eventType)) return;
-    subscribed.add(eventType);
-
-    this._post({
-      type: 'subscribe',
-      data: { type:eventType },
-    });
-  }
-
   _call(method, args) {
     let resolvers = this._resolvers;
     let id = ++counter;
@@ -151,42 +166,6 @@ export default class LocalTransport {
   /*
    * Other Private Methods
    */
-  _startSync(stateData) {
-    this._data = { state:stateData };
-    this._resolveReady();
-
-    if (stateData.started)
-      this._resolveStarted();
-
-    if (!stateData.ended)
-      this
-        .on('startGame', ({data}) => {
-          Object.assign(this._data.state, {
-            started: new Date(data.started),
-            teams:   data.teams,
-            units:   data.units,
-          });
-          this._resolveStarted();
-        })
-        .on('startTurn', ({ data }) => {
-          Object.assign(this._data.state, {
-            currentTurnId: data.turnId,
-            currentTeamId: data.teamId,
-            actions:       [],
-          });
-        })
-        .on('action', ({data:actions}) => {
-          this._data.state.actions.push(...actions);
-        })
-        .on('revert', ({data}) => {
-          Object.assign(this._data.state, {
-            currentTurnId: data.turnId,
-            currentTeamId: data.teamId,
-            actions:       data.actions,
-          });
-        });
-  }
-
   _getData(name) {
     if (!this._data)
       throw new Error('Not ready');
@@ -216,8 +195,13 @@ export default class LocalTransport {
   _onMessage(message) {
     let {type, data} = message;
 
-    if (type === 'init')
-      this._startSync(data);
+    if (type === 'init') {
+      this._data = { state:data };
+      this._resolveReady();
+
+      if (data.started)
+        this._resolveStarted();
+    }
     else if (type === 'event')
       this._emit(data);
     else if (type === 'reply') {

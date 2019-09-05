@@ -1,10 +1,8 @@
-'use strict';
-
 export default class {
   constructor(state, team) {
     let turnOrder = [];
     let bound = team.id + state.teams.length;
-    for (let teamId=team.id; teamId<bound; teamId++) {
+    for (let teamId = team.id; teamId < bound; teamId++) {
       turnOrder.push(teamId % state.teams.length);
     }
 
@@ -26,8 +24,7 @@ export default class {
       _startTurnListener: startTurnListener,
     });
 
-    state
-      .on('startTurn', startTurnListener);
+    state.on('startTurn', startTurnListener);
   }
 
   /*
@@ -307,7 +304,7 @@ export default class {
   }
 
   startTurn() {
-    let myColor = this.state.currentTeam.units[0].color;
+    let myColor = this.team.units[0].color;
 
     this.choices = [];
     this.friends = [];
@@ -320,12 +317,12 @@ export default class {
         // To bots, Chaos is not always an enemy.
         if (team.name === 'Chaos') {
           let agent = team.units[0];
-          if (agent.name === 'Chaos Seed') {
+          if (agent.type === 'ChaosSeed') {
             // Don't attack Seed if off color
             if (agent.color !== myColor)
               return;
           }
-          else if (agent.name === 'Chaos Dragon') {
+          else if (agent.type === 'ChaosDragon') {
             // Don't attack Dragon if on color
             if (agent.color === myColor)
               return;
@@ -338,8 +335,6 @@ export default class {
 
     // Give the card time to fade.
     setTimeout(() => {
-      let calc;
-
       this.addChoice(this.calcTeamFuture(this.team));
 
       if (this.inRange()) {
@@ -352,16 +347,14 @@ export default class {
     }, 1000);
   }
   endTurn() {
-    var choices = this.choices,unit;
-    var first = choices[0];
-    var chosen;
-    var start;
+    let choices = this.choices
+    let chosen;
 
     if (choices.length === 1) {
       chosen = choices[0];
 
       // If all units have turn wait, use the first team unit when passing.
-      if (!chosen.unit) chosen.unit = this.state.currentTeam.units[0];
+      if (!chosen.unit) chosen.unit = this.team.units[0];
     }
     else {
       choices.sort((a, b) => {
@@ -382,21 +375,25 @@ export default class {
           bt = bt.chance <= 20 ? 0 : bt.threat;
         }
 
-        return (bs - as)
-          || (a.losses - b.losses)
-          || (bt - at)
-          || (b.weight - a.weight)
-          || (a.threats - b.threats)
-          || (b.random - a.random);
+        return bs - as
+          || a.losses - b.losses
+          || bt - at
+          || b.weight - a.weight
+          || a.threats - b.threats
+          || b.random - a.random;
       });
 
-      chosen = choices[0];
+      let first = choices[0];
+      let last = choices.last;
+
       // If we are passing or the equivalent, then try to get a better position.
-      if (first.defense === chosen.defense && first.offense === chosen.offense) {
-        this.friends = this.state.currentTeam.units.slice();
+      if (first.defense === last.defense && first.offense === last.offense) {
+        this.friends = this.team.units.slice();
         this.considerPosition();
         chosen = this.choices[0];
       }
+      else
+        chosen = first;
     }
 
     //
@@ -555,10 +552,10 @@ export default class {
     choice.unit.direction = choice.unit._direction;
 
     this.choices = [{
-      first:'move',
-      unit:choice.unit,
-      end:choice.end,
-      direction:choice.direction
+      first: 'move',
+      unit: choice.unit,
+      end: choice.end,
+      direction: choice.direction,
     }];
 
     return this;
@@ -928,7 +925,6 @@ export default class {
   }
 
   destroy() {
-    this.state
-      .off('startTurn', this._startTurnListener);
+    this.state.off('startTurn', this._startTurnListener);
   }
 }

@@ -1,5 +1,3 @@
-'use strict';
-
 /* Web Worker */
 
 import 'plugins/array.js';
@@ -13,21 +11,20 @@ const post = (type, data) => {
 self.state = null;
 
 self.addEventListener('message', ({data:message}) => {
-  let state = self.state;
   let {type, data} = message;
 
   if (type === 'create') {
-    self.state = state = GameState.create(data);
-    post('init', state.getData());
+    self.state = GameState.create(data)
+      .on('event', event => post('event', event));
+    post('init', self.state.getData());
   }
   else if (type === 'load') {
-    self.state = state = GameState.load(data);
-    post('init', state.getData());
+    self.state = GameState.load(data)
+      .on('event', event => post('event', event));
+    post('init', self.state.getData());
   }
-  else if (type === 'subscribe')
-    state.on(data.type, event => post('event', event));
   else if (type === 'call') {
-    let value = state[data.method](...data.args);
+    let value = self.state[data.method](...data.args);
     // The method in the reply is only useful for debugging.
     let message = { id:data.id, method:data.method };
 
