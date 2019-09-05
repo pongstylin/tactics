@@ -247,11 +247,9 @@ export default class GameState {
      *  2 Players: 0:North, 1:South
      *  4 Players: 0:North, 1:East, 2:South, 3:West
      */
-    let positions = new Map([[0,'N'], [90,'W'], [180,'S'], [270,'E']]);
-    let degrees   = teams.length === 2 ? [0, 180] : [0, 90, 180, 270];
-    let degree    = degrees[slot];
+    let positions = teams.length === 2 ? ['N', 'S'] : ['N', 'E', 'S', 'W'];
 
-    team.position = positions.get(degree);
+    team.position = positions[slot];
 
     this._emit({
       type: 'joined',

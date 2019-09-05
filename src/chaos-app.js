@@ -12,6 +12,10 @@ Tactics.App = (function ($, window, document) {
     {assignment:[5, 1], type:'Knight'},
     {assignment:[6, 1], type:'Knight'},
   ];
+  /*
+   * The player team MUST be in the 3rd position.
+   * This ensures that the Game object doesn't recolor teams.
+   */
   var gameStateData = {
     type: 'chaos',
     teams: [
