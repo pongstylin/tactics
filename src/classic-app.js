@@ -60,27 +60,19 @@ Tactics.App = (function ($, window, document) {
         game.panzoom.unlock();
     },
     rotate: function ($button) {
-      var cls,per;
+      let classesToToggle;
 
-      if ($button.hasClass('fa-rotate-90')) {
-        cls = 'fa-rotate-90 fa-rotate-180';
-        per = 'W';
-      }
-      else if ($button.hasClass('fa-rotate-180')) {
-        cls = 'fa-rotate-180 fa-rotate-270';
-        per = 'N';
-      }
-      else if ($button.hasClass('fa-rotate-270')) {
-        cls = 'fa-rotate-270';
-        per = 'E';
-      }
-      else {
-        cls = 'fa-rotate-90';
-        per = 'S';
-      }
+      if ($button.hasClass('fa-rotate-90'))
+        classesToToggle = 'fa-rotate-90 fa-rotate-180';
+      else if ($button.hasClass('fa-rotate-180'))
+        classesToToggle = 'fa-rotate-180 fa-rotate-270';
+      else if ($button.hasClass('fa-rotate-270'))
+        classesToToggle = 'fa-rotate-270';
+      else
+        classesToToggle = 'fa-rotate-90';
 
-      $button.toggleClass(cls);
-      game.rotateBoard(per);
+      $button.toggleClass(classesToToggle);
+      game.rotateBoard(90);
     },
     sound: function ($button) {
       $button.toggleClass('fa-bell fa-bell-slash');
