@@ -409,16 +409,27 @@ class GameService extends Service {
     if (set)
       team.set = set;
 
+    let numOpenSlots = game.state.teams.filter(t => !t).length;
+
     return new Promise((resolve, reject) => {
-      game.state.on('startTurn', resolve);
+      let startTurnListener = event => {
+        game.state.off('startTurn', startTurnListener);
+        resolve(event);
+      };
+
+      if (numOpenSlots === 1)
+        game.state.on('startTurn', startTurnListener);
+
       try {
         game.state.join(team, slot);
       }
       catch (error) {
+        game.state.off('startTurn', startTurnListener);
         reject(error);
       }
-      game.state.off('startTurn', resolve);
-      resolve();
+
+      if (numOpenSlots > 1)
+        resolve();
     }).then(async event => {
       dataAdapter.saveGame(game);
       if (!event) return;
