@@ -290,8 +290,8 @@ function renderActiveGames() {
     let header = document.createElement('HEADER');
     header.innerHTML = 'Your Turn!';
 
-    divTabContent.append(header);
-    myTurnGames.forEach(div => divTabContent.append(div));
+    divTabContent.appendChild(header);
+    myTurnGames.forEach(div => divTabContent.appendChild(div));
   }
 
   let theirTurnGames = [];
@@ -310,8 +310,8 @@ function renderActiveGames() {
     let header = document.createElement('HEADER');
     header.innerHTML = 'Their Turn!';
 
-    divTabContent.append(header);
-    theirTurnGames.forEach(div => divTabContent.append(div));
+    divTabContent.appendChild(header);
+    theirTurnGames.forEach(div => divTabContent.appendChild(div));
   }
 
   let testGames = [];
@@ -328,8 +328,8 @@ function renderActiveGames() {
     let header = document.createElement('HEADER');
     header.innerHTML = 'Practice Games!';
 
-    divTabContent.append(header);
-    testGames.forEach(div => divTabContent.append(div));
+    divTabContent.appendChild(header);
+    testGames.forEach(div => divTabContent.appendChild(div));
   }
 }
 
@@ -348,19 +348,19 @@ async function renderWaitingGames() {
   if (openGames.count) {
     let header = document.createElement('HEADER');
     header.innerHTML = 'Public Games!';
-    divTabContent.append(header);
+    divTabContent.appendChild(header);
 
     for (let game of openGames.hits) {
       let divGame = renderGame(game);
 
-      divTabContent.append(divGame);
+      divTabContent.appendChild(divGame);
     }
   }
 
   if (games.waiting.size) {
     let header = document.createElement('HEADER');
     header.innerHTML = 'Private Games!';
-    divTabContent.append(header);
+    divTabContent.appendChild(header);
 
     let waitingGames = [...games.waiting.values()].sort((a, b) =>
       b.updated - a.updated // ascending
@@ -369,7 +369,7 @@ async function renderWaitingGames() {
     for (let game of waitingGames) {
       let divGame = renderGame(game);
 
-      divTabContent.append(divGame);
+      divTabContent.appendChild(divGame);
     }
   }
 }
@@ -383,7 +383,7 @@ function renderCompleteGames() {
   for (let game of completeGames) {
     let divGame = renderGame(game);
 
-    divTabContent.append(divGame);
+    divTabContent.appendChild(divGame);
   }
 }
 

@@ -218,7 +218,7 @@ function renderDeviceList() {
     let divDevice = document.createElement('DIV');
     divDevice.id = device.id;
     divDevice.classList.add('device');
-    divDevices.append(divDevice);
+    divDevices.appendChild(divDevice);
 
     if (device.id === authClient.deviceId)
       divDevice.classList.add('current');
@@ -244,7 +244,7 @@ function renderDeviceList() {
       </DIV>
       <DIV class="error"></DIV>
     `;
-    divDevice.append(divHeader);
+    divDevice.appendChild(divHeader);
 
     let divDeviceAutoSave = divHeader.querySelector('.inputTextAutosave');
     let divDeviceError = divDeviceAutoSave.nextElementSibling;
@@ -305,19 +305,19 @@ function renderDeviceList() {
       <SPAN class="fa fa-angle-double-up"></SPAN>
       <SPAN class="label">Toggle device access details</SPAN>
     `;
-    divDevice.append(divToggle);
+    divDevice.appendChild(divToggle);
 
     let divDetails = document.createElement('DIV');
     divDetails.classList.add('details');
     divDetails.style.height = '0';
-    divDevice.append(divDetails);
+    divDevice.appendChild(divDetails);
 
     let divAgents = document.createElement('DIV');
     divAgents.classList.add('agents');
     agents.forEach(agent => {
       let divAgent = document.createElement('DIV');
       divAgent.classList.add('agent');
-      divAgents.append(divAgent);
+      divAgents.appendChild(divAgent);
 
       let label = renderAgentName(agent);
 
@@ -325,7 +325,7 @@ function renderDeviceList() {
       divAgentLabel.classList.add('label');
       divAgentLabel.setAttribute('title', 'Expand/Collapse');
       divAgentLabel.innerHTML = label;
-      divAgent.append(divAgentLabel);
+      divAgent.appendChild(divAgentLabel);
 
       divAgentLabel.addEventListener('click', event => {
         if (divAgentLabel.classList.toggle('full'))
@@ -370,11 +370,11 @@ function renderDeviceList() {
             <SPAN class="long">${lastSeenAt.toLocaleString()}</SPAN>
           </SPAN>
         `;
-        divAddresses.append(divAddress);
+        divAddresses.appendChild(divAddress);
       });
-      divAgent.append(divAddresses);
+      divAgent.appendChild(divAddresses);
     });
-    divDetails.append(divAgents);
+    divDetails.appendChild(divAgents);
 
     divDetails.addEventListener('transitionend', event => {
       if (divDevice.classList.contains('expanded'))

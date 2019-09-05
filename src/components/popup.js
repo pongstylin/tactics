@@ -51,24 +51,24 @@ class Popup {
     divPopup.classList.add('popup');
     if (options.minWidth)
       divPopup.style.minWidth = options.minWidth;
-    divOverlay.append(divPopup);
+    divOverlay.appendChild(divPopup);
 
     if (options.title) {
       let divTitle = document.createElement('DIV');
       divTitle.classList.add('title');
       divTitle.textContent = options.title;
-      divPopup.append(divTitle);
+      divPopup.appendChild(divTitle);
     }
 
     let divMessage = document.createElement('DIV');
     divMessage.classList.add('message');
     divMessage.textContent = options.message;
-    divPopup.append(divMessage);
+    divPopup.appendChild(divMessage);
 
     let divButtons = document.createElement('DIV');
     divButtons.classList.add('buttons');
     divButtons.setAttribute('autocomplete', 'off');
-    divPopup.append(divButtons);
+    divPopup.appendChild(divButtons);
 
     options.buttons.forEach(button => {
       let btn = document.createElement('BUTTON');
@@ -99,7 +99,7 @@ class Popup {
         else
           this.close();
       });
-      divButtons.append(btn);
+      divButtons.appendChild(btn);
     });
 
     return divOverlay;
@@ -125,7 +125,7 @@ class Popup {
         ? document.querySelector(options.container)
         : options.container;
 
-      container.append(this.el);
+      container.appendChild(this.el);
     }
   }
 
