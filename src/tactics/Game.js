@@ -261,10 +261,9 @@ export default class {
     else if (selected && this.isMyTurn)
       selected.activate(selectMode);
 
-    if (viewed || this.isMyTurn) {
+    if (viewed || this.isMyTurn)
       board.showMode();
-      this.render();
-    }
+    this.render();
 
     this._emit({
       type:   'selectMode-change',
