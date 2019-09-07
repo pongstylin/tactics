@@ -256,6 +256,9 @@ export default class {
     let viewed   = board.viewed;
     let selected = board.selected;
 
+    // Clear mode before activating to ensure the old mode is properly cleared.
+    board.clearMode();
+
     if (viewed)
       viewed.activate(selectMode, true);
     else if (selected && this.isMyTurn)
@@ -334,7 +337,7 @@ export default class {
     return this._localTeamIds.length === playerTeams.length;
   }
   get isViewOnly() {
-    return this.state.ended || this._localTeamIds.length === 0;
+    return this._localTeamIds.length === 0;
   }
   get isMyTurn() {
     return this.isMyTeam(this.currentTeam);

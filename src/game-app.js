@@ -699,6 +699,9 @@ Tactics.App = (function ($, window, document) {
           $card.removeClass('show');
       })
       .on('lock-change', event => {
+        if (event.nvalue === 'gameover')
+          $('BUTTON[name=undo]').hide();
+
         $('#app').removeClass('readonly gameover');
         if (event.nvalue === 'readonly' || event.nvalue === 'gameover')
           $('#app').addClass(event.nvalue);
