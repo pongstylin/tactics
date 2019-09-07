@@ -563,8 +563,10 @@ TEXTAREA {
 /*
  * Sometimes buttons need to be disabled or hidden.
  */
-#app.locked:not(.readonly) {
-  #game-play.buttons BUTTON:not([name=chat]):not([name=swapbar]) {
+#app.locked:not(.gameover):not(.readonly) {
+  #game-play.buttons BUTTON:not([name=chat]):not([name=swapbar]),
+  #game-settings.buttons BUTTON[name=rotate],
+  #game-settings.buttons BUTTON[name=undo] {
     // Make the button appear disabled.
     opacity: 0.4;
     cursor: default;
@@ -575,9 +577,10 @@ TEXTAREA {
   }
 }
 
-#app.locked:not(.gameover):not(.readonly) {
-  #game-settings.buttons BUTTON[name=rotate],
-  #game-settings.buttons BUTTON[name=undo] {
+#app.locked.gameover {
+  #game-play.buttons BUTTON[name=pass],
+  #game-play.buttons BUTTON[name=surrender],
+  #game-play.buttons BUTTON[name=undo] {
     // Make the button appear disabled.
     opacity: 0.4;
     cursor: default;
@@ -630,7 +633,7 @@ TEXTAREA {
   100% { box-shadow: none;                     }
 }
 
-#app.locked.gameover #game > .buttons BUTTON[name=surrender],
+#app.locked.gameover #game > .buttons BUTTON[name=surrender].ready,
 #app.locked #game > .buttons BUTTON[name=chat].ready,
 #app:not(.locked) #game > .buttons BUTTON.ready {
   animation: glow ease-in-out 1s infinite;

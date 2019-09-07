@@ -101,7 +101,10 @@ Tactics.App = (function ($, window, document) {
                 buttons: [],
               });
 
-              game.restart().then(() => momentPopup.close());
+              game.restart().then(() => {
+                momentPopup.close();
+                $('BUTTON[name=surrender]').removeClass('ready');
+              });
             },
           },
           {
@@ -257,8 +260,10 @@ Tactics.App = (function ($, window, document) {
           $card.removeClass('show');
       })
       .on('lock-change', event => {
-        if (event.nvalue === 'gameover')
+        if (event.nvalue === 'gameover') {
           $('#app').addClass('gameover');
+          $('BUTTON[name=surrender]').addClass('ready');
+        }
         else
           $('#app').removeClass('gameover');
 
