@@ -256,8 +256,11 @@ export default class {
     let viewed   = board.viewed;
     let selected = board.selected;
 
-    // Clear mode before activating to ensure the old mode is properly cleared.
-    board.clearMode();
+    // Hide mode before activating to ensure the old mode is properly cleared.
+    if (selected && selected.activated === 'target')
+      board.hideMode();
+    else
+      board.clearMode();
 
     if (viewed)
       viewed.activate(selectMode, true);
