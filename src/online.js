@@ -10,6 +10,7 @@ let gameClient = clientFactory('game');
 let myPlayerId = null;
 let games = {
   active: new Map(),
+  open: new Map(),
   waiting: new Map(),
   complete: new Map(),
 };
@@ -51,7 +52,28 @@ window.addEventListener('DOMContentLoaded', () => {
        * Get 50 of the most recent games.  Once the player creates or plays more
        * than 50 games, the oldest ones will drop out of view.
        */
-      gameClient.searchMyGames({ limit:50, sort:{ field:'updated', order:'desc' } })
+      gameClient.searchMyGames({
+        // Exclude my public, waiting games
+        filter: { '!': {
+          isPublic: true,
+          started: null,
+        }},
+        sort: { field:'updated', order:'desc' },
+        limit: 50,
+      })
+        .then(async result => {
+          /*
+           * Due to automated game-matching, there should not be any more than 1
+           * game per public configuration permutation.
+           */
+          let openGames = await gameClient.searchOpenGames({
+            sort: 'created',
+            limit: 10,
+          });
+
+          result.hits = result.hits.concat(openGames.hits);
+          return result;
+        })
         .then(result => renderGames(result.hits))
         .catch(error => {
           divNotice.textContent = 'Sorry!  There was an error while loading your games.';
@@ -243,12 +265,14 @@ function renderGames(gms) {
       games.complete.set(g.id, g);
     else if (g.started)
       games.active.set(g.id, g);
+    else if (g.isPublic)
+      games.open.set(g.id, g);
     else
       games.waiting.set(g.id, g);
   });
 
   document.querySelector('.tabs .active .badge').textContent = games.active.size;
-  document.querySelector('.tabs .waiting .badge').textContent = games.waiting.size;
+  document.querySelector('.tabs .waiting .badge').textContent = games.open.size + games.waiting.size;
   document.querySelector('.tabs .complete .badge').textContent = games.complete.size;
 
   document.querySelector('#notice').textContent = '';
@@ -336,21 +360,16 @@ function renderActiveGames() {
 async function renderWaitingGames() {
   let divTabContent = document.querySelector('.tabContent .waiting');
 
-  /*
-   * Due to automated game-matching, there should not be any more than 1 game
-   * per public configuration permutation.
-   */
-  let openGames = await gameClient.searchOpenGames({
-    limit: 10,
-    sort: 'created',
-  });
-
-  if (openGames.count) {
+  if (games.open.size) {
     let header = document.createElement('HEADER');
     header.innerHTML = 'Public Games!';
     divTabContent.appendChild(header);
 
-    for (let game of openGames.hits) {
+    let openGames = [...games.open.values()].sort((a, b) =>
+      a.created - b.created // descending
+    );
+
+    for (let game of openGames) {
       let divGame = renderGame(game);
 
       divTabContent.appendChild(divGame);
