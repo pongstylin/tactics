@@ -167,12 +167,15 @@ export default class {
 
       if (selected) {
         board.selected = selected;
+        // Draw the card BEFORE selecting the mode to allow board.showTargets()
+        // to override the focused unit with the targeted unit.
+        this.drawCard();
         this.selectMode = this._pickSelectMode();
       }
-      else
+      else {
+        this.drawCard();
         this.selectMode = 'move';
-
-      this.drawCard();
+      }
     }
     else if (old_viewed) {
       board.hideMode();
@@ -256,19 +259,24 @@ export default class {
     let viewed   = board.viewed;
     let selected = board.selected;
 
-    // Hide mode before activating to ensure the old mode is properly cleared.
-    if (selected && selected.activated === 'target')
+    if (viewed) {
       board.hideMode();
-    else
-      board.clearMode();
-
-    if (viewed)
       viewed.activate(selectMode, true);
-    else if (selected && this.isMyTurn)
+    }
+    else if (selected && this.isMyTurn) {
+      if (selectMode === 'target')
+        // Clear highlight, but not target tile
+        board.hideMode();
+      else
+        // Clear highlight and target tile
+        board.clearMode();
+
       selected.activate(selectMode);
+    }
 
     if (viewed || this.isMyTurn)
       board.showMode();
+
     this.render();
 
     this._emit({

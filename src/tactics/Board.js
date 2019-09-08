@@ -63,7 +63,7 @@ export default class {
       focused:     null,
       viewed:      null,
       selected:    null,
-      targeted:    null,
+      targeted:    new Set(),
 
       rotation:    'N',
 
@@ -872,10 +872,11 @@ export default class {
   /*
    * Draw an information card based on these priorities:
    *   1) The provided 'unit' argument (optional)
-   *   2) The unit that the user is currently focused upon
-   *   3) The unit that the user has selected for viewing.
-   *   4) The unit that the user has selected for control.
-   *   5) The trophy avatar with the optional default notice.
+   *   2) The unit that is currently focused upon
+   *   3) The unit that is currently targeted (if only one is targeted)
+   *   4) The unit that is selected for viewing.
+   *   5) The unit that is selected for control.
+   *   6) The trophy avatar with the optional default notice.
    */
   drawCard(unit, defaultNotice) {
     if (!this.card) return;
@@ -888,7 +889,9 @@ export default class {
     let important = 0;
 
     if (unit === undefined)
-      unit = this.focused || this.viewed || this.targeted || this.selected;
+      unit = this.focused
+        || (this.targeted.size === 1 && [...this.targeted][0])
+        || this.viewed || this.selected;
 
     if (els.healthBar.children.length) els.healthBar.removeChildren();
 
@@ -1205,7 +1208,7 @@ export default class {
       degree = this.getDegree(this.rotation, rotation);
 
     let units     = this.teamsUnits.flat();
-    let activated = this.viewed || this.selected
+    let activated = this.viewed || this.selected;
 
     if (activated) this.hideMode();
 
@@ -1406,14 +1409,12 @@ export default class {
     return this;
   }
 
+  /*
+   * This method must be called AFTER the previously shown mode, if any, has
+   * been hidden AND the viewed or selected unit activated with the new mode.
+   */
   showMode() {
-    let selected = this.selected;
-    if (selected && selected.activated === 'target')
-      this.hideMode();
-    else
-      this.clearMode();
-
-    let unit = this.viewed || selected;
+    let unit = this.viewed || this.selected;
     if (!unit) return;
 
     let mode = unit.activated;
@@ -1445,15 +1446,8 @@ export default class {
     if (focused && focused.notice)
       focused.change({ notice:null });
 
-    /*
-     * Hide targets if the unit is selected (not viewed).
-     */
-    if (unit === this.selected) {
-      if (this.target)
-        this.hideTargets();
-      else if (mode === 'attack' && unit.aAll)
-        this.hideTargets();
-    }
+    if (this.targeted.size)
+      this.hideTargets();
 
     this.clearHighlight();
     this.hideTurnOptions();
@@ -1467,44 +1461,41 @@ export default class {
     return this;
   }
 
-  showTargets() {
-    let selected     = this.selected;
-    let target       = this.target;
-    let target_units = selected.getTargetUnits(target);
+  showTargets(target) {
+    let selected = this.selected;
+    let targeted = this.targeted = new Set(selected.getTargetUnits(target));
 
     // Units affected by the attack will pulsate.
-    target_units.forEach(tu => {
+    targeted.forEach(tu => {
+      // Edge case: A pyro can target himself.
       if (tu !== selected) tu.activate();
+      selected.setTargetNotice(tu, target);
     });
 
     // If only one unit is affected, draw card.
-    if (target_units.length === 1) {
-      selected.setTargetNotice(target_units[0], target);
-      this.targeted = target_units[0];
-      this.drawCard(this.targeted);
-    }
+    if (targeted.size === 1)
+      // Pass the targeted unit to override the focused unit, if any.
+      this.drawCard([...this.targeted][0]);
 
     return this;
   }
   hideTargets() {
-    let selected     = this.selected;
-    let target       = this.target;
-    let target_units = selected.getTargetUnits(target);
+    let selected = this.selected;
+    let targeted = this.targeted;
 
-    target_units.forEach(tu => {
+    targeted.forEach(tu => {
       // Edge case: A pyro can target himself.
-      if (tu === selected)
-        tu.change({ notice:null });
-      else
-        tu.deactivate();
+      if (tu !== selected) tu.deactivate();
+      tu.change({ notice:null });
     });
 
-    let targeted = this.targeted;
-    if (targeted) {
-      targeted.change({ notice:null });
-      this.targeted = null;
+    // If only one unit is affected, draw card.
+    if (targeted.size === 1) {
+      targeted.clear();
       this.drawCard();
     }
+    else
+      targeted.clear();
 
     return this;
   }
@@ -1614,14 +1605,15 @@ export default class {
     return this;
   }
   _highlightTarget(unit) {
-    let tiles = unit.getTargetTiles(this.target);
+    let target = this.target;
+    let tiles = unit.getTargetTiles(target);
 
     this.setHighlight(tiles, {
       action: 'target',
       color:  TARGET_TILE_COLOR,
     });
 
-    this.showTargets();
+    this.showTargets(target);
 
     return this;
   }
@@ -1647,7 +1639,7 @@ export default class {
 
     // Configure the target in case the attack is initiated.
     this.target = target;
-    this.showTargets();
+    this.showTargets(target);
 
     return this;
   }
@@ -1668,8 +1660,8 @@ export default class {
         this.clearHighlight(tile);
     });
 
-    this.hideTargets();
     this.target = null;
+    this.hideTargets();
   }
 
   onTileFocus(tile) {
@@ -1692,10 +1684,6 @@ export default class {
       if (game.pointerType === 'mouse')
         this._highlightTargetMix(tile);
       else if (unit)
-        selected.setTargetNotice(unit);
-    }
-    else if (tile.action === 'target') {
-      if (unit)
         selected.setTargetNotice(unit);
     }
 
@@ -1728,9 +1716,6 @@ export default class {
         unit.change({ notice:null });
     }
     else if (tile.action === 'target') {
-      if (unit && unit !== this.targeted)
-        unit.change({ notice:null });
-
       if (game.pointerType === 'mouse')
         this._clearTargetMix(tile);
     }
