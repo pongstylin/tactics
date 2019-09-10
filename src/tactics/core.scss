@@ -545,14 +545,6 @@ TEXTAREA {
   }
 }
 
-#app.for-viewing {
-  BUTTON[name=pass],
-  BUTTON[name=surrender],
-  BUTTON[name=undo] {
-    display: none;
-  }
-}
-
 @media (hover:hover) {
   #app #game > .buttons BUTTON:not(.selected):enabled:hover {
     margin: 2px;
@@ -563,6 +555,23 @@ TEXTAREA {
 /*
  * Sometimes buttons need to be disabled or hidden.
  */
+#app.for-viewing #game {
+  BUTTON[name=pass],
+  BUTTON[name=surrender] {
+    // Make the button appear disabled.
+    opacity: 0.4;
+    cursor: default;
+
+    // Override use of borders for .selected and hovered buttons
+    margin: 3px;
+    border-width: 0;
+  }
+
+  BUTTON[name=undo] {
+    display: none;
+  }
+}
+
 #app.locked:not(.gameover):not(.readonly) {
   #game-play.buttons BUTTON:not([name=chat]):not([name=swapbar]),
   #game-settings.buttons BUTTON[name=rotate],
@@ -980,16 +989,15 @@ A {
     }
   }
 
-  @media (min-height: 292px) {
-    #game-play {
-      BUTTON[name=surrender] {
-        margin-bottom: auto !important;
-      }
+  #game-play {
+    BUTTON[name=surrender] {
+      // If only I can set a minimum 3px margin...
+      margin-bottom: auto !important;
     }
-    #game-settings {
-      BUTTON[name=swapbar] {
-        margin-top: auto !important;
-      }
+  }
+  #game-settings {
+    BUTTON[name=swapbar] {
+      margin-top: auto !important;
     }
   }
 
