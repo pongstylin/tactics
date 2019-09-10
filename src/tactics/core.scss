@@ -555,7 +555,7 @@ TEXTAREA {
 /*
  * Sometimes buttons need to be disabled or hidden.
  */
-#app.for-viewing #game {
+#app.for-viewing #game > .buttons {
   BUTTON[name=pass],
   BUTTON[name=surrender] {
     // Make the button appear disabled.
@@ -563,8 +563,8 @@ TEXTAREA {
     cursor: default;
 
     // Override use of borders for .selected and hovered buttons
-    margin: 3px;
-    border-width: 0;
+    margin: 3px !important;
+    border-width: 0 !important;
   }
 
   BUTTON[name=undo] {
