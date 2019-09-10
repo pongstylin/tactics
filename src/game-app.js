@@ -559,7 +559,12 @@ Tactics.App = (function ($, window, document) {
       return new Promise((resolve, reject) => {
         btnJoin.addEventListener('click', event => {
           Tactics.authClient.setAccountName(playerName.value)
-            .then(() => resolve(gameData));
+            .then(() => Tactics.loadRemoteGame(gameData.id, gameData))
+            .then(game => {
+              $('#join').hide();
+              resolve(game);
+            })
+            .catch(error => reject(error));
         });
 
         $('#join').show();
