@@ -151,14 +151,14 @@ export default class RemoteTransport {
   getTurnActions() {
     return gameClient.getTurnActions(this._data.id, ...arguments);
   }
+  undo() {
+    return gameClient.undo(this._data.id);
+  }
   restart() {
     return gameClient.restart(this._data.id, ...arguments);
   }
   postAction(action) {
     gameClient.postAction(this._data.id, action);
-  }
-  undo() {
-    gameClient.undo(this._data.id);
   }
   acceptUndo() {
     gameClient.acceptUndo(this._data.id);

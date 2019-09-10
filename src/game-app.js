@@ -62,7 +62,20 @@ Tactics.App = (function ($, window, document) {
       Howler.mute($button.hasClass('fa-bell-slash'));
     },
     undo: () => {
-      game.undo();
+      let sendingPopup = popup({
+        message: 'Waiting for server to respond...',
+        buttons: [],
+        onCancel: () => false,
+        open: 300,
+      });
+
+      game.undo()
+        .then(() => sendingPopup.close())
+        .catch(error => {
+          sendingPopup.close();
+          $('BUTTON[name=undo]').prop('disabled', true);
+          popup('Undo failed.');
+        });
     },
     select: $button => {
       let $app = $('#app');

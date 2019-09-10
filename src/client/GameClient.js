@@ -91,15 +91,15 @@ export default class GameClient extends Client {
   getTurnActions() {
     return this._server.requestAuthorized(this.name, 'getTurnActions', [...arguments]);
   }
+  undo(gameId) {
+    return this._server.requestAuthorized(this.name, 'undo', [ gameId ]);
+  }
   restart() {
     return this._server.requestAuthorized(this.name, 'restart', [...arguments]);
   }
 
   postAction(gameId, action) {
     this._server.emitAuthorized(this.name, `/games/${gameId}`, 'action', action);
-  }
-  undo(gameId) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undo');
   }
   acceptUndo(gameId) {
     this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept');

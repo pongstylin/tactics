@@ -480,6 +480,69 @@ class GameService extends Service {
     return game.state.restart(...args);
   }
 
+  onUndoRequest(client, gameId) {
+    let clientPara = this.clientPara.get(client.id);
+    let gamePara = this.gamePara.get(gameId);
+    if (!gamePara)
+      throw new ServerError(403, 'You must first join the game group');
+    if (!gamePara.clients.has(clientPara))
+      throw new ServerError(403, 'You must first join the game group');
+
+    let game = gamePara.game;
+    let playerId = clientPara.playerId;
+
+    // Determine the team that is requesting the undo.
+    let team = game.state.currentTeam;
+    while (team.playerId !== playerId) {
+      let prevTeamId = (team.id === 0 ? game.state.teams.length : team.id) - 1;
+      team = game.state.teams[prevTeamId];
+    }
+
+    let undoRequest = game.undoRequest;
+    if (undoRequest) {
+      if (undoRequest.status === 'pending')
+        throw new ServerError(409, 'An undo request is still pending');
+      else if (undoRequest.status === 'rejected')
+        if (undoRequest.teamId === team.id)
+          throw new ServerError(403, 'Your undo request was rejected');
+    }
+
+    // In case a player controls multiple teams...
+    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
+    if (myTeams.length === 0)
+      throw new ServerError(401, 'You are not a player in this game.');
+
+    let canUndo = game.state.canUndo(team);
+    if (canUndo === false)
+      // The undo is rejected.
+      throw new ServerError(403, 'You can not undo right now');
+    else if (canUndo === true)
+      // The undo is auto-approved.
+      game.state.undo(team);
+    else {
+      // The undo request requires approval from the other player(s).
+      game.undoRequest = {
+        status: 'pending',
+        teamId: team.id,
+        accepts: new Set(myTeams.map(t => t.id)),
+      };
+
+      // The request is sent to all players.  The initiator may cancel.
+      this._emit({
+        type: 'event',
+        body: {
+          group: `/games/${gameId}`,
+          type:  'undoRequest',
+          data:  Object.assign({}, game.undoRequest, {
+            accepts: [...game.undoRequest.accepts],
+          }),
+        },
+      });
+    }
+
+    dataAdapter.saveGame(game);
+  }
+
   /*
    * Make sure the connected client is authorized to post this event.
    *
@@ -525,66 +588,6 @@ class GameService extends Service {
     game.state.postAction(action);
     // Clear a rejected undo request after an action is performed.
     game.undoRequest = null;
-
-    dataAdapter.saveGame(game);
-  }
-  onUndoEvent(client, groupPath) {
-    let gameId = groupPath.replace(/^\/games\//, '');
-    let gamePara = this.gamePara.get(gameId);
-    if (!gamePara)
-      throw new ServerError(403, 'You have not joined the game group');
-
-    let game = gamePara.game;
-    let playerId = this.clientPara.get(client.id).playerId;
-
-    // Determine the team that is requesting the undo.
-    let team = game.state.currentTeam;
-    while (team.playerId !== playerId) {
-      let prevTeamId = (team.id === 0 ? game.state.teams.length : team.id) - 1;
-      team = game.state.teams[prevTeamId];
-    }
-
-    let undoRequest = game.undoRequest;
-    if (undoRequest) {
-      if (undoRequest.status === 'pending')
-        throw new ServerError(409, 'An undo request is still pending');
-      else if (undoRequest.status === 'rejected')
-        if (undoRequest.teamId === team.id)
-          throw new ServerError(403, 'Your undo request was rejected');
-    }
-
-    // In case a player controls multiple teams...
-    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
-    if (myTeams.length === 0)
-      throw new ServerError(401, 'You are not a player in this game.');
-
-    let canUndo = game.state.canUndo(team);
-    if (canUndo === false)
-      // The undo is rejected.
-      throw new ServerError(403, 'You can not undo right now');
-    else if (canUndo === true)
-      // The undo is auto-approved.
-      game.state.undo(team);
-    else {
-      // The undo request requires approval from the other player(s).
-      game.undoRequest = {
-        status: 'pending',
-        teamId: team.id,
-        accepts: new Set(myTeams.map(t => t.id)),
-      };
-
-      // The request is sent to all players.  The initiator may cancel.
-      this._emit({
-        type: 'event',
-        body: {
-          group: groupPath,
-          type:  'undoRequest',
-          data:  Object.assign({}, game.undoRequest, {
-            accepts: [...game.undoRequest.accepts],
-          }),
-        },
-      });
-    }
 
     dataAdapter.saveGame(game);
   }

@@ -811,7 +811,7 @@ export default class {
     return true;
   }
   undo() {
-    this.state.undo();
+    return this.state.undo();
   }
   acceptUndo() {
     this.state.acceptUndo();
