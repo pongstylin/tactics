@@ -9,7 +9,11 @@ module.exports = {
     'chaos-app': path.resolve(__dirname, 'src', 'chaos-app.js'),
     'classic-app': path.resolve(__dirname, 'src', 'classic-app.js'),
     'game-app': path.resolve(__dirname, 'src', 'game-app.js'),
+
+    'errors': path.resolve(__dirname, 'src', 'errors.js'),
+    'install': path.resolve(__dirname, 'src', 'install.js'),
     'ww': path.resolve(__dirname, 'src', 'ww.js'),
+
     'online': path.resolve(__dirname, 'src', 'online.js'),
     'createGame': path.resolve(__dirname, 'src', 'createGame.js'),
     'account': path.resolve(__dirname, 'src', 'account.js'),

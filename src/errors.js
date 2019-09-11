@@ -1,35 +1,28 @@
-var logs = [];
-
 if (window.sessionStorage) {
-  logs = JSON.parse(window.sessionStorage.getItem('logs') || '[]');
-  if (logs.length)
-    reportErrors(JSON.stringify(logs));
+  var data = window.sessionStorage.getItem('log');
+  if (data)
+    reportError(data);
 }
 
 window.onerror = function (message, source, lineno, colno, error) {
   try {
-    logs.push({
+    reportError(JSON.stringify({
       createdAt: new Date(),
       page: location.href,
+      code: error ? error.code : null,
+      name: error ? error.name : null,
       message: message,
       source: source,
       lineno: lineno ? lineno : null,
       colno: colno ? colno : null,
       stack: error ? error.stack : null,
-    });
-
-    var data = JSON.stringify(logs);
-
-    if (window.sessionStorage)
-      window.sessionStorage.setItem('logs', data);
-
-    reportErrors(data);
+    }));
   }
   catch (e) {
     var error = 'Log error failed: ' + e;
     error = error.replace(/"/g, '\\"');
 
-    reportErrors('{"error":"' + error + '"}');
+    reportError('{"error":"' + error + '"}');
   }
 };
 
@@ -47,43 +40,33 @@ window.onunhandledrejection = function (event) {
       log.message = error.toString();
       log.stack = error.stack;
     }
-    else {
+    else if (error !== undefined) {
       log.message = error + '';
     }
 
-    logs.push(log);
-
-    var data = JSON.stringify(logs);
-
-    if (window.sessionStorage)
-      window.sessionStorage.setItem('logs', data);
-
-    reportErrors(data);
+    reportError(JSON.stringify(log));
   }
   catch (e) {
     var error = 'Log reject failed: ' + e;
     error = error.replace(/"/g, '\\"');
 
-    reportErrors('{"error":"' + error + '"}');
+    reportError('{"error":"' + error + '"}');
   }
 };
 
-function reportErrors(data) {
+function reportError(logData) {
+  if (window.sessionStorage)
+    window.sessionStorage.setItem('log', logData);
+
   $.ajax({
     method: 'POST',
     url: '/errors',
     contentType: 'application/json',
-    data: data,
+    data: logData,
   }).done(function () {
     if (window.sessionStorage)
-      window.sessionStorage.removeItem('logs');
-    logs.length = 0;
+      window.sessionStorage.removeItem('log');
   }).fail(function () {
-    setTimeout(function () {
-      if (window.sessionStorage)
-        data = window.sessionStorage.getItem('logs');
-      if (data)
-        reportErrors(data);
-    }, 5000);
+    setTimeout(function () { reportError(logData) }, 5000);
   });
 }
