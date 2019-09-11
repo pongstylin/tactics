@@ -1,4 +1,5 @@
 import 'tactics/core.scss';
+import 'plugins/element.js';
 import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
 import popup from 'components/popup.js';

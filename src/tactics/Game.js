@@ -517,8 +517,8 @@ export default class {
    */
   resize() {
     let canvas = this._canvas;
-    canvas.style.width  = null;
-    canvas.style.height = null;
+    canvas.style.width  = '';
+    canvas.style.height = '';
 
     let container = canvas.parentNode;
     let width     = container.clientWidth;

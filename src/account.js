@@ -1,6 +1,5 @@
 import 'tactics/core.scss';
-// Edge doesn't support the flat() function.
-import 'plugins/array.js';
+import 'plugins/element.js';
 import clientFactory from 'client/clientFactory.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';

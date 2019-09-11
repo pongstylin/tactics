@@ -106,9 +106,16 @@ export default class ServerSocket {
     if (this.isActive) return;
     this.isActive = true;
 
-    let socket = new WebSocket(this.endpoint);
-    socket.addEventListener('open', this._openListener);
-    socket.addEventListener('close', this._failListener);
+    try {
+      let socket = new WebSocket(this.endpoint);
+      socket.addEventListener('open', this._openListener);
+      socket.addEventListener('close', this._failListener);
+    }
+    catch (e) {
+      // Prevent websocket errors from stopping code execution.
+      // But rethrow the error so that it can be logged.
+      setTimeout(() => { throw e; });
+    }
   }
   close(code, reason) {
     if (!code) throw new Error('Required close code');

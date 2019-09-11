@@ -37,7 +37,7 @@ window.addEventListener('DOMContentLoaded', () => {
     else
       txtPlayerName.value = 'Noob';
 
-    divSetup.style.display = null;
+    divSetup.style.display = '';
   });
 
   document.querySelectorAll('INPUT[name=vs]').forEach(radio => {
@@ -63,7 +63,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   btnCreate.addEventListener('click', () => {
     divSetup.style.display = 'none';
-    divWaiting.style.display = null;
+    divWaiting.style.display = '';
 
     let vs = document.querySelector('INPUT[name=vs]:checked').value;
     let turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
@@ -126,11 +126,11 @@ window.addEventListener('DOMContentLoaded', () => {
         }
 
         divWaiting.style.display = 'none';
-        divSetup.style.display = null;
+        divSetup.style.display = '';
       });
   });
 
-  document.querySelector('.content').style.display = null;
+  document.querySelector('.content').style.display = '';
 });
 
 async function joinOpenGame(query, slot) {
