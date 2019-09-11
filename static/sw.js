@@ -18,6 +18,7 @@ const APP_FILES = [
   '/errors.min.js',
   '/install.min.js',
   '/tactics.min.js',
+  '/check.min.js',
 
   '/online.html',
   '/online.min.js',

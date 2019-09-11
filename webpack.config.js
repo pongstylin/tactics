@@ -4,16 +4,17 @@ const Dotenv = require('dotenv-webpack');
 module.exports = {
   mode: process.env.NODE_ENV,
   entry: {
-    tactics: path.resolve(__dirname, 'src', 'tactics.js'),
-    'faceoff-app': path.resolve(__dirname, 'src', 'faceoff-app.js'),
-    'chaos-app': path.resolve(__dirname, 'src', 'chaos-app.js'),
-    'classic-app': path.resolve(__dirname, 'src', 'classic-app.js'),
-    'game-app': path.resolve(__dirname, 'src', 'game-app.js'),
-
     'theme': path.resolve(__dirname, 'src', 'theme.scss'),
     'errors': path.resolve(__dirname, 'src', 'errors.js'),
     'install': path.resolve(__dirname, 'src', 'install.js'),
     'ww': path.resolve(__dirname, 'src', 'ww.js'),
+    'tactics': path.resolve(__dirname, 'src', 'tactics.js'),
+    'check': path.resolve(__dirname, 'src', 'check.js'),
+
+    'faceoff-app': path.resolve(__dirname, 'src', 'faceoff-app.js'),
+    'chaos-app': path.resolve(__dirname, 'src', 'chaos-app.js'),
+    'classic-app': path.resolve(__dirname, 'src', 'classic-app.js'),
+    'game-app': path.resolve(__dirname, 'src', 'game-app.js'),
 
     'online': path.resolve(__dirname, 'src', 'online.js'),
     'createGame': path.resolve(__dirname, 'src', 'createGame.js'),
