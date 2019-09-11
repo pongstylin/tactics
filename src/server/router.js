@@ -411,7 +411,9 @@ function debugMessage(client, message, inOrOut) {
   let body = message.body;
 
   let suffix;
-  if (message.type === 'event')
+  if (message.type === 'sync')
+    suffix = `[${message.ack}]`;
+  else if (message.type === 'event')
     suffix = `[${message.id}] ${body.service}:${body.type}`;
   else if (message.type === 'request')
     suffix = `[${message.id}] ${body.service}:${body.method}`;
