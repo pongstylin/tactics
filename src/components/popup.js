@@ -1,3 +1,5 @@
+import 'components/popup.scss';
+
 class Popup {
   constructor(options) {
     Object.assign(this, {
