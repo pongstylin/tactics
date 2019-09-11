@@ -939,7 +939,7 @@ export default class {
       if (!(effect_url in effects)) {
         resources.push(effect_url);
 
-        effects[effect_url] = $.getJSON(effect_url).then(renderData => {
+        effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
           // Preload data URIs.
           renderData.images.forEach(image_url => {
             PIXI.BaseTexture.from(image_url);
@@ -959,7 +959,7 @@ export default class {
     let trophy_url = unitDataMap.get('Champion').frames_url;
     resources.push(trophy_url);
 
-    tacticsUtils.getWebResourceJSON(trophy_url).then(renderData => {
+    fetch(trophy_url).then(r => r.json()).then(renderData => {
       Object.assign(unitDataMap.get('Champion'), renderData);
 
       // Preload data URIs.
@@ -1014,7 +1014,7 @@ export default class {
             if (!(effect_url in effects)) {
               resources.push(effect_url);
 
-              effects[effect_url] = $.getJSON(effect_url).then(renderData => {
+              effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
                 // Preload data URIs.
                 renderData.images.forEach(image_url => {
                   PIXI.BaseTexture.from(image_url);
@@ -1036,7 +1036,7 @@ export default class {
           let frames_url = unitData.frames_url;
           resources.push(frames_url);
 
-          $.getJSON(frames_url).then(renderData => {
+          fetch(frames_url).then(r => r.json()).then(renderData => {
             Object.assign(unitData, renderData);
 
             // Preload data URIs.
