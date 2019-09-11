@@ -10,6 +10,7 @@ module.exports = {
     'classic-app': path.resolve(__dirname, 'src', 'classic-app.js'),
     'game-app': path.resolve(__dirname, 'src', 'game-app.js'),
 
+    'theme': path.resolve(__dirname, 'src', 'theme.scss'),
     'errors': path.resolve(__dirname, 'src', 'errors.js'),
     'install': path.resolve(__dirname, 'src', 'install.js'),
     'ww': path.resolve(__dirname, 'src', 'ww.js'),

@@ -1,0 +1,134 @@
+HTML {
+  touch-action: manipulation;
+}
+
+/*
+ * Default positioning rules position the app in the center of the screen.
+ * The app takes up all the space it can up to the maximum size of the board.
+ * The board itself is positioned in the center of the app.
+ */
+HTML, BODY {
+  width: 100%;
+  height: 100%;
+}
+
+BODY {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  background-color: black;
+  color: #DED8D5;
+  font-family: 'Open Sans', Arial, Verdana;
+  font-size: 0.8125em;
+
+  -webkit-text-size-adjust: none;
+  -webkit-touch-callout: none;
+}
+
+INPUT, BUTTON {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+TEXTAREA {
+  // No scrollbars.  The chat TEXTAREA will grow to fit content.
+  overflow: hidden;
+  resize: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+::-webkit-scrollbar {
+  -webkit-appearance: none;
+  width: 8px;
+  border-right: 1px solid #444444;
+}
+::-webkit-scrollbar-track * {
+  background-color: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 8px;
+  background-color: #666666;
+}
+
+/*
+ * General Look & Feel for Notifications
+ */
+#notifications {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 100;
+
+  & > DIV {
+    position: relative;
+    background-color: #dddddd;
+    color: black;
+    text-align: center;
+
+    border-radius: 16px;
+    margin: 4px 4px 0;
+    padding: 2px 28px 2px 2px;
+
+    cursor: pointer;
+
+    A {
+      color: #0000FF;
+    }
+
+    .close {
+      display: block;
+      position: absolute;
+      top: 2px;
+      right: 0;
+      padding: 0 12px 0 10px;
+      font-weight: bold;
+      height: calc(100% - 4px);
+    }
+  }
+
+  & > DIV:hover .close {
+    color: #0000FF;
+  }
+}
+
+BUTTON {
+  background: radial-gradient(#b08d57 10%, #804a00);
+  color: #FFEECC;
+
+  box-sizing: border-box;
+  border: 1px solid #AA9977;
+  border-radius: 8px;
+  padding: 4px 8px;
+
+  font-weight: bold;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  cursor: pointer;
+}
+// Buttons with images, not content.
+BUTTON:empty {
+  border-radius: 0;
+}
+
+@media (hover:hover) {
+  BUTTON:hover,
+  BUTTON:focus {
+    outline: none;
+    background: radial-gradient(#b08d57, 80%, #804a00);
+  }
+}
+
+A {
+  color: #00FFFF;
+}
+@media (hover:hover) {
+  A:hover {
+    color: #CCFFFF;
+    text-decoration: underline;
+  }
+}
