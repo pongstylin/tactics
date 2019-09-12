@@ -235,7 +235,7 @@ self.addEventListener('push', event => {
     };
   }
   else
-    return
+    return;
 
   event.waitUntil(
     self.registration.showNotification(title, options)

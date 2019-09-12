@@ -605,11 +605,20 @@
         }
       }
 
+      // The chat and swapbar button are aligned to the right
       #game-play {
         top: auto;
+
+        BUTTON[name=surrender] {
+          margin-right: auto !important;
+        }
       }
       #game-settings {
         bottom: auto;
+
+        BUTTON[name=swapbar] {
+          margin-left: auto !important;
+        }
       }
 
       // No longer place the buttons in the top-right corner of #app.
@@ -645,20 +654,6 @@
     #chat {
       border: 0 none !important;
       padding-top: 0;
-    }
-  }
-
-  @media (min-width: 292px) {
-    // The chat and swapbar button are aligned to the right
-    #game-play {
-      BUTTON[name=surrender] {
-        margin-right: auto !important;
-      }
-    }
-    #game-settings {
-      BUTTON[name=swapbar] {
-        margin-left: auto !important;
-      }
     }
   }
 
@@ -762,6 +757,18 @@
         }
       }
 
+      #game-play {
+        BUTTON[name=surrender] {
+          // If only I can set a minimum 3px margin...
+          margin-bottom: auto !important;
+        }
+      }
+      #game-settings {
+        BUTTON[name=swapbar] {
+          margin-top: auto !important;
+        }
+      }
+
       .buttons {
         position: fixed;
         top: 0 !important;
@@ -801,18 +808,6 @@
     &.chat-input-mode {
       #game .buttons { display:none }
       #chat { width:100% }
-    }
-  }
-
-  #game-play {
-    BUTTON[name=surrender] {
-      // If only I can set a minimum 3px margin...
-      margin-bottom: auto !important;
-    }
-  }
-  #game-settings {
-    BUTTON[name=swapbar] {
-      margin-top: auto !important;
     }
   }
 
