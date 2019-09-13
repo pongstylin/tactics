@@ -14,9 +14,6 @@ const SOCKET_OPEN       = 1;
 const SOCKET_CLOSING    = 2;
 const SOCKET_CLOSED     = 3;
 
-// Lost connection or server crash
-const CLOSE_ABNORMAL = 1006;
-
 let sockets = new Map();
 
 export default class ServerSocket {
@@ -31,8 +28,11 @@ export default class ServerSocket {
       _syncTimeout: null,
       // Close connection after 10 seconds of idle receives.
       _closeTimeout: null,
+
       _whenAuthorized: new Map(),
       _resolveAuthorized: new Map(),
+      _whenJoined: new Map(),
+      _resolveJoined: new Map(),
 
       // Track a session across connections
       _session: {
@@ -47,7 +47,7 @@ export default class ServerSocket {
         // Pending response routes
         responseRoutes: new Map(),
         // Is the socket connected and the session opened?
-        open: false,
+        isOpen: false,
       },
 
       // Used to detect successful connection to the server.
@@ -80,7 +80,7 @@ export default class ServerSocket {
     return socket && socket.readyState === SOCKET_OPEN;
   }
   get isOpen() {
-    return this._session.open;
+    return this._session.isOpen;
   }
 
   /*
@@ -100,6 +100,22 @@ export default class ServerSocket {
     }
 
     return whenAuthorized.get(serviceName);
+  }
+  whenJoined(serviceName, groupPath) {
+    let whenJoined = this._whenJoined;
+    let groupKey = `${serviceName}:${groupPath}`;
+
+    if (!whenJoined.has(groupKey)) {
+      let promise = new Promise(resolve => {
+        this._resolveJoined.set(groupKey, resolve);
+      });
+      promise.isResolved = false;
+
+      whenJoined.set(groupKey, promise);
+      return promise;
+    }
+
+    return whenJoined.get(groupKey);
   }
 
   open() {
@@ -124,7 +140,7 @@ export default class ServerSocket {
     if (!socket) return;
 
     this._socket = null;
-    this._session.open = false;
+    this._session.isOpen = false;
 
     let reopen = code < CLOSE_SHUTDOWN;
 
@@ -188,14 +204,23 @@ export default class ServerSocket {
 
     return new Promise((resolve, reject) => {
       this._session.responseRoutes.set(requestId, {resolve, reject});
+    }).then(data => {
+      let groupKey = `${serviceName}:${groupPath}`;
+      let promise = this.whenJoined(serviceName, groupPath);
+      promise.isResolved = true;
+      this._resolveJoined.get(groupKey)(data);
+
+      return data;
     });
   }
   emit(serviceName, groupPath, eventType, data) {
-    this._enqueue('event', {
-      service: serviceName,
-      group: groupPath,
-      type: eventType,
-      data: data,
+    return this.whenJoined(serviceName, groupPath).then(() => {
+      this._enqueue('event', {
+        service: serviceName,
+        group: groupPath,
+        type: eventType,
+        data: data,
+      });
     });
   }
 
@@ -321,6 +346,11 @@ export default class ServerSocket {
       if (promise.isResolved)
         this._whenAuthorized.delete(serviceName);
     });
+    // Joined groups are no longer joined.
+    this._whenJoined.forEach((promise, groupKey) => {
+      if (promise.isResolved)
+        this._whenJoined.delete(groupKey);
+    });
 
     // Reset the session
     session.responseRoutes.forEach(route => route.reject('Connection reset'));
@@ -436,7 +466,7 @@ export default class ServerSocket {
   }
   _onSessionMessage(message) {
     let session = this._session;
-    session.open = true;
+    session.isOpen = true;
 
     if (session.id === message.body.sessionId) {
       this._emit({ type:'open', data:{ reason:'resume' }});
@@ -445,23 +475,18 @@ export default class ServerSocket {
       this._purgeAcknowledgedMessages(message.ack);
       this._onSyncMessage(message);
     }
-    else if (session.id) {
+    else {
       let outbox = session.outbox.slice();
+      let isNew = !session.id;
 
       this._resetSession(session);
 
       session.id = message.body.sessionId;
 
-      this._emit({ type:'open', data:{ reason:'reset', outbox }});
-    }
-    else {
-      // Open new session
-      session.id = message.body.sessionId;
-
-      this._emit({ type:'open', data:{ reason:'new' }});
-
-      // Send queued messages
-      this._onSyncMessage(message);
+      if (isNew)
+        this._emit({ type:'open', data:{ reason:'new', outbox }});
+      else
+        this._emit({ type:'open', data:{ reason:'reset', outbox }});
     }
   }
   _onErrorMessage(message) {

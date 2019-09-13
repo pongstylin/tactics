@@ -31,6 +31,8 @@ export default Promise.all(
 ).then(() => route);
 
 const CLOSE_GOING_AWAY     = 1001;
+const CLOSE_NO_STATUS      = 1005;
+const CLOSE_ABNORMAL       = 1006;
 
 // Proprietary codes used by server
 const CLOSE_CLIENT_TIMEOUT = 4000;
