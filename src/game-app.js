@@ -223,6 +223,9 @@ Tactics.App = (function ($, window, document) {
             keyChar = String.fromCharCode(keyCode);
         }
 
+        if (keyChar === 'Control' || keyChar === 'Alt' || keyChar === 'Shift')
+          return;
+
         // Open chat, but otherwise ignore input until input box is ready.
         if ($app.is('.chat-opening'))
           return;
