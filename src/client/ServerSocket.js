@@ -30,9 +30,9 @@ export default class ServerSocket {
       _closeTimeout: null,
 
       _whenAuthorized: new Map(),
-      _resolveAuthorized: new Map(),
+      _authorizeRoutes: new Map(),
       _whenJoined: new Map(),
-      _resolveJoined: new Map(),
+      _joinRoutes: new Map(),
 
       // Track a session across connections
       _session: {
@@ -90,8 +90,8 @@ export default class ServerSocket {
     let whenAuthorized = this._whenAuthorized;
 
     if (!whenAuthorized.has(serviceName)) {
-      let promise = new Promise(resolve => {
-        this._resolveAuthorized.set(serviceName, resolve);
+      let promise = new Promise((resolve, reject) => {
+        this._authorizeRoutes.set(serviceName, { resolve, reject });
       });
       promise.isResolved = false;
 
@@ -106,8 +106,8 @@ export default class ServerSocket {
     let groupKey = `${serviceName}:${groupPath}`;
 
     if (!whenJoined.has(groupKey)) {
-      let promise = new Promise(resolve => {
-        this._resolveJoined.set(groupKey, resolve);
+      let promise = new Promise((resolve, reject) => {
+        this._joinRoutes.set(groupKey, { resolve, reject });
       });
       promise.isResolved = false;
 
@@ -187,7 +187,7 @@ export default class ServerSocket {
     }).then(() => {
       let promise = this.whenAuthorized(serviceName);
       promise.isResolved = true;
-      this._resolveAuthorized.get(serviceName)();
+      this._authorizeRoutes.get(serviceName).resolve();
     }).catch(error => {
       // If the connection is reset while authorizing, ignore it.  A new attempt
       // to authorize will be made when the connection is reestablished.
@@ -215,7 +215,7 @@ export default class ServerSocket {
       let groupKey = `${serviceName}:${groupPath}`;
       let promise = this.whenJoined(serviceName, groupPath);
       promise.isResolved = true;
-      this._resolveJoined.get(groupKey)(data);
+      this._joinRoutes.get(groupKey).resolve();
 
       return data;
     });
@@ -349,15 +349,14 @@ export default class ServerSocket {
   }
   _resetSession(session = this._session) {
     // Authorized services are no longer authorized.
-    this._whenAuthorized.forEach((promise, serviceName) => {
-      if (promise.isResolved)
-        this._whenAuthorized.delete(serviceName);
-    });
+    this._authorizeRoutes.forEach(route => route.reject('Connection reset'));
+    this._authorizeRoutes.clear();
+    this._whenAuthorized.clear();
+
     // Joined groups are no longer joined.
-    this._whenJoined.forEach((promise, groupKey) => {
-      if (promise.isResolved)
-        this._whenJoined.delete(groupKey);
-    });
+    this._joinRoutes.forEach(route => route.reject('Connection reset'));
+    this._joinRoutes.clear();
+    this._whenJoined.clear();
 
     // Reset the session
     session.responseRoutes.forEach(route => route.reject('Connection reset'));
