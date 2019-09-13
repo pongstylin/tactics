@@ -188,6 +188,13 @@ export default class ServerSocket {
       let promise = this.whenAuthorized(serviceName);
       promise.isResolved = true;
       this._resolveAuthorized.get(serviceName)();
+    }).catch(error => {
+      // If the connection is reset while authorizing, ignore it.  A new attempt
+      // to authorize will be made when the connection is reestablished.
+      if (error === 'Connection reset')
+        return;
+
+      throw error;
     });
   }
 

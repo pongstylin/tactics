@@ -180,7 +180,8 @@ export default class AuthClient extends Client {
           return;
         }
 
-        throw error;
+        if (error !== 'Connection reset')
+          throw error;
       });
   }
   _fetchToken() {
