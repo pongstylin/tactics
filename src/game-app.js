@@ -320,57 +320,12 @@ Tactics.App = (function ($, window, document) {
       });
 
     initGame()
-      .then(g => {
-        $('#splash').show();
-
-        game = g;
-        game.state.on('playerStatus', resetPlayerBanners);
-
-        if (game.isViewOnly)
-          $('#app').addClass('for-viewing');
-        else if (game.hasOneLocalTeam()) {
-          $('#app').addClass('for-playing');
-
-          let chatClient = Tactics.chatClient;
-          let groupId = `/rooms/${gameId}`;
-          let playerId = Tactics.authClient.playerId;
-
-          chatClient.on('open', ({ data }) => {
-            if (data.reason === 'resume') return;
-
-            let resume = chatMessages.last ? chatMessages.last.id : null;
-
-            chatClient.joinChat(gameId, { id:resume }).then(({ events }) => {
-              appendMessages(events.filter(e => e.type === 'message'));
-            });
-          });
-
-          chatClient.on('event', event => {
-            if (event.body.group !== groupId) return;
-            if (event.body.type !== 'message') return;
-
-            let message = event.body.data;
-            appendMessages(message);
-          });
-
-          return chatClient.joinChat(gameId).then(({ players, events }) => {
-            lastSeenEventId = players
-              .find(p => p.id === playerId).lastSeenEventId;
-
-            initMessages(events.filter(e => e.type === 'message'));
-
-            loadThenStartGame();
-          });
-        }
-        else
-          $('#app').addClass('for-practice');
-
-        loadThenStartGame();
-      })
       .catch(error => {
         console.error(error);
 
-        if (error.code === 403 || error.code === 409)
+        if (error === 'Connection reset')
+          return initGame();
+        else if (error.code === 403 || error.code === 409)
           $('#error').text(error.message);
         else if (error.code === 404)
           $('#error').text("The game doesn't exist");
@@ -434,6 +389,53 @@ Tactics.App = (function ($, window, document) {
             return showJoinIntro(identity, gameData);
         });
       })
+      .then(g => {
+        $('#splash').show();
+
+        game = g;
+        game.state.on('playerStatus', resetPlayerBanners);
+
+        if (game.isViewOnly)
+          $('#app').addClass('for-viewing');
+        else if (game.hasOneLocalTeam()) {
+          $('#app').addClass('for-playing');
+
+          let chatClient = Tactics.chatClient;
+          let groupId = `/rooms/${gameId}`;
+          let playerId = Tactics.authClient.playerId;
+
+          chatClient.on('open', ({ data }) => {
+            if (data.reason === 'resume') return;
+
+            let resume = chatMessages.last ? chatMessages.last.id : null;
+
+            chatClient.joinChat(gameId, { id:resume }).then(({ events }) => {
+              appendMessages(events.filter(e => e.type === 'message'));
+            });
+          });
+
+          chatClient.on('event', event => {
+            if (event.body.group !== groupId) return;
+            if (event.body.type !== 'message') return;
+
+            let message = event.body.data;
+            appendMessages(message);
+          });
+
+          return chatClient.joinChat(gameId).then(({ players, events }) => {
+            lastSeenEventId = players
+              .find(p => p.id === playerId).lastSeenEventId;
+
+            initMessages(events.filter(e => e.type === 'message'));
+
+            loadThenStartGame();
+          });
+        }
+        else
+          $('#app').addClass('for-practice');
+
+        loadThenStartGame();
+      });
   }
 
   function initMessages(messages) {

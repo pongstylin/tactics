@@ -130,7 +130,7 @@ export default class AuthClient extends Client {
       // Since a connection can only be resumed for 30 seconds after disconnect
       // and a token is refreshed 1 minute before it expires, a token refresh
       // should not be immediately necessary after resuming a connection.
-      if (data.reason === 'resume')
+      if (this.isAuthorized && data.reason === 'resume')
         this._setRefreshTimeout();
       else
         await this._refreshToken();
