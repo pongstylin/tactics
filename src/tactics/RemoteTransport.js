@@ -204,6 +204,8 @@ export default class RemoteTransport {
     });
   }
   _resume() {
+    if (this._data.state.ended) return;
+
     let gameId = this._data.id;
 
     gameClient.whenAuthorized.then(() => {
