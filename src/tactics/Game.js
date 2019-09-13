@@ -1144,7 +1144,6 @@ export default class {
     if (actions.length === 0) return Promise.resolve();
 
     let board = this._board;
-    board.clearMode();
     actions = board.decodeAction(actions);
 
     let selected = this.selected;
@@ -1297,6 +1296,7 @@ export default class {
     );
 
     // Change a readonly lock to a full lock
+    this.viewed = null;
     this.lock();
 
     return promise.then(() => {
