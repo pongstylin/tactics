@@ -158,7 +158,7 @@ export default class RemoteTransport {
     return gameClient.restart(this._data.id, ...arguments);
   }
   postAction(action) {
-    gameClient.postAction(this._data.id, action);
+    return gameClient.postAction(this._data.id, action);
   }
   acceptUndo() {
     gameClient.acceptUndo(this._data.id);

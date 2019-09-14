@@ -1127,14 +1127,19 @@ export default class {
    * Initiate an action, whether it be moving, attacking, turning, or passing.
    */
   _postAction(action) {
-    if (action.type !== 'endTurn' && action.type !== 'surrender')
+    if (!action.unit && action.type !== 'endTurn' && action.type !== 'surrender')
       action.unit = this.selected;
 
     this.selected = null;
     this.delayNotice('Sending order...');
 
     this.lock();
-    this.state.postAction(this._board.encodeAction(action));
+    return this.state.postAction(this._board.encodeAction(action)).catch(error => {
+      if (error === 'Connection reset')
+        return this._postAction(action);
+
+      throw error;
+    });
   }
   _performActions(actions) {
     // Clear or cancel the 'Sending order' notice

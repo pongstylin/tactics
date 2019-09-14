@@ -99,7 +99,7 @@ export default class GameClient extends Client {
   }
 
   postAction(gameId, action) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'action', action);
+    return this._server.emitAuthorized(this.name, `/games/${gameId}`, 'action', action);
   }
   acceptUndo(gameId) {
     this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept');
