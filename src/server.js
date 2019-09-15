@@ -3,12 +3,16 @@ import http from 'http';
 import express from 'express';
 import morgan from 'morgan';
 import ws from 'ws';
+import jwt from 'jsonwebtoken';
 
 // Object extensions/polyfills
 import 'plugins/array.js';
 import 'plugins/string.js';
 
+import config from 'config/server.js';
 import router from 'server/router.js';
+import GameService from 'server/GameService.js';
+import ServerError from 'server/Error.js';
 
 const PORT   = process.env.PORT;
 const app    = express();
@@ -38,7 +42,47 @@ app.post('/errors', (req, res) => {
   res.send(true);
 });
 
+/*
+ * Called from a service worker when it receives a 'yourTurn' notification.
+ * Used to determine the current notification for the player irregardless
+ * of the received notification, which may be out-of-date.
+ */
+async function getYourTurnNotification(req, res) {
+  if (!req.headers.authorization)
+    throw new ServerError(401, 'Authorization is required');
+
+  let token = req.headers.authorization.replace(/^Bearer /, '');
+  let claims;
+  try {
+    claims = jwt.verify(token, config.publicKey, {
+      ignoreExpiration: true,
+    });
+  }
+  catch (error) {
+    throw new ServerError(401, error.message);
+  }
+
+  let playerId = claims.sub;
+  let notification = await GameService.getYourTurnNotification(playerId);
+
+  res.send(notification);
+}
+app.get('/notifications/yourTurn', (req, res, next) => {
+  getYourTurnNotification(req, res).catch(error => next(error));
+});
+
 app.use(express.static('static'));
+
+app.use((error, req, res, next) => {
+  if (error instanceof ServerError)
+    return res.status(error.code).send({ error });
+
+  res.status(500).send({ error:{
+    message: 'Internal Server Error',
+  }});
+
+  console.error(error.stack)
+});
 
 // Don't start listening for connections until the router is ready.
 router.then(route => {

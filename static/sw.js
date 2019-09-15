@@ -129,7 +129,7 @@ function getCache(url) {
  */
 const LOCAL_ENDPOINT = self.registration.scope + 'local.json';
 
-function routeLocalRequest(request) {
+async function routeLocalRequest(request) {
   let responseMeta = {
     status: 200,
     statusText: 'OK',
@@ -138,7 +138,6 @@ function routeLocalRequest(request) {
     }
   };
 
-  self.test = request;
   if (request.method === 'POST')
     return request.json().then(data =>
       caches.open(LOCAL_CACHE_NAME).then(cache => {
@@ -218,28 +217,103 @@ self.addEventListener('activate', event => {
   );
 });
 
-self.addEventListener('push', event => {
+/*
+ * Scenario:
+ *   A device comes online and receives a backlog of multiple notifications.
+ *   We know that the notifications were delayed because notifications are time-
+ *   stamped with their creation date and that date is more than 2 minutes ago.
+ *   But, the notifications may no longer be relevant.  The user may have acted
+ *   upon them on another device already.  To avoid displaying irrelevant data,
+ *   fresh notification data is retrieved from the server.  If the fresh data
+ *   indicates that no notification is required, then a no-op one is shown and
+ *   quickly closed automatically.  This is because every 'push' event is
+ *   required to show a notification.  Also note that we don't want to hit the
+ *   server for fresh notification data for each delayed notification in the
+ *   list.  So, check for an existing notification.  If one exists and shows a
+ *   newer creation date, then use it - assuming it isn't more than 2min old.
+ */
+async function showNotification(event) {
   let data = event.data.json();
+  let notifications = await self.registration.getNotifications();
+  let currentNotification = notifications.find(n => n.tag === data.type);
+
+  /*
+   * If the current notification is newer, repost it.
+   * The current notification might be newer if obtained from the server before
+   * a series of delayed notifications.
+   */
+  if (currentNotification && currentNotification.data)
+    if (currentNotification.data.createdAt > data.createdAt)
+      data = currentNotification.data;
+
+  /*
+   * If notification data is significantly old or delayed, refresh it.
+   */
+  let diff = new Date() - new Date(data.createdAt);
+  if (diff > 120000) { // 2min
+    try {
+      let localRsp = await routeLocalRequest({method:'GET'});
+      let localData = await localRsp.json();
+      let token = localData.token;
+      let rsp = await fetch(`/notifications/${data.type}`, Object.assign({
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }, OPTIONS));
+      if (rsp.ok)
+        data = await rsp.json();
+    }
+    catch (error) {
+      console.error(error);
+    }
+  }
+
   let title;
   let options;
-
+  let autoClose = false;
   if (data.type === 'yourTurn') {
-    title = `It's your turn!`;
+    if (data.gameCount === 0)
+      title = 'Not your turn!';
+    else
+      title = `It's your turn!`;
+
     options = {
-      body: `${data.opponent} is waiting.`,
       icon: '/emblem_512.png',
-      timestamp: new Date(data.turnStarted),
-      requireInteraction: true,
+      timestamp: new Date(data.turnStartedAt || data.createdAt),
+      requireInteraction: !!data.gameCount,
       tag: data.type,
       data: data,
     };
+
+    if (data.gameCount === 0)
+      options.body = 'You made your move before getting this notification.';
+    else if (data.gameCount === 1)
+      options.body = `${data.opponent} is waiting.`;
+    else
+      options.body = `${data.gameCount} games are waiting.`;
+
+    // If not their turn, auto close notification almost immediately.
+    // (Necessary since NOT showing a notification is not allowed)
+    if (data.gameCount === 0)
+      autoClose = true;
   }
   else
-    return;
+    throw new Error('Unsupported notification type');
 
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+  return self.registration.showNotification(title, options).then(() => {
+    if (!autoClose) return;
+
+    setTimeout(async () => {
+      let notifications = await self.registration.getNotifications();
+      let newNotification = notifications.find(n => n.tag === data.type);
+      if (newNotification)
+        newNotification.close();
+    }, 100);
+  });
+}
+self.addEventListener('push', event => {
+  event.waitUntil(showNotification(event));
 });
 
 self.addEventListener('notificationclick', event => {
@@ -254,8 +328,6 @@ self.addEventListener('notificationclick', event => {
     else
       url = '/online.html#active';
   }
-  else
-    url = '/online.html#active';
 
   if (url) {
     let matchUrl = url;

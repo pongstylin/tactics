@@ -74,6 +74,50 @@ class GameService extends Service {
     this.clientPara.delete(client.id);
   }
 
+  /*
+   * Generate a 'yourTurn' notification to indicate that it is currently the
+   * player's turn for X number of games.  If only one game, then it provides
+   * details for the game and may link to that game.  Otherwise, it indicates
+   * the number of games and may link to the active games page.
+   */
+  async getYourTurnNotification(playerId) {
+    let gamesSummary = await dataAdapter.listMyTurnGamesSummary(playerId);
+    let notification = {
+      type: 'yourTurn',
+      createdAt: new Date(),
+      gameCount: gamesSummary.length,
+    };
+
+    if (gamesSummary.length === 0)
+      return notification;
+    else if (gamesSummary.length > 1) {
+      notification.turnStartedAt = new Date(
+        Math.max(...gamesSummary.map(gs => new Date(gs.updated)))
+      );
+      return notification;
+    }
+    else
+      notification.turnStartedAt = new Date(gamesSummary[0].updated);
+
+    // Search for the next opponent team after this team.
+    // Useful for 4-team games.
+    let teams = gamesSummary[0].teams;
+    let teamId = gamesSummary[0].currentTeamId;
+    let opponentTeam;
+    for (let i=1; i<teams.length; i++) {
+      let nextTeam = teams[(teamId + i) % teams.length];
+      if (nextTeam.playerId === playerId) continue;
+
+      opponentTeam = nextTeam;
+      break;
+    }
+
+    return Object.assign(notification, {
+      gameId: gamesSummary[0].id,
+      opponent: opponentTeam.name,
+    });
+  }
+
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
@@ -238,7 +282,8 @@ class GameService extends Service {
         });
 
         if (event.type === 'startTurn')
-          this._notifyYourTurn(game, event.data);
+          dataAdapter.saveGame(game)
+            .then(() => this._notifyYourTurn(game, event.data));
         else if (event.type === 'joined' || event.type === 'action' || event.type === 'revert')
           // Since games are saved before they are removed from memory this only
           // serves as a precaution against a server crash.  It would also be
@@ -431,7 +476,7 @@ class GameService extends Service {
       if (numOpenSlots > 1)
         resolve();
     }).then(async event => {
-      dataAdapter.saveGame(game);
+      await dataAdapter.saveGame(game);
       if (!event) return;
 
       let teams = game.state.teams;
@@ -713,7 +758,7 @@ class GameService extends Service {
     return status;
   }
 
-  _notifyYourTurn(game, startTurnData) {
+  async _notifyYourTurn(game, startTurnData) {
     let teamId = startTurnData.teamId;
     let playerId = game.state.teams[teamId].playerId;
     let teams = game.state.teams;
@@ -726,8 +771,8 @@ class GameService extends Service {
     // Search for the next opponent team after this team.
     // Useful for 4-team games.
     let opponentTeam;
-    for (let i=0; i<teams.length-1; i++) {
-      let nextTeam = teams[(teamId + 1) % teams.length];
+    for (let i=1; i<teams.length; i++) {
+      let nextTeam = teams[(teamId + i) % teams.length];
       if (nextTeam.playerId === playerId) continue;
 
       opponentTeam = nextTeam;
@@ -738,12 +783,12 @@ class GameService extends Service {
     if (!opponentTeam)
       return;
 
-    pushService.pushNotification(playerId, {
-      type: 'yourTurn',
-      gameId: game.id,
-      opponent: opponentTeam.name,
-      turnStarted: startTurnData.started,
-    });
+    let notification = await this.getYourTurnNotification(playerId);
+    // Game count should always be >= 1, but just in case...
+    if (notification.gameCount === 0)
+      return;
+
+    pushService.pushNotification(playerId, notification);
   }
 
   _emitPlayerStatus(groupPath, playerId, status) {

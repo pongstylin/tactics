@@ -219,6 +219,26 @@ export default class {
     });
   }
 
+  async listMyTurnGamesSummary(myPlayerId) {
+    let games = await this._getPlayerGamesSummary(myPlayerId);
+
+    let myTurnGames = [];
+    for (let game of games.values()) {
+      // Only active games, please.
+      if (!game.started || game.ended)
+        continue;
+      // Must be my turn
+      if (game.teams[game.currentTeamId].playerId !== myPlayerId)
+        continue;
+      // Practice games don't count
+      if (!game.teams.find(t => t.playerId !== myPlayerId))
+        continue;
+
+      myTurnGames.push(game);
+    }
+
+    return myTurnGames;
+  }
   /*
    * Not intended for use by applications.
    */
