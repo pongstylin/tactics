@@ -18,7 +18,14 @@ export default class PushClient extends Client {
   }
 
   setSubscription(subscription) {
-    return this._server.requestAuthorized(this.name, 'setSubscription', [subscription]);
+    return this._server
+      .requestAuthorized(this.name, 'setSubscription', [subscription])
+        .catch(error => {
+          if (error === 'Connection reset')
+            return this.setSubscription(subscription);
+
+          throw error;
+        });
   }
 
   _onOpen({ data }) {
