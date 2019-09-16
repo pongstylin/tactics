@@ -342,6 +342,8 @@ Tactics.App = (function ($, window, document) {
   });
 
   $(window).on('resize', () => {
+    if (!game || !game.canvas.parentNode) return;
+
     let $resize = $('BUTTON[name=resize]');
     if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
       $resize.toggleClass('fa-expand fa-compress');
@@ -351,7 +353,7 @@ Tactics.App = (function ($, window, document) {
     let chatMode = $('#app').hasClass('chat-open');
     $('#app').removeClass('chat-open with-inlineChat');
 
-    if (game) game.resize();
+    game.resize();
 
     let bodyHeight = $('BODY').prop('clientHeight');
     let appHeight = $('#board').prop('clientHeight') + 106;
