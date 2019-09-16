@@ -525,6 +525,56 @@ class GameService extends Service {
     return game.state.restart(...args);
   }
 
+  /*
+   * Make sure the connected client is authorized to post this event.
+   *
+   * The GameState class is responsible for making sure the authorized client
+   * may make the provided action.
+   */
+  onActionRequest(client, gameId, action) {
+    let clientPara = this.clientPara.get(client.id);
+    let gamePara = this.gamePara.get(gameId);
+    if (!gamePara)
+      throw new ServerError(403, 'You must first join the game group');
+    if (!gamePara.clients.has(clientPara))
+      throw new ServerError(403, 'You must first join the game group');
+
+    let game = gamePara.game;
+    let playerId = clientPara.playerId;
+
+    let undoRequest = game.undoRequest || {};
+    if (undoRequest.status === 'pending')
+      throw new ServerError(409, 'An undo request is still pending');
+
+    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
+    if (myTeams.length === 0)
+      throw new ServerError(401, 'You are not a player in this game.');
+
+    if (!Array.isArray(action))
+      action = [action];
+
+    if (action[0].type === 'surrender') {
+      if (action[0].teamId !== undefined) {
+        // If surrender is not requested for themself, it is forced.
+        if (!myTeams.find(t => t.id === action[0].teamId))
+          action[0].forced = true;
+      }
+      else if (myTeams.length === game.state.teams.length)
+        action[0].teamId = game.state.currentTeamId;
+      else
+        action = myTeams.map(t => ({ type:'surrender', teamId:t.id }));
+    }
+    else if (myTeams.includes(game.state.currentTeam))
+      action.forEach(a => a.teamId = game.state.currentTeamId);
+    else
+      throw new ServerError(401, 'Not your turn!');
+
+    game.state.submitAction(action);
+    // Clear a rejected undo request after an action is performed.
+    game.undoRequest = null;
+
+    dataAdapter.saveGame(game);
+  }
   onUndoRequest(client, gameId) {
     let clientPara = this.clientPara.get(client.id);
     let gamePara = this.gamePara.get(gameId);
@@ -588,54 +638,6 @@ class GameService extends Service {
     dataAdapter.saveGame(game);
   }
 
-  /*
-   * Make sure the connected client is authorized to post this event.
-   *
-   * The GameState class is responsible for making sure the authorized client
-   * may make the provided action.
-   */
-  onActionEvent(client, groupPath, action) {
-    let gameId = groupPath.replace(/^\/games\//, '');
-    let gamePara = this.gamePara.get(gameId);
-    if (!gamePara)
-      throw new ServerError(403, 'You have not joined the game group');
-
-    let playerId = this.clientPara.get(client.id).playerId;
-
-    let game = gamePara.game;
-    let undoRequest = game.undoRequest || {};
-    if (undoRequest.status === 'pending')
-      throw new ServerError(409, 'An undo request is still pending');
-
-    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
-    if (myTeams.length === 0)
-      throw new ServerError(401, 'You are not a player in this game.');
-
-    if (!Array.isArray(action))
-      action = [action];
-
-    if (action[0].type === 'surrender') {
-      if (action[0].teamId !== undefined) {
-        // If surrender is not requested for themself, it is forced.
-        if (!myTeams.find(t => t.id === action[0].teamId))
-          action[0].forced = true;
-      }
-      else if (myTeams.length === game.state.teams.length)
-        action[0].teamId = game.state.currentTeamId;
-      else
-        action = myTeams.map(t => ({ type:'surrender', teamId:t.id }));
-    }
-    else if (myTeams.includes(game.state.currentTeam))
-      action.forEach(a => a.teamId = game.state.currentTeamId);
-    else
-      throw new ServerError(401, 'Not your turn!');
-
-    game.state.postAction(action);
-    // Clear a rejected undo request after an action is performed.
-    game.undoRequest = null;
-
-    dataAdapter.saveGame(game);
-  }
   async onUndoAcceptEvent(client, groupPath) {
     let gameId = groupPath.replace(/^\/games\//, '');
     let game = await this._getGame(gameId);

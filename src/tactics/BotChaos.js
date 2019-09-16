@@ -11,7 +11,7 @@ export default class extends Bot {
     let agent = this.team.units[0];
 
     if (agent.name === 'Chaos Seed')
-      this.state.postAction({ type:'endTurn' });
+      this.state.submitAction({ type:'endTurn' });
     else
       this.startTurnDragon();
   }

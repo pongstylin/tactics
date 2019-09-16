@@ -157,8 +157,8 @@ export default class RemoteTransport {
   restart() {
     return gameClient.restart(this._data.id, ...arguments);
   }
-  postAction(action) {
-    return gameClient.postAction(this._data.id, action);
+  submitAction(action) {
+    return gameClient.submitAction(this._data.id, action);
   }
   acceptUndo() {
     gameClient.acceptUndo(this._data.id);
@@ -263,7 +263,7 @@ export default class RemoteTransport {
         if (event.group !== `/games/${gameId}`) return;
 
         if (event.type === 'action')
-          gameClient.postAction(gameId, event.data);
+          gameClient.submitAction(gameId, event.data);
       });
     });
   }

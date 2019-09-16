@@ -138,8 +138,8 @@ export default class LocalTransport {
   restart() {
     return this._call('restart', arguments);
   }
-  postAction() {
-    return this._call('postAction', arguments);
+  submitAction() {
+    return this._call('submitAction', arguments);
   }
 
   /*

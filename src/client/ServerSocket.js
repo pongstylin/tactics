@@ -485,7 +485,8 @@ export default class ServerSocket {
       let outbox = session.outbox.slice();
       let isNew = !session.id;
 
-      this._resetSession(session);
+      if (!isNew)
+        this._resetSession(session);
 
       session.id = message.body.sessionId;
 

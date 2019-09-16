@@ -91,16 +91,48 @@ export default class GameClient extends Client {
   getTurnActions() {
     return this._server.requestAuthorized(this.name, 'getTurnActions', [...arguments]);
   }
-  undo(gameId) {
-    return this._server.requestAuthorized(this.name, 'undo', [ gameId ]);
+  async submitAction(gameId, action) {
+    let server = this._server;
+    let beforeUnloadListener = event => {
+      event.preventDefault();
+      return event.returnValue = 'Your move hasn\'t been saved yet!';
+    };
+
+    window.addEventListener('beforeunload', beforeUnloadListener, { capture:true });
+
+    try {
+      await server.whenJoined(this.name, `/games/${gameId}`);
+      await server.requestAuthorized(this.name, 'action', [ gameId, action ]);
+    }
+    catch (error) {
+      window.removeEventListener('beforeunload', beforeUnloadListener, { capture:true });
+
+      if (error === 'Connection reset')
+        return this.submitAction(gameId, action);
+
+      throw error;
+    }
+
+    window.removeEventListener('beforeunload', beforeUnloadListener, { capture:true });
+  }
+  async undo(gameId) {
+    let server = this._server;
+
+    try {
+      await server.whenJoined(this.name, `/games/${gameId}`);
+      return await server.requestAuthorized(this.name, 'undo', [ gameId ]);
+    }
+    catch (error) {
+      if (error === 'Connection reset')
+        return this.undo(gameId);
+
+      throw error;
+    }
   }
   restart() {
     return this._server.requestAuthorized(this.name, 'restart', [...arguments]);
   }
 
-  postAction(gameId, action) {
-    return this._server.emitAuthorized(this.name, `/games/${gameId}`, 'action', action);
-  }
   acceptUndo(gameId) {
     this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept');
   }

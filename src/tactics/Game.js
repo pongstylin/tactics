@@ -49,10 +49,10 @@ export default class {
           this.selected = null;
       })
       // 'move' and 'attack' events do not yet come from the board.
-      .on('move',    event => this._postAction(event))
-      .on('attack',  event => this._postAction(event))
-      .on('turn',    event => this._postAction(event))
-      .on('endTurn', event => this._postAction(event))
+      .on('move',    event => this._submitAction(event))
+      .on('attack',  event => this._submitAction(event))
+      .on('turn',    event => this._submitAction(event))
+      .on('endTurn', event => this._submitAction(event))
       .on('card-change', event => this._emit(event))
       .on('lock-change', event => this._emit(event));
 
@@ -714,7 +714,7 @@ export default class {
     promise.release = () => {
       anim.stop();
       if (anim.state.ready)
-        this._postAction({type:'attackSpecial'});
+        this._submitAction({type:'attackSpecial'});
     };
 
     // For the sake of all that's holy, don't attack even if ready!
@@ -724,13 +724,13 @@ export default class {
   }
 
   pass() {
-    this._postAction({ type:'endTurn' });
+    this._submitAction({ type:'endTurn' });
   }
   surrender() {
-    this._postAction({ type:'surrender' });
+    this._submitAction({ type:'surrender' });
   }
   forceSurrender() {
-    this._postAction({ type:'surrender', teamId:this.state.currentTeamId });
+    this._submitAction({ type:'surrender', teamId:this.state.currentTeamId });
   }
 
   /*
@@ -1126,7 +1126,7 @@ export default class {
   /*
    * Initiate an action, whether it be moving, attacking, turning, or passing.
    */
-  _postAction(action) {
+  _submitAction(action) {
     if (!action.unit && action.type !== 'endTurn' && action.type !== 'surrender')
       action.unit = this.selected;
 
@@ -1134,12 +1134,7 @@ export default class {
     this.delayNotice('Sending order...');
 
     this.lock();
-    return this.state.postAction(this._board.encodeAction(action)).catch(error => {
-      if (error === 'Connection reset')
-        return this._postAction(action);
-
-      throw error;
-    });
+    return this.state.submitAction(this._board.encodeAction(action));
   }
   _performActions(actions) {
     // Clear or cancel the 'Sending order' notice

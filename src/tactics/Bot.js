@@ -445,7 +445,7 @@ export default class {
     else
       actions.push({ type:'endTurn' });
 
-    this.state.postAction(this.state.board.encodeAction(actions));
+    this.state.submitAction(this.state.board.encodeAction(actions));
 
     return this;
   }

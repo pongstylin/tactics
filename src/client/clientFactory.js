@@ -50,21 +50,19 @@ export default serviceName => {
   return clients.get(serviceName);
 };
 
-let terminating = false;
+let timeout = null;
 
-window.addEventListener('pagehide', event => {
-  terminating = !event.persisted;
-});
 document.addEventListener('visibilitychange', event => {
   if (document.hidden) {
-    // When possible, detect if document is hidden while closing or navigating
-    // away from the page (terminating).  This allows the server to receive the
-    // right WebSocket termination code (CLOSE_GOING_AWAY) when this is true.
-    if (terminating) return;
-    sockets.forEach(s => s.close(CLOSE_INACTIVE));
+    // Give pending actions time to flush before closing the socket(s).
+    // This also gives the page a chance to close the sockets first if the user
+    // is closing or navigating away from the page (CLOSE_GOING_AWAY).
+    timeout = setTimeout(() => {
+      sockets.forEach(s => s.close(CLOSE_INACTIVE));
+    }, 2000);
   }
   else {
-    terminating = false;
+    clearTimeout(timeout);
     sockets.forEach(s => s.open());
   }
 });

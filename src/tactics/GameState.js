@@ -433,7 +433,7 @@ export default class GameState {
     return turnActions;
   }
 
-  postAction(actions) {
+  submitAction(actions) {
     // Actions may only be submitted between game start and end.
     if (!this.started || this.ended)
       return;
