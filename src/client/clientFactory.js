@@ -1,4 +1,7 @@
-import ServerSocket, { CLOSE_INACTIVE } from 'client/ServerSocket.js';
+import ServerSocket, {
+  CLOSE_INACTIVE,
+  CLOSE_SHUTDOWN
+} from 'client/ServerSocket.js';
 import AuthClient from 'client/AuthClient.js';
 import GameClient from 'client/GameClient.js';
 import ChatClient from 'client/ChatClient.js';
@@ -52,11 +55,31 @@ export default serviceName => {
 
 let timeout = null;
 
+window.addEventListener('pagehide', event => {
+  /*
+   * Android Chrome Observations:
+   *
+   * If the page is terminating, then timeouts are not fired.  This means the
+   * server is not sent the CLOSE_INACTIVE code.  This is good since it is more
+   * accurate for the browser to send the CLOSE_GOING_AWAY code.
+   *
+   * But if the page is terminated using the back button (and there is no page
+   * in the history to go back to) then the CLOSE_GOING_AWAY code is never sent.
+   * The socket(s) simply disappear and the server has to wait for timeout...
+   * sometimes.  Ugh, Chrome bugs.
+   *
+   * Fortunately, in the former case, the 'pagehide' event is fired BEFORE the
+   * document is hidden.  But in the latter case, the 'pagehide' event is fired
+   * AFTER the document is hidden.  So, to avoid socket timeout, shut down the
+   * socket if document is already hidden to avoid occasional socket timeouts.
+   */
+  if (document.hidden)
+    sockets.forEach(s => s.close(CLOSE_SHUTDOWN));
+});
 document.addEventListener('visibilitychange', event => {
   if (document.hidden) {
     // Give pending actions time to flush before closing the socket(s).
-    // This also gives the page a chance to close the sockets first if the user
-    // is closing or navigating away from the page (CLOSE_GOING_AWAY).
+    // The timeout is never reached if the page is terminating.
     timeout = setTimeout(() => {
       sockets.forEach(s => s.close(CLOSE_INACTIVE));
     }, 2000);

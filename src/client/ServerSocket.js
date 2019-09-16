@@ -5,7 +5,7 @@ const CLOSE_CLIENT_TIMEOUT = 4000;
 
 // Proprietary codes used by client
 const CLOSE_SERVER_TIMEOUT  = 4100;
-const CLOSE_SHUTDOWN        = 4101;
+export const CLOSE_SHUTDOWN = 4101;
 export const CLOSE_INACTIVE = 4102;
 const CLOSE_CLIENT_ERROR    = 4103;
 
@@ -62,7 +62,8 @@ export default class ServerSocket {
       _emitter: new EventEmitter(),
     });
 
-    this.open();
+    if (window.AUTO_CONNECT)
+      this.open();
   }
 
   on() {
