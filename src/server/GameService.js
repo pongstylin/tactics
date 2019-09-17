@@ -82,6 +82,15 @@ class GameService extends Service {
    */
   async getYourTurnNotification(playerId) {
     let gamesSummary = await dataAdapter.listMyTurnGamesSummary(playerId);
+
+    /*
+     * Exclude games the player is actively playing.
+     */
+    let playerPara = this.playerPara.get(playerId);
+    if (playerPara)
+      gamesSummary = gamesSummary
+        .filter(gs => !playerPara.joinedGroups.has(gs.id));
+
     let notification = {
       type: 'yourTurn',
       createdAt: new Date(),
