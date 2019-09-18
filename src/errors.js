@@ -9,8 +9,8 @@ window.onerror = function (message, source, lineno, colno, error) {
     reportError(JSON.stringify({
       createdAt: new Date(),
       page: location.href,
-      code: error ? error.code : null,
       name: error ? error.name : null,
+      code: error ? error.code : null,
       message: message,
       source: source,
       lineno: lineno ? lineno : null,
@@ -36,6 +36,7 @@ window.onunhandledrejection = function (event) {
     var error = event.reason;
 
     if (error instanceof Error) {
+      log.name = error.name;
       log.code = error.code;
       log.message = error.toString();
       log.stack = error.stack;

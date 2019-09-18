@@ -217,8 +217,9 @@ function renderPN(reg) {
     }
   }).catch(error => {
     // Encountered this in Firefox on my PC.  It is supposed to work.
-    console.error('getSubscription', error);
     divPN.innerHTML = 'Push notifications are broken in this browser.';
+
+    throw error;
   });
 }
 function subscribePN() {
