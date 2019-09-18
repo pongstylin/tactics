@@ -53,6 +53,8 @@ export default class RemoteTransport {
 
     this._watchForDataChanges();
 
+    // For now, joining ended games is ok
+    /*
     if (gameData && gameData.state.ended) {
       this._data = gameData;
       Object.assign(this._data.state, {
@@ -65,6 +67,8 @@ export default class RemoteTransport {
     }
     else
       this._init(gameId);
+    */
+    this._init(gameId);
   }
 
   /*
@@ -204,7 +208,8 @@ export default class RemoteTransport {
     });
   }
   _resume() {
-    if (this._data.state.ended) return;
+    // For now, joining ended games is ok.
+    //if (this._data.state.ended) return;
 
     let gameId = this._data.id;
 
@@ -223,7 +228,8 @@ export default class RemoteTransport {
   }
   _reset(outbox) {
     if (!this._data) return;
-    if (this._data.state.ended) return;
+    // For now, joining ended games is ok.
+    //if (this._data.state.ended) return;
 
     let gameId = this._data.id;
     let resume = {

@@ -63,7 +63,7 @@ class GameService extends Service {
 
     let playerPara = this.playerPara.get(clientPara.playerId);
     if (playerPara.clients.size > 1)
-      playerPara.clients.delete(clientPara);
+      playerPara.clients.delete(client.id);
     else {
       this.playerPara.delete(clientPara.playerId);
 
@@ -152,10 +152,10 @@ class GameService extends Service {
     let playerPara = this.playerPara.get(playerId);
     if (playerPara)
       // This operation would be redundant if client authorizes more than once.
-      playerPara.clients.add(clientPara);
+      playerPara.clients.add(client.id);
     else {
       this.playerPara.set(playerId, {
-        clients: new Set([clientPara]),
+        clients: new Set([client.id]),
         joinedGroups: new Map(),
       });
 
@@ -164,6 +164,19 @@ class GameService extends Service {
     }
   }
 
+/*
+ * The group SHOULD be closed on game end because no more events or requests are
+ * accepted for the game.  But there are two things that still require it:
+ *  1) Resuming or replaying a game.  Someone may have gone inactive mid-game
+ *  and wish to resume it post-game.  This function should be separated from the
+ *  game group as we add support for replaying completed games.
+ *
+ *  2) Player status.  The players may continue to chat after game end, but wish
+ *  to know if their opponent is still present.  For active game groups, we want
+ *  to track the player's online or ingame status.  But for chat groups, we only
+ *  want to track whether the player is inchat or not.  This should be managed
+ *  separately from game groups.
+ *
   onGameEnd(gameId) {
     let gamePara = this.gamePara.get(gameId);
     gamePara.clients.forEach(clientPara =>
@@ -181,9 +194,12 @@ class GameService extends Service {
     // Save the game before it is wiped from memory.
     dataAdapter.saveGame(gamePara.game);
   }
+*/
   onPlayerOnline(playerId) {
     this.gamePara.forEach(gamePara => {
       let game = gamePara.game;
+      if (game.state.ended)
+        return;
       if (!game.state.teams.find(t => t && t.playerId === playerId))
         return;
 
@@ -193,6 +209,8 @@ class GameService extends Service {
   onPlayerOffline(playerId) {
     this.gamePara.forEach(gamePara => {
       let game = gamePara.game;
+      if (game.state.ended)
+        return;
       if (!game.state.teams.find(t => t && t.playerId === playerId))
         return;
 
@@ -242,7 +260,7 @@ class GameService extends Service {
 
       playerStatus.set(playerId, {
         playerId: playerId,
-        status: this._getPlayerStatus(playerId, game.id),
+        status: this._getPlayerStatus(playerId, game),
       });
     });
 
@@ -268,18 +286,12 @@ class GameService extends Service {
   }
 
   async onJoinGameGroup(client, groupPath, gameId, params) {
-    let clientPara = this.clientPara.get(client.id);
-    let playerPara = this.playerPara.get(clientPara.playerId);
     let gamePara = this.gamePara.get(gameId);
     let game = gamePara ? gamePara.game : await this._getGame(gameId);
 
     if (gamePara)
-      gamePara.clients.add(clientPara);
+      gamePara.clients.add(client.id);
     else {
-      // Can't watch ended games.
-      if (game.ended)
-        throw new ServerError(409, 'The game has ended');
-
       let listener = event => {
         this._emit({
           type: 'event',
@@ -293,34 +305,40 @@ class GameService extends Service {
         if (event.type === 'startTurn')
           dataAdapter.saveGame(game)
             .then(() => this._notifyYourTurn(game, event.data));
-        else if (event.type === 'joined' || event.type === 'action' || event.type === 'revert')
+        else if (
+          event.type === 'joined' ||
+          event.type === 'action' ||
+          event.type === 'revert' ||
+          event.type === 'endGame'
+        )
           // Since games are saved before they are removed from memory this only
           // serves as a precaution against a server crash.  It would also be
           // useful in a multi-server context, but that requires more thinking.
           dataAdapter.saveGame(game);
-        else if (event.type === 'endGame')
-          this.onGameEnd(gameId);
       };
 
       game.state.on('event', listener);
 
       this.gamePara.set(gameId, gamePara = {
         game:     game,
-        clients:  new Set([clientPara]),
+        clients:  new Set([client.id]),
         listener: listener,
       });
     }
 
+    let clientPara = this.clientPara.get(client.id);
     if (clientPara.joinedGroups)
       clientPara.joinedGroups.set(game.id, game);
     else
       clientPara.joinedGroups = new Map([[game.id, game]]);
 
+    let playerId = clientPara.playerId;
+    let playerPara = this.playerPara.get(playerId);
     if (playerPara.joinedGroups.has(game.id))
       playerPara.joinedGroups.get(game.id).add(client.id);
     else {
       playerPara.joinedGroups.set(game.id, new Set([client.id]));
-      this._emitPlayerStatus(groupPath, clientPara.playerId, 'ingame');
+      this._emitPlayerStatus(groupPath, playerId, 'ingame');
     }
 
     this._emit({
@@ -329,7 +347,7 @@ class GameService extends Service {
       body: {
         group: groupPath,
         user: {
-          id:   clientPara.playerId,
+          id:   playerId,
           name: clientPara.name,
         },
       },
@@ -390,21 +408,17 @@ class GameService extends Service {
 
   /*
    * No longer send change events to the client about this game.
+   * Only called internally since the client does not yet leave intentionally.
    */
   async onLeaveGameGroup(client, groupPath, gameId) {
-    let clientPara = this.clientPara.get(client.id);
-    let playerPara = this.playerPara.get(clientPara.playerId);
-    let game = gameId instanceof Game ? gameId : await this._getGame(gameId);
+    let gamePara = this.gamePara.get(gameId);
+    if (!gamePara || !gamePara.clients.has(client.id))
+      throw new Error(`Expected client (${client.id}) to be in group (${groupPath})`);
 
-    // Already not watching?
-    if (!clientPara.joinedGroups)
-      return;
-    if (!clientPara.joinedGroups.has(game.id))
-      return;
+    let game = gamePara.game;
 
-    let gamePara = this.gamePara.get(game.id);
     if (gamePara.clients.size > 1)
-      gamePara.clients.delete(clientPara);
+      gamePara.clients.delete(client.id);
     else {
       // TODO: Don't shut down the game state until all bots have made their turns.
       let listener = gamePara.listener;
@@ -414,14 +428,17 @@ class GameService extends Service {
       this.gamePara.delete(game.id);
 
       // Save the game before it is wiped from memory.
-      dataAdapter.saveGame(gamePara.game);
+      dataAdapter.saveGame(game);
     }
 
+    let clientPara = this.clientPara.get(client.id);
     if (clientPara.joinedGroups.size === 1)
       delete clientPara.joinedGroups;
     else
       clientPara.joinedGroups.delete(game.id);
 
+    let playerId = clientPara.playerId;
+    let playerPara = this.playerPara.get(playerId);
     let watchingClientIds = playerPara.joinedGroups.get(game.id);
 
     // Only say the player is online if another client isn't ingame.
@@ -430,7 +447,11 @@ class GameService extends Service {
 
       // Don't say the player is online if the player is going offline.
       if (playerPara.clients.size > 1 || !client.closing)
-        this._emitPlayerStatus(groupPath, clientPara.playerId, 'online');
+        this._emitPlayerStatus(
+          groupPath,
+          playerId,
+          game.state.ended ? 'offline' : 'online',
+        );
     }
     else
       watchingClientIds.delete(client.id);
@@ -441,7 +462,7 @@ class GameService extends Service {
       body: {
         group: groupPath,
         user: {
-          id:   clientPara.playerId,
+          id:   playerId,
           name: clientPara.name,
         },
       },
@@ -541,15 +562,17 @@ class GameService extends Service {
    * may make the provided action.
    */
   onActionRequest(client, gameId, action) {
-    let clientPara = this.clientPara.get(client.id);
     let gamePara = this.gamePara.get(gameId);
     if (!gamePara)
       throw new ServerError(403, 'You must first join the game group');
-    if (!gamePara.clients.has(clientPara))
+    if (!gamePara.clients.has(client.id))
       throw new ServerError(403, 'You must first join the game group');
 
     let game = gamePara.game;
-    let playerId = clientPara.playerId;
+    let playerId = this.clientPara.get(client.id).playerId;
+
+    if (game.state.ended)
+      throw new ServerError(403, 'The game has ended');
 
     let undoRequest = game.undoRequest || {};
     if (undoRequest.status === 'pending')
@@ -585,15 +608,17 @@ class GameService extends Service {
     dataAdapter.saveGame(game);
   }
   onUndoRequest(client, gameId) {
-    let clientPara = this.clientPara.get(client.id);
     let gamePara = this.gamePara.get(gameId);
     if (!gamePara)
       throw new ServerError(403, 'You must first join the game group');
-    if (!gamePara.clients.has(clientPara))
+    if (!gamePara.clients.has(client.id))
       throw new ServerError(403, 'You must first join the game group');
 
     let game = gamePara.game;
-    let playerId = clientPara.playerId;
+    let playerId = this.clientPara.get(client.id).playerId;
+
+    if (game.state.ended)
+      throw new ServerError(403, 'The game has ended');
 
     // Determine the team that is requesting the undo.
     let team = game.state.currentTeam;
@@ -755,14 +780,14 @@ class GameService extends Service {
 
     return game;
   }
-  _getPlayerStatus(playerId, gameId) {
+  _getPlayerStatus(playerId, game) {
     let playerPara = this.playerPara.get(playerId);
 
     let status;
     if (!playerPara)
       status = 'offline';
-    else if (!playerPara.joinedGroups.has(gameId))
-      status = 'online';
+    else if (!playerPara.joinedGroups.has(game.id))
+      status = game.state.ended ? 'offline' : 'online';
     else
       status = 'ingame';
 
@@ -775,7 +800,7 @@ class GameService extends Service {
     let teams = game.state.teams;
 
     // Only notify if the next player is not already in-game.
-    let status = this._getPlayerStatus(playerId, game.id);
+    let status = this._getPlayerStatus(playerId, game);
     if (status === 'ingame')
       return;
 

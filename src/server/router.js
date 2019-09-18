@@ -725,7 +725,7 @@ function onLeaveMessage(client, message) {
   let groupId = [body.service, body.group].join(':');
   let group = groups.get(groupId);
   if (!group || !group.has(client.id))
-    return;
+    throw new ServerError(409, 'Already left group');
 
   service.will(client, 'leave', body.group);
 
