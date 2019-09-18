@@ -232,7 +232,7 @@ export default class RemoteTransport {
     //if (this._data.state.ended) return;
 
     let gameId = this._data.id;
-    let resume = {
+    let resume = this._data.state.ended ? null : {
       turnId: this._data.state.currentTurnId,
       actions: this._data.state.actions.length,
     };
