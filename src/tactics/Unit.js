@@ -1061,6 +1061,16 @@ export default class {
     let path        = this.board.findPath(this, assignment);
     let frame_index = 0;
 
+    /*
+     * Need more information about an intermittent crash.
+     */
+    if (path.length === 0) {
+      if (this.assignment && assignment)
+        throw new Error(`No path: ${this.assignment.id} => ${assignment.id}`);
+      else
+        throw new Error(`No path: ${this.assignment} => ${assignment}`);
+    }
+
     anim.addFrame(() => this.assignment.dismiss());
 
     // Turn frames are not typically required while walking unless the very
