@@ -95,6 +95,7 @@ export default class ServerSocket {
         this._authorizeRoutes.set(serviceName, { resolve, reject });
       });
       promise.isResolved = false;
+      promise.ignoreConnectionReset = true;
 
       whenAuthorized.set(serviceName, promise);
       return promise;
@@ -111,6 +112,7 @@ export default class ServerSocket {
         this._joinRoutes.set(groupKey, { resolve, reject });
       });
       promise.isResolved = false;
+      promise.ignoreConnectionReset = true;
 
       whenJoined.set(groupKey, promise);
       return promise;

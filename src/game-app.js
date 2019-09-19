@@ -322,23 +322,7 @@ Tactics.App = (function ($, window, document) {
         $(this).trigger('input');
       });
 
-    initGame()
-      .catch(error => {
-        console.error(error);
-
-        if (error === 'Connection reset')
-          return initGame();
-        else if (error.code === 403 || error.code === 409)
-          $('#error').text(error.message);
-        else if (error.code === 404)
-          $('#error').text("The game doesn't exist");
-        else if (error.code === 429)
-          $('#error').text("Loading games too quickly");
-
-        $('#splash').hide();
-        $('#join').hide();
-        $('#error').show();
-      });
+    initGame();
   });
 
   $(window).on('resize', () => {
@@ -440,6 +424,23 @@ Tactics.App = (function ($, window, document) {
           $('#app').addClass('for-practice');
 
         loadThenStartGame();
+      })
+      .catch(error => {
+        if (error === 'Connection reset')
+          return initGame();
+
+        console.error(error);
+
+        if (error.code === 403 || error.code === 409)
+          $('#error').text(error.message);
+        else if (error.code === 404)
+          $('#error').text("The game doesn't exist");
+        else if (error.code === 429)
+          $('#error').text("Loading games too quickly");
+
+        $('#splash').hide();
+        $('#join').hide();
+        $('#error').show();
       });
   }
 

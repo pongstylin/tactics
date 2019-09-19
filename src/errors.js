@@ -33,7 +33,11 @@ window.onunhandledrejection = function (event) {
       page: location.href,
       promise: true,
     };
+    var promise = event.promise;
     var error = event.reason;
+
+    if (promise.ignoreConnectionReset && error === 'Connection reset')
+      return event.preventDefault();
 
     if (error instanceof Error) {
       log.name = error.name;
