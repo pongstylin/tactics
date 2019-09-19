@@ -490,6 +490,16 @@ export default class GameState {
       // Recovering or paralyzed units can't take action.
       if (unit.mRecovery || unit.paralyzed) return;
 
+      // Focusing units must break focus before taking action.
+      // Do this before validating the action so that these results are applied
+      // before calculating the action results.
+      if (unit.focusing)
+        pushAction({
+          type:    'breakFocus',
+          unit:    unit,
+          results: unit.getBreakFocusResults(),
+        });
+
       // Apply unit-specific validation and determine results.
       action = unit.validateAction(action);
       if (!action) return;
@@ -501,14 +511,6 @@ export default class GameState {
       if      (action.type === 'move'          && moved   ) return;
       else if (action.type === 'attack'        && attacked) return;
       else if (action.type === 'attackSpecial' && attacked) return;
-
-      // Focusing units must break focus before taking action.
-      if (unit.focusing)
-        pushAction({
-          type:    'breakFocus',
-          unit:    unit,
-          results: unit.getBreakFocusResults(),
-        });
 
       // Turning in the current direction is the same as ending your turn.
       if (action.type === 'turn' && action.direction === unit.direction)
