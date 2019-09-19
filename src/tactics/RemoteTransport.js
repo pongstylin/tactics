@@ -242,7 +242,8 @@ export default class RemoteTransport {
     gameClient.watchGame(gameId, resume).then(data => {
       this._emit({ type:'playerStatus', data:data.playerStatus });
 
-      data.events.forEach(e => this._emit(e));
+      if (data.events)
+        data.events.forEach(e => this._emit(e));
 
       if (data.undoRequest) {
         this._data.undoRequest = data.undoRequest;
