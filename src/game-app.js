@@ -1,6 +1,7 @@
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
+import ServerError from 'server/Error.js';
 
 Tactics.App = (function ($, window, document) {
   'use strict';
@@ -429,8 +430,6 @@ Tactics.App = (function ($, window, document) {
         if (error === 'Connection reset')
           return initGame();
 
-        console.error(error);
-
         if (error.code === 403 || error.code === 409)
           $('#error').text(error.message);
         else if (error.code === 404)
@@ -441,6 +440,10 @@ Tactics.App = (function ($, window, document) {
         $('#splash').hide();
         $('#join').hide();
         $('#error').show();
+
+        // Log client-side errors
+        if (!(error instanceof ServerError))
+          throw error;
       });
   }
 
