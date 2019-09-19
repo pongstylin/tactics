@@ -371,15 +371,18 @@ class GameService extends Service {
 
       // Get actions made in any subsequent turns.
       for (let i = params.turnId+1; i <= game.state.currentTurnId; i++) {
+        let turnData = game.state.getTurnData(i);
+
         response.events.push({
           type: 'startTurn',
           data: {
+            started: turnData.started,
             turnId: i,
             teamId: i % game.state.teams.length,
           },
         });
 
-        actions = game.state.getTurnActions(i);
+        actions = turnData.actions;
 
         if (actions.length)
           response.events.push({ type:'action', data:actions });

@@ -414,6 +414,7 @@ export default class GameState {
 
     if (turnId === this.currentTurnId)
       turnData = {
+        started: this.turnStarted,
         units:   this.units,
         actions: this.actions,
       };
