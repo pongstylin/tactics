@@ -85,11 +85,19 @@ export default class GameClient extends Client {
   watchGame(gameId, resume) {
     return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume);
   }
-  getTurnData() {
-    return this._server.requestAuthorized(this.name, 'getTurnData', [...arguments]);
+  getTurnData(gameId, turnId) {
+    return this._server.requestAuthorized(this.name, 'getTurnData', [ gameId, turnId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getTurnData(gameId, turnId);
+      });
   }
-  getTurnActions() {
-    return this._server.requestAuthorized(this.name, 'getTurnActions', [...arguments]);
+  getTurnActions(gameId, turnId) {
+    return this._server.requestAuthorized(this.name, 'getTurnActions', [ gameId, turnId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getTurnActions(gameId, turnId);
+      });
   }
   async submitAction(gameId, action) {
     let server = this._server;
