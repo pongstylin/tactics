@@ -305,7 +305,7 @@ export default class ServerSocket {
 
     return message.id;
   }
-  _sync() {
+  _sendSync() {
     this._send({ type:'sync' });
   }
   _sendOpen() {
@@ -332,7 +332,7 @@ export default class ServerSocket {
       message.ack = session.serverMessageId;
 
     clearTimeout(this._syncTimeout);
-    this._syncTimeout = setTimeout(() => this._sync(), 5000);
+    this._syncTimeout = setTimeout(() => this._sendSync(), 5000);
 
     socket.send(JSON.stringify(message));
   }
@@ -390,6 +390,8 @@ export default class ServerSocket {
     socket.addEventListener('close', this._closeListener);
     this._socket = socket;
 
+    this._syncTimeout = setTimeout(() => this._sendSync(), 5000);
+
     if (this._session.id)
       this._sendResume();
     else
@@ -426,7 +428,7 @@ export default class ServerSocket {
         if (message.id < expectedMessageId)
           return;
         if (message.id > expectedMessageId)
-          return this._sync();
+          return this._sendSync();
 
         session.serverMessageId = message.id;
       }

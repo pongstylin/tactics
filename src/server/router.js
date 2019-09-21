@@ -114,7 +114,8 @@ let schema = {
         type: { type:'string', const:'sync' },
         ack: { type:'number', minimum:0 },
       },
-      required: ['type','ack'],
+      // 'ack' is only required when a session is open
+      required: ['type'],
       additionalProperties: false,
     },
     {
@@ -414,7 +415,7 @@ function debugMessage(client, message, inOrOut) {
 
   let suffix;
   if (message.type === 'sync')
-    suffix = `[${message.ack}]`;
+    suffix = `[${'ack' in message ? message.ack : '-'}]`;
   else if (message.type === 'event')
     suffix = `[${message.id}] ${body.service}:${body.type}`;
   else if (message.type === 'request')
@@ -546,8 +547,13 @@ function onMessage(data) {
     debugMessage(client, message, 'in');
 
     let session = client.session;
+
     if (session) {
-      purgeAcknowledgedMessages(session, message);
+      // It is possible for a 'sync' message to be sent without an 'ack' if the
+      // server sent the 'session', but the client hasn't received it yet.
+      // Also, nothing to purge if 'ack' is 0.
+      if (message.ack)
+        purgeAcknowledgedMessages(session, message);
 
       if (message.id) {
         /*
@@ -561,9 +567,7 @@ function onMessage(data) {
 
         session.clientMessageId = message.id;
       }
-    }
 
-    if (client.session) {
       if (message.type === 'event')
         onEventMessage(client, message);
       else if (message.type === 'request')
@@ -576,7 +580,8 @@ function onMessage(data) {
         onSyncMessage(client, message);
       else if (message.type === 'authorize')
         onAuthorizeMessage(client, message);
-      else /* 'open' || 'resume' */
+      else
+        // 'open', 'resume'
         throw new ServerError({
           code: 405,
           message: 'A session is already open',
@@ -587,7 +592,10 @@ function onMessage(data) {
         onOpenMessage(client, message);
       else if (message.type === 'resume')
         onResumeMessage(client, message);
-      else /* 'event', 'request', 'join', 'leave', 'sync' */
+      // Ignore sync messages until session is open
+      // They still serve to keep the connection from timing out.
+      else if (message.type !== 'sync')
+        // 'event', 'request', 'join', 'leave'
         throw new ServerError({
           code: 405,
           message: 'A session must first be opened or resumed',
