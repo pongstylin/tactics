@@ -60,7 +60,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  btnCreate.addEventListener('click', () => {
+  btnCreate.addEventListener('click', async () => {
     divSetup.style.display = 'none';
     divWaiting.style.display = '';
 
@@ -76,12 +76,58 @@ window.addEventListener('DOMContentLoaded', () => {
       turnOrder === '1st' ? 0 :
       turnOrder === '2nd' ? 1 : null;
 
-    let query;
+    let myGameQuery;
+    let joinQuery;
     if (gameOptions.isPublic) {
-      query = {
+      // Null teams don't count as a qualifying team.
+      let excludedPlayerIds = new Set([null]);
+
+      if (authClient.playerId) {
+        // Do not join my own open games.
+        excludedPlayerIds.add(authClient.playerId);
+
+        try {
+          // Do not join open games against players we are already playing.
+          let games = await gameClient.searchMyGames({
+            filter:{
+              started: { '!':null },
+              ended: null,
+            },
+            sort: { field:'created', order:'desc' },
+            limit: 50,
+          });
+
+          games.hits.forEach(g => {
+            let team = g.teams.find(t => t.playerId !== authClient.playerId);
+            if (team)
+              excludedPlayerIds.add(team.playerId);
+          });
+        }
+        catch (e) {
+          console.error(e);
+        }
+
+        myGameQuery = {
+          filter: {
+            'teams[].playerId': authClient.playerId,
+            // First turn randomization must match player preference.
+            randomFirstTurn: turnOrder === 'random',
+          },
+          sort: 'created',
+          limit: 1,
+        };
+
+        if (turnOrder === '1st')
+          // 1st turn must be available
+          myGameQuery.filter['teams[0]'] = null;
+        else if (turnOrder === '2nd')
+          // 2nd turn must be available
+          myGameQuery.filter['teams[1]'] = null;
+      }
+
+      joinQuery = {
         filter: {
-          // This player must not already be a participant.
-          '!': [{ 'teams[].playerId':authClient.playerId }],
+          'teams[].playerId': { '!':[...excludedPlayerIds] },
           // First turn randomization must match player preference.
           randomFirstTurn: turnOrder === 'random',
         },
@@ -90,18 +136,20 @@ window.addEventListener('DOMContentLoaded', () => {
       };
 
       if (turnOrder === '1st')
-        // First turn must be available.
-        query.filter['teams[0]'] = null;
+        // 1st turn must be available
+        joinQuery.filter['teams[0]'] = null;
       else if (turnOrder === '2nd')
-        // First turn must not be available.
-        query.filter['!'].push({ 'teams[0]':null });
+        // 2nd turn must be available
+        joinQuery.filter['teams[1]'] = null;
     }
 
     authClient.setAccountName(txtPlayerName.value)
-      .then(() => joinOpenGame(query, slot))
-      .then(gameId => {
-        if (gameId)
-          return gameId;
+      .then(async () => {
+        let gameId = await joinOpenGame(joinQuery, slot);
+        if (gameId) return gameId;
+
+        gameId = await findMyGame(myGameQuery);
+        if (gameId) return gameId;
 
         return gameClient.createGame(gameOptions).then(gameId => {
           if (vs === 'you')
@@ -126,11 +174,30 @@ window.addEventListener('DOMContentLoaded', () => {
 
         divWaiting.style.display = 'none';
         divSetup.style.display = '';
+
+        // Log the error
+        throw error;
       });
   });
 
   document.querySelector('.content').style.display = '';
 });
+
+async function findMyGame(query) {
+  if (!query) return;
+
+  try {
+    let result = await gameClient.searchOpenGames(query);
+    if (!result.count) return;
+
+    return result.hits[0].id;
+  }
+  catch (error) {
+    // On any other error, bail out to create the game.
+    console.warn('Failed to join open game', error);
+    return;
+  }
+}
 
 async function joinOpenGame(query, slot) {
   if (!query) return;

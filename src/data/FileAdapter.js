@@ -479,21 +479,32 @@ export default class {
       }
     }
 
-    if (Array.isArray(condition) && typeof value === 'object')
+    if (Array.isArray(condition) && value !== null && typeof value === 'object')
       throw new Error('Array conditions can only be used on primitive values');
-    else if (condition !== null && typeof condition === 'object')
-      throw new Error('Complex conditions are not implemented');
 
     if (Array.isArray(value)) {
-      if (!slice)
-        throw new Error('Filtering by array field is not implemented');
+      if (condition !== null && typeof condition === 'object')
+        throw new Error('Complex conditions are not implemented for array values');
+
+      throw new Error('Filtering by array field is not implemented');
     }
     else if (value !== null && typeof value === 'object') {
+      if (condition !== null && typeof condition === 'object')
+        throw new Error('Complex conditions are not implemented for object values');
+
       return false;
     }
     else {
       if (Array.isArray(condition))
         return condition.includes(value);
+      else if (condition !== null && typeof condition === 'object')
+        // Find the first condition that doesn't match.
+        return !Object.keys(condition).find(cKey => {
+          if (cKey === '!')
+            return this._matchItemByCondition(item, path, condition[cKey]);
+          else
+            throw new Error(`The '${cKey}' condition is not supported`);
+        });
       else
         return value === condition;
     }
