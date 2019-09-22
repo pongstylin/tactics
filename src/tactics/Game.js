@@ -523,14 +523,16 @@ export default class {
     let container = canvas.parentNode;
     let width     = container.clientWidth;
     let height    = container.clientHeight;
+    // window.innerHeight is buggy on iOS Safari during orientation change
+    let vpHeight  = document.body.offsetHeight;
 
-    if (window.innerHeight < height) {
+    if (vpHeight < height) {
       let rect = canvas.getBoundingClientRect();
 
-      height  = window.innerHeight;
+      height  = vpHeight;
       height -= rect.top;
-      //height -= window.innerHeight - rect.bottom;
-      //console.log(window.innerHeight, rect.bottom);
+      //height -= vpHeight - rect.bottom;
+      //console.log(vpHeight, rect.bottom);
     }
     else
       height -= canvas.offsetTop;
