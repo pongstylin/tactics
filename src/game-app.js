@@ -527,7 +527,7 @@ Tactics.App = (function ($, window, document) {
           url: link,
         }).catch(error => {
           copy(link);
-          if (error.name === 'InternalError')
+          if (error.isInternalError)
             popup({
               message: 'Copied the game link since app sharing failed.  Paste the link to invite using your app of choice.',
               minWidth: '250px',

@@ -3,7 +3,7 @@ export default options => new Promise((resolve, reject) => {
     // Differentiate between user 'AbortError' and internal errors.
     // E.g. Internal error: could not connect to Web Share interface.
     if (error.message.startsWith('Internal error:'))
-      error.name = 'InternalError';
+      error.isInternalError = true;
 
     reject(error);
   });
