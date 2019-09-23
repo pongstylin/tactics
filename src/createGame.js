@@ -79,8 +79,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let myGameQuery;
     let joinQuery;
     if (gameOptions.isPublic) {
-      // Null teams don't count as a qualifying team.
-      let excludedPlayerIds = new Set([null]);
+      let excludedPlayerIds = new Set();
 
       if (authClient.playerId) {
         // Do not join my own open games.

@@ -428,86 +428,89 @@ export default class {
     if (path === '!')
       return !this._matchItem(item, condition);
 
+    let value = this._extractItemValue(item, path);
+
+    /*
+     * When the condition is not an object, the value and condition data types
+     * are expected to be null, number, string, or arrays of the same.
+     */
+    if (Array.isArray(condition)) {
+      if (Array.isArray(value))
+        if (value.length > condition.length)
+          return condition.findIndex(c => value.includes(c)) > -1;
+        else
+          return value.findIndex(v => condition.includes(v)) > -1;
+
+      return condition.includes(value);
+    }
+    else if (typeof condition === 'object' && condition !== null)
+      // Find the first condition that does NOT match, if none return TRUE
+      return !Object.keys(condition).find(cKey => {
+        if (cKey === '!')
+          return this._matchItemByCondition(value, '', condition[cKey]);
+        else
+          throw new Error(`The '${cKey}' condition is not supported`);
+      });
+    else {
+      if (Array.isArray(value))
+        return value.includes(condition);
+
+      return value === condition;
+    }
+  }
+  _extractItemValue(item, path) {
+    if (item === null || path.length === 0)
+      return item;
+
+    let fields = path.split('.');
     let value = item;
 
-    if (path.length) {
-      let fields = path.split('.');
-      while (fields.length) {
-        if (value === null) break;
+    while (fields.length) {
+      let field = fields.shift();
+      let slice = field.match(/\[.*?\]$/);
+      if (slice) {
+        field = field.slice(0, slice.index);
+        slice = slice[0].slice(1, -1);
+      }
 
-        let field = fields.shift();
-        let slice = field.match(/\[.*?\]$/);
-        if (slice) {
-          field = field.slice(0, slice.index);
-          slice = slice[0].slice(1, -1);
-        }
+      if (!(field in value))
+        return null;
 
-        if (field in value) {
-          value = value[field];
+      value = value[field];
 
-          if (slice !== null) {
-            if (!Array.isArray(value))
-              throw new Error('Range applied to non-array value');
+      if (value === null)
+        return null;
 
-            let elements = [];
+      if (slice !== null) {
+        if (!Array.isArray(value))
+          throw new Error('Range applied to non-array value');
 
-            if (slice.trim().length === 0)
-              elements = value;
-            else {
-              let indices = slice.split(/\s*,\s*/);
-              while (indices.length) {
-                let index = indices.shift();
-                let range = index.split(/\s*-\s*/);
+        let elements = [];
 
-                if (range.length === 2)
-                  elements.push(...value.slice(...range));
-                else if (range.length === 1)
-                  elements.push(value[range]);
-                else
-                  throw new Error('Invalid range in filter array slice');
-              }
-            }
+        if (slice.trim().length === 0)
+          elements = value;
+        else {
+          let indices = slice.split(/\s*,\s*/);
+          while (indices.length) {
+            let index = indices.shift();
+            let range = index.split(/\s*-\s*/);
 
-            let subPath = fields.join('.');
-            return elements.findIndex(
-              el => this._matchItemByCondition(el, subPath, condition)
-            ) > -1;
+            if (range.length === 2)
+              elements.push(...value.slice(...range));
+            else if (range.length === 1)
+              elements.push(value[range]);
+            else
+              throw new Error('Invalid range in filter array slice');
           }
         }
-        else
-          value = null;
+
+        let subPath = fields.join('.');
+
+        return elements.map(el => this._extractItemValue(el, subPath));
       }
     }
 
-    if (Array.isArray(condition) && value !== null && typeof value === 'object')
-      throw new Error('Array conditions can only be used on primitive values');
-
-    if (Array.isArray(value)) {
-      if (condition !== null && typeof condition === 'object')
-        throw new Error('Complex conditions are not implemented for array values');
-
-      throw new Error('Filtering by array field is not implemented');
-    }
-    else if (value !== null && typeof value === 'object') {
-      if (condition !== null && typeof condition === 'object')
-        throw new Error('Complex conditions are not implemented for object values');
-
-      return false;
-    }
-    else {
-      if (Array.isArray(condition))
-        return condition.includes(value);
-      else if (condition !== null && typeof condition === 'object')
-        // Find the first condition that doesn't match.
-        return !Object.keys(condition).find(cKey => {
-          if (cKey === '!')
-            return this._matchItemByCondition(item, path, condition[cKey]);
-          else
-            throw new Error(`The '${cKey}' condition is not supported`);
-        });
-      else
-        return value === condition;
-    }
+    return value;
   }
 
   _compileSort(sort) {
