@@ -425,7 +425,10 @@ function debugMessage(client, message, inOrOut) {
       suffix = `[${message.id}] requestId=${body.requestId}; error=${body.error.message}`;
     else
       suffix = `[${message.id}] requestId=${body.requestId}`;
-  else if (message.type === 'join' || message.type === 'leave')
+  else if (
+    message.type === 'join' || message.type === 'leave' ||
+    message.type === 'enter' || message.type === 'exit'
+  )
     suffix = `[${message.id}] ${body.service}:${body.group}`;
   else if (message.type === 'authorize')
     suffix = `[${message.id}] ${body.service}`;
