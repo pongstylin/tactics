@@ -1625,6 +1625,9 @@ export default class {
     return this;
   }
   _endGame(winnerId) {
+    clearTimeout(this._turnTimeout);
+    this._turnTimeout = null;
+
     if (winnerId === null) {
       this.notice = 'Draw!';
 
@@ -1682,6 +1685,8 @@ export default class {
     let state = this.state;
     if (!state.turnTimeLimit)
       return;
+    if (state.ended)
+      return;
     if (this.isViewOnly)
       return;
 
@@ -1711,6 +1716,8 @@ export default class {
       // Value must be less than a 32-bit signed integer.
       if (timeout < 0x80000000)
         this._turnTimeout = setTimeout(() => {
+          if (state.ended) return;
+
           this._turnTimeout = true;
           this._emit({ type:'timeout' });
         }, timeout);
