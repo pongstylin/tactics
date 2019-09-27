@@ -35,6 +35,17 @@
   <SCRIPT type="text/javascript" src="install.min.js"></SCRIPT>
   <STYLE>
     BODY { display:block; padding: 48px 0 0 0; overflow: auto; }
+
+    #title {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: center;
+
+      text-align: left;
+      font-size: 1.5em;
+      font-weight: bold;
+    }
   </STYLE>
   <SCRIPT>
     function checkViewport() {
@@ -49,11 +60,18 @@
 </HEAD>
 <BODY style="text-align:center">
   <DIV id="notifications"></DIV>
-  <DIV style="margin-bottom:16px">
-    Note: It is possible to play this game on mobile devices in both vertical and horizontal orientations especially if full screen mode is turned on within the game.  But, it is recommended that you add this site to your home screen for the best experience, especially on iPhones.
+  <DIV id="title">
+    <IMG src="/emblem.png" />
+    <DIV style="margin-left: 16px">
+      <DIV>Tactics</DIV>
+      <DIV style="text-indent: 1em">Playground</DIV>
+    </DIV>
+  </DIV>
+  <DIV style="margin:0 auto 16px;max-width:600px">
+    <B>Note</B>: For an app experience on phones and tablets, it is recommended that you add or install this website to your home screen with the latest version of Safari (on Apple devices) or Chrome (on Android devices).  To play on a larger board, flip your phone to the horizontal orientation.
   </DIV>
   <DIV><A href="online.html">Tactics Online</A></DIV>
-  <DIV>Create and play games on the Tactics game server.</DIV>
+  <DIV>Create and play games on the Tactics Playground server.</DIV>
   <BR>
   <DIV><A href="classic.html">Classic</A></DIV>
   <DIV>Share a screen locally to play a friend offline using a classic formation.</DIV>
