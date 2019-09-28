@@ -7,6 +7,7 @@ module.exports = {
     'theme': path.resolve(__dirname, 'src', 'theme.scss'),
     'errors': path.resolve(__dirname, 'src', 'errors.js'),
     'install': path.resolve(__dirname, 'src', 'install.js'),
+    'sw': path.resolve(__dirname, 'src', 'sw.js'),
     'ww': path.resolve(__dirname, 'src', 'ww.js'),
     'tactics': path.resolve(__dirname, 'src', 'tactics.js'),
     'check': path.resolve(__dirname, 'src', 'check.js'),
@@ -60,7 +61,7 @@ module.exports = {
   },
   output: {
     path: path.resolve(__dirname, process.env.NODE_ENV === 'production' ? 'dist' : 'static'),
-    filename: '[name].min.js'
+    filename: chunkData => chunkData.chunk.name === 'sw' ? '[name].js': '[name].min.js',
   },
   optimization: {
     minimize: true

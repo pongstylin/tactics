@@ -37,7 +37,9 @@ app.use(morgan(':date[iso] express [:id] response-out: status=:status; delay=:re
 
 app.use(express.json());
 
-app.post('/errors', (req, res) => {
+const API_PREFIX = config.apiPrefix || '';
+
+app.post(API_PREFIX + '/errors', (req, res) => {
   console.log('client errors:', req.body);
   res.send(true);
 });
@@ -67,7 +69,7 @@ async function getYourTurnNotification(req, res) {
 
   res.send(notification);
 }
-app.get('/notifications/yourTurn', (req, res, next) => {
+app.get(API_PREFIX + '/notifications/yourTurn', (req, res, next) => {
   getYourTurnNotification(req, res).catch(error => next(error));
 });
 

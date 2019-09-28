@@ -1,3 +1,5 @@
+import config from 'config/client.js';
+
 /*
  * This is a Service Worker (sw) created to support these goals:
  *   1) Meet the criteria for an "Add to Home Screen" prompt for mobile devices.
@@ -252,10 +254,11 @@ async function showNotification(event) {
   let diff = new Date() - new Date(data.createdAt);
   if (diff > 120000) { // 2min
     try {
+      let endpoint = `${config.apiPrefix || ''}/notifications/${data.type}`;
       let localRsp = await routeLocalRequest({method:'GET'});
       let localData = await localRsp.json();
       let token = localData.token;
-      let rsp = await fetch(`/notifications/${data.type}`, Object.assign({
+      let rsp = await fetch(endpoint, Object.assign({
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

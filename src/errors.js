@@ -1,3 +1,5 @@
+import config from 'config/client.js';
+
 if (window.sessionStorage) {
   var data = window.sessionStorage.getItem('log');
   if (data)
@@ -65,7 +67,7 @@ function reportError(logData) {
 
   $.ajax({
     method: 'POST',
-    url: '/errors',
+    url: `${config.apiPrefix || ''}/errors`,
     contentType: 'application/json',
     data: logData,
   }).done(function () {

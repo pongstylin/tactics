@@ -2,6 +2,7 @@ export default {
   /*
    * Global Configuration
    */
+  apiPrefix: process.env.API_PREFIX,
   publicKey: process.env.PUBLIC_KEY,
   privateKey: process.env.PRIVATE_KEY,
 
