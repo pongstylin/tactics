@@ -14,17 +14,17 @@ import ChaosSeed from 'tactics/Unit/ChaosSeed.js';
 import ChaosDragon from 'tactics/Unit/ChaosDragon.js';
 
 const unitClassMap = new Map([
-  [Knight.name,         Knight],
-  [Pyromancer.name,     Pyromancer],
-  [Scout.name,          Scout],
-  [Cleric.name,         Cleric],
-  [LightningWard.name,  LightningWard],
-  [DarkMagicWitch.name, DarkMagicWitch],
-  [Assassin.name,       Assassin],
-  [Enchantress.name,    Enchantress],
+  ['Knight',         Knight],
+  ['Pyromancer',     Pyromancer],
+  ['Scout',          Scout],
+  ['Cleric',         Cleric],
+  ['LightningWard',  LightningWard],
+  ['DarkMagicWitch', DarkMagicWitch],
+  ['Assassin',       Assassin],
+  ['Enchantress',    Enchantress],
 
-  [ChaosSeed.name,      ChaosSeed],
-  [ChaosDragon.name,    ChaosDragon],
+  ['ChaosSeed',      ChaosSeed],
+  ['ChaosDragon',    ChaosDragon],
 ]);
 
 export default function (unitType, board) {

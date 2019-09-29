@@ -21,4 +21,4 @@ export default class LightningWard extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-LightningWard.prototype.type = LightningWard.name;
+LightningWard.prototype.type = 'LightningWard';

@@ -68,4 +68,4 @@ export default class Enchantress extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-Enchantress.prototype.type = Enchantress.name;
+Enchantress.prototype.type = 'Enchantress';

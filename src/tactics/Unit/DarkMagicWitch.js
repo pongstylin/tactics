@@ -115,4 +115,4 @@ export default class DarkMagicWitch extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-DarkMagicWitch.prototype.type = DarkMagicWitch.name;
+DarkMagicWitch.prototype.type = 'DarkMagicWitch';

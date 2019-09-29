@@ -480,4 +480,4 @@ export default class ChaosSeed extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-ChaosSeed.prototype.type = ChaosSeed.name;
+ChaosSeed.prototype.type = 'ChaosSeed';

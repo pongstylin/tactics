@@ -37,4 +37,4 @@ export default class Cleric extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-Cleric.prototype.type = Cleric.name;
+Cleric.prototype.type = 'Cleric';

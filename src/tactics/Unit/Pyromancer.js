@@ -84,4 +84,4 @@ export default class Pyromancer extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-Pyromancer.prototype.type = Pyromancer.name;
+Pyromancer.prototype.type = 'Pyromancer';

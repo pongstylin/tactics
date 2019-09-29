@@ -332,4 +332,4 @@ export default class ChaosDragon extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-ChaosDragon.prototype.type = ChaosDragon.name;
+ChaosDragon.prototype.type = 'ChaosDragon';

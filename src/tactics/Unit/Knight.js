@@ -475,4 +475,4 @@ export default class Knight extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-Knight.prototype.type = Knight.name;
+Knight.prototype.type = 'Knight';
