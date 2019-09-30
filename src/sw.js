@@ -43,18 +43,6 @@ const APP_FILES = [
   '/ww.min.js',
 ];
 
-const DATE_INSTALLED = new Date().toISOString()
-  .slice(0, 19)
-  .replace(/[\-:]/g, '.')
-  .replace('T', '_');
-
-// The default version value is the date the app was installed.  This is good
-// enough for development and testing, but should be replaced with a constant
-// value when deploying the app so that all users have the same version value.
-//
-// Every change to application files should be represented as a version change.
-const VERSION = DATE_INSTALLED;
-
 // Application files are installed and cached with a version-specific name.  The
 // currently installed app version remains unaffected while installing the new.
 const INSTALL_CACHE_NAME = 'app'+(VERSION ? '-'+VERSION : '');
