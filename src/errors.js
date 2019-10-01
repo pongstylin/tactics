@@ -6,18 +6,19 @@ if (window.sessionStorage) {
     reportError(data);
 }
 
-window.onerror = function (message, source, lineno, colno, error) {
+var errorListener = function (event) {
+  console.log('error', event);
   try {
     reportError(JSON.stringify({
       createdAt: new Date(),
-      page: location.href,
-      name: error ? error.name : null,
-      code: error ? error.code : null,
-      message: message,
-      source: source,
-      lineno: lineno ? lineno : null,
-      colno: colno ? colno : null,
-      stack: error ? error.stack : null,
+      page:    location.href,
+      name:    event.error ? event.error.name : null,
+      code:    event.error ? event.error.code : null,
+      message: event.message,
+      source:  event.filename,
+      lineno:  event.lineno === undefined ? null : event.lineno,
+      colno:   event.colno  === undefined ? null : event.colno,
+      stack:   event.error ? event.error.stack : null
     }));
   }
   catch (e) {
@@ -28,7 +29,7 @@ window.onerror = function (message, source, lineno, colno, error) {
   }
 };
 
-window.onunhandledrejection = function (event) {
+var unhandledrejectionListener = function (event) {
   try {
     var log = {
       createdAt: new Date(),
@@ -61,15 +62,39 @@ window.onunhandledrejection = function (event) {
   }
 };
 
+/*
+ * "Cannot set property onunhandledrejection of [object Object] which has only a getter"
+ *
+ * I don't know why I got this strange error since the property should always be
+ * settable even if it doesn't exist.  So, let's favor 'addEventListener' and
+ * fallback to assignment if necessary.
+ */
+try {
+  window.addEventListener('error', errorListener);
+  window.addEventListener('unhandledrejection', unhandledrejectionListener);
+}
+catch (e) {
+  window.onerror = function (message, source, lineno, colno, error) {
+    errorListener({
+      message: message,
+      filename: source,
+      lineno: lineno,
+      colno: colno,
+      error: error
+    });
+  };
+  window.onunhandledrejection = unhandledrejectionListener;
+}
+
 function reportError(logData) {
-  if (window.sessionStorage)
-    window.sessionStorage.setItem('log', logData);
+  if (window.sessionstorage)
+    window.sessionstorage.setitem('log', logData);
 
   $.ajax({
     method: 'POST',
     url: `${config.apiPrefix || ''}/errors`,
     contentType: 'application/json',
-    data: logData,
+    data: logData
   }).done(function () {
     if (window.sessionStorage)
       window.sessionStorage.removeItem('log');
