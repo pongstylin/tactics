@@ -83,6 +83,16 @@ document.addEventListener('visibilitychange', event => {
     timeout = setTimeout(() => {
       sockets.forEach(s => s.close(CLOSE_INACTIVE));
     }, 2000);
+
+    // Another Android Chrome bug.  If the screen is shut off for longer than 5
+    // minutes than this event (and 'focus' event) are not fired when the screen
+    // is turned back on.  So, timers to the rescue.
+    let interval = setInterval(() => {
+      if (document.hidden) return;
+      clearInterval(interval);
+      clearTimeout(timeout);
+      sockets.forEach(s => s.open());
+    }, 1000);
   }
   else {
     clearTimeout(timeout);
