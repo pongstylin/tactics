@@ -20,14 +20,14 @@ export default class {
     let player = Player.create(playerData);
     player.version = getLatestVersionNumber('player');
 
-    await this._createFile(`player_${player.id}`, player);
+    await this._lockAndCreateFile(`player_${player.id}`, player);
     return player;
   }
   async savePlayer(player) {
-    await this._writeFile(`player_${player.id}`, player);
+    await this._lockAndWriteFile(`player_${player.id}`, player);
   }
   async getPlayer(playerId) {
-    let playerData = await this._readFile(`player_${playerId}`);
+    let playerData = await this._lockAndReadFile(`player_${playerId}`);
     return Player.load(migrate('player', playerData));
   }
 
@@ -48,30 +48,64 @@ export default class {
     let game = Game.create(gameOptions);
     game.version = getLatestVersionNumber('game');
 
-    await this._createFile(`game_${game.id}`, game);
+    await this._lockAndCreateFile(`game_${game.id}`, game);
     await this._saveGameSummary(game);
 
     return game;
   }
   async saveGame(game) {
-    await this._writeFile(`game_${game.id}`, game);
+    await this._lockAndWriteFile(`game_${game.id}`, game);
     await this._saveGameSummary(game);
   }
   async getGame(gameId) {
-    let gameData = await this._readFile(`game_${gameId}`);
+    let gameData = await this._lockAndReadFile(`game_${gameId}`);
     return Game.load(migrate('game', gameData));
+  }
+
+  /*
+   * The server may potentially store more than one set, typically one set per
+   * game type.  The default set is simply the first one for a given game type.
+   */
+  async getDefaultPlayerSet(playerId, gameType) {
+    let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
+    let set = sets.find(s => s.type === gameType);
+    if (set) return set.units;
+
+    let gameTypeConfig = await this.getGameTypeConfig(gameType);
+    return gameTypeConfig.sets[0].units;
+  }
+  /*
+   * Setting the default set for a game type involves REPLACING the first set
+   * for a given game type.
+   */
+  async setDefaultPlayerSet(playerId, gameType, setUnits) {
+    await this._lockAndUpdateFile(`player_${playerId}_sets`, [], sets => {
+      let index = sets.findIndex(s => s.type === gameType);
+      if (index === -1)
+        sets.push({ type:gameType, units:setUnits });
+      else
+        sets[index].units = setUnits;
+    });
+  }
+  async hasGameType(gameType) {
+    let gameTypes = new Map(await this._lockAndReadFile('game_types'));
+    return gameTypes.has(gameType);
+  }
+  async getGameTypeConfig(gameType) {
+    let gameTypes = new Map(await this._lockAndReadFile('game_types'));
+    return gameTypes.get(gameType);
   }
 
   async createRoom(players, options) {
     let room = Room.create(players, options);
     room.version = getLatestVersionNumber('room');
 
-    await this._createFile(`room_${room.id}`, room);
+    await this._lockAndCreateFile(`room_${room.id}`, room);
 
     return room;
   }
   async saveRoom(room) {
-    await this._writeFile(`room_${room.id}`, room);
+    await this._lockAndWriteFile(`room_${room.id}`, room);
   }
   async pushRoomMessage(room, message) {
     room.pushMessage(message);
@@ -84,13 +118,13 @@ export default class {
     return this.saveRoom(room);
   }
   async getRoom(roomId) {
-    let roomData = await this._readFile(`room_${roomId}`);
+    let roomData = await this._lockAndReadFile(`room_${roomId}`);
     return Room.load(migrate('room', roomData));
   }
 
   async setPushSubscription(playerId, deviceId, subscription) {
     let fileName = `player_${playerId}_push`;
-    let pushData = await this._readFile(fileName, {
+    let pushData = await this._lockAndReadFile(fileName, {
       subscriptions: [],
     });
     pushData.subscriptions = new Map(pushData.subscriptions);
@@ -100,11 +134,11 @@ export default class {
       pushData.subscriptions.delete(deviceId);
     pushData.subscriptions = [...pushData.subscriptions];
 
-    await this._writeFile(fileName, pushData);
+    await this._lockAndWriteFile(fileName, pushData);
   }
   async getAllPushSubscriptions(playerId) {
     let fileName = `player_${playerId}_push`;
-    let pushData = await this._readFile(fileName, {
+    let pushData = await this._lockAndReadFile(fileName, {
       subscriptions: [],
     });
 
@@ -261,19 +295,20 @@ export default class {
   }
 
   async _getOpenGamesSummary() {
-    return new Map(await this._readFile(`open_games`, []));
+    return new Map(await this._lockAndReadFile(`open_games`, []));
   }
   /*
    * Get all of the games in which the player is participating.
    */
   async _getPlayerGamesSummary(playerId) {
-    return new Map(await this._readFile(`player_${playerId}_games`, []));
+    return new Map(await this._lockAndReadFile(`player_${playerId}_games`, []));
   }
   /*
    * Update the game summary for all participating players.
    */
   async _saveGameSummary(game) {
-    let summary = new GameSummary(game);
+    let gameType = await this.getGameTypeConfig(game.state.type);
+    let summary = new GameSummary(gameType, game);
 
     // Get a unique list of player IDs from the teams.
     let playerIds = new Set(
@@ -285,7 +320,7 @@ export default class {
       this._getPlayerGamesSummary(playerId).then(summaryList => {
         summaryList.set(game.id, summary);
 
-        return this._writeFile(`player_${playerId}_games`, [...summaryList]);
+        return this._lockAndWriteFile(`player_${playerId}_games`, [...summaryList]);
       })
     );
 
@@ -306,7 +341,7 @@ export default class {
           }
 
           if (isDirty)
-            return this._writeFile(`open_games`, [...summaryList])
+            return this._lockAndWriteFile(`open_games`, [...summaryList])
         })
       )
 
@@ -340,69 +375,86 @@ export default class {
         this._locks.delete(name);
     });
   }
+  async _lockAndCreateFile(name, data) {
+    return this._lock(name, 'write', () => this._createFile(name, data));
+  }
+  async _lockAndUpdateFile(name, initialValue, updator) {
+    return this._lock(name, 'write', async () => {
+      let data = await this._readFile(name, initialValue);
+      let returnValue = await updator(data);
+      if (returnValue !== undefined)
+        data = returnValue;
+
+      return this._writeFile(name, data);
+    });
+  }
+  async _lockAndWriteFile(name, data) {
+    return this._lock(name, 'write', () => this._writeFile(name, data));
+  }
+  async _lockAndReadFile(name, initialValue) {
+    return this._lock(name, 'read', () => this._readFile(name, initialValue));
+  }
+
+  /*
+   * Only call these methods while a lock is in place.
+   */
   async _createFile(name, data) {
     let fqName = `${filesDir}/${name}.json`;
 
-    return this._lock(name, 'write', () =>
-      new Promise((resolve, reject) => {
-        fs.writeFile(fqName, JSON.stringify(data), { flag:'wx' }, error => {
-          if (error) {
-            console.log('createFile', error);
-            reject(new ServerError(500, 'Create failed'));
-          }
-          else
-            resolve();
-        });
-      })
-    );
+    return new Promise((resolve, reject) => {
+      fs.writeFile(fqName, JSON.stringify(data), { flag:'wx' }, error => {
+        if (error) {
+          console.log('createFile', error);
+          reject(new ServerError(500, 'Create failed'));
+        }
+        else
+          resolve();
+      });
+    });
   }
   async _writeFile(name, data) {
     let fqNameTemp = `${filesDir}/.${name}.json`;
     let fqName = `${filesDir}/${name}.json`;
 
-    return this._lock(name, 'write', () =>
-      new Promise((resolve, reject) => {
-        fs.writeFile(fqNameTemp, JSON.stringify(data), error => {
-          if (error) {
-            console.log('writeFile', error);
-            reject(new ServerError(500, 'Save failed'));
-          }
-          else
-            resolve();
-        });
-      }).then(() => new Promise((resolve, reject) => {
-        fs.rename(fqNameTemp, fqName, error => {
-          if (error) {
-            console.log('rename', error);
-            reject(new ServerError(500, 'Save failed'));
-          }
-          else
-            resolve();
-        });
-      }))
-    );
+    return new Promise((resolve, reject) => {
+      fs.writeFile(fqNameTemp, JSON.stringify(data), error => {
+        if (error) {
+          console.log('writeFile', error);
+          reject(new ServerError(500, 'Save failed'));
+        }
+        else
+          resolve();
+      });
+    }).then(() => new Promise((resolve, reject) => {
+      fs.rename(fqNameTemp, fqName, error => {
+        if (error) {
+          console.log('rename', error);
+          reject(new ServerError(500, 'Save failed'));
+        }
+        else
+          resolve();
+      });
+    }));
   }
   async _readFile(name, initialValue) {
     let fqName = `${filesDir}/${name}.json`;
 
-    return this._lock(name, 'read', () =>
-      new Promise((resolve, reject) => {
-        fs.readFile(fqName, 'utf8', (error, data) => {
-          if (error)
-            reject(error);
-          else
-            resolve(JSON.parse(data));
-        });
-      }).catch(error => {
-        if (error.code === 'ENOENT')
-          if (initialValue === undefined)
-            error = new ServerError(404, 'Not found');
-          else
-            return initialValue;
+    return new Promise((resolve, reject) => {
+      fs.readFile(fqName, 'utf8', (error, data) => {
+        if (error)
+          reject(error);
+        else
+          resolve(JSON.parse(data));
+      });
+    }).catch(error => {
+      if (error.code === 'ENOENT')
+        if (initialValue === undefined)
+          error = new ServerError(404, 'Not found');
+        else
+          return initialValue;
 
-        throw error;
-      })
-    );
+      throw error;
+    });
   }
 
   _compileFilter(filter) {

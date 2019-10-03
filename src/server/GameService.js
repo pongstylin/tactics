@@ -221,9 +221,18 @@ class GameService extends Service {
   /*
    * Create a new game and save it to persistent storage.
    */
-  onCreateGameRequest(client, gameOptions) {
+  async onCreateGameRequest(client, gameOptions) {
     let clientPara = this.clientPara.get(client.id);
     this.throttle(clientPara.playerId, 'createGame');
+
+    gameOptions.createdBy = clientPara.playerId;
+
+    if (gameOptions.type) {
+      if (!await dataAdapter.hasGameType(gameOptions.type))
+        throw new Error('No such game type');
+    }
+    else
+      gameOptions.type = 'classic';
 
     return dataAdapter.createGame(gameOptions).then(game => game.id);
   }
@@ -486,6 +495,8 @@ class GameService extends Service {
     };
     if (set)
       team.set = set;
+    else
+      team.set = await dataAdapter.getDefaultPlayerSet(clientPara.playerId, game.state.type);
 
     let numOpenSlots = game.state.teams.filter(t => !t).length;
 

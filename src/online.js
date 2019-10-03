@@ -408,21 +408,37 @@ function renderCompleteGames() {
 }
 
 function renderGame(game) {
+  let teams = game.teams;
+
   let left;
+  // Completed Games
   if (game.ended) {
+    left = `<SPAN>${game.typeName},</SPAN> `;
     if (game.winnerId === null)
-      left = 'Draw!';
-    else if (game.teams[game.winnerId].playerId === myPlayerId)
-      left = 'You Win!';
+      left += '<SPAN>Draw!</SPAN>';
+    else if (teams[game.winnerId].playerId === myPlayerId)
+      left += '<SPAN>You Win!</SPAN>';
     else
-      left = 'You Lose!';
+      left += '<SPAN>You Lose!</SPAN>';
   }
+  // Active Games
   else if (game.started) {
-    left = 'VS';
+    left = `<SPAN>${game.typeName}</SPAN>`;
   }
+  // Waiting Games
   else {
-    left = game.randomFirstTurn ? 'Random' :
-      game.teams[0] === null ? 'You 1st' : 'You 2nd';
+    let firstTurn;
+    if (game.randomFirstTurn)
+      firstTurn = 'Random';
+    else if (
+      (!teams[0] || teams[0].playerId === myPlayerId) &&
+      (!teams[1] || teams[1].playerId !== myPlayerId)
+    )
+      firstTurn = 'You 1st';
+    else
+      firstTurn = 'You 2nd';
+
+    left = `<SPAN>${game.typeName},</SPAN> <SPAN>${firstTurn}</SPAN>`;
   }
 
   let middle;
@@ -430,7 +446,7 @@ function renderGame(game) {
     // Use of 'Set' was to de-dup the names.
     // Only useful for 4-player games where 2 players have the same name.
     let opponents = [...new Set(
-      game.teams.filter(t => !!t && t.playerId !== myPlayerId).map(t => t.name)
+      teams.filter(t => t && t.playerId !== myPlayerId).map(t => t.name)
     )];
     if (opponents.length === 0)
       opponents[0] = '<I>Yourself</I>';

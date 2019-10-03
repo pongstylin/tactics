@@ -6,11 +6,6 @@ import botFactory from 'tactics/botFactory.js';
 import colorMap from 'tactics/colorMap.js';
 import unitDataMap from 'tactics/unitData.js';
 
-const GAME_TYPES = new Set([
-  'classic', // Must be a 2-player game with classic, a.k.a. default gray, sets.
-  'chaos',   // Knights of Order vs the Seed of Chaos
-]);
-
 export default class GameState {
   /*****************************************************************************
    * Constructors
@@ -57,16 +52,10 @@ export default class GameState {
    * filled, the game is started.
    */
   static create(stateData) {
-    if (stateData.type) {
-      if (!GAME_TYPES.has(stateData.type))
-        throw new TypeError('Invalid game type');
-
-      if (stateData.type === 'classic')
-        stateData.teams = [null, null];
-    }
-
-    if (!stateData || !stateData.teams || stateData.teams.length < 2)
-      throw new TypeError('Required teams length');
+    if (!stateData || !stateData.teams)
+      throw new TypeError('Required teams');
+    else if (stateData.teams.length !== 2 && stateData.teams.length !== 4)
+      throw new TypeError('Required 2 or 4 teams');
 
     let teams = stateData.teams;
     delete stateData.teams;
@@ -210,11 +199,21 @@ export default class GameState {
     if (this.started)
       throw new TypeError('Game already started');
 
-    if (slot === undefined || slot === null)
-      slot = teams.findIndex(t => !t);
+    if (slot === undefined || slot === null) {
+      // Find a slot reserved for this player
+      slot = teams.findIndex(t => t === team.playerId);
+
+      // If not found, find an empty slot
+      if (slot === -1)
+        slot = teams.findIndex(t => !t);
+
+      // If still not found, can't join!
+      if (slot === -1)
+        throw new TypeError('No slots are available');
+    }
     if (slot >= teams.length)
       throw new TypeError('The slot does not exist');
-    if (teams[slot])
+    if (teams[slot] && teams[slot] !== team.playerId)
       throw new TypeError('The slot is taken');
 
     if (this.type === 'classic')
@@ -260,7 +259,7 @@ export default class GameState {
     });
 
     // If all slots are filled, start the game.
-    if (teams.findIndex(t => !t) === -1)
+    if (teams.findIndex(t => !t || typeof t === 'string') === -1)
       // Use setTimeout to give the caller time to listen for events.
       setTimeout(() => this._start());
   }

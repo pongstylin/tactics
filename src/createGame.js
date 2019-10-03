@@ -39,6 +39,16 @@ window.addEventListener('DOMContentLoaded', () => {
     divSetup.style.display = '';
   });
 
+  document.querySelector('SELECT[name=type]').addEventListener('change', event => {
+    let value = event.target.querySelector(':checked').value;
+
+    document.querySelector('.change').style.display
+      = value === 'classic' ? 'none' : '';
+  });
+  document.querySelector('SELECT[name=type]').dispatchEvent(
+    new CustomEvent('change')
+  );
+
   document.querySelectorAll('INPUT[name=vs]').forEach(radio => {
     radio.addEventListener('change', event => {
       if (radio.value === 'you') {
@@ -64,10 +74,11 @@ window.addEventListener('DOMContentLoaded', () => {
     divSetup.style.display = 'none';
     divWaiting.style.display = '';
 
+    let type = document.querySelector('SELECT[name=type] OPTION:checked').value;
     let vs = document.querySelector('INPUT[name=vs]:checked').value;
     let turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
     let gameOptions = {
-      type: 'classic',
+      type: type,
       randomFirstTurn: vs === 'you' || turnOrder === 'random',
       turnTimeLimit: 86400 * 7, // 7 days
       isPublic: vs === 'public',
@@ -89,6 +100,8 @@ window.addEventListener('DOMContentLoaded', () => {
           // Do not join open games against players we are already playing.
           let games = await gameClient.searchMyGames({
             filter:{
+              // Game type must match player preference.
+              type: type,
               started: { '!':null },
               ended: null,
             },
@@ -108,6 +121,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
         myGameQuery = {
           filter: {
+            // Game type must match player preference.
+            type: type,
+            // Look for an open game with this player as a participant
             'teams[].playerId': authClient.playerId,
             // First turn randomization must match player preference.
             randomFirstTurn: turnOrder === 'random',
@@ -117,15 +133,18 @@ window.addEventListener('DOMContentLoaded', () => {
         };
 
         if (turnOrder === '1st')
-          // 1st turn must be available
-          myGameQuery.filter['teams[0]'] = null;
-        else if (turnOrder === '2nd')
           // 2nd turn must be available
           myGameQuery.filter['teams[1]'] = null;
+        else if (turnOrder === '2nd')
+          // 1st turn must be available
+          myGameQuery.filter['teams[0]'] = null;
       }
 
       joinQuery = {
         filter: {
+          // Game type must match player preference.
+          type: type,
+          // Don't join games against disqualified players
           'teams[].playerId': { '!':[...excludedPlayerIds] },
           // First turn randomization must match player preference.
           randomFirstTurn: turnOrder === 'random',

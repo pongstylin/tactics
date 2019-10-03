@@ -37,7 +37,6 @@
   <STYLE>
     .content {
       max-height: 100%;
-      max-width: 600px;
       overflow: auto;
     }
 
@@ -47,9 +46,15 @@
       overflow: auto;
     }
 
+    INPUT[type=text], SELECT {
+      box-sizing: border-box;
+      width: 160px;
+      padding: 1px 0;
+    }
+
     DIV {
       box-sizing: border-box;
-      padding: 4px;
+      padding: 4px 0;
     }
     UL {
       margin: 0;
@@ -71,7 +76,7 @@
     .row {
       padding: 4px;
     }
-    .radioGroup {
+    .indent {
       padding: 0 0 0 12px;
     }
 
@@ -86,6 +91,9 @@
       margin-top: 4px;
       text-align: center;
     }
+    .change {
+      margin-left: 6px;
+    }
   </STYLE>
 </HEAD>
 <BODY>
@@ -98,14 +106,25 @@
       </DIV>
       <DIV class="row playerSetup">
         <DIV>What name would you like to use for this game?</DIV>
-        <DIV>
-          Name: <INPUT name="playerName" type="text" maxLength=20>
+        <DIV class="indent">
+          <INPUT name="playerName" type="text" maxLength=20>
         </DIV>
       </DIV>
       <DIV class="row gameSetup">
         <DIV>
+          <DIV>What game style do you want to play?</DIV>
+          <DIV class="indent">
+            <SELECT name="type">
+              <OPTION value="classic">Classic</OPTION>
+              <OPTION value="droplessGray">Dropless Gray</OPTION>
+              <OPTION value="freestyle">Freestyle</OPTION>
+            </SELECT>
+            <A href="javascript:void(0)" class="change" style="display:none">Change Set</A>
+          </DIV>
+        </DIV>
+        <DIV>
           <DIV>Who would you like to play?</DIV>
-          <UL class="radioGroup">
+          <UL class="indent">
             <LI><LABEL><INPUT type="radio" name="vs" value="public" checked> Anybody (Public)</Label></LI>
             <LI><LABEL><INPUT type="radio" name="vs" value="private"> Invite Only (Private)</Label></LI>
             <LI><LABEL><INPUT type="radio" name="vs" value="you"> Yourself (Practice)</Label></LI>
@@ -113,7 +132,7 @@
         </DIV>
         <DIV>
           <DIV>Who gets first turn?</DIV>
-          <DIV class="radioGroup">
+          <DIV class="indent">
             <LABEL><INPUT type="radio" name="turnOrder" value="random" checked> Random</LABEL>
             <LABEL><INPUT type="radio" name="turnOrder" value="1st"> You</LABEL>
             <LABEL><INPUT type="radio" name="turnOrder" value="2nd"> Them</LABEL>

@@ -3,7 +3,8 @@
  * The summary can be used to render a game in a list.
  */
 export default class GameSummary {
-  constructor(game) {
+  constructor(gameType, game) {
+    this.type = gameType;
     this.game = game;
   }
 
@@ -28,6 +29,8 @@ export default class GameSummary {
 
     let summary = {
       id: game.id,
+      type: game.state.type,
+      typeName: this.type.name,
       created: created,
       updated: updated,
       started: started,

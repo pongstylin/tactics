@@ -1,11 +1,12 @@
 import uuid from 'uuid/v4';
 import GameState from 'tactics/GameState.js';
 
-const gameOptions = new Set([
+const gameKeys = new Set([
+  'createdBy',
   'isPublic',
 ]);
 
-const stateOptions = new Set([
+const stateKeys = new Set([
   'type',
   'randomFirstTurn',
   'turnTimeLimit',
@@ -24,12 +25,14 @@ export default class Game {
       undoRequest: null,
     };
 
-    let stateData = {};
+    let stateData = { teams:[null, null] };
     Object.keys(gameOptions).forEach(option => {
-      if (stateOptions.has(option))
+      if (stateKeys.has(option))
         stateData[option] = gameOptions[option];
-      else
+      else if (gameKeys.has(option))
         gameData[option] = gameOptions[option];
+      else
+        throw new Error(`No such game option: ${option}`);
     });
 
     gameData.state = GameState.create(stateData);
