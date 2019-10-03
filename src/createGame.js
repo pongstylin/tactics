@@ -41,9 +41,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.querySelector('SELECT[name=type]').addEventListener('change', event => {
     let value = event.target.querySelector(':checked').value;
+    let changeLink = document.querySelector('.change');
+    let link = new URL(changeLink.href, location.href);
+    link.searchParams.set('type', value);
 
-    document.querySelector('.change').style.display
-      = value === 'classic' ? 'none' : '';
+    changeLink.href = link;
+    changeLink.style.display = value === 'classic' ? 'none' : '';
   });
   document.querySelector('SELECT[name=type]').dispatchEvent(
     new CustomEvent('change')

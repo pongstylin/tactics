@@ -7,8 +7,6 @@ import Board, {
   ATTACK_TILE_COLOR,
 } from 'tactics/Board.js';
 
-import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
-
 export default class {
   /*
    * Arguments:
@@ -87,7 +85,7 @@ export default class {
         locked: true,
       }),
 
-      _emitter:    new EventEmitter(),
+      _emitter: new EventEmitter(),
     });
 
     Tactics.game = this;
@@ -886,219 +884,27 @@ export default class {
    * Private Methods
    ****************************************************************************/
   _load() {
-    let resources = [];
-    let loaded = 0;
-    let loader = PIXI.loader;
-    let loadedUnitTypes = [];
-    let effects = {};
-
-    let progress = () => {
-      let percent = (++loaded / resources.length) * 100;
-
-      if (percent === 100) {
-        this._board.draw(this._stage);
-
-        this._emit({ type:'ready' });
-      }
-
-      this._emit({
-        type: 'progress',
-        percent: percent,
-      });
-    };
-
-    Tactics.images.forEach(image_url => {
-      let url = image_url;
-      if (!url.startsWith('http'))
-        url = 'https://legacy.taorankings.com/images/'+url;
-
-      resources.push(url);
-      loader.add({ url:url });
-    });
-
-    Object.keys(Tactics.sounds).forEach(name => {
-      let sound = Tactics.sounds[name];
-      if (typeof sound === 'string')
-        sound = {file: sound};
-
-      let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
-
-      Tactics.sounds[name] = new Howl({
-        src:        [url+'.mp3', url+'.ogg'],
-        sprite:      sound.sprite,
-        volume:      sound.volume || 1,
-        rate:        sound.rate || 1,
-        onload:      () => progress(),
-        onloaderror: () => {},
-      });
-
-      resources.push(url);
-    });
-
-    Object.keys(Tactics.effects).forEach(name => {
-      let effect_url = Tactics.effects[name].frames_url;
-
-      if (!(effect_url in effects)) {
-        resources.push(effect_url);
-
-        effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
-          // Preload data URIs.
-          renderData.images.forEach(image_url => {
-            PIXI.BaseTexture.from(image_url);
-          });
-
-          progress();
-          return renderData;
-        });
-      }
-  
-      effects[effect_url].then(renderData => {
-        Object.assign(Tactics.effects[name], renderData);
-        return renderData;
-      });
-    });
-
-    let trophy_url = unitDataMap.get('Champion').frames_url;
-    resources.push(trophy_url);
-
-    fetch(trophy_url).then(r => r.json()).then(renderData => {
-      Object.assign(unitDataMap.get('Champion'), renderData);
-
-      // Preload data URIs.
-      renderData.images.forEach(image_url => {
-        PIXI.BaseTexture.from(image_url);
-      });
-
-      progress();
-    });
+    let unitTypes = new Set();
 
     this.state.teams.forEach(team => {
       let teamUnits = team.set.slice();
 
-      // The Chaos Dragon is not yet a member of a team, but must be loaded.
-      if (team.name === 'Chaos')
-        teamUnits.push({type:'ChaosDragon'});
-
       teamUnits.forEach(({type:unitType}) => {
-        let unitData   = unitDataMap.get(unitType);
-        let unitTypeId = unitTypeToIdMap.get(unitType);
-        let sprites    = [];
+        unitTypes.add(unitType);
 
-        if (loadedUnitTypes.includes(unitTypeId))
-          return;
-        loadedUnitTypes.push(unitTypeId);
-
-        if (unitData.sounds) {
-          Object.keys(unitData.sounds).forEach(name => {
-            let sound = unitData.sounds[name];
-            if (typeof sound === 'string')
-              sound = {file: sound};
-
-            let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
-
-            unitData.sounds[name] = new Howl({
-              src:         [url+'.mp3', url+'.ogg'],
-              sprite:      sound.sprite,
-              volume:      sound.volume || 1,
-              rate:        sound.rate || 1,
-              onload:      () => progress(),
-              onloaderror: () => {},
-            });
-
-            resources.push(url);
-          });
-        }
-
-        if (unitData.effects) {
-          Object.keys(unitData.effects).forEach(name => {
-            let effect_url = unitData.effects[name].frames_url;
-
-            if (!(effect_url in effects)) {
-              resources.push(effect_url);
-
-              effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
-                // Preload data URIs.
-                renderData.images.forEach(image_url => {
-                  PIXI.BaseTexture.from(image_url);
-                });
-
-                progress();
-                return renderData;
-              });
-            }
-  
-            effects[effect_url].then(renderData => {
-              Object.assign(unitData.effects[name], renderData);
-              return renderData;
-            });
-          });
-        }
-
-        if (unitData.frames_url) {
-          let frames_url = unitData.frames_url;
-          resources.push(frames_url);
-
-          fetch(frames_url).then(r => r.json()).then(renderData => {
-            Object.assign(unitData, renderData);
-
-            // Preload data URIs.
-            renderData.images.forEach(image_url => {
-              PIXI.BaseTexture.from(image_url);
-            });
-
-            progress();
-          });
-        }
-        // Legacy
-        else if (unitData.frames) {
-          unitData.frames.forEach(frame => {
-            if (!frame) return;
-
-            frame.c.forEach(sprite => {
-              let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+sprite.id+'.png';
-              if (resources.includes(url))
-                return;
-
-              resources.push(url);
-              loader.add({ url:url });
-            });
-          });
-        }
-        // Legacy
-        else {
-          sprites.push.apply(sprites, Object.values(unitData.stills));
-
-          if (unitData.walks)
-            sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.walks)));
-
-          if (unitData.attacks)
-            sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.attacks)));
-
-          if (unitData.blocks)
-            sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.blocks)));
-
-          sprites.forEach(sprite => {
-            Object.keys(sprite).forEach(name => {
-              let image = sprite[name];
-              if (!image.src) return;
-
-              let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/'+name+'/image'+image.src+'.png';
-              if (resources.includes(url))
-                return;
-
-              resources.push(url);
-              loader.add({ url:url });
-            });
-          });
-        }
+        // The Chaos Seed hatches to become a Chaos Dragon.  So, load both.
+        if (unitType === 'ChaosSeed')
+          unitTypes.add('ChaosDragon');
       });
     });
 
-    loader
-      .on('progress', progress)
-      .load();
+    Tactics.load(unitTypes, percent => {
+      this._emit({ type:'progress', percent:percent });
+    }).then(() => {
+      this._board.draw(this._stage);
 
-    return this;
+      this._emit({ type:'ready' });
+    });
   }
   _revert(turnData) {
     let board = this._board;

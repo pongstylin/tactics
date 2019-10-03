@@ -2,14 +2,14 @@ import clientFactory from 'client/clientFactory.js';
 import RemoteTransport from 'tactics/RemoteTransport.js';
 import LocalTransport from 'tactics/LocalTransport.js';
 import Game from 'tactics/Game.js';
+import SetSetup from 'tactics/SetSetup.js';
+import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
 
 var authClient = clientFactory('auth');
 var gameClient = clientFactory('game');
 var chatClient = clientFactory('chat');
 
 window.Tactics = (function () {
-  'use strict';
-
   var self = {};
 
   // We don't need an infinite loop, thanks.
@@ -22,7 +22,209 @@ window.Tactics = (function () {
     authClient: clientFactory('auth'),
     gameClient: clientFactory('game'),
     chatClient: clientFactory('chat'),
+    SetSetup: SetSetup,
 
+    load: function (unitTypes, cb = () => {}) {
+      return new Promise((resolve, reject) => {
+        let resources = [];
+        let loaded = 0;
+        let loader = PIXI.loader;
+        let loadedUnitTypes = [];
+        let effects = {};
+
+        let progress = () => {
+          let percent = (++loaded / resources.length) * 100;
+
+          cb(percent);
+
+          if (percent === 100)
+            resolve();
+        };
+
+        this.images.forEach(image_url => {
+          let url = image_url;
+          if (!url.startsWith('http'))
+            url = 'https://legacy.taorankings.com/images/'+url;
+
+          resources.push(url);
+          loader.add({ url:url });
+        });
+
+        Object.keys(this.sounds).forEach(name => {
+          let sound = this.sounds[name];
+          if (typeof sound === 'string')
+            sound = {file: sound};
+
+          let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
+
+          this.sounds[name] = new Howl({
+            src:         [url+'.mp3', url+'.ogg'],
+            sprite:      sound.sprite,
+            volume:      sound.volume || 1,
+            rate:        sound.rate || 1,
+            onload:      () => progress(),
+            onloaderror: () => {},
+          });
+
+          resources.push(url);
+        });
+
+        Object.keys(this.effects).forEach(name => {
+          let effect_url = this.effects[name].frames_url;
+
+          if (!(effect_url in effects)) {
+            resources.push(effect_url);
+
+            effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
+              // Preload data URIs.
+              renderData.images.forEach(image_url => {
+                PIXI.BaseTexture.from(image_url);
+              });
+
+              progress();
+              return renderData;
+            });
+          }
+      
+          effects[effect_url].then(renderData => {
+            Object.assign(this.effects[name], renderData);
+            return renderData;
+          });
+        });
+
+        let trophy_url = unitDataMap.get('Champion').frames_url;
+        resources.push(trophy_url);
+
+        fetch(trophy_url).then(r => r.json()).then(renderData => {
+          Object.assign(unitDataMap.get('Champion'), renderData);
+
+          // Preload data URIs.
+          renderData.images.forEach(image_url => {
+            PIXI.BaseTexture.from(image_url);
+          });
+
+          progress();
+        });
+
+        unitTypes.forEach(unitType => {
+          let unitData   = unitDataMap.get(unitType);
+          let unitTypeId = unitTypeToIdMap.get(unitType);
+          let sprites    = [];
+
+          if (loadedUnitTypes.includes(unitTypeId))
+            return;
+          loadedUnitTypes.push(unitTypeId);
+
+          if (unitData.sounds) {
+            Object.keys(unitData.sounds).forEach(name => {
+              let sound = unitData.sounds[name];
+              if (typeof sound === 'string')
+                sound = {file: sound};
+
+              let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
+
+              unitData.sounds[name] = new Howl({
+                src:         [url+'.mp3', url+'.ogg'],
+                sprite:      sound.sprite,
+                volume:      sound.volume || 1,
+                rate:        sound.rate || 1,
+                onload:      () => progress(),
+                onloaderror: () => {},
+              });
+
+              resources.push(url);
+            });
+          }
+
+          if (unitData.effects) {
+            Object.keys(unitData.effects).forEach(name => {
+              let effect_url = unitData.effects[name].frames_url;
+
+              if (!(effect_url in effects)) {
+                resources.push(effect_url);
+
+                effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
+                  // Preload data URIs.
+                  renderData.images.forEach(image_url => {
+                    PIXI.BaseTexture.from(image_url);
+                  });
+
+                  progress();
+                  return renderData;
+                });
+              }
+    
+              effects[effect_url].then(renderData => {
+                Object.assign(unitData.effects[name], renderData);
+                return renderData;
+              });
+            });
+          }
+
+          if (unitData.frames_url) {
+            let frames_url = unitData.frames_url;
+            resources.push(frames_url);
+
+            fetch(frames_url).then(r => r.json()).then(renderData => {
+              Object.assign(unitData, renderData);
+
+              // Preload data URIs.
+              renderData.images.forEach(image_url => {
+                PIXI.BaseTexture.from(image_url);
+              });
+
+              progress();
+            });
+          }
+          // Legacy
+          else if (unitData.frames) {
+            unitData.frames.forEach(frame => {
+              if (!frame) return;
+
+              frame.c.forEach(sprite => {
+                let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+sprite.id+'.png';
+                if (resources.includes(url))
+                  return;
+
+                resources.push(url);
+                loader.add({ url:url });
+              });
+            });
+          }
+          // Legacy
+          else {
+            sprites.push.apply(sprites, Object.values(unitData.stills));
+
+            if (unitData.walks)
+              sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.walks)));
+
+            if (unitData.attacks)
+              sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.attacks)));
+
+            if (unitData.blocks)
+              sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.blocks)));
+
+            sprites.forEach(sprite => {
+              Object.keys(sprite).forEach(name => {
+                let image = sprite[name];
+                if (!image.src) return;
+
+                let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/'+name+'/image'+image.src+'.png';
+                if (resources.includes(url))
+                  return;
+
+                resources.push(url);
+                loader.add({ url:url });
+              });
+            });
+          }
+        });
+
+        loader
+          .on('progress', progress)
+          .load();
+      });
+    },
     draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};
       var elements = {};
@@ -46,14 +248,14 @@ window.Tactics = (function () {
         if ('visible'  in v) child.visible = v.visible;
         if ('anchor'   in v) {
           for (let key in v['anchor']) {
-              if (v['anchor'].hasOwnProperty(key))
-                child['anchor'][key] = v['anchor'][key];
+            if (v['anchor'].hasOwnProperty(key))
+              child['anchor'][key] = v['anchor'][key];
           }
         }
         if ('onSelect' in v) {
           child.interactive = child.buttonMode = true;
           child.hitArea = new PIXI.Rectangle(0,0,v.w,v.h);
-          child.click = child.tap = function () { v.onSelect.call(child,child); };
+          child.click = child.tap = () => v.onSelect.call(child,child);
         }
         if ('children' in v) $.extend(elements,self.draw($.extend({},data,{context:child,children:v.children})));
         if ('draw'     in v) v.draw(child);

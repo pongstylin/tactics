@@ -659,8 +659,10 @@ export default class {
     this.drawTurnOptions();
 
     // Preload the Trophy data URLs
-    this._trophy = unitFactory('Champion', this);
-    this._trophy.drawAvatar();
+    if (this.card) {
+      this._trophy = unitFactory('Champion', this);
+      this._trophy.drawAvatar();
+    }
 
     return this;
   }
