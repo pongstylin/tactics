@@ -365,7 +365,7 @@ unitDataMap.set('LightningWard', {
     E: 0,
   },                            
   frames_url: 'https://tactics.taorankings.com/json/lightning_ward.json',
-  frames_offset: {x:5,y:-5},        
+  frames_offset: {y:-5},
 });
 
 unitDataMap.set('DarkMagicWitch', {

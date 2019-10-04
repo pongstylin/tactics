@@ -6,7 +6,7 @@ import Board, {
 } from 'tactics/Board.js';
 
 export default class {
-  constructor(team) {
+  constructor(team, gameTypeConfig) {
     let renderer = PIXI.autoDetectRenderer(Tactics.width, Tactics.height, { transparent:true });
 
     // Let's not go crazy with the move events.
@@ -34,9 +34,20 @@ export default class {
     });
 
     let units = team.set.map(unitData => ({ ...unitData, direction:'S' }));
+    let unitTypes = [...gameTypeConfig.limits.units.types.keys()].reverse();
+    let positions = this._getPositions();
+    let picksTeam = {
+      colorId: team.colorId,
+      set: unitTypes.map((ut, i) => ({ type:ut, assignment:positions[i] })),
+    };
+    let picksTeamUnits = picksTeam.set.map(unitData => ({
+      ...unitData, direction:'N'
+    }));
 
     board.draw(this._stage);
-    board.setState([units], [this._team]);
+    board.setState([units, picksTeamUnits], [this._team, picksTeam]);
+
+    picksTeam.units.forEach(u => u.showFocus(0.8));
 
     let leftPoint = board.getTile(0, 6).getLeft();
     let rightPoint = board.getTile(10, 6).getTop();
@@ -207,6 +218,22 @@ export default class {
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
+  _getPositions() {
+    let cols = [5, 3, 7, 1, 9];
+    let rows = [6, 8, 10, 7, 9];
+    let positions = [];
+
+    for (let y = 0; y < rows.length; y++) {
+      for (let x = 0; x < cols.length; x++) {
+        if (!this._board.getTile(cols[x], rows[y])) continue;
+
+        positions.push([ cols[x], rows[y] ]);
+      }
+    }
+
+    return positions;
+  }
+
   _render() {
     let renderer = this._renderer;
 

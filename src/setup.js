@@ -111,7 +111,7 @@ async function load() {
   Tactics.load(unitTypes, percent => {
     $('#progress').width(percent);
   }).then(() => {
-    setSetup = new SetSetup(team);
+    setSetup = new SetSetup(team, gameTypeConfig);
 
     $(setSetup.canvas)
       .attr('id', 'board')
