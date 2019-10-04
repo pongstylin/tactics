@@ -55,6 +55,9 @@ export default class GameClient extends Client {
     // Authorization not required
     return this._server.request(this.name, 'getGame', [gameId]);
   }
+  getDefaultPlayerSet(gameType) {
+    return this._server.requestAuthorized(this.name, 'getDefaultPlayerSet', [gameType]);
+  }
   getPlayerStatus(gameId) {
     return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId]);
   }

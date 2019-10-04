@@ -5,26 +5,7 @@ const gameClient = Tactics.gameClient;
 const SetSetup = Tactics.SetSetup;
 
 let setSetup;
-let team = {
-  colorId: 'Red',
-  set: [
-    // Back Row
-    {assignment:[5, 0], type:'Cleric'},
-    // Middle Row
-    {assignment:[2, 1], type:'DarkMagicWitch'},
-    {assignment:[3, 1], type:'Pyromancer'},
-    {assignment:[7, 1], type:'Pyromancer'},
-    {assignment:[8, 1], type:'Enchantress'},
-    // Front Row
-    {assignment:[1, 2], type:'Assassin'},
-    {assignment:[4, 2], type:'Knight'},
-    {assignment:[5, 2], type:'Knight'},
-    {assignment:[6, 2], type:'Knight'},
-    {assignment:[9, 2], type:'Scout'},
-  ]
-};
-
-var buttons = {
+let buttons = {
   rotate: function ($button) {
     let classesToToggle;
 
@@ -96,7 +77,7 @@ async function load() {
 
   $('BODY')
     .on('mouseover','#app BUTTON:enabled', event => {
-      var $button = $(event.target);
+      let $button = $(event.target);
 
       // Ignore disabled buttons
       if (window.getComputedStyle(event.target).cursor !== 'pointer')
@@ -105,8 +86,8 @@ async function load() {
       Tactics.sounds.focus.play();
     })
     .on('click','#app BUTTON:enabled', event => {
-      var $button = $(event.target);
-      var handler = $button.data('handler') || buttons[$button.attr('name')];
+      let $button = $(event.target);
+      let handler = $button.data('handler') || buttons[$button.attr('name')];
 
       // Ignore disabled buttons
       if (window.getComputedStyle(event.target).cursor !== 'pointer')
@@ -117,11 +98,15 @@ async function load() {
       Tactics.sounds.select.play();
     });
 
-  $('#splash').show();
-
   let gameType = new URL(location.href).searchParams.get('type');
   let gameTypeConfig = await gameClient.getGameTypeConfig(gameType);
   let unitTypes = gameTypeConfig.limits.units.types.keys();
+  let team = {
+    colorId: 'Red',
+    set: await gameClient.getDefaultPlayerSet(gameType),
+  };
+
+  $('#splash').show();
 
   Tactics.load(unitTypes, percent => {
     $('#progress').width(percent);
