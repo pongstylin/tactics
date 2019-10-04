@@ -73,8 +73,32 @@ export default class {
 
     bounds = this.pixi.getBounds();
     return this.top = new PIXI.Point(
-      Math.floor(bounds.x+bounds.width/2),
-      Math.floor(bounds.y)
+      Math.floor(bounds.x + bounds.width/2),
+      Math.floor(bounds.y),
+    );
+  }
+  getLeft() {
+    // Warning, this is only accurate if called after pixi transform is updated.
+    var bounds;
+
+    if (this.left) return this.left;
+
+    bounds = this.pixi.getBounds();
+    return this.left = new PIXI.Point(
+      Math.floor(bounds.x),
+      Math.floor(bounds.y + bounds.height/2),
+    );
+  }
+  getBottom() {
+    // Warning, this is only accurate if called after pixi transform is updated.
+    var bounds;
+
+    if (this.bottom) return this.bottom;
+
+    bounds = this.pixi.getBounds();
+    return this.bottom = new PIXI.Point(
+      Math.floor(bounds.x + bounds.width/2),
+      Math.floor(bounds.y + bounds.width),
     );
   }
   getCenter() {
@@ -85,8 +109,8 @@ export default class {
 
     bounds = this.pixi.getBounds();
     return this.center = new PIXI.Point(
-      Math.floor(bounds.x+bounds.width/2),
-      Math.floor(bounds.y+bounds.height/2)
+      Math.floor(bounds.x + bounds.width/2),
+      Math.floor(bounds.y + bounds.height/2),
     );
   }
   dismiss() {

@@ -1,6 +1,9 @@
 import EventEmitter from 'events';
 
-import Board from 'tactics/Board.js';
+import Board, {
+  HALF_TILE_WIDTH,
+  TILE_HEIGHT,
+} from 'tactics/Board.js';
 
 export default class {
   constructor(team) {
@@ -34,6 +37,20 @@ export default class {
 
     board.draw(this._stage);
     board.setState([units], [this._team]);
+
+    let leftPoint = board.getTile(0, 6).getLeft();
+    let rightPoint = board.getTile(10, 6).getTop();
+    board.pixi.mask = new PIXI.Graphics();
+    board.pixi.mask.lineStyle(1, 0xFFFFFF, 1);
+    board.pixi.mask.beginFill(0xFFFFFF, 1);
+    board.pixi.mask.drawPolygon([
+      leftPoint.x, leftPoint.y,
+      rightPoint.x, rightPoint.y,
+      Tactics.width, rightPoint.y,
+      Tactics.width, Tactics.height,
+      0, Tactics.height,
+    ]);
+
     this.render();
   }
 

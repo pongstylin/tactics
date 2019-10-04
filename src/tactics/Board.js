@@ -7,8 +7,8 @@ import colorMap from 'tactics/colorMap.js';
 
 export const TILE_WIDTH        = 88;
 export const TILE_HEIGHT       = 56;
-export const HALF_TILE_WIDTH   = 44;
-export const HALF_TILE_HEIGHT  = 28;
+export const HALF_TILE_WIDTH   = TILE_WIDTH / 2;
+export const HALF_TILE_HEIGHT  = TILE_HEIGHT / 2;
 export const FOCUS_TILE_COLOR  = 0xFFFFFF;
 export const MOVE_TILE_COLOR   = 0x0088FF;
 export const ATTACK_TILE_COLOR = 0xFF8800;
