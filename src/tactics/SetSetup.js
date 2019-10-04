@@ -3,6 +3,7 @@ import EventEmitter from 'events';
 import Board, {
   HALF_TILE_WIDTH,
   TILE_HEIGHT,
+  TILE_FOCUS_COLOR,
 } from 'tactics/Board.js';
 
 export default class {
@@ -15,12 +16,43 @@ export default class {
     let board = new Board();
     board.rotation = 'S';
 
+    board
+      .on('focus', ({ tile, unit }) => {
+        board.focused = unit;
+
+        if (unit.team.name === 'Set')
+          tile.paint('focus', 0.3, TILE_FOCUS_COLOR);
+        else
+          this._updateFocus();
+
+        this.render();
+      })
+      .on('blur', ({ tile, unit }) => {
+        if (board.focused === unit)
+          board.focused = null;
+
+        if (unit.team.name === 'Set')
+          tile.strip();
+        else
+          this._updateFocus();
+
+        this.render();
+      })
+      .on('select', event => {
+        console.log(event);
+      })
+      .on('deselect', event => {
+        console.log(event);
+      });
+
     Object.assign(this, {
       // Crude tracking of the pointer type being used.  Ideally, this should
       // reflect the last pointer type to fire an event on the board.
       pointerType: 'ontouchstart' in window ? 'touch' : 'mouse',
+      gameTypeConfig: gameTypeConfig,
 
-      _team: {...team},
+      _team:      { name:'Set',  ...team              },
+      _picksTeam: { name:'Pick', colorId:team.colorId },
 
       _renderer: renderer,
       _rendering: false,
@@ -33,28 +65,26 @@ export default class {
       _emitter: new EventEmitter(),
     });
 
-    let units = team.set.map(unitData => ({ ...unitData, direction:'S' }));
+    board.draw(this._stage);
+
     let unitTypes = [...gameTypeConfig.limits.units.types.keys()].reverse();
     let positions = this._getPositions();
-    let picksTeam = {
-      colorId: team.colorId,
-      set: unitTypes.map((ut, i) => ({ type:ut, assignment:positions[i] })),
-    };
-    let picksTeamUnits = picksTeam.set.map(unitData => ({
+    this._picksTeam.set = unitTypes.map((ut, i) => ({ type:ut, assignment:positions[i] }));
+
+    let units = team.set.map(unitData => ({ ...unitData, direction:'S' }));
+    let picksTeamUnits = this._picksTeam.set.map(unitData => ({
       ...unitData, direction:'N'
     }));
+    board.setState([units, picksTeamUnits], [this._team, this._picksTeam]);
 
-    board.draw(this._stage);
-    board.setState([units, picksTeamUnits], [this._team, picksTeam]);
-
-    picksTeam.units.forEach(u => u.showFocus(0.8));
+    this._updateFocus();
 
     let leftPoint = board.getTile(0, 6).getLeft();
     let rightPoint = board.getTile(10, 6).getTop();
-    board.pixi.mask = new PIXI.Graphics();
-    board.pixi.mask.lineStyle(1, 0xFFFFFF, 1);
-    board.pixi.mask.beginFill(0xFFFFFF, 1);
-    board.pixi.mask.drawPolygon([
+    board.sprite.mask = new PIXI.Graphics();
+    board.sprite.mask.lineStyle(1, 0xFFFFFF, 1);
+    board.sprite.mask.beginFill(0xFFFFFF, 1);
+    board.sprite.mask.drawPolygon([
       leftPoint.x, leftPoint.y,
       rightPoint.x, rightPoint.y,
       Tactics.width, rightPoint.y,
@@ -232,6 +262,29 @@ export default class {
     }
 
     return positions;
+  }
+  _updateFocus() {
+    let counts = new Map();
+    this._team.units.forEach(unit => {
+      if (counts.has(unit.type))
+        counts.set(unit.type, counts.get(unit.type) + 1);
+      else
+        counts.set(unit.type, 1);
+    });
+
+    let board = this._board;
+    let gameTypeConfig = this.gameTypeConfig;
+    this._picksTeam.units.forEach(unit => {
+      let count = counts.get(unit.type) || 0;
+      let max = gameTypeConfig.limits.units.types.get(unit.type).max;
+
+      if (board.focused === unit)
+        unit.showFocus(0.8, 0xFFFFFF);
+      else if (count < max)
+        unit.showFocus(0.8, 0x00FF00);
+      else
+        unit.showFocus(0.8);
+    });
   }
 
   _render() {

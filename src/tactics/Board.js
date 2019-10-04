@@ -53,7 +53,8 @@ export default class {
 
     Object.assign(this, {
       tiles:       tiles,
-      pixi:        undefined,
+      pixi:        null,
+      sprite:      null,
       locked:      'readonly',
       focusedTile: null,
 
@@ -73,10 +74,10 @@ export default class {
       /*
        * Private properties
        */
-      _trophy:          null,
-      _units_container: null,
-      _highlighted:     new Set(),
-      _emitter:         new EventEmitter(),
+      _trophy:         null,
+      _unitsContainer: null,
+      _highlighted:    new Set(),
+      _emitter:        new EventEmitter(),
     });
   }
 
@@ -560,14 +561,20 @@ export default class {
 
   // Public methods
   draw(stage) {
-    var pixi = this.pixi = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/board.png');
-    var tiles = this.tiles;
+    let pixi = this.pixi = new PIXI.Container();
 
-    // The board itself is interactive since we want to detect a tap on a
+    let sprite = this.sprite = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/board.png');
+    sprite.position = new PIXI.Point(18, 44);
+    pixi.addChild(sprite);
+
+    let tilesContainer = new PIXI.Container();
+    let tiles = this.tiles;
+
+    // The tiles container is interactive since we want to detect a tap on a
     // blank tile to cancel current selection, if sensible.  Ultimately, this
     // functionality needs to be provided by an 'undo' button.
-    pixi.interactive = true;
-    pixi.pointertap = event => {
+    tilesContainer.interactive = true;
+    tilesContainer.pointertap = event => {
       if (this.locked === true) return;
 
       let unit = this.selected || this.viewed;
@@ -575,12 +582,12 @@ export default class {
 
       this._emit({ type:'deselect', unit:unit });
     };
-    pixi.position = new PIXI.Point(18, 44);
+    tilesContainer.position = new PIXI.Point(18, 44);
 
     /*
      * A select event occurs when a unit and/or an action tile is selected.
      */
-    var selectEvent = event => {
+    let selectEvent = event => {
       let tile = event.target;
       let action = tile.action;
 
@@ -594,7 +601,7 @@ export default class {
         this.onUnitSelect(tile);
     };
 
-    var focusEvent = event => {
+    let focusEvent = event => {
       let type = event.type;
       let tile = event.target;
 
@@ -634,20 +641,22 @@ export default class {
       });
       tile.draw();
 
-      pixi.addChild(tile.pixi);
+      tilesContainer.addChild(tile.pixi);
     });
 
-    stage.addChild(pixi);
+    pixi.addChild(tilesContainer);
 
     /*
      * While the board sprite and the tile children may be interactive, the units
      * aren't.  So optimize PIXI by not checking them for interactivity.
      */
-    let units_container = new PIXI.Container();
-    units_container.interactiveChildren = false;
-    this._units_container = units_container;
+    let unitsContainer = new PIXI.Container();
+    unitsContainer.interactiveChildren = false;
+    this._unitsContainer = unitsContainer;
 
-    stage.addChild(units_container);
+    pixi.addChild(unitsContainer);
+
+    stage.addChild(pixi);
 
     // Required to place units in the correct places.
     pixi.updateTransform();
@@ -869,7 +878,7 @@ export default class {
   }
   // Make sure units overlap naturally.
   sortUnits() {
-    this._units_container.children.sort((a, b) => a.y - b.y);
+    this._unitsContainer.children.sort((a, b) => a.y - b.y);
   }
   /*
    * Draw an information card based on these priorities:
@@ -1143,10 +1152,10 @@ export default class {
     unit.assign(unitState.assignment);
     unit.stand(unit.directional === false ? 'S' : unitState.direction);
 
-    let units_container = this._units_container;
-    if (units_container) {
+    let unitsContainer = this._unitsContainer;
+    if (unitsContainer) {
       unit.draw();
-      this._units_container.addChild(unit.pixi);
+      this._unitsContainer.addChild(unit.pixi);
     }
 
     team.units.push(unit);
@@ -1188,8 +1197,8 @@ export default class {
     units.splice(units.indexOf(unit), 1);
     unit.assign(null);
 
-    let units_container = this._units_container;
-    if (units_container) units_container.removeChild(unit.pixi);
+    let unitsContainer = this._unitsContainer;
+    if (unitsContainer) unitsContainer.removeChild(unit.pixi);
 
     return this;
   }
@@ -1620,7 +1629,7 @@ export default class {
     return this;
   }
 
-  _highlightTargetMix(target) {
+  highlightTargetMix(target) {
     let selected = this.selected;
 
     // Show target tiles
@@ -1645,7 +1654,7 @@ export default class {
 
     return this;
   }
-  _clearTargetMix(target) {
+  clearTargetMix(target) {
     let selected = this.selected;
     if (selected.aAll) return;
 
@@ -1674,29 +1683,16 @@ export default class {
       tile.setAlpha(0.6);
     else if (tile.painted && tile.painted !== 'focus')
       tile.setAlpha(0.3);
-    else
-      tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
-
-    let selected = this.selected;
-    let unit = tile.assigned;
-    let game = Tactics.game;
-
-    if (tile.action === 'attack') {
-      // Single-click attacks are only enabled for mouse pointers.
-      if (game.pointerType === 'mouse')
-        this._highlightTargetMix(tile);
-      else if (unit)
-        selected.setTargetNotice(unit);
-    }
 
     /*
      * Emit a change in unit focus.
      */
     let focused = this.focused;
+    let unit = tile.assigned;
     if (focused === unit || !unit)
       return;
 
-    this._emit({ type:'focus', unit:unit });
+    this._emit({ type:'focus', tile:tile, unit:unit });
   }
   onTileBlur(tile) {
     /*
@@ -1706,30 +1702,16 @@ export default class {
       tile.setAlpha(0.3);
     else if (tile.painted && tile.painted !== 'focus')
       tile.setAlpha(0.15);
-    else
-      tile.strip();
-
-    let unit = tile.assigned;
-    let game = Tactics.game;
-
-    // Single-click attacks are only enabled for mouse pointers.
-    if (tile.action === 'attack') {
-      if (unit)
-        unit.change({ notice:null });
-    }
-    else if (tile.action === 'target') {
-      if (game.pointerType === 'mouse')
-        this._clearTargetMix(tile);
-    }
 
     /*
      * Emit a change in unit focus.
      */
     let focused = this.focused;
+    let unit = tile.assigned;
     if (focused !== unit || !focused)
       return;
 
-    this._emit({ type:'blur', unit:unit });
+    this._emit({ type:'blur', tile:tile, unit:unit });
   }
 
   onMoveSelect(tile) {

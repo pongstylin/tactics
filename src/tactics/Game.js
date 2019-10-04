@@ -24,11 +24,38 @@ export default class {
     let board = new Board();
     board.initCard();
     board
-      .on('focus', event => {
+      .on('focus', ({ tile, unit }) => {
         Tactics.sounds.focus.play();
-        this.focused = event.unit;
+
+        if (!tile.action && !tile.painted)
+          tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
+
+        let selected = this.selected;
+
+        if (tile.action === 'attack') {
+          // Single-click attacks are only enabled for mouse pointers.
+          if (this.pointerType === 'mouse')
+            board.highlightTargetMix(tile);
+          else if (unit)
+            selected.setTargetNotice(unit);
+        }
+
+        this.focused = unit;
       })
-      .on('blur', event => {
+      .on('blur', ({ tile, unit }) => {
+        if (tile.painted === 'focus')
+          tile.strip();
+
+        // Single-click attacks are only enabled for mouse pointers.
+        if (tile.action === 'attack') {
+          if (unit)
+            unit.change({ notice:null });
+        }
+        else if (tile.action === 'target') {
+          if (this.pointerType === 'mouse')
+            board.clearTargetMix(tile);
+        }
+
         this.focused = null;
       })
       .on('select', event => {

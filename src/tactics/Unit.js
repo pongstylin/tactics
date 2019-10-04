@@ -956,19 +956,21 @@ export default class {
   hasFocus() {
     return !!this.getSpritesByName('focus')[0];
   }
-  showFocus(alpha) {
+  showFocus(alpha = 1, color = this.color) {
     let focus = this.getSpritesByName('focus')[0];
 
     if (!focus) {
       focus = this.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
       focus.data = {name: 'focus'};
-      focus.children.forEach(sprite => sprite.tint = this.color);
-      focus.alpha = alpha || 1;
+      focus.children.forEach(sprite => sprite.tint = color);
+      focus.alpha = alpha;
 
       this.frame.addChildAt(focus, 1);
     }
-    else
-      focus.alpha = alpha || 1;
+    else {
+      focus.alpha = alpha;
+      focus.children.forEach(sprite => sprite.tint = color);
+    }
 
     return this;
   }
