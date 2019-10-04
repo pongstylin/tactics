@@ -31,17 +31,16 @@
         "units": {
           "max": 10,
 
-          "types": {
-            "Cleric": { "max":1 },
-            "DarkMagicWitch": { "max":1 },
-            "Pyromancer": { "max":2 },
-            "Enchantress": { "max":1 },
-            "Assassin": { "max":1 },
-            "Knight": { "max":3 },
-            "Scout": { "max":1 },
-            "LightningWard": { "max":1 },
-            "BarrierWard": { "max":1 }
-          }
+          "types": [
+            ["Knight",         { "max":3 }],
+            ["Pyromancer",     { "max":2 }],
+            ["Scout",          { "max":1 }],
+            ["Cleric",         { "max":1 }],
+            ["LightningWard",  { "max":1 }],
+            ["DarkMagicWitch", { "max":1 }],
+            ["Assassin",       { "max":1 }],
+            ["Enchantress",    { "max":1 }]
+          ]
         }
       },
       "sets": [{
@@ -71,17 +70,16 @@
         "units": {
           "max": 10,
 
-          "types": {
-            "Cleric": { "max":10 },
-            "DarkMagicWitch": { "max":10 },
-            "Pyromancer": { "max":10 },
-            "Enchantress": { "max":10 },
-            "Assassin": { "max":10 },
-            "Knight": { "max":3 },
-            "Scout": { "max":10 },
-            "LightningWard": { "max":10 },
-            "BarrierWard": { "max":10 }
-          }
+          "types": [
+            ["Knight",         { "max":3  }],
+            ["Pyromancer",     { "max":10 }],
+            ["Scout",          { "max":1  }],
+            ["Cleric",         { "max":10 }],
+            ["LightningWard",  { "max":1  }],
+            ["DarkMagicWitch", { "max":10 }],
+            ["Assassin",       { "max":10 }],
+            ["Enchantress",    { "max":10 }]
+          ]
         }
       },
       "sets": [{

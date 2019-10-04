@@ -23,13 +23,13 @@ window.Tactics = (function () {
     gameClient: clientFactory('game'),
     chatClient: clientFactory('chat'),
     SetSetup: SetSetup,
+    loadedUnitTypes: new Set(),
 
     load: function (unitTypes, cb = () => {}) {
       return new Promise((resolve, reject) => {
         let resources = [];
         let loaded = 0;
         let loader = PIXI.loader;
-        let loadedUnitTypes = [];
         let effects = {};
 
         let progress = () => {
@@ -106,14 +106,14 @@ window.Tactics = (function () {
           progress();
         });
 
-        unitTypes.forEach(unitType => {
+        for (let unitType of unitTypes) {
+          if (this.loadedUnitTypes.has(unitType))
+            continue;
+          this.loadedUnitTypes.add(unitType);
+
           let unitData   = unitDataMap.get(unitType);
           let unitTypeId = unitTypeToIdMap.get(unitType);
           let sprites    = [];
-
-          if (loadedUnitTypes.includes(unitTypeId))
-            return;
-          loadedUnitTypes.push(unitTypeId);
 
           if (unitData.sounds) {
             Object.keys(unitData.sounds).forEach(name => {
@@ -218,7 +218,7 @@ window.Tactics = (function () {
               });
             });
           }
-        });
+        }
 
         loader
           .on('progress', progress)

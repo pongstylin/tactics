@@ -41,6 +41,7 @@ class GameService extends Service {
   will(client, messageType, bodyType) {
     // No authorization required
     if (bodyType === 'getGame') return true;
+    if (bodyType === 'getGameTypeConfig') return true;
 
     // Authorization required
     let clientPara = this.clientPara.get(client.id);
@@ -237,6 +238,9 @@ class GameService extends Service {
     return dataAdapter.createGame(gameOptions).then(game => game.id);
   }
 
+  async onGetGameTypeConfigRequest(client, gameType) {
+    return dataAdapter.getGameTypeConfig(gameType);
+  }
   async onGetGameRequest(client, gameId) {
     this.throttle(client.address, 'getGame');
 

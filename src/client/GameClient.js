@@ -41,6 +41,16 @@ export default class GameClient extends Client {
     return this._server.requestAuthorized(this.name, 'joinGame', args);
   }
 
+  getGameTypeConfig(gameType) {
+    // Authorization not required
+    return this._server.request(this.name, 'getGameTypeConfig', [gameType])
+      .then(data => {
+        if (data.limits)
+          data.limits.units.types = new Map(data.limits.units.types);
+
+        return data;
+      });
+  }
   getGameData(gameId) {
     // Authorization not required
     return this._server.request(this.name, 'getGame', [gameId]);
