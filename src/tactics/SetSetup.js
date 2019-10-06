@@ -2,8 +2,9 @@ import EventEmitter from 'events';
 
 import Board, {
   HALF_TILE_WIDTH,
+  HALF_TILE_HEIGHT,
   TILE_HEIGHT,
-  TILE_FOCUS_COLOR,
+  FOCUS_TILE_COLOR,
 } from 'tactics/Board.js';
 
 export default class {
@@ -21,9 +22,9 @@ export default class {
         board.focused = unit;
 
         if (unit.team.name === 'Set')
-          tile.paint('focus', 0.3, TILE_FOCUS_COLOR);
+          tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
         else
-          this._updateFocus();
+          this._drawPicks();
 
         this.render();
       })
@@ -34,7 +35,7 @@ export default class {
         if (unit.team.name === 'Set')
           tile.strip();
         else
-          this._updateFocus();
+          this._drawPicks();
 
         this.render();
       })
@@ -58,6 +59,7 @@ export default class {
       _rendering: false,
       _canvas: renderer.view,
       _stage: new PIXI.Container(),
+      _countsContainer: new PIXI.Container(),
       _animators: {},
 
       _board: board,
@@ -66,6 +68,7 @@ export default class {
     });
 
     board.draw(this._stage);
+    this._stage.addChild(this._countsContainer);
 
     let unitTypes = [...gameTypeConfig.limits.units.types.keys()].reverse();
     let positions = this._getPositions();
@@ -77,7 +80,12 @@ export default class {
     }));
     board.setState([units, picksTeamUnits], [this._team, this._picksTeam]);
 
-    this._updateFocus();
+    this._picksTeam.units.forEach(unit => {
+      unit.pixi.position.x -= HALF_TILE_WIDTH / 2;
+      unit.pixi.position.y -= HALF_TILE_HEIGHT / 2;
+    });
+
+    this._drawPicks();
 
     let leftPoint = board.getTile(0, 6).getLeft();
     let rightPoint = board.getTile(10, 6).getTop();
@@ -250,7 +258,7 @@ export default class {
    ****************************************************************************/
   _getPositions() {
     let cols = [5, 3, 7, 1, 9];
-    let rows = [6, 8, 10, 7, 9];
+    let rows = [5, 7, 9, 6, 8, 10];
     let positions = [];
 
     for (let y = 0; y < rows.length; y++) {
@@ -263,7 +271,7 @@ export default class {
 
     return positions;
   }
-  _updateFocus() {
+  _drawPicks() {
     let counts = new Map();
     this._team.units.forEach(unit => {
       if (counts.has(unit.type))
@@ -271,6 +279,8 @@ export default class {
       else
         counts.set(unit.type, 1);
     });
+
+    this._countsContainer.removeChildren();
 
     let board = this._board;
     let gameTypeConfig = this.gameTypeConfig;
@@ -280,10 +290,56 @@ export default class {
 
       if (board.focused === unit)
         unit.showFocus(0.8, 0xFFFFFF);
-      else if (count < max)
-        unit.showFocus(0.8, 0x00FF00);
       else
         unit.showFocus(0.8);
+
+      let bgColor;
+      let textColor;
+      let borderColor;
+      let text;
+      if (count === max) {
+        bgColor = 0x444444;
+        textColor = 0xFF0000;
+        borderColor = 0x222222;
+        text = 'X';
+      }
+      else {
+        bgColor = 0x008800;
+        textColor = 0xFFFFFF;
+        borderColor = 0x888888;
+        text = max - count;
+      }
+
+      let position = unit.assignment.getTop();
+      let countBox = new PIXI.Graphics();
+      countBox.position = new PIXI.Point(
+        position.x - HALF_TILE_WIDTH,
+        position.y - TILE_HEIGHT*1.25,
+      );
+      countBox.lineStyle(1, borderColor, 1);
+      countBox.beginFill(bgColor, 1);
+      countBox.drawPolygon([
+        20,  0,
+        50,  0,
+        60, 12,
+        56, 20,
+        24, 20,
+        14,  8,
+        20,  0,
+      ]);
+      let countText = new PIXI.Text(text, {
+        fontFamily:      'Arial',
+        fontSize:        '12px',
+        stroke:          0,
+        strokeThickness: 3,
+        fill:            textColor,
+      });
+      countText.x = 37;
+      countText.y = 1;
+      countText.anchor.x = 0.5;
+      countBox.addChild(countText);
+
+      this._countsContainer.addChild(countBox);
     });
   }
 
