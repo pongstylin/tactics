@@ -39,11 +39,14 @@ export default class {
 
         this.render();
       })
-      .on('select', event => {
-        console.log(event);
+      .on('select', ({ unit }) => {
+        if (unit === board.selected)
+          this.selected = null;
+        else
+          this.selected = unit;
       })
-      .on('deselect', event => {
-        console.log(event);
+      .on('deselect', () => {
+        this.selected = null;
       });
 
     Object.assign(this, {
@@ -104,6 +107,9 @@ export default class {
     ]);
 
     this.render();
+
+    // Allow the Animation class to render frames.
+    Tactics.game = this;
   }
 
   /*****************************************************************************
@@ -118,6 +124,28 @@ export default class {
   }
   get board() {
     return this._board;
+  }
+
+  get selected() {
+    return this._board.selected;
+  }
+  set selected(unit) {
+    let board = this._board;
+
+    if (unit) {
+      if (board.selected)
+        board.selected.deactivate();
+
+      unit.activate();
+      board.selected = unit;
+    }
+    else {
+      board.selected.deactivate();
+      board.selected = null;
+    }
+
+    this._drawPicks();
+    this.render();
   }
 
   /*****************************************************************************
@@ -291,7 +319,7 @@ export default class {
       let count = counts.get(unit.type) || 0;
       let max = gameTypeConfig.limits.units.types.get(unit.type).max;
 
-      if (board.focused === unit)
+      if (board.focused === unit || board.selected === unit)
         unit.showFocus(0.8, 0xFFFFFF);
       else
         unit.showFocus(0.8);
