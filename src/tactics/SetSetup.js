@@ -80,7 +80,10 @@ export default class {
     }));
     board.setState([units, picksTeamUnits], [this._team, this._picksTeam]);
 
+    // Set back the pick units and tiles to give the visible board some space.
     this._picksTeam.units.forEach(unit => {
+      unit.assignment.pixi.position.x -= HALF_TILE_WIDTH / 2;
+      unit.assignment.pixi.position.y -= HALF_TILE_HEIGHT / 2;
       unit.pixi.position.x -= HALF_TILE_WIDTH / 2;
       unit.pixi.position.y -= HALF_TILE_HEIGHT / 2;
     });
@@ -313,8 +316,8 @@ export default class {
       let position = unit.assignment.getTop();
       let countBox = new PIXI.Graphics();
       countBox.position = new PIXI.Point(
-        position.x - HALF_TILE_WIDTH,
-        position.y - TILE_HEIGHT*1.25,
+        position.x - HALF_TILE_WIDTH/2,
+        position.y - TILE_HEIGHT,
       );
       countBox.lineStyle(1, borderColor, 1);
       countBox.beginFill(bgColor, 1);
