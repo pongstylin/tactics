@@ -122,7 +122,6 @@ export default class ChaosDragon extends Unit {
   }
   animAttack(target) {
     var anim      = new Tactics.Animation();
-    let stage     = Tactics.game.stage;
     let sounds    = $.extend({}, Tactics.sounds, this.sounds);
     var tunit     = target.assigned;
     var direction = this.board.getDirection(this.assignment, target, 1);
@@ -166,23 +165,21 @@ export default class ChaosDragon extends Unit {
       })
       .splice(5, () => {
         this.drawStreaks(container, target,source,adjust);
-        stage.addChild(container);
+        this.board.pixi.addChild(container);
       })
       .splice(6, () => {
         this.drawStreaks(container, target,source,adjust);
       })
       .splice(7, () => {
-        stage.removeChild(container);
+        this.board.pixi.removeChild(container);
         sounds.buzz.stop();
       });
 
     return anim;
   }
   drawStreaks(container,target,source,adjust) {
-    let stage = Tactics.game.stage;
-
     // Make sure bounds are set correctly.
-    stage.children[1].updateTransform();
+    this.board.unitsContainer.updateTransform();
 
     let sprite = this.frame.children[source];
     let bounds = sprite.getBounds();

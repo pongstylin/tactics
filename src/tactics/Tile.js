@@ -32,6 +32,8 @@ export default class {
       focused:  false,
       painted:  null,
 
+      isDropTarget: false,
+
       _emitter: new EventEmitter(),
     });
   }
@@ -55,6 +57,12 @@ export default class {
     pixi.pointerover = this.onFocus.bind(this);
     pixi.pointerout  = this.onBlur.bind(this);
 
+    // Drag events are only supported for mouse pointers
+    pixi.mousedown      = this.onDragStart.bind(this);
+    pixi.mousemove      = this.onDragMove.bind(this);
+    pixi.mouseup        = this.onDragEnd.bind(this);
+    pixi.mouseupoutside = this.onDragEnd.bind(this);
+
     // PIXI does not emit 'pointerover' or 'pointerout' events for touch pointers.
     // Use 'touchmove' to simulate focus events.
     // Use 'touchend' to simulate blur events.
@@ -62,6 +70,8 @@ export default class {
     pixi.touchmove       = this.onFocus.bind(this);
     pixi.touchend        = this.onBlur.bind(this);
     pixi.touchendoutside = this.onBlur.bind(this);
+
+    pixi.data = { type:'Tile', x:this.x, y:this.y };
 
     return this;
   }
@@ -145,9 +155,9 @@ export default class {
   setAlpha(alpha) {
     this.pixi.alpha = alpha;
   }
-  paint(name, alpha, color) {
+  paint(name, alpha, color = 0xFFFFFF) {
     this.painted    = name;
-    this.pixi.tint  = color || 0xFFFFFF;
+    this.pixi.tint  = color;
     this.pixi.alpha = alpha;
 
     return this;
@@ -162,14 +172,56 @@ export default class {
       // Prevent the board object from receiving this event.
       event.stopPropagation();
 
-      this._emit({ type:'select', target:this });
+      this._emit({
+        type: 'select',
+        target: this,
+        pixiEvent: event,
+        pointerEvent: event.data.originalEvent,
+      });
     }
+  }
+  onDragStart(event) {
+    // Prevent the board object from receiving this event.
+    event.stopPropagation();
+
+    if (!this.assigned) return;
+    if (!this.assigned.draggable) return;
+
+    this._emit({
+      type: 'dragStart',
+      target: this,
+      pixiEvent: event,
+      pointerEvent: event.data.originalEvent,
+    });
+  }
+  onDragMove(event) {
+    // Prevent the board object from receiving this event.
+    event.stopPropagation();
+
+    this._emit({
+      type: 'dragMove',
+      target: this,
+      pixiEvent: event,
+      pointerEvent: event.data.originalEvent,
+    });
+  }
+  onDragEnd(event) {
+    // Prevent the board object from receiving this event.
+    // Actually, don't do this since it prevents 'tap' from firing.
+    //event.stopPropagation();
+
+    this._emit({
+      type: 'dragEnd',
+      target: this,
+      pixiEvent: event,
+      pointerEvent: event.data.originalEvent,
+    });
   }
   /*
    * All tiles are interactive at all times so that we can keep track of the
    * currently focused tile even if it isn't in buttonMode (yet).
    *
-   * But events only only emitted when in buttonMode.
+   * But events are only emitted when in buttonMode.
    */
   onFocus(event) {
     if (this.focused) return;

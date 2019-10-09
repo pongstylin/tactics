@@ -59,7 +59,7 @@ export default class {
         this.focused = null;
       })
       .on('select', event => {
-        let unit = event.unit;
+        let unit = event.target.assigned;
 
         Tactics.sounds.select.play();
         if (this.canSelect(unit))
@@ -134,9 +134,6 @@ export default class {
     return this._canvas;
   }
 
-  get stage() {
-    return this._stage;
-  }
   get board() {
     return this._board;
   }

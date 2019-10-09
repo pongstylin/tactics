@@ -292,7 +292,6 @@ export default class ChaosSeed extends Unit {
   hatch(action) {
     let board       = this.board;
     let anim        = new Tactics.Animation();
-    let stage       = Tactics.game.stage;
     let sounds      = $.extend({}, Tactics.sounds, this.sounds);
     let assignment  = this.assignment;
     let direction   = board.getDirection(assignment, action.target);
@@ -449,7 +448,7 @@ export default class ChaosSeed extends Unit {
           let y = myPos.y + Math.round(Math.random() * 28 * po) * ym + 28;
 
           anim.splice(i, new Tactics.Animation.fromData(
-            stage.children[1],
+            this.board.unitsContainer,
             Tactics.animations.death,
             {x:x, y:y, s:2, a:ao},
           ));

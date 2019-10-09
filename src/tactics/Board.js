@@ -52,10 +52,11 @@ export default class {
     });
 
     Object.assign(this, {
-      tiles:       tiles,
-      pixi:        null,
-      sprite:      null,
-      locked:      'readonly',
+      tiles: tiles,
+      pixi: null,
+      sprite: null,
+      unitsContainer: null,
+      locked: 'readonly',
       focusedTile: null,
 
       card:        null,
@@ -71,12 +72,15 @@ export default class {
       teams: [],
       teamsUnits: [], // 2-dimensional array of the units for each team.
 
+      dragSource: null,
+      dragAvatar: null,
+      dragTarget: null,
+
       /*
        * Private properties
        */
       _trophy:         null,
-      _unitsContainer: null,
-      _highlighted:    new Set(),
+      _highlighted:    new Map(),
       _emitter:        new EventEmitter(),
     });
   }
@@ -590,15 +594,18 @@ export default class {
     let selectEvent = event => {
       let tile = event.target;
       let action = tile.action;
+      let highlight = this._highlighted.get(tile);
 
-      if (action === 'move')
+      if (highlight && highlight.onSelect)
+        highlight.onSelect(event);
+      else if (action === 'move')
         this.onMoveSelect(tile);
       else if (action === 'attack')
         this.onAttackSelect(tile);
       else if (action === 'target')
         this.onTargetSelect(tile);
       else
-        this.onUnitSelect(tile);
+        this._emit(event);
     };
 
     let focusEvent = event => {
@@ -632,13 +639,17 @@ export default class {
     Object.values(tiles).forEach(tile => {
       tile.on('select',     selectEvent);
       tile.on('focus blur', focusEvent);
-      tile.on('assign', event => {
+      tile.on('assign', () => {
         if (this.locked !== true)
-          event.target.set_interactive(true);
+          tile.set_interactive(true);
       });
-      tile.on('dismiss', event => {
-        event.target.set_interactive(false);
+      tile.on('dismiss', () => {
+        if (!tile.painted)
+          tile.set_interactive(false);
       });
+      tile.on('dragStart', this.onDragStart.bind(this));
+      tile.on('dragMove', this.onDragMove.bind(this));
+      tile.on('dragEnd', this.onDragEnd.bind(this));
       tile.draw();
 
       tilesContainer.addChild(tile.pixi);
@@ -650,9 +661,8 @@ export default class {
      * While the board sprite and the tile children may be interactive, the units
      * aren't.  So optimize PIXI by not checking them for interactivity.
      */
-    let unitsContainer = new PIXI.Container();
+    let unitsContainer = this.unitsContainer = new PIXI.Container();
     unitsContainer.interactiveChildren = false;
-    this._unitsContainer = unitsContainer;
 
     pixi.addChild(unitsContainer);
 
@@ -878,7 +888,7 @@ export default class {
   }
   // Make sure units overlap naturally.
   sortUnits() {
-    this._unitsContainer.children.sort((a, b) => a.y - b.y);
+    this.unitsContainer.children.sort((a, b) => a.y - b.y);
   }
   /*
    * Draw an information card based on these priorities:
@@ -1149,14 +1159,9 @@ export default class {
     unit.color = 'color' in unitState
       ? unitState.color
       : colorMap.get('colorId' in unitState ? unitState.colorId : team.colorId);
-    unit.assign(unitState.assignment);
     unit.stand(unit.directional === false ? 'S' : unitState.direction);
 
-    let unitsContainer = this._unitsContainer;
-    if (unitsContainer) {
-      unit.draw();
-      this._unitsContainer.addChild(unit.pixi);
-    }
+    this.assign(unit, unitState.assignment);
 
     team.units.push(unit);
 
@@ -1174,7 +1179,7 @@ export default class {
     return unit;
   }
   dropUnit(unit) {
-    var units = this.teamsUnits[unit.team.id];
+    var units = unit.team.units;
 
     if (unit == this.focused) {
       unit.blur();
@@ -1197,10 +1202,39 @@ export default class {
     units.splice(units.indexOf(unit), 1);
     unit.assign(null);
 
-    let unitsContainer = this._unitsContainer;
+    let unitsContainer = this.unitsContainer;
     if (unitsContainer) unitsContainer.removeChild(unit.pixi);
 
     return this;
+  }
+  assign(unit, tile, preserveUnitAssignment = false) {
+    if (tile.assigned)
+      this.dismiss(tile.assigned, preserveUnitAssignment);
+
+    this.dismiss(unit);
+    unit.assignment = tile.assign(unit);
+
+    let unitsContainer = this.unitsContainer;
+    if (unitsContainer) {
+      if (!unit.pixi)
+        unit.draw();
+      unit.pixi.position = tile.getCenter().clone();
+
+      unitsContainer.addChild(unit.pixi);
+    }
+
+    return this;
+  }
+  dismiss(unit, preserveUnitAssignment = false) {
+    if (unit.assignment && unit.assignment.assigned === unit)
+      unit.assignment.dismiss();
+    if (!preserveUnitAssignment)
+      unit.assignment = null;
+
+    let unitsContainer = this.unitsContainer;
+    if (unitsContainer) {
+      unitsContainer.removeChild(unit.pixi);
+    }
   }
 
   /*
@@ -1227,7 +1261,7 @@ export default class {
       this.target = this.getTileRotation(this.target, degree);
 
     units.forEach(unit => {
-      unit.assign(this.getTileRotation(unit.assignment, degree));
+      this.assign(unit, this.getTileRotation(unit.assignment, degree), true);
       unit.stand(this.getRotation(unit.direction, degree));
     });
 
@@ -1547,7 +1581,7 @@ export default class {
    * Private Methods
    ****************************************************************************/
   _showTurnOptions(unit) {
-    let stage = Tactics.game.stage;
+    let pixi = this.pixi;
     let turnOptions = this._turnOptions;
 
     turnOptions.data = { unit:unit };
@@ -1559,13 +1593,13 @@ export default class {
       arrow.visible = true;
     });
 
-    if (!stage.children.includes(turnOptions))
-      stage.addChild(turnOptions);
+    if (!pixi.children.includes(turnOptions))
+      pixi.addChild(turnOptions);
 
     return this;
   }
   showDirection(unit) {
-    let stage = Tactics.game.stage;
+    let pixi = this.pixi;
     let turnOptions = this._turnOptions;
 
     turnOptions.data = { unit:unit };
@@ -1577,17 +1611,17 @@ export default class {
       arrow.visible = unit.directional === false || arrow.data.direction == unit.direction;
     });
 
-    if (!stage.children.includes(turnOptions))
-      stage.addChild(turnOptions);
+    if (!pixi.children.includes(turnOptions))
+      pixi.addChild(turnOptions);
 
     return this;
   }
   hideTurnOptions() {
-    let stage = Tactics.game.stage;
+    let pixi = this.pixi;
     let turnOptions = this._turnOptions;
 
-    if (stage.children.includes(turnOptions))
-      stage.removeChild(turnOptions);
+    if (pixi.children.includes(turnOptions))
+      pixi.removeChild(turnOptions);
 
     return this;
   }
@@ -1675,11 +1709,105 @@ export default class {
     this.hideTargets();
   }
 
+  onDragStart(event) {
+    this.dragSource = event;
+  }
+  onDragMove(event) {
+    let tile = event.target;
+    if (!this.dragSource) return;
+
+    if (!this.dragTarget) {
+      if (tile === this.dragSource.target) {
+        let sx = this.dragSource.pointerEvent.clientX;
+        let sy = this.dragSource.pointerEvent.clientY;
+        let cx = event.pointerEvent.clientX;
+        let cy = event.pointerEvent.clientY;
+        let dist = Math.sqrt(Math.abs(cx - sx)**2 + Math.abs(cy - sy)**2);
+        if (dist < 5) return;
+      }
+
+      let dragUnit = this.dragSource.target.assigned;
+      this.pixi.addChild(
+        this.dragAvatar = dragUnit.drawAvatar(dragUnit.direction)
+      );
+      this.dragAvatar.basePosition = this.dragAvatar.position.clone();
+
+      this.tiles.forEach(tile => tile.set_interactive(false));
+      this._emit(this.dragSource);
+    }
+
+    if (!this.dragTarget || this.dragTarget.target !== tile) {
+      let blurTarget = this.dragTarget;
+      this.dragTarget = event;
+
+      if (blurTarget)
+        this._emit({
+          type: 'dragBlur',
+          target: blurTarget.target,
+          pointerEvent: event.pointerEvent,
+        });
+
+      this._emit({ ...event, type:'dragFocus' });
+    }
+
+    let pointerPosition = event.pixiEvent.data.getLocalPosition(this.pixi);
+    this.dragAvatar.position.set(
+      this.dragAvatar.basePosition.x + pointerPosition.x,
+      this.dragAvatar.basePosition.y + pointerPosition.y,
+    );
+
+    this._emit({ ...event, type:'dragMove' });
+  }
+  onDragEnd(event) {
+    if (!this.dragSource) return;
+    if (!this.dragTarget) {
+      this.dragSource = null;
+      return;
+    }
+
+    if (
+      event.pixiEvent.type !== 'mouseupoutside' &&
+      event.target !== this.dragTarget.target
+    ) {
+      let blurTarget = this.dragTarget;
+      this.dragTarget = event;
+
+      if (blurTarget)
+        this._emit({
+          type: 'dragBlur',
+          target: blurTarget.target,
+          pointerEvent: event.pointerEvent,
+        });
+    }
+
+    // Destroy this first so that 'dragEnd' can render its absence.
+    this.dragAvatar = this.dragAvatar.destroy() || null;
+    this.tiles.forEach(tile => {
+      tile.set_interactive(!!(tile.action || tile.assigned));
+    });
+
+    if (this.dragSource.target === this.dragTarget.target)
+      // Prevent 'tap' event from firing
+      event.pixiEvent.stopPropagation();
+
+    this._emit({
+      type:'dragEnd',
+      target: this.dragTarget.target,
+      pointerEvent: event.pointerEvent,
+    });
+
+    this.dragSource = null;
+    this.dragTarget = null;
+  }
+
   onTileFocus(tile) {
     /*
      * Brighten the tile to show that it is being focused.
      */
-    if (tile.action)
+    let highlighted = this._highlighted.get(tile);
+    if (highlighted && highlighted.onFocus)
+      return highlighted.onFocus({ type:'focus', tile:tile });
+    else if (tile.action)
       tile.setAlpha(0.6);
     else if (tile.painted && tile.painted !== 'focus')
       tile.setAlpha(0.3);
@@ -1698,7 +1826,10 @@ export default class {
     /*
      * Darken the tile when no longer focused.
      */
-    if (tile.action)
+    let highlighted = this._highlighted.get(tile);
+    if (highlighted && highlighted.onBlur)
+      return highlighted.onBlur({ type:'blur', tile:tile });
+    else if (tile.action)
       tile.setAlpha(0.3);
     else if (tile.painted && tile.painted !== 'focus')
       tile.setAlpha(0.15);
@@ -1748,24 +1879,24 @@ export default class {
 
     this._emit(action);
   }
-  onUnitSelect(tile) {
-    let unit = tile.assigned;
 
-    this._emit({ type:'select', unit:unit });
-  }
-
-  setHighlight(tiles, highlight, viewed) {
+  setHighlight(tiles, highlight, viewed = false) {
     if (!Array.isArray(tiles)) tiles = [tiles];
 
     let highlighted = this._highlighted;
     // Trigger the 'focus' event when highlighting the focused tile.
     let focusedTile = this.focusedTile;
-    let trigger_focus = false;
+    let triggerFocus = false;
 
     tiles.forEach(tile => {
-      let alpha = viewed ? 0.15 : 0.3;
-      if (tile.focused && (tile.is_interactive() || !viewed))
-        alpha *= 2;
+      let alpha;
+      if ('alpha' in highlight)
+        alpha = highlight.alpha;
+      else {
+        alpha = viewed ? 0.15 : 0.3;
+        if (tile.focused && (tile.is_interactive() || !viewed))
+          alpha *= 2;
+      }
 
       tile.paint(highlight.action, alpha, highlight.color);
 
@@ -1773,37 +1904,32 @@ export default class {
         tile.action = highlight.action;
 
         if (tile === focusedTile)
-          trigger_focus = true;
+          triggerFocus = true;
         else
           tile.set_interactive(true);
       }
 
-      highlighted.add(tile);
+      highlighted.set(tile, highlight);
     });
 
     // The 'focus' event is delayed until all tiles are highlighted.
-    if (trigger_focus)
+    if (triggerFocus)
       if (focusedTile.is_interactive())
         this.onTileFocus(focusedTile);
       else
         focusedTile.set_interactive(true);
   }
-  clearHighlight(tile) {
+  clearHighlight(tiles) {
     let highlighted = this._highlighted;
-    let highlights = [];
 
-    if (tile) {
-      if (highlighted.has(tile)) {
-        highlights.push(tile);
-        highlighted.delete(tile);
-      }
-    }
-    else {
-      highlights  = highlighted;
-      highlighted = new Set();
-    }
+    if (!tiles)
+      tiles = [...highlighted.keys()];
+    else if (!Array.isArray(tiles))
+      tiles = [tiles];
 
-    highlights.forEach(tile => {
+    tiles.forEach(tile => {
+      highlighted.delete(tile);
+
       if (tile.focused && tile.assigned && !this.locked)
         tile.paint('focus', 0.3);
       else

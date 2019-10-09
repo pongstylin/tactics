@@ -39,14 +39,63 @@ export default class {
 
         this.render();
       })
-      .on('select', ({ unit }) => {
-        if (unit === board.selected)
-          this.selected = null;
-        else
-          this.selected = unit;
+      .on('select', ({ target:tile, pointerEvent }) => {
+        let unit = tile.assigned;
+
+        if (pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2) {
+          if (unit.team.name === 'Pick') return;
+
+          pointerEvent.preventDefault();
+          this.removeUnit(tile.assigned);
+        }
+        else {
+          this.selected = unit === board.selected ? null : unit;
+        }
       })
       .on('deselect', () => {
         this.selected = null;
+      })
+      .on('dragStart', ({ target:tile }) => {
+        this.selected = null;
+
+        let dragged = board.dragged = tile.assigned;
+        if (dragged.team.name === 'Set')
+          board.dismiss(dragged);
+
+        this._getAvailableTiles(dragged.type).forEach(tile => {
+          tile.droppable = true;
+        });
+      })
+      .on('dragFocus', ({ target:tile }) => {
+        if (!tile.droppable) return;
+
+        tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
+      })
+      .on('dragBlur', ({ target:tile }) => {
+        if (!tile.droppable) return;
+
+        tile.strip();
+      })
+      .on('dragMove', () => {
+        this.render();
+      })
+      .on('dragEnd', ({ target:tile }) => {
+        if (tile.droppable) {
+          tile.strip();
+
+          if (board.dragged.team.name === 'Set')
+            this.swapUnit(board.dragged, board.dragSource.target, tile);
+          else
+            this.placeUnit(board.dragged.type, tile);
+        }
+        else {
+          // Cancel dragging
+          if (board.dragged.team.name === 'Set')
+            board.assign(board.dragged, board.dragSource.target);
+        }
+
+        board.dragged = null;
+        this.render();
       });
 
     Object.assign(this, {
@@ -70,6 +119,8 @@ export default class {
       _emitter: new EventEmitter(),
     });
 
+    this._canvas.addEventListener('contextmenu', event => event.preventDefault());
+
     board.draw(this._stage);
     this._stage.addChild(this._countsContainer);
 
@@ -82,6 +133,7 @@ export default class {
       ...unitData, direction:'N'
     }));
     board.setState([units, picksTeamUnits], [this._team, this._picksTeam]);
+    board.teamsUnits.flat().forEach(u => u.draggable = true);
 
     // Set back the pick units and tiles to give the visible board some space.
     this._picksTeam.units.forEach(unit => {
@@ -119,9 +171,6 @@ export default class {
     return this._canvas;
   }
 
-  get stage() {
-    return this._stage;
-  }
   get board() {
     return this._board;
   }
@@ -138,11 +187,17 @@ export default class {
 
       unit.activate();
       board.selected = unit;
+
+      this._highlightPlaces(unit);
     }
-    else {
+    else if (board.selected) {
       board.selected.deactivate();
       board.selected = null;
+
+      board.clearHighlight();
     }
+    else
+      return;
 
     this._drawPicks();
     this.render();
@@ -151,6 +206,65 @@ export default class {
   /*****************************************************************************
    * Public Methods
    ****************************************************************************/
+  placeUnit(unitType, tile) {
+    let board = this._board;
+    let degree = board.getDegree('N', board.rotation);
+
+    let unit = board.addUnit({
+      type: unitType,
+      assignment: tile,
+      direction: board.getRotation('S', degree),
+    }, this._team);
+    unit.draggable = true;
+
+    let unitCounts = this._getAvailableUnitCounts();
+
+    if (unitCounts.get(unitType) < 0) {
+      this.removeUnit(
+        this._team.units.find(u => !u.dead && u.type === unitType)
+      );
+    }
+    else {
+      while (unitCounts.get('any') < 0) {
+        this.removeUnit(this._team.units.find(u => !u.dead));
+
+        // Multiple units might have to die to make room for a large unit.
+        unitCounts = this._getAvailableUnitCounts();
+      }
+    }
+
+    this._drawPicks();
+  }
+  moveUnit(unit, tile) {
+    let board = this._board;
+    let oldTile = unit.assignment;
+
+    board.assign(unit, tile);
+    this._highlightPlaces(unit, oldTile);
+  }
+  swapUnit(unit, srcTile, dstTile) {
+    let board = this._board;
+    let dstUnit = dstTile.assigned;
+
+    board.assign(unit, dstTile);
+    if (dstUnit)
+      board.assign(dstUnit, srcTile);
+  }
+  removeUnit(unit) {
+    let board = this._board;
+    let tile = unit.assignment;
+
+    unit.dead = true;
+    tile.set_interactive(false);
+    board.clearHighlight(tile);
+
+    unit.animDeath().play().then(() => {
+      if (board.selected && !tile.assigned)
+        this._highlightPlaces(board.selected, tile);
+    });
+
+    this._drawPicks();
+  }
   /*
    * Allow touch devices to upscale to normal size.
    */
@@ -287,6 +401,29 @@ export default class {
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
+  /*
+   * It is not used right now, but the unit type will be used to limit the tiles
+   * in which THIS unit type is allowed to be placed.
+   */
+  _getAvailableTiles(unitType) {
+    let board = this._board;
+    let degree = board.getDegree(board.rotation, 'N');
+    let gameTypeConfig = this.gameTypeConfig;
+    let tileLimit = gameTypeConfig.limits.tiles;
+    let tiles = [];
+
+    for (let x = tileLimit.start[0]; x <= tileLimit.end[0]; x++) {
+      for (let y = tileLimit.start[1]; y <= tileLimit.end[1]; y++) {
+        let tile = board.getTileRotation([x, y], degree);
+        if (!tile) continue;
+
+        tiles.push(tile);
+      }
+    }
+
+    return tiles;
+  }
+
   _getPositions() {
     let cols = [5, 3, 7, 1, 9];
     let rows = [5, 7, 9, 6, 8, 10];
@@ -302,22 +439,75 @@ export default class {
 
     return positions;
   }
-  _drawPicks() {
-    let counts = new Map();
+  _getAvailableUnitCounts() {
+    let gameTypeConfig = this.gameTypeConfig;
+    let unitTypes = gameTypeConfig.limits.units.types;
+    let counts = new Map(
+      [...unitTypes].map(([unitType, { max }]) => [unitType, max])
+    );
+    counts.set('any', gameTypeConfig.limits.units.max);
+
     this._team.units.forEach(unit => {
-      if (counts.has(unit.type))
-        counts.set(unit.type, counts.get(unit.type) + 1);
-      else
-        counts.set(unit.type, 1);
+      if (unit.dead) return;
+
+      counts.set(unit.type, counts.get(unit.type) - 1);
+
+      let unitSize = unitTypes.get(unit.type).size || 1;
+      counts.set('any', counts.get('any') - unitSize);
     });
+
+    return counts;
+  }
+  _highlightPlaces(unit, tiles) {
+    let board = this._board;
+    if (tiles === undefined)
+      tiles = this._getAvailableTiles(unit.type).filter(t => !t.assigned);
+
+    board.setHighlight(tiles, {
+      action: 'place',
+      color: 0xFFFFFF,
+      alpha: 0,
+      onFocus: ({ tile }) => {
+        tile.setAlpha(0.3);
+        this.render();
+      },
+      onBlur: ({ tile }) => {
+        tile.setAlpha(0);
+        this.render();
+      },
+      onSelect: ({ target:tile }) => {
+        board.clearHighlight(tile);
+
+        if (unit.team.name === 'Pick')
+          this.placeUnit(unit.type, tile);
+        else
+          this.moveUnit(unit, tile);
+
+        this.render();
+      },
+    });
+  }
+  /*
+   * Not used yet... intended for use in places a unit may not go.
+   */
+  _highlightNoPlaces(tiles) {
+    this._board.setHighlight(tiles, {
+      action: 'noplace',
+      color: 0x000000,
+      alpha: 0.3,
+      onFocus: () => {},
+      onBlur: () => {},
+      onSelect: () => {},
+    }, true);
+  }
+  _drawPicks() {
+    let counts = this._getAvailableUnitCounts();
 
     this._countsContainer.removeChildren();
 
     let board = this._board;
-    let gameTypeConfig = this.gameTypeConfig;
     this._picksTeam.units.forEach(unit => {
       let count = counts.get(unit.type) || 0;
-      let max = gameTypeConfig.limits.units.types.get(unit.type).max;
 
       if (board.focused === unit || board.selected === unit)
         unit.showFocus(0.8, 0xFFFFFF);
@@ -328,7 +518,7 @@ export default class {
       let textColor;
       let borderColor;
       let text;
-      if (count === max) {
+      if (count === 0) {
         bgColor = 0x444444;
         textColor = 0xFF0000;
         borderColor = 0x222222;
@@ -338,7 +528,7 @@ export default class {
         bgColor = 0x008800;
         textColor = 0xFFFFFF;
         borderColor = 0x888888;
-        text = max - count;
+        text = count;
       }
 
       let position = unit.assignment.getTop();

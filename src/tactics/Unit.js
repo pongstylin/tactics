@@ -24,6 +24,7 @@ export default class {
 
       activated: false,
       focused:   false,
+      draggable: false,
 
       mHealth:   0,
       mBlocking: 0,
@@ -629,8 +630,8 @@ export default class {
 
     return container;
   }
-  drawAvatar() {
-    return this.compileFrame(this.frames[this.stills.S]);
+  drawAvatar(direction = 'S') {
+    return this.compileFrame(this.frames[this.stills[direction]]);
   }
   drawFrame(index, context) {
     let pixi = this.pixi;
@@ -726,6 +727,9 @@ export default class {
 
     return this;
   }
+  /*
+   * DEPRECATED: Use Board.assign() instead.
+   */
   assign(assignment) {
     let pixi = this.pixi;
 
@@ -781,13 +785,13 @@ export default class {
     return this.animTurn(action.direction).play();
   }
   shock(direction, frameId, block) {
-    let stage = Tactics.game.stage;
+    let unitsContainer = this.board.unitsContainer;
     let shocks = this.board.shocks;
     let anchor = this.assignment.getCenter();
     let frame;
 
     if (this._shock) {
-      stage.children[1].removeChild(this._shock);
+      unitsContainer.removeChild(this._shock);
       this._shock = null;
     }
 
@@ -797,7 +801,7 @@ export default class {
       shock.position = anchor.clone();
       shock.position.y += 4; // ensure shock graphic overlaps unit.
 
-      stage.children[1].addChild(shock);
+      unitsContainer.addChild(shock);
 
       if (direction === 'N') {
         if (block) {
@@ -1363,7 +1367,7 @@ export default class {
   }
   animLightning(target) {
     let anim      = new Tactics.Animation();
-    let stage     = Tactics.game.stage;
+    let unitsContainer = this.board.unitsContainer;
     let sounds    = Object.assign({}, Tactics.sounds, this.sounds);
     let pos       = target.getCenter();
     let tunit     = target.assigned;
@@ -1395,7 +1399,7 @@ export default class {
     anim.addFrames([
       () => {
         sounds.lightning.play();
-        stage.children[1].addChild(container);
+        unitsContainer.addChild(container);
       },
       () => {},
       {
@@ -1404,7 +1408,7 @@ export default class {
           if (strikes.length)
             strike = container.addChild(strikes.shift());
           else
-            stage.children[1].removeChild(container);
+            unitsContainer.removeChild(container);
         },
         repeat: 7,
       }

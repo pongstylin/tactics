@@ -41,14 +41,14 @@ export default class Pyromancer extends Unit {
   }
   animFireBlast(target, center) {
     let anim = new Tactics.Animation();
-    let parent = Tactics.game.stage.children[1];
+    let unitsContainer = this.board.unitsContainer;
     let lightness = [0.6, 0.8, 0.8, 0.6, 0.4, 0];
 
     let pos = target.getCenter();
     let container = new PIXI.Container();
     container.position = new PIXI.Point(pos.x, pos.y);
 
-    anim.addFrame(() => parent.addChild(container));
+    anim.addFrame(() => unitsContainer.addChild(container));
 
     let frames;
     if (target === center)
@@ -77,7 +77,7 @@ export default class Pyromancer extends Unit {
       });
     }
 
-    anim.splice(anim.frames.length-1, () => parent.removeChild(container));
+    anim.splice(anim.frames.length-1, () => unitsContainer.removeChild(container));
 
     return anim;
   }

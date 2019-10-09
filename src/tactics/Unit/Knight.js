@@ -153,30 +153,15 @@ export default class Knight extends Unit {
 
     this.drawFrame(this._stills[direction]);
   }
-  drawAvatar() {
-    var unitTypeId = unitTypeToIdMap.get(this.type);
-    var imageBase = 'https://legacy.taorankings.com/units/'+unitTypeId+'/';
-    var container = new PIXI.Container();
-    var sprite;
-    var frame = this.stills.S;
-    var anchor = frame.anchor;
-    var ibase = frame.base;
-    var icolor = frame.color;
+  drawAvatar(direction = 'S') {
+    let frame = this.compileFrame(this.stills[direction]);
 
-    container.position = new PIXI.Point(-anchor.x,-anchor.y);
+    frame.children.forEach(sprite => {
+      if (sprite.data.name === 'trim')
+        sprite.tint = this.color;
+    });
 
-    sprite = PIXI.Sprite.fromImage(imageBase+'base/image'+ibase.src+'.png');
-    sprite.position = new PIXI.Point(ibase.x,ibase.y);
-    container.addChild(sprite);
-
-    if (frame.color) {
-      sprite = PIXI.Sprite.fromImage(imageBase+'color/image'+icolor.src+'.png');
-      sprite.position = new PIXI.Point(icolor.x,icolor.y);
-      sprite.tint = this.color;
-      container.addChild(sprite);
-    }
-
-    return container;
+    return frame;
   }
   attack(action) {
     let anim       = new Tactics.Animation();

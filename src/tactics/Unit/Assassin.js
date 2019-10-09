@@ -136,7 +136,7 @@ export default class Assassin extends Unit {
   }
   animExplode(tile) {
     let anim = new Tactics.Animation();
-    let parent = Tactics.game.stage.children[1];
+    let parent = this.board.unitsContainer;
     let whiten = [0.60, 1, 0.80, 0.60, 0];
 
     let pos = tile.getCenter();
