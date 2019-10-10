@@ -227,6 +227,9 @@ export default class {
     let board = this._board;
     let degree = board.getDegree('N', board.rotation);
 
+    if (tile.assigned)
+      board.dropUnit(tile.assigned);
+
     let unit = board.addUnit({
       type: unitType,
       assignment: tile,
