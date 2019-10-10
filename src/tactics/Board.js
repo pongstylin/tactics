@@ -564,11 +564,11 @@ export default class {
   }
 
   // Public methods
-  draw(stage) {
+  draw() {
     let pixi = this.pixi = new PIXI.Container();
+    pixi.position = new PIXI.Point(18, 44);
 
     let sprite = this.sprite = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/board.png');
-    sprite.position = new PIXI.Point(18, 44);
     pixi.addChild(sprite);
 
     let tilesContainer = new PIXI.Container();
@@ -586,7 +586,6 @@ export default class {
 
       this._emit({ type:'deselect', unit:unit });
     };
-    tilesContainer.position = new PIXI.Point(18, 44);
 
     /*
      * A select event occurs when a unit and/or an action tile is selected.
@@ -665,14 +664,6 @@ export default class {
     unitsContainer.interactiveChildren = false;
 
     pixi.addChild(unitsContainer);
-
-    stage.addChild(pixi);
-
-    // Required to place units in the correct places.
-    pixi.updateTransform();
-
-    // Hack to avoid apparent bug where x/y offsets change
-    Object.values(tiles).forEach(tile => { tile.getCenter() });
 
     this.drawShocks();
     this.drawTurnOptions();

@@ -1,21 +1,24 @@
 import EventEmitter from 'events';
 
 import Board, {
-  HALF_TILE_WIDTH,
-  HALF_TILE_HEIGHT,
+  TILE_WIDTH,
   TILE_HEIGHT,
   FOCUS_TILE_COLOR,
 } from 'tactics/Board.js';
 
 export default class {
   constructor(team, gameTypeConfig) {
-    let renderer = PIXI.autoDetectRenderer(Tactics.width, Tactics.height, { transparent:true });
+    // Clip unused empty space part #1
+    let width = Tactics.width - TILE_WIDTH*2;
+    let height = Tactics.height - TILE_HEIGHT*1.5;
+    let renderer = PIXI.autoDetectRenderer(width, height, { transparent:true });
 
     // Let's not go crazy with the move events.
     renderer.plugins.interaction.moveWhenInside = true;
 
     let board = new Board();
     board.rotation = 'S';
+    board.draw();
 
     board
       .on('focus', ({ tile, unit }) => {
@@ -98,6 +101,15 @@ export default class {
         this.render();
       });
 
+    let countsContainer = new PIXI.Container();
+    countsContainer.position = board.pixi.position.clone();
+
+    let stage = new PIXI.Container();
+    // Clip unused empty space part #2
+    stage.position.set(width - Tactics.width, height - Tactics.height);
+    stage.addChild(board.pixi);
+    stage.addChild(countsContainer);
+
     Object.assign(this, {
       // Crude tracking of the pointer type being used.  Ideally, this should
       // reflect the last pointer type to fire an event on the board.
@@ -110,8 +122,8 @@ export default class {
       _renderer: renderer,
       _rendering: false,
       _canvas: renderer.view,
-      _stage: new PIXI.Container(),
-      _countsContainer: new PIXI.Container(),
+      _stage: stage,
+      _countsContainer: countsContainer,
       _animators: {},
 
       _board: board,
@@ -120,9 +132,6 @@ export default class {
     });
 
     this._canvas.addEventListener('contextmenu', event => event.preventDefault());
-
-    board.draw(this._stage);
-    this._stage.addChild(this._countsContainer);
 
     let unitTypes = [...gameTypeConfig.limits.units.types.keys()].reverse();
     let positions = this._getPositions();
@@ -137,16 +146,24 @@ export default class {
 
     // Set back the pick units and tiles to give the visible board some space.
     this._picksTeam.units.forEach(unit => {
-      unit.assignment.pixi.position.x -= HALF_TILE_WIDTH / 2;
-      unit.assignment.pixi.position.y -= HALF_TILE_HEIGHT / 2;
-      unit.pixi.position.x -= HALF_TILE_WIDTH / 2;
-      unit.pixi.position.y -= HALF_TILE_HEIGHT / 2;
+      unit.assignment.pixi.position.x -= TILE_WIDTH / 4;
+      unit.assignment.pixi.position.y -= TILE_HEIGHT / 4;
+      unit.pixi.position.x -= TILE_WIDTH / 4;
+      unit.pixi.position.y -= TILE_HEIGHT / 4;
     });
 
     this._drawPicks();
 
     let leftPoint = board.getTile(0, 6).getLeft();
+    leftPoint.set(
+      leftPoint.x + this._stage.position.x + board.pixi.position.x - 1,
+      leftPoint.y + this._stage.position.y + board.pixi.position.y - 1,
+    );
     let rightPoint = board.getTile(10, 6).getTop();
+    rightPoint.set(
+      rightPoint.x + this._stage.position.x + board.pixi.position.x - 1,
+      rightPoint.y + this._stage.position.y + board.pixi.position.y - 1,
+    );
     board.sprite.mask = new PIXI.Graphics();
     board.sprite.mask.lineStyle(1, 0xFFFFFF, 1);
     board.sprite.mask.beginFill(0xFFFFFF, 1);
@@ -534,7 +551,7 @@ export default class {
       let position = unit.assignment.getTop();
       let countBox = new PIXI.Graphics();
       countBox.position = new PIXI.Point(
-        position.x - HALF_TILE_WIDTH/2,
+        position.x - TILE_WIDTH/4,
         position.y - TILE_HEIGHT,
       );
       countBox.lineStyle(1, borderColor, 1);

@@ -925,7 +925,8 @@ export default class {
     Tactics.load(unitTypes, percent => {
       this._emit({ type:'progress', percent:percent });
     }).then(() => {
-      this._board.draw(this._stage);
+      this._board.draw();
+      this._stage.addChild(this._board.pixi);
 
       this._emit({ type:'ready' });
     });

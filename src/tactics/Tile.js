@@ -6,6 +6,8 @@
 
 import EventEmitter from 'events';
 
+export const TILE_WIDTH        = 88;
+export const TILE_HEIGHT       = 56;
 const points = [
   42,0,  // top-left
   45,0,  // top-right
@@ -76,51 +78,43 @@ export default class {
     return this;
   }
   getTop() {
-    // Warning, this is only accurate if called after pixi transform is updated.
-    var bounds;
-
     if (this.top) return this.top;
 
-    bounds = this.pixi.getBounds();
+    let position = this.pixi.position;
+
     return this.top = new PIXI.Point(
-      Math.floor(bounds.x + bounds.width/2),
-      Math.floor(bounds.y),
+      Math.floor(position.x + TILE_WIDTH/2),
+      Math.floor(position.y),
     );
   }
   getLeft() {
-    // Warning, this is only accurate if called after pixi transform is updated.
-    var bounds;
-
     if (this.left) return this.left;
 
-    bounds = this.pixi.getBounds();
+    let position = this.pixi.position;
+
     return this.left = new PIXI.Point(
-      Math.floor(bounds.x),
-      Math.floor(bounds.y + bounds.height/2),
+      Math.floor(position.x),
+      Math.floor(position.y + TILE_HEIGHT/2),
     );
   }
   getBottom() {
-    // Warning, this is only accurate if called after pixi transform is updated.
-    var bounds;
-
     if (this.bottom) return this.bottom;
 
-    bounds = this.pixi.getBounds();
+    let position = this.pixi.position;
+
     return this.bottom = new PIXI.Point(
-      Math.floor(bounds.x + bounds.width/2),
-      Math.floor(bounds.y + bounds.width),
+      Math.floor(position.x + TILE_WIDTH/2),
+      Math.floor(position.y + TILE_HEIGHT),
     );
   }
   getCenter() {
-    // Warning, this is only accurate if called after pixi transform is updated.
-    var bounds;
-
     if (this.center) return this.center;
 
-    bounds = this.pixi.getBounds();
+    let position = this.pixi.position;
+
     return this.center = new PIXI.Point(
-      Math.floor(bounds.x + bounds.width/2),
-      Math.floor(bounds.y + bounds.height/2),
+      Math.floor(position.x + TILE_WIDTH/2),
+      Math.floor(position.y + TILE_HEIGHT/2),
     );
   }
   dismiss() {
