@@ -1625,7 +1625,7 @@ export default class {
     return this;
   }
 
-  highlightTargetMix(target) {
+  _highlightTargetMix(target) {
     let selected = this.selected;
 
     // Show target tiles
@@ -1650,7 +1650,7 @@ export default class {
 
     return this;
   }
-  clearTargetMix(target) {
+  _clearTargetMix(target) {
     let selected = this.selected;
     if (selected.aAll) return;
 
@@ -1695,11 +1695,22 @@ export default class {
     else if (tile.painted && tile.painted !== 'focus')
       tile.setAlpha(0.3);
 
+    let selected = this.selected;
+    let unit = tile.assigned;
+    let game = Tactics.game;
+
+    if (tile.action === 'attack') {
+      // Single-click attacks are only enabled for mouse pointers.
+      if (game.pointerType === 'mouse')
+        this._highlightTargetMix(tile);
+      else if (unit)
+        selected.setTargetNotice(unit);
+    }
+
     /*
      * Emit a change in unit focus.
      */
     let focused = this.focused;
-    let unit = tile.assigned;
     if (focused === unit || !unit)
       return;
 
@@ -1729,11 +1740,23 @@ export default class {
     else if (tile.painted && tile.painted !== 'focus')
       tile.setAlpha(0.15);
 
+    let unit = tile.assigned;
+    let game = Tactics.game;
+
+    // Single-click attacks are only enabled for mouse pointers.
+    if (tile.action === 'attack') {
+      if (unit)
+        unit.change({ notice:null });
+    }
+    else if (tile.action === 'target') {
+      if (game.pointerType === 'mouse')
+        this._clearTargetMix(tile);
+    }
+
     /*
      * Emit a change in unit focus.
      */
     let focused = this.focused;
-    let unit = tile.assigned;
     if (focused !== unit || !focused)
       return;
 

@@ -328,6 +328,8 @@ export default class {
           });
         else if (unit.barriered)
           result.miss = 'deflected';
+        else
+          result.miss = 'blocked';
 
         return result;
       }
@@ -377,6 +379,7 @@ export default class {
     results.forEach(result => {
       let unit    = result.unit;
       let changes = result.changes;
+      if (!changes) return;
 
       let resultUnit = unitsData.find(ud => ud.unit === unit);
       if (!resultUnit)
