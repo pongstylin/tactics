@@ -1,3 +1,4 @@
+import './setup.scss';
 import popup from 'components/popup.js';
 
 const authClient = Tactics.authClient;
@@ -106,6 +107,7 @@ async function load() {
     set: await gameClient.getDefaultPlayerSet(gameType),
   };
 
+  $('#title').text(gameTypeConfig.name);
   $('#splash').show();
 
   Tactics.load(unitTypes, percent => {

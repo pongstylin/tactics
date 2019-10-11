@@ -33,24 +33,6 @@
   <SCRIPT type="text/javascript">window.AUTO_CONNECT = true;</SCRIPT>
   <SCRIPT type="text/javascript" src="tactics.min.js"></SCRIPT>
   <SCRIPT type="text/javascript" src="setup.min.js"></SCRIPT>
-
-  <STYLE>
-    HTML {
-      touch-action: none;
-    }
-    BODY {
-      overflow: hidden;
-    }
-
-    #setup {
-      max-height: 100%;
-      max-width: 100%;
-    }
-
-    #error {
-      color: #ff0000;
-    }
-  </STYLE>
 </HEAD>
 <BODY>
   <DIV id="error" style="display:none">
@@ -65,7 +47,16 @@
     </DIV>
   </DIV>
   <DIV id="setup" style="position:absolute; visibility:hidden">
-    <DIV id="field">
+    <DIV id="field"></DIV>
+    <DIV id="menubar">
+      <DIV id="back">
+        <A href="javascript:history.back()">Go Back</A>
+      </DIV>
+      <DIV id="title"></DIV>
+      <DIV id="buttons">
+        <BUTTON id="save">Save and Exit</BUTTON>
+      </DIV>
+    </DIV>
   </DIV>
 </BODY>
 </HTML>

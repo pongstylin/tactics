@@ -1,0 +1,62 @@
+HTML {
+  touch-action: none;
+}
+BODY {
+  overflow: hidden;
+}
+
+#setup {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  max-width: 100%;
+
+  #field {
+    height: calc(100% - 38px);
+  }
+
+  #menubar {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    border-top: 2px solid #444444;
+    padding: 1px 12px;
+    text-align: center;
+    color: white;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+
+    #back {
+      text-align: left;
+    }
+    #title {
+      text-align: center;
+      font-style: italic;
+    }
+    #buttons {
+      text-align: right;
+      padding: 2px 0;
+
+      BUTTON {
+        padding: 2px 8px;
+      }
+    }
+  }
+}
+
+#error {
+  color: #ff0000;
+}
+
+@media (max-width: 510px) and (min-aspect-ratio: 5/3) {
+  #setup {
+    width: 100%;
+  }
+}
+
+@media (max-width: 660px) and (min-aspect-ratio: 5/3) {
+  #setup {
+    height: 100%;
+  }
+}
