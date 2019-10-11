@@ -1649,7 +1649,7 @@ export default class {
   validateAttackSpecialAction(validate) {
     let action = { type:'attackSpecial', unit:validate.unit };
 
-    if (!this.canSpecial)
+    if (!this.canSpecial())
       return null;
 
     action.results = this.getAttackSpecialResults(action);

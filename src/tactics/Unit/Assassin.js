@@ -34,6 +34,10 @@ export default class Assassin extends Unit {
    * Special Attack Configuration
    */
   canSpecial() {
+    let unitCount = this.team.units.filter(u => u.type === this.type).length;
+    if (unitCount > 1)
+      return false;
+
     return (this.health + this.mHealth) < 5;
   }
   getAttackSpecialResults() {
