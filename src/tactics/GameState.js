@@ -527,6 +527,7 @@ export default class GameState {
        *   2) Knight attacked Chaos Seed and killed by counter-attack.
        *   3) Assassin blew herself up.
        *   4) Enchantress paralyzed at least 1 unit.
+       *   5) Lightning Ward attacked.
        */
       if (action.type === 'attack' || action.type === 'attackSpecial') {
         let selected = this.selected;
@@ -534,6 +535,8 @@ export default class GameState {
           if (selected.mHealth === -selected.health)
             return true;
           if (selected.focusing)
+            return true;
+          if ((moved || !selected.canMove()) && !selected.canTurn())
             return true;
           if (this.winningTeams.length < 2)
             return true;
@@ -847,7 +850,7 @@ export default class GameState {
           if (unit === selected) {
             let recovery = selected.recovery;
 
-            if (moved && attacked)
+            if ((moved || !selected.mType) && attacked)
               mRecovery = recovery;
             else if (moved)
               mRecovery = Math.floor(recovery / 2);

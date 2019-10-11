@@ -227,7 +227,10 @@ export default class {
     this._board.lock();
   }
   getSet() {
-    return this._board.getState()[0];
+    return this._board.getState()[0].map(unit => {
+      delete unit.direction;
+      return unit;
+    });
   }
 
   placeUnit(unitType, tile) {

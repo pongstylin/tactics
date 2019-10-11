@@ -332,7 +332,7 @@ unitDataMap.set('LightningWard', {
   mType:       false,
   mRadius:     0,
   aType:       'magic',
-  aRange:      [1, 3],
+  aRange:      [0, 3],
   directional: false,
   sounds: {
     block:'sound8',

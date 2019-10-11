@@ -52,9 +52,13 @@ export default class {
     if (this.mType === 'path')
       // Use an optimized path finding algorithm.
       return board.getUnitPathRange(this);
-    else
+    else if (this.mType === 'teleport')
       // Use an even faster algorithm.
       return board.getTileRange(this.assignment, 1, this.mRadius, true);
+    else if (this.mType === false)
+      return [];
+    else
+      throw new TypeError('Unsupported mType');
   }
   getAttackTiles(start = this.assignment) {
     let board  = this.board;
@@ -1672,11 +1676,17 @@ export default class {
 
     return action;
   }
+  canMove() {
+    return !!this.getMoveTiles().length;
+  }
   canSpecial() {
     return false;
   }
   canCounter() {
     return false;
+  }
+  canTurn() {
+    return this.directional !== false;
   }
   isPassable() {
     return this.focusing === false && !this.paralyzed && this.mPass !== false;
