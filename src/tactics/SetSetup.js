@@ -223,6 +223,13 @@ export default class {
   /*****************************************************************************
    * Public Methods
    ****************************************************************************/
+  lock() {
+    this._board.lock();
+  }
+  getSet() {
+    return this._board.getState()[0];
+  }
+
   placeUnit(unitType, tile) {
     let board = this._board;
     let degree = board.getDegree('N', board.rotation);

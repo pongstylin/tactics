@@ -1690,10 +1690,12 @@ export default class {
 
   toJSON() {
     let state = {
-      id: this.id,
       type: this.type,
       assignment: [this.assignment.x, this.assignment.y],
     };
+
+    if (this.id)
+      state.id = this.id;
 
     if (this.directional !== false)
       state.direction = this.direction;

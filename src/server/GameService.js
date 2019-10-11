@@ -246,6 +246,11 @@ class GameService extends Service {
 
     return dataAdapter.getDefaultPlayerSet(clientPara.playerId, gameType);
   }
+  async onSaveDefaultPlayerSetRequest(client, gameType, set) {
+    let clientPara = this.clientPara.get(client.id);
+
+    return dataAdapter.setDefaultPlayerSet(clientPara.playerId, gameType, set);
+  }
 
   async onGetGameRequest(client, gameId) {
     this.throttle(client.address, 'getGame');

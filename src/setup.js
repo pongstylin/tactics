@@ -5,8 +5,27 @@ const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
 const SetSetup = Tactics.SetSetup;
 
+let gameType = new URL(location.href).searchParams.get('type');
 let setSetup;
 let buttons = {
+  save: () => {
+    let notice = popup({
+      message: 'Saving to server...',
+      buttons: [],
+      onCancel: () => false,
+      open: 1000, // open after one second
+    });
+
+    let set = setSetup.getSet();
+
+    setSetup.lock();
+
+    gameClient.saveDefaultPlayerSet(gameType, set).then(() => {
+      notice.close();
+
+      history.back();
+    });
+  },
   rotate: function ($button) {
     let classesToToggle;
 
@@ -77,7 +96,7 @@ async function load() {
     $('BUTTON[name=sound]').toggleClass('hidden');
 
   $('BODY')
-    .on('mouseover','#app BUTTON:enabled', event => {
+    .on('mouseover','#setup BUTTON:enabled', event => {
       let $button = $(event.target);
 
       // Ignore disabled buttons
@@ -86,7 +105,7 @@ async function load() {
 
       Tactics.sounds.focus.play();
     })
-    .on('click','#app BUTTON:enabled', event => {
+    .on('click','#setup BUTTON:enabled', event => {
       let $button = $(event.target);
       let handler = $button.data('handler') || buttons[$button.attr('name')];
 
@@ -99,7 +118,6 @@ async function load() {
       Tactics.sounds.select.play();
     });
 
-  let gameType = new URL(location.href).searchParams.get('type');
   let gameTypeConfig = await gameClient.getGameTypeConfig(gameType);
   let unitTypes = gameTypeConfig.limits.units.types.keys();
   let team = {

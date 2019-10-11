@@ -62,6 +62,10 @@ export default class GameClient extends Client {
     return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId]);
   }
 
+  saveDefaultPlayerSet(gameType, set) {
+    return this._server.requestAuthorized(this.name, 'saveDefaultPlayerSet', [gameType, set]);
+  }
+
   searchMyGames(query) {
     let playerId = this._authClient.playerId;
 
