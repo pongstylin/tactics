@@ -69,9 +69,6 @@ export default class {
     let trashSprite = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/trash.png');
     trashSprite.anchor.set(0.5, 0.8);
     trashSprite.scale.set(1.75);
-    trashSprite.pointertap  = this._onTrashSelect.bind(this);
-    trashSprite.pointerover = this._onTrashFocus.bind(this);
-    trashSprite.pointerout  = this._onTrashBlur.bind(this);
 
     let focus = Tactics.effects.focus;
     let trashFocus = PIXI.Sprite.fromImage(focus.images[focus.frames[0][0].i]);
@@ -84,6 +81,9 @@ export default class {
       tilePoint.x + board.pixi.position.x + TILE_WIDTH,
       tilePoint.y + board.pixi.position.y + TILE_HEIGHT,
     );
+    trash.pointertap  = this._onTrashSelect.bind(this);
+    trash.pointerover = this._onTrashFocus.bind(this);
+    trash.pointerout  = this._onTrashBlur.bind(this);
     trash.addChild(trashFocus);
     trash.addChild(trashSprite);
     trash.alpha = 0.6;
