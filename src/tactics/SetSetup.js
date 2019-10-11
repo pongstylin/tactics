@@ -58,57 +58,48 @@ export default class {
       .on('deselect', () => {
         this.selected = null;
       })
-      .on('dragStart', ({ target:tile }) => {
-        this.selected = null;
-
-        let dragged = board.dragged = tile.assigned;
-        if (dragged.team.name === 'Set')
-          board.dismiss(dragged);
-
-        this._getAvailableTiles(dragged.type).forEach(tile => {
-          tile.droppable = true;
-        });
-      })
-      .on('dragFocus', ({ target:tile }) => {
-        if (!tile.droppable) return;
-
-        tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
-      })
-      .on('dragBlur', ({ target:tile }) => {
-        if (!tile.droppable) return;
-
-        tile.strip();
-      })
-      .on('dragMove', () => {
-        this.render();
-      })
-      .on('dragEnd', ({ target:tile }) => {
-        if (tile.droppable) {
-          tile.strip();
-
-          if (board.dragged.team.name === 'Set')
-            this.swapUnit(board.dragged, board.dragSource.target, tile);
-          else
-            this.placeUnit(board.dragged.type, tile);
-        }
-        else {
-          // Cancel dragging
-          if (board.dragged.team.name === 'Set')
-            board.assign(board.dragged, board.dragSource.target);
-        }
-
-        board.dragged = null;
-        this.render();
-      });
+      .on('dragStart', this._onDragStart.bind(this))
+      .on('dragFocus', this._onDragFocus.bind(this))
+      .on('dragBlur',  this._onDragBlur.bind(this))
+      .on('dragDrop',  this._onDragDrop.bind(this));
 
     let countsContainer = new PIXI.Container();
     countsContainer.position = board.pixi.position.clone();
+
+    let trashSprite = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/trash.png');
+    trashSprite.anchor.set(0.5, 0.8);
+    trashSprite.scale.set(1.75);
+    trashSprite.pointertap  = this._onTrashSelect.bind(this);
+    trashSprite.pointerover = this._onTrashFocus.bind(this);
+    trashSprite.pointerout  = this._onTrashBlur.bind(this);
+
+    let focus = Tactics.effects.focus;
+    let trashFocus = PIXI.Sprite.fromImage(focus.images[focus.frames[0][0].i]);
+    trashFocus.anchor.set(0.5);
+    trashFocus.alpha = 0;
+
+    let trash = new PIXI.Container();
+    let tilePoint = board.getTile(5, 10).getCenter();
+    trash.position.set(
+      tilePoint.x + board.pixi.position.x + TILE_WIDTH,
+      tilePoint.y + board.pixi.position.y + TILE_HEIGHT,
+    );
+    trash.addChild(trashFocus);
+    trash.addChild(trashSprite);
+    trash.alpha = 0.6;
 
     let stage = new PIXI.Container();
     // Clip unused empty space part #2
     stage.position.set(width - Tactics.width, height - Tactics.height);
     stage.addChild(board.pixi);
     stage.addChild(countsContainer);
+    stage.addChild(trash);
+    stage.mousemove = event => this._onDragMove({
+      type: 'dragMove',
+      target: null,
+      pixiEvent: event,
+      pointerEvent: event.data.originalEvent,
+    });
 
     Object.assign(this, {
       // Crude tracking of the pointer type being used.  Ideally, this should
@@ -124,6 +115,10 @@ export default class {
       _canvas: renderer.view,
       _stage: stage,
       _countsContainer: countsContainer,
+      _trash: trash,
+      _dragSource: null,
+      _dragAvatar: null,
+      _dragTarget: null,
       _animators: {},
 
       _board: board,
@@ -156,13 +151,13 @@ export default class {
 
     let leftPoint = board.getTile(0, 6).getLeft();
     leftPoint.set(
-      leftPoint.x + this._stage.position.x + board.pixi.position.x - 1,
-      leftPoint.y + this._stage.position.y + board.pixi.position.y - 1,
+      leftPoint.x + stage.position.x + board.pixi.position.x - 1,
+      leftPoint.y + stage.position.y + board.pixi.position.y - 1,
     );
     let rightPoint = board.getTile(10, 6).getTop();
     rightPoint.set(
-      rightPoint.x + this._stage.position.x + board.pixi.position.x - 1,
-      rightPoint.y + this._stage.position.y + board.pixi.position.y - 1,
+      rightPoint.x + stage.position.x + board.pixi.position.x - 1,
+      rightPoint.y + stage.position.y + board.pixi.position.y - 1,
     );
     board.sprite.mask = new PIXI.Graphics();
     board.sprite.mask.lineStyle(1, 0xFFFFFF, 1);
@@ -197,6 +192,7 @@ export default class {
   }
   set selected(unit) {
     let board = this._board;
+    let trash = this._trash;
 
     if (unit) {
       if (board.selected)
@@ -206,12 +202,16 @@ export default class {
       board.selected = unit;
 
       this._highlightPlaces(unit);
+
+      if (unit.team.name === 'Set')
+        this._enableTrash();
     }
     else if (board.selected) {
       board.selected.deactivate();
       board.selected = null;
 
       board.clearHighlight();
+      this._disableTrash();
     }
     else
       return;
@@ -422,6 +422,155 @@ export default class {
    * Private Methods
    ****************************************************************************/
   /*
+   * DragStart fires by simply pressing the mouse button.
+   * We don't know yet if this is a tap or a drag situation.
+   * So, track mouse position to see if it is dragged before release.
+   */
+  _onDragStart(event) {
+    this._dragSource = event;
+
+    this._stage.interactive = true;
+    this.render();
+  }
+  _onDragFocus({ target:tile }) {
+    tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
+  }
+  _onDragBlur({ target:tile }) {
+    tile.strip();
+  }
+  _onDragMove({ pixiEvent, pointerEvent }) {
+    let dragSource = this._dragSource;
+    if (!dragSource) return;
+
+    let board = this._board;
+    let dragUnit = dragSource.targetUnit;
+
+    let dragAvatar = this._dragAvatar;
+    if (!dragAvatar) {
+      let sx = dragSource.pointerEvent.clientX;
+      let sy = dragSource.pointerEvent.clientY;
+      let cx = pointerEvent.clientX;
+      let cy = pointerEvent.clientY;
+      let dist = Math.sqrt(Math.abs(cx - sx)**2 + Math.abs(cy - sy)**2);
+      if (dist < 5) return;
+
+      dragAvatar = new PIXI.Container();
+      dragAvatar.addChild(dragUnit.drawAvatar(dragUnit.direction));
+
+      this.selected = null;
+
+      if (dragUnit.team.name === 'Set') {
+        // Avatar is behind trash can.
+        let trashIndex = this._stage.getChildIndex(this._trash);
+        this._stage.addChildAt(this._dragAvatar = dragAvatar, trashIndex);
+
+        board.dismiss(dragUnit);
+        this._enableTrash(false);
+      }
+      else {
+        // Avatar is in front of trash can.
+        this._stage.addChild(this._dragAvatar = dragAvatar);
+      }
+
+      this._getAvailableTiles(dragUnit.type).forEach(tile => {
+        tile.isDropTarget = true;
+      });
+    }
+
+    if (
+      board.focusedTile && board.focusedTile.isDropTarget ||
+      dragUnit.team.name === 'Pick'
+    ) {
+      // Show shadow while over tiles
+      dragAvatar.children[0].children.find(c => c.data.name === 'shadow')
+        .alpha = 0.5;
+
+      dragAvatar.position = pixiEvent.data.getLocalPosition(this._stage);
+      this._onTrashBlur();
+    }
+    else {
+      // Hide shadow while over trash can
+      dragAvatar.children[0].children.find(c => c.data.name === 'shadow')
+        .alpha = 0;
+
+      let trashPoint = this._trash.position;
+      dragAvatar.position.set(
+        trashPoint.x,
+        trashPoint.y - TILE_HEIGHT/4,
+      );
+      this._onTrashFocus();
+    }
+
+    this.render();
+  }
+  _onDragDrop({ pixiEvent, target:tile, cancelled }) {
+    let dragSource = this._dragSource;
+    if (!dragSource) return;
+
+    this._dragSource = null;
+    this._stage.interactive = false;
+
+    if (this._dragAvatar) {
+      this._dragAvatar.destroy();
+      this._dragAvatar = null;
+      this._board.tiles.forEach(tile => {
+        tile.isDropTarget = false;
+      });
+
+      let dragUnit = dragSource.targetUnit;
+      if (cancelled) {
+        // Prevent tap event from firing
+        pixiEvent.stopPropagation();
+
+        if (dragUnit.team.name === 'Set') {
+          if (tile)
+            this._board.assign(dragUnit, tile);
+          else {
+            this._board.dropUnit(dragUnit);
+            this._drawPicks();
+          }
+        }
+      }
+      else {
+        if (dragUnit.team.name === 'Set')
+          this.swapUnit(dragUnit, dragSource.target, tile);
+        else
+          this.placeUnit(dragUnit.type, tile);
+      }
+
+      this._disableTrash();
+    }
+
+    this.render();
+  }
+
+  _enableTrash(buttonMode = true) {
+    this._trash.interactive = true;
+    this._trash.buttonMode = buttonMode;
+    this._trash.alpha = 1;
+  }
+  _disableTrash() {
+    this._onTrashBlur();
+    this._trash.interactive = false;
+    this._trash.buttonMode = false;
+    this._trash.alpha = 0.6;
+  }
+
+  _onTrashSelect() {
+    let selected = this.selected;
+    this.selected = null;
+
+    this.removeUnit(selected);
+    this._disableTrash();
+  }
+  _onTrashFocus() {
+    this._trash.children[0].alpha = 1;
+  }
+  _onTrashBlur() {
+    this._trash.children[0].alpha = 0;
+  }
+
+  /*
    * It is not used right now, but the unit type will be used to limit the tiles
    * in which THIS unit type is allowed to be placed.
    */
@@ -487,11 +636,11 @@ export default class {
       action: 'place',
       color: 0xFFFFFF,
       alpha: 0,
-      onFocus: ({ tile }) => {
+      onFocus: ({ target:tile }) => {
         tile.setAlpha(0.3);
         this.render();
       },
-      onBlur: ({ tile }) => {
+      onBlur: ({ target:tile }) => {
         tile.setAlpha(0);
         this.render();
       },

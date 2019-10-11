@@ -34,6 +34,7 @@ export default class {
       focused:  false,
       painted:  null,
 
+      isDragging: false,
       isDropTarget: false,
 
       _emitter: new EventEmitter(),
@@ -61,9 +62,8 @@ export default class {
 
     // Drag events are only supported for mouse pointers
     pixi.mousedown      = this.onDragStart.bind(this);
-    pixi.mousemove      = this.onDragMove.bind(this);
-    pixi.mouseup        = this.onDragEnd.bind(this);
-    pixi.mouseupoutside = this.onDragEnd.bind(this);
+    pixi.mouseup        = this.onDragDrop.bind(this);
+    pixi.mouseupoutside = this.onDragCancel.bind(this);
 
     // PIXI does not emit 'pointerover' or 'pointerout' events for touch pointers.
     // Use 'touchmove' to simulate focus events.
@@ -118,8 +118,9 @@ export default class {
     );
   }
   dismiss() {
-    this.assigned = null;
+    // Emit before dismissing so that the unit is blurred successfully.
     this._emit({ type:'dismiss', target:this });
+    this.assigned = null;
 
     return this;
   }
@@ -175,41 +176,60 @@ export default class {
     }
   }
   onDragStart(event) {
-    // Prevent the board object from receiving this event.
-    event.stopPropagation();
-
-    if (!this.assigned) return;
-    if (!this.assigned.draggable) return;
+    if (!this.assigned || !this.assigned.draggable) return;
+    this.isDragging = true;
 
     this._emit({
       type: 'dragStart',
       target: this,
+      targetUnit: this.assigned,
       pixiEvent: event,
       pointerEvent: event.data.originalEvent,
     });
   }
-  onDragMove(event) {
-    // Prevent the board object from receiving this event.
-    event.stopPropagation();
+  onDragDrop(event) {
+    if (this.isDragging) return this.onDragCancel(event);
+    if (!this.isDropTarget) return;
 
     this._emit({
-      type: 'dragMove',
+      type: 'dragDrop',
       target: this,
+      cancelled: false,
       pixiEvent: event,
       pointerEvent: event.data.originalEvent,
     });
   }
-  onDragEnd(event) {
-    // Prevent the board object from receiving this event.
-    // Actually, don't do this since it prevents 'tap' from firing.
-    //event.stopPropagation();
+  /*
+   * Dragging can be cancelled in two ways:
+   *   1) Drag never left (or returned to) origin.
+   *
+   *   In this case, the drop target is the origin and it was triggered by a
+   *   'mouseup' event.
+   *
+   *   2) Drag was dropped outside the origin.
+   *
+   *   In this case, the drop target is null and it was triggered by a
+   *   'mouseupoutside' event.  This event is also delayed so that another tile
+   *   might detect a drag drop event and be handled first.  This way, the
+   *   cancellation event may be ignored since it wasn't truly cancelled.
+   */
+  onDragCancel(event) {
+    if (!this.isDragging) return;
+    this.isDragging = false;
 
-    this._emit({
-      type: 'dragEnd',
-      target: this,
+    // Generate event data early since 'event' may change before timeout.
+    let dragCancelEvent = {
+      type: 'dragDrop',
+      target: event.type === 'mouseup' ? this : null,
+      cancelled: true,
       pixiEvent: event,
       pointerEvent: event.data.originalEvent,
-    });
+    };
+
+    if (dragCancelEvent.target)
+      this._emit(dragCancelEvent);
+    else
+      setTimeout(() => this._emit(dragCancelEvent));
   }
   /*
    * All tiles are interactive at all times so that we can keep track of the

@@ -306,6 +306,7 @@ window.Tactics = (function () {
     },
     images: [
       'https://tactics.taorankings.com/images/board.png',
+      'https://tactics.taorankings.com/images/trash.png',
       'shock.png',
       'particle.png',
       'lightning-1.png',

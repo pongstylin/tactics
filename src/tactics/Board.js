@@ -72,10 +72,6 @@ export default class {
       teams: [],
       teamsUnits: [], // 2-dimensional array of the units for each team.
 
-      dragSource: null,
-      dragAvatar: null,
-      dragTarget: null,
-
       /*
        * Private properties
        */
@@ -607,48 +603,23 @@ export default class {
         this._emit(event);
     };
 
-    let focusEvent = event => {
-      let type = event.type;
-      let tile = event.target;
-
-      /*
-       * Make sure tiles are blurred before focusing on a new one.
-       */
-      let focusedTile = this.focusedTile;
-      if (type === 'focus') {
-        if (focusedTile && focusedTile !== tile)
-          focusedTile.onBlur();
-        this.focusedTile = tile;
-      }
-      else if (type === 'blur') {
-        // The tile might not actually be blurred if the blur event was fired in
-        // response to the board becoming locked and tile non-interactive
-        if (focusedTile && !focusedTile.focused)
-          this.focusedTile = null;
-      }
-
-      if (!tile.is_interactive()) return;
-
-      if (type === 'focus')
-        this.onTileFocus(tile);
-      else
-        this.onTileBlur(tile);
-    };
-
     Object.values(tiles).forEach(tile => {
-      tile.on('select',     selectEvent);
-      tile.on('focus blur', focusEvent);
+      tile.on('select', selectEvent);
+      tile.on('focus',  event => this.onTileFocus(event));
+      tile.on('blur',   event => this.onTileBlur(event));
       tile.on('assign', () => {
-        if (this.locked !== true)
-          tile.set_interactive(true);
+        if (this.locked === true) return;
+
+        tile.set_interactive(true);
+        if (tile.focused)
+          this.onTileFocus({ type:'focus', target:tile });
       });
       tile.on('dismiss', () => {
-        if (!tile.painted)
+        if (!tile.painted || tile.painted === 'focus')
           tile.set_interactive(false);
       });
-      tile.on('dragStart', this.onDragStart.bind(this));
-      tile.on('dragMove', this.onDragMove.bind(this));
-      tile.on('dragEnd', this.onDragEnd.bind(this));
+      tile.on('dragStart', event => this._emit(event));
+      tile.on('dragDrop',  event => this._emit(event));
       tile.draw();
 
       tilesContainer.addChild(tile.pixi);
@@ -1172,29 +1143,27 @@ export default class {
   dropUnit(unit) {
     var units = unit.team.units;
 
-    if (unit == this.focused) {
+    if (unit === this.focused) {
       unit.blur();
       this.focused = null;
     }
 
-    if (unit == this.viewed) {
+    if (unit === this.viewed) {
       unit.deactivate();
       this.viewed = null;
     }
 
-    if (unit == this.selected) {
+    if (unit === this.selected) {
       unit.deactivate();
       this.selected = null;
     }
 
-    if (unit == this.carded)
+    if (unit === this.carded)
       this.drawCard();
 
-    units.splice(units.indexOf(unit), 1);
-    unit.assign(null);
+    this.dismiss(unit);
 
-    let unitsContainer = this.unitsContainer;
-    if (unitsContainer) unitsContainer.removeChild(unit.pixi);
+    units.splice(units.indexOf(unit), 1);
 
     return this;
   }
@@ -1226,6 +1195,8 @@ export default class {
     if (unitsContainer) {
       unitsContainer.removeChild(unit.pixi);
     }
+
+    return this;
   }
 
   /*
@@ -1700,104 +1671,25 @@ export default class {
     this.hideTargets();
   }
 
-  onDragStart(event) {
-    this.dragSource = event;
-  }
-  onDragMove(event) {
+  onTileFocus(event) {
     let tile = event.target;
-    if (!this.dragSource) return;
+    let focusedTile = this.focusedTile;
+    // Make sure tiles are blurred before focusing on a new one.
+    if (focusedTile && focusedTile !== tile)
+      focusedTile.onBlur();
+    this.focusedTile = tile;
 
-    if (!this.dragTarget) {
-      if (tile === this.dragSource.target) {
-        let sx = this.dragSource.pointerEvent.clientX;
-        let sy = this.dragSource.pointerEvent.clientY;
-        let cx = event.pointerEvent.clientX;
-        let cy = event.pointerEvent.clientY;
-        let dist = Math.sqrt(Math.abs(cx - sx)**2 + Math.abs(cy - sy)**2);
-        if (dist < 5) return;
-      }
-
-      let dragUnit = this.dragSource.target.assigned;
-      this.pixi.addChild(
-        this.dragAvatar = dragUnit.drawAvatar(dragUnit.direction)
-      );
-      this.dragAvatar.basePosition = this.dragAvatar.position.clone();
-
-      this.tiles.forEach(tile => tile.set_interactive(false));
-      this._emit(this.dragSource);
-    }
-
-    if (!this.dragTarget || this.dragTarget.target !== tile) {
-      let blurTarget = this.dragTarget;
-      this.dragTarget = event;
-
-      if (blurTarget)
-        this._emit({
-          type: 'dragBlur',
-          target: blurTarget.target,
-          pointerEvent: event.pointerEvent,
-        });
-
-      this._emit({ ...event, type:'dragFocus' });
-    }
-
-    let pointerPosition = event.pixiEvent.data.getLocalPosition(this.pixi);
-    this.dragAvatar.position.set(
-      this.dragAvatar.basePosition.x + pointerPosition.x,
-      this.dragAvatar.basePosition.y + pointerPosition.y,
-    );
-
-    this._emit({ ...event, type:'dragMove' });
-  }
-  onDragEnd(event) {
-    if (!this.dragSource) return;
-    if (!this.dragTarget) {
-      this.dragSource = null;
+    if (tile.isDropTarget)
+      return this._emit({ ...event, type:'dragFocus' });
+    else if (!tile.is_interactive())
       return;
-    }
 
-    if (
-      event.pixiEvent.type !== 'mouseupoutside' &&
-      event.target !== this.dragTarget.target
-    ) {
-      let blurTarget = this.dragTarget;
-      this.dragTarget = event;
-
-      if (blurTarget)
-        this._emit({
-          type: 'dragBlur',
-          target: blurTarget.target,
-          pointerEvent: event.pointerEvent,
-        });
-    }
-
-    // Destroy this first so that 'dragEnd' can render its absence.
-    this.dragAvatar = this.dragAvatar.destroy() || null;
-    this.tiles.forEach(tile => {
-      tile.set_interactive(!!(tile.action || tile.assigned));
-    });
-
-    if (this.dragSource.target === this.dragTarget.target)
-      // Prevent 'tap' event from firing
-      event.pixiEvent.stopPropagation();
-
-    this._emit({
-      type:'dragEnd',
-      target: this.dragTarget.target,
-      pointerEvent: event.pointerEvent,
-    });
-
-    this.dragSource = null;
-    this.dragTarget = null;
-  }
-
-  onTileFocus(tile) {
     /*
      * Brighten the tile to show that it is being focused.
      */
     let highlighted = this._highlighted.get(tile);
     if (highlighted && highlighted.onFocus)
-      return highlighted.onFocus({ type:'focus', tile:tile });
+      return highlighted.onFocus(event);
     else if (tile.action)
       tile.setAlpha(0.6);
     else if (tile.painted && tile.painted !== 'focus')
@@ -1813,13 +1705,25 @@ export default class {
 
     this._emit({ type:'focus', tile:tile, unit:unit });
   }
-  onTileBlur(tile) {
+  onTileBlur(event) {
+    let tile = event.target;
+    let focusedTile = this.focusedTile;
+    // The tile might still be focused if the blur event was fired in
+    // response to the board becoming locked and tile non-interactive
+    if (focusedTile && !focusedTile.focused)
+      this.focusedTile = null;
+
+    if (tile.isDropTarget)
+      return this._emit({ ...event, type:'dragBlur' });
+    else if (!tile.is_interactive())
+      return;
+
     /*
      * Darken the tile when no longer focused.
      */
     let highlighted = this._highlighted.get(tile);
     if (highlighted && highlighted.onBlur)
-      return highlighted.onBlur({ type:'blur', tile:tile });
+      return highlighted.onBlur(event);
     else if (tile.action)
       tile.setAlpha(0.3);
     else if (tile.painted && tile.painted !== 'focus')
@@ -1904,11 +1808,10 @@ export default class {
     });
 
     // The 'focus' event is delayed until all tiles are highlighted.
-    if (triggerFocus)
-      if (focusedTile.is_interactive())
-        this.onTileFocus(focusedTile);
-      else
-        focusedTile.set_interactive(true);
+    if (triggerFocus) {
+      this.onTileFocus({ target:focusedTile });
+      focusedTile.set_interactive(true);
+    }
   }
   clearHighlight(tiles) {
     let highlighted = this._highlighted;
