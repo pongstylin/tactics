@@ -46,11 +46,74 @@
       overflow: auto;
     }
 
-    INPUT[type=text], SELECT {
+    SELECT {
       box-sizing: border-box;
-      width: 160px;
+      width: 190px;
       padding: 1px 0;
     }
+
+    .inputTextAutosave {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+
+      box-sizing: border-box;
+      width: 190px;
+      padding: 0;
+      border-bottom: 1px solid #888888;
+    }
+    .inputTextAutosave INPUT[type=text] {
+      flex: 1 1 auto;
+
+      box-sizing: border-box;
+      background-color: black;
+      color: inherit;
+      border: 0 none;
+      padding: 4px;
+      width: 100%;
+    }
+    .inputTextAutosave INPUT[type=text]:focus {
+      outline: #b08d57 auto 1px;
+    }
+    .inputTextAutosave INPUT[type=text]::placeholder {
+      font-style: italic;
+      color: inherit;
+    }
+    .inputTextAutosave INPUT[type=text]:focus::placeholder {
+      opacity: 0;
+    }
+    .inputTextAutosave .icons {
+      flex: 0 0 auto;
+
+      padding: 4px;
+    }
+    .inputTextAutosave .icons > * {
+      margin-left: 4px;
+    }
+    .inputTextAutosave .icons .saved {
+      position: relative;
+    }
+    .inputTextAutosave .icons .saved .fa-spinner {
+      position: absolute;
+      top: 1px;
+      left: 0;
+    }
+    .inputTextAutosave .icons .saved .fa-spinner {
+      display: none;
+    }
+    .inputTextAutosave .icons .saved .fa-check-circle {
+      color: #444444;
+    }
+    .inputTextAutosave.is-saved .icons .saved .fa-check-circle {
+      color: #00CC00;
+    }
+    .inputTextAutosave.is-saving .icons .saved .fa-spinner {
+      display: block;
+    }
+    .inputTextAutosave.is-saving .icons .saved .fa-check-circle {
+      visibility: hidden;
+    }
+
 
     DIV {
       box-sizing: border-box;
@@ -107,7 +170,21 @@
       <DIV class="row playerSetup">
         <DIV>What name would you like to use for this game?</DIV>
         <DIV class="indent">
-          <INPUT name="playerName" type="text" maxLength=20>
+          <DIV class="inputTextAutosave is-saved">
+            <INPUT
+              type="text"
+              name="playerName"
+              maxLength=20
+              spellcheck="false"
+            />
+            <DIV class="icons">
+              <SPAN class="saved">
+                <SPAN class="fa fa-spinner fa-pulse"></SPAN>
+                <SPAN class="fa fa-check-circle"></SPAN>
+              </SPAN>
+            </DIV>
+          </DIV>
+          <DIV class="error"></DIV>
         </DIV>
       </DIV>
       <DIV class="row gameSetup">

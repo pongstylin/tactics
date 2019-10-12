@@ -39,6 +39,65 @@ window.addEventListener('DOMContentLoaded', () => {
     divSetup.style.display = '';
   });
 
+  document.body.addEventListener('focus', event => {
+    let target = event.target;
+    if (target.matches('INPUT[type=text]'))
+      target.select();
+  }, true);
+  document.body.addEventListener('blur', event => {
+    let target = event.target;
+    if (target.matches('INPUT[type=text]'))
+      // Clear selection
+      target.value = target.value;
+  }, true);
+  document.body.addEventListener('keydown', event => {
+    let target = event.target;
+    if (target.matches('INPUT[type=text]'))
+      if (event.keyCode === 13)
+        event.target.blur();
+  }, true);
+  document.body.addEventListener('input', event => {
+    let target = event.target;
+    if (target.matches('INPUT[type=text]')) {
+      let inputTextAutosave = event.target.parentElement;
+      inputTextAutosave.classList.remove('is-saved');
+      inputTextAutosave.classList.remove('is-saving');
+    }
+  }, true);
+
+  let divAccountAutoSave = document.querySelector('.inputTextAutosave');
+  let divAccountError = divAccountAutoSave.nextElementSibling;
+  let txtAccountName = divAccountAutoSave.querySelector('INPUT');
+  txtAccountName.addEventListener('blur', event => {
+    let newAccountName = txtAccountName.value.trim().length
+      ? txtAccountName.value.trim() : null;
+
+    if (newAccountName === null)
+      newAccountName = authClient.playerName;
+
+    // Just in case spaces were trimmed or the name unset.
+    txtAccountName.value = newAccountName;
+
+    divAccountError.textContent = '';
+
+    if (newAccountName === authClient.playerName)
+      divAccountAutoSave.classList.add('is-saved');
+    else {
+      divAccountAutoSave.classList.remove('is-saved');
+      divAccountAutoSave.classList.add('is-saving');
+
+      authClient.setAccountName(newAccountName)
+        .then(() => {
+          divAccountAutoSave.classList.remove('is-saving');
+          divAccountAutoSave.classList.add('is-saved');
+        })
+        .catch(error => {
+          divAccountAutoSave.classList.remove('is-saving');
+          divAccountError.textContent = error.toString();
+        });
+    }
+  });
+
   document.querySelector('SELECT[name=type]').addEventListener('change', event => {
     let value = event.target.querySelector(':checked').value;
     let changeLink = document.querySelector('.change');
@@ -164,6 +223,7 @@ window.addEventListener('DOMContentLoaded', () => {
         joinQuery.filter['teams[1]'] = null;
     }
 
+    // Usually redundant, but helpful for creating new accounts.
     authClient.setAccountName(txtPlayerName.value)
       .then(async () => {
         let gameId = await joinOpenGame(joinQuery, slot);
