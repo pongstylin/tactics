@@ -1555,6 +1555,8 @@ export default class {
       notice = 'Paralyze!';
     else if (calc.effect === 'poison')
       notice = 'Poison!';
+    else if (calc.chance === 0 && target_unit.directional === false)
+      notice = 'Immune!';
     else if (calc.damage === 0)
       notice = calc.damage+' ('+Math.round(calc.chance)+'%)';
     else if (calc.damage < 0)

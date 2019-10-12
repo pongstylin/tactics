@@ -1211,8 +1211,11 @@ export default class {
       anim.splice(this._animApplyFocusChanges(result));
 
       if (result.miss) {
-        unit.change({notice: 'Miss!'});
-        let caption = result.notice || 'Miss!';
+        let notice = !result.luck && unit.directional === false
+          ? 'Immune!' : 'Miss!';
+
+        unit.change({ notice });
+        let caption = result.notice || notice;
         return unit.animCaption(caption).play();
       }
 
