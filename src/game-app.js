@@ -3,6 +3,9 @@ import copy from 'components/copy.js';
 import share from 'components/share.js';
 import ServerError from 'server/Error.js';
 
+const authClient = Tactics.authClient;
+const gameClient = Tactics.gameClient;
+
 Tactics.App = (function ($, window, document) {
   'use strict';
 
@@ -545,31 +548,81 @@ Tactics.App = (function ($, window, document) {
     });
   }
 
-  function showJoinIntro(identity, gameData) {
-    let greeting = document.querySelector('#join .greeting');
-    let playerName = document.querySelector('INPUT[name=playerName]');
+  async function showJoinIntro(identity, gameData) {
+    document.body.addEventListener('focus', event => {
+      let target = event.target;
+      if (target.matches('INPUT[name=playerName]'))
+        target.select();
+    }, true);
+    document.body.addEventListener('blur', event => {
+      let target = event.target;
+      if (target.matches('INPUT[name=playerName]'))
+        // Clear selection
+        target.value = target.value;
+    }, true);
+    document.body.addEventListener('keydown', event => {
+      let target = event.target;
+      if (target.matches('INPUT[name=playerName]'))
+        if (event.keyCode === 13)
+          event.target.blur();
+    }, true);
+    document.body.addEventListener('input', event => {
+      let target = event.target;
+      if (target.matches('INPUT[name=playerName]')) {
+        let inputTextAutosave = event.target.parentElement;
+        inputTextAutosave.classList.remove('is-saved');
+        inputTextAutosave.classList.remove('is-saving');
+      }
+    }, true);
+
+    let divPlayerAutoSave = document.querySelector('.playerName');
+    let divPlayerError = divPlayerAutoSave.nextElementSibling;
+    let txtPlayerName = divPlayerAutoSave.querySelector('INPUT[name=playerName]');
+    txtPlayerName.addEventListener('blur', event => {
+      let newPlayerName = txtPlayerName.value.trim().length
+        ? txtPlayerName.value.trim() : null;
+
+      if (newPlayerName === null)
+        newPlayerName = authClient.playerName;
+
+      // Just in case spaces were trimmed or the name unset.
+      txtPlayerName.value = newPlayerName;
+
+      divPlayerError.textContent = '';
+
+      if (newPlayerName === authClient.playerName)
+        divPlayerAutoSave.classList.add('is-saved');
+      else {
+        divPlayerAutoSave.classList.remove('is-saved');
+        divPlayerAutoSave.classList.add('is-saving');
+
+        authClient.setAccountName(newPlayerName)
+          .then(() => {
+            divPlayerAutoSave.classList.remove('is-saving');
+            divPlayerAutoSave.classList.add('is-saved');
+          })
+          .catch(error => {
+            divPlayerAutoSave.classList.remove('is-saving');
+            divPlayerError.textContent = error.toString();
+          });
+      }
+    });
+
     let details = document.querySelector('.details');
     let challenge = document.querySelector('.challenge');
     let btnJoin = document.querySelector('BUTTON[name=join]');
 
-    if (identity) {
-      greeting.innerHTML = `
-        Welcome back, ${identity.name}!  You may change your name here.<BR>
-        Note: This won't change your name on previously created/joined games.
-      `;
-      playerName.value = identity.name;
-    }
-    else {
-      greeting.innerHTML = `Welcome!  Choose your game name.`;
-      playerName.value = 'Noob';
-    }
+    if (identity)
+      txtPlayerName.value = identity.name;
+    else
+      txtPlayerName.value = 'Noob';
 
     if (gameData.state.started) {
       btnJoin.textContent = 'Watch Game';
 
       return new Promise((resolve, reject) => {
         btnJoin.addEventListener('click', event => {
-          Tactics.authClient.setAccountName(playerName.value)
+          Tactics.authClient.setAccountName(txtPlayerName.value)
             .then(() => Tactics.loadRemoteGame(gameData.id, gameData))
             .then(game => {
               $('#join').hide();
@@ -591,12 +644,17 @@ Tactics.App = (function ($, window, document) {
       else
         person = 'you';
 
-      details.textContent = `The first person to move is ${person}.`;
-      challenge.textContent = `${creatorTeam.name} is waiting for an opponent.  Want to play?`;
+      let gameTypeConfig = await gameClient.getGameTypeConfig(gameData.state.type);
+
+      details.innerHTML = `
+        <DIV>This is a <I>${gameTypeConfig.name}</I> game.</DIV>
+        <DIV>The first person to move is ${person}.</DIV>
+      `;
+      challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`;
 
       return new Promise((resolve, reject) => {
         btnJoin.addEventListener('click', event => {
-          Tactics.joinRemoteGame(playerName.value, gameData.id)
+          Tactics.joinRemoteGame(txtPlayerName.value, gameData.id)
             .then(() => Tactics.loadRemoteGame(gameData.id, gameData))
             .then(game => {
               $('#join').hide();
