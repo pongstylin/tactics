@@ -331,6 +331,7 @@ unitDataMap.set('LightningWard', {
   blocking:    100,
   mType:       false,
   mRadius:     0,
+  mPass:       false,
   aType:       'magic',
   aRange:      [0, 3],
   directional: false,
