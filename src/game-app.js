@@ -682,6 +682,7 @@ Tactics.App = (function ($, window, document) {
         let new_mode    = event.nvalue;
         let can_move    = game.canSelectMove();
         let can_attack  = game.canSelectAttack();
+        let can_turn    = game.canSelectTurn();
         let can_special = game.canSelectSpecial();
 
         $('BUTTON[name=select]').removeClass('selected');
@@ -699,6 +700,7 @@ Tactics.App = (function ($, window, document) {
 
         $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
         $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
+        $('BUTTON[name=select][value=turn]').prop('disabled', !can_turn);
         $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
         $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
 

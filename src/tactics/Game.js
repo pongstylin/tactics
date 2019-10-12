@@ -696,7 +696,7 @@ export default class {
   canSelectTurn() {
     let viewed = this.viewed;
     if (viewed)
-      return viewed.directional !== false;
+      return true;
 
     let selected = this.selected;
     if (selected)
