@@ -81,6 +81,10 @@ export default class GameClient extends Client {
         });
 
         return result;
+      })
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.searchMyGames(query);
       });
   }
   async searchOpenGames(query) {
@@ -96,6 +100,10 @@ export default class GameClient extends Client {
         });
 
         return result;
+      })
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.searchOpenGames(query);
       });
   }
 
