@@ -23,6 +23,7 @@ export default class {
 
     let board = new Board();
     board.initCard();
+    board.draw();
     board
       .on('focus', ({ tile, unit }) => {
         Tactics.sounds.focus.play();
@@ -95,9 +96,9 @@ export default class {
       _emitter: new EventEmitter(),
     });
 
-    Tactics.game = this;
+    this._stage.addChild(board.pixi);
 
-    state.whenStarted.then(() => this._load());
+    Tactics.game = this;
   }
 
   /*****************************************************************************
@@ -887,30 +888,6 @@ export default class {
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
-  _load() {
-    let unitTypes = new Set();
-
-    this.state.teams.forEach(team => {
-      let teamUnits = team.set.slice();
-
-      teamUnits.forEach(({type:unitType}) => {
-        unitTypes.add(unitType);
-
-        // The Chaos Seed hatches to become a Chaos Dragon.  So, load both.
-        if (unitType === 'ChaosSeed')
-          unitTypes.add('ChaosDragon');
-      });
-    });
-
-    Tactics.load(unitTypes, percent => {
-      this._emit({ type:'progress', percent:percent });
-    }).then(() => {
-      this._board.draw();
-      this._stage.addChild(this._board.pixi);
-
-      this._emit({ type:'ready' });
-    });
-  }
   _revert(turnData) {
     let board = this._board;
 

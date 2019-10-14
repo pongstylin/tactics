@@ -1,34 +1,4 @@
 /*
- * General Look & Feel for the splash screen.
- */
-#splash {
-  color: white;
-  text-align: center;
-
-  #loader {
-    visibility: hidden;
-    width: 200px;
-
-    #bar {
-      margin: 10px auto;
-      border: 1px solid #808080;
-      width: 100px;
-      height: 7px;
-
-      #progress {
-        background-color: #D4611F;
-        width: 0;
-        height: 7px;
-      }
-    }
-  }
-  #loader.complete {
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-}
-
-/*
  * General Look & Feel for the app.
  */
 #app {

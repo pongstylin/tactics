@@ -279,16 +279,6 @@ window.Tactics = (function () {
     getRemoteGameData: function (gameId) {
       return gameClient.getGameData(gameId);
     },
-    getMyIdentity: function () {
-      return authClient.whenReady.then(() => {
-        if (!authClient.token) return;
-
-        return {
-          id: authClient.playerId,
-          name: authClient.playerName,
-        };
-      });
-    },
     joinRemoteGame: function (playerName, gameId) {
       return authClient.setAccountName(playerName)
         .then(() => gameClient.joinGame(gameId));
