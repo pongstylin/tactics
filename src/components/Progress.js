@@ -9,13 +9,13 @@ const template = `
   </DIV>
 `;
 
-class Progress {
+export default class {
   constructor() {
     let root = document.getElementById('progress');
     if (!root) {
       root = document.createElement('DIV');
       root.id = 'progress';
-      root.style.display = 'none';
+      root.className = 'view';
       root.innerHTML = template;
 
       document.body.appendChild(root);
@@ -23,6 +23,8 @@ class Progress {
 
     Object.assign(this, {
       root:     root,
+      whenComplete: new Promise(resolve => this._resolveComplete = resolve),
+
       _emitter: new EventEmitter(),
     });
   }
@@ -46,25 +48,34 @@ class Progress {
   }
 
   set percent(percent) {
+    let whenComplete = this.whenComplete;
+
     this.root.querySelector('.percent').style.width = percent+'px';
 
-    if (percent === 100)
+    if (percent === 100 && !whenComplete.isResolved) {
       this._emit({ type:'complete' });
+
+      whenComplete.isResolved = true;
+      this._resolveComplete();
+    }
+    else if (whenComplete.isResolved) {
+      this.whenComplete = new Promise(resolve => this._resolveComplete = resolve);
+    }
   }
   set message(message) {
     this.root.querySelector('.message').textContent = message;
   }
 
   show() {
-    this.root.style.display = '';
+    this.root.classList.add('show');
+    return this;
   }
   hide() {
-    this.root.style.display = 'none';
+    this.root.classList.remove('show');
+    return this;
   }
 
   _emit(event) {
     this._emitter.emit(event.type, event);
   }
 }
-
-export default Progress;

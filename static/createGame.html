@@ -31,21 +31,11 @@
   <SCRIPT type="text/javascript" src="theme.min.js"></SCRIPT>
   <SCRIPT type="text/javascript" src="errors.min.js"></SCRIPT>
   <SCRIPT type="text/javascript">window.AUTO_CONNECT = true;</SCRIPT>
+  <SCRIPT type="text/javascript" src="tactics.min.js"></SCRIPT>
   <SCRIPT type="text/javascript" src="createGame.min.js"></SCRIPT>
   <SCRIPT type="text/javascript" src="install.min.js"></SCRIPT>
 
   <STYLE>
-    .content {
-      max-height: 100%;
-      overflow: auto;
-    }
-
-    .content > DIV {
-      max-height: 100%;
-      max-width: 100%;
-      overflow: auto;
-    }
-
     SELECT {
       box-sizing: border-box;
       width: 190px;
@@ -115,114 +105,112 @@
     }
 
 
-    DIV {
+    .configure DIV {
       box-sizing: border-box;
       padding: 4px 0;
     }
-    UL {
+    .configure UL {
       margin: 0;
       padding-left: 12px;
     }
-    LI {
+    .configure LI {
       list-style-type: none;
     }
-    LABEL {
+    .configure LABEL {
       display: inline-flex;
       flex-direction: row;
       align-items: center;
       padding: 4px;
     }
-    INPUT[type=radio] {
+    .configure INPUT[type=radio] {
       margin: 2px 4px 0 0;
     }
 
-    .row {
+    .configure .row {
       padding: 4px;
     }
-    .indent {
+    .configure .indent {
       padding: 0 0 0 12px;
     }
 
-    .error {
+    .configure .error {
       color: #ff0000;
     }
-    .error:empty {
+    .configure .error:empty {
       display: none;
     }
 
-    .buttons {
+    .configure .buttons {
       margin-top: 4px;
       text-align: center;
     }
-    .change {
+    .configure .change {
       margin-left: 6px;
     }
   </STYLE>
 </HEAD>
 <BODY>
   <DIV id="notifications"></DIV>
-  <DIV class="content">
-    <DIV class="setup" style="display:none">
-      <DIV class="row error"></DIV>
-      <DIV class="row back" style="text-align:center">
-        <A href="/online.html">Back to Game List</A>
+  <DIV class="view configure">
+    <DIV class="row error"></DIV>
+    <DIV class="row back" style="text-align:center">
+      <A href="/online.html">Back to Game List</A>
+    </DIV>
+    <DIV class="row playerSetup">
+      <DIV>What name would you like to use for this game?</DIV>
+      <DIV class="indent">
+        <DIV class="inputTextAutosave is-saved">
+          <INPUT
+            type="text"
+            name="playerName"
+            maxLength=20
+            spellcheck="false"
+          />
+          <DIV class="icons">
+            <SPAN class="saved">
+              <SPAN class="fa fa-spinner fa-pulse"></SPAN>
+              <SPAN class="fa fa-check-circle"></SPAN>
+            </SPAN>
+          </DIV>
+        </DIV>
+        <DIV class="error"></DIV>
       </DIV>
-      <DIV class="row playerSetup">
-        <DIV>What name would you like to use for this game?</DIV>
+    </DIV>
+    <DIV class="row gameSetup">
+      <DIV>
+        <DIV>What game style do you want to play?</DIV>
         <DIV class="indent">
-          <DIV class="inputTextAutosave is-saved">
-            <INPUT
-              type="text"
-              name="playerName"
-              maxLength=20
-              spellcheck="false"
-            />
-            <DIV class="icons">
-              <SPAN class="saved">
-                <SPAN class="fa fa-spinner fa-pulse"></SPAN>
-                <SPAN class="fa fa-check-circle"></SPAN>
-              </SPAN>
-            </DIV>
-          </DIV>
-          <DIV class="error"></DIV>
+          <SELECT name="type">
+            <OPTION value="classic">Classic</OPTION>
+            <OPTION value="droplessGray">Dropless Gray</OPTION>
+            <OPTION value="freestyle">Freestyle</OPTION>
+          </SELECT>
+          <A href="javascript:void(0)" class="change" style="display:none">Change Set</A>
         </DIV>
       </DIV>
-      <DIV class="row gameSetup">
-        <DIV>
-          <DIV>What game style do you want to play?</DIV>
-          <DIV class="indent">
-            <SELECT name="type">
-              <OPTION value="classic">Classic</OPTION>
-              <OPTION value="droplessGray">Dropless Gray</OPTION>
-              <OPTION value="freestyle">Freestyle</OPTION>
-            </SELECT>
-            <A href="/setup.html" class="change" style="display:none">Change Set</A>
-          </DIV>
-        </DIV>
-        <DIV>
-          <DIV>Who would you like to play?</DIV>
-          <UL class="indent">
-            <LI><LABEL><INPUT type="radio" name="vs" value="public" checked> Anybody (Public)</Label></LI>
-            <LI><LABEL><INPUT type="radio" name="vs" value="private"> Invite Only (Private)</Label></LI>
-            <LI><LABEL><INPUT type="radio" name="vs" value="you"> Yourself (Practice)</Label></LI>
-          </UL>
-        </DIV>
-        <DIV>
-          <DIV>Who gets first turn?</DIV>
-          <DIV class="indent">
-            <LABEL><INPUT type="radio" name="turnOrder" value="random" checked> Random</LABEL>
-            <LABEL><INPUT type="radio" name="turnOrder" value="1st"> You</LABEL>
-            <LABEL><INPUT type="radio" name="turnOrder" value="2nd"> Them</LABEL>
-          </DIV>
-        </DIV>
+      <DIV>
+        <DIV>Who would you like to play?</DIV>
+        <UL class="indent">
+          <LI><LABEL><INPUT type="radio" name="vs" value="public" checked> Anybody (Public)</Label></LI>
+          <LI><LABEL><INPUT type="radio" name="vs" value="private"> Invite Only (Private)</Label></LI>
+          <LI><LABEL><INPUT type="radio" name="vs" value="you"> Yourself (Practice)</Label></LI>
+        </UL>
       </DIV>
-      <DIV class="row buttons">
-        <BUTTON name="create">Create or Join Game</BUTTON>
+      <DIV>
+        <DIV>Who gets first turn?</DIV>
+        <DIV class="indent">
+          <LABEL><INPUT type="radio" name="turnOrder" value="random" checked> Random</LABEL>
+          <LABEL><INPUT type="radio" name="turnOrder" value="1st"> You</LABEL>
+          <LABEL><INPUT type="radio" name="turnOrder" value="2nd"> Them</LABEL>
+        </DIV>
       </DIV>
     </DIV>
-    <DIV class="waiting" style="display:none">
-      <DIV>Please wait while your game is created...</DIV>
+    <DIV class="row buttons">
+      <BUTTON name="create">Create or Join Game</BUTTON>
     </DIV>
+  </DIV>
+  <DIV class="view waiting">
+    <DIV>Please wait while your game is created...</DIV>
   </DIV>
 </BODY>
 </HTML>

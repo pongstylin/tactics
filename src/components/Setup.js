@@ -1,13 +1,40 @@
 import EventEmitter from 'events';
 
+import './setup.scss';
+
 import Board, {
   TILE_WIDTH,
   TILE_HEIGHT,
   FOCUS_TILE_COLOR,
 } from 'tactics/Board.js';
 
+const template = `
+  <DIV class="field"></DIV>
+  <DIV class="menubar">
+    <DIV class="back">
+      <A href="javascript:void(0)">Go Back</A>
+    </DIV>
+    <DIV class="title"></DIV>
+    <DIV class="buttons">
+      <BUTTON name="save">Save and Exit</BUTTON>
+    </DIV>
+  </DIV>
+`;
+
 export default class {
   constructor(team, gameTypeConfig) {
+    let root = document.createElement('DIV');
+    root.className = 'view setup';
+    root.innerHTML = template;
+    root.querySelector('.back A')
+      .addEventListener('click', this._onBack.bind(this));
+    root.querySelector('.title')
+      .textContent = gameTypeConfig.name;
+    root.querySelector('BUTTON[name=save]')
+      .addEventListener('click', this._onSave.bind(this));
+
+    document.body.appendChild(root);
+
     // Clip unused empty space part #1
     let width = Tactics.width - TILE_WIDTH*2;
     let height = Tactics.height - TILE_HEIGHT*1.5;
@@ -19,6 +46,19 @@ export default class {
     let board = new Board();
     board.rotation = 'S';
     board.draw();
+
+    // Set back the pick tiles to give the visible board some space.
+    for (let y = 0; y < 6; y++) {
+      for (let x = 0; x < 11; x++) {
+        let tile = board.getTile(x, y);
+        if (!tile) continue;
+
+        tile.pixi.position.set(
+          tile.pixi.position.x - TILE_WIDTH/4,
+          tile.pixi.position.y - TILE_HEIGHT/4,
+        );
+      }
+    }
 
     board
       .on('focus', ({ tile, unit }) => {
@@ -71,7 +111,7 @@ export default class {
     trashSprite.scale.set(1.75);
 
     let focus = Tactics.effects.focus;
-    let trashFocus = PIXI.Sprite.fromImage(focus.images[focus.frames[0][0].i]);
+    let trashFocus = PIXI.Sprite.fromImage(focus.images[0]);
     trashFocus.anchor.set(0.5);
     trashFocus.alpha = 0;
 
@@ -102,6 +142,8 @@ export default class {
     });
 
     Object.assign(this, {
+      root: root,
+
       // Crude tracking of the pointer type being used.  Ideally, this should
       // reflect the last pointer type to fire an event on the board.
       pointerType: 'ontouchstart' in window ? 'touch' : 'mouse',
@@ -123,31 +165,17 @@ export default class {
 
       _board: board,
 
+      _resizeListener: null,
       _emitter: new EventEmitter(),
     });
+
+    root.querySelector('.field').appendChild(this.canvas);
 
     this._canvas.addEventListener('contextmenu', event => event.preventDefault());
 
     let unitTypes = [...gameTypeConfig.limits.units.types.keys()].reverse();
     let positions = this._getPositions();
     this._picksTeam.set = unitTypes.map((ut, i) => ({ type:ut, assignment:positions[i] }));
-
-    let units = team.set.map(unitData => ({ ...unitData, direction:'S' }));
-    let picksTeamUnits = this._picksTeam.set.map(unitData => ({
-      ...unitData, direction:'N'
-    }));
-    board.setState([units, picksTeamUnits], [this._team, this._picksTeam]);
-    board.teamsUnits.flat().forEach(u => u.draggable = true);
-
-    // Set back the pick units and tiles to give the visible board some space.
-    this._picksTeam.units.forEach(unit => {
-      unit.assignment.pixi.position.x -= TILE_WIDTH / 4;
-      unit.assignment.pixi.position.y -= TILE_HEIGHT / 4;
-      unit.pixi.position.x -= TILE_WIDTH / 4;
-      unit.pixi.position.y -= TILE_HEIGHT / 4;
-    });
-
-    this._drawPicks();
 
     let leftPoint = board.getTile(0, 6).getLeft();
     leftPoint.set(
@@ -170,7 +198,11 @@ export default class {
       0, Tactics.height,
     ]);
 
-    this.render();
+    this.resize();
+    this._resizeListener = this.resize.bind(this);
+    window.addEventListener('resize', this._resizeListener);
+
+    this.reset();
 
     // Allow the Animation class to render frames.
     Tactics.game = this;
@@ -223,14 +255,30 @@ export default class {
   /*****************************************************************************
    * Public Methods
    ****************************************************************************/
-  lock() {
-    this._board.lock();
+  show() {
+    this.root.classList.add('show');
+
+    return this;
   }
-  getSet() {
-    return this._board.getState()[0].map(unit => {
-      delete unit.direction;
-      return unit;
-    });
+  hide() {
+    this.root.classList.remove('show');
+
+    return this;
+  }
+
+  reset() {
+    let board = this._board;
+    let units = this._team.set.map(unitData => ({ ...unitData, direction:'S' }));
+    let picksTeamUnits = this._picksTeam.set.map(unitData => ({
+      ...unitData, direction:'N'
+    }));
+
+    board.clear();
+    board.setState([units, picksTeamUnits], [this._team, this._picksTeam]);
+    board.teamsUnits.flat().forEach(u => u.draggable = true);
+
+    this._drawPicks();
+    this.render();
   }
 
   placeUnit(unitType, tile) {
@@ -431,6 +479,21 @@ export default class {
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
+  _onBack(event) {
+    this.hide();
+    this._emit({ type:'back' });
+  }
+  _onSave(event) {
+    this.hide();
+
+    let data = this._board.getState()[0].map(unit => {
+      delete unit.direction;
+      return unit;
+    });
+
+    this._emit({ type:'save', data });
+  }
+
   /*
    * DragStart fires by simply pressing the mouse button.
    * We don't know yet if this is a tap or a drag situation.

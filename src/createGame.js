@@ -1,13 +1,12 @@
-import clientFactory from 'client/clientFactory.js';
 import popup from 'components/popup.js';
 
-let authClient = clientFactory('auth');
-let gameClient = clientFactory('game');
+const authClient = Tactics.authClient;
+const gameClient = Tactics.gameClient;
 
 window.addEventListener('DOMContentLoaded', () => {
   let txtPlayerName = document.querySelector('INPUT[name=playerName]');
   let btnCreate = document.querySelector('BUTTON[name=create]');
-  let divSetup = document.querySelector('.setup');
+  let divConfigure = document.querySelector('.view.configure');
   let divWaiting = document.querySelector('.waiting');
   let divError = document.querySelector('.setup .error');
 
@@ -36,7 +35,7 @@ window.addEventListener('DOMContentLoaded', () => {
     else
       txtPlayerName.value = 'Noob';
 
-    divSetup.style.display = '';
+    divConfigure.classList.add('show');
   });
 
   document.body.addEventListener('focus', event => {
@@ -98,14 +97,19 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.querySelector('SELECT[name=type]').addEventListener('change', event => {
-    let value = event.target.querySelector(':checked').value;
-    let changeLink = document.querySelector('.change');
-    let link = new URL(changeLink.href, location.href);
-    link.searchParams.set('type', value);
+  let selGameType = document.querySelector('SELECT[name=type]');
+  let aChangeLink = document.querySelector('.change');
+  aChangeLink.addEventListener('click', async event => {
+    let gameType = selGameType.querySelector(':checked').value;
 
-    changeLink.href = link;
-    changeLink.style.display = value === 'classic' ? 'none' : '';
+    divConfigure.classList.remove('show');
+    await Tactics.setup(gameType);
+    divConfigure.classList.add('show');
+  });
+  selGameType.addEventListener('change', event => {
+    let gameType = selGameType.querySelector(':checked').value;
+
+    aChangeLink.style.display = gameType === 'classic' ? 'none' : '';
   });
   document.querySelector('SELECT[name=type]').dispatchEvent(
     new CustomEvent('change')
@@ -133,8 +137,8 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   btnCreate.addEventListener('click', async () => {
-    divSetup.style.display = 'none';
-    divWaiting.style.display = '';
+    divConfigure.classList.remove('show');
+    divWaiting.classList.add('show');
 
     let type = document.querySelector('SELECT[name=type] OPTION:checked').value;
     let vs = document.querySelector('INPUT[name=vs]:checked').value;
@@ -253,15 +257,13 @@ window.addEventListener('DOMContentLoaded', () => {
           divError.textContent = 'Unexpected client-side error';
         }
 
-        divWaiting.style.display = 'none';
-        divSetup.style.display = '';
+        divWaiting.classList.remove('show');
+        divConfigure.classList.add('show');
 
         // Log the error
         throw error;
       });
   });
-
-  document.querySelector('.content').style.display = '';
 });
 
 async function findMyGame(query) {

@@ -1,21 +1,14 @@
-HTML {
-  touch-action: none;
-}
-BODY {
-  overflow: hidden;
-}
-
-#setup {
+.view.setup {
   display: flex;
   flex-direction: column;
   max-height: 100%;
   max-width: 100%;
 
-  #field {
+  .field {
     height: calc(100% - 38px);
   }
 
-  #menubar {
+  .menubar {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
@@ -27,14 +20,14 @@ BODY {
     color: white;
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 
-    #back {
+    .back {
       text-align: left;
     }
-    #title {
+    .title {
       text-align: center;
       font-style: italic;
     }
-    #buttons {
+    .buttons {
       text-align: right;
       padding: 2px 0;
 
@@ -45,18 +38,14 @@ BODY {
   }
 }
 
-#error {
-  color: #ff0000;
-}
-
 @media (max-width: 510px) and (min-aspect-ratio: 5/3) {
-  #setup {
+  .view.setup {
     width: 100%;
   }
 }
 
 @media (max-width: 660px) and (min-aspect-ratio: 5/3) {
-  #setup {
+  .view.setup {
     height: 100%;
   }
 }

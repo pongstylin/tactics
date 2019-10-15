@@ -97,6 +97,16 @@ TEXTAREA {
   }
 }
 
+.view {
+  position: absolute;
+  visibility: hidden;
+
+  &.show {
+    position: unset;
+    visibility: visible;
+  }
+}
+
 BUTTON {
   background: radial-gradient(#b08d57 10%, #804a00);
   color: #FFEECC;

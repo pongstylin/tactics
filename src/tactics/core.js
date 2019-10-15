@@ -1,8 +1,10 @@
 import clientFactory from 'client/clientFactory.js';
 import RemoteTransport from 'tactics/RemoteTransport.js';
 import LocalTransport from 'tactics/LocalTransport.js';
+import popup from 'components/popup.js';
+import Progress from 'components/Progress.js';
 import Game from 'tactics/Game.js';
-import SetSetup from 'tactics/SetSetup.js';
+import Setup from 'components/Setup.js';
 import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
 
 var authClient = clientFactory('auth');
@@ -22,8 +24,10 @@ window.Tactics = (function () {
     authClient: clientFactory('auth'),
     gameClient: clientFactory('game'),
     chatClient: clientFactory('chat'),
-    SetSetup: SetSetup,
+    loadedCore: false,
     loadedUnitTypes: new Set(),
+    _setupMap: new Map(),
+    _resolveSetup: null,
 
     load: function (unitTypes, cb = () => {}) {
       return new Promise((resolve, reject) => {
@@ -41,70 +45,74 @@ window.Tactics = (function () {
             resolve();
         };
 
-        this.images.forEach(image_url => {
-          let url = image_url;
-          if (!url.startsWith('http'))
-            url = 'https://legacy.taorankings.com/images/'+url;
+        if (!this.loadedCore) {
+          this.loadedCore = true;
 
-          resources.push(url);
-          loader.add({ url:url });
-        });
+          this.images.forEach(image_url => {
+            let url = image_url;
+            if (!url.startsWith('http'))
+              url = 'https://legacy.taorankings.com/images/'+url;
 
-        Object.keys(this.sounds).forEach(name => {
-          let sound = this.sounds[name];
-          if (typeof sound === 'string')
-            sound = {file: sound};
-
-          let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
-
-          this.sounds[name] = new Howl({
-            src:         [url+'.mp3', url+'.ogg'],
-            sprite:      sound.sprite,
-            volume:      sound.volume || 1,
-            rate:        sound.rate || 1,
-            onload:      () => progress(),
-            onloaderror: () => {},
+            resources.push(url);
+            loader.add({ url:url });
           });
 
-          resources.push(url);
-        });
+          Object.keys(this.sounds).forEach(name => {
+            let sound = this.sounds[name];
+            if (typeof sound === 'string')
+              sound = {file: sound};
 
-        Object.keys(this.effects).forEach(name => {
-          let effect_url = this.effects[name].frames_url;
+            let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
-          if (!(effect_url in effects)) {
-            resources.push(effect_url);
+            this.sounds[name] = new Howl({
+              src:         [url+'.mp3', url+'.ogg'],
+              sprite:      sound.sprite,
+              volume:      sound.volume || 1,
+              rate:        sound.rate || 1,
+              onload:      () => progress(),
+              onloaderror: () => {},
+            });
 
-            effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
-              // Preload data URIs.
-              renderData.images.forEach(image_url => {
-                PIXI.BaseTexture.from(image_url);
+            resources.push(url);
+          });
+
+          Object.keys(this.effects).forEach(name => {
+            let effect_url = this.effects[name].frames_url;
+
+            if (!(effect_url in effects)) {
+              resources.push(effect_url);
+
+              effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
+                // Preload data URIs.
+                renderData.images.forEach(image_url => {
+                  PIXI.BaseTexture.from(image_url);
+                });
+
+                progress();
+                return renderData;
               });
-
-              progress();
+            }
+      
+            effects[effect_url].then(renderData => {
+              Object.assign(this.effects[name], renderData);
               return renderData;
             });
-          }
-      
-          effects[effect_url].then(renderData => {
-            Object.assign(this.effects[name], renderData);
-            return renderData;
-          });
-        });
-
-        let trophy_url = unitDataMap.get('Champion').frames_url;
-        resources.push(trophy_url);
-
-        fetch(trophy_url).then(r => r.json()).then(renderData => {
-          Object.assign(unitDataMap.get('Champion'), renderData);
-
-          // Preload data URIs.
-          renderData.images.forEach(image_url => {
-            PIXI.BaseTexture.from(image_url);
           });
 
-          progress();
-        });
+          let trophy_url = unitDataMap.get('Champion').frames_url;
+          resources.push(trophy_url);
+
+          fetch(trophy_url).then(r => r.json()).then(renderData => {
+            Object.assign(unitDataMap.get('Champion'), renderData);
+
+            // Preload data URIs.
+            renderData.images.forEach(image_url => {
+              PIXI.BaseTexture.from(image_url);
+            });
+
+            progress();
+          });
+        }
 
         for (let unitType of unitTypes) {
           if (this.loadedUnitTypes.has(unitType))
@@ -220,10 +228,73 @@ window.Tactics = (function () {
           }
         }
 
-        loader
-          .on('progress', progress)
-          .load();
+        if (resources.length === 0) {
+          cb(100);
+          resolve();
+        }
+        else {
+          loader
+            .on('progress', progress)
+            .load();
+        }
       });
+    },
+    /*
+     * This is a shared interface to launching and handling the result of game
+     * type setup.  It is only appropriate for online use.
+     */
+    setup: async function (gameType) {
+      let progress = new Progress();
+      let setup = this._setupMap.get(gameType);
+      let promise = new Promise(r => this._resolveSetup = r);
+
+      if (!setup) {
+        progress.percent = 0;
+        progress.message = 'Loading set...';
+        progress.show();
+
+        let gameTypeConfig = await gameClient.getGameTypeConfig(gameType);
+
+        await Tactics.load(
+          gameTypeConfig.limits.units.types.keys(),
+          percent => progress.percent = percent,
+        );
+
+        progress.message = 'One moment...';
+
+        let defaultSet = await gameClient.getDefaultPlayerSet(gameType);
+        setup = new Setup({
+          colorId: 'Red',
+          set: defaultSet,
+        }, gameTypeConfig);
+        setup.on('back', () => {
+          this._resolveSetup();
+
+          setup.reset();
+        });
+        setup.on('save', ({ data:set }) => {
+          let notice = popup({
+            message: 'Saving to server...',
+            buttons: [],
+            onCancel: () => false,
+            open: 1000, // open after one second
+          });
+
+          gameClient.saveDefaultPlayerSet(gameType, set).then(() => {
+            notice.close();
+
+            this._resolveSetup();
+          });
+        });
+
+        this._setupMap.set(gameType, setup);
+
+        progress.hide();
+      }
+
+      setup.show();
+
+      return promise;
     },
     draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};
