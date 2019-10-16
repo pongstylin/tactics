@@ -6,6 +6,7 @@ import Progress from 'components/Progress.js';
 import Game from 'tactics/Game.js';
 import Setup from 'components/Setup.js';
 import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
+import sleep from 'utils/sleep.js';
 
 var authClient = clientFactory('auth');
 var gameClient = clientFactory('game');
@@ -253,6 +254,9 @@ window.Tactics = (function () {
         progress.message = 'Loading set...';
         progress.show();
 
+        // Allow the message to show
+        await sleep(200);
+
         let gameTypeConfig = await gameClient.getGameTypeConfig(gameType);
 
         await Tactics.load(
@@ -261,6 +265,8 @@ window.Tactics = (function () {
         );
 
         progress.message = 'One moment...';
+        // Allow the message to show
+        await sleep(200);
 
         let defaultSet = await gameClient.getDefaultPlayerSet(gameType);
         setup = new Setup({
@@ -268,7 +274,7 @@ window.Tactics = (function () {
           set: defaultSet,
         }, gameTypeConfig);
         setup.on('back', () => {
-          this._resolveSetup();
+          this._resolveSetup(false);
 
           setup.reset();
         });
@@ -283,7 +289,7 @@ window.Tactics = (function () {
           gameClient.saveDefaultPlayerSet(gameType, set).then(() => {
             notice.close();
 
-            this._resolveSetup();
+            this._resolveSetup(true);
           });
         });
 
@@ -350,9 +356,9 @@ window.Tactics = (function () {
     getRemoteGameData: function (gameId) {
       return gameClient.getGameData(gameId);
     },
-    joinRemoteGame: function (playerName, gameId) {
+    joinRemoteGame: function (playerName, gameId, set) {
       return authClient.setAccountName(playerName)
-        .then(() => gameClient.joinGame(gameId));
+        .then(() => gameClient.joinGame(gameId, { set }));
     },
     loadRemoteGame: function (gameId, gameData) {
       let transport = new RemoteTransport(gameId, gameData);

@@ -34,6 +34,18 @@ INPUT, BUTTON, SELECT {
   font-size: inherit;
 }
 
+INPUT[type=radio] {
+  padding: 0;
+  margin: 0;
+  vertical-align: middle;
+}
+LABEL {
+  cursor: pointer;
+}
+LABEL INPUT[type=radio]:first-child {
+  margin-right: 0.4em;
+}
+
 TEXTAREA {
   // No scrollbars.  The chat TEXTAREA will grow to fit content.
   overflow: hidden;

@@ -257,17 +257,12 @@ export default class GameState {
         team: team,
       },
     });
-
-    // If all slots are filled, start the game.
-    if (teams.findIndex(t => !t || typeof t === 'string') === -1)
-      // Use setTimeout to give the caller time to listen for events.
-      setTimeout(() => this._start());
   }
 
   /*
    * Start the game.
    */
-  _start() {
+  start() {
     let teams = this.teams;
 
     /*

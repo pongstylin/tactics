@@ -139,6 +139,9 @@
     .configure .error:empty {
       display: none;
     }
+    .configure .row.error {
+      text-align: center;
+    }
 
     .configure .buttons {
       margin-top: 4px;
@@ -152,7 +155,6 @@
 <BODY>
   <DIV id="notifications"></DIV>
   <DIV class="view configure">
-    <DIV class="row error"></DIV>
     <DIV class="row back" style="text-align:center">
       <A href="/online.html">Back to Game List</A>
     </DIV>
@@ -205,6 +207,7 @@
         </DIV>
       </DIV>
     </DIV>
+    <DIV class="row error"></DIV>
     <DIV class="row buttons">
       <BUTTON name="create">Create or Join Game</BUTTON>
     </DIV>

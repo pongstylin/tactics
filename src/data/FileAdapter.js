@@ -62,6 +62,11 @@ export default class {
     return Game.load(migrate('game', gameData));
   }
 
+  async hasCustomPlayerSet(playerId, gameType) {
+    let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
+
+    return sets.findIndex(s => s.type === gameType) > -1;
+  }
   /*
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.

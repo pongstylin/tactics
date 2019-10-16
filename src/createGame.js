@@ -8,7 +8,7 @@ window.addEventListener('DOMContentLoaded', () => {
   let btnCreate = document.querySelector('BUTTON[name=create]');
   let divConfigure = document.querySelector('.view.configure');
   let divWaiting = document.querySelector('.waiting');
-  let divError = document.querySelector('.setup .error');
+  let divError = document.querySelector('.view.configure .row.error');
 
   let notice;
   if (navigator.onLine === false)

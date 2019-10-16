@@ -674,6 +674,11 @@ async function showJoinIntro(gameData) {
   }
   else {
     let creatorTeam = gameData.state.teams.find(t => !!t);
+
+    challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`;
+
+    let gameType = gameData.state.type;
+    let gameTypeConfig = await gameClient.getGameTypeConfig(gameType);
     let person;
     if (gameData.state.randomFirstTurn)
       person = 'random';
@@ -682,17 +687,33 @@ async function showJoinIntro(gameData) {
     else
       person = 'you';
 
-    let gameTypeConfig = await gameClient.getGameTypeConfig(gameData.state.type);
-
     details.innerHTML = `
       <DIV>This is a <I>${gameTypeConfig.name}</I> game.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
     `;
-    challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`;
+
+    if (gameTypeConfig.customizable) {
+      $('#join .set').show();
+
+      let hasCustomSet = await gameClient.hasCustomPlayerSet(gameType);
+      if (hasCustomSet)
+        $('#join INPUT[name=set][value=mine]').prop('checked', true);
+      else
+        $('#join INPUT[name=set][value=same]').prop('checked', true);
+
+      $('#join .set A').on('click', async () => {
+        $('#join').hide();
+        if (await Tactics.setup(gameType))
+          $('#join INPUT[name=set][value=mine]').prop('checked', true);
+        $('#join').show();
+      });
+    }
 
     return new Promise((resolve, reject) => {
       btnJoin.addEventListener('click', event => {
-        Tactics.joinRemoteGame(txtPlayerName.value, gameData.id)
+        let set = $('#join INPUT[name=set]:checked').val();
+
+        Tactics.joinRemoteGame(txtPlayerName.value, gameData.id, set)
           .then(() => Tactics.loadRemoteGame(gameData.id, gameData))
           .then(game => {
             $('#join').hide();

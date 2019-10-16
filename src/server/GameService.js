@@ -241,6 +241,11 @@ class GameService extends Service {
   async onGetGameTypeConfigRequest(client, gameType) {
     return dataAdapter.getGameTypeConfig(gameType);
   }
+  async onHasCustomPlayerSetRequest(client, gameType) {
+    let clientPara = this.clientPara.get(client.id);
+
+    return dataAdapter.hasCustomPlayerSet(clientPara.playerId, gameType);
+  }
   async onGetDefaultPlayerSetRequest(client, gameType) {
     let clientPara = this.clientPara.get(client.id);
 
@@ -328,7 +333,7 @@ class GameService extends Service {
 
         if (event.type === 'startTurn')
           dataAdapter.saveGame(game)
-            .then(() => this._notifyYourTurn(game, event.data));
+            .then(() => this._notifyYourTurn(game, event.data.teamId));
         else if (
           event.type === 'joined' ||
           event.type === 'action' ||
@@ -508,36 +513,43 @@ class GameService extends Service {
       playerId: clientPara.playerId,
       name: clientPara.name,
     };
+
+    if (set && typeof set === 'string') {
+      if (game.state.teams.length !== 2)
+        throw new ServerError(400, 'Passing a set choice as a string is only supported for 2-player games');
+
+      let opponentSet = game.state.teams.find(t => !!t).set;
+      switch (set) {
+        case 'mine':
+          set = null; // This is the default selection
+          break;
+        case 'same':
+          set = opponentSet;
+          break;
+        case 'mirror':
+          set = opponentSet.map(u => {
+            let unit = {...u};
+            unit.assignment = [...unit.assignment];
+            unit.assignment[0] = 10 - unit.assignment[0];
+            return unit;
+          });
+          break;
+        default:
+          throw new ServerError(400, 'Unrecognized set choice');
+      }
+    }
+
     if (set)
       team.set = set;
     else
       team.set = await dataAdapter.getDefaultPlayerSet(clientPara.playerId, game.state.type);
 
-    let numOpenSlots = game.state.teams.filter(t => !t).length;
+    game.state.join(team, slot);
 
-    return new Promise((resolve, reject) => {
-      let startTurnListener = event => {
-        game.state.off('startTurn', startTurnListener);
-        resolve(event);
-      };
-
-      if (numOpenSlots === 1)
-        game.state.on('startTurn', startTurnListener);
-
-      try {
-        game.state.join(team, slot);
-      }
-      catch (error) {
-        game.state.off('startTurn', startTurnListener);
-        reject(error);
-      }
-
-      if (numOpenSlots > 1)
-        resolve();
-    }).then(async event => {
-      await dataAdapter.saveGame(game);
-      if (!event) return;
-
+    /*
+     * If no open slots remain, start the game.
+     */
+    if (game.state.teams.findIndex(t => !t || typeof t === 'string') === -1) {
       let teams = game.state.teams;
       let players = new Map();
 
@@ -559,14 +571,19 @@ class GameService extends Service {
           { id:gameId }
         );
 
+      // Now that the chat room is created, start the game.
+      game.state.start();
+
       /*
        * Notify the player that goes first that it is their turn.
        * ...unless the player to go first just joined.
        */
-      let playerId = teams[event.data.teamId].playerId;
+      let playerId = teams[game.state.currentTeamId].playerId;
       if (playerId !== clientPara.playerId)
-        this._notifyYourTurn(game, event.data);
-    });
+        this._notifyYourTurn(game, game.state.currentTeamId);
+    }
+
+    await dataAdapter.saveGame(game);
   }
   async onGetTurnDataRequest(client, gameId, ...args) {
     let game = await this._getGame(gameId);
@@ -823,8 +840,7 @@ class GameService extends Service {
     return status;
   }
 
-  async _notifyYourTurn(game, startTurnData) {
-    let teamId = startTurnData.teamId;
+  async _notifyYourTurn(game, teamId) {
     let playerId = game.state.teams[teamId].playerId;
     let teams = game.state.teams;
 
