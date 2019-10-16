@@ -17,10 +17,10 @@ self.addEventListener('message', ({data:message}) => {
     self.state = GameState.create(data)
       .on('event', event => post('event', event));
 
+    post('init', self.state.getData());
+
     if (!self.state.teams.find(t => !t))
       self.state.start();
-
-    post('init', self.state.getData());
   }
   else if (type === 'load') {
     self.state = GameState.load(data)
