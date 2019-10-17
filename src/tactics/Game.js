@@ -742,7 +742,8 @@ export default class {
    * Even if you can undo, the request may be rejected.
    */
   canUndo() {
-    if (this.state.ended || this.isViewOnly)
+    let state = this.state;
+    if (state.ended || this.isViewOnly)
       return false;
 
     // Determine the team that is requesting the undo.
@@ -753,7 +754,12 @@ export default class {
       myTeam = teams[prevTeamId];
     }
 
-    let state   = this.state;
+    let undoRequest = state.undoRequest;
+    if (undoRequest)
+      if (undoRequest.status === 'rejected')
+        if (undoRequest.teamId === myTeam.id)
+          return false;
+
     let actions = state.actions;
 
     // Can't undo if there are no actions or turns to undo.

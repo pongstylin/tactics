@@ -1,3 +1,4 @@
+import ServerError from 'server/Error.js';
 import clientFactory from 'client/clientFactory.js';
 import RemoteTransport from 'tactics/RemoteTransport.js';
 import LocalTransport from 'tactics/LocalTransport.js';
@@ -25,6 +26,7 @@ window.Tactics = (function () {
     authClient: clientFactory('auth'),
     gameClient: clientFactory('game'),
     chatClient: clientFactory('chat'),
+    ServerError: ServerError,
     loadedCore: false,
     loadedUnitTypes: new Set(),
     _setupMap: new Map(),

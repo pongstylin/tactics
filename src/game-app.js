@@ -2,8 +2,8 @@ import Progress from 'components/Progress.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
-import ServerError from 'server/Error.js';
 
+const ServerError = Tactics.ServerError;
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
 const chatClient = Tactics.chatClient;
