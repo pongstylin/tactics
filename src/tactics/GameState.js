@@ -316,12 +316,12 @@ export default class GameState {
 
     board.setState(this.units, teams);
 
-    this.started = new Date();
-    this.turnStarted = this.started;
-
     this._bots = teams
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
+
+    this.started = new Date();
+    this.turnStarted = this.started;
 
     this._emit({
       type: 'startGame',
@@ -362,7 +362,7 @@ export default class GameState {
     this._bots.forEach(b => b.destroy());
     this._bots.length = 0;
 
-    this._start();
+    this.start();
   }
 
   /*
@@ -438,19 +438,24 @@ export default class GameState {
 
     actions = this._board.decodeAction(actions);
 
-    let new_actions = [];
+    let newActions = [];
     let pushAction = action => {
       action.created = new Date();
       action.teamId = action.teamId || this.currentTeamId;
 
-      new_actions.push(action);
+      newActions.push(action);
       this._applyAction(action);
     };
+    let endTurn;
+    let setEndTurn = forced => {
+      endTurn = this._getEndTurnAction(forced);
+      return true;
+    };
 
-    // Validate actions until we find an endTurn event.
-    let turnEnded = !!actions.find(action => {
+    // Validate actions until the turn ends.
+    actions.find(action => {
       if (action.type === 'endTurn')
-        return true;
+        return setEndTurn();
 
       if (action.type === 'surrender') {
         let team = this._validateSurrenderAction(action);
@@ -463,7 +468,7 @@ export default class GameState {
           forced: action.forced,
         });
 
-        return true;
+        return setEndTurn(action.forced);
       }
 
       /*
@@ -508,13 +513,13 @@ export default class GameState {
 
       // Turning in the current direction is the same as ending your turn.
       if (action.type === 'turn' && action.direction === unit.direction)
-        return true;
+        return setEndTurn();
 
       pushAction(action);
 
       // A turn action immediately ends the turn.
       if (action.type === 'turn')
-        return true;
+        return setEndTurn();
 
       /*
        * If the selected unit is unable to continue, end the turn early.
@@ -526,7 +531,7 @@ export default class GameState {
        */
       if (action.type === 'attack' || action.type === 'attackSpecial') {
         let selected = this.selected;
-        let endTurn = () => {
+        let forceEndTurn = () => {
           if (selected.mHealth === -selected.health)
             return true;
           if (selected.focusing)
@@ -537,8 +542,8 @@ export default class GameState {
             return true;
         };
 
-        if (endTurn())
-          return true;
+        if (forceEndTurn())
+          return setEndTurn(true);
 
         // Can any victims counter-attack?
         return action.results.find(result => {
@@ -550,7 +555,8 @@ export default class GameState {
 
           pushAction(counterAction);
 
-          return endTurn();
+          if (forceEndTurn())
+            return setEndTurn(true);
         });
       }
     });
@@ -565,7 +571,7 @@ export default class GameState {
       this.ended = new Date();
       this.winnerId = winners[0].id;
     }
-    else if (turnEnded) {
+    else if (endTurn) {
       // Team Chaos needs a chance to phase before ending their turn.
       let currentTeam = this.currentTeam;
       if (currentTeam.name === 'Chaos') {
@@ -575,8 +581,9 @@ export default class GameState {
       }
 
       // Keep ending turns until a team is capable of making their turn.
+      let turnEnded = true;
       while (turnEnded) {
-        pushAction(this._getEndTurnAction());
+        pushAction(endTurn);
 
         let passedTurnLimit = this.teams.length * 3;
         let passedTurnCount = 0;
@@ -599,16 +606,16 @@ export default class GameState {
 
           return true;
         });
-      }
 
-      // Restore this value
-      turnEnded = true;
+        if (turnEnded)
+          endTurn = this._getEndTurnAction(true);
+      }
     }
 
-    if (new_actions.length)
+    if (newActions.length)
       this._emit({
         type: 'action',
-        data: this._board.encodeAction(new_actions),
+        data: this._board.encodeAction(newActions),
       });
 
     if (this.ended)
@@ -616,7 +623,7 @@ export default class GameState {
         type: 'endGame',
         data: { winnerId:this.winnerId },
       });
-    else if (turnEnded)
+    else if (endTurn)
       this._emit({
         type: 'startTurn',
         data: {
@@ -632,12 +639,10 @@ export default class GameState {
    * Also indicate if approval should be required of opponents.
    */
   canUndo(team = this.currentTeam) {
-    let teams   = this.teams;
-    let turns   = this._turns;
-    let actions = this.actions; // encoded, on purpose
+    let teams = this.teams;
 
     // Can't undo if there are no actions or turns to undo.
-    if (turns.length === 0 && actions.length === 0)
+    if (this._turns.length === 0 && this._actions.length === 0)
       return false;
 
     // Local games don't impose restrictions.
@@ -646,36 +651,65 @@ export default class GameState {
     if (!bot && !opponent)
       return true;
 
+    // Can't undo if there are no actions to undo.
+    if (team === this.currentTeam && this._actions.length === 0)
+      return false;
+
     // Bots will never approve anything that requires approval.
     let approve = bot ? false : 'approve';
+    let requireApproval = false;
+    let turnId;
+    let actions;
 
-    // If actions were made since the team's turn, approval is required.
-    if (team !== this.currentTeam) {
-      let turnOffset = (-teams.length + (team.id - this.currentTeamId)) % teams.length;
-
-      // Can't undo if the team hasn't made a turn yet.
-      let turnId = turns.length + turnOffset;
+    // Determine the turn being undone in whole or in part
+    for (turnId = this.currentTurnId; turnId > -1; turnId--) {
+      // Can't undo if team has no actionable turns to undo.
       if (turnId < 0)
         return false;
 
-      // Need approval if multiple turns would be undone (for 4-player games)
-      if (turnOffset < -1)
-        return approve;
+      // Bots do not allow undo after the turn has ended.
+      if (bot && turnId < this.currentTurnId)
+        return false;
 
-      // Need approval if the current team has already submitted actions.
-      if (actions.length)
-        return approve;
+      actions = this.getTurnData(turnId).actions;
 
-      // These actions will be inspected to determine if approval is required.
-      actions = turns[turnId].actions.filter(a => a.type !== 'endTurn');
+      // Current turn not actionable if no actions were made.
+      if (actions.length === 0)
+        continue;
+
+      // Not an actionable turn if the turn was forced to pass.
+      if (
+        actions.length === 1 &&
+        actions[0].type === 'endTurn' &&
+        actions[0].forced
+      ) continue;
+
+      // Require approval if undoing actions made by the opponent team.
+      let turnTeam = teams[turnId % teams.length];
+      if (turnTeam.id !== team.id) {
+        requireApproval = true;
+        continue;
+      }
+
+      break;
     }
 
-    // Can't undo unless there are actions to undo.
-    // Can't undo if the turn was passed (or forced to pass).
-    if (actions.length === 0)
-      return false;
+    if (requireApproval)
+      return approve;
 
-    let lastAction = actions[actions.length - 1];
+    // Require approval if the turn time limit was reached.
+    if (this.turnTimeLimit) {
+      let now = new Date();
+      let turnTimeout = (this.turnStarted.getTime() + this.turnTimeLimit*1000) - now;
+      if (turnTimeout < 1)
+        return approve;
+    }
+
+    // If turn not force ended, then change direction does not require approval.
+    if (turnId !== this.currentTurnId && !actions.last.forced)
+      return true;
+
+    let lastAction = actions.filter(a => a.type !== 'endTurn').last;
 
     // Requires approval if the last action was a counter-attack
     let selectedUnitId = actions[0].unit;
@@ -687,14 +721,6 @@ export default class GameState {
     if (isLucky)
       return approve;
 
-    // Require approval if the turn time limit was reached.
-    if (this.turnTimeLimit) {
-      let now = new Date();
-      let turnTimeout = (this.turnStarted.getTime() + this.turnTimeLimit*1000) - now;
-      if (turnTimeout < 1)
-        return approve;
-    }
-
     return true;
   }
 
@@ -703,11 +729,12 @@ export default class GameState {
    */
   undo(team = this.currentTeam, approved = false) {
     let teams   = this.teams;
-    let turns   = this._turns;
     let actions = this._actions;
 
     // Can't undo if there are no actions or turns to undo.
-    if (turns.length === 0 && actions.length === 0)
+    if (this._turns.length === 0 && actions.length === 0)
+      return false;
+    if (team === this.currentTeam && actions.length === 0)
       return false;
 
     // Local games don't impose restrictions.
@@ -721,11 +748,43 @@ export default class GameState {
         this.revert(this.currentTurnId - 1);
     }
     else {
-      let turnOffset = (-teams.length + (team.id - this.currentTeamId)) % teams.length;
-      let turnId     = turns.length + turnOffset;
+      // Can't undo if there are no actions to undo.
+      if (team === this.currentTeam && actions.length === 0)
+        return false;
 
-      // Keep lucky actions if not approved.
-      this.revert(turnId, !approved);
+      for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
+        // Can't undo if team has no actionable turns to undo.
+        if (turnId < 0)
+          return false;
+
+        // Bots do not allow undo after the turn has ended.
+        if (bot && turnId < this.currentTurnId)
+          return false;
+
+        let actions = this.getTurnData(turnId).actions;
+
+        // Current turn not actionable if no actions were made by opponent yet.
+        if (actions.length === 0)
+          continue;
+
+        // Not an actionable turn if the turn was forced to pass.
+        if (
+          actions.length === 1 &&
+          actions[0].type === 'endTurn' &&
+          actions[0].forced
+        ) continue;
+
+        // Require approval if undoing actions made by the opponent team.
+        let turnTeam = teams[turnId % teams.length];
+        if (turnTeam.id !== team.id) {
+          if (!approved) return false;
+          continue;
+        }
+
+        // Keep lucky actions if not approved.
+        this.revert(turnId, !approved);
+        break;
+      }
     }
 
     // Just in case the game ended right before undo was submitted.
@@ -740,7 +799,7 @@ export default class GameState {
     else
       actions = this._popHistory(turnId).actions.slice(0, -1);
 
-    if (keepLuckyActions) {
+    if (actions.length && keepLuckyActions) {
       let selectedUnitId = actions[0].unit;
       let lastLuckyActionIndex = actions.findLastIndex(action =>
         // Restore counter-attacks
@@ -823,8 +882,8 @@ export default class GameState {
    *   Other units' mRecovery on the outgoing team is decremented.
    *   All units' mBlocking are reduced by 20% per turn cycle.
    */
-  _getEndTurnAction() {
-    let action = { type:'endTurn' };
+  _getEndTurnAction(forced) {
+    let action = { type:'endTurn', forced };
 
     let selected    = this.selected;
     let moved       = this.moved;

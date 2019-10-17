@@ -656,15 +656,12 @@ class GameService extends Service {
   onUndoRequest(client, gameId) {
     let gamePara = this.gamePara.get(gameId);
     if (!gamePara)
-      throw new ServerError(403, 'You must first join the game group');
+      throw new ServerError(401, 'You must first join the game group');
     if (!gamePara.clients.has(client.id))
-      throw new ServerError(403, 'You must first join the game group');
+      throw new ServerError(401, 'You must first join the game group');
 
     let game = gamePara.game;
     let playerId = this.clientPara.get(client.id).playerId;
-
-    if (game.state.ended)
-      throw new ServerError(403, 'The game has ended');
 
     // Determine the team that is requesting the undo.
     let team = game.state.currentTeam;
@@ -672,6 +669,14 @@ class GameService extends Service {
       let prevTeamId = (team.id === 0 ? game.state.teams.length : team.id) - 1;
       team = game.state.teams[prevTeamId];
     }
+
+    // In case a player controls multiple teams...
+    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
+    if (myTeams.length === 0)
+      throw new ServerError(401, 'You are not a player in this game.');
+
+    if (game.state.ended)
+      throw new ServerError(403, 'The game has ended');
 
     let undoRequest = game.undoRequest;
     if (undoRequest) {
@@ -681,11 +686,6 @@ class GameService extends Service {
         if (undoRequest.teamId === team.id)
           throw new ServerError(403, 'Your undo request was rejected');
     }
-
-    // In case a player controls multiple teams...
-    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
-    if (myTeams.length === 0)
-      throw new ServerError(401, 'You are not a player in this game.');
 
     let canUndo = game.state.canUndo(team);
     if (canUndo === false)

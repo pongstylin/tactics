@@ -73,7 +73,6 @@ export default class {
 
       _teams: [],
       _localTeamIds: localTeamIds,
-      _lastTurnActions: [],
       _turnTimeout: null,
 
       _renderer: renderer,
@@ -739,18 +738,11 @@ export default class {
   }
 
   /*
-   * Determine if provided team may request an undo.
-   * Also indicate if approval should be required of opponents.
+   * Determine if player's team may request an undo.
+   * Even if you can undo, the request may be rejected.
    */
   canUndo() {
-    let state   = this.state;
-    let actions = state.actions;
-
-    // Can't undo if there are no actions or turns to undo.
-    if (state.currentTurnId === 0 && actions.length === 0)
-      return false;
-
-    if (this.isViewOnly)
+    if (this.state.ended || this.isViewOnly)
       return false;
 
     // Determine the team that is requesting the undo.
@@ -761,22 +753,28 @@ export default class {
       myTeam = teams[prevTeamId];
     }
 
+    let state   = this.state;
+    let actions = state.actions;
+
+    // Can't undo if there are no actions or turns to undo.
+    if (state.currentTurnId === 0 && actions.length === 0)
+      return false;
+
     // Local games don't impose restrictions.
     let bot      = teams.find(t => !!t.bot);
     let opponent = teams.find(t => t.playerId !== myTeam.playerId);
     if (!bot && !opponent)
       return true;
 
-    let approve = bot ? false : true;
-
-    let undoRequest = state.undoRequest;
-    if (undoRequest)
-      if (undoRequest.status === 'rejected')
-        if (undoRequest.teamId === myTeam.id)
-          approve = false;
-
+    if (myTeam === this.currentTeam) {
+      if (actions.length === 0)
+        return false;
+    }
     // If actions were made since the team's turn, approval is required.
-    if (myTeam !== this.currentTeam) {
+    else {
+      // Bot rejects undo if it is not your turn.
+      if (bot) return false;
+
       let turnOffset = (-teams.length + (myTeam.id - this.currentTeam.id)) % teams.length;
 
       // Can't undo if the team hasn't made a turn yet.
@@ -784,34 +782,22 @@ export default class {
       if (turnId < 0)
         return false;
 
-      // Need approval if multiple turns would be undone (for 4-player games)
-      if (turnOffset < -1)
-        return approve;
-
-      // Need approval if the current team has already submitted actions.
-      if (actions.length)
-        return approve;
-
-      // These actions will be inspected to determine if approval is required.
-      actions = this._lastTurnActions.filter(a => a.type !== 'endTurn');
+      return true;
     }
 
-    // Can't undo unless there are actions to undo.
-    // Can't undo if the turn was passed (or forced to pass).
-    if (actions.length === 0)
-      return false;
+    if (bot) {
+      let lastAction = actions.last;
 
-    let lastAction = actions[actions.length - 1];
+      // Bot rejects undo if the last action was a counter-attack
+      let selectedUnitId = actions[0].unit;
+      if (selectedUnitId !== lastAction.unit)
+        return false;
 
-    // Requires approval if the last action was a counter-attack
-    let selectedUnitId = actions[0].unit;
-    if (selectedUnitId !== lastAction.unit)
-      return approve;
-
-    // Requires approval if the last action required luck
-    let isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
-    if (isLucky)
-      return approve;
+      // Bot rejects undo if the last action required luck
+      let isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
+      if (isLucky)
+        return false;
+    }
 
     return true;
   }
@@ -893,7 +879,6 @@ export default class {
 
     this.selected = this.viewed = null;
 
-    this._lastTurnActions = turnData.lastActions || [];
     board.setState(turnData.units, this._teams);
     this.render();
 
@@ -1110,9 +1095,6 @@ export default class {
         return this._playSurrender(action);
       return Promise.resolve();
     }
-
-    if (this.isMyTeam(action.teamId))
-      this._lastTurnActions.push(action);
 
     let unit = action.unit;
 
@@ -1375,9 +1357,6 @@ export default class {
       teamMoniker = team.colorId;
 
     if (this.isMyTeam(team)) {
-      // The last turn actions are no longer of interest.
-      this._lastTurnActions.length = 0;
-
       if (this.hasOneLocalTeam()) {
         this.notice = 'Your Turn!';
         Tactics.sounds.newturn.play();

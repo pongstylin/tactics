@@ -77,7 +77,17 @@ var buttons = {
       .catch(error => {
         sendingPopup.close();
         $('BUTTON[name=undo]').prop('disabled', true);
-        popup('Undo failed.');
+
+        let message = "Sorry! Can't undo right now.";
+
+        if (error instanceof ServerError) {
+          if (error.code === 403)
+            message += ` Reason: ${error.message}`;
+          else if (error.code === 500)
+            message += ` Reason: ${error.message}`;
+        }
+
+        popup(message);
       });
   },
   select: $button => {
