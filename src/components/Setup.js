@@ -354,26 +354,15 @@ export default class {
     let container = canvas.parentNode;
     let width     = container.clientWidth;
     let height    = container.clientHeight;
-    // window.innerHeight is buggy on iOS Safari during orientation change
-    let vpHeight  = document.body.offsetHeight;
 
-    if (vpHeight < height) {
-      let rect = canvas.getBoundingClientRect();
+    height -= canvas.offsetTop;
 
-      height  = vpHeight;
-      height -= rect.top;
-      //height -= vpHeight - rect.bottom;
-      //console.log(vpHeight, rect.bottom);
-    }
-    else
-      height -= canvas.offsetTop;
-
-    let width_ratio  = width  / Tactics.width;
-    let height_ratio = height / Tactics.height;
-    let elementScale = Math.min(1, width_ratio, height_ratio);
+    let widthRatio   = width  / canvas.width;
+    let heightRatio  = height / canvas.height;
+    let elementScale = Math.min(1, widthRatio, heightRatio);
 
     if (elementScale < 1)
-      if (width_ratio < height_ratio)
+      if (widthRatio < heightRatio)
         canvas.style.width = '100%';
       else
         canvas.style.height = height+'px';

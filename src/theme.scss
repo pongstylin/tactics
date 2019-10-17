@@ -112,6 +112,9 @@ TEXTAREA {
 .view {
   position: absolute;
   visibility: hidden;
+  max-height: 100%;
+  max-width: 100%;
+  overflow: auto;
 
   &.show {
     position: unset;
