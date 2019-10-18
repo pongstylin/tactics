@@ -284,7 +284,7 @@ export default class {
   listAllGameIds() {
     return new Promise((resolve, reject) => {
       let gameIds = [];
-      let regex = /^game_(.+)\.json$/;
+      let regex = /^game_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
 
       fs.readdir(filesDir, (err, fileNames) => {
         for (let i=0; i<fileNames.length; i++) {
