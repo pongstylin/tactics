@@ -1,6 +1,6 @@
 import EventEmitter from 'events';
 
-import './progress.scss';
+import './Progress.scss';
 
 const template = `
   <SPAN class="message">Loading...</SPAN>

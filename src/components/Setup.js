@@ -1,6 +1,6 @@
 import EventEmitter from 'events';
 
-import './setup.scss';
+import './Setup.scss';
 
 import Board, {
   TILE_WIDTH,
