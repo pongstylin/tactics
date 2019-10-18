@@ -5,6 +5,7 @@
   max-width: 100%;
 
   .field {
+    position: relative;
     height: calc(100% - 38px);
     // let the field shrink despite large canvas
     overflow: hidden;
