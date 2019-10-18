@@ -49,24 +49,54 @@ export default class GameClient extends Client {
           data.limits.units.types = new Map(data.limits.units.types);
 
         return data;
+      })
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getGameTypeConfig(gameType);
+        throw error;
       });
   }
   getGameData(gameId) {
     // Authorization not required
-    return this._server.request(this.name, 'getGame', [gameId]);
+    return this._server.request(this.name, 'getGame', [gameId])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getGameData(gameId);
+        throw error;
+      });
   }
   hasCustomPlayerSet(gameType) {
-    return this._server.requestAuthorized(this.name, 'hasCustomPlayerSet', [gameType]);
+    return this._server.requestAuthorized(this.name, 'hasCustomPlayerSet', [gameType])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.hasCustomPlayerSet(gameType);
+        throw error;
+      });
   }
   getDefaultPlayerSet(gameType) {
-    return this._server.requestAuthorized(this.name, 'getDefaultPlayerSet', [gameType]);
+    return this._server.requestAuthorized(this.name, 'getDefaultPlayerSet', [gameType])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getDefaultPlayerSet(gameType);
+        throw error;
+      });
   }
   getPlayerStatus(gameId) {
-    return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId]);
+    return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getPlayerStatus(gameId);
+        throw error;
+      });
   }
 
   saveDefaultPlayerSet(gameType, set) {
-    return this._server.requestAuthorized(this.name, 'saveDefaultPlayerSet', [gameType, set]);
+    return this._server.requestAuthorized(this.name, 'saveDefaultPlayerSet', [gameType, set])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.saveDefaultPlayerSet(gameType, set);
+        throw error;
+      });
   }
 
   searchMyGames(query) {
@@ -88,6 +118,7 @@ export default class GameClient extends Client {
       .catch(error => {
         if (error === 'Connection reset')
           return this.searchMyGames(query);
+        throw error;
       });
   }
   async searchOpenGames(query) {
@@ -107,6 +138,7 @@ export default class GameClient extends Client {
       .catch(error => {
         if (error === 'Connection reset')
           return this.searchOpenGames(query);
+        throw error;
       });
   }
 
@@ -118,6 +150,7 @@ export default class GameClient extends Client {
       .catch(error => {
         if (error === 'Connection reset')
           return this.getTurnData(gameId, turnId);
+        throw error;
       });
   }
   getTurnActions(gameId, turnId) {
@@ -125,6 +158,7 @@ export default class GameClient extends Client {
       .catch(error => {
         if (error === 'Connection reset')
           return this.getTurnActions(gameId, turnId);
+        throw error;
       });
   }
   async submitAction(gameId, action) {
