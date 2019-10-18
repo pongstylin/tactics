@@ -506,7 +506,15 @@ export default class {
     let gScore   = {};
     let fScore   = {};
     let current;
-    let directions = ['N','S','E','W'], direction;
+    // Normalize directions for a board rotation agnostic decision.
+    let degree = this.getDegree(this.rotation, 'N');
+    let directions = [
+      this.getRotation('N', degree),
+      this.getRotation('S', degree),
+      this.getRotation('E', degree),
+      this.getRotation('W', degree),
+    ];
+    let direction;
     // This is the desired final direction, if possible.
     let fdirection = this.getDirection(start, dest, unit.direction);
     let i,neighbor,score;
