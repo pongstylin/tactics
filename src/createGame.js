@@ -38,6 +38,22 @@ window.addEventListener('DOMContentLoaded', () => {
     divConfigure.classList.add('show');
   });
 
+  authClient.whenReady.then(async () => {
+    if (notice)
+      notice.close();
+
+    if (!authClient.playerId)
+      await authClient.register({ name:'Noob' })
+        .catch(error => popup({
+          message: 'There was an error while loading your account.',
+          buttons: [],
+          onCancel: () => false,
+        }));
+
+    txtPlayerName.value = authClient.playerName;
+    divConfigure.classList.add('show');
+  });
+
   document.body.addEventListener('focus', event => {
     let target = event.target;
     if (target.matches('INPUT[type=text]'))
@@ -227,8 +243,7 @@ window.addEventListener('DOMContentLoaded', () => {
         joinQuery.filter['teams[1]'] = null;
     }
 
-    // Usually redundant, but helpful for creating new accounts.
-    authClient.setAccountName(txtPlayerName.value)
+    Promise.resolve()
       .then(async () => {
         let gameId = await joinOpenGame(joinQuery, slot);
         if (gameId) return gameId;
