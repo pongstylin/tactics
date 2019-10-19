@@ -705,7 +705,7 @@ async function showJoinIntro(gameData) {
     if (gameTypeConfig.customizable) {
       $('#join .set').show();
 
-      let hasCustomSet = await gameClient.hasCustomPlayerSet(gameType);
+      let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType);
       if (hasCustomSet)
         $('#join INPUT[name=set][value=mine]').prop('checked', true);
       else
@@ -713,6 +713,15 @@ async function showJoinIntro(gameData) {
 
       $('#join .set A').on('click', async () => {
         $('#join').hide();
+
+        if (!authClient.token)
+          await authClient.register({ name:'Noob' })
+            .catch(error => popup({
+              message: 'There was an error while loading your set.',
+              buttons: [],
+              onCancel: () => false,
+            }));
+
         if (await Tactics.setup(gameType))
           $('#join INPUT[name=set][value=mine]').prop('checked', true);
         $('#join').show();
