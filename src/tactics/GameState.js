@@ -734,8 +734,6 @@ export default class GameState {
     // Can't undo if there are no actions or turns to undo.
     if (this._turns.length === 0 && actions.length === 0)
       return false;
-    if (team === this.currentTeam && actions.length === 0)
-      return false;
 
     // Local games don't impose restrictions.
     let bot      = teams.find(t => !!t.bot);
