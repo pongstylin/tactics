@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 
 import './Setup.scss';
-
+import popup from 'components/popup.js';
 import Board, {
   TILE_WIDTH,
   TILE_HEIGHT,
@@ -473,14 +473,28 @@ export default class {
     this._emit({ type:'back' });
   }
   _onSave(event) {
-    this.hide();
+    let emitSave = () => {
+      this.hide();
 
-    let data = this._board.getState()[0].map(unit => {
-      delete unit.direction;
-      return unit;
-    });
+      let data = this._board.getState()[0].map(unit => {
+        delete unit.direction;
+        return unit;
+      });
 
-    this._emit({ type:'save', data });
+      this._emit({ type:'save', data });
+    };
+
+    let counts = this._getAvailableUnitCounts();
+    if (counts.get('any'))
+      popup({
+        message: 'You can still add more unit(s) to your team.  Are you sure?',
+        buttons: [
+          { label:'Yes', onClick:emitSave },
+          { label:'No' },
+        ],
+      });
+    else
+      emitSave();
   }
 
   /*
