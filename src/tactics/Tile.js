@@ -120,11 +120,13 @@ export default class {
   dismiss() {
     // Emit before dismissing so that the unit is blurred successfully.
     this._emit({ type:'dismiss', target:this });
+    this.assigned.assignment = null;
     this.assigned = null;
 
     return this;
   }
   assign(unit) {
+    unit.assignment = this;
     this.assigned = unit;
     this._emit({ type:'assign', target:this });
 

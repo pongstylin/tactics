@@ -619,8 +619,6 @@ export default class {
         if (this.locked === true) return;
 
         tile.set_interactive(true);
-        if (tile.focused)
-          this.onTileFocus({ type:'focus', target:tile });
       });
       tile.on('dismiss', () => {
         if (!tile.painted || tile.painted === 'focus')
@@ -1175,12 +1173,12 @@ export default class {
 
     return this;
   }
-  assign(unit, tile, preserveUnitAssignment = false) {
+  assign(unit, tile) {
     if (tile.assigned)
-      this.dismiss(tile.assigned, preserveUnitAssignment);
+      this.dismiss(tile.assigned);
 
     this.dismiss(unit);
-    unit.assignment = tile.assign(unit);
+    tile.assign(unit);
 
     let unitsContainer = this.unitsContainer;
     if (unitsContainer) {
@@ -1193,11 +1191,9 @@ export default class {
 
     return this;
   }
-  dismiss(unit, preserveUnitAssignment = false) {
-    if (unit.assignment && unit.assignment.assigned === unit)
+  dismiss(unit) {
+    if (unit.assignment)
       unit.assignment.dismiss();
-    if (!preserveUnitAssignment)
-      unit.assignment = null;
 
     let unitsContainer = this.unitsContainer;
     if (unitsContainer) {
@@ -1214,15 +1210,14 @@ export default class {
     be translated to a server based on our current rotation.
   */
   rotate(rotation) {
-    let degree;
-    if (typeof rotation === 'number') {
-      degree = rotation;
-      rotation = this.getRotation(this.rotation, degree);
-    }
-    else
-      degree = this.getDegree(this.rotation, rotation);
+    // Get unit positions normalized to server board north.
+    let state = this.getState().flat();
 
-    let units     = this.teamsUnits.flat();
+    // Numeric rotation is relative to current rotation.
+    if (typeof rotation === 'number')
+      rotation = this.getRotation(this.rotation, rotation);
+
+    let degree    = this.getDegree('N', rotation);
     let activated = this.viewed || this.selected;
 
     if (activated) this.hideMode();
@@ -1230,9 +1225,11 @@ export default class {
     if (this.target)
       this.target = this.getTileRotation(this.target, degree);
 
-    units.forEach(unit => {
-      this.assign(unit, this.getTileRotation(unit.assignment, degree), true);
-      unit.stand(this.getRotation(unit.direction, degree));
+    this.teamsUnits.flat().forEach(unit => {
+      let unitData = state.find(u => u.id === unit.id);
+
+      this.assign(unit, this.getTileRotation(unitData.assignment, degree));
+      unit.stand(this.getRotation(unitData.direction, degree));
     });
 
     if (activated) this.showMode();
