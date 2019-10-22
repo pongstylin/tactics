@@ -1222,15 +1222,18 @@ export default class {
 
     if (activated) this.hideMode();
 
-    if (this.target)
-      this.target = this.getTileRotation(this.target, degree);
-
     this.teamsUnits.flat().forEach(unit => {
       let unitData = state.find(u => u.id === unit.id);
 
       this.assign(unit, this.getTileRotation(unitData.assignment, degree));
       unit.stand(this.getRotation(unitData.direction, degree));
     });
+
+    if (this.target)
+      this.target = this.getTileRotation(
+        this.target,
+        this.getDegree(this.rotation, rotation),
+      );
 
     if (activated) this.showMode();
 
