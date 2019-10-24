@@ -388,12 +388,70 @@ class GameService extends Service {
 
     // Parameters are used to resume a game from a given point.
     if (params) {
+      params.since = new Date(params.since);
+
       response.events = [];
       response.undoRequest = null;
 
-      // Get any additional actions made in the provided turn.
-      let actions = game.state.getTurnActions(params.turnId)
-        .slice(params.actions);
+      /*
+       * Determine if the turn data has changed due to reversion.
+       * If so, revert to the last known point and play forward from there.
+       *
+       * This is accomplished by the client providing the date of the last seen
+       * event in the game, which could be turn start or action creation.  Using
+       * the provided turn ID and action ID, we should come up with the same
+       * date.  But, if it is a newer date or if the turn or action no longer
+       * exists then a reversion has taken place with possible new activity.
+       */
+      let state = game.state;
+      let turnData = state.getTurnData(params.turnId);
+      let since;
+      if (!turnData)
+        since = new Date();
+      else if (!params.actions)
+        since = turnData.started;
+      else if (!turnData.actions[params.actions-1])
+        since = new Date();
+      else
+        since = turnData.actions[params.actions-1].created;
+
+      if (since > params.since) {
+        // Find the last turn that the client saw start
+        for (let turnId = state.currentTurnId; turnId > -1; turnId--) {
+          let thisTurnData = state.getTurnData(turnId);
+          if (thisTurnData.started > params.since) continue;
+
+          // Reset the turn of context
+          turnData = thisTurnData;
+          params.turnId = turnData.id;
+          break;
+        }
+
+        // Find the first action that the client didn't see, if any.
+        params.actions = turnData.actions.length;
+        for (let actionId = 0; actionId < turnData.actions.length; actionId++) {
+          if (turnData.actions[actionId].created <= params.since) continue;
+
+          // Reset the action of context
+          params.actions = actionId;
+          break;
+        }
+
+        // Revert to the point of context
+        response.events.push({
+          type: 'revert',
+          data: {
+            started: turnData.started,
+            turnId:  turnData.id,
+            teamId:  turnData.teamId,
+            actions: turnData.actions.slice(0, params.actions),
+            units:   turnData.units,
+          }
+        });
+      }
+
+      // Get any actions made since the point of context
+      let actions = turnData.actions.slice(params.actions);
 
       if (actions.length)
         response.events.push({ type:'action', data:actions });

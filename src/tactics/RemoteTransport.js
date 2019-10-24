@@ -116,8 +116,8 @@ export default class RemoteTransport {
     return this._getStateData('currentTeamId');
   }
   // This property is not natively actually kept in sync.  The server only sends
-  // units' data at initialization or starting the game.  But, the game object
-  // will keep it in sync as each turn ends.
+  // units' data at initialization, start of game, or on revert.  But, the game
+  // object will keep it in sync as each turn ends.
   get units() {
     return this._getStateData('units');
   }
@@ -232,9 +232,12 @@ export default class RemoteTransport {
     //if (this._data.state.ended) return;
 
     let gameId = this._data.id;
-    let resume = this._data.state.ended ? null : {
-      turnId: this._data.state.currentTurnId,
-      actions: this._data.state.actions.length,
+    let state = this._data.state;
+    let actions = state.actions;
+    let resume = state.ended ? null : {
+      turnId: state.currentTurnId,
+      actions: actions.length,
+      since: actions.length ? actions.last.created : state.turnStarted,
     };
 
     // Instead of watching the game from its current point, resume watching
@@ -341,6 +344,7 @@ export default class RemoteTransport {
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions:       data.actions,
+          units:         data.units,
         });
 
         this._data.state.actions.forEach(action => {

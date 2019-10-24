@@ -103,6 +103,7 @@ export default class GameState {
     });
 
     stateData.turns.forEach(turn => {
+      turn.started = new Date(turn.started);
       turn.actions.forEach(action => {
         if (typeof action.created === 'string')
           action.created = new Date(action.created);
@@ -412,8 +413,13 @@ export default class GameState {
         units:   this.units,
         actions: this.actions,
       };
+    else if (!this._turns[turnId])
+      return null;
     else
-      turnData = this._turns[turnId];
+      turnData = {...this._turns[turnId]};
+
+    turnData.id = turnId;
+    turnData.teamId = turnId % this.teams.length;
 
     return turnData;
   }
@@ -812,20 +818,14 @@ export default class GameState {
         luckyActions.forEach(action => this._applyAction(action));
     }
 
-    let lastActions = null;
-    let turns = this._turns;
-    if (turns.length)
-      lastActions = turns[turns.length-1].actions;
-
     this._emit({
       type: 'revert',
       data: {
-        started:     this.turnStarted,
-        turnId:      this.currentTurnId,
-        teamId:      this.currentTeamId,
-        actions:     this.actions,
-        lastActions: lastActions,
-        units:       board.getState(),
+        started: this.turnStarted,
+        turnId:  this.currentTurnId,
+        teamId:  this.currentTeamId,
+        actions: this.actions,
+        units:   this.units,
       },
     });
   }
@@ -1093,7 +1093,9 @@ export default class GameState {
     turns.length = turnId;
 
     Object.assign(this, {
-      turnStarted: new Date(),
+      // Preserve the original turn start so that a client may successfully
+      // resume the game after their opponent reverted to a previous turn.
+      turnStarted: turnData.started,
       units:       turnData.units,
       _actions:    [],
     });

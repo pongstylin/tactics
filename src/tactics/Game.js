@@ -886,6 +886,7 @@ export default class {
     this.selected = this.viewed = null;
 
     board.setState(turnData.units, this._teams);
+    turnData.actions.forEach(a => this._applyAction(board.decodeAction(a)));
     this.render();
 
     this._startTurn(this.state.currentTeamId);
@@ -1506,13 +1507,14 @@ export default class {
     }
   }
   _applyAction(action) {
+    let board = this._board;
     let unit = action.unit;
 
     if (unit) {
       if (action.assignment)
-        unit.assign(action.assignment);
+        board.assign(action.assignment);
       if (action.direction)
-        unit.direction = action.direction;
+        unit.stand(action.direction);
       if (action.colorId)
         unit.color = colorMap.get(action.colorId);
     }
@@ -1520,7 +1522,6 @@ export default class {
     this._applyChangeResults(action.results);
 
     // Remove dead units.
-    let board = this._board;
     board.teamsUnits.flat().forEach(unit => {
       // Chaos Seed doesn't die.  It hatches.
       if (unit.type === 'ChaosSeed') return;
