@@ -49,6 +49,7 @@ export default class LocalTransport {
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions:       data.actions,
+          units:         data.units,
         });
       });
   }

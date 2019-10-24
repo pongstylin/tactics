@@ -886,14 +886,17 @@ export default class {
     this.selected = this.viewed = null;
 
     board.setState(turnData.units, this._teams);
-    turnData.actions.forEach(a => this._applyAction(board.decodeAction(a)));
-    this.render();
+
+    let actions = turnData.actions.map(actionData => {
+      let action = board.decodeAction(actionData);
+      this._applyAction(action);
+      return action;
+    });
 
     this._startTurn(this.state.currentTeamId);
 
-    let actions = this.actions;
     if (actions.length)
-      if (this.isMyTurn)
+      if (this.isMyTeam(turnData.teamId))
         this.selected = actions[0].unit;
       else {
         let selected = board.selected = actions[0].unit.activate();
@@ -903,6 +906,7 @@ export default class {
       }
 
     this._emit({ type:'revert' });
+    this.render();
   }
 
   /*
@@ -1512,7 +1516,7 @@ export default class {
 
     if (unit) {
       if (action.assignment)
-        board.assign(action.assignment);
+        board.assign(unit, action.assignment);
       if (action.direction)
         unit.stand(action.direction);
       if (action.colorId)

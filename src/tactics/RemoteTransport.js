@@ -340,11 +340,12 @@ export default class RemoteTransport {
       })
       .on('revert', ({ data }) => {
         Object.assign(this._data.state, {
-          turnStarted:   new Date(data.started),
+          turnStarted: new Date(data.started),
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
-          actions:       data.actions,
-          units:         data.units,
+          // Clone the actions to avoid modifying event data
+          actions: [...data.actions],
+          units: data.units,
         });
 
         this._data.state.actions.forEach(action => {
