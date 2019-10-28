@@ -288,19 +288,18 @@ export default class RemoteTransport {
       })
       .on('startGame', ({ data }) => {
         Object.assign(this._data.state, {
-          started:     new Date(data.started),
-          turnStarted: new Date(data.turnStarted),
-          teams:       data.teams,
-          units:       data.units,
+          started: new Date(data.started),
+          teams: data.teams,
+          units: data.units,
         });
         this._resolveStarted();
       })
       .on('startTurn', ({ data }) => {
         Object.assign(this._data.state, {
-          turnStarted:   new Date(data.started),
+          turnStarted: new Date(data.started),
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
-          actions:       [],
+          actions: [],
         });
       })
       .on('action', ({ data:actions }) => {

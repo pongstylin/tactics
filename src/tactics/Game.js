@@ -466,16 +466,17 @@ export default class {
           this.lock('gameover');
         }
         else
-          this._stateEventStack = this._replay()
-            .then(() => this._startTurn(state.currentTeamId))
-            .then(() => {
-              let undoRequest = state.undoRequest;
-              if (undoRequest && undoRequest.status === 'pending')
-                this._emit({
-                  type: 'undoRequest',
-                  data: state.undoRequest,
-                });
-            });
+          this._stateEventStack = this._replay().then(() => {
+            if (state.turnStarted)
+              this._startTurn();
+
+            let undoRequest = state.undoRequest;
+            if (undoRequest && undoRequest.status === 'pending')
+              this._emit({
+                type: 'undoRequest',
+                data: state.undoRequest,
+              });
+          });
 
         resolve();
       }, 100); // A "zero" delay is sometimes not long enough
@@ -893,7 +894,7 @@ export default class {
       return action;
     });
 
-    this._startTurn(this.state.currentTeamId);
+    this._startTurn();
 
     if (actions.length)
       if (this.isMyTeam(turnData.teamId))
@@ -920,7 +921,15 @@ export default class {
     this.delayNotice('Sending order...');
 
     this.lock();
-    return this.state.submitAction(this._board.encodeAction(action));
+    return this.state.submitAction(this._board.encodeAction(action))
+      .catch(error => {
+        // The user may submit an action that ends the game, but the endGame
+        // event is delayed until after the user submits another action.
+        if (error.code === 403 && error.message === 'The game has ended')
+          return;
+
+        throw error;
+      });
   }
   _performActions(actions) {
     // Clear or cancel the 'Sending order' notice
@@ -1355,7 +1364,7 @@ export default class {
       });
     });
   }
-  _startTurn(teamId) {
+  _startTurn(teamId = this.state.currentTeamId) {
     this._setTurnTimeout();
 
     let teams = this.teams;
