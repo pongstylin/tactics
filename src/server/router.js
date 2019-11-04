@@ -139,8 +139,16 @@ let schema = {
     {
       properties: {
         type: { type:'string', const:'open' },
+        body: {
+          type: 'object',
+          properties: {
+            version: { type:'string' },
+          },
+          required: ['version'],
+          additionalProperties: false,
+        },
       },
-      required: ['type'],
+      required: ['type','body'],
       additionalProperties: false,
     },
     {
@@ -432,6 +440,8 @@ function debugMessage(client, message, inOrOut) {
     suffix = `[${message.id}] ${body.service}:${body.group}`;
   else if (message.type === 'authorize')
     suffix = `[${message.id}] ${body.service}`;
+  else if (message.type === 'open')
+    suffix = `version=${body.version}`;
   else if (message.type === 'resume')
     suffix = `sessionId=${body.sessionId}`;
   else if (message.type === 'error')
@@ -526,19 +536,24 @@ function onMessage(data) {
     }));
   }
 
+  if (message.type === 'open' && !message.body)
+    message.body = { version:'NULL' };
+
   try {
     if (!validate(message)) {
       debug(`message-in: client=${client.id}; bytes=${data.length}`);
 
       let schemaPath = messageTypeErrorPath.get(message.type);
       let matcher = new RegExp('^' + schemaPath);
+      let details = validate.errors.filter(detail => matcher.test(detail.schemaPath));
+
+      console.error('Validation failed:', details);
+
       if (schemaPath)
         throw new ServerError({
           code: 422,
           message: 'Unrecognized JSON schema for ' + message.type,
-          details: validate.errors
-            .filter(detail => matcher.test(detail.schemaPath))
-            .map(detail => 'Message ' + detail.message),
+          details: details.map(detail => 'Message ' + detail.message),
         });
       else
         throw new ServerError({
@@ -758,21 +773,25 @@ function onOpenMessage(client, message) {
   if (client.session)
     throw new ServerError(400, 'Session already established');
 
-  let session = client.session = {
+  let session = {
     id: uuid(),
     clientMessageId: 0,
     serverMessageId: 0,
     lastSentMessageId: 0,
     outbox: [],
+    client: client,
   };
+
   client.id = session.id;
-  session.client = client;
+  client.version = message.body.version;
+  client.session = session;
 
   sessions.set(client.id, session);
 
   send(client, {
     type: 'session',
     body: {
+      version: config.version,
       sessionId: session.id,
     },
   });
@@ -806,8 +825,10 @@ function onResumeMessage(client, message) {
     // Close the previous client, but not the session
     closeClient(session.client, CLOSE_REPLACED);
 
-  client.session = session;
   client.id = session.id;
+  client.version = session.client.version;
+  client.session = session;
+
   session.client = client;
 
   purgeAcknowledgedMessages(session, message);

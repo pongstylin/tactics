@@ -1,99 +1,75 @@
-'use strict';
+import { getWorkerVersion } from 'client/Update.js';
 
 if ('serviceWorker' in navigator) {
   let sw = navigator.serviceWorker;
+  if (!sw.controller)
+    sw.register('/sw.js');
 
-  /*
-  function getAppVersion() {
-    sw.getRegistration()
-      .then(reg => reg.active.postMessage({type:'getVersion'}));
-  }
-
-  let version = 0;
-  sw.addEventListener('message', event => {
-    let message = event.data;
-
-    version++;
-    if (message.type === 'version')
-      notify('version-'+version, 'Has version: '+(message.version || 'Latest'));
-
-    console.log('message', message);
-  });
-  */
-
-  window.addEventListener('load', event => {
-    sw.register('/sw.js').then(reg => {
-      if (reg.active)
-        sw.addEventListener('controllerchange', event => {
-          notify('update', 'A new update is available.  <A href="javascript:location.reload()">Reload</A>');
-        });
-
-      /*
-       * If no update was found automatically within 30 seconds, manually check.
-       */
-      if (!reg.installing) {
-        // The manual update returns a promise that is rejected if the update
-        // failed due to lack of connectivity.  Ignore the rejection.
-        let checkUpdate = setTimeout(() => reg.update().catch(() => {}), 30000);
-        reg.addEventListener('updatefound', () => clearTimeout(checkUpdate));
-      }
-
-      /*
-      let state = 0;
-
-      if (reg.installing)
-        notify('installing', 'A worker is already installing');
-      else if (reg.waiting)
-        notify('waiting', 'A working is already waiting');
-      else {
-        notify('doupdate', 'An update is requested');
-        reg.update().then(() => {
-          notify('gotupdate', 'Found update: '+!!reg.installing);
-        });
-      }
-
-      if (reg.active) {
-        let activeWorker = reg.active;
-        notify('active', 'A worker is already active');
-        activeWorker.postMessage({type:'getVersion'});
-        activeWorker.addEventListener('statechange', () => {
-          state++;
-          notify('state-'+state, 'Active worker state: '+activeWorker.state);
-        });
-      }
-
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        newWorker.postMessage({type:'getVersion'});
-
-        state++;
-        notify('state-'+state, 'New worker state: '+newWorker.state);
-
-        newWorker.addEventListener('statechange', () => {
-          state++;
-          notify('state-'+state, 'New worker state: '+newWorker.state);
-
-          if (newWorker.state === 'installed')
-            notify('update', 'A new update has been installed.  <A href="javascript:location.reload()">Reload</A>');
+  if (ENVIRONMENT !== 'production') {
+    let reg = sw.getRegistration().then(async reg => {
+      sw.addEventListener('controllerchange', async event => {
+        let claim = sw.controller;
+        console.log('worker claim', claim.state);
+        let version = await getWorkerVersion(claim);
+        console.log('worker claim', claim.state, version.toString(),
+          claim === reg.installing ? 'installing' :
+          claim === reg.waiting ? 'waiting' :
+          claim === reg.active ? 'active' : 'unknown');
+        claim.addEventListener('statechange', event => {
+          console.log('worker statechange', 'claim', claim.state, version.toString());
         });
       });
-      */
+
+      reg.addEventListener('updatefound', async event => {
+        let update = reg.installing;
+        console.log('worker update', update.state);
+        let version = await getWorkerVersion(update);
+        console.log('worker update', update.state, version.toString());
+        update.addEventListener('statechange', event => {
+          console.log('worker statechange', 'update', update.state, version.toString());
+        });
+      });
+
+      if (sw.controller) {
+        let controller = sw.controller;
+        console.log('worker controller', controller.state);
+        let version = await getWorkerVersion(controller);
+        console.log('worker controller', controller.state, version.toString(),
+          controller === reg.installing ? 'installing' :
+          controller === reg.waiting ? 'waiting' :
+          controller === reg.active ? 'active' : 'unknown');
+        controller.addEventListener('statechange', event => {
+          console.log('worker statechange', 'controller', controller.state, version.toString());
+        });
+      }
+
+      if (reg.installing) {
+        let installing = reg.installing;
+        console.log('worker installing', installing.state);
+        let version = await getWorkerVersion(installing);
+        console.log('worker installing', installing.state, version.toString());
+        installing.addEventListener('statechange', event => {
+          console.log('worker statechange', 'installing', installing.state, version.toString());
+        });
+      }
+      if (reg.waiting) {
+        let waiting = reg.waiting;
+        console.log('worker waiting', waiting.state);
+        let version = await getWorkerVersion(waiting);
+        console.log('worker waiting', waiting.state, version.toString());
+        waiting.addEventListener('statechange', event => {
+          console.log('worker statechange', 'waiting', waiting.state, version.toString());
+        });
+      }
+      if (reg.active) {
+        let active = reg.active;
+        console.log('worker active', active.state);
+        let version = await getWorkerVersion(active);
+        console.log('worker active', active.state, version.toString());
+        active.addEventListener('statechange', event => {
+          console.log('worker statechange', 'active', active.state, version.toString());
+        });
+      }
     });
-  });
-}
-
-function notify(name, msg) {
-  let $notification = $('#notifications .'+name);
-
-  if ($notification.length)
-    $notification.remove();
-
-  $notification = $('<DIV>')
-    .addClass(name)
-    .append(msg)
-    .append('<SPAN class="close">X</SPAN>')
-    .one('click', () => $notification.fadeOut(() => $notification.remove()))
-    .hide()
-    .appendTo('#notifications')
-    .fadeIn();
+  }
 }

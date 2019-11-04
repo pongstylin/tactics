@@ -39,6 +39,9 @@ app.use(express.json());
 
 const API_PREFIX = config.apiPrefix || '';
 
+app.get(API_PREFIX + '/version', (req, res) => {
+  res.send({ version:config.version });
+});
 app.post(API_PREFIX + '/errors', (req, res) => {
   console.log('client errors:', req.body);
   res.send(true);

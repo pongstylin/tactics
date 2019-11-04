@@ -1,3 +1,4 @@
+import config from 'config/client.js';
 import ServerError from 'server/Error.js';
 import clientFactory from 'client/clientFactory.js';
 import RemoteTransport from 'tactics/RemoteTransport.js';
@@ -20,6 +21,7 @@ window.Tactics = (function () {
   PIXI.ticker.shared.autoStart = false;
 
   $.extend(self, {
+    version: config.version,
     width:  22 + 88*9 + 22,
     height: 44 + 4 + 56*9,
     utils:  {},
@@ -284,8 +286,8 @@ window.Tactics = (function () {
           let notice = popup({
             message: 'Saving to server...',
             buttons: [],
-            onCancel: () => false,
-            open: 1000, // open after one second
+            closeOnCancel: false,
+            autoOpen: 1000, // open after one second
           });
 
           gameClient.saveDefaultPlayerSet(gameType, set).then(() => {

@@ -68,8 +68,8 @@ var buttons = {
     let sendingPopup = popup({
       message: 'Waiting for server to respond...',
       buttons: [],
-      onCancel: () => false,
-      open: 300,
+      closeOnCancel: false,
+      autoOpen: 300,
     });
 
     game.undo()
@@ -719,7 +719,7 @@ async function showJoinIntro(gameData) {
             .catch(error => popup({
               message: 'There was an error while loading your set.',
               buttons: [],
-              onCancel: () => false,
+              closeOnCancel: false,
             }));
 
         if (await Tactics.setup(gameType))
@@ -883,14 +883,16 @@ function startGame() {
       timeoutPopup = popup({
         title: "Time's up!",
         message: 'The turn time limit has been reached.  You can continue to wait or force surrender.',
-        onCancel: () => false,
         onClose: () => {
           timeoutPopup = null;
         },
-        buttons: [{
-          label: 'Force Surrender',
-          onClick: () => game.forceSurrender(),
-        }],
+        buttons: [
+          { label:'Wait' },
+          {
+            label: 'Force Surrender',
+            onClick: () => game.forceSurrender(),
+          },
+        ],
         minWidth: '250px',
         zIndex: 10,
       });
@@ -967,7 +969,7 @@ function updateUndoDialog(createIfNeeded = false) {
     popupData.buttons.push({ label:'Ok' });
   }
   else {
-    popupData.onCancel = () => false;
+    popupData.closeOnCancel = false;
 
     if (game.isMyTeam(undoRequest.teamId)) {
       popupData.message = `Waiting for approval.`;

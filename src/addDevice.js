@@ -12,7 +12,7 @@ window.addEventListener('DOMContentLoaded', () => {
     authClient.whenReady.then(() => popup({
       message: `This device is already associated with the ${authClient.playerName} account.`,
       buttons: [],
-      onCancel: () => false,
+      closeOnCancel: false,
       minWidth: '300px',
     }));
   else if (authClient.playerId)
@@ -29,11 +29,11 @@ window.addEventListener('DOMContentLoaded', () => {
           onClick: () => popup({
             message: 'Cancelled device transfer.',
             buttons: [],
-            onCancel: () => false,
+            closeOnCancel: false,
           }),
         }
       ],
-      onCancel: () => false,
+      closeOnCancel: false,
       minWidth: '300px',
     }));
   else
@@ -52,7 +52,7 @@ function addDevice(identityToken) {
 
       popup({
         message: error.toString(),
-        onCancel: () => false,
+        closeOnCancel: false,
         buttons: [],
       });
     });

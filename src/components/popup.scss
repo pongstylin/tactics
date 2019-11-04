@@ -1,5 +1,5 @@
 .overlay {
-  display: flex;
+  display: none; /* flex */
   align-items: center;
   justify-content: center;
 
@@ -46,5 +46,8 @@
       }
     }
   }
-}
 
+  &.show {
+    display: flex;
+  }
+}

@@ -45,7 +45,12 @@ const APP_FILES = [
 
 // Application files are installed and cached with a version-specific name.  The
 // currently installed app version remains unaffected while installing the new.
-const INSTALL_CACHE_NAME = 'app'+(VERSION ? '-'+VERSION : '');
+//
+// VERSION is used instead of config.version to ensure that this file is modified
+// with each version build.  This helps browsers to detect changes.  The VERSION
+// variable is replaced during the building process.
+const SUFFIX = ENVIRONMENT === 'development' ? '' : '-'+VERSION;
+const INSTALL_CACHE_NAME = 'app' + SUFFIX;
 
 // Other files within the scope of this service worker are fetched and cached as
 // needed.  They are not expected to change often or at all so this cache is
@@ -162,7 +167,7 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {
       // Return cached response (unless it is a localhost URL)
-      if (cachedResponse && !url.startsWith('http://localhost:2000/'))
+      if (cachedResponse && (ENVIRONMENT !== 'development' || !url.startsWith('http://localhost:2000/')))
         return cachedResponse;
 
       // Cache miss or localhost URL.  Fetch response and cache it.
@@ -190,20 +195,14 @@ self.addEventListener('fetch', event => {
 // Delete the dynamic cache and previous version caches.
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys()
-      .then(cacheNames => {
-        return Promise.all(
-          cacheNames.map(cacheName => {
-            if (ACTIVE_CACHE_NAMES.indexOf(cacheName) === -1)
-              return caches.delete(cacheName);
-          })
-        );
-      })
-      // Since all game resources are fetched on page load, forcing clients to
-      // use the new service worker would not affect fetched resources.  Rather,
-      // this is done to inform clients that a new version is available via the
-      // 'controllerchange' event.
-      .then(() => clients.claim())
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (ACTIVE_CACHE_NAMES.indexOf(cacheName) === -1)
+            return caches.delete(cacheName);
+        })
+      );
+    })
   );
 });
 
@@ -343,10 +342,10 @@ self.addEventListener('message', event => {
   let client  = event.source;
   let message = event.data;
 
-  if (message.type === 'getVersion')
+  if (message.type === 'version')
     client.postMessage({
       type: 'version',
-      version: VERSION,
+      data: { version:config.version.toString() },
     });
 });
 

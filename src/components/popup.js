@@ -5,27 +5,42 @@ class Popup {
     Object.assign(this, {
       el: null,
       options: null,
+      whenClosed: new Promise((resolve, reject) => {
+        this._resolveClosed = resolve;
+        this._rejectClosed = reject;
+      }),
 
       _openTimeout: null,
     });
     this.setOptions(options);
 
-    if (this.options.open === true)
+    if (this.options.autoOpen === true)
       this.open();
-    else if (typeof this.options.open === 'number')
+    else if (typeof this.options.autoOpen === 'number')
       this._openTimeout = setTimeout(() => this.open(), this.options.open);
   }
 
   setOptions(options) {
     if (typeof options === 'string')
       options = { message:options };
+    if (options.buttons)
+      options.buttons = options.buttons.map(b => Object.assign({
+        closeOnClick: true,
+        closeOnError: true,
+        showError: false,
+      }, b));
 
     this.options = Object.assign({
       container: document.body,
       title: null,
-      open: true,
+      autoOpen: true,
+      autoShow: true,
+      closeOnCancel: true,
       buttons: [{
         label: 'Ok',
+        closeOnClick: true,
+        closeOnError: true,
+        showError: false,
       }],
     }, options);
   }
@@ -40,13 +55,16 @@ class Popup {
     divOverlay.addEventListener('click', event => {
       // Ignore clicks that bubbled from the popup.
       if (event.target !== divOverlay) return;
+      if (options.closeOnCancel === false) return;
 
       let value;
       if (options.onCancel)
         value = options.onCancel();
 
-      if (value !== false)
-        this.close();
+      this.close({
+        value: value,
+        cancelled: true,
+      });
     });
 
     let divPopup = document.createElement('DIV');
@@ -78,28 +96,52 @@ class Popup {
       if ('name' in button)
         btn.setAttribute('name', button.name);
       btn.textContent = button.label;
-      btn.addEventListener('click', event => {
-        if (button.onClick) {
-          let value = button.onClick(event, button);
-          if (value instanceof Promise) {
-            let popup = new Popup({
-              message: 'Please wait...',
-              onCancel: () => false,
-              buttons: [],
-            });
+      btn.addEventListener('click', async event => {
+        let closeEvent = { button };
 
-            value
-              .then(() => {
-                popup.close();
-                this.close();
-              })
-              .catch(error => popup.update(error.toString()));
+        if (button.onClick) {
+          let waitingPopup;
+
+          try {
+            let value = button.onClick(event, button);
+            if (value instanceof Promise) {
+              this.hide();
+
+              waitingPopup = new Popup({
+                message: 'Please wait...',
+                closeOnCancel: false,
+                buttons: [],
+              });
+              closeEvent.value = await value;
+              waitingPopup.close();
+
+              if (!button.closeOnClick)
+                this.show();
+            }
+            else
+              closeEvent.value = value;
           }
-          else if (value !== false)
-            this.close();
+          catch (error) {
+            if (waitingPopup)
+              waitingPopup.close();
+
+            closeEvent.error = error;
+
+            if (button.showError)
+              new Popup({
+                title: 'Error',
+                message: error.message,
+              });
+
+            if (button.closeOnError)
+              this.close(closeEvent);
+
+            return;
+          }
         }
-        else
-          this.close();
+
+        if (button.closeOnClick)
+          this.close(closeEvent);
       });
       divButtons.appendChild(btn);
     });
@@ -129,6 +171,9 @@ class Popup {
 
       container.appendChild(this.el);
     }
+
+    if (this.options.autoShow === true)
+      this.show();
   }
 
   update(options) {
@@ -142,14 +187,33 @@ class Popup {
     oldEl.parentNode.replaceChild(this.el = newEl, oldEl);
   }
 
-  close() {
+  hide() {
+    this.el.classList.remove('show');
+  }
+  show() {
+    this.el.classList.add('show');
+  }
+  close(event) {
+    event = Object.assign({
+      cancelled: false,
+      value: undefined,
+      button: null,
+    }, event, {
+      type: 'close',
+      target: this,
+    });
+
     // Popup was closed before it even opened?
     clearTimeout(this._openTimeout);
 
     if (!this.isOpen) return;
 
     if (this.options.onClose)
-      this.options.onClose();
+      this.options.onClose(event);
+    if (event.error)
+      this._rejectClosed(event.error);
+    else
+      this._resolveClosed(event.value);
 
     this.el.remove();
     this.el = null;

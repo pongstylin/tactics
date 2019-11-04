@@ -54,6 +54,7 @@ export default serviceName => {
 };
 
 let timeout = null;
+let interval = null;
 
 window.addEventListener('pagehide', event => {
   /*
@@ -87,15 +88,22 @@ document.addEventListener('visibilitychange', event => {
     // Another Android Chrome bug.  If the screen is shut off for longer than 5
     // minutes than this event (and 'focus' event) are not fired when the screen
     // is turned back on.  So, timers to the rescue.
-    let interval = setInterval(() => {
+    interval = setInterval(() => {
       if (document.hidden) return;
       clearInterval(interval);
       clearTimeout(timeout);
-      sockets.forEach(s => s.open());
+      sockets.forEach(s => {
+        if (s.closed === CLOSE_INACTIVE)
+          s.open();
+      });
     }, 1000);
   }
   else {
     clearTimeout(timeout);
-    sockets.forEach(s => s.open());
+    clearInterval(interval);
+    sockets.forEach(s => {
+      if (s.closed === CLOSE_INACTIVE)
+        s.open();
+    });
   }
 });

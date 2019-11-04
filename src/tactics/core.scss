@@ -263,7 +263,6 @@
     flex: 0 0 auto;
     padding: 8px;
     background-color: black;
-    z-index: 20;
 
     #messages {
       display: flex;
@@ -334,6 +333,8 @@
     border-bottom: 0 none;
     border-top-left-radius: 12px;
     border-top-right-radius: 12px;
+
+    z-index: 20;
   }
 
   &.chat-opening,

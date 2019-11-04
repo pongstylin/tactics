@@ -1,27 +1,10 @@
+const package = require('./package.json');
 const path = require('path');
 const Dotenv = require('dotenv-webpack');
 const webpack = require('webpack');
 
-/*
- * The service worker will cache all HTML/CSS/JS when it is installed and will
- * only refresh when the service worker file changes.  So, generate a version
- * based on the date and time the service worker file was built and inject it
- * into the service worker file.
- *
- * This is not necessary during development, since the service worker won't use
- * cached files under the 'localhost' domain.
- */
-let VERSION = '';
-
-if (process.env.NODE_ENV === 'production')
-  VERSION = new Date()
-    .toISOString()
-    .slice(0, 19)
-    .replace(/[\-:]/g, '.')
-    .replace('T', '_');
-
 module.exports = {
-  mode: process.env.NODE_ENV,
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   entry: {
     'theme': path.resolve(__dirname, 'src', 'theme.scss'),
     'errors': path.resolve(__dirname, 'src', 'errors.js'),
@@ -99,7 +82,10 @@ module.exports = {
   },
   plugins: [
     new Dotenv(),
-    new webpack.DefinePlugin({ 'VERSION':JSON.stringify(VERSION) }),
+    new webpack.DefinePlugin({
+      'VERSION': JSON.stringify(package.version),
+      'ENVIRONMENT': JSON.stringify(process.env.NODE_ENV),
+    }),
   ],
   devtool: process.env.NODE_ENV === 'production' ? false : 'eval-source-map',
   performance: { hints: false },

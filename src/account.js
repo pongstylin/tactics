@@ -13,14 +13,14 @@ window.addEventListener('DOMContentLoaded', () => {
     notice = popup({
       message: 'The page will load once you are online.',
       buttons: [],
-      onCancel: () => false,
+      closeOnCancel: false,
     });
   else if (!authClient.isOnline)
     notice = popup({
       message: 'Connecting to server...',
       buttons: [],
-      onCancel: () => false,
-      open: 1000, // open after one second
+      closeOnCancel: false,
+      autoOpen: 1000, // open after one second
     });
 
   authClient.whenReady.then(() => {
@@ -33,7 +33,7 @@ window.addEventListener('DOMContentLoaded', () => {
         .catch(error => popup({
           message: 'There was an error while loading your account.',
           buttons: [],
-          onCancel: () => false,
+          closeOnCancel: false,
         }));
     else
       renderPage();

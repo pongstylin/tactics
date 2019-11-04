@@ -46,12 +46,17 @@ export function resolve(specifier, parentModuleURL = baseURL, defaultResolve) {
     resolved = new URL(specifier, parentModuleURL);
 
   const ext = path.extname(resolved.pathname);
+  let format;
 
-  if (!JS_EXTENSIONS.has(ext))
-    throw new Error(`Cannot load file with non-JavaScript file extension ${ext}.`);
+  if (ext === '.json')
+    format = 'json';
+  else if (JS_EXTENSIONS.has(ext))
+    format = 'esm';
+  else
+    throw new Error(`Cannot load file with unsupported extension ${ext}.`);
 
   return {
     url: resolved.href,
-    format: 'esm',
+    format: format,
   };
 }

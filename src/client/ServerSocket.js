@@ -1,13 +1,16 @@
+import config from 'config/client.js';
+import Version from 'client/Version.js';
+import { getUpdate } from 'client/Update.js';
 import EventEmitter from 'events';
 import ServerError from 'server/Error.js';
 
 const CLOSE_CLIENT_TIMEOUT = 4000;
 
 // Proprietary codes used by client
-const CLOSE_SERVER_TIMEOUT  = 4100;
-export const CLOSE_SHUTDOWN = 4101;
-export const CLOSE_INACTIVE = 4102;
-const CLOSE_CLIENT_ERROR    = 4103;
+const CLOSE_SERVER_TIMEOUT   = 4100;
+export const CLOSE_SHUTDOWN  = 4101;
+export const CLOSE_INACTIVE  = 4102;
+const CLOSE_CLIENT_ERROR     = 4103;
 
 const SOCKET_CONNECTING = 0;
 const SOCKET_OPEN       = 1;
@@ -21,6 +24,7 @@ export default class ServerSocket {
     Object.assign(this, {
       endpoint: endpoint,
       isActive: false,
+      ignoreUpdate: false,
 
       // Open connection to the server.
       _socket: null,
@@ -38,6 +42,8 @@ export default class ServerSocket {
       _session: {
         // Used to restore a session upon reconnection.
         id: null,
+        // The server version
+        version: null,
         // (ack) Used to detect missed server messages.
         serverMessageId: 0,
         // Used to determine last sent message Id.
@@ -48,6 +54,8 @@ export default class ServerSocket {
         responseRoutes: new Map(),
         // Is the socket connected and the session opened?
         isOpen: false,
+        // The close code when the session was closed.
+        closed: false,
       },
 
       // Used to detect successful connection to the server.
@@ -82,6 +90,12 @@ export default class ServerSocket {
   }
   get isOpen() {
     return this._session.isOpen;
+  }
+  get version() {
+    return this._session.version;
+  }
+  get closed() {
+    return this._session.closed;
   }
 
   /*
@@ -144,6 +158,7 @@ export default class ServerSocket {
 
     this._socket = null;
     this._session.isOpen = false;
+    this._session.closed = code;
 
     let reopen = code < CLOSE_SHUTDOWN;
 
@@ -309,7 +324,10 @@ export default class ServerSocket {
     this._send({ type:'sync' });
   }
   _sendOpen() {
-    this._send({ type:'open' });
+    this._send({
+      type: 'open',
+      body: { version:config.version },
+    });
   }
   _sendResume() {
     this._send({
@@ -475,9 +493,10 @@ export default class ServerSocket {
       this._send(outbox[i]);
     }
   }
-  _onSessionMessage(message) {
+  async _onSessionMessage(message) {
     let session = this._session;
     session.isOpen = true;
+    session.closed = false;
 
     if (session.id === message.body.sessionId) {
       this._emit({ type:'open', data:{ reason:'resume' }});
@@ -494,11 +513,32 @@ export default class ServerSocket {
         this._resetSession(session);
 
       session.id = message.body.sessionId;
+      session.version = new Version(message.body.version);
 
+      let updateError;
+      if (!this.ignoreUpdate && !config.version.isCompatibleWith(session.version)) {
+        // Only continue if the update fails or is ignored.
+        try {
+          await getUpdate(session.version);
+        }
+        catch (error) {
+          updateError = error;
+        }
+
+        this.ignoreUpdate = true;
+      }
+
+      /*
+       * Only communicate with compatible servers.
+       */
       if (isNew)
-        this._emit({ type:'open', data:{ reason:'new', outbox }});
+        this._emit({ type:'open', data:{ reason:'new', outbox } });
       else
-        this._emit({ type:'open', data:{ reason:'reset', outbox }});
+        this._emit({ type:'open', data:{ reason:'reset', outbox } });
+
+      // Log the error
+      if (updateError)
+        throw updateError;
     }
   }
   _onErrorMessage(message) {
@@ -527,8 +567,8 @@ export default class ServerSocket {
       return this.close(code, reason);
   }
 
-  destroy() {
-    this.close(CLOSE_SHUTDOWN);
+  destroy(code = CLOSE_SHUTDOWN) {
+    this.close(code);
     this._emitter.removeAllListeners();
   }
 }
