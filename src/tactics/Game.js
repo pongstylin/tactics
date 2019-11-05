@@ -1593,6 +1593,8 @@ export default class {
       eventHandler = () => this._emit({ type, data });
     else if (type === 'endGame')
       eventHandler = () => this._endGame(data.winnerId);
+    else
+      return;
 
     this._stateEventStack = this._stateEventStack.then(eventHandler);
   }
