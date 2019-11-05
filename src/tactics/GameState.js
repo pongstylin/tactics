@@ -943,13 +943,15 @@ export default class GameState {
       // If we can't find an active player team...
       if (!activeTeams.find(t => t.bot === false)) {
         let botTeam = activeTeams.filter(t => t.name !== 'Chaos').random();
-        botTeam.bot = false;
+        if (botTeam) {
+          botTeam.bot = false;
 
-        let botIndex = this._bots.findIndex(b => b.team === botTeam);
-        let bot = this._bots.splice(botIndex, 1)[0];
-        bot.destroy();
+          let botIndex = this._bots.findIndex(b => b.team === botTeam);
+          let bot = this._bots.splice(botIndex, 1)[0];
+          bot.destroy();
 
-        action.newPlayerTeam = botTeam.id;
+          action.newPlayerTeam = botTeam.id;
+        }
       }
     }
 
