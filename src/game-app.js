@@ -901,7 +901,7 @@ function startGame() {
       if (timeoutPopup)
         timeoutPopup.close();
     })
-    .on('undoRequest', showUndoDialog)
+    .on('undoRequest', () => updateUndoDialog(true))
     .on('undoAccept', () => updateUndoDialog())
     .on('undoReject', () => updateUndoDialog())
     .on('undoCancel', () => updateUndoDialog())
@@ -919,17 +919,10 @@ function startGame() {
   });
 }
 
-function showUndoDialog() {
+function updateUndoDialog(createIfNeeded = false) {
   if (game.isViewOnly)
     return;
 
-  let undoRequest = game.state.undoRequest;
-
-  // Only show the popup if it is already shown or if the undo is pending.
-  updateUndoDialog(undoRequest.status === 'pending');
-}
-
-function updateUndoDialog(createIfNeeded = false) {
   if (!undoPopup && !createIfNeeded) {
     // When a request is rejected, the undo button becomes disabled.
     $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
@@ -937,6 +930,10 @@ function updateUndoDialog(createIfNeeded = false) {
   }
 
   let undoRequest = game.state.undoRequest;
+  // Was undo cancelled before we got an update?
+  if (!undoRequest)
+    return hideUndoDialog();
+
   let teams = game.teams;
   let myTeam = game.myTeam;
   let requestor = teams[undoRequest.teamId];

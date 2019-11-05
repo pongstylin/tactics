@@ -17,7 +17,7 @@ class Popup {
     if (this.options.autoOpen === true)
       this.open();
     else if (typeof this.options.autoOpen === 'number')
-      this._openTimeout = setTimeout(() => this.open(), this.options.open);
+      this._openTimeout = setTimeout(() => this.open(), this.options.autoOpen);
   }
 
   setOptions(options) {
