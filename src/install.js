@@ -6,7 +6,9 @@ if ('serviceWorker' in navigator) {
     sw.register('/sw.js');
 
   if (ENVIRONMENT !== 'production') {
-    let reg = sw.getRegistration().then(async reg => {
+    sw.getRegistration().then(async reg => {
+      if (!reg) return;
+
       sw.addEventListener('controllerchange', async event => {
         let claim = sw.controller;
         console.log('worker claim', claim.state);
