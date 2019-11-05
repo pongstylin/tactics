@@ -221,5 +221,6 @@ export default class LocalTransport {
 
   _emit(event) {
     this._emitter.emit(event.type, event);
+    this._emitter.emit('event', event);
   }
 }

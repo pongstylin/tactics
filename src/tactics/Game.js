@@ -1,5 +1,6 @@
 import EventEmitter from 'events';
 import PanZoom from 'utils/panzoom.js';
+import sleep from 'utils/sleep.js';
 
 import Board, {
   FOCUS_TILE_COLOR,
@@ -69,6 +70,8 @@ export default class {
 
       state:            state,
       undoAccepts:      new Set(),
+
+      _onStateEventListener: this._onStateEvent.bind(this),
       _stateEventStack: null,
 
       _teams: [],
@@ -425,18 +428,16 @@ export default class {
           team.colorId = colorIds.get(position);
         });
 
-        this._onStateEventListener = this._onStateEvent.bind(this);
+        /*
+         * Before listening to events, determine current state so that only
+         * events leading up to this point is played and any following events
+         * are handled by the event listener.
+         */
+        let replayTurnId = state.currentTurnId;
+        let replayActionId = state.actions.length;
+        let turnStarted = state.turnStarted;
 
-        state
-          .on('startTurn', this._onStateEventListener)
-          .on('action', this._onStateEventListener)
-          .on('revert', this._onStateEventListener)
-          .on('undoRequest', this._onStateEventListener)
-          .on('undoAccept', this._onStateEventListener)
-          .on('undoReject', this._onStateEventListener)
-          .on('undoCancel', this._onStateEventListener)
-          .on('undoComplete', this._onStateEventListener)
-          .on('endGame', this._onStateEventListener);
+        state.on('event', this._onStateEventListener);
 
         if (state.ended) {
           board.setState(state.units, teams);
@@ -466,8 +467,8 @@ export default class {
           this.lock('gameover');
         }
         else
-          this._stateEventStack = this._replay().then(() => {
-            if (state.turnStarted)
+          this._stateEventStack = this._replay(replayTurnId, replayActionId).then(() => {
+            if (turnStarted)
               this._startTurn();
 
             let undoRequest = state.undoRequest;
@@ -494,17 +495,7 @@ export default class {
     if (state.type === 'Chaos')
       this._localTeamIds.length = 1;
 
-    if (this._onStateEventListener)
-      state
-        .off('startTurn', this._onStateEventListener)
-        .off('action', this._onStateEventListener)
-        .off('revert', this._onStateEventListener)
-        .off('undoRequest', this._onStateEventListener)
-        .off('undoAccept', this._onStateEventListener)
-        .off('undoReject', this._onStateEventListener)
-        .off('undoCancel', this._onStateEventListener)
-        .off('undoComplete', this._onStateEventListener)
-        .off('endGame', this._onStateEventListener)
+    state.off('event', this._onStateEventListener);
 
     this._board.rotation = 'N';
     this.notice = null;
@@ -1330,41 +1321,32 @@ export default class {
 
   /*
    * Play back all activity leading up to this point.
+   *
+   * FIXME: Race condition where the player reverts actions.
    */
-  _replay() {
-    let board = this._board;
+  async _replay(stopTurnId, stopActionId) {
     let state = this.state;
     let teams = this._teams;
-    let currentTurnId = state.currentTurnId;
-    let currentTurnActions = this.state.actions;
+    let turnId = Math.max(0, stopTurnId - (teams.length-1));
+    let turnData = await state.getTurnData(turnId);
+    let actions = turnData.actions;
 
-    // Start with this turnId
-    let turnId = Math.max(0, currentTurnId - (teams.length-1));
+    this._board.setState(turnData.units, teams);
+    this.render();
+    await sleep(1000);
 
-    let replayActions = actions =>
-      this._performActions(actions).then(() => {
-        turnId++;
+    do {
+      if (turnId === stopTurnId) {
+        await this._performActions(actions.slice(0, stopActionId));
+        break;
+      }
 
-        if (turnId > currentTurnId)
-          return;
-        else if (turnId === currentTurnId)
-          return replayActions(currentTurnActions);
-        else
-          return state.getTurnActions(turnId).then(replayActions);
-      });
-
-    return state.getTurnData(turnId).then(turnData => {
-      board.setState(turnData.units, teams);
-      this.render();
-
-      return new Promise(resolve => {
-        setTimeout(() => {
-          resolve(replayActions(turnData.actions));
-        }, 1000);
-      });
-    });
+      await this._performActions(actions);
+      actions = await state.getTurnActions(++turnId);
+    } while (turnId <= stopTurnId);
   }
   _startTurn(teamId = this.state.currentTeamId) {
+    // conditionally set, or unset, the timeout
     this._setTurnTimeout();
 
     let teams = this.teams;
@@ -1470,6 +1452,10 @@ export default class {
 
   /*
    * Turns won't time out if an action was performed within the last 10 seconds.
+   *
+   * _turnTimeout is true when a timeout has been triggered.
+   * _turnTimeout is a number when a timeout has been set, but not reached.
+   * _turnTimeout is null when a timout is not necessary.
    */
   _setTurnTimeout() {
     let state = this.state;
@@ -1607,8 +1593,6 @@ export default class {
       eventHandler = () => this._emit({ type, data });
     else if (type === 'endGame')
       eventHandler = () => this._endGame(data.winnerId);
-    else
-      throw new Error('Unhandled event: '+type);
 
     this._stateEventStack = this._stateEventStack.then(eventHandler);
   }

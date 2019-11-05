@@ -383,5 +383,6 @@ export default class RemoteTransport {
   }
   _emit(event) {
     this._emitter.emit(event.type, event);
+    this._emitter.emit('event', event);
   }
 }
