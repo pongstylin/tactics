@@ -36,6 +36,7 @@ export default class LocalTransport {
       })
       .on('startTurn', ({ data }) => {
         Object.assign(this._data.state, {
+          turnStarted:   new Date(data.started),
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions:       [],
@@ -46,10 +47,12 @@ export default class LocalTransport {
       })
       .on('revert', ({ data }) => {
         Object.assign(this._data.state, {
+          turnStarted: new Date(data.started),
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
-          actions:       data.actions,
-          units:         data.units,
+          // Clone the actions to avoid modifying event data
+          actions: [...data.actions],
+          units: data.units,
         });
       });
   }
@@ -102,6 +105,9 @@ export default class LocalTransport {
   }
   get teams() {
     return this._getStateData('teams');
+  }
+  get turnStarted() {
+    return this._getStateData('turnStarted');
   }
   get currentTurnId() {
     return this._getStateData('currentTurnId');
