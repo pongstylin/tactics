@@ -393,6 +393,7 @@ window.Tactics = (function () {
       victory: 'sound1',
       newturn: 'sound2',
       defeat:  'sound3',
+      newgame: 'sound5',
       step:    'sound10',
       block:   'sound11',
       focus:   'sound15',

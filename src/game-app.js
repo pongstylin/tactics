@@ -901,7 +901,7 @@ function startGame() {
       if (timeoutPopup)
         timeoutPopup.close();
     })
-    .on('undoRequest', () => updateUndoDialog(true))
+    .on('undoRequest', ({ data:request }) => updateUndoDialog(request.status === 'pending'))
     .on('undoAccept', () => updateUndoDialog())
     .on('undoReject', () => updateUndoDialog())
     .on('undoCancel', () => updateUndoDialog())
