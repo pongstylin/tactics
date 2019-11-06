@@ -168,6 +168,11 @@ export default class {
         board.clearMode();
         old_selected.deactivate();
         board.selected = null;
+
+        if (old_selected.assignment.focused) {
+          this.focused = null;
+          this.focused = old_selected;
+        }
       }
 
       if (selected) {

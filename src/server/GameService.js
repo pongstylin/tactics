@@ -899,8 +899,8 @@ class GameService extends Service {
   }
 
   async _notifyYourTurn(game, teamId) {
-    let playerId = game.state.teams[teamId].playerId;
     let teams = game.state.teams;
+    let playerId = teams[teamId].playerId;
 
     // Only notify if the next player is not already in-game.
     let status = this._getPlayerStatus(playerId, game);

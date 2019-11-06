@@ -585,28 +585,35 @@ export default class {
     tilesContainer.pointertap = event => {
       if (this.locked === true) return;
 
-      let unit = this.selected || this.viewed;
-      if (!unit) return;
-
-      this._emit({ type:'deselect', unit:unit });
+      if (this.viewed || this.selected)
+        this._emit({ type:'deselect' });
     };
 
     /*
      * A select event occurs when a unit and/or an action tile is selected.
      */
     let selectEvent = event => {
+      if (this.locked === true) return;
+
       let tile = event.target;
       let action = tile.action;
       let highlight = this._highlighted.get(tile);
 
       if (highlight && highlight.onSelect)
-        highlight.onSelect(event);
+        return highlight.onSelect(event);
       else if (action === 'move')
-        this.onMoveSelect(tile);
+        return this.onMoveSelect(tile);
       else if (action === 'attack')
-        this.onAttackSelect(tile);
+        return this.onAttackSelect(tile);
       else if (action === 'target')
-        this.onTargetSelect(tile);
+        return this.onTargetSelect(tile);
+
+      let unit = tile.assigned;
+
+      if (this.viewed === unit)
+        this._emit({ type:'deselect' });
+      else if (!this.viewed && this.selected === unit)
+        this._emit({ type:'deselect' });
       else
         this._emit(event);
     };
