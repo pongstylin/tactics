@@ -439,6 +439,7 @@ export default class {
          * are handled by the event listener.
          */
         let replayTurnId = state.currentTurnId;
+        let replayTeamId = state.currentTeamId;
         let replayActionId = state.actions.length;
         let turnStarted = state.turnStarted;
 
@@ -474,7 +475,7 @@ export default class {
         else
           this._stateEventStack = this._replay(replayTurnId, replayActionId).then(() => {
             if (turnStarted)
-              this._startTurn();
+              this._startTurn(replayTeamId);
 
             let undoRequest = state.undoRequest;
             if (undoRequest && undoRequest.status === 'pending')
@@ -890,7 +891,7 @@ export default class {
       return action;
     });
 
-    this._startTurn();
+    this._startTurn(turnData.teamId);
 
     if (actions.length)
       if (this.isMyTeam(turnData.teamId))
@@ -1350,7 +1351,7 @@ export default class {
       actions = await state.getTurnActions(++turnId);
     } while (turnId <= stopTurnId);
   }
-  _startTurn(teamId = this.state.currentTeamId) {
+  _startTurn(teamId) {
     // conditionally set, or unset, the timeout
     this._setTurnTimeout();
 
