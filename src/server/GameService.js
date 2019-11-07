@@ -632,6 +632,10 @@ class GameService extends Service {
       // Now that the chat room is created, start the game.
       game.state.start();
 
+      // Wait for the game to save so that game count stats are correct before
+      // a notification is generated.
+      await dataAdapter.saveGame(game);
+
       /*
        * Notify the player that goes first that it is their turn.
        * ...unless the player to go first just joined.
@@ -640,8 +644,9 @@ class GameService extends Service {
       if (playerId !== clientPara.playerId)
         this._notifyYourTurn(game, game.state.currentTeamId);
     }
-
-    await dataAdapter.saveGame(game);
+    else {
+      await dataAdapter.saveGame(game);
+    }
   }
   async onGetTurnDataRequest(client, gameId, ...args) {
     let game = await this._getGame(gameId);
