@@ -53,3 +53,8 @@ All contents under the `src` directory fall under the following license:
 [Unlicense](https://choosealicense.com/licenses/unlicense/)
 
 All image and audio files that are loaded from the \*.taorankings.com domain are not licensed ([No License](https://choosealicense.com/no-permission/)).
+
+## Credits
+[<img src="https://user-images.githubusercontent.com/8408196/68429603-675de280-017c-11ea-9dba-a736d34dace3.png" alt="Browser Stack Logo" width="200">](https://www.browserstack.com/)
+
+[BrowserStack](http://www.browserstack.com) is kind enough to offer a free service to open source projects such as this.  Their service is used to test the game across a wide range of devices and browsers.
