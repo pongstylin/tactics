@@ -760,6 +760,7 @@ class GameService extends Service {
     else {
       // The undo request requires approval from the other player(s).
       game.undoRequest = {
+        createdAt: new Date(),
         status: 'pending',
         teamId: team.id,
         accepts: new Set(myTeams.map(t => t.id)),

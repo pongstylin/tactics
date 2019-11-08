@@ -7,6 +7,7 @@ import Board, {
   MOVE_TILE_COLOR,
   ATTACK_TILE_COLOR,
 } from 'tactics/Board.js';
+import colorMap from 'tactics/colorMap.js';
 
 export default class {
   /*
@@ -442,6 +443,7 @@ export default class {
         let replayTeamId = state.currentTeamId;
         let replayActionId = state.actions.length;
         let turnStarted = state.turnStarted;
+        let replayUndoRequest = state.undoRequest;
 
         state.on('event', this._onStateEventListener);
 
@@ -455,34 +457,25 @@ export default class {
           });
           this.render();
 
-          if (state.winnerId === null)
-            this.notice = 'Draw!';
-          else {
-            let winner = this.teams[state.winnerId];
-            let winnerMoniker;
-
-            if (winner.name && teams.filter(t => t.name === winner.name).length === 1)
-              winnerMoniker = winner.name;
-            else
-              winnerMoniker = winner.colorId;
-
-            this.notice = winnerMoniker+'!';
-          }
-
-          this.selectMode = 'move';
-          this.lock('gameover');
+          this._endGame();
         }
         else
           this._stateEventStack = this._replay(replayTurnId, replayActionId).then(() => {
             if (turnStarted)
               this._startTurn(replayTeamId);
 
+            /*
+             * Emit an undoRequest event if it was requested before listening to
+             * state events and continues to have a pending status.
+             */
             let undoRequest = state.undoRequest;
-            if (undoRequest && undoRequest.status === 'pending')
-              this._emit({
-                type: 'undoRequest',
-                data: state.undoRequest,
-              });
+            if (
+              undoRequest &&
+              replayUndoRequest &&
+              replayUndoRequest.createdAt*1 === undoRequest.createdAt*1 &&
+              undoRequest.status === 'pending'
+            )
+              this._emit({ type:'undoRequest', data:undoRequest });
           });
 
         resolve();
@@ -498,7 +491,7 @@ export default class {
     let state = this.state;
 
     // Reset controlled teams.
-    if (state.type === 'Chaos')
+    if (state.type === 'chaos')
       this._localTeamIds.length = 1;
 
     state.off('event', this._onStateEventListener);
@@ -1402,7 +1395,7 @@ export default class {
 
     return this;
   }
-  _endGame(winnerId) {
+  _endGame(winnerId = this.state.winnerId) {
     clearTimeout(this._turnTimeout);
     this._turnTimeout = null;
 
@@ -1421,18 +1414,32 @@ export default class {
       else
         winnerMoniker = winner.colorId;
 
-      if (this.hasOneLocalTeam(winner))
+      if (this.state.type === 'chaos') {
+        if (winner.name === 'Chaos') {
+          this.notice = 'Chaos Wins!';
+          Tactics.sounds.defeat.play();
+        }
+        else {
+          this.notice = 'You win!';
+          Tactics.sounds.victory.play();
+        }
+      }
+      else if (this.hasOneLocalTeam(winner)) {
         this.notice = 'You win!';
-      else
-        this.notice = `${winnerMoniker}!`;
-
-      if (this.isMyTeam(winnerId))
         Tactics.sounds.victory.play();
-      else
+      }
+      else if (this.isViewOnly)
+        this.notice = `${winnerMoniker}!`;
+      else {
+        this.notice = 'You lose!';
         Tactics.sounds.defeat.play();
+      }
     }
 
-    this.selected = null;
+    if (this.selected)
+      this.selected = null;
+    else
+      this.selectMode = 'move';
     this.lock('gameover');
 
     return this;

@@ -39,11 +39,11 @@ export default class ChaosDragon extends Unit {
     return anim.play();
   }
   getPhaseAction(attacker, result) {
-    let board = this.board;
     let banned = this.banned.slice();
     if (attacker)
       banned.push(attacker.team.id);
 
+    let board = this.board;
     let teamsData = board.getWinningTeams().reverse();
     let colorId = 'White';
 
@@ -65,8 +65,8 @@ export default class ChaosDragon extends Unit {
 
     if (attacker)
       phaseAction.results = [{
-        unit:   this,
-        banned: banned,
+        unit: this,
+        changes: { banned },
       }];
 
     return phaseAction;
@@ -121,26 +121,30 @@ export default class ChaosDragon extends Unit {
     return anim;
   }
   animAttack(target) {
-    var anim      = new Tactics.Animation();
+    let board     = this.board;
+    let anim      = new Tactics.Animation();
     let sounds    = $.extend({}, Tactics.sounds, this.sounds);
-    var tunit     = target.assigned;
-    var direction = this.board.getDirection(this.assignment, target, 1);
-    var attack    = this.animations[direction].attack, frame=0;
-    var whiten    = [0.25, 0.5, 0];
-    var source    = direction === 'N' || direction === 'E' ?  1 : 3;
-    var adjust    = direction === 'N' ? {x:-5,y:0} : direction === 'W' ? {x:-5,y:3} : {x:5,y:3};
-    var container = new PIXI.Container();
-    var filter1   = new PIXI.filters.BlurFilter();
-    var filter2   = new PIXI.filters.BlurFilter();
-    var streaks1  = new PIXI.Graphics;
-    var streaks2  = new PIXI.Graphics;
-    var streaks3  = new PIXI.Graphics;
+    let tunit     = target.assigned;
+    let direction = board.getDirection(this.assignment, target, 1);
+    let attack    = this.animations[direction].attack, frame=0;
+    let whiten    = [0.25, 0.5, 0];
+    let source    = direction === 'N' || direction === 'E' ?  1 : 3;
+    let adjust    = direction === 'N' ? {x:-5,y:0} : direction === 'W' ? {x:-5,y:3} : {x:5,y:3};
+    let container = new PIXI.Container();
+    let filter1   = new PIXI.filters.BlurFilter();
+    let filter2   = new PIXI.filters.BlurFilter();
+    let streaks1  = new PIXI.Graphics;
+    let streaks2  = new PIXI.Graphics;
+    let streaks3  = new PIXI.Graphics;
+
+    adjust.x -= board.pixi.position.x;
+    adjust.y -= board.pixi.position.y;
 
     //filter1.blur = 6;
     streaks1.filters = [filter1];
     container.addChild(streaks1);
 
-    filter2.blur = 6;
+    filter2.blur = 4;
     streaks2.filters = [filter2];
     container.addChild(streaks2);
 
@@ -161,29 +165,26 @@ export default class ChaosDragon extends Unit {
       })
       .splice(5, {
         script: () => tunit.whiten(whiten.shift()),
-        repeat:3
+        repeat: 3,
       })
       .splice(5, () => {
-        this.drawStreaks(container, target,source,adjust);
-        this.board.pixi.addChild(container);
+        this.drawStreaks(container, target, source, adjust);
+        board.pixi.addChild(container);
       })
       .splice(6, () => {
-        this.drawStreaks(container, target,source,adjust);
+        this.drawStreaks(container, target, source, adjust);
       })
       .splice(7, () => {
-        this.board.pixi.removeChild(container);
+        board.pixi.removeChild(container);
         sounds.buzz.stop();
       });
 
     return anim;
   }
-  drawStreaks(container,target,source,adjust) {
-    // Make sure bounds are set correctly.
-    this.board.unitsContainer.updateTransform();
-
+  drawStreaks(container, target, source, adjust) {
     let sprite = this.frame.children[source];
     let bounds = sprite.getBounds();
-    let start  = new PIXI.Point(bounds.x+adjust.x,bounds.y+adjust.y);
+    let start  = new PIXI.Point(bounds.x + adjust.x, bounds.y + adjust.y);
     let end    = target.getCenter().clone();
 
     start.x += Math.floor(sprite.width  / 2);
@@ -212,7 +213,7 @@ export default class ChaosDragon extends Unit {
     streaks3.clear();
 
     for (let i=0; i<3; i++) {
-      let alpha     = i % 2 === 0 ? 0.5 : 1;
+      let alpha     = i % 2 === 0 ? 0.6 : 1;
       let deviation = alpha === 1 ? 9 : 19;
       let midpoint  = (deviation + 1) / 2;
 

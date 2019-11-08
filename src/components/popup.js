@@ -20,6 +20,10 @@ class Popup {
       this._openTimeout = setTimeout(() => this.open(), this.options.autoOpen);
   }
 
+  get isVisible() {
+    return this.el.classList.contains('show');
+  }
+
   setOptions(options) {
     if (typeof options === 'string')
       options = { message:options };
@@ -182,9 +186,14 @@ class Popup {
 
     this.setOptions(options);
 
-    let newEl = this.render();
+    let isVisible = this.isVisible;
     let oldEl = this.el;
+    let newEl = this.render();
+
     oldEl.parentNode.replaceChild(this.el = newEl, oldEl);
+
+    if (isVisible)
+      this.show();
   }
 
   hide() {

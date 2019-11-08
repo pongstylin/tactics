@@ -14,7 +14,7 @@ export default class ChaosSeed extends Unit {
     let teamsData = board.getWinningTeams().reverse();
     let colorId = 'White';
 
-    if (teamsData.length)
+    if (teamsData.length > 1)
       colorId = board.teams[teamsData[0].id].colorId;
 
     if (colorMap.get(colorId) === this.color)

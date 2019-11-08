@@ -183,7 +183,10 @@ export default class RemoteTransport {
       this._emit({ type:'playerStatus', data:playerStatus });
 
       if (gameData.undoRequest)
-        gameData.undoRequest.accepts = new Set(gameData.undoRequest.accepts);
+        Object.assign(gameData.undoRequest, {
+          createdAt: new Date(gameData.undoRequest.createdAt),
+          accepts: new Set(gameData.undoRequest.accepts),
+        });
 
       this._data = gameData;
       Object.assign(this._data.state, {
@@ -248,20 +251,13 @@ export default class RemoteTransport {
       if (data.events)
         data.events.forEach(e => this._emit(e));
 
-      if (data.undoRequest) {
-        this._data.undoRequest = data.undoRequest;
+      if (data.undoRequest)
         // Inform the game of a change in undo status, if any.
-        this._emit({
-          type: 'undoRequest',
-          data: data.undoRequest,
-        });
-      }
-      else if (this._data.undoRequest) {
-        this._data.undoRequest = null;
+        this._emit({ type:'undoRequest', data:data.undoRequest });
+      else if (this._data.undoRequest)
         // Not sure if the request was rejected or accepted.
         // But 'complete' will result in hiding the dialog, if any.
         this._emit({ type:'undoComplete' });
-      }
 
       if (!outbox) return;
 
@@ -313,6 +309,7 @@ export default class RemoteTransport {
       })
       .on('undoRequest', ({ data }) => {
         this._data.undoRequest = Object.assign({}, data, {
+          createdAt: new Date(data.createdAt),
           accepts: new Set(data.accepts),
         });
       })
