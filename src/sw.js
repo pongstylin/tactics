@@ -167,7 +167,7 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {
       // Return cached response (unless it is a localhost URL)
-      if (cachedResponse && (ENVIRONMENT !== 'development' || !url.startsWith('http://localhost:2000/')))
+      if (cachedResponse && (ENVIRONMENT !== 'development' || !url.startsWith('http://localhost:')))
         return cachedResponse;
 
       // Cache miss or localhost URL.  Fetch response and cache it.

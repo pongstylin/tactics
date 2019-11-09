@@ -9,7 +9,7 @@ const gameClient = Tactics.gameClient;
 const chatClient = Tactics.chatClient;
 
 var progress;
-var gameId = location.search.slice(1).replace(/&.+$/, '');
+var gameId = location.search.slice(1).replace(/[&=].*$/, '');
 var game;
 var lastSeenEventId;
 var chatMessages = [];
@@ -576,15 +576,22 @@ function renderShareLink(gameId, container) {
         text: 'Want to play?',
         url: link,
       }).catch(error => {
-        copy(link);
         if (error.isInternalError)
           popup({
-            message: 'Copied the game link since app sharing failed.  Paste the link to invite using your app of choice.',
+            message: 'App sharing failed.  You can copy the link to share it instead.',
+            buttons: [
+              { label:'Copy', onClick:() => copy(link) },
+              { label:'Cancel' },
+            ],
             minWidth: '250px',
           });
         else
           popup({
-            message: 'Copied the game link since app sharing was cancelled.  Paste the link to invite using your app of choice.',
+            message: 'App sharing cancelled.  You can still copy the link to share it instead.',
+            buttons: [
+              { label:'Copy', onClick:() => copy(link) },
+              { label:'Cancel' },
+            ],
             minWidth: '250px',
           });
       });
