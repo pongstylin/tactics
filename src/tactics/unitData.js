@@ -470,7 +470,7 @@ unitDataMap.set('Assassin', {
       file: 'sound8',
       volume: 0.50,
       sprite: {
-        block:[0,400],
+        block:[0,500],
       },
     },
   },

@@ -1145,13 +1145,14 @@ export default class {
   /*
    * Show the player the results of an attack
    */
-  _playResults(results) {
+  async _playResults(results) {
     if (!results)
       return;
     if (!Array.isArray(results))
       results = [results];
 
-    let showResult = result => {
+    let deathBell = Tactics.sounds.death;
+    let showResult = async result => {
       let anim = new Tactics.Animation();
       let changes = Object.assign({}, result.changes);
 
@@ -1226,9 +1227,13 @@ export default class {
         // Die if the unit is dead and isn't a hatching Chaos Seed
         if (mHealth === -unit.health && unit.name !== 'Chaos Seed' && unit.assignment) {
           let caption = result.notice || 'Nooo...';
-          anim
-            .splice(0, unit.animCaption(caption, options))
-            .splice(unit.animDeath());
+          let animDeath1 = unit.animCaption(caption, options);
+          let animDeath2 = unit.animDeath();
+
+          animDeath2.splice(0, () => deathBell.play('death'));
+          animDeath1.splice(animDeath2);
+
+          anim.splice(0, animDeath1);
         }
         else {
           let caption = result.notice || Math.abs(diff).toString();
@@ -1270,15 +1275,64 @@ export default class {
       }
     };
 
-    return results.reduce(
-      (promise, result) => promise
-        .then(() => showResult(result))
-        .then(() => {
-          let unit = result.unit;
-          if (unit) unit.change({notice: null});
-        }),
-      Promise.resolve(),
-    ).then(() => this.drawCard());
+    /*
+     * To shorten playback, play multiple deaths at once.
+     * A single death is played normally.
+     * All deaths are played last.
+     */
+    let deadUnits = new Map();
+    for (let i = 0; i < results.length; i++) {
+      let result = results[i];
+
+      let unit = result.unit;
+      if (!unit) continue;
+      // Choas Seed doesn't die.  It hatches.
+      if (unit.type === 'ChaosSeed') continue;
+      // Units consumed by Chaos don't die normally.
+      if (!unit.assignment) continue;
+
+      let changes = result.changes;
+      if (!changes) continue;
+
+      let mHealth = changes.mHealth;
+      if (mHealth !== -unit.health) continue;
+
+      deadUnits.set(unit, result);
+    }
+
+    for (let i = 0; i < results.length; i++) {
+      let result = results[i];
+
+      if (!deadUnits.has(result.unit))
+        await showResult(result);
+
+      let unit = result.unit;
+      if (unit) unit.change({notice: null});
+    }
+
+    if (deadUnits.size === 1) {
+      for (let [unit, result] of deadUnits) {
+        await showResult(result);
+      }
+    }
+    else if (deadUnits.size > 1) {
+      let animDeath1 = new Tactics.Animation();
+      let animDeath2 = new Tactics.Animation({frames: [
+        () => deathBell.play('death'),
+      ]});
+
+      deadUnits.forEach((result, unit) => {
+        let caption = result.notice || 'Nooo...';
+        animDeath1.splice(0, unit.animCaption(caption));
+        animDeath2.splice(0, unit.animDeath());
+      });
+
+      animDeath1.splice(animDeath2);
+
+      await animDeath1.play();
+    }
+
+    this.drawCard();
   }
   _playSurrender(action) {
     let team = this.teams[action.teamId];

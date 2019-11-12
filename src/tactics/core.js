@@ -392,13 +392,20 @@ window.Tactics = (function () {
     sounds: {
       victory: 'sound1',
       newturn: 'sound2',
-      defeat:  'sound3',
+      defeat: 'sound3',
       newgame: 'sound5',
-      step:    'sound10',
-      block:   'sound11',
-      focus:   'sound15',
-      select:  'sound14',
-      strike:  'sound6',
+      step: 'sound10',
+      block: 'sound11',
+      focus: 'sound15',
+      select: 'sound14',
+      strike: 'sound6',
+      death: {
+        file: 'sound431',
+        volume: 0.2,
+        sprite: {
+          death: [635, 1315],
+        },
+      },
     },
     effects: {
       focus: {
