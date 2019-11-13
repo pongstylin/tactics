@@ -401,9 +401,9 @@ window.Tactics = (function () {
       strike: 'sound6',
       death: {
         file: 'sound431',
-        volume: 0.2,
         sprite: {
-          death: [635, 1315],
+          // fadeIn(volume: 0 => 0.3, over: 0 => 170)
+          death: [566, 1388],
         },
       },
     },

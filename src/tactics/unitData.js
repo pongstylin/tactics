@@ -384,14 +384,19 @@ unitDataMap.set('DarkMagicWitch', {
   aLinear:  true,
   waitFirstTurn: true,
   sounds:   {
-    attack1: 'sound431',
+    attack1: {
+      file: 'sound431',
+      sprite: {
+        // fadeOut(volume: 1 => 0, over: 0 => 1398)
+        attack: [0, 1402],
+      },
+    },
     attack2: 'sound1602',
     block1: {
-      file: 'sound431',
-      volume: 2,
-      rate: 0.5,
+      file: 'sound431', // 2055ms
       sprite: {
-        block: [1400, 600],
+        // fadeIn(volume: 0 => 0.5, over: 0 => 55)
+        block: [1100, 955],
       },
     },
     block2: 'sound11',
@@ -468,9 +473,10 @@ unitDataMap.set('Assassin', {
     bomb2:   'sound1370',
     block:   {
       file: 'sound8',
-      volume: 0.50,
       sprite: {
-        block:[0,500],
+        // fadeIn(volume: 0 => 1, over: 0 => 198)
+        // fadeOut(volume: 1 => 0, over: 198 => 397)
+        block: [0, 397],
       },
     },
   },

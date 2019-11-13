@@ -96,7 +96,11 @@ export default class Assassin extends Unit {
 
     anim.addFrame(() => {
       this.direction = direction;
-      sounds.block.play('block');
+      let block = sounds.block.play('block');
+      sounds.block.fade(0, 1, 198, block);
+      sounds.block.once('fade', () =>
+        sounds.block.fade(1, 0, 199, block)
+      );
     });
 
     let indexes = [];

@@ -1230,7 +1230,9 @@ export default class {
           let animDeath1 = unit.animCaption(caption, options);
           let animDeath2 = unit.animDeath();
 
-          animDeath2.splice(0, () => deathBell.play('death'));
+          animDeath2.splice(0, () =>
+            deathBell.fade(0, 0.3, 170, deathBell.play('death'))
+          );
           animDeath1.splice(animDeath2);
 
           anim.splice(0, animDeath1);
@@ -1318,7 +1320,7 @@ export default class {
     else if (deadUnits.size > 1) {
       let animDeath1 = new Tactics.Animation();
       let animDeath2 = new Tactics.Animation({frames: [
-        () => deathBell.play('death'),
+        () => deathBell.fade(0, 0.3, 170, deathBell.play('death')),
       ]});
 
       deadUnits.forEach((result, unit) => {

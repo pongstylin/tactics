@@ -25,7 +25,9 @@ export default class DarkMagicWitch extends Unit {
     let darkness  = [-0.3, -0.4, -0.5, -0.3, -0.2, 0];
 
     let attackAnim = this.animAttack(action.direction);
-    attackAnim.splice(0, () => sounds.attack1.play());
+    attackAnim.splice(0, () =>
+      sounds.attack1.fade(1, 0, 1398, sounds.attack1.play('attack'))
+    );
     attackAnim.splice(3, () => sounds.attack2.play());
 
     targets.forEach(target => {
@@ -52,10 +54,10 @@ export default class DarkMagicWitch extends Unit {
     let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);
 
     anim.addFrame(() => {
+      sounds.block1.fade(0, 0.5, 55, sounds.block1.play('block'));
       sounds.block2.play();
       this.direction = direction;
     });
-    anim.addFrame(() => sounds.block1.play('block'));
 
     let indexes = [];
     for (let index = this.blocks[direction][0]; index <= this.blocks[direction][1]; index++) {
