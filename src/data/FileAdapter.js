@@ -127,6 +127,19 @@ export default class {
     return Room.load(migrate('room', roomData));
   }
 
+  async getAllPushSubscriptions(playerId) {
+    let fileName = `player_${playerId}_push`;
+    let pushData = await this._lockAndReadFile(fileName, {
+      subscriptions: [],
+    });
+
+    return new Map(pushData.subscriptions);
+  }
+  async getPushSubscription(playerId, deviceId) {
+    let subscriptions = await this.getAllPushSubscriptions(playerId);
+
+    return subscriptions.get(deviceId);
+  }
   async setPushSubscription(playerId, deviceId, subscription) {
     let fileName = `player_${playerId}_push`;
     let pushData = await this._lockAndReadFile(fileName, {
@@ -140,14 +153,6 @@ export default class {
     pushData.subscriptions = [...pushData.subscriptions];
 
     await this._lockAndWriteFile(fileName, pushData);
-  }
-  async getAllPushSubscriptions(playerId) {
-    let fileName = `player_${playerId}_push`;
-    let pushData = await this._lockAndReadFile(fileName, {
-      subscriptions: [],
-    });
-
-    return new Map(pushData.subscriptions);
   }
 
   /*

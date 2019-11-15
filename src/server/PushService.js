@@ -20,7 +20,7 @@ class PushService extends Service {
 
   async pushNotification(playerId, notification) {
     let subscriptions = await dataAdapter.getAllPushSubscriptions(playerId);
-    if (subscriptions.size === 0) return Promise.resolve([]);
+    if (subscriptions.size === 0) return [];
 
     this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}`);
 
@@ -34,8 +34,9 @@ class PushService extends Service {
 
     return Promise.all([...subscriptions].map(([deviceId, subscription]) =>
       webpush.sendNotification(subscription, payload).catch(error => {
-        // push subscription has unsubscribed or expired.
-        if (error.statusCode === 410)
+        // [403] invalid push subscription endpoint.
+        // [410] push subscription has unsubscribed or expired.
+        if (error.statusCode === 403 || error.statusCode === 410)
           dataAdapter.setPushSubscription(playerId, deviceId, null);
 
         this.debug(`${notification.type}: playerId=${playerId}; deviceId=${deviceId}; error=[${error.statusCode}] ${error.body}`);
@@ -72,16 +73,21 @@ class PushService extends Service {
     });
   }
 
-  onSetSubscriptionRequest(client, subscription) {
+  async onSetSubscriptionRequest(client, subscription) {
     let session = this.sessions.get(client.id);
     if (!session)
       throw new ServerError(401, 'Authorization is required');
 
-    dataAdapter.setPushSubscription(
-      session.playerId,
-      session.deviceId,
-      subscription,
-    );
+    let playerId = session.playerId;
+    let deviceId = session.deviceId;
+    let oldSubscription = await dataAdapter.getPushSubscription(playerId, deviceId);
+
+    if (JSON.stringify(subscription) === JSON.stringify(oldSubscription))
+      return;
+
+    dataAdapter.setPushSubscription(playerId, deviceId, subscription);
+
+    this.debug(`setSubscription: playerId=${playerId}; deviceId=${deviceId}; subscription=${JSON.stringify(subscription)}`);
   }
 }
 

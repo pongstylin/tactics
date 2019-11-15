@@ -422,12 +422,17 @@ function debugMessage(client, message, inOrOut) {
   let body = message.body;
 
   let suffix;
+  let suffixV;
   if (message.type === 'sync')
     suffix = `[${'ack' in message ? message.ack : '-'}]`;
-  else if (message.type === 'event')
-    suffix = `[${message.id}] ${body.service}:${body.type}`;
-  else if (message.type === 'request')
-    suffix = `[${message.id}] ${body.service}:${body.method}`;
+  else if (message.type === 'event') {
+    suffix  = `[${message.id}] ${body.service}:${body.type}`;
+    suffixV = `[${message.id}] data=${JSON.stringify(body.data)}`;
+  }
+  else if (message.type === 'request') {
+    suffix  = `[${message.id}] ${body.service}:${body.method}`;
+    suffixV = `[${message.id}] args=${JSON.stringify(body.args)}`;
+  }
   else if (message.type === 'response')
     if (body.error)
       suffix = `[${message.id}] requestId=${body.requestId}; error=${body.error.message}`;
@@ -447,14 +452,21 @@ function debugMessage(client, message, inOrOut) {
   else if (message.type === 'error')
     suffix = `error=${message.error.message}`;
 
-  if (message.type === 'sync')
-    if (suffix)
+  if (message.type === 'sync') {
+    if (suffix || suffixV) {
       debugV(`${prefix}; ${suffix}`);
+      if (suffixV)
+        debugV(`${prefix}; ${suffixV}`);
+    }
     else
       debugV(prefix);
+  }
   else
-    if (suffix)
+    if (suffix || suffixV) {
       debug(`${prefix}; ${suffix}`);
+      if (suffixV)
+        debugV(`${prefix}; ${suffixV}`);
+    }
     else
       debug(prefix);
 }
