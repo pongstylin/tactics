@@ -1821,6 +1821,11 @@ export default class {
 
     anim
       .splice(0, () => pixi.addChild(container))
+      // Add a 4-frame pause before removing text
+      .splice({
+        script: () => {},
+        repeat: 4,
+      })
       .splice(() => pixi.removeChild(container));
 
     return anim;

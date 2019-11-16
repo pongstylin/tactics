@@ -1029,15 +1029,17 @@ export default class {
           else if (actionType === 'turn') {
             // Show the direction the unit turned for 2 seconds.
             selected.deactivate();
+
+            // Turn then wait 2 seconds
             this._performAction(action).then(() => {
               board.showDirection(selected);
               selected.activate();
-            });
 
-            setTimeout(() => {
-              board.hideTurnOptions();
-              resolve();
-            }, 2000);
+              setTimeout(() => {
+                board.hideTurnOptions();
+                resolve();
+              }, 2000);
+            });
           }
           // Only applicable to Chaos Seed/Dragon
           else if (actionType === 'phase') {
@@ -1234,7 +1236,7 @@ export default class {
           animDeath2.splice(0, () =>
             deathBell.fade(0, 0.3, 170, deathBell.play('death'))
           );
-          animDeath1.splice(animDeath2);
+          animDeath1.splice(-3, animDeath2);
 
           anim.splice(0, animDeath1);
         }
@@ -1330,7 +1332,7 @@ export default class {
         animDeath2.splice(0, unit.animDeath());
       });
 
-      animDeath1.splice(animDeath2);
+      animDeath1.splice(-3, animDeath2);
 
       await animDeath1.play();
     }
