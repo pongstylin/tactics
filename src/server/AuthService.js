@@ -281,7 +281,7 @@ class AuthService extends Service {
       throw new ServerError(403, 'Name may not contain consecutive spaces');
     if (name.includes('#'))
       throw new ServerError(403, 'The # symbol is reserved');
-    if (/<[a-z]+>/i.test(name) || /&[#a-z0-9]+;/i.test(name))
+    if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
       throw new ServerError(403, 'The name may not contain markup');
   }
 

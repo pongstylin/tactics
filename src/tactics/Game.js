@@ -536,7 +536,8 @@ export default class {
 
     if (elementScale < 1)
       if (width_ratio < height_ratio)
-        canvas.style.width = '100%';
+        // Use height instead of 100% width to avoid Edge bug.
+        canvas.style.height = Math.floor(Tactics.height * width_ratio)+'px';
       else
         canvas.style.height = height+'px';
 

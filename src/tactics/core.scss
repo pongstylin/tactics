@@ -37,6 +37,8 @@
         position: absolute;
         top: 20px;
         left: 0;
+        // Only present to fix a bug in Edge.
+        width: 176px;
 
         // The card must show above the board when they overlap.
         z-index: 1;
@@ -257,6 +259,7 @@
     flex-direction: column;
 
     position: absolute;
+    z-index: 2;
     box-sizing: border-box;
     width: 100%;
 
@@ -373,7 +376,7 @@
 
       .new-message {
         position: absolute;
-        // use 'bottom' so that box can increase in height upward, not downward.
+        // use 'bottom' so box increases in height upward, not downward.
         bottom: 142px;
         left: 8px;
         width: 200px;

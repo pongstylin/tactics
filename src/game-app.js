@@ -123,7 +123,10 @@ var buttons = {
   },
   chat: () => {
     let $app = $('#app');
+    let $chat = $('#chat');
     let $messages = $('#messages');
+    // Microsoft Edge does not support using 'calc()' css with transition.
+    let isEdge = /Edge/.test(navigator.userAgent);
 
     if ($app.hasClass('chat-open')) {
       // Keep chat scrolled to bottom while reducing height.
@@ -140,7 +143,14 @@ var buttons = {
         updateChatButton();
       });
 
-      $app.addClass('chat-closing');
+      if (isEdge && $app.hasClass('with-inlineChat')) {
+        $chat.css({ height:'' });
+        $app.addClass('chat-closing');
+      }
+      else {
+        $app.addClass('chat-closing');
+      }
+
       tick();
     }
     else {
@@ -150,7 +160,14 @@ var buttons = {
         updateChatButton();
       });
 
-      $app.addClass('chat-opening');
+      if (isEdge && $app.hasClass('with-inlineChat')) {
+        $chat.css({ height:$chat.css('height') });
+        $app.addClass('chat-opening');
+        $chat.css({ height:($app.height() - 20 - 52)+'px' });
+      }
+      else {
+        $app.addClass('chat-opening');
+      }
 
       // Keep chat scrolled to bottom after displaying input box
       $messages.scrollTop($messages.prop('scrollHeight'));
