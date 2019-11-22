@@ -495,15 +495,10 @@ export default class GameState {
       // Recovering or paralyzed units can't take action.
       if (unit.mRecovery || unit.paralyzed) return;
 
-      // Focusing units must break focus before taking action.
-      // Do this before validating the action so that these results are applied
-      // before calculating the action results.
-      if (unit.focusing)
-        pushAction({
-          type:    'breakFocus',
-          unit:    unit,
-          results: unit.getBreakFocusResults(),
-        });
+      // Taking an action may break certain status effects.
+      let breakAction = unit.getBreakAction(action);
+      if (breakAction.results.length)
+        pushAction(breakAction);
 
       // Apply unit-specific validation and determine results.
       action = unit.validateAction(action);

@@ -21,25 +21,23 @@ export default class Enchantress extends Unit {
 
     return anim.play();
   }
-  getBreakFocusResults() {
-    return [
-      {
-        unit: this,
-        changes: {
-          focusing: false,
-        },
-        results: [
-          ...this.focusing.map(tUnit => ({
-            unit: tUnit,
-            changes: {
-              paralyzed: tUnit.paralyzed.length === 1
-                ? false
-                : tUnit.paralyzed.filter(t => t !== this),
-            },
-          })),
-        ],
+  getBreakFocusResult() {
+    return {
+      unit: this,
+      changes: {
+        focusing: false,
       },
-    ];
+      results: [
+        ...this.focusing.map(tUnit => ({
+          unit: tUnit,
+          changes: {
+            paralyzed: tUnit.paralyzed.length === 1
+              ? false
+              : tUnit.paralyzed.filter(t => t !== this),
+          },
+        })),
+      ],
+    };
   }
   animStreaks(target_unit) {
     let anim = new Tactics.Animation();

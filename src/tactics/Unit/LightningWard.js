@@ -15,9 +15,6 @@ export default class LightningWard extends Unit {
 
     return anim.play();
   }
-  animStagger(attacker) {
-    //do nothing. The Lightning Ward laughs at any feeble attempt to move it.
-  }
 }
 
 // Dynamically add unit data properties to the class.

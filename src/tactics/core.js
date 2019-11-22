@@ -394,6 +394,7 @@ window.Tactics = (function () {
       newturn: 'sound2',
       defeat: 'sound3',
       newgame: 'sound5',
+      deflect: 'sound8',
       step: 'sound10',
       block: 'sound11',
       focus: 'sound15',
@@ -406,11 +407,30 @@ window.Tactics = (function () {
           death: [566, 1388],
         },
       },
+      barrier: {
+        file: 'sound1602', // 2055ms
+        volume: 0,
+        sprite: {
+          // fadeIn(volume: 0 => 1, over: 0 => 295)
+          on: [198, 1857],
+          // fadeIn(volume: 0 => 0.75, over: 0 => 123)
+          off: [255, 1257],
+        },
+      },
     },
     effects: {
       focus: {
         frames_url: 'https://tactics.taorankings.com/json/focus.json',
         frames_offset: {y:-16},
+      },
+      barrier: {
+        still: 8,
+        on: [0, 7],
+        off: [9, 11],
+        block: [13, 19],
+        active: [16, 19],
+        frames_url: 'https://tactics.taorankings.com/json/barrier.json',
+        frames_offset: {y:-29},
       },
     },
     animations: {

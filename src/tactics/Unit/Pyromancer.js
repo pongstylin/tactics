@@ -68,13 +68,17 @@ export default class Pyromancer extends Unit {
 
     let target_unit = target.assigned;
     if (target_unit) {
-      if (target_unit !== this)
-        anim.splice(5, target_unit.animStagger(this));
+      if (target_unit.barriered)
+        anim.splice(4, target_unit.animBlock(this));
+      else {
+        if (target_unit !== this)
+          anim.splice(5, target_unit.animStagger(this, null));
 
-      anim.splice(5, {
-        script: () => target_unit.colorize(0xFF8800, lightness.shift()),
-        repeat: lightness.length,
-      });
+        anim.splice(5, {
+          script: () => target_unit.colorize(0xFF8800, lightness.shift()),
+          repeat: lightness.length,
+        });
+      }
     }
 
     anim.splice(anim.frames.length-1, () => unitsContainer.removeChild(container));

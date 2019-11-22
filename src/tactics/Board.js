@@ -915,31 +915,23 @@ export default class {
         notice = unit.notice;
       }
 
-      if (unit.paralyzed) {
+      if (unit.paralyzed)
         notices.push('Paralyzed!');
-        important++;
-      }
 
       if (unit.mRecovery)
         notices.push('Wait '+unit.mRecovery+' Turn'+(unit.mRecovery > 1 ? 's' : '')+'!');
 
-      if (unit.poisoned) {
+      if (unit.poisoned)
         notices.push('Poisoned!');
-        important++;
-      }
 
       if (unit.canSpecial())
         notices.push('Enraged!');
 
-      if (unit.barriered) {
-        notices.push('Barriered!');
-        important++;
-      }
-
-      if (unit.focusing) {
+      if (unit.focusing)
         notices.push('Focused!');
-        important++;
-      }
+
+      if (unit.barriered)
+        notices.push('Barriered!');
 
       if (unit.mBlocking < 0)
         notices.push('Vulnerable!');
@@ -947,13 +939,8 @@ export default class {
       if (unit.title)
         notices.push(unit.title);
 
-      if (!notice) {
+      if (!notice)
         notice = notices.shift();
-        important--;
-      }
-
-      if (important > 0)
-        notice += ' +';
 
       //
       //  Draw the top part of the card.
@@ -1147,10 +1134,6 @@ export default class {
       unit[key] = unitState[key];
     });
 
-    if (unit.pixi)
-      if (unitState.focusing || unitState.paralyzed || unitState.poisoned)
-        unit.showFocus(0.5);
-
     return unit;
   }
   dropUnit(unit) {
@@ -1304,6 +1287,8 @@ export default class {
         encoded.focusing = encoded.focusing.map(u => u.id);
       if (encoded.paralyzed)
         encoded.paralyzed = encoded.paralyzed.map(u => u.id);
+      if (encoded.barriered)
+        encoded.barriered = encoded.barriered.map(u => u.id);
       if (encoded.poisoned)
         encoded.poisoned = encoded.poisoned.map(u => u.id);
 
@@ -1341,6 +1326,8 @@ export default class {
         decoded.focusing = decoded.focusing.map(uId => units.find(u => u.id === uId));
       if (decoded.paralyzed)
         decoded.paralyzed = decoded.paralyzed.map(uId => units.find(u => u.id === uId));
+      if (decoded.barriered)
+        decoded.barriered = decoded.barriered.map(uId => units.find(u => u.id === uId));
       if (decoded.poisoned)
         decoded.poisoned = decoded.poisoned.map(uId => units.find(u => u.id === uId));
 
@@ -1414,8 +1401,17 @@ export default class {
         unit.focusing = unit.focusing.map(uId => units.find(u => u.id === uId));
       if (unit.paralyzed)
         unit.paralyzed = unit.paralyzed.map(uId => units.find(u => u.id === uId));
+      if (unit.barriered)
+        unit.barriered = unit.barriered.map(uId => units.find(u => u.id === uId));
       if (unit.poisoned)
         unit.poisoned = unit.poisoned.map(uId => units.find(u => u.id === uId));
+
+      if (unit.pixi) {
+        if (unit.focusing || unit.paralyzed || unit.poisoned)
+          unit.showFocus(0.5);
+        if (unit.barriered)
+          unit.showBarrier();
+      }
     });
 
     return this;

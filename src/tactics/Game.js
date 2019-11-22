@@ -1174,8 +1174,6 @@ export default class {
       // This can happen when the Chaos Seed hatches and consumes the unit.
       if (!unit.assignment) return;
 
-      this.drawCard(unit);
-
       if (Object.keys(changes).length)
         unit.change(changes);
       if (result.results)
@@ -1183,19 +1181,23 @@ export default class {
 
       anim.splice(this._animApplyFocusChanges(result));
 
-      if (result.miss) {
-        let notice = !result.luck && unit.directional === false
-          ? 'Immune!' : 'Miss!';
-
-        unit.change({ notice });
-        let caption = result.notice || notice;
-        return unit.animCaption(caption).play();
-      }
-
       if ('focusing' in changes) {
         let caption = result.notice;
         if (caption)
           anim.splice(0, unit.animCaption(caption));
+
+        return anim.play();
+      }
+
+      // Show the effect on the unit
+      this.drawCard(unit);
+
+      if (result.miss) {
+        let notice = result.miss.toUpperCase('first')+'!';
+
+        unit.change({ notice });
+        let caption = result.notice || notice;
+        anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
       }
@@ -1206,6 +1208,9 @@ export default class {
 
         return anim.play();
       }
+
+      if (changes.barriered)
+        return anim.play();
 
       if (changes.poisoned) {
         let caption = result.notice || 'Poisoned!';
@@ -1620,15 +1625,22 @@ export default class {
     });
   }
   _animApplyFocusChanges(result) {
-    let anim       = new Tactics.Animation();
-    let unit       = result.unit;
+    let anim = new Tactics.Animation();
+    let unit = result.unit;
+
     let hasFocus   = unit.hasFocus();
     let needsFocus = unit.focusing || unit.paralyzed || unit.poisoned;
-
     if (!hasFocus && needsFocus)
       anim.splice(0, unit.animFocus(0.5));
     else if (hasFocus && !needsFocus)
       anim.splice(0, unit.animDefocus());
+
+    let hasBarrier   = unit.hasBarrier();
+    let needsBarrier = unit.barriered;
+    if (!hasBarrier && needsBarrier)
+      anim.splice(0, unit.animShowBarrier());
+    else if (hasBarrier && !needsBarrier)
+      anim.splice(0, unit.animHideBarrier());
 
     if (result.results)
       result.results.forEach(result => anim.splice(0, this._animApplyFocusChanges(result)));

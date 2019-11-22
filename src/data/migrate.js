@@ -67,6 +67,19 @@ MIGRATIONS.game = [
 
     return data;
   },
+  /*
+   * Renamed 'breakFocus' action type to 'break'.
+   */
+  data => {
+    data.state.turns.forEach(turnData => {
+      turnData.actions.forEach(action => {
+        if (action.type === 'breakFocus')
+          action.type = 'break';
+      });
+    });
+
+    return data;
+  },
 ];
 
 /*

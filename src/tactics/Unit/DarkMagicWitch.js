@@ -35,11 +35,16 @@ export default class DarkMagicWitch extends Unit {
 
       let target_unit = target.assigned;
       if (target_unit) {
-        attackAnim.splice(6, target_unit.animStagger(this));
-        attackAnim.splice(6, {
-          script: frame => target_unit.colorize(0xFFFFFF, darkness[frame.repeat_index]),
-          repeat: darkness.length,
-        });
+        if (target_unit.barriered)
+          attackAnim
+            .splice(5, target_unit.animBlock(this));
+        else
+          attackAnim
+            .splice(6, target_unit.animStagger(this, null))
+            .splice(6, {
+              script: frame => target_unit.colorize(0xFFFFFF, darkness[frame.repeat_index]),
+              repeat: darkness.length,
+            });
       }
     });
 
@@ -49,6 +54,9 @@ export default class DarkMagicWitch extends Unit {
     return anim.play();
   }
   animBlock(attacker) {
+    if (this.barriered)
+      return super.animBlock(attacker);
+
     let anim      = new Tactics.Animation();
     let sounds    = Object.assign({}, Tactics.sounds, this.sounds);
     let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);

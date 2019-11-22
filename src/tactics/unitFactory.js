@@ -1,11 +1,10 @@
-'use strict';
-
 import unitDataMap from 'tactics/unitData.js';
 import Unit from 'tactics/Unit.js';
 import Knight from 'tactics/Unit/Knight.js';
 import Pyromancer from 'tactics/Unit/Pyromancer.js';
 import Scout from 'tactics/Unit/Scout.js';
 import Cleric from 'tactics/Unit/Cleric.js';
+import BarrierWard from 'tactics/Unit/BarrierWard.js';
 import LightningWard from 'tactics/Unit/LightningWard.js';
 import DarkMagicWitch from 'tactics/Unit/DarkMagicWitch.js';
 import Assassin from 'tactics/Unit/Assassin.js';
@@ -18,6 +17,7 @@ const unitClassMap = new Map([
   ['Pyromancer',     Pyromancer],
   ['Scout',          Scout],
   ['Cleric',         Cleric],
+  ['BarrierWard',    BarrierWard],
   ['LightningWard',  LightningWard],
   ['DarkMagicWitch', DarkMagicWitch],
   ['Assassin',       Assassin],

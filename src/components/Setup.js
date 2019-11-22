@@ -174,7 +174,7 @@ export default class {
     this._canvas.addEventListener('contextmenu', event => event.preventDefault());
 
     let unitTypes = [...gameTypeConfig.limits.units.types.keys()].reverse();
-    let positions = this._getPositions();
+    let positions = this._getPositions(unitTypes.length);
     this._picksTeam.set = unitTypes.map((ut, i) => ({ type:ut, assignment:positions[i] }));
 
     let leftPoint = board.getTile(0, 6).getLeft();
@@ -669,7 +669,14 @@ export default class {
     return tiles;
   }
 
-  _getPositions() {
+  _getPositions(num) {
+    if (num < 10)
+      return [
+        [5, 5], [3, 5], [7, 5], [1, 5], [9, 5],
+        [5, 7], [3, 7], [7, 7],
+        [5, 9],
+      ];
+
     let cols = [5, 3, 7, 1, 9];
     let rows = [5, 7, 9, 6, 8, 10];
     let positions = [];

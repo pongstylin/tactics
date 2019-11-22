@@ -4,13 +4,13 @@ import Unit from 'tactics/Unit.js';
 
 export default class Cleric extends Unit {
   getAttackTiles() {
-    return this.team.units.map(unit => unit.assignment);
+    return this.getTargetUnits().map(u => u.assignment);
   }
-  getTargetTiles(target) {
+  getTargetTiles() {
     return this.getAttackTiles();
   }
-  getTargetUnits(target) {
-    return this.team.units;
+  getTargetUnits() {
+    return this.team.units.filter(u => u.mHealth < 0);
   }
   attack(action) {
     let anim         = new Tactics.Animation();

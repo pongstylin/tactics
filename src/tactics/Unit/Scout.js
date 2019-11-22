@@ -20,7 +20,7 @@ export default class Scout extends Unit {
       );
 
       // Animate the target unit's reaction.
-      if (result.miss === 'blocked')
+      if (result.miss)
         attackAnim
           .splice(index, unit.animBlock(this));
       else

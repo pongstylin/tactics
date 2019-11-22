@@ -171,7 +171,7 @@ export default class Knight extends Unit {
     action.results.forEach(result => {
       let unit = result.unit;
 
-      if (result.miss === 'blocked')
+      if (result.miss)
         attackAnim
           .splice(3, unit.animBlock(this));
       else
@@ -264,6 +264,9 @@ export default class Knight extends Unit {
     return anim;
   }
   animBlock(attacker) {
+    if (this.barriered)
+      return super.animBlock(attacker);
+
     let sounds    = $.extend({}, Tactics.sounds, this.sounds);
     let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);
 
@@ -293,9 +296,11 @@ export default class Knight extends Unit {
       }
     ]});
   }
-  animStagger(attacker) {
+  animStagger(attacker, direction) {
     let anim = new Tactics.Animation({fps:12});
-    let direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
+
+    if (direction === undefined)
+      direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
 
     anim.addFrames([
       () =>
@@ -352,7 +357,7 @@ export default class Knight extends Unit {
 
     return this;
   }
-  walk(target,direction,step,offset,odirection) {
+  walk(target, direction, step, offset, odirection) {
     var pixi = this.pixi;
     var walk = this._walks[direction];
     var tpoint = target.getCenter();
@@ -386,20 +391,20 @@ export default class Knight extends Unit {
       offset = {x:Math.round(88 * offset),y:Math.round(56 * offset)};
 
       // This is the opposite of what you would normally expect.
-      if (odirection == 'N') {
+      if (odirection === 'N') {
         pixi.position.x -= offset.x;
         pixi.position.y -= offset.y;
       }
-      else if (odirection == 'E') {
+      else if (odirection === 'S') {
         pixi.position.x += offset.x;
-        pixi.position.y -= offset.y;
-      }
-      else if (odirection == 'W') {
-        pixi.position.x -= offset.x;
         pixi.position.y += offset.y;
       }
-      else {
+      else if (odirection === 'E') {
         pixi.position.x += offset.x;
+        pixi.position.y -= offset.y;
+      }
+      else if (odirection === 'W') {
+        pixi.position.x -= offset.x;
         pixi.position.y += offset.y;
       }
     }

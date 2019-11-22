@@ -150,7 +150,7 @@ unitDataMap.set('Pyromancer', {
   },
   effects: {
     fireblast: {
-      frames_url:    'https://tactics.taorankings.com/json/explode.json',
+      frames_url: 'https://tactics.taorankings.com/json/explode.json',
       frames_offset: {y:-20},
     },
   },
@@ -317,8 +317,51 @@ unitDataMap.set('Cleric', {
 });
 
 unitDataMap.set('BarrierWard', {
-  name: 'Barrier Ward',
-  waitFirstTurn: true,
+  name:        'Barrier Ward',
+  ability:     'Barrier',
+  power:       0,
+  armor:       0,
+  health:      32,
+  recovery:    2,
+  blocking:    100,
+  mType:       false,
+  mRadius:     0,
+  mPass:       false,
+  aType:       'barrier',
+  aFocus:      true,
+  aRange:      [0, 6],
+  directional: false,
+  sounds: {
+    attack: 'sound1368',
+    block: 'sound8',
+    strike: 'sound11',
+  },
+  stills: {
+    S: 0,
+    W: 0,
+    N: 0,
+    E: 0,
+  },
+  attacks: {
+    S: [11, 27],
+    W: [11, 27],
+    N: [11, 27],
+    E: [11, 27],
+  },
+  blocks: {
+    S: [32, 38],
+    W: [32, 38],
+    N: [32, 38],
+    E: [32, 38],
+  },
+  turns: {
+    S: 0,
+    W: 0,
+    N: 0,
+    E: 0,
+  },
+  frames_url: 'https://tactics.taorankings.com/json/barrier_ward.json',
+  frames_offset: {y:-8},
 });
 
 unitDataMap.set('LightningWard', {
@@ -336,10 +379,11 @@ unitDataMap.set('LightningWard', {
   aRange:      [0, 3],
   directional: false,
   sounds: {
-    block:'sound8',
-    heal:'sound1203',
-    attack:'sound1368',
-    lightning:'sound1370',              
+    block: 'sound8',
+    heal: 'sound1203',
+    attack: 'sound1368',
+    lightning: 'sound1370',
+    strike: 'sound11',
   },
   stills: {
     S: 0,
@@ -394,6 +438,7 @@ unitDataMap.set('DarkMagicWitch', {
     attack2: 'sound1602',
     block1: {
       file: 'sound431', // 2055ms
+      volume: 0,
       sprite: {
         // fadeIn(volume: 0 => 0.5, over: 0 => 55)
         block: [1100, 955],

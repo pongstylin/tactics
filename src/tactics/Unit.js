@@ -208,14 +208,29 @@ export default class {
       // Another unit is in the way.  No chance to hit target unit.
       calc.chance = 0;
     }
+    else if (
+      (
+        /^(melee|magic|heal)$/.test(this.aType) &&
+        target_unit.barriered
+      ) ||
+      (
+        this.aType === 'melee' &&
+        target_unit.blocking === 100 &&
+        target_unit.directional === false &&
+        !target_unit.paralyzed &&
+        !target_unit.focusing
+      )
+    ) {
+      calc.immune = true;
+      calc.chance = 0;
+      calc.damage = 0;
+    }
     else if (this.aType === 'melee') {
       // Armor reduces magic damage.
       calc.damage = Math.round(power * (1 - armor/100));
       if (calc.damage === 0) calc.damage = 1;
 
-      if (target_unit.barriered)
-        calc.chance = 0;
-      else if (target_unit.paralyzed)
+      if (target_unit.paralyzed || target_unit.focusing)
         calc.chance = 100;
       else if (target_unit.directional === false) {
         // Wards have 100% blocking from all directions.
@@ -258,20 +273,14 @@ export default class {
       if (calc.damage === 0) calc.damage = 1;
 
       // Magic can only be stopped by barriers.
-      if (target_unit.barriered)
-        calc.chance = 0;
-      else
-        calc.chance = 100;
+      calc.chance = 100;
     }
     else if (this.aType === 'heal') {
       // Armor has no effect on heal power.
       calc.damage = -power;
 
-      // Healing can be stopped by barriers.
-      if (target_unit.barriered)
-        calc.chance = 0;
-      else
-        calc.chance = 100;
+      // Healing can only be stopped by barriers.
+      calc.chance = 100;
     }
     else {
       // The attack type is the name of an effect.
@@ -294,12 +303,21 @@ export default class {
       let result = { unit:unit };
       let calc   = this.calcAttack(unit, assignment, target);
 
-      if (calc.effect) {
+      if (calc.immune) {
+        result.miss = 'immune';
+
+        return result;
+      }
+      else if (calc.effect) {
         let property;
         if (calc.effect === 'paralyze')
           property = 'paralyzed';
-        else if (calc.effect === 'poisoned')
+        else if (calc.effect === 'poison')
           property = 'poisoned';
+        else if (calc.effect === 'barrier')
+          property = 'barriered';
+        else
+          throw new Error('Unrecognized effect');
 
         // Get a list of units currently focused upon this one...
         //  ...excluding units that are being attacked.
@@ -330,8 +348,6 @@ export default class {
               mBlocking: unit.mBlocking - calc.penalty,
             },
           });
-        else if (unit.barriered)
-          result.miss = 'deflected';
         else
           result.miss = 'blocked';
 
@@ -391,11 +407,14 @@ export default class {
           unit:      unit,
           focusing:  unit.focusing  && unit.focusing.slice(),
           paralyzed: unit.paralyzed && unit.paralyzed.slice(),
+          barriered: unit.barriered && unit.barriered.slice(),
           poisoned:  unit.poisoned  && unit.poisoned.slice(),
         });
 
       if (changes.paralyzed)
         resultUnit.paralyzed = changes.paralyzed;
+      if (changes.barriered)
+        resultUnit.barriered = changes.barriered;
       if (changes.poisoned)
         resultUnit.poisoned = changes.poisoned;
 
@@ -420,14 +439,19 @@ export default class {
               unit:      fUnit,
               focusing:  fUnit.focusing  && fUnit.focusing.slice(),
               paralyzed: fUnit.paralyzed && fUnit.paralyzed.slice(),
+              barriered: fUnit.barriered && fUnit.barriered.slice(),
               poisoned:  fUnit.poisoned  && fUnit.poisoned.slice(),
             });
 
           let property;
           if (unit.aType === 'paralyze')
             property = 'paralyzed';
+          else if (unit.aType === 'barrier')
+            property = 'barriered';
           else if (unit.aType === 'poison')
             property = 'poisoned';
+          else
+            throw new Error('Unrecognized aType');
 
           let newValue = focusedUnit[property].filter(u => u !== unit);
           focusedUnit[property] = newValue.length ? newValue : false;
@@ -459,6 +483,7 @@ export default class {
               unit:      fUnit,
               focusing:  fUnit.focusing  && fUnit.focusing.slice(),
               paralyzed: fUnit.paralyzed && fUnit.paralyzed.slice(),
+              barriered: fUnit.barriered && fUnit.barriered.slice(),
               poisoned:  fUnit.poisoned  && fUnit.poisoned.slice(),
             });
 
@@ -662,7 +687,9 @@ export default class {
     if (frame.data) {
       // Reset Normal Appearance
       if (this.width && this.height) {
-        // No change required.  All frames have constant positions.
+        // Reset the position after using .offsetFrame()
+        frame.position.x = 0;
+        frame.position.y = 0;
       }
       else { // Legacy
         frame.position.x = frame.data.x || 0;
@@ -689,21 +716,19 @@ export default class {
 
     return this;
   }
-  drawTurn(direction) {
-    if (!direction) direction = this.direction;
+  drawTurn(direction = this.direction) {
     if (!isNaN(direction)) direction = this.board.getRotation(this.direction, direction);
 
-    this.drawFrame(this.turns[direction]);
+    return this.drawFrame(this.turns[direction]);
   }
-  drawStand(direction) {
+  drawStand(direction = this.direction) {
     if (this.directional === false)
       direction = 'S';
     else {
-      if (!direction) direction = this.direction;
       if (!isNaN(direction)) direction = this.board.getRotation(this.direction, direction);
     }
 
-    this.drawFrame(this.stills[direction]);
+    return this.drawFrame(this.stills[direction]);
   }
   getSpritesByName(name) {
     return this.frame.children.filter(s => s.data && s.data.name === name);
@@ -712,23 +737,23 @@ export default class {
     let frame = this.frame;
     offset = {
       x: Math.round(88 * offset),
-      y: Math.round(56 * offset)
+      y: Math.round(56 * offset),
     };
 
-    if (direction == 'N') {
+    if (direction === 'N') {
       frame.position.x -= offset.x;
       frame.position.y -= offset.y;
     }
-    else if (direction == 'E') {
+    else if (direction === 'S') {
       frame.position.x += offset.x;
-      frame.position.y -= offset.y;
-    }
-    else if (direction == 'W') {
-      frame.position.x -= offset.x;
       frame.position.y += offset.y;
     }
-    else {
+    else if (direction === 'E') {
       frame.position.x += offset.x;
+      frame.position.y -= offset.y;
+    }
+    else if (direction === 'W') {
+      frame.position.x -= offset.x;
       frame.position.y += offset.y;
     }
 
@@ -773,7 +798,7 @@ export default class {
   /*
    * This is called before a focusing unit moves, attacks, or turns.
    */
-  breakFocus(action) {
+  break(action) {
     return Promise.resolve();
   }
   // Animate from one tile to the next
@@ -913,12 +938,12 @@ export default class {
 
     return this;
   }
-  focus(viewed) {
+  focus(view_only) {
     if (this.focused) return;
     this.focused = true;
 
     let pulse = this._pulse;
-    return this.assignment.painted === 'focus' && !pulse && !viewed ? this._startPulse(6) : this;
+    return this.assignment.painted === 'focus' && !pulse && !view_only ? this._startPulse(6) : this;
   }
   blur() {
     if (!this.focused) return this;
@@ -958,9 +983,12 @@ export default class {
     return this._stopPulse();
   }
   change(changes) {
-    Object.assign(this, changes);
+    let dirty = Object.keys(changes).findIndex(k => changes[k] !== this[k]) > -1;
+    if (dirty) {
+      Object.assign(this, changes);
 
-    this._emit({type:'change', changes:changes});
+      this._emit({type:'change', changes:changes});
+    }
 
     return this;
   }
@@ -992,6 +1020,53 @@ export default class {
 
     return focus;
   }
+  hasBarrier() {
+    return !!this.getSpritesByName('barrier')[0];
+  }
+  showBarrier(color = this.color) {
+    let barrier = this.getSpritesByName('barrier')[0];
+    let effect = Tactics.effects.barrier;
+
+    if (!barrier) {
+      barrier = this.compileFrame(effect.frames[effect.still], effect);
+      barrier.data = {name: 'barrier'};
+      barrier.children.forEach(sprite => sprite.tint = color);
+
+      this.frame.addChild(barrier);
+    }
+    else {
+      barrier.children.forEach(sprite => sprite.tint = color);
+    }
+
+    return this;
+  }
+  hideBarrier() {
+    let barrier = this.getSpritesByName('barrier')[0];
+    if (barrier)
+      this.frame.removeChild(barrier);
+
+    return focus;
+  }
+  activateBarrier(color = this.color) {
+    if (!this.hasBarrier)
+      throw new Error('No barrier');
+
+    if (this._animActivateBarrier)
+      return;
+
+    this._animActivateBarrier = this.animActivateBarrier();
+    this._animActivateBarrier.play();
+  }
+  deactivateBarrier() {
+    if (!this.hasBarrier)
+      throw new Error('No barrier');
+
+    if (!this._animActivateBarrier)
+      return;
+
+    this._animActivateBarrier.stop();
+    this._animActivateBarrier = null;
+  }
   animFocus() {
     let anim   = new Tactics.Animation();
     let alphas = [0.125, 0.25, 0.375, 0.5];
@@ -1022,6 +1097,114 @@ export default class {
       repeat: alphas.length,
     });
     anim.addFrame(() => this.frame.removeChild(focus));
+
+    return anim;
+  }
+  animShowBarrier(color = this.color) {
+    let anim = new Tactics.Animation();
+    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
+    let effect = Tactics.effects.barrier;
+
+    anim.addFrame(() => {
+      sounds.barrier.fade(0, 1, 295, sounds.barrier.play('on'));
+    });
+
+    let offsets = effect.on;
+    let frames = effect.frames.slice(offsets[0], offsets[1]+1)
+      .map(frame => this.compileFrame(frame, effect));
+
+    frames.forEach((frame, i) => {
+      anim.splice(i, [
+        () => {
+          frame.children.forEach(sprite => sprite.tint = color);
+          this.frame.addChild(frame);
+        },
+        () => this.frame.removeChild(frame),
+      ]);
+    });
+
+    anim.splice(anim.frames.length-1, () => this.showBarrier());
+
+    return anim;
+  }
+  animActivateBarrier(color = this.color) {
+    let anim = new Tactics.Animation({ loop:true, fps:8 });
+    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
+    let effect = Tactics.effects.barrier;
+
+    let offsets = effect.active;
+    let frames = effect.frames.slice(offsets[0], offsets[1]+1)
+      .map(frame => {
+        frame = this.compileFrame(frame, effect);
+        frame.data = { name:'barrier' };
+        frame.children.forEach(sprite => sprite.tint = color);
+        return frame;
+      });
+
+    frames.forEach((frame, i) => {
+      anim.splice(i, [
+        () => {
+          this.frame.removeChild(this.getSpritesByName('barrier')[0]);
+          this.frame.addChild(frame);
+        },
+      ]);
+    });
+
+    anim.on('stop', () => {
+      this.frame.removeChild(this.getSpritesByName('barrier')[0]);
+      this.showBarrier();
+    });
+
+    return anim;
+  }
+  animBarrierBlock(attacker, color = this.color) {
+    let anim = new Tactics.Animation();
+    let effect = Tactics.effects.barrier;
+
+    if (attacker.aType === 'melee')
+      anim.addFrame(() => Tactics.sounds.deflect.play());
+
+    let offsets = effect.block;
+    let frames = effect.frames.slice(offsets[0], offsets[1]+1)
+      .map(frame => this.compileFrame(frame, effect));
+
+    frames.forEach((frame, i) => {
+      anim.splice(i, [
+        () => {
+          frame.children.forEach(sprite => sprite.tint = color);
+          this.frame.addChild(frame);
+        },
+        () => this.frame.removeChild(frame),
+      ]);
+    });
+
+    anim.splice(anim.frames.length-1, () => this.showBarrier());
+
+    return anim;
+  }
+  animHideBarrier(color = this.color) {
+    let anim = new Tactics.Animation();
+    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
+    let effect = Tactics.effects.barrier;
+
+    anim.addFrame(() => {
+      this.hideBarrier();
+      sounds.barrier.fade(0, 0.75, 123, sounds.barrier.play('off'));
+    });
+
+    let offsets = effect.off;
+    let frames = effect.frames.slice(offsets[0], offsets[1]+1)
+      .map(frame => this.compileFrame(frame, effect));
+
+    frames.forEach((frame, i) => {
+      anim.splice(i, [
+        () => {
+          frame.children.forEach(sprite => sprite.tint = color);
+          this.frame.addChild(frame);
+        },
+        () => this.frame.removeChild(frame),
+      ]);
+    });
 
     return anim;
   }
@@ -1196,17 +1379,27 @@ export default class {
     let sounds    = Object.assign({}, Tactics.sounds, this.sounds);
     let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);
 
-    anim.addFrame(() => sounds.block.play());
-    if (this.directional !== false)
-      anim.splice(0, () => this.direction = direction);
+    if (this.barriered)
+      anim.splice(0, this.animBarrierBlock(attacker));
+    else if (this.blocks) {
+      anim.addFrame(() => sounds.block.play());
+      if (this.directional !== false)
+        anim.splice(0, () => this.direction = direction);
 
-    if (this.blocks) {
       let indexes = [];
       for (let index = this.blocks[direction][0]; index <= this.blocks[direction][1]; index++) {
         indexes.push(index);
       }
       indexes.forEach((index, i) => anim.splice(i, () => this.drawFrame(index)));
 
+      if (this.directional !== false)
+        anim.addFrame(() => this.stand(direction));
+    }
+
+    if (
+      (this.barriered && attacker.aType === 'melee') ||
+      (!this.barriered && this.blocks)
+    ) {
       // Kinda hacky.  It seems that shocks should be rendered by the attacker, not defender.
       if (attacker.name === 'Scout')
         anim.splice(1, [
@@ -1222,9 +1415,6 @@ export default class {
           () => this.shock(),
         ]);
     }
-
-    if (this.directional !== false)
-      anim.addFrame(() => this.stand(direction));
 
     return anim;
   }
@@ -1308,7 +1498,7 @@ export default class {
   }
   animStrike(defender) {
     let anim      = new Tactics.Animation();
-    let sounds    = Object.assign({}, Tactics.sounds, this.sounds);
+    let sounds    = Object.assign({}, Tactics.sounds, defender.sounds);
     let direction = this.board.getDirection(
       defender.assignment,
       this.assignment,
@@ -1325,21 +1515,16 @@ export default class {
 
     return anim;
   }
-  animStagger(attacker) {
+  animStagger(attacker, direction) {
     let anim      = new Tactics.Animation();
-    let direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
+
+    if (direction === undefined)
+      direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
 
     anim.addFrames([
-      () =>
-        this
-          .drawFrame(this.turns[this.direction])
-          .offsetFrame(0.06, direction),
-      () =>
-        this
-          .drawFrame(this.turns[this.direction])
-          .offsetFrame(-0.02, direction),
-      () =>
-        this.drawStand(),
+      () => this.drawTurn().offsetFrame(0.06, direction),
+      () => this.drawTurn().offsetFrame(-0.02, direction),
+      () => this.drawStand(),
     ]);
 
     return anim;
@@ -1422,12 +1607,16 @@ export default class {
     ]);
 
     if (tunit)
-      anim
-        .splice(2, tunit.animStagger(this,tunit.direction))
-        .splice(2, {
-          script: () => tunit.whiten(whiten.shift()),
-          repeat: 6,
-        });
+      if (tunit.barriered)
+        anim
+          .splice(2, tunit.animBlock(this));
+      else
+        anim
+          .splice(2, tunit.animStagger(this, null))
+          .splice(2, {
+            script: () => tunit.whiten(whiten.shift()),
+            repeat: 6,
+          });
 
     return anim;
   }
@@ -1444,29 +1633,34 @@ export default class {
       [{x:-18,y:-52},{x:0,y:-67},{x:18,y:-52}].shuffle().forEach((pos, i) => {
         anim.splice(i*3+1, this.animSparkle(tunit.pixi, pos));
       });
+
+      if (tunit.barriered)
+        anim.splice(2, tunit.animBlock(this));
     });
 
+    let healedUnits = target_units.filter(u => !u.barriered);
     let index = 0;
 
-    anim.splice(2, [
-      // Intensify yellow tint on healed units
-      {
-        script: () => {
-          index++;
-          target_units.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
+    if (healedUnits.length)
+      anim.splice(2, [
+        // Intensify yellow tint on healed units
+        {
+          script: () => {
+            index++;
+            healedUnits.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
+          },
+          repeat: 5,
         },
-        repeat: 5,
-      },
-      // Fade yellow tint on healed units
-      {
-        script: () => {
-          index--;
-          target_units.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
+        // Fade yellow tint on healed units
+        {
+          script: () => {
+            index--;
+            healedUnits.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
+          },
+          repeat: 5,
         },
-        repeat: 5,
-      },
-      () => target_units.forEach(tunit => tunit.colorize(null)),
-    ]);
+        () => healedUnits.forEach(tunit => tunit.colorize(null)),
+      ]);
 
     return anim;
   }
@@ -1551,11 +1745,9 @@ export default class {
     let calc = this.calcAttack(target_unit, null, target);
     let notice;
 
-    if (calc.effect === 'paralyze')
-      notice = 'Paralyze!';
-    else if (calc.effect === 'poison')
-      notice = 'Poison!';
-    else if (calc.chance === 0 && target_unit.directional === false)
+    if (calc.effect)
+      notice = calc.effect.toUpperCase('first')+'!';
+    else if (calc.immune)
       notice = 'Immune!';
     else if (calc.damage === 0)
       notice = calc.damage+' ('+Math.round(calc.chance)+'%)';
@@ -1565,6 +1757,56 @@ export default class {
       notice = '-'+calc.damage+' ('+Math.round(calc.chance)+'%)';
 
     target_unit.change({ notice:notice });
+  }
+  /*
+   * Certain actions can break certain status effects.
+   */
+  getBreakAction(action) {
+    let breakAction = { type:'break', unit:this, results:[] };
+
+    // Any action will break focus.
+    if (this.focusing)
+      breakAction.results.push(this.getBreakFocusResult());
+
+    // Any action except turning will break barrier.
+    if (this.barriered && action.type !== 'turn')
+      breakAction.results.push({
+        unit: this,
+        changes: {
+          barriered: false,
+        },
+        results: [
+          ...this.barriered.map(fUnit => ({
+            unit: fUnit,
+            changes: {
+              focusing: fUnit.focusing.length === 1
+                ? false
+                : fUnit.focusing.filter(t => t !== this),
+            },
+          })),
+        ],
+      });
+
+    // Only moving breaks poison
+    if (this.poisoned && action.type === 'move')
+      breakAction.results.push({
+        unit: this,
+        changes: {
+          poisoned: false,
+        },
+        results: [
+          ...this.poisoned.map(fUnit => ({
+            unit: fUnit,
+            changes: {
+              focusing: fUnit.focusing.length === 1
+                ? false
+                : fUnit.focusing.filter(t => t !== this),
+            },
+          })),
+        ],
+      });
+
+    return breakAction;
   }
   validateAction(action) {
     let actionType = action.type.charAt(0).toUpperCase() + action.type.slice(1);
@@ -1691,7 +1933,7 @@ export default class {
     return this.directional !== false;
   }
   isPassable() {
-    return this.focusing === false && !this.paralyzed && this.mPass !== false;
+    return this.focusing === false && !this.paralyzed && !this.barriered && this.mPass !== false;
   }
 
   on() {
@@ -1727,13 +1969,13 @@ export default class {
       'mRecovery',
       'focusing',
       'paralyzed',
-      'poisoned',
       'barriered',
+      'poisoned',
     ];
 
     properties.forEach(prop => {
       if (this[prop])
-        if (prop === 'focusing' || prop === 'paralyzed' || prop === 'poisoned')
+        if (prop === 'focusing' || prop === 'paralyzed' || prop === 'barriered' || prop === 'poisoned')
           state[prop] = this[prop].map(u => u.id);
         else
           state[prop] = this[prop];

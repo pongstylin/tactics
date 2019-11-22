@@ -15,7 +15,7 @@ export default class Assassin extends Unit {
       let unit = result.unit;
 
       // Animate the target unit's reaction starting with the 4th attack frame.
-      if (result.miss === 'blocked')
+      if (result.miss)
         attackAnim
           .splice(3, unit.animBlock(this));
       else
@@ -52,7 +52,7 @@ export default class Assassin extends Unit {
       let result = {unit:target_unit};
 
       if (target_unit.barriered)
-        result.miss = 'deflected';
+        result.miss = 'immune';
       else {
         result.notice  = cries.shuffle().shift();
         result.changes = { mHealth:-target_unit.health };
@@ -90,6 +90,9 @@ export default class Assassin extends Unit {
    * Also plays a sound sprite instead of the full sound.
    */
   animBlock(attacker) {
+    if (this.barriered)
+      return super.animBlock(attacker);
+
     let anim      = new Tactics.Animation();
     let sounds    = Object.assign({}, Tactics.sounds, this.sounds);
     let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);
