@@ -1181,7 +1181,7 @@ export default class {
 
       anim.splice(this._animApplyFocusChanges(result));
 
-      if ('focusing' in changes) {
+      if ('focusing' in changes || changes.barriered === false) {
         let caption = result.notice;
         if (caption)
           anim.splice(0, unit.animCaption(caption));
