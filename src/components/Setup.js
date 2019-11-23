@@ -485,7 +485,15 @@ export default class {
     };
 
     let counts = this._getAvailableUnitCounts();
-    if (counts.get('any'))
+    let nonWardUnit = this._team.units.find(u => {
+      if (u.type === 'LightningWard') return false;
+      if (u.type === 'BarrierWard') return false;
+      return true;
+    });
+
+    if (!nonWardUnit)
+      popup('You need at least one unit that is not a ward.');
+    else if (counts.get('any'))
       popup({
         message: 'You can still add more unit(s) to your team.  Are you sure?',
         buttons: [
