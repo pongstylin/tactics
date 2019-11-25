@@ -921,7 +921,56 @@ unitDataMap.set('Wisp', {
 });
 
 unitDataMap.set('Furgon', {
-  name:'Furgon',
+  name: 'Furgon',
+  frames_url: 'https://tactics.taorankings.com/json/furgon.json',
+  stills: {
+    S:   0,
+    W:  51,
+    N: 102,
+    E: 153,
+  },
+  backSteps: {
+    S: [  1,   6],
+    W: [ 52,  57],
+    N: [103, 108],
+    E: [154, 159],
+  },
+  foreSteps: {
+    S: [  7,  10],
+    W: [ 58,  61],
+    N: [109, 112],
+    E: [160, 163],
+  },
+  walks: {
+    S: [ 11,  18],
+    W: [ 62,  69],
+    N: [113, 120],
+    E: [164, 171],
+  },
+  attacks: {
+    S: [ 19,  26],
+    W: [ 70,  77],
+    N: [121, 128],
+    E: [172, 179],
+  },
+  special: {
+    S: [ 28,  41],
+    W: [ 79,  92],
+    N: [130, 143],
+    E: [181, 194],
+  },
+  blocks: {
+    S: [ 43,  48],
+    W: [ 94,  99],
+    N: [145, 150],
+    E: [196, 201],
+  },
+  turns: {
+    S:  10,
+    W:  61,
+    N: 112,
+    E: 163,
+  },
 });
 
 unitDataMap.set('Shrub', {
