@@ -109,7 +109,7 @@ export const getUpdate = async version => {
   }).whenClosed;
 };
 
-export const untilWorkerReady = worker => new Promise((resolve, reject) => {
+const untilWorkerReady = worker => new Promise((resolve, reject) => {
   if (worker.state !== 'installing')
     return resolve(worker.state);
 

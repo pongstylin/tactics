@@ -538,25 +538,39 @@ export default class {
       choice.unit = choice.friend;
     }
 
-    choices.sort((a,b) => a.distance - b.distance);
+    if (choices.length) {
+      choices.sort((a,b) => a.distance - b.distance);
 
-    choice.start = choice.unit.assignment;
-    choice.end = choices[0].end;
+      choice.start = choice.unit.assignment;
+      choice.end = choices[0].end;
 
-    choice.unit.assign(choice.end);
-    choice.unit._direction = choice.unit.direction;
+      choice.unit.assign(choice.end);
+      choice.unit._direction = choice.unit.direction;
 
-    choice.direction = this.considerDirection(choice.unit);
+      choice.direction = this.considerDirection(choice.unit);
 
-    choice.unit.assign(choice.start);
-    choice.unit.direction = choice.unit._direction;
+      choice.unit.assign(choice.start);
+      choice.unit.direction = choice.unit._direction;
 
-    this.choices = [{
-      first: 'move',
-      unit: choice.unit,
-      end: choice.end,
-      direction: choice.direction,
-    }];
+      this.choices = [{
+        first: 'move',
+        unit: choice.unit,
+        end: choice.end,
+        direction: choice.direction,
+      }];
+    }
+    else {
+      choice.unit._direction = choice.unit.direction;
+      choice.direction = this.considerDirection(choice.unit);
+      choice.unit.direction = choice.unit._direction;
+
+      this.choices = [{
+        first: 'turn',
+        unit: choice.unit,
+        end: choice.end,
+        direction: choice.direction,
+      }];
+    }
 
     return this;
   }
