@@ -34,6 +34,11 @@ export default class RemoteTransport {
         this._emit(body);
       })
       .on('open', ({ data }) => {
+        // Connection may be lost after listening to events, but before joining
+        // the game and getting the data.  In that case, resume is a no-op and
+        // the attempt to join will be retried.
+        if (!this._data) return;
+
         if (data.reason === 'resume')
           this._resume();
         else
@@ -230,7 +235,6 @@ export default class RemoteTransport {
     });
   }
   _reset(outbox) {
-    if (!this._data) return;
     // For now, joining ended games is ok.
     //if (this._data.state.ended) return;
 
