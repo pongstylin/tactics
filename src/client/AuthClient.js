@@ -218,7 +218,7 @@ export default class AuthClient extends Client {
     if (!sw || !sw.controller)
       return;
 
-    return await fetch(LOCAL_ENDPOINT, {
+    return fetch(LOCAL_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -226,7 +226,7 @@ export default class AuthClient extends Client {
       body: JSON.stringify({ token }),
     });
   }
-  _setToken(tokenValue) {
+  async _setToken(tokenValue) {
     let token = new Token(tokenValue);
     let storedToken = this._fetchToken();
     let myToken = this.token;
@@ -240,17 +240,19 @@ export default class AuthClient extends Client {
     // Store the newest token if it is newer than the stored token.
     if (!storedToken || storedToken.createdAt < token.createdAt) {
       this._storeToken(token);
-      this._storeCachedToken(token);
+      await this._storeCachedToken(token);
     }
 
     if (this.isAuthorized && token.equals(myToken))
       return;
 
-    this.token = token;
-
-    this._setRefreshTimeout();
-    this._authorize(token);
-    this._emit({ type:'token', data:token });
+    // Use the token on the next tick to help guarantee it is saved first.
+    setTimeout(() => {
+      this.token = token;
+      this._setRefreshTimeout();
+      this._authorize(token);
+      this._emit({ type:'token', data:token });
+    });
   }
   _setRefreshTimeout() {
     this._clearRefreshTimeout();
