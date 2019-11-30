@@ -62,8 +62,12 @@ export const getUpdate = async version => {
         await reg.update();
 
         newWorker = reg.installing;
-        if (!newWorker)
-          throw new Error('No update was found');
+        if (!newWorker) {
+          if (reg.waiting)
+            throw new Error('Update stuck in waiting');
+          else
+            throw new Error('No update was found');
+        }
       }
 
       await untilWorkerReady(newWorker);
