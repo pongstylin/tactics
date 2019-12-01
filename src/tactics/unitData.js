@@ -336,6 +336,8 @@ unitDataMap.set('BarrierWard', {
     block: 'sound8',
     strike: 'sound11',
   },
+  frames_url: 'https://tactics.taorankings.com/json/barrier_ward.json',
+  frames_offset: {y:-8},
   stills: {
     S: 0,
     W: 0,
@@ -360,8 +362,6 @@ unitDataMap.set('BarrierWard', {
     N: 0,
     E: 0,
   },
-  frames_url: 'https://tactics.taorankings.com/json/barrier_ward.json',
-  frames_offset: {y:-8},
 });
 
 unitDataMap.set('LightningWard', {
@@ -385,6 +385,8 @@ unitDataMap.set('LightningWard', {
     lightning: 'sound1370',
     strike: 'sound11',
   },
+  frames_url: 'https://tactics.taorankings.com/json/lightning_ward.json',
+  frames_offset: {y:-5},
   stills: {
     S: 0,
     W: 0,
@@ -409,8 +411,6 @@ unitDataMap.set('LightningWard', {
     N: 0,
     E: 0,
   },                            
-  frames_url: 'https://tactics.taorankings.com/json/lightning_ward.json',
-  frames_offset: {y:-5},
 });
 
 unitDataMap.set('DarkMagicWitch', {
@@ -974,14 +974,25 @@ unitDataMap.set('Furgon', {
 });
 
 unitDataMap.set('Shrub', {
-  name:'Shrub',
+  name: 'Shrub',
+  directional: false,
+  stills: {
+    S: 0,
+    W: 0,
+    N: 0,
+    E: 0,
+  },
+  grow: [16, 22],
+  wither: [44, 47],
+  frames_url: 'https://tactics.taorankings.com/json/shrub.json',
+  frames_offset: {y:-29},
 });
 
 unitDataMap.set('Champion', {
   name:          'Champion',
+  stills:        {S:0, N:1},
   frames_url:    'https://tactics.taorankings.com/json/trophy.json',
   frames_offset: {y:-20},
-  stills:        {S:0, N:1},
 });
 
 unitDataMap.set('Ambusher', {

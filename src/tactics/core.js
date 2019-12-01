@@ -432,13 +432,6 @@ window.Tactics = (function () {
         frames_url: 'https://tactics.taorankings.com/json/barrier.json',
         frames_offset: {y:-29},
       },
-      shrub: {
-        still: 0,
-        grow: [16, 22],
-        wither: [44, 47],
-        frames_url: 'https://tactics.taorankings.com/json/shrub.json',
-        frames_offset: {y:-29},
-      },
     },
     animations: {
       death: [
