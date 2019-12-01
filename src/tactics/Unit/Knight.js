@@ -111,15 +111,19 @@ export default class Knight extends Unit {
   drawFrame(frame) {
     let pixi = this.pixi;
     let focus;
+    let barrier;
 
     if (this.frame) {
       focus = this.hideFocus();
+      barrier = this.hideBarrier();
       pixi.removeChild(this.frame);
     }
 
     pixi.addChildAt(this.frame = frame,0);
     if (focus)
       this.showFocus(focus.alpha);
+    if (barrier)
+      this.showBarrier();
 
     // Reset Normal Appearance
     frame.filters = null;

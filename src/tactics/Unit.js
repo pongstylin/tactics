@@ -669,9 +669,11 @@ export default class {
     let pixi = this.pixi;
     let frame = this._frames[index];
     let focus;
+    let barrier;
 
     if (this.frame) {
       focus = this.hideFocus();
+      barrier = this.hideBarrier();
       pixi.removeChild(this.frame);
     }
     if (!frame)
@@ -680,6 +682,8 @@ export default class {
     pixi.addChildAt(this.frame = frame, 0);
     if (focus)
       this.showFocus(focus.alpha);
+    if (barrier)
+      this.showBarrier();
 
     if (context)
       pixi.position = context.getCenter().clone();
@@ -1045,7 +1049,7 @@ export default class {
     if (barrier)
       this.frame.removeChild(barrier);
 
-    return focus;
+    return barrier;
   }
   activateBarrier(color = this.color) {
     if (!this.hasBarrier)
