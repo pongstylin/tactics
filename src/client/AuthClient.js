@@ -247,11 +247,14 @@ export default class AuthClient extends Client {
       return;
 
     // Use the token on the next tick to help guarantee it is saved first.
-    setTimeout(() => {
-      this.token = token;
-      this._setRefreshTimeout();
-      this._authorize(token);
-      this._emit({ type:'token', data:token });
+    return new Promise(resolve => {
+      setTimeout(() => {
+        this.token = token;
+        this._setRefreshTimeout();
+        this._authorize(token);
+        this._emit({ type:'token', data:token });
+        resolve();
+      });
     });
   }
   _setRefreshTimeout() {
