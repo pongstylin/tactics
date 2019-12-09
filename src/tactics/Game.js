@@ -441,42 +441,37 @@ export default class {
          */
         let replayTurnId = state.currentTurnId;
         let replayTeamId = state.currentTeamId;
-        let replayActionId = state.actions.length;
+        let replayActions = state.actions.slice();
+        let replayActionId = replayActions.length;
         let turnStarted = state.turnStarted;
         let replayUndoRequest = state.undoRequest;
 
         state.on('event', this._onStateEventListener);
 
-        if (state.ended) {
-          board.setState(state.units, teams);
-          this.actions.forEach(action => {
-            // Allow the user to see the loser's units at time of surrender.
-            if (action.type === 'surrender') return;
+        this.lock();
+        this._stateEventStack = this._replay(replayTurnId, replayActionId).then(() => {
+          if (state.ended)
+            return this._endGame();
 
-            this._applyAction(action);
-          });
-          this.render();
+          if (replayActions.length)
+            this.selected = board.decodeAction(replayActions[0]).unit;
 
-          this._endGame();
-        }
-        else
-          this._stateEventStack = this._replay(replayTurnId, replayActionId).then(() => {
-            if (turnStarted)
-              this._startTurn(replayTeamId);
+          if (turnStarted)
+            this._startTurn(replayTeamId);
 
-            /*
-             * Emit an undoRequest event if it was requested before listening to
-             * state events and continues to have a pending status.
-             */
-            let undoRequest = state.undoRequest;
-            if (
-              undoRequest &&
-              replayUndoRequest &&
-              replayUndoRequest.createdAt*1 === undoRequest.createdAt*1 &&
-              undoRequest.status === 'pending'
-            )
-              this._emit({ type:'undoRequest', data:undoRequest });
-          });
+          /*
+           * Emit an undoRequest event if it was requested before listening to
+           * state events and continues to have a pending status.
+           */
+          let undoRequest = state.undoRequest;
+          if (
+            undoRequest &&
+            replayUndoRequest &&
+            replayUndoRequest.createdAt*1 === undoRequest.createdAt*1 &&
+            undoRequest.status === 'pending'
+          )
+            this._emit({ type:'undoRequest', data:undoRequest });
+        });
 
         resolve();
       }, 100); // A "zero" delay is sometimes not long enough
@@ -908,16 +903,21 @@ export default class {
     if (!action.unit && action.type !== 'endTurn' && action.type !== 'surrender')
       action.unit = this.selected;
 
+    let selected = this.selected;
+    let locked = this.locked;
+
     this.selected = null;
     this.delayNotice('Sending order...');
 
     this.lock();
     return this.state.submitAction(this._board.encodeAction(action))
       .catch(error => {
-        // The user may submit an action that ends the game, but the endGame
-        // event is delayed until after the user submits another action.
-        if (error.code === 403 && error.message === 'The game has ended')
-          return;
+        this.notice = 'Server Error!';
+        this.selected = selected;
+        if (locked)
+          this.lock(locked)
+        else
+          this.unlock();
 
         throw error;
       });
@@ -1085,29 +1085,22 @@ export default class {
 
     // Change a readonly lock to a full lock
     this.viewed = null;
+    let locked = board.locked;
     this.lock();
 
     return promise.then(() => {
-      // If the action didn't result in ending the turn, then set mode.
-      let lastAction = actions[actions.length-1];
-      if (lastAction.type !== 'endTurn' && this.isMyTeam(lastAction.teamId)) {
-        this.unlock();
-        this.selected = actions[0].unit;
-      }
+      if (locked)
+        this.lock(locked);
       else
-        // Change a full lock to a readonly lock
-        this.lock('readonly');
+        this.unlock();
     });
   }
   // Act out the action on the board.
   _performAction(action) {
     if (action.type === 'endTurn')
       return this._endTurn(action);
-    else if (action.type === 'surrender') {
-      if (this.winningTeams.length > 2)
-        return this._playSurrender(action);
-      return Promise.resolve();
-    }
+    else if (action.type === 'surrender')
+      return this._playSurrender(action);
 
     let unit = action.unit;
 
@@ -1347,7 +1340,7 @@ export default class {
   _playSurrender(action) {
     let team = this.teams[action.teamId];
     let anim = new Tactics.Animation();
-    let notice = `${team.name}\nSurrenders!`;
+    let notice = `${team.colorId} Surrenders!`;
 
     anim.addFrame(() => this.notice = notice);
 
@@ -1661,7 +1654,16 @@ export default class {
     else if (type === 'action')
       eventHandler = () => {
         this._setTurnTimeout();
-        return this._performActions(data);
+        return this._performActions(data).then(() => {
+          // If the action didn't result in ending the turn, then set mode.
+          let actions = this.board.decodeAction(data);
+          let firstAction = actions[0];
+          let lastAction = actions.last;
+          if (lastAction.type !== 'endTurn' && this.isMyTeam(firstAction.teamId)) {
+            this.unlock();
+            this.selected = firstAction.unit;
+          }
+        });
       };
     else if (type === 'revert')
       eventHandler = () => this._revert(data);

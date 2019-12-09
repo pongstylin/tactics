@@ -695,15 +695,19 @@ class GameService extends Service {
       action = [action];
 
     if (action[0].type === 'surrender') {
-      if (action[0].teamId !== undefined) {
-        // If surrender is not requested for themself, it is forced.
-        if (!myTeams.find(t => t.id === action[0].teamId))
-          action[0].forced = true;
+      action[0].declaredBy = playerId;
+
+      if (!action[0].teamId) {
+        if (myTeams.length === game.state.teams.length)
+          action[0].teamId = game.state.currentTeamId;
+        else
+          // FIXME: Multiple surrender actions are not handled correctly.
+          // Basically, the submitAction() method will stop processing
+          // events if the current turn ends.
+          action.splice(0, 1, ...myTeams.map(t => Object.assign({
+            teamId: t.id,
+          }, action[0])));
       }
-      else if (myTeams.length === game.state.teams.length)
-        action[0].teamId = game.state.currentTeamId;
-      else
-        action = myTeams.map(t => ({ type:'surrender', teamId:t.id }));
     }
     else if (myTeams.includes(game.state.currentTeam))
       action.forEach(a => a.teamId = game.state.currentTeamId);
