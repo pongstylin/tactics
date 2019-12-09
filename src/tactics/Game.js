@@ -1319,6 +1319,8 @@ export default class {
       }
     }
     else if (deadUnits.size > 1) {
+      this.notice = 'Multi kill!';
+
       let animDeath1 = new Tactics.Animation();
       let animDeath2 = new Tactics.Animation({frames: [
         () => deathBell.fade(0, 0.3, 170, deathBell.play('death')),
@@ -1326,6 +1328,12 @@ export default class {
 
       deadUnits.forEach((result, unit) => {
         let caption = result.notice || 'Nooo...';
+
+        this._applyChangeResults([result]);
+        result.results.forEach(r =>
+          animDeath1.splice(0, this._animApplyFocusChanges(r))
+        );
+
         animDeath1.splice(0, unit.animCaption(caption));
         animDeath2.splice(0, unit.animDeath());
       });
