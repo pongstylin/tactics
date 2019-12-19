@@ -51,7 +51,7 @@ export function resolve(specifier, parentModuleURL = baseURL, defaultResolve) {
   if (ext === '.json')
     format = 'json';
   else if (JS_EXTENSIONS.has(ext))
-    format = 'esm';
+    format = 'module';
   else
     throw new Error(`Cannot load file with unsupported extension ${ext}.`);
 
