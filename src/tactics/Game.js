@@ -1330,9 +1330,10 @@ export default class {
         let caption = result.notice || 'Nooo...';
 
         this._applyChangeResults([result]);
-        result.results.forEach(r =>
-          animDeath1.splice(0, this._animApplyFocusChanges(r))
-        );
+        if (result.results)
+          result.results.forEach(r =>
+            animDeath1.splice(0, this._animApplyFocusChanges(r))
+          );
 
         animDeath1.splice(0, unit.animCaption(caption));
         animDeath2.splice(0, unit.animDeath());
