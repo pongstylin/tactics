@@ -3,19 +3,17 @@
   "version": "0.7.7",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
-  "directories": {
-    "lib": "lib"
-  },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git@github.com:pongstylin/tactics.git"
   },
   "scripts": {
-    "start": "NODE_ENV=development webpack --watch --progress --hide-modules & node --experimental-modules --loader ./resolver.mjs --require dotenv/config src/server.js || true",
+    "start": "NODE_ENV=development webpack --watch --hide-modules --config webpack.config.cjs & node --es-module-specifier-resolution=node --experimental-modules --experimental-loader ./resolver.mjs --require dotenv/config src/server.js || true",
     "start-beta": "NODE_ENV=beta node --experimental-modules --loader ./resolver.mjs --require dotenv/config src/server.js || true",
-    "build": "NODE_ENV=beta webpack --progress --hide-modules",
+    "build": "NODE_ENV=beta webpack --hide-modules --config webpack.config.cjs",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dist": "NODE_ENV=production webpack --progress --hide-modules",
+    "dist": "NODE_ENV=production webpack --hide-modules --config webpack.config.cjs",
     "clean": "rm -rf src/data/files && git checkout src/data/files",
     "script": "node --experimental-modules --loader ./resolver.mjs --require dotenv/config"
   },
