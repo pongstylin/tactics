@@ -37,8 +37,8 @@ export default class Assassin extends Unit {
           repeat: effectOffset - anim.frames.length,
         });
 
-      anim.splice(effectOffset, this.animAttackSpecialEffect(
-        Object.asign({ type:'magic' }, spriteAction.effect),
+      anim.splice(effectOffset, this.animAttackEffect(
+        Object.assign({ type:'magic' }, spriteAction.effect),
         target,
         isHit,
       ));
