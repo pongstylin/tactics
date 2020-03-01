@@ -1,38 +1,35 @@
-'use strict';
-
 import Unit from 'tactics/Unit.js';
 
 export default class Scout extends Unit {
-  attack(action) {
-    let anim   = new Tactics.Animation();
-    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
+  /*
+   * Vary timing of impact based on distance to target
+   */
+  animAttack(action) {
+    let board        = this.board;
+    let anim         = this.renderAnimation('attack', action.direction);
+    let spriteAction = this._sprite.getAction('attack');
+    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0] - 2;
 
-    let attackAnim = this.animAttack(action.direction);
-    attackAnim.splice(4, () => sounds.attack.play());
+    if (this.directional !== false)
+      anim.addFrame(() => this.stand());
 
-    // Zero or one result expected.
-    action.results.forEach(result => {
-      let unit = result.unit;
+    let targetUnit = this.getLOSTargetUnit(action.target);
+    if (targetUnit) {
+      let target = targetUnit.assignment;
+      let offset = effectOffset + Math.ceil(board.getDistance(this.assignment, target) / 2);
+      let result = action.results.find(r => r.unit === targetUnit);
+      let isHit = result && !result.miss;
 
-      // Simulate how long it takes for the arrow to travel.
-      let index = 9 + Math.ceil(
-        this.board.getDistance(this.assignment, unit.assignment) / 2,
+      while (anim.frames.length < offset)
+        anim.addFrame([]);
+
+      anim.splice(
+        offset,
+        this.animAttackEffect(spriteAction.effect, target, isHit),
       );
+    }
 
-      // Animate the target unit's reaction.
-      if (result.miss)
-        attackAnim
-          .splice(index, unit.animBlock(this));
-      else
-        attackAnim
-          .splice(index, this.animStrike(unit))
-          .splice(index+1, unit.animStagger(this));
-    });
-
-    anim.splice(this.animTurn(action.direction));
-    anim.splice(attackAnim);
-
-    return anim.play();
+    return anim;
   }
 }
 

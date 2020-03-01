@@ -1,5 +1,3 @@
-'use strict';
-
 import EventEmitter from 'events';
 import Tile from 'tactics/Tile.js';
 import unitFactory from 'tactics/unitFactory.js';
@@ -83,7 +81,11 @@ export default class {
 
   initCard() {
     let card = {
-      renderer:  new PIXI.CanvasRenderer(176, 100, {transparent:true}),
+      renderer: new PIXI.CanvasRenderer({
+        width: 176,
+        height: 100,
+        transparent: true,
+      }),
       stage:     new PIXI.Container(),
       rendering: false,
       render:    () => {
@@ -115,11 +117,6 @@ export default class {
 
       this.eraseCard();
     };
-
-    let style = card.renderer.context.createLinearGradient(0,0,176,0);
-    style.addColorStop(0,'#000000');
-    style.addColorStop('0.1','#FFFFFF');
-    style.addColorStop(1,'#000000');
 
     card.mask = new PIXI.Graphics();
     card.mask.drawRect(0,0,88,46);
@@ -156,11 +153,24 @@ export default class {
           }
         },
         divider: {
-          type:'G',
-          draw: function (pixi) {
-            pixi.lineStyle(1,0xFFFFFF,1,style);
-            pixi.moveTo(0,60.5);
-            pixi.lineTo(176,60.5);
+          type: 'G',
+          draw: pixi => {
+            pixi.lineTextureStyle({
+              width: 1,
+              gradient: {
+                type: 'linear',
+                beginPoint: new PIXI.Point(0, 0),
+                endPoint: new PIXI.Point(176, 0),
+                colorStops: [
+                  [0,    '#000000'],
+                  [0.09, '#FFFFFF'],
+                  [0.62, '#FFEECC'],
+                  [1,    '#000000'],
+                ],
+              },
+            });
+            pixi.moveTo(0, 60.5);
+            pixi.lineTo(176, 60.5);
           }
         },
         lower: {
@@ -358,6 +368,17 @@ export default class {
   }
 
   // Public functions
+  getOffset(offsetRatio, direction) {
+    if (direction === undefined)
+      return [0, 0];
+
+    let xSign = direction === 'S' || direction === 'E' ? 1 : -1;
+    let ySign = direction === 'S' || direction === 'W' ? 1 : -1;
+    return [
+      Math.round(HALF_TILE_WIDTH * offsetRatio) * xSign,
+      Math.round(HALF_TILE_HEIGHT * offsetRatio) * ySign,
+    ];
+  }
   getDistance(a, b) {
     // Return the distance between two tiles.
     return Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
@@ -448,6 +469,10 @@ export default class {
 
     return direction;
   }
+  /*
+   * Get a direction that is a rotation of a direction by N degrees.
+   * e.g. getRotation('N', 180) === 'S'
+   */
   getRotation(direction, degree) {
     if (direction === 'C') return direction;
 
@@ -572,7 +597,12 @@ export default class {
     let pixi = this.pixi = new PIXI.Container();
     pixi.position = new PIXI.Point(18, 44);
 
-    let sprite = this.sprite = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/board.png');
+    let lightFilter = new PIXI.filters.ColorMatrixFilter();
+    lightFilter.brightness(1.25);
+
+    let core = Tactics.spriteMap.get('core');
+    let sprite = this.sprite = PIXI.Sprite.from(core.getImage('board').texture);
+    sprite.filters = [lightFilter];
     pixi.addChild(sprite);
 
     let tilesContainer = new PIXI.Container();
@@ -641,53 +671,32 @@ export default class {
     pixi.addChild(tilesContainer);
 
     /*
-     * While the board sprite and the tile children may be interactive, the units
-     * aren't.  So optimize PIXI by not checking them for interactivity.
+     * While the board sprite and tiles are interactive, the units aren't.  So,
+     * optimize PIXI by not checking them for interactivity.
      */
     let unitsContainer = this.unitsContainer = new PIXI.Container();
+    unitsContainer.position = new PIXI.Point(1, -1);
     unitsContainer.interactiveChildren = false;
+    unitsContainer.filters = [lightFilter];
 
     pixi.addChild(unitsContainer);
 
-    this.drawShocks();
     this.drawTurnOptions();
 
     // Preload the Trophy data URLs
     if (this.card) {
-      this._trophy = unitFactory('Champion', this);
+      this._trophy = unitFactory('Trophy', this);
       this._trophy.drawAvatar();
     }
 
     return this;
-  }
-  drawShocks() {
-    let shocks = [
-      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png'),
-      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png'),
-      new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png')
-    ];
-
-    shocks[0].anchor = new PIXI.Point(0.5, 0.5);
-    shocks[0].scale = new PIXI.Point(4.65, 0.65);
-    shocks[0].rotation = 0.5;
-
-    shocks[1].anchor = new PIXI.Point(0.5, 0.5);
-    shocks[1].scale = new PIXI.Point(2, 0.7);
-    shocks[1].rotation = 0.5;
-
-    shocks[2].anchor = new PIXI.Point(0.5, 0.5);
-    shocks[2].scale = new PIXI.Point(0.4, 3);
-    shocks[2].rotation = 0.5;
-    shocks[2].alpha = 0.5;
-
-    return this.shocks = shocks;
   }
   drawTurnOptions() {
     let turnOptions = new PIXI.Container();
     let onTurnSelect = event => {
       let target = event.target;
 
-      Tactics.sounds.select.play();
+      Tactics.playSound('select');
       this.hideTurnOptions();
       event.currentTarget.filters = null;
 
@@ -697,7 +706,7 @@ export default class {
       });
     };
     let onTurnFocus = event => {
-      Tactics.sounds.focus.play();
+      Tactics.playSound('focus');
 
       let filter = new PIXI.filters.ColorMatrixFilter();
       filter.brightness(1.75);
@@ -708,7 +717,7 @@ export default class {
     };
 
     ['turn_tl.png','turn_tr.png','turn_bl.png','turn_br.png'].forEach((image, i) => {
-      let sprite = new PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/'+image);
+      let sprite = new PIXI.Sprite.from('https://legacy.taorankings.com/images/'+image);
       sprite.interactive = true;
       sprite.buttonMode  = true;
       sprite.click       = onTurnSelect;
@@ -863,7 +872,12 @@ export default class {
   }
   // Make sure units overlap naturally.
   sortUnits() {
-    this.unitsContainer.children.sort((a, b) => a.y - b.y);
+    this.unitsContainer.children.sort((a, b) => {
+      let ay = a.data && a.data.position ? a.data.position.y : a.position.y;
+      let by = b.data && b.data.position ? b.data.position.y : b.position.y;
+
+      return ay - by;
+    });
   }
   /*
    * Draw an information card based on these priorities:
@@ -1172,10 +1186,7 @@ export default class {
 
     let unitsContainer = this.unitsContainer;
     if (unitsContainer) {
-      if (!unit.pixi)
-        unit.draw();
-      unit.pixi.position = tile.getCenter().clone();
-
+      unit.setPositionToTile();
       unitsContainer.addChild(unit.pixi);
     }
 
@@ -1408,7 +1419,7 @@ export default class {
 
       if (unit.pixi) {
         if (unit.focusing || unit.paralyzed || unit.poisoned)
-          unit.showFocus(0.5);
+          unit.showFocus();
         if (unit.barriered)
           unit.showBarrier();
       }

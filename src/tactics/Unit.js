@@ -1,8 +1,5 @@
-'use strict';
-
 import EventEmitter from 'events';
 import Polygon from 'utils/Polygon.js';
-import { unitTypeToIdMap } from 'tactics/unitData.js';
 import { reverseColorMap } from 'tactics/colorMap.js';
 
 const HALF_TILE_WIDTH  = 44;
@@ -12,6 +9,7 @@ export default class {
   constructor(data, board) {
     Object.assign(this, data, {
       board: board,
+      sprite: null,
 
       // These properties are initialized externally
       id:    null,
@@ -41,8 +39,8 @@ export default class {
       pixi:    null,
       filters: {},
 
+      _sprite: null,
       _pulse: null,
-      _shock: null,
       _emitter: new EventEmitter(),
     });
   }
@@ -517,213 +515,76 @@ export default class {
   /*
    * Before drawing a unit, it must first have an assignment and direction.
    */
-  draw() {
-    let frames = this.frames.map(frame => this.compileFrame(frame));
-    let effects = {};
+  setPositionToTile(tile = this.assignment) {
+    if (!this.pixi)
+      this.draw(true);
+    this.pixi.position = tile.getCenter().clone();
+
+    // Reset the visual position, if any
+    delete this.pixi.data.position;
+  }
+  draw(skipPosition = false) {
+    this.frame = new PIXI.Container();
+    this.frame.name = 'frame';
 
     this.pixi = new PIXI.Container();
-    this.pixi.position = this.assignment.getCenter().clone();
+    this.pixi.data = {};
+    this.pixi.addChild(this.frame);
 
-    if (this.effects)
-      Object.keys(this.effects).forEach(name => {
-        effects[name] =
-          this.effects[name].frames.map(frame => this.compileFrame(frame, this.effects[name]));
-      });
-
-    this._frames = frames;
-    this._effects = effects;
+    if (!skipPosition)
+      this.setPositionToTile();
 
     return this.drawStand();
   }
-  compileFrame(frame, data = this) {
-    let container = new PIXI.Container();
-    container.data = frame;
-    if (!frame.length && !frame.c) return container;
+  drawAvatar(direction = 'S') {
+    if (!this._sprite)
+      this._sprite = Tactics.spriteMap.get(this.type);
 
-    let offset;
-    if (data.width && data.height) {
-      offset = new PIXI.Point(
-        Math.floor(-data.width / 2),
-        Math.floor(-data.height + (HALF_TILE_HEIGHT*4/3)),
-      );
+    let actionName = 'stand';
+    return this._sprite.renderFrame({
+      actionName,
+      direction,
+      styles: {
+        trim: { rgb:this.color },
+      },
+      forCanvas: true,
+    }).container;
+  }
+  drawFrame(actionName, direction = this.direction) {
+    if (!this._sprite)
+      this._sprite = Tactics.spriteMap.get(this.type);
 
-      // Finicky
-      if (data.frames_offset) {
-        offset.x += data.frames_offset.x || 0;
-        offset.y += data.frames_offset.y || 0;
-      }
-    }
-    else // Legacy
-      offset = new PIXI.Point(frame.x || 0, (frame.y || 0) - 2);
-
-    container.alpha = 'a' in frame ? frame.a : 1;
-
-    let shapes;
-    if (frame.c)
-      shapes = frame.c;
-    else
-      shapes = frame;
-
-    let unitTypeId = unitTypeToIdMap.get(this.type);
-
-    shapes.forEach((shape, i) => {
-      /*
-       * Translate short form to long form
-       */
-      if (!('image' in shape)) {
-        if ('i' in shape) {
-          shape.image = data.images[shape.i];
-          delete shape.i;
-        }
-        else if ('id' in shape) {
-          // Legacy
-          shape.image = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+shape.id+'.png';
-          delete shape.id;
-        }
-        else {
-          throw new Error('Frames without images are not supported');
-        }
-
-        if ('n' in shape) {
-          if (shape.n === 's' || shape.n === 'shadow')
-            shape.name = 'shadow';
-          if (shape.n === 'b' || shape.n === 'base')
-            shape.name = 'base';
-          if (shape.n === 't' || shape.n === 'trim')
-            shape.name = 'trim';
-          delete shape.n;
-        }
-        // Legacy
-        else if ('c' in frame) {
-          shape.name =
-            i === 0 ? 'shadow' :
-            i === 1 ? 'base'   :
-            i === 2 ? 'trim'   : null;
-        }
-
-        // Legacy translation
-        if ('a' in shape) {
-          shape.am = shape.a;
-          delete shape.a;
-        }
-
-        if (!('x' in shape))
-          shape.x = 0;
-        if (!('y' in shape))
-          shape.y = 0;
-      }
-
-      /*
-       * Configure a sprite using shape data
-       */
-      let sprite = PIXI.Sprite.fromImage(shape.image);
-      sprite.data = shape;
-      sprite.position = new PIXI.Point(shape.x + offset.x, shape.y + offset.y);
-      sprite.alpha = 'am' in shape ? shape.am : 1;
-
-      // Legacy
-      if (shape.f === 'B') {
-        sprite.rotation = Math.PI;
-        sprite.position.x *= -1;
-        sprite.position.y *= -1;
-        if (shape.w) sprite.position.x += sprite.width - shape.w;
-        if (shape.h) sprite.position.y += sprite.height - shape.h;
-      }
-      else if (shape.f === 'H') {
-        if (shape.w) sprite.position.x -= (sprite.width - shape.w);
-        sprite.scale.x = -1;
-      }
-
-      if ('s' in shape) {
-        // Legacy
-        if (data.width === undefined) {
-          sprite.position.x += sprite.width - (sprite.width * shape.s);
-          sprite.position.y += sprite.height - (sprite.height * shape.s);
-        }
-        sprite.scale = new PIXI.Point(shape.s, shape.s);
-      }
-      else {
-        if ('sx' in shape)
-          sprite.scale.x = shape.sx;
-        if ('sy' in shape)
-          sprite.scale.y = shape.sy;
-      }
-
-      if (shape.name === 'trim')
-        sprite.tint = this.color;
-
-      if (shape.name === 'shadow') {
-        sprite.alpha = 0.5;
-        sprite.inheritTint = false;
-      }
-
-      container.addChild(sprite);
+    let frame = this._sprite.renderFrame({
+      actionName,
+      direction,
+      styles: {
+        trim: { rgb:this.color },
+      },
     });
 
-    return container;
-  }
-  drawAvatar(direction = 'S') {
-    return this.compileFrame(this.frames[this.stills[direction]]);
-  }
-  drawFrame(index, context) {
-    let pixi = this.pixi;
-    let frame = this._frames[index];
-    let focus;
-    let barrier;
-
-    if (this.frame) {
-      focus = this.hideFocus();
-      barrier = this.hideBarrier();
-      pixi.removeChild(this.frame);
-    }
-    if (!frame)
-      return;
-
-    pixi.addChildAt(this.frame = frame, 0);
-    if (focus)
-      this.showFocus(focus.alpha);
-    if (barrier)
-      this.showBarrier();
-
-    if (context)
-      pixi.position = context.getCenter().clone();
-
-    if (frame.data) {
-      // Reset Normal Appearance
-      if (this.width && this.height) {
-        // Reset the position after using .offsetFrame()
-        frame.position.x = 0;
-        frame.position.y = 0;
-      }
-      else { // Legacy
-        frame.position.x = frame.data.x || 0;
-        frame.position.y = (frame.data.y || 0) - 2;
-      }
-
-      frame.filters = null;
-      frame.tint = 0xFFFFFF;
-
-      frame.children.forEach(sprite => {
-        // Apply unit filters to the base and trim sprites.
-        if (sprite.data.name === 'base' || sprite.data.name === 'trim')
-          sprite.filters = Object.keys(this.filters).map(name => this.filters[name]);
-
-        // Legacy
-        if (sprite.data.t)
-          sprite.tint = sprite.data.t;
-        else if (sprite.data.name === 'trim')
-          sprite.tint = this.color;
-        else
-          sprite.tint = 0xFFFFFF;
-      });
+    let focusContainer = this.getContainerByName('Focus');
+    if (focusContainer) {
+      let shadowContainer = this.getContainerByName('shadow', frame.container);
+      shadowContainer.addChild(focusContainer);
     }
 
+    // Reset frame offsets
+    this.frame.position.x = 0;
+    this.frame.position.y = 0;
+
+    // Preserve filters, if any
+    let filters = Object.values(this.filters);
+    if (filters.length)
+      this.getContainerByName('unit', frame.container).filters = filters;
+
+    this.frame.removeChildren();
+    this.frame.addChild(frame.container);
     return this;
   }
   drawTurn(direction = this.direction) {
     if (!isNaN(direction)) direction = this.board.getRotation(this.direction, direction);
 
-    return this.drawFrame(this.turns[direction]);
+    return this.drawFrame('turn', direction);
   }
   drawStand(direction = this.direction) {
     if (this.directional === false)
@@ -732,33 +593,50 @@ export default class {
       if (!isNaN(direction)) direction = this.board.getRotation(this.direction, direction);
     }
 
-    return this.drawFrame(this.stills[direction]);
+    return this.drawFrame('stand', direction);
   }
-  getSpritesByName(name) {
-    return this.frame.children.filter(s => s.data && s.data.name === name);
-  }
-  offsetFrame(offset, direction) {
-    let frame = this.frame;
-    offset = {
-      x: Math.round(88 * offset),
-      y: Math.round(56 * offset),
-    };
+  drawStagger(direction = this.direction) {
+    if (this.directional === false)
+      direction = 'S';
+    else {
+      if (!isNaN(direction)) direction = this.board.getRotation(this.direction, direction);
+    }
 
-    if (direction === 'N') {
-      frame.position.x -= offset.x;
-      frame.position.y -= offset.y;
+    return this.drawFrame('stagger', direction);
+  }
+  renderAnimation(actionName, direction = this.direction) {
+    return this._sprite.renderAnimation({
+      actionName,
+      direction,
+      container: this.frame,
+      styles: {
+        trim: { rgb:this.color },
+      },
+    });
+  }
+  getContainerByName(name, container = this.frame) {
+    for (let child of container.children) {
+      if (!(child instanceof PIXI.Container)) continue;
+
+      if (child.name === name)
+        return child;
+
+      let hit = this.getContainerByName(name, child);
+      if (hit !== undefined)
+        return hit;
     }
-    else if (direction === 'S') {
-      frame.position.x += offset.x;
-      frame.position.y += offset.y;
+  }
+  offsetFrame(offsetRatio, direction, reset = false) {
+    let offset = this.board.getOffset(offsetRatio, direction);
+    let frame = this.frame;
+
+    if (reset) {
+      frame.position.x = offset[0];
+      frame.position.y = offset[1];
     }
-    else if (direction === 'E') {
-      frame.position.x += offset.x;
-      frame.position.y -= offset.y;
-    }
-    else if (direction === 'W') {
-      frame.position.x -= offset.x;
-      frame.position.y += offset.y;
+    else {
+      frame.position.x += offset[0];
+      frame.position.y += offset[1];
     }
 
     return this;
@@ -805,75 +683,35 @@ export default class {
   break(action) {
     return Promise.resolve();
   }
-  // Animate from one tile to the next
+  /*
+   * Animate movement to a new tile assignment
+   * Currently assumes walking, but this will change
+   */
   move(action) {
-    return this.animMove(action.assignment).play();
+    return this.animWalk(action.assignment).play();
   }
   attack(action) {
-    throw new Error('Unit type needs to implement attack()');
+    let anim = new Tactics.Animation();
+
+    if (this.directional !== false)
+      anim.splice(this.animTurn(action.direction));
+
+    anim.splice(this.animAttack(action));
+
+    return anim.play();
   }
   attackSpecial(action) {
-    throw new Error('Unit type needs to implement attackSpecial()');
+    let anim = this.animAttackSpecial(action);
+
+    if (this.directional !== false)
+      anim.addFrame(() => this.stand());
+
+    return anim.play();
   }
   turn(action) {
     if (this.directional === false) return this;
 
     return this.animTurn(action.direction).play();
-  }
-  shock(direction, frameId, block) {
-    let unitsContainer = this.board.unitsContainer;
-    let shocks = this.board.shocks;
-    let anchor = this.assignment.getCenter();
-    let frame;
-
-    if (this._shock) {
-      unitsContainer.removeChild(this._shock);
-      this._shock = null;
-    }
-
-    if (direction) {
-      let shock = this._shock = new PIXI.Container();
-      shock.addChild(frame = shocks[frameId]);
-      shock.position = anchor.clone();
-      shock.position.y += 4; // ensure shock graphic overlaps unit.
-
-      unitsContainer.addChild(shock);
-
-      if (direction === 'N') {
-        if (block) {
-          frame.position = new PIXI.Point(-20,-56);
-        }
-        else {
-          frame.position = new PIXI.Point(-9,-49);
-        }
-      }
-      else if (direction === 'S') {
-        if (block) {
-          frame.position = new PIXI.Point(24,-27);
-        }
-        else {
-          frame.position = new PIXI.Point(13,-34);
-        }
-      }
-      else if (direction === 'W') {
-        if (block) {
-          frame.position = new PIXI.Point(-20,-27);
-        }
-        else {
-          frame.position = new PIXI.Point(-9,-34);
-        }
-      }
-      else if (direction === 'E') {
-        if (block) {
-          frame.position = new PIXI.Point(24,-56);
-        }
-        else {
-          frame.position = new PIXI.Point(13,-49);
-        }
-      }
-    }
-
-    return this;
   }
   brightness(intensity, whiteness) {
     let name = 'brightness';
@@ -884,8 +722,8 @@ export default class {
       this._setFilter(name, undefined);
     }
     else {
-      filter = this._setFilter(name, 'ColorMatrixFilter')
-      filter.brightness(intensity)
+      filter = this._setFilter(name, 'ColorMatrixFilter');
+      filter.brightness(intensity);
 
       if (whiteness) {
         matrix = filter.matrix;
@@ -912,7 +750,7 @@ export default class {
     return this;
   }
   /*
-   * Add color to the unit's base and trim.
+   * Add color to the unit.
    * Example, increase the redness by 128 (0x880000).
    *   this.colorize(0xFF0000, 0.5);
    */
@@ -922,9 +760,9 @@ export default class {
 
     if (typeof color === 'number')
       color = [
-        ((color & 0xFF0000) / 0xFF0000),
-        ((color & 0x00FF00) / 0x00FF00),
-        ((color & 0x0000FF) / 0x0000FF),
+        (color & 0xFF0000) / 0xFF0000,
+        (color & 0x00FF00) / 0x00FF00,
+        (color & 0x0000FF) / 0x0000FF,
       ];
 
     if (typeof lightness === 'number')
@@ -997,62 +835,59 @@ export default class {
     return this;
   }
   hasFocus() {
-    return !!this.getSpritesByName('focus')[0];
+    return !!this.getContainerByName('Focus');
   }
   showFocus(alpha = 1, color = this.color) {
-    let focus = this.getSpritesByName('focus')[0];
+    let focusContainer = this.getContainerByName('Focus');
+    if (!focusContainer) {
+      let core = Tactics.spriteMap.get('core');
+      focusContainer = core.renderFrame({ spriteName:'Focus' }).container;
 
-    if (!focus) {
-      focus = this.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
-      focus.data = {name: 'focus'};
-      focus.children.forEach(sprite => sprite.tint = color);
-      focus.alpha = alpha;
+      let shadowContainer = this.getContainerByName('shadow');
+      shadowContainer.addChild(focusContainer);
+    }
 
-      this.frame.addChildAt(focus, 1);
-    }
-    else {
-      focus.alpha = alpha;
-      focus.children.forEach(sprite => sprite.tint = color);
-    }
+    focusContainer.children[0].tint = color;
+    focusContainer.alpha = alpha;
 
     return this;
   }
   hideFocus() {
-    let focus = this.getSpritesByName('focus')[0];
+    let focus = this.getContainerByName('Focus');
     if (focus)
-      this.frame.removeChild(focus);
+      focus.parent.removeChild(focus);
 
     return focus;
   }
   hasBarrier() {
-    return !!this.getSpritesByName('barrier')[0];
+    return !!this.getContainerByName('Barrier', this.pixi);
   }
-  showBarrier(color = this.color) {
-    let barrier = this.getSpritesByName('barrier')[0];
-    let effect = Tactics.effects.barrier;
+  showBarrier() {
+    if (!this.hasBarrier()) {
+      let barrier = Tactics.spriteMap.get('Barrier');
+      let container = new PIXI.Container();
+      container.name = 'Barrier';
+      this.pixi.addChild(container)
 
-    if (!barrier) {
-      barrier = this.compileFrame(effect.frames[effect.still], effect);
-      barrier.data = {name: 'barrier'};
-      barrier.children.forEach(sprite => sprite.tint = color);
-
-      this.frame.addChild(barrier);
-    }
-    else {
-      barrier.children.forEach(sprite => sprite.tint = color);
+      container.addChild(barrier.renderFrame({
+        actionName: 'show',
+        styles: {
+          Barrier: { rgb:this.color },
+        },
+      }).container);
     }
 
     return this;
   }
   hideBarrier() {
-    let barrier = this.getSpritesByName('barrier')[0];
-    if (barrier)
-      this.frame.removeChild(barrier);
+    let container = this.getContainerByName('Barrier', this.pixi);
+    if (container)
+      this.pixi.removeChild(container);
 
-    return barrier;
+    return this;
   }
-  activateBarrier(color = this.color) {
-    if (!this.hasBarrier)
+  activateBarrier() {
+    if (!this.hasBarrier())
       throw new Error('No barrier');
 
     if (this._animActivateBarrier)
@@ -1062,7 +897,7 @@ export default class {
     this._animActivateBarrier.play();
   }
   deactivateBarrier() {
-    if (!this.hasBarrier)
+    if (!this.hasBarrier())
       throw new Error('No barrier');
 
     if (!this._animActivateBarrier)
@@ -1073,16 +908,14 @@ export default class {
   }
   animFocus() {
     let anim   = new Tactics.Animation();
-    let alphas = [0.125, 0.25, 0.375, 0.5];
-    let focus  = this.getSpritesByName('focus')[0];
+    let alphas = [0.25, 0.50, 0.75, 1];
+    let focus  = this.getContainerByName('Focus');
 
-    if (!focus) {
-      focus = this.compileFrame(Tactics.effects.focus.frames[0], Tactics.effects.focus);
-      focus.data = {name: 'focus'};
-      focus.children.forEach(sprite => sprite.tint = this.color);
-
-      anim.addFrame(() => this.frame.addChildAt(focus, 1));
-    }
+    if (!focus)
+      anim.addFrame(() => {
+        this.showFocus(0);
+        focus = this.getContainerByName('Focus');
+      });
 
     anim.splice(0, {
       script: frame => focus.alpha = alphas[frame.repeat_index],
@@ -1093,122 +926,88 @@ export default class {
   }
   animDefocus() {
     let anim = new Tactics.Animation();
-    let alphas = [0.375, 0.25, 0.125];
-    let focus = this.getSpritesByName('focus')[0];
+    let alphas = [0.75, 0.50, 0.25];
+    let focus = this.getContainerByName('Focus');
 
     anim.addFrame({
       script: frame => focus.alpha = alphas[frame.repeat_index],
       repeat: alphas.length,
     });
-    anim.addFrame(() => this.frame.removeChild(focus));
+    anim.addFrame(() => this.hideFocus());
 
     return anim;
   }
-  animShowBarrier(color = this.color) {
+  animShowBarrier() {
     let anim = new Tactics.Animation();
-    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
-    let effect = Tactics.effects.barrier;
+    let barrier = Tactics.spriteMap.get('Barrier');
+    let container = this.getContainerByName('Barrier', this.pixi);
+    if (!container) {
+      container = new PIXI.Container();
+      container.name = 'Barrier';
+      anim.addFrame(() => this.pixi.addChild(container));
+    }
 
-    anim.addFrame(() => {
-      sounds.barrier.fade(0, 1, 295, sounds.barrier.play('on'));
-    });
-
-    let offsets = effect.on;
-    let frames = effect.frames.slice(offsets[0], offsets[1]+1)
-      .map(frame => this.compileFrame(frame, effect));
-
-    frames.forEach((frame, i) => {
-      anim.splice(i, [
-        () => {
-          frame.children.forEach(sprite => sprite.tint = color);
-          this.frame.addChild(frame);
-        },
-        () => this.frame.removeChild(frame),
-      ]);
-    });
-
-    anim.splice(anim.frames.length-1, () => this.showBarrier());
+    anim.splice(0, barrier.renderAnimation({
+      actionName: 'invoke',
+      container,
+      styles: {
+        Barrier: { rgb:this.color },
+      },
+    }));
 
     return anim;
   }
-  animActivateBarrier(color = this.color) {
+  animActivateBarrier() {
     let anim = new Tactics.Animation({ loop:true, fps:8 });
-    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
-    let effect = Tactics.effects.barrier;
+    let barrier = Tactics.spriteMap.get('Barrier');
+    let container = this.getContainerByName('Barrier', this.pixi);
+    let child = container.children[0];
 
-    let offsets = effect.active;
-    let frames = effect.frames.slice(offsets[0], offsets[1]+1)
-      .map(frame => {
-        frame = this.compileFrame(frame, effect);
-        frame.data = { name:'barrier' };
-        frame.children.forEach(sprite => sprite.tint = color);
-        return frame;
-      });
-
-    frames.forEach((frame, i) => {
-      anim.splice(i, [
-        () => {
-          this.frame.removeChild(this.getSpritesByName('barrier')[0]);
-          this.frame.addChild(frame);
-        },
-      ]);
-    });
+    anim.splice(barrier.renderAnimation({
+      actionName: 'active',
+      container,
+      styles: {
+        Barrier: { rgb:this.color },
+      },
+    }));
 
     anim.on('stop', () => {
-      this.frame.removeChild(this.getSpritesByName('barrier')[0]);
-      this.showBarrier();
+      container.removeChildren();
+      container.addChild(child);
     });
 
     return anim;
   }
-  animBarrierBlock(attacker, color = this.color) {
+  animBarrierDeflect(attacker) {
     let anim = new Tactics.Animation();
-    let effect = Tactics.effects.barrier;
+    let barrier = Tactics.spriteMap.get('Barrier');
+    let container = this.getContainerByName('Barrier', this.pixi);
 
-    if (attacker.aType === 'melee')
-      anim.addFrame(() => Tactics.sounds.deflect.play());
-
-    let offsets = effect.block;
-    let frames = effect.frames.slice(offsets[0], offsets[1]+1)
-      .map(frame => this.compileFrame(frame, effect));
-
-    frames.forEach((frame, i) => {
-      anim.splice(i, [
-        () => {
-          frame.children.forEach(sprite => sprite.tint = color);
-          this.frame.addChild(frame);
-        },
-        () => this.frame.removeChild(frame),
-      ]);
-    });
-
-    anim.splice(anim.frames.length-1, () => this.showBarrier());
+    anim.splice(barrier.renderAnimation({
+      actionName: 'deflect',
+      container,
+      silent: attacker.aType !== 'melee',
+      styles: {
+        Barrier: { rgb:this.color },
+      },
+    }));
 
     return anim;
   }
-  animHideBarrier(color = this.color) {
+  animHideBarrier() {
     let anim = new Tactics.Animation();
-    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
-    let effect = Tactics.effects.barrier;
+    let barrier = Tactics.spriteMap.get('Barrier');
+    let container = this.getContainerByName('Barrier', this.pixi);
 
-    anim.addFrame(() => {
-      this.hideBarrier();
-      sounds.barrier.fade(0, 0.75, 123, sounds.barrier.play('off'));
-    });
+    anim.splice(barrier.renderAnimation({
+      actionName: 'revoke',
+      container,
+      styles: {
+        Barrier: { rgb:this.color },
+      },
+    }));
 
-    let offsets = effect.off;
-    let frames = effect.frames.slice(offsets[0], offsets[1]+1)
-      .map(frame => this.compileFrame(frame, effect));
-
-    frames.forEach((frame, i) => {
-      anim.splice(i, [
-        () => {
-          frame.children.forEach(sprite => sprite.tint = color);
-          this.frame.addChild(frame);
-        },
-        () => this.frame.removeChild(frame),
-      ]);
-    });
+    anim.addFrame(() => this.pixi.removeChild(container));
 
     return anim;
   }
@@ -1231,192 +1030,353 @@ export default class {
     });
   }
   /*
-   * Right now, the default expectation is units walk from A to B.
-   */
-  animMove(assignment) {
-    return this.animWalk(assignment);
-  }
-  /*
    * Units turn in the direction they are headed before they move there.
    * This method returns an animation that does just that, if needed.
    */
-  animTurn(direction) {
+  animTurn(direction, andStand = true) {
     let anim = new Tactics.Animation();
 
     // Do nothing if already facing the desired direction
     if (!direction || direction === this.direction) return anim;
 
     // If turning to the opposite direction, first turn right.
-    if (direction === this.board.getRotation(this.direction, 180))
+    if (direction === this.board.getRotation(this.direction, 180)) {
+      let spriteAction = this._sprite.getAction('turn');
+
+      anim.addFrame(spriteAction.sounds);
       anim.addFrame(() => this.drawTurn(90));
+    }
 
     // Now stand facing the desired direction.
-    anim.addFrame(() => this.stand(direction));
+    if (andStand)
+      anim.addFrame(() => this.stand(direction));
 
     return anim;
   }
   animWalk(assignment) {
-    let anim        = new Tactics.Animation();
-    let sounds      = Object.assign({}, Tactics.sounds, this.sounds);
-    let path        = this.board.findPath(this, assignment);
-    let frame_index = 0;
+    let anim = new Tactics.Animation();
+    let board = this.board;
+    let path = board.findPath(this, assignment);
+    // Keep track of the frame offset for the next move animation
+    let nextMoveFrameId = 0;
 
-    /*
-     * Need more information about an intermittent crash.
-     */
+    // Produce a readable error if a bug prevented path finding.
     if (path.length === 0) {
-      if (this.assignment && assignment)
-        throw new Error(`No path: ${this.assignment.id} => ${assignment.id}`);
-      else
-        throw new Error(`No path: ${this.assignment} => ${assignment}`);
+      let fromTile = this.assignment && this.assignment.id;
+      let toTile = assignment && assignment.id;
+
+      throw new Error(`No path: ${fromTile} => ${toTile}`);
     }
 
     anim.addFrame(() => this.assignment.dismiss());
 
     // Turn frames are not typically required while walking unless the very
     // next tile is in the opposite direction of where the unit is facing.
-    let direction = this.board.getDirection(this.assignment, path[0]);
-    if (direction === this.board.getRotation(this.direction, 180))
-      anim.splice(frame_index++, () => this.drawTurn(90));
+    let direction = board.getDirection(this.assignment, path[0]);
+    if (direction === board.getRotation(this.direction, 180)) {
+      // Skip standing after turning (false)
+      let turnAnimation = this.animTurn(direction, false);
 
-    // Keep track of what direction units face as they step out of the way.
-    let step_directions = [];
+      anim.splice(0, turnAnimation);
+      nextMoveFrameId += turnAnimation.frames.length;
+    }
 
-    path.forEach((to_tile, i) => {
-      let from_tile = i === 0 ? this.assignment : path[i-1];
-
+    path.forEach((toTile, i) => {
       // Determine the direction of the next tile and turn in that direction.
-      let direction = this.board.getDirection(from_tile, to_tile);
-      let walks     = this.walks[direction];
+      let fromTile = i === 0 ? this.assignment : path[i-1];
+      let direction = board.getDirection(fromTile, toTile);
+      let moveAnimation = this.animMove(direction);
+      let moveFrameCount = moveAnimation.frames.length;
 
-      // Walk to the next tile
-      let indexes = [];
-      for (let index = this.walks[direction][0]; index <= this.walks[direction][1]; index++) {
-        indexes.push(index);
-      }
-      indexes.forEach(index =>
-        anim.splice(frame_index++, () => this.drawFrame(index, from_tile))
-      );
-
-      // Do not step softly into that good night.
-      anim.splice([-8, -4], () => sounds.step.play());
-
-      // Make any units before us step out of the way.
-      let to_unit;
-      if (to_unit = to_tile.assigned) {
-        let next_tile = path[i+1];
-        // The unit needs to back up in a direction that isn't in our way.
-        let bad_directions = [direction, this.board.getDirection(next_tile, to_tile)];
+      // Make any unit before us step out of the way.
+      let toUnit = toTile.assigned;
+      if (toUnit) {
+        let nextTile = path[i+1];
+        // The unit needs to back up in a direction that isn't in my way.
+        let badDirections = [
+          // Don't block my way entering the tile
+          direction,
+          // Don't block my way leaving the tile
+          board.getDirection(nextTile, toTile)
+        ];
 
         // Find the first available direction in preference order.
-        let to_direction = [
-          to_unit.direction,
-          this.board.getRotation(to_unit.direction,  90),
-          this.board.getRotation(to_unit.direction, -90),
-        ].find(direction => !bad_directions.includes(direction));
+        let backDirection = [
+          toUnit.direction,
+          board.getRotation(toUnit.direction,  90),
+          board.getRotation(toUnit.direction, -90),
+        ].find(direction => !badDirections.includes(direction));
 
-        step_directions.push(to_direction);
-        anim.splice(-8, to_unit.animStepBack(to_direction));
+        // Start getting out of my way immediately
+        moveAnimation.splice(0, toUnit.animMoveBack(backDirection));
+
+        // After I arrive, wait 3 frames as I move out again.
+        moveAnimation.addFrame({
+          scripts: [],
+          repeat: 3,
+        });
+
+        // Now return to your post
+        moveAnimation.splice(toUnit.animMoveForward(backDirection));
       }
 
-      // Make any units behind us step back into position.
-      let from_unit;
-      if ((from_unit = from_tile.assigned) && from_unit !== this)
-        anim.splice(-5, from_unit.animStepForward(step_directions.pop()));
+      anim.splice(nextMoveFrameId, moveAnimation);
+      nextMoveFrameId += moveFrameCount;
 
       // If this is our final destination, stand ready
-      if (to_tile === assignment)
-        anim.addFrame(() => this.assign(assignment).stand(direction));
+      if (toTile === assignment)
+        anim.splice(nextMoveFrameId, () => {
+          board.assign(this, assignment);
+          this.stand(direction);
+        });
+      else
+        anim.splice(nextMoveFrameId, () => this.setPositionToTile(toTile));
     });
 
     return anim;
   }
-  animStepBack(direction) {
-    let anim   = new Tactics.Animation();
-    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
+  /*
+   * To ensure the moving unit overlaps naturally between other units, estimate
+   * its "visual" position as an offset from its "real" position.  This "visual"
+   * position is used instead of the "real" position to determine depth.
+   *
+   * The first movement frame is slightly away from the origin tile.
+   * The last movement frame is centered on the destination tile.
+   */
+  animMove(direction) {
+    let anim = this.renderAnimation('move', direction);
+    let board = this.board;
+    let pixi = this.pixi;
 
-    let indexes = [];
-    for (let index = this.backSteps[direction][0]; index <= this.backSteps[direction][1]; index++) {
-      indexes.push(index);
-    }
-    indexes.forEach(index => anim.addFrame(() => this.drawFrame(index)));
+    anim.frames.forEach((frame, frameId) => {
+      let offsetRatio = (frameId + 1) / anim.frames.length;
+      let offset = board.getOffset(offsetRatio, direction);
 
-    // Don't just be grumpy.  Stomp your grumpiness.
-    anim.splice([3, 5], () => sounds.step.play());
+      anim.splice(frameId, () => pixi.data.position = new PIXI.Point(
+        pixi.position.x + offset[0],
+        pixi.position.y + offset[1],
+      ));
+    });
 
     return anim;
   }
-  animStepForward(direction) {
-    let anim   = new Tactics.Animation();
-    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
+  /*
+   * Moving back and forward is similar to moving.  But the offset ratio is cut
+   * in half to reflect that the destination is half-a-tile away.  Also, it is
+   * a negative ratio, since the offset is behind the unit.
+   */
+  animMoveBack(direction) {
+    let anim = this.renderAnimation('moveBack', direction);
+    let board = this.board;
+    let pixi = this.pixi;
 
-    let indexes = [];
-    for (let index = this.foreSteps[direction][0]; index <= this.foreSteps[direction][1]; index++) {
-      indexes.push(index);
-    }
-    indexes.forEach(index => anim.addFrame(() => this.drawFrame(index)));
+    anim.frames.forEach((frame, frameId) => {
+      let offsetRatio = (frameId + 1) / anim.frames.length;
+      let offset = board.getOffset(-offsetRatio / 2, direction);
+
+      anim.splice(frameId, () => pixi.data.position = new PIXI.Point(
+        pixi.position.x + offset[0],
+        pixi.position.y + offset[1],
+      ));
+    });
+
+    return anim;
+  }
+  animMoveForward(direction) {
+    let anim = this.renderAnimation('moveForward', direction);
+    let board = this.board;
+    let pixi = this.pixi;
+
+    anim.frames.forEach((frame, frameId) => {
+      let offsetRatio = (anim.frames.length - (frameId + 1)) / anim.frames.length;
+      let offset = board.getOffset(-offsetRatio / 2, direction);
+
+      anim.splice(frameId, () => pixi.data.position = new PIXI.Point(
+        pixi.position.x + offset[0],
+        pixi.position.y + offset[1],
+      ));
+    });
 
     anim.addFrame(() => this.drawStand());
 
-    // One final stomp for science
-    anim.splice(0, () => sounds.step.play());
-
     return anim;
   }
-  animAttack(direction) {
-    let anim = new Tactics.Animation();
+  animAttack(action) {
+    let anim         = this.renderAnimation('attack', action.direction);
+    let spriteAction = this._sprite.getAction('attack');
+    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
 
-    if (!direction) direction = this.direction;
+    anim.addFrame(() => this.stand());
 
-    let indexes = [];
-    for (let index = this.attacks[direction][0]; index <= this.attacks[direction][1]; index++) {
-      indexes.push(index);
+    let targets = [];
+    if (this.aLOS === true) {
+      let targetUnit = this.getLOSTargetUnit(action.target);
+      if (targetUnit)
+        targets.push(target.assignment);
     }
-    indexes.forEach(index => anim.addFrame(() => this.drawFrame(index)));
+    else
+      targets = this.getTargetTiles(action.target);
 
-    anim.addFrame(() => this.stand(direction));
+    targets.forEach(target => {
+      let result = action.results.find(r => r.unit === target.assigned);
+      let isHit = result && !result.miss;
+
+      if (anim.frames.length < effectOffset)
+        anim.addFrame({
+          scripts: [],
+          repeat: effectOffset - anim.frames.length,
+        });
+
+      anim.splice(
+        effectOffset,
+        this.animAttackEffect(spriteAction.effect, target, isHit),
+      );
+    });
 
     return anim;
   }
-  animBlock(attacker) {
-    let anim      = new Tactics.Animation();
-    let sounds    = Object.assign({}, Tactics.sounds, this.sounds);
-    let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);
+  animAttackEffect(effect, target, isHit) {
+    let anim = new Tactics.Animation();
+    let board = this.board;
+    let effectSprite = Tactics.getSpriteURI(effect.spriteId);
+    let offset = [0, 0];
+
+    if (!effect.type)
+      effect.type = this.aType;
+
+    // Render stagger animation before the effect so that it may be colored
+    let targetUnit = target.assigned
+    if (targetUnit) {
+      let reactOffset = effectSprite.frames.findIndex(f => f.interrupt) + 1;
+      if (anim.frames.length < reactOffset)
+        anim.addFrame({
+          scripts: [],
+          repeat: reactOffset - anim.frames.length,
+        });
+
+      let offsetRatio;
+      if (!isHit) {
+        anim.splice(targetUnit.animMiss(this));
+        offsetRatio = 0.50;
+      }
+      else if (targetUnit !== this) {
+        anim.splice(-1, targetUnit.animHit(this, effect.type));
+        offsetRatio = 0.25;
+      }
+
+      if (targetUnit.type === 'ChaosSeed')
+        offsetRatio = 0.25;
+
+      if (effect.type === 'melee')
+        offset = board.getOffset(
+          offsetRatio,
+          board.getDirection(
+            targetUnit.assignment,
+            this.assignment,
+            targetUnit.direction,
+          ),
+        );
+    }
+    else
+      anim.addFrame([]);
+
+    // Some effects aren't dispayed if no unit is impacted
+    if (targetUnit || !effect.impactOnly) {
+      let unitsContainer = board.unitsContainer;
+      let pos = target.getCenter();
+      let container = new PIXI.Container();
+      container.position = new PIXI.Point(pos.x, pos.y);
+
+      let effectAnimation = effectSprite.renderAnimation({
+        container,
+        // Attack effects can apply coloring to an affected unit
+        unit: isHit && targetUnit,
+        styles: {
+          [effectSprite.name]: { position:offset },
+        },
+      });
+      effectAnimation.splice(0, () => unitsContainer.addChild(container));
+      effectAnimation.addFrame(() => unitsContainer.removeChild(container));
+
+      anim.splice(1, effectAnimation);
+    }
+
+    return anim;
+  }
+  animMiss(attacker) {
+    let anim;
 
     if (this.barriered)
-      anim.splice(0, this.animBarrierBlock(attacker));
-    else if (this.blocks) {
-      anim.addFrame(() => sounds.block.play());
+      anim = this.animBarrierDeflect(attacker);
+    else {
+      let direction;
       if (this.directional !== false)
-        anim.splice(0, () => this.direction = direction);
+        direction = this.board.getDirection(
+          this.assignment,
+          attacker.assignment,
+          this.direction,
+        );
 
-      let indexes = [];
-      for (let index = this.blocks[direction][0]; index <= this.blocks[direction][1]; index++) {
-        indexes.push(index);
-      }
-      indexes.forEach((index, i) => anim.splice(i, () => this.drawFrame(index)));
-
-      if (this.directional !== false)
-        anim.addFrame(() => this.stand(direction));
+      anim = this.renderAnimation('block', direction);
+      anim.addFrame(() => this.stand(direction));
     }
 
-    if (
-      (this.barriered && attacker.aType === 'melee') ||
-      (!this.barriered && this.blocks)
-    ) {
-      // Kinda hacky.  It seems that shocks should be rendered by the attacker, not defender.
-      if (attacker.name === 'Scout')
-        anim.splice(1, [
-          () => this.shock(direction, 1, true),
-          () => this.shock(direction, 2, true),
-          () => this.shock(),
+    return anim;
+  }
+  /*
+   * This method is called when this unit is successfully hit.
+   *
+   * An impact sound will play for melee attacks.
+   * This unit will react if hit by melee/magic attacks and not paralyzed.
+   * Melee attacks will push the unit off-center briefly.
+   * Nothing happens at all for effect attacks, i.e. heal, poison, barrier, paralyze
+   */
+  animHit(attacker, attackType) {
+    let anim = new Tactics.Animation();
+    let doStagger;
+    let direction;
+
+    if (attackType === undefined)
+      attackType = attacker.aType;
+
+    if (attackType === 'melee') {
+      // Melee attacks cause a stagger
+      doStagger = true;
+
+      // Melee attacks cause the victim to stagger in a particular direction
+      direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
+
+      /*
+       * An impact sound only plays for melee attacks
+       */
+      let spriteAction = this._sprite.getAction('stagger');
+
+      anim.addFrame(spriteAction.sounds);
+    }
+    else if (attackType === 'magic') {
+      // Magic attacks cause a stagger
+      doStagger = true;
+
+      // No impact sound for magic attacks
+      anim.addFrame([]);
+    }
+
+    /*
+     * Show a stagger animation if appropriate
+     */
+    if (doStagger) {
+      anim.addFrame([]);
+
+      if (this.paralyzed)
+        anim.addFrames([
+          () => this.offsetFrame(0.12, direction),
+          () => this.offsetFrame(-0.16, direction),
         ]);
       else
-        anim.splice(1, [
-          () => this.shock(direction, 0, true),
-          () => this.shock(direction, 1, true),
-          () => this.shock(direction, 2, true),
-          () => this.shock(),
+        anim.addFrames([
+          () => this.drawStagger().offsetFrame(0.12, direction),
+          () => this.offsetFrame(-0.16, direction),
+          () => this.drawStand(),
         ]);
     }
 
@@ -1431,15 +1391,14 @@ export default class {
     let radius = 28;
     let angle = 2 * Math.PI / 24;
     let blurFilter = new PIXI.filters.BlurFilter();
-    blurFilter.blur = 0.5;
 
     let shape = new PIXI.Graphics();
     shape.position = new PIXI.Point(0, HALF_TILE_HEIGHT - radius);
     shape.lineStyle(2, 0xFF3300);
 
     let container = new PIXI.Container();
+    container.name = 'special';
     container.scale = new PIXI.Point(1, 0.6);
-    container.data = {name: 'special'};
     container.addChild(shape);
 
     anim.addFrame(() => {
@@ -1448,8 +1407,9 @@ export default class {
         this.frame.position.y * -1,
       );
 
-      // Insert the shape right after the shadow
-      this.frame.addChildAt(container, 1);
+      // Place the shape above the shadow, but below the unit
+      let shadowContainer = this.getContainerByName('shadow');
+      shadowContainer.addChild(container);
     });
 
     let index = 0;
@@ -1463,9 +1423,10 @@ export default class {
         );
 
         // Make sure the shape pulses with the unit.
+        let unitContainer = this.getContainerByName('unit');
         blurFilter.blur = Math.floor(index / 6);
-        if (this.frame.children[2].filters)
-          container.filters = [blurFilter].concat(this.frame.children[2].filters);
+        if (unitContainer.filters)
+          container.filters = [blurFilter].concat(unitContainer.filters);
         else
           container.filters = [blurFilter];
 
@@ -1487,248 +1448,41 @@ export default class {
       shape.rotation = degrees * Math.PI / 180;
 
       // Make sure the shape pulses with the unit.
+      let unitContainer = this.getContainerByName('unit');
       blurFilter.blur = 4;
-      if (this.frame.children[2].filters)
-        container.filters = [blurFilter].concat(this.frame.children[2].filters);
+      if (unitContainer.filters)
+        container.filters = [blurFilter].concat(unitContainer.filters);
       else
         container.filters = [blurFilter];
     });
 
     anim.on('stop', event => {
-      this.frame.removeChild(container);
+      container.parent.removeChild(container);
     });
 
     return anim;
   }
-  animStrike(defender) {
-    let anim      = new Tactics.Animation();
-    let sounds    = Object.assign({}, Tactics.sounds, defender.sounds);
-    let direction = this.board.getDirection(
-      defender.assignment,
-      this.assignment,
-      this.board.getRotation(this.direction, 180),
-    );
-
-    return anim.addFrames([
-      () => sounds.strike.play(),
-      () => defender.shock(direction, 0),
-      () => defender.shock(direction, 1),
-      () => defender.shock(direction, 2),
-      () => defender.shock(),
-    ]);
-
-    return anim;
-  }
-  animStagger(attacker, direction) {
-    let anim      = new Tactics.Animation();
-
-    if (direction === undefined)
-      direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
-
-    anim.addFrames([
-      () => this.drawTurn().offsetFrame(0.06, direction),
-      () => this.drawTurn().offsetFrame(-0.02, direction),
-      () => this.drawStand(),
-    ]);
-
-    return anim;
-  }
-  animDeath() {
-    let pixi = this.pixi;
+  animDie() {
+    let core = Tactics.spriteMap.get('core');
     let container = new PIXI.Container();
-    let anim = Tactics.Animation.fromData(container, Tactics.animations.death);
-
-    container.position = new PIXI.Point(1,-2);
+    let anim = core.renderAnimation({
+      spriteName: 'Die',
+      container,
+    });
 
     anim
       .splice(0, [
-        () => pixi.addChild(container),
+        () => this.pixi.addChild(container),
         {
-          script: () => {
-            pixi.children[0].alpha *= 0.60;
-            container.alpha *= 0.80;
-          },
-          repeat:7
+          script: () => this.frame.alpha /= 1.8,
+          repeat: 7,
         },
         () => this.board.dropUnit(this),
-      ])
-      .splice(0, {
-        script: () => {
-          container.children[0].children.forEach(c => c.tint = this.color);
-        },
-        repeat:8
-      });
-
-    return anim;
-  }
-  animLightning(target) {
-    let anim      = new Tactics.Animation();
-    let unitsContainer = this.board.unitsContainer;
-    let sounds    = Object.assign({}, Tactics.sounds, this.sounds);
-    let pos       = target.getCenter();
-    let tunit     = target.assigned;
-    let whiten    = [0.30,0.60,0.90,0.60,0.30,0];
-    let container = new PIXI.Container();
-    let strike;
-    let strikes = [
-      PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-1.png'),
-      PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-2.png'),
-      PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-3.png'),
-      PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-1.png'),
-      PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-2.png'),
-      PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/lightning-3.png')
-    ];
-
-    container.position = new PIXI.Point(pos.x,pos.y+1);
-
-    strikes[0].position = new PIXI.Point(-38,-532-1);
-    strikes[1].position = new PIXI.Point(-38,-532-1);
-    strikes[2].position = new PIXI.Point(-40,-532-1);
-    strikes[3].position = new PIXI.Point(-35+strikes[3].width,-532-1);
-    strikes[3].scale.x = -1;
-    strikes[4].position = new PIXI.Point(-35+strikes[4].width,-532-1);
-    strikes[4].scale.x = -1;
-    strikes[5].position = new PIXI.Point(-33+strikes[5].width,-532-1);
-    strikes[5].scale.x = -1;
-    strikes.shuffle();
-
-    anim.addFrames([
-      () => {
-        sounds.lightning.play();
-        unitsContainer.addChild(container);
-      },
-      () => {},
-      {
-        script: () => {
-          if (strike) container.removeChild(strike);
-          if (strikes.length)
-            strike = container.addChild(strikes.shift());
-          else
-            unitsContainer.removeChild(container);
-        },
-        repeat: 7,
-      }
-    ]);
-
-    if (tunit)
-      if (tunit.barriered)
-        anim
-          .splice(2, tunit.animBlock(this));
-      else
-        anim
-          .splice(2, tunit.animStagger(this, null))
-          .splice(2, {
-            script: () => tunit.whiten(whiten.shift()),
-            repeat: 6,
-          });
-
-    return anim;
-  }
-  animHeal(target_units) {
-    let anim   = new Tactics.Animation();
-    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
-
-    if (!Array.isArray(target_units)) target_units = [target_units];
-
-    anim.addFrame(() => sounds.heal.play());
-
-    target_units.forEach(tunit => {
-      // Apply sparkles in a few shuffled patterns
-      [{x:-18,y:-52},{x:0,y:-67},{x:18,y:-52}].shuffle().forEach((pos, i) => {
-        anim.splice(i*3+1, this.animSparkle(tunit.pixi, pos));
-      });
-
-      if (tunit.barriered)
-        anim.splice(2, tunit.animBlock(this));
-    });
-
-    let healedUnits = target_units.filter(u => !u.barriered);
-    let index = 0;
-
-    if (healedUnits.length)
-      anim.splice(2, [
-        // Intensify yellow tint on healed units
-        {
-          script: () => {
-            index++;
-            healedUnits.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
-          },
-          repeat: 5,
-        },
-        // Fade yellow tint on healed units
-        {
-          script: () => {
-            index--;
-            healedUnits.forEach(tunit => tunit.colorize(0x404000, 0.2 * index));
-          },
-          repeat: 5,
-        },
-        () => healedUnits.forEach(tunit => tunit.colorize(null)),
       ]);
 
     return anim;
   }
-  animSparkle(parent, pos) {
-    let filter    = new PIXI.filters.ColorMatrixFilter();
-    let matrix    = filter.matrix;
-    let shock     = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/shock.png');
-    let size      = {w:shock.width,h:shock.height};
-    let particle  = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/particle.png');
-    let container = new PIXI.Container();
-    container.position = new PIXI.Point(pos.x,pos.y+2);
-
-    shock.filters = [filter];
-    container.addChild(shock);
-
-    particle.position = new PIXI.Point(-6.5,-6.5);
-    container.addChild(particle);
-
-    return new Tactics.Animation({frames: [
-      () => {
-        matrix[12] = 0.77;
-        shock.scale = new PIXI.Point(0.593,0.252);
-        shock.position = new PIXI.Point(-shock.width/2,-shock.height/2);
-        shock.alpha = 0.22;
-        particle.alpha = 0.22;
-        parent.addChild(container);
-      },
-      () => {
-        matrix[12] = 0.44;
-        shock.scale = new PIXI.Point(0.481,0.430);
-        shock.position = new PIXI.Point(-shock.width/2,-shock.height/2 + 3);
-        shock.alpha = 0.55;
-        particle.position.y += 3;
-        particle.alpha = 0.55;
-      },
-      () => {
-        matrix[12] = 0;
-        shock.scale = new PIXI.Point(0.333,0.667);
-        shock.position = new PIXI.Point(-shock.width/2,-shock.height/2 + 6);
-        shock.alpha = 1;
-        particle.position.y += 3;
-        particle.alpha = 1;
-      },
-      () => {
-        matrix[12] = 0.62;
-        shock.scale = new PIXI.Point(0.150,1);
-        shock.position = new PIXI.Point(-shock.width/2,-shock.height/2 + 9);
-        particle.position.y += 3;
-      },
-      () => {
-        matrix[12] = 1;
-        shock.scale = new PIXI.Point(0.133,1.2);
-        shock.position = new PIXI.Point(-shock.width/2,-shock.height/2 + 12);
-        particle.position.y += 3;
-        particle.alpha = 0;
-      },
-      () => {
-        parent.removeChild(container);
-      }
-    ]});
-  }
-  animCaption(caption, options) {
-    if (options === undefined)
-      options = {};
+  animCaption(caption, options = {}) {
     if (options.color === undefined)
       options.color = 'white';
 
@@ -1737,7 +1491,6 @@ export default class {
       {
         fontFamily:      'Arial',
         fontSize:        '12px',
-        fontWeight:      'bold',
         stroke:          0,
         strokeThickness: 1,
         fill:            options.color,
@@ -1999,25 +1752,19 @@ export default class {
       if (!(name in filters)) {
         filters[name] = new PIXI.filters[type]();
 
-        this.frame.children.forEach(child => {
-          if ('data' in child)
-            if (child.data.name === 'base' || child.data.name === 'trim')
-              child.filters = Object.keys(filters).map(n => filters[n]);
-        });
+        let unitContainer = this.getContainerByName('unit');
+        unitContainer.filters = Object.values(filters);
       }
     }
     else {
       if (name in filters) {
         delete filters[name];
 
-        this.frame.children.forEach(child => {
-          if ('data' in child)
-            if (child.data.name === 'base' || child.data.name === 'trim')
-              if (child.filters.length > 1)
-                child.filters = Object.keys(filters).map(n => filters[n]);
-              else
-                child.filters = null;
-        });
+        let unitContainer = this.getContainerByName('unit');
+        if (unitContainer.filters.length > 1)
+          unitContainer.filters = Object.values(filters);
+        else
+          unitContainer.filters = null;
       }
     }
 

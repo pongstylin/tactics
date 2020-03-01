@@ -1,4 +1,3 @@
-import Progress from 'components/Progress.js';
 import popup from 'components/popup.js';
 
 var game;
@@ -127,7 +126,7 @@ var buttons = {
 };
 
 $(() => {
-  progress = new Progress();
+  progress = new Tactics.Progress();
   progress.message = 'Loading game...';
   progress.show();
 
@@ -169,7 +168,7 @@ $(() => {
       if (window.getComputedStyle(event.target).cursor !== 'pointer')
         return;
 
-      Tactics.sounds.focus.play();
+      Tactics.playSound('focus');
     })
     .on('click','#app BUTTON:enabled', event => {
       var $button = $(event.target);
@@ -181,7 +180,7 @@ $(() => {
 
       handler($button);
 
-      Tactics.sounds.select.play();
+      Tactics.playSound('select');
     });
 
   loadResources().then(async () => {
@@ -220,7 +219,8 @@ async function loadResources() {
       })
       .show();
 
-    return Tactics.load(unitTypes, percent => {
+    return Tactics.load(unitTypes, (percent, label) => {
+      progress.message = label;
       progress.percent = percent;
     });
   });

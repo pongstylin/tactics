@@ -1,6 +1,8 @@
 import Unit from 'tactics/Unit.js';
-import unitDataMap from 'tactics/unitData.js';
+import { unitDataMap, unitTypeToIdMap } from 'tactics/unitData.js';
 import colorMap from 'tactics/colorMap.js';
+
+const HALF_TILE_HEIGHT = 28;
 
 export default class ChaosSeed extends Unit {
   constructor(data, board) {
@@ -9,6 +11,212 @@ export default class ChaosSeed extends Unit {
     this.title = '...sleeps...';
   }
 
+  draw() {
+    this._frames = this.frames.map(frame => this.compileFrame(frame));
+
+    return super.draw();
+  }
+  drawAvatar(direction = 'S') {
+    return this.compileFrame(this.frames[this.stills[direction]]);
+  }
+  compileFrame(frame, data = this) {
+    let container = new PIXI.Container();
+    container.name = 'frame';
+    container.data = frame;
+    if (!frame.length && !frame.c) return container;
+
+    let shadowContainer = new PIXI.Container();
+    shadowContainer.name = 'shadow';
+    container.addChild(shadowContainer);
+
+    let unitContainer = new PIXI.Container();
+    unitContainer.name = 'unit';
+    container.addChild(unitContainer);
+
+    let offset;
+    if (data.width && data.height) {
+      offset = new PIXI.Point(
+        Math.floor(-data.width / 2),
+        Math.floor(-data.height + (HALF_TILE_HEIGHT*4/3)),
+      );
+
+      // Finicky
+      if (data.frames_offset) {
+        offset.x += data.frames_offset.x || 0;
+        offset.y += data.frames_offset.y || 0;
+      }
+    }
+    else // Legacy
+      offset = new PIXI.Point(frame.x || 0, (frame.y || 0) - 2);
+
+    container.alpha = 'a' in frame ? frame.a : 1;
+
+    let shapes;
+    if (frame.c)
+      shapes = frame.c;
+    else
+      shapes = frame;
+
+    let unitTypeId = unitTypeToIdMap.get(this.type);
+
+    shapes.forEach((shape, i) => {
+      /*
+       * Translate short form to long form
+       */
+      if (!('image' in shape)) {
+        if ('i' in shape) {
+          shape.image = data.images[shape.i];
+          delete shape.i;
+        }
+        else if ('id' in shape) {
+          // Legacy
+          shape.image = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+shape.id+'.png';
+          delete shape.id;
+        }
+        else {
+          throw new Error('Frames without images are not supported');
+        }
+
+        if ('n' in shape) {
+          if (shape.n === 's' || shape.n === 'shadow')
+            shape.name = 'shadow';
+          if (shape.n === 'b' || shape.n === 'base')
+            shape.name = 'base';
+          if (shape.n === 't' || shape.n === 'trim')
+            shape.name = 'trim';
+          delete shape.n;
+        }
+        // Legacy
+        else if ('c' in frame) {
+          shape.name =
+            i === 0 ? 'shadow' :
+            i === 1 ? 'base'   :
+            i === 2 ? 'trim'   : null;
+        }
+
+        // Legacy translation
+        if ('a' in shape) {
+          shape.am = shape.a;
+          delete shape.a;
+        }
+
+        if (!('x' in shape))
+          shape.x = 0;
+        if (!('y' in shape))
+          shape.y = 0;
+      }
+
+      /*
+       * Configure a sprite using shape data
+       */
+      let sprite = PIXI.Sprite.from(shape.image);
+      sprite.data = shape;
+      sprite.position = new PIXI.Point(shape.x + offset.x, shape.y + offset.y);
+      sprite.alpha = 'am' in shape ? shape.am : 1;
+
+      // Legacy
+      if (shape.f === 'B') {
+        sprite.rotation = Math.PI;
+        sprite.position.x *= -1;
+        sprite.position.y *= -1;
+        if (shape.w) sprite.position.x += sprite.width - shape.w;
+        if (shape.h) sprite.position.y += sprite.height - shape.h;
+      }
+      else if (shape.f === 'H') {
+        if (shape.w) sprite.position.x -= (sprite.width - shape.w);
+        sprite.scale.x = -1;
+      }
+
+      if ('s' in shape) {
+        // Legacy
+        if (data.width === undefined) {
+          sprite.position.x += sprite.width - (sprite.width * shape.s);
+          sprite.position.y += sprite.height - (sprite.height * shape.s);
+        }
+        sprite.scale = new PIXI.Point(shape.s, shape.s);
+      }
+      else {
+        if ('sx' in shape)
+          sprite.scale.x = shape.sx;
+        if ('sy' in shape)
+          sprite.scale.y = shape.sy;
+      }
+
+      if (shape.name === 'trim')
+        sprite.tint = this.color;
+
+      if (shape.name === 'shadow') {
+        sprite.alpha = 0.5;
+        sprite.inheritTint = false;
+      }
+
+      sprite.name = shape.name;
+
+      if (shape.name === 'shadow')
+        shadowContainer.addChild(sprite);
+      else
+        unitContainer.addChild(sprite);
+    });
+
+    return container;
+  }
+  drawFrame(actionName, direction) {
+    let frameId;
+    let context;
+    if (typeof actionName === 'number') {
+      frameId = actionName;
+      context = direction;
+    }
+    else {
+      if (actionName === 'stand' || actionName === 'turn' || actionName === 'stagger')
+        actionName = 'stills';
+      else
+        throw `Unexpected action name: ${actionName}`;
+
+      if (direction === undefined)
+        direction = this.direction;
+      frameId = this[actionName][direction];
+    }
+
+    let pixi = this.pixi;
+    let frame = this._frames[frameId];
+    let focus;
+
+    if (this.frame) {
+      focus = this.hideFocus();
+      pixi.removeChild(this.frame);
+    }
+    if (!frame)
+      return;
+
+    pixi.addChildAt(this.frame = frame, 0);
+    if (focus)
+      this.showFocus(focus.alpha);
+
+    if (context)
+      pixi.position = context.getCenter().clone();
+
+    if (frame.data) {
+      // Reset Normal Appearance
+      if (this.width && this.height) {
+        // Reset the position after using .offsetFrame()
+        frame.position.x = 0;
+        frame.position.y = 0;
+      }
+      else { // Legacy
+        frame.position.x = frame.data.x || 0;
+        frame.position.y = (frame.data.y || 0) - 2;
+      }
+
+      let unitContainer = this.getContainerByName('unit');
+      unitContainer.filters = Object.keys(this.filters).map(name => this.filters[name]);
+
+      let trim = this.getContainerByName('trim');
+      trim.tint = this.color;
+    }
+
+    return this;
+  }
   getPhaseAction() {
     let board = this.board;
     let teamsData = board.getWinningTeams().reverse();
@@ -30,18 +238,19 @@ export default class ChaosSeed extends Unit {
     return this.animPhase(action.colorId).play();
   }
   animPhase(colorId) {
-    let sounds    = $.extend({}, Tactics.sounds, this.sounds);
     let old_color = this.color;
     let new_color = colorMap.get(colorId);
 
     return new Tactics.Animation({frames: [
-      () => sounds.phase.play(),
+      () => this.sounds.phase.play(),
       {
-        script: frame => {
-          let step = frame.repeat_index + 1;
-          let color = Tactics.utils.getColorStop(old_color, new_color, step / 12);
-          this.change({ color:color });
-          this.frame.children[2].tint = this.color;
+        script: ({ repeat_index }) => {
+          repeat_index++;
+          let color = Tactics.utils.getColorStop(old_color, new_color, repeat_index / 12);
+          this.change({ color });
+
+          let trim = this.getContainerByName('trim');
+          trim.tint = this.color;
         },
         repeat: 12,
       }
@@ -111,6 +320,8 @@ export default class ChaosSeed extends Unit {
         };
       }
       else {
+        let direction = board.getDirection(this.assignment, attacker.assignment);
+
         // Hatched
         return {
           type:   'hatch',
@@ -119,7 +330,7 @@ export default class ChaosSeed extends Unit {
           results: [
             {
               unit:    this,
-              changes: { type:'ChaosDragon' },
+              changes: { type:'ChaosDragon', direction },
             },
             {
               unit:    attacker,
@@ -132,7 +343,7 @@ export default class ChaosSeed extends Unit {
   }
   attack(action) {
     let anim   = new Tactics.Animation();
-    let sounds = $.extend({}, Tactics.sounds, this.sounds);
+    let sounds = this.sounds;
     let winds  = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
     let target_unit = action.target.assigned;
 
@@ -150,11 +361,8 @@ export default class ChaosSeed extends Unit {
             this.frame.children[0].position.x += 0.3;
             this.frame.children[0].position.y += 0.2;
 
-            // Base
+            // Unit
             this.frame.children[1].position.y -= 3;
-
-            // Trim
-            this.frame.children[2].position.y -= 3;
           },
           repeat: 12,
         },
@@ -201,11 +409,8 @@ export default class ChaosSeed extends Unit {
             this.frame.children[0].position.x -= 0.3;
             this.frame.children[0].position.y -= 0.2;
 
-            // Base
+            // Unit
             this.frame.children[1].position.y += 3;
-
-            // Trim
-            this.frame.children[2].position.y += 3;
           },
           repeat: 12,
         },
@@ -216,13 +421,17 @@ export default class ChaosSeed extends Unit {
       .splice(12, () => sounds.roar.play('roar'))
       .splice(16, () => sounds.wind.play(winds.shift()))
       .splice(20, () => sounds.wind.fade(1, 0, 1700, sounds.wind.play(winds.shift())))
-      .splice(22, this.animLightning(target_unit.assignment));
+      .splice(22, () => sounds.attack.play())
+      .splice(23, this.animAttackEffect(
+        { spriteId:'sprite:Lightning' },
+        target_unit.assignment,
+        true,
+      ));
     
     return anim.play();
   }
   heal(action) {
     let anim        = new Tactics.Animation();
-    let sounds      = $.extend({}, Tactics.sounds, this.sounds);
     let target_unit = action.target.assigned;
     let pixi        = this.pixi;
     let filter      = new PIXI.filters.ColorMatrixFilter();
@@ -234,19 +443,25 @@ export default class ChaosSeed extends Unit {
           let step = 1 + frame.repeat_index;
 
           filter.brightness(1 + (step * 0.2));
-          this.frame.children[1].tint = Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12);
+          let base = this.getContainerByName('base');
+          base.tint = Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12);
 
-          if (step === 8) sounds.heal.play();
+          if (step === 8) this.sounds.heal.play();
         },
         repeat: 12,
       })
-      .splice(this.animHeal(target_unit))
+      .splice(9, this.animAttackEffect(
+        { spriteId:'sprite:Sparkle', type:'heal' },
+        target_unit.assignment,
+        true,
+      ))
       .addFrame({
         script: frame => {
           let step = 11 - frame.repeat_index;
 
           filter.brightness(1 + (step * 0.2));
-          this.frame.children[1].tint = Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12);
+          let base = this.getContainerByName('base');
+          base.tint = Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12);
 
           if (step === 0) pixi.filters = null;
         },
@@ -255,58 +470,65 @@ export default class ChaosSeed extends Unit {
 
     return anim.play();
   }
-  animStagger(attacker) {
-    let anim      = new Tactics.Animation();
-    let sounds    = $.extend({}, Tactics.sounds, this.sounds);
-    let direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
+  animHit(attacker, attackType) {
+    let anim = new Tactics.Animation();
+    let doStagger;
+    let direction;
 
-    anim.addFrames([
-      () => sounds.crack.play(),
-      () => this.offsetFrame(0.06,  direction),
-      () => this.offsetFrame(-0.06, direction),
-      () => this.offsetFrame(-0.06, direction),
-      () => this.offsetFrame(0.06,  direction),
-    ]);
+    if (attackType === undefined)
+      attackType = attacker.aType;
+
+    if (attackType === 'melee') {
+      doStagger = true;
+
+      direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
+
+      anim.addFrame(() => this.sounds.crack.play());
+    }
+    else if (attackType === 'magic') {
+      doStagger = true;
+
+      anim.addFrame([]);
+    }
+
+    if (doStagger) {
+      anim.addFrame([]);
+
+      if (this.paralyzed)
+        anim.addFrames([
+          () => this.offsetFrame(0.12, direction),
+          () => this.offsetFrame(-0.16, direction),
+        ]);
+      else
+        anim.addFrames([
+          () => this.drawStagger().offsetFrame(0.12, direction),
+          () => this.offsetFrame(-0.16, direction),
+          () => this.drawStand(),
+        ]);
+    }
 
     return anim;
   }
-  animBlock(attacker) {
-    let sounds    = $.extend({}, Tactics.sounds, this.sounds);
-    let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);
+  animMiss(attacker) {
+    let anim = new Tactics.Animation();
 
-    return new Tactics.Animation({frames: [
-      () => 
-        this.direction = direction,
-      () => {
-        sounds.block.play();
-        this.shock(direction, 0);
-      },
-      () =>
-        this.shock(direction, 1),
-      () =>
-        this.shock(direction, 2),
-      () =>
-        this.shock(),
-    ]});
+    anim.addFrame(() => this.sounds.block.play());
+
+    return anim;
   }
   hatch(action) {
     let board       = this.board;
     let anim        = new Tactics.Animation();
-    let sounds      = $.extend({}, Tactics.sounds, this.sounds);
     let assignment  = this.assignment;
     let direction   = board.getDirection(assignment, action.target);
     let target_unit = action.target.assigned;
-    let frames      = target_unit._walks[direction];
-    let step        = 0;
-    let step2       = 0;
+    let move        = target_unit.renderAnimation('move', direction);
     let myPos       = assignment.getCenter();
-    let pos         = target_unit.pixi.position.clone();
     let caption;
     let dragon;
     let hatch       = unitDataMap.get('ChaosDragon').animations[direction].hatch;
     let team        = this.team;
     let tint        = this.color;
-    let death       = new PIXI.Container();
     let winds       = ['wind1','wind2','wind3','wind4','wind5'];
 
     if (direction === 'S')
@@ -320,22 +542,25 @@ export default class ChaosSeed extends Unit {
 
     anim
       .splice({ // 0
-        script: () => {
-          if (step === 0) sounds.phase.play();
-          this.whiten(++step / 12);
-          this.frame.children[2].tint = Tactics.utils.getColorStop(tint, 0xFFFFFF, step / 12);
+        script: ({ repeat_index }) => {
+          repeat_index++;
+          if (repeat_index === 1) this.sounds.phase.play();
+          this.whiten(repeat_index / 12);
+          let trim = this.getContainerByName('trim');
+          trim.tint = Tactics.utils.getColorStop(tint, 0xFFFFFF, repeat_index / 12);
         },
         repeat: 12,
       })
       .splice({ // 12
-        script: () =>
-          this.whiten(--step / 12),
+        script: ({ repeat_index }) =>
+          this.whiten((11 - repeat_index) / 12),
         repeat: 12,
       })
       .splice({ // 24
-        script: () => {
-          if (step === 0) sounds.phase.play();
-          this.alpha = 1 - (++step / 12);
+        script: ({ repeat_index }) => {
+          repeat_index++;
+          if (repeat_index === 1) this.sounds.phase.play();
+          this.alpha = 1 - repeat_index / 12;
         },
         repeat: 12,
       })
@@ -353,84 +578,66 @@ export default class ChaosSeed extends Unit {
         dragon.drawFrame(hatch.s);
       })
       .splice(36, {
-        script: () => dragon.frame.alpha = 1 - (--step / 12),
+        script: ({ repeat_index }) =>
+          dragon.frame.alpha = 1 - (11 - repeat_index) / 12,
         repeat: 12
       })
-      .splice(22, target_unit.animTurn(direction))
-      .splice(24, {
-        script: () => {
-          let offset = ((step2 / (frames.length*3)) * 0.45) + 0.12;
-          offset = new PIXI.Point(Math.round(88*offset),Math.round(56*offset));
-
-          if ((step2 % frames.length) === 0 || (step2 % frames.length) === 4)
-            unitDataMap.get('Knight').sounds.step.play();
-
-          target_unit.drawFrame(frames[step2++ % frames.length]);
-
-          // Opposite of what you expect since we're going backwards.
-          if (direction === 'S') {
-            target_unit.pixi.position.x = pos.x - offset.x;
-            target_unit.pixi.position.y = pos.y - offset.y;
-          }
-          else if (direction === 'N') {
-            target_unit.pixi.position.x = pos.x + offset.x;
-            target_unit.pixi.position.y = pos.y + offset.y;
-          }
-          else if (direction === 'E') {
-            target_unit.pixi.position.x = pos.x - offset.x;
-            target_unit.pixi.position.y = pos.y + offset.y;
-          }
-          else {
-            target_unit.pixi.position.x = pos.x + offset.x;
-            target_unit.pixi.position.y = pos.y - offset.y;
-          }
-        },
-        repeat: frames.length*3,
-      })
       .splice(22, target_unit.animCaption('Ugh!',caption))
+      .splice(22, target_unit.animTurn(direction, false))
+      .splice(24, {
+        script: ({ repeat_index }) => {
+          let frameId = repeat_index % move.frames.length;
+          let offset1Ratio = (frameId + 1) / move.frames.length;
+          let offset2Ratio = (repeat_index + 1) / (move.frames.length * 3);
+
+          move.frames[frameId].scripts.forEach(s => s());
+          target_unit.offsetFrame(-offset2Ratio - offset1Ratio, direction, true);
+        },
+        repeat: move.frames.length*3,
+      })
       // 48
       .splice(() => board.dropUnit(target_unit))
       // 49
       .splice({
-        script: () => {
-          if (step === 0) sounds.phase.play();
-          dragon.whiten(++step / 12);
-          if (step < 7) dragon.alpha = step / 6;
+        script: ({ repeat_index }) => {
+          repeat_index++;
+          if (repeat_index === 1) this.sounds.phase.play();
+          dragon.whiten(repeat_index / 12);
+          if (repeat_index < 7) dragon.alpha = repeat_index / 6;
         },
         repeat: 12,
       })
       // 61
       .splice({
-        script: () => dragon.whiten(--step / 12),
+        script: ({ repeat_index }) =>
+          dragon.whiten((11 - repeat_index) / 12),
         repeat: 12
       })
       // 73
       .splice({
-        script: () => dragon.drawFrame(hatch.s + ++step),
+        script: ({ repeat_index }) =>
+          dragon.drawFrame(hatch.s + 1 + repeat_index),
         repeat: hatch.l-3
       })
       // 78
       .splice({
-        script: frame => {
-          let step = 11 - frame.repeat_index;
-          dragon.frame.children[2].tint = Tactics.utils.getColorStop(tint, 0xFFFFFF, step / 12);
+        script: ({ repeat_index }) => {
+          repeat_index++;
+          let trim = dragon.getContainerByName('trim');
+          trim.tint = Tactics.utils.getColorStop(0xFFFFFF, tint, repeat_index / 12);
         },
         repeat: 12,
       })
       // 90
       .splice({
-        script: () => {
+        script: ({ repeat_index }) => {
           dragon.color = tint;
-          dragon.drawFrame(hatch.s + ++step);
+          dragon.drawFrame(hatch.s + 6 + repeat_index);
         },
         repeat: 2,
       });
 
     // Layer in the cloud
-    anim.splice( 0, () => this.pixi.addChild(death));
-    anim.splice(36, () => dragon.pixi.addChild(death));
-    anim.splice(51, () => dragon.pixi.removeChild(death));
-
     for (let i = 0; i < anim.frames.length; i++) {
       if (i === 51) break;
 
@@ -448,7 +655,7 @@ export default class ChaosSeed extends Unit {
           let y = myPos.y + Math.round(Math.random() * 28 * po) * ym + 28;
 
           anim.splice(i, new Tactics.Animation.fromData(
-            this.board.unitsContainer,
+            board.unitsContainer,
             Tactics.animations.death,
             {x:x, y:y, s:2, a:ao},
           ));
@@ -461,14 +668,16 @@ export default class ChaosSeed extends Unit {
       if (i === 84) break;
 
       if (i === 0)
-        anim.splice(i, () => sounds.wind.fade(0, 0.25, 500, sounds.wind.play(winds.random())));
+        anim.splice(i, () =>
+          this.sounds.wind.fade(0, 0.25, 500, this.sounds.wind.play(winds.random()))
+        );
       else if (i === 76)
         anim.splice(i, () => {
-          sounds.roar.play('roar');
+          this.sounds.roar.play('roar');
           board.drawCard(dragon);
         });
       else
-        anim.splice(i, () => sounds.wind.play(winds.random()));
+        anim.splice(i, () => this.sounds.wind.play(winds.random()));
     }
 
     return anim.play();

@@ -1,3 +1,8 @@
+import 'howler';
+import 'plugins/pixi.js';
+import { Texture } from '@pixi/core';
+import { Loader } from '@pixi/loaders';
+
 import config from 'config/client.js';
 import ServerError from 'server/Error.js';
 import clientFactory from 'client/clientFactory.js';
@@ -8,6 +13,7 @@ import Progress from 'components/Progress.js';
 import Game from 'tactics/Game.js';
 import Setup from 'components/Setup.js';
 import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
+import AnimatedSprite from 'tactics/AnimatedSprite.js';
 import sleep from 'utils/sleep.js';
 
 var authClient = clientFactory('auth');
@@ -17,9 +23,6 @@ var chatClient = clientFactory('chat');
 window.Tactics = (function () {
   var self = {};
 
-  // We don't need an infinite loop, thanks.
-  PIXI.ticker.shared.autoStart = false;
-
   $.extend(self, {
     version: config.version,
     width:  22 + 88*9 + 22,
@@ -28,51 +31,231 @@ window.Tactics = (function () {
     authClient: clientFactory('auth'),
     gameClient: clientFactory('game'),
     chatClient: clientFactory('chat'),
+    Progress: Progress,
     ServerError: ServerError,
-    loadedCore: false,
     loadedUnitTypes: new Set(),
+    spriteMap: new Map(),
     _setupMap: new Map(),
     _resolveSetup: null,
 
-    load: function (unitTypes, cb = () => {}) {
+    load: async function (unitTypes, cb = () => {}) {
+      if (!Array.isArray(unitTypes))
+        unitTypes = [...unitTypes];
+      unitTypes = unitTypes.filter(ut => !this.spriteMap.has(ut));
+
+      if (!this.spriteMap.has('core'))
+        unitTypes.unshift('core');
+
+      if (unitTypes.find(ut => ut === 'ChaosSeed'))
+        unitTypes.push('ChaosDragon');
+
+      let baseURL = new URL(process.env.SPRITE_SOURCE, location.href);
+      let progress = 0;
+      let effectTypes = new Set();
+
+      let unitsData = await Promise.all(unitTypes.map(unitType => {
+        let unitData = unitDataMap.get(unitType);
+        if (unitData && unitData.legacy) {
+          if (unitData.imports)
+            unitData.imports.forEach(effectType => effectTypes.add(effectType));
+
+          return this.loadLegacySprite(unitType);
+        }
+
+        let spriteURL = new URL(`${unitType}.json`, baseURL);
+
+        return fetch(spriteURL).then(rsp => rsp.json()).then(data => {
+          data.name = unitType;
+          if (data.imports)
+            for (let i = 0; i < data.imports.length; i++) {
+              effectTypes.add(data.imports[i]);
+            }
+
+          progress++;
+          cb(
+            progress / unitTypes.length * 0.30,
+            `Loading unit data...`
+          );
+
+          return data;
+        });
+      }));
+      unitsData = unitsData.filter(ud => !!ud);
+      effectTypes = [...effectTypes];
+      progress = 0;
+
+      let effectsData = await Promise.all(effectTypes.map(effectType => {
+        let spriteURL = new URL(`${effectType}.json`, baseURL);
+
+        return fetch(spriteURL).then(rsp => rsp.json()).then(data => {
+          data.name = effectType;
+
+          progress++;
+          cb(
+            0.30 + progress / effectTypes.length * 0.20,
+            `Loading unit data...`
+          );
+
+          return data;
+        });
+      }));
+
+      let spriteDataMap = new Map(
+        unitsData.concat(effectsData).map(sd => [sd.name, sd])
+      );
+      progress = 0;
+
+      for (let unitType of unitTypes) {
+        cb(
+          0.50 + progress / unitTypes.length * 0.50,
+          `Loading ${unitType}...`
+        );
+
+        let unitData = unitDataMap.get(unitType);
+        try {
+          if (unitData && unitData.legacy) {
+            if (unitData.imports)
+              for (let spriteName of unitData.imports) {
+                await this.loadSprite(spriteDataMap, spriteName);
+              }
+          }
+          else
+            await this.loadSprite(spriteDataMap, unitType);
+        }
+        catch (e) {
+          cb(
+            0.50 + progress / unitTypes.length * 0.50,
+            `Loading failed!`,
+          );
+          throw e;
+        }
+
+        progress++;
+      }
+
+      cb(1, `Done!`);
+    },
+    loadSprite: async function (spriteDataMap, spriteName) {
+      if (this.spriteMap.has(spriteName))
+        return;
+
+      let spriteData = spriteDataMap.get(spriteName);
+
+      if (spriteData.imports)
+        for (let i = 0; i < spriteData.imports.length; i++) {
+          await this.loadSprite(spriteDataMap, spriteData.imports[i]);
+        }
+
+      await new Promise((resolve, reject) => {
+        let loading = 0;
+        let loaded = -1;
+        let progress = () => {
+          loaded++;
+          if (loading === loaded)
+            resolve();
+        };
+
+        if (spriteData.images)
+          for (let i = 0; i < spriteData.images.length; i++) {
+            let image = spriteData.images[i];
+            if (typeof image === 'string')
+              image = spriteData.images[i] = { src:image };
+
+            if (!image.name)
+              image.name = [];
+            else if (typeof image.name === 'string')
+              image.name = [image.name];
+
+            if (image.src.startsWith('sprite:'))
+              image.texture = this.getSpriteURI(image.src).texture;
+            else if (image.src.startsWith('data:')) {
+              image.texture = Texture.from( this.shrinkDataURI(image.src) );
+              if (!image.texture.baseTexture.valid) {
+                loading++;
+                image.texture.baseTexture
+                  .on('loaded', progress)
+                  .on('error', () =>
+                    reject(new Error(
+                      `Failed to load sprite:${spriteName}/images/${i}`
+                    ))
+                  );
+              }
+            }
+            else
+              throw 'Unsupported image source';
+            delete image.src;
+          }
+
+        if (spriteData.sounds)
+          for (let i = 0; i < spriteData.sounds.length; i++) {
+            let sound = spriteData.sounds[i];
+            if (typeof sound === 'string')
+              sound = spriteData.sounds[i] = { src:sound };
+
+            if (!sound.name)
+              sound.name = [];
+            else if (typeof sound.name === 'string')
+              sound.name = [sound.name];
+
+            if (sound.src.startsWith('sprite:'))
+              sound.howl = this.getSpriteURI(sound.src).howl;
+            else if (sound.src.startsWith('data:')) {
+              loading++;
+              sound.howl = new Howl({
+                src: [ this.shrinkDataURI(sound.src) ],
+                format: 'mp3',
+                volume: parseFloat(process.env.VOLUME_SCALE) || 1,
+                onload: progress,
+                onloaderror: (id, error) =>
+                  reject(new Error(
+                    `Failed to load sprite:${spriteName}/sounds/${i}: ${id}, ${error}`
+                  )),
+              });
+            }
+            else
+              throw 'Unsupported sound source';
+            delete sound.src;
+          }
+
+        progress();
+      });
+
+      this.spriteMap.set(spriteName, new AnimatedSprite(spriteData));
+    },
+    loadLegacySprite: async function (unitType) {
+      if (this.loadedUnitTypes.has(unitType))
+        return;
+      this.loadedUnitTypes.add(unitType);
+
       return new Promise((resolve, reject) => {
         let resources = [];
         let loaded = 0;
-        let loader = PIXI.loader;
+        let loader = new Loader();
         let effects = {};
 
         let progress = () => {
           let percent = (++loaded / resources.length) * 100;
 
-          cb(percent);
-
           if (percent === 100)
             resolve();
         };
 
-        if (!this.loadedCore) {
-          this.loadedCore = true;
+        let unitData   = unitDataMap.get(unitType);
+        let unitTypeId = unitTypeToIdMap.get(unitType);
+        let sprites    = [];
 
-          this.images.forEach(image_url => {
-            let url = image_url;
-            if (!url.startsWith('http'))
-              url = 'https://legacy.taorankings.com/images/'+url;
-
-            resources.push(url);
-            loader.add({ url:url });
-          });
-
-          Object.keys(this.sounds).forEach(name => {
-            let sound = this.sounds[name];
+        if (unitData.sounds) {
+          Object.keys(unitData.sounds).forEach(name => {
+            let sound = unitData.sounds[name];
             if (typeof sound === 'string')
               sound = {file: sound};
 
             let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
 
-            this.sounds[name] = new Howl({
+            unitData.sounds[name] = new Howl({
               src:         [url+'.mp3', url+'.ogg'],
               sprite:      sound.sprite,
-              volume:      sound.volume || 1,
+              volume:      (sound.volume || 1) * (process.env.VOLUME_SCALE || 1),
               rate:        sound.rate || 1,
               onload:      () => progress(),
               onloaderror: () => {},
@@ -80,163 +263,23 @@ window.Tactics = (function () {
 
             resources.push(url);
           });
-
-          Object.keys(this.effects).forEach(name => {
-            let effect_url = this.effects[name].frames_url;
-
-            if (!(effect_url in effects)) {
-              resources.push(effect_url);
-
-              effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
-                // Preload data URIs.
-                renderData.images.forEach(image_url => {
-                  PIXI.BaseTexture.from(image_url);
-                });
-
-                progress();
-                return renderData;
-              });
-            }
-      
-            effects[effect_url].then(renderData => {
-              Object.assign(this.effects[name], renderData);
-              return renderData;
-            });
-          });
-
-          let trophy_url = unitDataMap.get('Champion').frames_url;
-          resources.push(trophy_url);
-
-          fetch(trophy_url).then(r => r.json()).then(renderData => {
-            Object.assign(unitDataMap.get('Champion'), renderData);
-
-            // Preload data URIs.
-            renderData.images.forEach(image_url => {
-              PIXI.BaseTexture.from(image_url);
-            });
-
-            progress();
-          });
         }
 
-        for (let unitType of unitTypes) {
-          if (this.loadedUnitTypes.has(unitType))
-            continue;
-          this.loadedUnitTypes.add(unitType);
+        unitData.frames.forEach(frame => {
+          if (!frame) return;
 
-          let unitData   = unitDataMap.get(unitType);
-          let unitTypeId = unitTypeToIdMap.get(unitType);
-          let sprites    = [];
+          frame.c.forEach(sprite => {
+            let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+sprite.id+'.png';
+            if (resources.includes(url))
+              return;
 
-          if (unitData.sounds) {
-            Object.keys(unitData.sounds).forEach(name => {
-              let sound = unitData.sounds[name];
-              if (typeof sound === 'string')
-                sound = {file: sound};
+            resources.push(url);
+            loader.add({ url:url });
+          });
+        });
 
-              let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
-
-              unitData.sounds[name] = new Howl({
-                src:         [url+'.mp3', url+'.ogg'],
-                sprite:      sound.sprite,
-                volume:      sound.volume || 1,
-                rate:        sound.rate || 1,
-                onload:      () => progress(),
-                onloaderror: () => {},
-              });
-
-              resources.push(url);
-            });
-          }
-
-          if (unitData.effects) {
-            Object.keys(unitData.effects).forEach(name => {
-              let effect_url = unitData.effects[name].frames_url;
-
-              if (!(effect_url in effects)) {
-                resources.push(effect_url);
-
-                effects[effect_url] = fetch(effect_url).then(r => r.json()).then(renderData => {
-                  // Preload data URIs.
-                  renderData.images.forEach(image_url => {
-                    PIXI.BaseTexture.from(image_url);
-                  });
-
-                  progress();
-                  return renderData;
-                });
-              }
-    
-              effects[effect_url].then(renderData => {
-                Object.assign(unitData.effects[name], renderData);
-                return renderData;
-              });
-            });
-          }
-
-          if (unitData.frames_url) {
-            let frames_url = unitData.frames_url;
-            resources.push(frames_url);
-
-            fetch(frames_url).then(r => r.json()).then(renderData => {
-              Object.assign(unitData, renderData);
-
-              // Preload data URIs.
-              renderData.images.forEach(image_url => {
-                PIXI.BaseTexture.from(image_url);
-              });
-
-              progress();
-            });
-          }
-          // Legacy
-          else if (unitData.frames) {
-            unitData.frames.forEach(frame => {
-              if (!frame) return;
-
-              frame.c.forEach(sprite => {
-                let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+sprite.id+'.png';
-                if (resources.includes(url))
-                  return;
-
-                resources.push(url);
-                loader.add({ url:url });
-              });
-            });
-          }
-          // Legacy
-          else {
-            sprites.push.apply(sprites, Object.values(unitData.stills));
-
-            if (unitData.walks)
-              sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.walks)));
-
-            if (unitData.attacks)
-              sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.attacks)));
-
-            if (unitData.blocks)
-              sprites.push.apply(sprites, [].concat.apply([], Object.values(unitData.blocks)));
-
-            sprites.forEach(sprite => {
-              Object.keys(sprite).forEach(name => {
-                let image = sprite[name];
-                if (!image.src) return;
-
-                let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/'+name+'/image'+image.src+'.png';
-                if (resources.includes(url))
-                  return;
-
-                resources.push(url);
-                loader.add({ url:url });
-              });
-            });
-          }
-        }
-
-        if (resources.length === 0) {
-          cb(100);
+        if (resources.length === 0)
           resolve();
-        }
         else {
           loader
             .on('progress', progress)
@@ -244,8 +287,44 @@ window.Tactics = (function () {
         }
       });
     },
+    shrinkDataURI: function (dataURI) {
+      let parts = dataURI.slice(5).split(';base64,');
+      let mimeType = parts[0];
+      let base64Data = parts[1];
+      let byteString = atob(base64Data);
+      let bytesCount = byteString.length;
+      let bytes = new Uint8Array(bytesCount);
+      for (var i = 0; i < bytesCount; i++) {
+        bytes[i] = byteString[i].charCodeAt(0);
+      }
+      let blob = new Blob([bytes], { type:mimeType });
+
+      return URL.createObjectURL(blob);
+    },
+    getSpriteURI: function (path) {
+      let parts = path.replace(/^sprite:/, '').split('/');
+      if (parts.length === 3) {
+        let [spriteName, memberName, elementIndex] = parts;
+        let member = this.spriteMap.get(spriteName)[memberName];
+        if (typeof elementIndex === 'number')
+          return member[elementIndex];
+        else
+          return member.find(e => e.name.includes(elementIndex));
+      }
+      else if (parts.length === 2) {
+        let [spriteName, memberName] = parts;
+        return this.spriteMap.get(spriteName)[memberName];
+      }
+      else if (parts.length === 1)
+        return this.spriteMap.get(parts[0]);
+
+      return null;
+    },
+    playSound: function (name) {
+      this.spriteMap.get('core').getSound(name).howl.play();
+    },
     /*
-     * This is a shared interface to launching and handling the result of game
+     * This is a shared interface for launching and handling the result of game
      * type setup.  It is only appropriate for online use.
      */
     setup: async function (gameType) {
@@ -376,63 +455,11 @@ window.Tactics = (function () {
       });
     },
     images: [
-      'https://tactics.taorankings.com/images/board.png',
-      'https://tactics.taorankings.com/images/trash.png',
-      'shock.png',
-      'particle.png',
-      'lightning-1.png',
-      'lightning-2.png',
-      'lightning-3.png',
-      'death.png',
       'turn_tl.png',
       'turn_tr.png', // Inefficient.  Better to flip the tl horizontally.
       'turn_bl.png',
       'turn_br.png'  // Inefficient.  Better to flip the bl horizontally.
     ],
-    sounds: {
-      victory: 'sound1',
-      newturn: 'sound2',
-      defeat: 'sound3',
-      newgame: 'sound5',
-      deflect: 'sound8',
-      step: 'sound10',
-      block: 'sound11',
-      focus: 'sound15',
-      select: 'sound14',
-      strike: 'sound6',
-      death: {
-        file: 'sound431',
-        sprite: {
-          // fadeIn(volume: 0 => 0.3, over: 0 => 170)
-          death: [566, 1388],
-        },
-      },
-      barrier: {
-        file: 'sound1602', // 2055ms
-        volume: 0,
-        sprite: {
-          // fadeIn(volume: 0 => 1, over: 0 => 295)
-          on: [198, 1857],
-          // fadeIn(volume: 0 => 0.75, over: 0 => 123)
-          off: [255, 1257],
-        },
-      },
-    },
-    effects: {
-      focus: {
-        frames_url: 'https://tactics.taorankings.com/json/focus.json',
-        frames_offset: {y:-16},
-      },
-      barrier: {
-        still: 8,
-        on: [0, 7],
-        off: [9, 11],
-        block: [13, 19],
-        active: [16, 19],
-        frames_url: 'https://tactics.taorankings.com/json/barrier.json',
-        frames_offset: {y:-29},
-      },
-    },
     animations: {
       death: [
         [

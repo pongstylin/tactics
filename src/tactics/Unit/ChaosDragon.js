@@ -1,6 +1,5 @@
-'use strict';
-
 import Unit from 'tactics/Unit.js';
+import { unitTypeToIdMap } from 'tactics/unitData.js';
 import colorMap from 'tactics/colorMap.js';
 
 export default class ChaosDragon extends Unit {
@@ -23,6 +22,219 @@ export default class ChaosDragon extends Unit {
     });
   }
 
+  draw() {
+    this._frames = this.frames.map(frame => this.compileFrame(frame));
+
+    return super.draw();
+  }
+  drawAvatar(direction = 'S') {
+    return this.compileFrame(this.frames[this.stills[direction]]);
+  }
+  compileFrame(frame, data = this) {
+    let container = new PIXI.Container();
+    container.name = 'frame';
+    container.data = frame;
+    if (!frame.length && !frame.c) return container;
+
+    let shadowContainer = new PIXI.Container();
+    shadowContainer.name = 'shadow';
+    container.addChild(shadowContainer);
+
+    let unitContainer = new PIXI.Container();
+    unitContainer.name = 'unit';
+    container.addChild(unitContainer);
+
+    let offset;
+    if (data.width && data.height) {
+      offset = new PIXI.Point(
+        Math.floor(-data.width / 2),
+        Math.floor(-data.height + (HALF_TILE_HEIGHT*4/3)),
+      );
+
+      // Finicky
+      if (data.frames_offset) {
+        offset.x += data.frames_offset.x || 0;
+        offset.y += data.frames_offset.y || 0;
+      }
+    }
+    else // Legacy
+      offset = new PIXI.Point(frame.x || 0, (frame.y || 0) - 2);
+
+    container.alpha = 'a' in frame ? frame.a : 1;
+
+    let shapes;
+    if (frame.c)
+      shapes = frame.c;
+    else
+      shapes = frame;
+
+    let unitTypeId = unitTypeToIdMap.get(this.type);
+
+    shapes.forEach((shape, i) => {
+      /*
+       * Translate short form to long form
+       */
+      if (!('image' in shape)) {
+        if ('i' in shape) {
+          shape.image = data.images[shape.i];
+          delete shape.i;
+        }
+        else if ('id' in shape) {
+          // Legacy
+          shape.image = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+shape.id+'.png';
+          delete shape.id;
+        }
+        else {
+          throw new Error('Frames without images are not supported');
+        }
+
+        if ('n' in shape) {
+          if (shape.n === 's')
+            shape.name = 'shadow';
+          else if (shape.n === 'b')
+            shape.name = 'base';
+          else if (shape.n === 't')
+            shape.name = 'trim';
+          else
+            shape.name = shape.n;
+          delete shape.n;
+        }
+        // Legacy
+        else if ('c' in frame) {
+          shape.name =
+            i === 0 ? 'shadow' :
+            i === 1 ? 'base'   :
+            i === 2 ? 'trim'   : null;
+        }
+
+        // Legacy translation
+        if ('a' in shape) {
+          shape.am = shape.a;
+          delete shape.a;
+        }
+
+        if (!('x' in shape))
+          shape.x = 0;
+        if (!('y' in shape))
+          shape.y = 0;
+      }
+
+      /*
+       * Configure a sprite using shape data
+       */
+      let sprite = PIXI.Sprite.from(shape.image);
+      sprite.data = shape;
+      sprite.position = new PIXI.Point(shape.x + offset.x, shape.y + offset.y);
+      sprite.alpha = 'am' in shape ? shape.am : 1;
+
+      // Legacy
+      if (shape.f === 'B') {
+        sprite.rotation = Math.PI;
+        sprite.position.x *= -1;
+        sprite.position.y *= -1;
+        if (shape.w) sprite.position.x += sprite.width - shape.w;
+        if (shape.h) sprite.position.y += sprite.height - shape.h;
+      }
+      else if (shape.f === 'H') {
+        if (shape.w) sprite.position.x -= (sprite.width - shape.w);
+        sprite.scale.x = -1;
+      }
+
+      if ('s' in shape) {
+        // Legacy
+        if (data.width === undefined) {
+          sprite.position.x += sprite.width - (sprite.width * shape.s);
+          sprite.position.y += sprite.height - (sprite.height * shape.s);
+        }
+        sprite.scale = new PIXI.Point(shape.s, shape.s);
+      }
+      else {
+        if ('sx' in shape)
+          sprite.scale.x = shape.sx;
+        if ('sy' in shape)
+          sprite.scale.y = shape.sy;
+      }
+
+      if (shape.name === 'trim')
+        sprite.tint = this.color;
+
+      if (shape.name === 'shadow') {
+        sprite.alpha = 0.5;
+        sprite.inheritTint = false;
+      }
+
+      sprite.name = shape.name;
+
+      if (shape.name === 'shadow')
+        shadowContainer.addChild(sprite);
+      else
+        unitContainer.addChild(sprite);
+    });
+
+    return container;
+  }
+  drawFrame(actionName, direction) {
+    let frameId;
+    let context;
+    if (typeof actionName === 'number') {
+      frameId = actionName;
+      context = direction;
+    }
+    else {
+      if (actionName === 'stand')
+        actionName = 'stills';
+      else if (actionName === 'turn' || actionName === 'stagger')
+        actionName = 'turns';
+      else
+        throw `Unexpected action name: ${actionName}`;
+
+      if (direction === undefined)
+        direction = this.direction;
+      frameId = this[actionName][direction];
+    }
+
+    let pixi = this.pixi;
+    let frame = this._frames[frameId];
+    let focus;
+
+    if (this.frame) {
+      focus = this.hideFocus();
+      pixi.removeChild(this.frame);
+    }
+    if (!frame)
+      return;
+
+    pixi.addChildAt(this.frame = frame, 0);
+    if (focus)
+      this.showFocus(focus.alpha);
+
+    if (context)
+      pixi.position = context.getCenter().clone();
+
+    if (frame.data) {
+      // Reset Normal Appearance
+      if (this.width && this.height) {
+        // Reset the position after using .offsetFrame()
+        frame.position.x = 0;
+        frame.position.y = 0;
+      }
+      else { // Legacy
+        frame.position.x = frame.data.x || 0;
+        frame.position.y = (frame.data.y || 0) - 2;
+      }
+
+      let unitContainer = this.getContainerByName('unit');
+      unitContainer.filters = Object.keys(this.filters).map(name => this.filters[name]);
+
+      let trim = this.getContainerByName('trim');
+      trim.tint = this.color;
+    }
+
+    return this;
+  }
+  move(action) {
+    return this.animMove(action.assignment).play();
+  }
   attack(action) {
     let anim = new Tactics.Animation({fps:10});
 
@@ -75,18 +287,17 @@ export default class ChaosDragon extends Unit {
     return this.animPhase(action.colorId).play();
   }
   animPhase(colorId) {
-    let sounds    = $.extend({}, Tactics.sounds, this.sounds);
     let old_color = this.color;
     let new_color = colorMap.get(colorId);
 
     return new Tactics.Animation({frames: [
-      () => sounds.phase.play(),
+      () => this.sounds.phase.play(),
       {
         script: frame => {
           let step = frame.repeat_index + 1;
           let color = Tactics.utils.getColorStop(old_color, new_color, step / 12);
           this.change({ color:color });
-          this.frame.children[2].tint = this.color;
+          this.getContainerByName('trim').tint = this.color;
         },
         repeat: 12,
       }
@@ -95,7 +306,6 @@ export default class ChaosDragon extends Unit {
   animMove(assignment) {
     let board       = this.board;
     let anim        = new Tactics.Animation({fps:10});
-    let sounds      = $.extend({}, Tactics.sounds, this.sounds);
     let frame_index = 0;
 
     anim.addFrame(() => this.assignment.dismiss());
@@ -114,7 +324,7 @@ export default class ChaosDragon extends Unit {
           repeat: move.l,
         }]})
           .splice(10, () => this.assign(assignment))
-          .splice([2,7,11,16], () => sounds.flap.play())
+          .splice([2,7,11,16], () => this.sounds.flap.play())
       );
     anim.addFrame(() => this.stand(direction));
 
@@ -123,12 +333,10 @@ export default class ChaosDragon extends Unit {
   animAttack(target) {
     let board     = this.board;
     let anim      = new Tactics.Animation();
-    let sounds    = $.extend({}, Tactics.sounds, this.sounds);
     let tunit     = target.assigned;
     let direction = board.getDirection(this.assignment, target, 1);
     let attack    = this.animations[direction].attack, frame=0;
     let whiten    = [0.25, 0.5, 0];
-    let source    = direction === 'N' || direction === 'E' ?  1 : 3;
     let adjust    = direction === 'N' ? {x:-5,y:0} : direction === 'W' ? {x:-5,y:3} : {x:5,y:3};
     let container = new PIXI.Container();
     let filter1   = new PIXI.filters.BlurFilter();
@@ -156,33 +364,33 @@ export default class ChaosDragon extends Unit {
         script: () => this.drawFrame(attack.s + frame++),
         repeat: attack.l,
       })
-      .splice(0, () => sounds.charge.fade(0, 1, 500, sounds.charge.play()))
-      .splice(5, tunit.animStagger(this))
+      .splice(0, () => this.sounds.charge.fade(0, 1, 500, this.sounds.charge.play()))
+      .splice(3, tunit.animHit(this))
       .splice(5, () => {
-        sounds.buzz.play();
-        sounds.charge.stop();
-        sounds.impact.play();
+        this.sounds.buzz.play();
+        this.sounds.charge.stop();
+        this.sounds.attack.play();
       })
       .splice(5, {
         script: () => tunit.whiten(whiten.shift()),
         repeat: 3,
       })
       .splice(5, () => {
-        this.drawStreaks(container, target, source, adjust);
+        this.drawStreaks(container, target, adjust);
         board.pixi.addChild(container);
       })
       .splice(6, () => {
-        this.drawStreaks(container, target, source, adjust);
+        this.drawStreaks(container, target, adjust);
       })
       .splice(7, () => {
         board.pixi.removeChild(container);
-        sounds.buzz.stop();
+        this.sounds.buzz.stop();
       });
 
     return anim;
   }
-  drawStreaks(container, target, source, adjust) {
-    let sprite = this.frame.children[source];
+  drawStreaks(container, target, adjust) {
+    let sprite = this.getContainerByName('glow');
     let bounds = sprite.getBounds();
     let start  = new PIXI.Point(bounds.x + adjust.x, bounds.y + adjust.y);
     let end    = target.getCenter().clone();
@@ -249,28 +457,80 @@ export default class ChaosDragon extends Unit {
 
     return this;
   }
-  animBlock(attacker) {
+  animTurn(direction, andStand = true) {
+    let anim = new Tactics.Animation();
+
+    // Do nothing if already facing the desired direction
+    if (!direction || direction === this.direction) return anim;
+
+    // If turning to the opposite direction, first turn right.
+    if (direction === this.board.getRotation(this.direction, 180)) {
+      anim.addFrame(() => {
+        let playId = this.sounds.flap.play();
+        this.sounds.flap.volume(0.65 * 0.5, playId);
+      });
+      anim.addFrame(() => this.drawTurn(90));
+    }
+
+    // Now stand facing the desired direction.
+    if (andStand)
+      anim.addFrame(() => this.stand(direction));
+
+    return anim;
+  }
+  animHit(attacker, attackType) {
+    let anim = new Tactics.Animation();
+    let doStagger;
+    let direction;
+
+    if (attackType === undefined)
+      attackType = attacker.aType;
+
+    if (attackType === 'melee') {
+      doStagger = true;
+
+      direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
+
+      anim.addFrame(() => this.sounds.impact.play());
+    }
+    else if (attackType === 'magic') {
+      doStagger = true;
+
+      anim.addFrame([]);
+    }
+
+    if (doStagger) {
+      anim.addFrame([]);
+
+      if (this.paralyzed)
+        anim.addFrames([
+          () => this.offsetFrame(0.12, direction),
+          () => this.offsetFrame(-0.16, direction),
+        ]);
+      else
+        anim.addFrames([
+          () => this.drawStagger().offsetFrame(0.12, direction),
+          () => this.offsetFrame(-0.16, direction),
+          () => this.drawStand(),
+        ]);
+    }
+
+    return anim;
+  }
+  animMiss(attacker) {
     let anim      = new Tactics.Animation();
-    let sounds    = $.extend({}, Tactics.sounds, this.sounds);
     let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);
     let block     = this.animations[direction].block;
 
     anim
       .addFrames([
         () => this.direction = direction,
-        () => sounds.block.play(),
+        () => this.sounds.block.play(),
       ])
       .splice(0, {
         script: frame => this.drawFrame(block.s + frame.repeat_index),
         repeat: block.l,
-      })
-      .splice(1, [
-        {
-          script: frame => this.shock(direction, frame.repeat_index, 1),
-          repeat: 3,
-        },
-        () => this.shock(),
-      ]);
+      });
 
     return anim;
   }
@@ -297,9 +557,13 @@ export default class ChaosDragon extends Unit {
       .splice([
         () => this.drawFrame(block.s),
         () => this.drawFrame(block.s+1),
-        () => {},
       ])
-      .splice(this.animHeal([this]))
+      .splice(0, () => this.sounds.heal.play())
+      .splice(0, this.animAttackEffect(
+        { spriteId:'sprite:Sparkle', type:'heal' },
+        this.assignment,
+        true,
+      ))
       .splice([
         () => this.drawFrame(block.s+4),
         () => this.drawFrame(block.s+5),

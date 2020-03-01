@@ -996,11 +996,12 @@ export default class GameState {
   _applyAction(action) {
     this._actions.push(action);
 
+    let board = this._board;
     let unit = action.unit;
 
     if (unit) {
       if (action.assignment)
-        unit.assign(action.assignment);
+        board.assign(unit, action.assignment);
       if (action.direction)
         unit.direction = action.direction;
       if (action.colorId)
@@ -1010,7 +1011,6 @@ export default class GameState {
     this._applyChangeResults(action.results);
 
     // Remove dead units.
-    let board = this._board;
     board.teamsUnits.flat().forEach(unit => {
       // Chaos Seed doesn't die.  It hatches.
       if (unit.type === 'ChaosSeed') return;
@@ -1044,7 +1044,7 @@ export default class GameState {
               id:         unit.id,
               type:       changes.type,
               assignment: assignment,
-              direction:  unit.direction,
+              direction:  changes.direction || unit.direction,
               color:      unit.color,
             }, unit.team);
           delete changes.type;

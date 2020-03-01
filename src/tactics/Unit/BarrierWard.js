@@ -1,19 +1,6 @@
-'use strict';
-
 import Unit from 'tactics/Unit.js';
 
 export default class BarrierWard extends Unit {
-  attack(action) {
-    let anim   = new Tactics.Animation();
-    let sounds = Object.assign({}, Tactics.sounds, this.sounds);
-
-    let attackAnim = this.animAttack();
-    attackAnim.splice(5, () => sounds.attack.play());
-
-    anim.splice(attackAnim);
-
-    return anim.play();
-  }
   getBreakFocusResult() {
     return {
       unit: this,

@@ -333,18 +333,15 @@ export default class {
       }
     });
 
-    // Give the card time to fade.
-    setTimeout(() => {
-      this.addChoice(this.calcTeamFuture(this.team));
+    this.addChoice(this.calcTeamFuture(this.team, null));
 
-      if (this.inRange()) {
-        this.considerUnit();
-      }
-      else {
-        this.considerPosition();
-        this.endTurn();
-      }
-    }, 1000);
+    if (this.inRange()) {
+      this.considerUnit();
+    }
+    else {
+      this.considerPosition();
+      this.endTurn();
+    }
   }
   endTurn() {
     let choices = this.choices
@@ -387,7 +384,7 @@ export default class {
       let last = choices.last;
 
       // If we are passing or the equivalent, then try to get a better position.
-      if (first.defense === last.defense && first.offense === last.offense) {
+      if (!first.target && first.defense === last.defense && first.offense === last.offense) {
         this.friends = this.team.units.slice();
         this.considerPosition();
         chosen = this.choices[0];
@@ -606,9 +603,8 @@ export default class {
       unit.mRecovery = 0;
     }
 
-    // Use setTimeout to allow asynchronous activity.
     if (this.friends.length)
-      setTimeout(() => this.considerUnit());
+      this.considerUnit();
     else
       this.endTurn();
 
@@ -748,21 +744,12 @@ export default class {
 
       if (!target_unit || !this.enemies.includes(target_unit)) continue;
 
-      // Set defense to zero to try to priorize target.
-      if (target_unit.type === 'ChaosSeed')
-        targetsData.push({
-          tile:    target,
-          target:  target_unit,
-          defense: 0,
-          random:  Math.random(),
-        });
-      else
-        targetsData.push({
-          tile:    target,
-          target:  target_unit,
-          defense: this.calcDefense(target_unit),
-          random:  Math.random(),
-        });
+      targetsData.push({
+        tile:    target,
+        target:  target_unit,
+        defense: this.calcDefense(target_unit),
+        random:  Math.random(),
+      });
     }
 
     if (!targetsData.length) return;
@@ -915,7 +902,7 @@ export default class {
         tsum += fsum;
       }
 
-      if (i === 4)
+      if (teams[i].name === 'Chaos')
         calc.push({losses:losses,defense:tsum,offense:0,threats:threats});
       else
         calc.push({losses:losses,defense:tsum/3,offense:0,threats:threats});
