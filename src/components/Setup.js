@@ -1,3 +1,5 @@
+import { Renderer } from '@pixi/core';
+import { Container } from '@pixi/display';
 import EventEmitter from 'events';
 
 import './Setup.scss';
@@ -38,7 +40,7 @@ export default class {
     // Clip unused empty space part #1
     let width = Tactics.width - TILE_WIDTH*2;
     let height = Tactics.height - TILE_HEIGHT*1.5;
-    let renderer = PIXI.autoDetectRenderer(width, height, { transparent:true });
+    let renderer = new Renderer({ width, height, transparent:true });
 
     // Let's not go crazy with the move events.
     renderer.plugins.interaction.moveWhenInside = true;
@@ -106,17 +108,10 @@ export default class {
     let countsContainer = new PIXI.Container();
     countsContainer.position = board.pixi.position.clone();
 
-    let trashSprite = PIXI.Sprite.fromImage('https://tactics.taorankings.com/images/trash.png');
-    trashSprite.anchor.set(0.5, 0.8);
-    trashSprite.scale.set(1.75);
+    let core = Tactics.spriteMap.get('core');
 
-    let focus = Tactics.effects.focus;
-    let trashFocus = PIXI.Sprite.fromImage(focus.images[0]);
-    trashFocus.anchor.set(0.5);
-    trashFocus.alpha = 0;
-
-    let trash = new PIXI.Container();
     let tilePoint = board.getTile(5, 10).getCenter();
+    let trash = core.renderFrame({ spriteName:'Trash' }).container;
     trash.position.set(
       tilePoint.x + board.pixi.position.x + TILE_WIDTH,
       tilePoint.y + board.pixi.position.y + TILE_HEIGHT,
@@ -124,9 +119,19 @@ export default class {
     trash.pointertap  = this._onTrashSelect.bind(this);
     trash.pointerover = this._onTrashFocus.bind(this);
     trash.pointerout  = this._onTrashBlur.bind(this);
-    trash.addChild(trashFocus);
-    trash.addChild(trashSprite);
     trash.alpha = 0.6;
+
+    let trashFocus = core.renderFrame({ spriteName:'Focus' }).container;
+    trashFocus.alpha = 0;
+    trash.addChildAt(trashFocus, 0);
+
+    let trashSprite = trash.children[1];
+    let trashScale = 1.75;
+    trashSprite.scale.set(trashScale);
+    trashSprite.position.set(
+      trashSprite.position.x * trashScale,
+      trashSprite.position.y * trashScale,
+    );
 
     let stage = new PIXI.Container();
     // Clip unused empty space part #2
@@ -336,7 +341,7 @@ export default class {
     tile.set_interactive(false);
     board.clearHighlight(tile);
 
-    unit.animDeath().play().then(() => {
+    unit.animDie().play().then(() => {
       if (board.selected && !tile.assigned)
         this._highlightPlaces(board.selected, tile);
     });
@@ -566,16 +571,14 @@ export default class {
       dragUnit.team.name === 'Pick'
     ) {
       // Show shadow while over tiles
-      dragAvatar.children[0].children.find(c => c.data.name === 'shadow')
-        .alpha = 0.5;
+      dragUnit.getContainerByName('shadow', dragAvatar).alpha = 1;
 
       dragAvatar.position = pixiEvent.data.getLocalPosition(this._stage);
       this._onTrashBlur();
     }
     else {
       // Hide shadow while over trash can
-      dragAvatar.children[0].children.find(c => c.data.name === 'shadow')
-        .alpha = 0;
+      dragUnit.getContainerByName('shadow', dragAvatar).alpha = 0;
 
       let trashPoint = this._trash.position;
       dragAvatar.position.set(

@@ -1,3 +1,5 @@
+import { Renderer } from '@pixi/core';
+import { Container } from '@pixi/display';
 import EventEmitter from 'events';
 import PanZoom from 'utils/panzoom.js';
 import sleep from 'utils/sleep.js';
@@ -18,7 +20,11 @@ export default class {
     if (!state)
       throw new TypeError('Required game state');
 
-    let renderer = PIXI.autoDetectRenderer(Tactics.width, Tactics.height, { transparent:true });
+    let renderer = new Renderer({
+      width: Tactics.width,
+      height: Tactics.height,
+      transparent: true,
+    });
 
     // Let's not go crazy with the move events.
     renderer.plugins.interaction.moveWhenInside = true;
@@ -28,7 +34,7 @@ export default class {
     board.draw();
     board
       .on('focus', ({ tile, unit }) => {
-        Tactics.sounds.focus.play();
+        Tactics.playSound('focus');
 
         if (!tile.action && !tile.painted)
           tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
@@ -44,7 +50,7 @@ export default class {
       .on('select', event => {
         let unit = event.target.assigned;
 
-        Tactics.sounds.select.play();
+        Tactics.playSound('select');
         if (this.canSelect(unit))
           this.selected = unit;
         else
@@ -82,7 +88,7 @@ export default class {
       _renderer: renderer,
       _rendering: false,
       _canvas: renderer.view,
-      _stage: new PIXI.Container(),
+      _stage: new Container(),
       _animators: {},
 
       _selectMode: 'move',
@@ -1066,6 +1072,21 @@ export default class {
               this._performAction(action).then(resolve);
             }, 1000);
           }
+          // Only applicable to Chaos Seed counter-attack
+          else if (actionType === 'hatch') {
+            let attacker = action.unit;
+
+            this.drawCard(attacker);
+            attacker.activate();
+
+            // Wait 2 seconds then do it.
+            setTimeout(() => {
+              attacker.deactivate();
+              selected.deactivate(); // the target
+
+              this._performAction(action).then(resolve);
+            }, 2000);
+          }
           else {
             let attacker = action.unit;
 
@@ -1147,7 +1168,6 @@ export default class {
     if (!Array.isArray(results))
       results = [results];
 
-    let deathBell = Tactics.sounds.death;
     let showResult = async result => {
       let anim = new Tactics.Animation();
       let changes = Object.assign({}, result.changes);
@@ -1228,15 +1248,12 @@ export default class {
         // Die if the unit is dead and isn't a hatching Chaos Seed
         if (mHealth === -unit.health && unit.name !== 'Chaos Seed' && unit.assignment) {
           let caption = result.notice || 'Nooo...';
-          let animDeath1 = unit.animCaption(caption, options);
-          let animDeath2 = unit.animDeath();
+          let animDie1 = unit.animCaption(caption, options);
+          let animDie2 = unit.animDie();
 
-          animDeath2.splice(0, () =>
-            deathBell.fade(0, 0.3, 170, deathBell.play('death'))
-          );
-          animDeath1.splice(-3, animDeath2);
+          animDie1.splice(-3, animDie2);
 
-          anim.splice(0, animDeath1);
+          anim.splice(0, animDie1);
         }
         else {
           let caption = result.notice || Math.abs(diff).toString();
@@ -1321,10 +1338,8 @@ export default class {
     else if (deadUnits.size > 1) {
       this.notice = 'Multi kill!';
 
-      let animDeath1 = new Tactics.Animation();
-      let animDeath2 = new Tactics.Animation({frames: [
-        () => deathBell.fade(0, 0.3, 170, deathBell.play('death')),
-      ]});
+      let animDie1 = new Tactics.Animation();
+      let animDie2 = new Tactics.Animation();
 
       deadUnits.forEach((result, unit) => {
         let caption = result.notice || 'Nooo...';
@@ -1332,16 +1347,16 @@ export default class {
         this._applyChangeResults([result]);
         if (result.results)
           result.results.forEach(r =>
-            animDeath1.splice(0, this._animApplyFocusChanges(r))
+            animDie1.splice(0, this._animApplyFocusChanges(r))
           );
 
-        animDeath1.splice(0, unit.animCaption(caption));
-        animDeath2.splice(0, unit.animDeath());
+        animDie1.splice(0, unit.animCaption(caption));
+        animDie2.splice(0, unit.animDie());
       });
 
-      animDeath1.splice(-3, animDeath2);
+      animDie1.splice(-3, animDie2);
 
-      await animDeath1.play();
+      await animDie1.play();
     }
 
     this.drawCard();
@@ -1356,7 +1371,7 @@ export default class {
     action.results.forEach(result => {
       let unit = result.unit;
 
-      anim.splice(0, unit.animDeath());
+      anim.splice(0, unit.animDie());
     });
 
     // Show the notice for 2 seconds.
@@ -1426,7 +1441,7 @@ export default class {
     if (this.isMyTeam(team)) {
       if (this.hasOneLocalTeam()) {
         this.notice = 'Your Turn!';
-        Tactics.sounds.newturn.play();
+        Tactics.playSound('newturn');
       }
       else
         this.notice = `Go ${teamMoniker}!`;
@@ -1468,7 +1483,7 @@ export default class {
     if (winnerId === null) {
       this.notice = 'Draw!';
 
-      Tactics.sounds.defeat.play();
+      Tactics.playSound('defeat');
     }
     else {
       let teams = this.teams;
@@ -1483,22 +1498,22 @@ export default class {
       if (this.state.type === 'chaos') {
         if (winner.name === 'Chaos') {
           this.notice = 'Chaos Wins!';
-          Tactics.sounds.defeat.play();
+          Tactics.playSound('defeat');
         }
         else {
           this.notice = 'You win!';
-          Tactics.sounds.victory.play();
+          Tactics.playSound('victory');
         }
       }
       else if (this.hasOneLocalTeam(winner)) {
         this.notice = 'You win!';
-        Tactics.sounds.victory.play();
+        Tactics.playSound('victory');
       }
       else if (this.isViewOnly)
         this.notice = `${winnerMoniker}!`;
       else {
         this.notice = 'You lose!';
-        Tactics.sounds.defeat.play();
+        Tactics.playSound('defeat');
       }
     }
 
@@ -1629,20 +1644,29 @@ export default class {
   _animApplyFocusChanges(result) {
     let anim = new Tactics.Animation();
     let unit = result.unit;
+    let changes = result.changes || {};
 
-    let hasFocus   = unit.hasFocus();
-    let needsFocus = unit.focusing || unit.paralyzed || unit.poisoned;
-    if (!hasFocus && needsFocus)
-      anim.splice(0, unit.animFocus(0.5));
-    else if (hasFocus && !needsFocus)
-      anim.splice(0, unit.animDefocus());
+    if ('focusing' in changes || 'paralyzed' in changes || 'poisoned' in changes) {
+      let hasFocus   = unit.hasFocus();
+      let needsFocus = unit.focusing || unit.paralyzed || unit.poisoned;
+      if (!hasFocus && needsFocus)
+        anim.splice(0, unit.animFocus());
+      else if (hasFocus && !needsFocus)
+        anim.splice(0, unit.animDefocus());
+    }
 
-    let hasBarrier   = unit.hasBarrier();
-    let needsBarrier = unit.barriered;
-    if (!hasBarrier && needsBarrier)
-      anim.splice(0, unit.animShowBarrier());
-    else if (hasBarrier && !needsBarrier)
-      anim.splice(0, unit.animHideBarrier());
+    /*
+     * Check for barrier changes to ensure that a BW barriering itself doesn't
+     * get double barriered.
+     */
+    if ('barriered' in changes) {
+      let hasBarrier   = unit.hasBarrier();
+      let needsBarrier = unit.barriered;
+      if (!hasBarrier && needsBarrier)
+        anim.splice(0, unit.animShowBarrier());
+      else if (hasBarrier && !needsBarrier)
+        anim.splice(0, unit.animHideBarrier());
+    }
 
     if (result.results)
       result.results.forEach(result => anim.splice(0, this._animApplyFocusChanges(result)));

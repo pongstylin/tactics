@@ -14,74 +14,37 @@ export default class Pyromancer extends Unit {
 
     return targets;
   }
-  attack(action) {
-    let board   = this.board;
-    let sounds  = Object.assign({}, Tactics.sounds, this.sounds);
+  /*
+   * Cast Fire on closer tiles before further tiles.
+   */
+  animAttack(action) {
+    let board        = this.board;
+    let anim         = this.renderAnimation('attack', action.direction);
+    let spriteAction = this._sprite.getAction('attack');
+    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
+
+    if (this.directional !== false)
+      anim.addFrame(() => this.stand());
+
     let targets = this.getTargetTiles(action.target);
-    let anim    = new Tactics.Animation();
-
-    /*
-     * Animate the attack.  Blast closer tiles before further tiles.
-     */
     let closest = board.getDistance(this.assignment, targets[0]);
-    let attackAnim = this.animAttack(action.direction);
 
-    attackAnim.splice(0, () => sounds.attack.play());
+    targets.forEach(target => {
+      let offset = effectOffset + (board.getDistance(this.assignment, target) - closest);
+      let result = action.results.find(r => r.unit === target.assigned);
+      let isHit = result && !result.miss;
 
-    targets.forEach(tile => {
-      let index = 3 + (board.getDistance(this.assignment, tile) - closest);
-
-      attackAnim.splice(index, this.animFireBlast(tile, action.target));
-    });
-
-    anim.splice(this.animTurn(action.direction));
-    anim.splice(attackAnim);
-
-    return anim.play();
-  }
-  animFireBlast(target, center) {
-    let anim = new Tactics.Animation();
-    let unitsContainer = this.board.unitsContainer;
-    let lightness = [0.6, 0.8, 0.8, 0.6, 0.4, 0];
-
-    let pos = target.getCenter();
-    let container = new PIXI.Container();
-    container.position = new PIXI.Point(pos.x, pos.y);
-
-    anim.addFrame(() => unitsContainer.addChild(container));
-
-    let frames;
-    if (target === center)
-      frames = this._effects.fireblast;
-    else
-      frames = this.effects.fireblast.frames.map(frame => this.compileFrame(frame, this.effects.fireblast));
-
-    let index = 0;
-    frames.forEach(frame => {
-      anim.splice(index, [
-        () => container.addChild(frame),
-        () => container.removeChild(frame),
-      ]);
-
-      index++;
-    });
-
-    let target_unit = target.assigned;
-    if (target_unit) {
-      if (target_unit.barriered)
-        anim.splice(4, target_unit.animBlock(this));
-      else {
-        if (target_unit !== this)
-          anim.splice(5, target_unit.animStagger(this, null));
-
-        anim.splice(5, {
-          script: () => target_unit.colorize(0xFF8800, lightness.shift()),
-          repeat: lightness.length,
+      if (anim.frames.length < offset)
+        anim.addFrame({
+          scripts: [],
+          repeat: offset - anim.frames.length,
         });
-      }
-    }
 
-    anim.splice(anim.frames.length-1, () => unitsContainer.removeChild(container));
+      anim.splice(
+        offset,
+        this.animAttackEffect(spriteAction.effect, target, isHit),
+      );
+    });
 
     return anim;
   }

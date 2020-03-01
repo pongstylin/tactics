@@ -64,7 +64,10 @@
         };
 
         if (typeof frame === 'function') {
-          frame = Object.assign(template, {scripts: [frame]});
+          frame = Object.assign(template, { scripts:[frame] });
+        }
+        else if (Array.isArray(frame)) {
+          frame = Object.assign(template, { scripts:frame });
         }
         else if (typeof frame === 'object') {
           frame = Object.assign(template, frame);
@@ -283,7 +286,7 @@
       if (data.a) frame.alpha = data.a;
 
       dataObjs.forEach(obj => {
-        let sprite = PIXI.Sprite.fromImage('https://legacy.taorankings.com/images/'+obj.src);
+        let sprite = PIXI.Sprite.from('https://legacy.taorankings.com/images/'+obj.src);
 
         if (obj.pos) {
           sprite.position.x = obj.pos.x || 0;
@@ -291,8 +294,8 @@
         }
 
         if (obj.scale) {
-          sprite.pivot.x = (sprite.width  / 2) | 0;
-          sprite.pivot.y = (sprite.height / 2) | 0;
+          sprite.anchor.x = 0.5;
+          sprite.anchor.y = 0.5;
           sprite.scale.x = obj.scale.x || 1;
           sprite.scale.y = obj.scale.y || 1;
         }

@@ -3,7 +3,7 @@ import EventEmitter from 'events';
 import './Progress.scss';
 
 const template = `
-  <SPAN class="message">Loading...</SPAN>
+  <SPAN class="message"></SPAN>
   <DIV class="bar">
     <DIV class="percent"></DIV>
   </DIV>
@@ -50,9 +50,9 @@ export default class {
   set percent(percent) {
     let whenComplete = this.whenComplete;
 
-    this.root.querySelector('.percent').style.width = percent+'px';
+    this.root.querySelector('.percent').style.width = Math.floor(percent * 100)+'px';
 
-    if (percent === 100 && !whenComplete.isResolved) {
+    if (percent === 1 && !whenComplete.isResolved) {
       this._emit({ type:'complete' });
 
       whenComplete.isResolved = true;

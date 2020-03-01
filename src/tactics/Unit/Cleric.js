@@ -12,17 +12,35 @@ export default class Cleric extends Unit {
   getTargetUnits() {
     return this.team.units.filter(u => u.mHealth < 0);
   }
-  attack(action) {
-    let anim         = new Tactics.Animation();
-    let target_units = this.getTargetUnits(action.target);
+  /*
+   * Customized to show effect on all units, not just healed units.
+   */
+  animAttack(action) {
+    let anim         = this.renderAnimation('attack', action.direction);
+    let spriteAction = this._sprite.getAction('attack');
+    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
 
-    let attackAnim = this.animAttack(action.direction);
-    attackAnim.splice(2, this.animHeal(target_units));
+    if (this.directional !== false)
+      anim.addFrame(() => this.stand());
 
-    anim.splice(this.animTurn(action.direction));
-    anim.splice(attackAnim);
+    let targets = this.team.units.map(u => u.assignment);
 
-    return anim.play();
+    targets.forEach(target => {
+      let isHit = !target.assigned.barriered;
+
+      if (anim.frames.length < effectOffset)
+        anim.addFrame({
+          scripts: [],
+          repeat: effectOffset - anim.frames.length,
+        });
+
+      anim.splice(
+        effectOffset,
+        this.animAttackEffect(spriteAction.effect, target, isHit),
+      );
+    });
+
+    return anim;
   }
   getAttackResults(action) {
     let results = super.getAttackResults(action);
