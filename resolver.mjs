@@ -75,12 +75,14 @@ function moduleResolve(basePath, specifier, defaultResolve) {
   let baseSpecifierPath = path.resolve(basePath, specifier);
   let specifierPath = baseSpecifierPath;
   let exts = ['.js'];
+  let ext = '';
 
   while (!fs.existsSync(specifierPath)) {
     if (exts.length === 0)
       throw `Unable to find '${specifier}' in node modules`;
 
-    specifierPath = baseSpecifierPath + exts.shift();
+    ext = exts.shift();
+    specifierPath = baseSpecifierPath + ext;
   }
 
   let stats = fs.statSync(specifierPath);
@@ -91,7 +93,7 @@ function moduleResolve(basePath, specifier, defaultResolve) {
       throw 'Unable to find package in node modules';
   }
   else {
-    let parts = specifierPath.split('\\');
+    let parts = specifierPath.split(/[\\\/]/);
     parts.pop();
 
     while (!fs.existsSync(parts.join('/') + '/package.json')) {
@@ -102,11 +104,12 @@ function moduleResolve(basePath, specifier, defaultResolve) {
   }
 
   let pkg = JSON.parse( fs.readFileSync(packagePath) );
-  if ('module' in pkg)
+  if ('module' in pkg || specifierPath !== baseSpecifierPath) {
     return {
-      url: new URL(`node_modules/${specifier}/${pkg.module}`, baseURL).href,
-      format: 'module',
+      url: new URL(`node_modules/${specifier}${ext}`, baseURL).href,
+      format: 'module' in pkg ? 'module' : 'commonjs',
     };
+  }
   else
     return defaultResolve();
 }
