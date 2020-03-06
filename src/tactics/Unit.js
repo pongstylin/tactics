@@ -298,7 +298,7 @@ export default class {
     let focusing     = [];
 
     results.push(...target_units.map(unit => {
-      let result = { unit:unit };
+      let result = { unit };
       let calc   = this.calcAttack(unit, assignment, target);
 
       if (calc.immune) {
@@ -382,6 +382,13 @@ export default class {
 
       return result;
     }));
+
+    // Deaths occur last
+    results.sort((a, b) => {
+      let isDeadA = a.changes && a.changes.mHealth === -a.unit.health ? 1 : 0;
+      let isDeadB = b.changes && b.changes.mHealth === -b.unit.health ? 1 : 0;
+      return isDeadA - isDeadB;
+    });
 
     this.getAttackSubResults(results);
 
