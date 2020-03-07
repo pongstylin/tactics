@@ -689,7 +689,7 @@ class GameService extends Service {
 
     let myTeams = game.state.teams.filter(t => t.playerId === playerId);
     if (myTeams.length === 0)
-      throw new ServerError(401, 'You are not a player in this game.');
+      throw new ServerError(403, 'You are not a player in this game.');
 
     if (!Array.isArray(action))
       action = [action];
@@ -712,7 +712,7 @@ class GameService extends Service {
     else if (myTeams.includes(game.state.currentTeam))
       action.forEach(a => a.teamId = game.state.currentTeamId);
     else
-      throw new ServerError(401, 'Not your turn!');
+      throw new ServerError(403, 'Not your turn!');
 
     game.state.submitAction(action);
     // Clear a rejected undo request after an action is performed.

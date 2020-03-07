@@ -927,14 +927,22 @@ export default class {
     this.lock();
     return this.state.submitAction(this._board.encodeAction(action))
       .catch(error => {
-        this.notice = 'Server Error!';
-        this.selected = selected;
-        if (locked)
-          this.lock(locked)
-        else
-          this.unlock();
+        if (error.code === 403 && error.message === 'Not your turn!') {
+          // This error can occur if an undo was submitted and the prior turn
+          // reverted just before we made our first action.  Ignore it.
+        }
+        else {
+          this.notice = 'Server Error!';
+          // Re-select the unit if it is still valid.
+          if (selected.assignment)
+            this.selected = selected;
+          if (locked)
+            this.lock(locked)
+          else
+            this.unlock();
 
-        throw error;
+          throw error;
+        }
       });
   }
   _performActions(actions) {

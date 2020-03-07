@@ -301,7 +301,7 @@ export default class ServerSocket {
           if (this._whenAuthorized.get(serviceName) === promise)
             this._whenAuthorized.delete(serviceName);
 
-          return this._authorizeThen(fn);
+          return this._authorizeThen(serviceName, fn);
         }
 
         throw error;
