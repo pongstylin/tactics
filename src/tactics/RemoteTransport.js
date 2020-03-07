@@ -1,5 +1,3 @@
-'use strict';
-
 import EventEmitter from 'events';
 import clientFactory from 'client/clientFactory.js';
 
@@ -58,9 +56,8 @@ export default class RemoteTransport {
 
     this._watchForDataChanges();
 
-    // For now, joining ended games is ok
-    /*
-    if (gameData && gameData.state.ended) {
+    // For now, joining ended games is ok... unless not authorized.
+    if (gameData && gameData.state.ended && !authClient.token) {
       this._data = gameData;
       Object.assign(this._data.state, {
         started:     new Date(gameData.state.started),
@@ -72,8 +69,6 @@ export default class RemoteTransport {
     }
     else
       this._init(gameId);
-    */
-    this._init(gameId);
   }
 
   /*

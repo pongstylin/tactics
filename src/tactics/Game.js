@@ -454,30 +454,39 @@ export default class {
 
         state.on('event', this._onStateEventListener);
 
-        this.lock();
-        this._stateEventStack = this._replay(replayTurnId, replayActionId).then(() => {
-          if (state.ended)
-            return this._endGame();
+        if (state.ended) {
+          board.setState(state.units, teams);
+          this.actions.forEach(action => this._applyAction(action));
+          this.render();
 
-          if (replayActions.length)
-            this.selected = board.decodeAction(replayActions[0]).unit;
+          this._endGame();
+        }
+        else {
+          this.lock();
+          this._stateEventStack = this._replay(replayTurnId, replayActionId).then(() => {
+            if (state.ended)
+              return this._endGame();
 
-          if (turnStarted)
-            this._startTurn(replayTeamId);
+            if (replayActions.length)
+              this.selected = board.decodeAction(replayActions[0]).unit;
 
-          /*
-           * Emit an undoRequest event if it was requested before listening to
-           * state events and continues to have a pending status.
-           */
-          let undoRequest = state.undoRequest;
-          if (
-            undoRequest &&
-            replayUndoRequest &&
-            replayUndoRequest.createdAt*1 === undoRequest.createdAt*1 &&
-            undoRequest.status === 'pending'
-          )
-            this._emit({ type:'undoRequest', data:undoRequest });
-        });
+            if (turnStarted)
+              this._startTurn(replayTeamId);
+
+            /*
+             * Emit an undoRequest event if it was requested before listening to
+             * state events and continues to have a pending status.
+             */
+            let undoRequest = state.undoRequest;
+            if (
+              undoRequest &&
+              replayUndoRequest &&
+              replayUndoRequest.createdAt*1 === undoRequest.createdAt*1 &&
+              undoRequest.status === 'pending'
+            )
+              this._emit({ type:'undoRequest', data:undoRequest });
+          });
+        }
 
         resolve();
       }, 100); // A "zero" delay is sometimes not long enough
