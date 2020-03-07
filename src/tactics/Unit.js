@@ -985,15 +985,18 @@ export default class {
 
     return anim;
   }
-  animBarrierDeflect(attacker) {
+  animBarrierDeflect(attacker, attackType) {
     let anim = new Tactics.Animation();
     let barrier = Tactics.spriteMap.get('Barrier');
     let container = this.getContainerByName('Barrier', this.pixi);
 
+    if (attackType === undefined)
+      attackType = attacker.aType;
+
     anim.splice(barrier.renderAnimation({
       actionName: 'deflect',
       container,
-      silent: attacker.aType !== 'melee',
+      silent: attackType !== 'melee',
       styles: {
         Barrier: { rgb:this.color },
       },
@@ -1263,7 +1266,7 @@ export default class {
 
       let offsetRatio;
       if (!isHit) {
-        anim.splice(targetUnit.animMiss(this));
+        anim.splice(targetUnit.animMiss(this, effect.type));
         offsetRatio = 0.50;
       }
       else if (targetUnit !== this) {
@@ -1310,11 +1313,11 @@ export default class {
 
     return anim;
   }
-  animMiss(attacker) {
+  animMiss(attacker, attackType) {
     let anim;
 
     if (this.barriered)
-      anim = this.animBarrierDeflect(attacker);
+      anim = this.animBarrierDeflect(attacker, attackType);
     else {
       let direction;
       if (this.directional !== false)
