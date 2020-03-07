@@ -1247,13 +1247,18 @@ export default class {
 
         // Die if the unit is dead and isn't a hatching Chaos Seed
         if (mHealth === -unit.health && unit.name !== 'Chaos Seed' && unit.assignment) {
-          let caption = result.notice || 'Nooo...';
-          let animDie1 = unit.animCaption(caption, options);
-          let animDie2 = unit.animDie();
+          // This heuristic catches wards, which cannot speak...
+          if (unit.directional !== false) {
+            let caption = result.notice || 'Nooo...';
+            let animDie1 = unit.animCaption(caption, options);
+            let animDie2 = unit.animDie();
 
-          animDie1.splice(-3, animDie2);
+            animDie1.splice(-3, animDie2);
 
-          anim.splice(0, animDie1);
+            anim.splice(0, animDie1);
+          }
+          else
+            anim.splice(0, unit.animDie());
         }
         else {
           let caption = result.notice || Math.abs(diff).toString();
@@ -1342,19 +1347,24 @@ export default class {
       let animDie2 = new Tactics.Animation();
 
       deadUnits.forEach((result, unit) => {
-        let caption = result.notice || 'Nooo...';
-
         this._applyChangeResults([result]);
         if (result.results)
           result.results.forEach(r =>
             animDie1.splice(0, this._animApplyFocusChanges(r))
           );
 
-        animDie1.splice(0, unit.animCaption(caption));
+        // This heuristic catches wards, which cannot speak...
+        if (unit.directional !== false) {
+          let caption = result.notice || 'Nooo...';
+          animDie1.splice(0, unit.animCaption(caption));
+        }
         animDie2.splice(0, unit.animDie());
       });
 
-      animDie1.splice(-3, animDie2);
+      if (animDie1.frames.length)
+        animDie1.splice(-3, animDie2);
+      else
+        animDie1.splice(animDie2);
 
       await animDie1.play();
     }
