@@ -297,7 +297,6 @@ function startGame() {
         $card.removeClass('show');
     })
     .on('lock-change', event => {
-      console.log('lock-change', event.ovalue, '=>', event.nvalue);
       if (event.nvalue === 'gameover') {
         $('#app').addClass('gameover');
         $('BUTTON[name=surrender]').addClass('ready');
