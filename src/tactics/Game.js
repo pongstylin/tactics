@@ -357,12 +357,10 @@ export default class {
     return this._teams[this.state.currentTeamId];
   }
   get isBotGame() {
-    let botTeams = this.state.teams.filter(t => !!t.bot);
-    if (botTeams.length === 0)
-      return false;
-
-    let playerTeams = this.state.teams.filter(t => !t.bot);
-    return this._localTeamIds.length === playerTeams.length;
+    return !!this.state.teams.find(t => !!t.bot);
+  }
+  get isLocalGame() {
+    return this._localTeamIds.length === this.state.teams.length;
   }
   get isViewOnly() {
     return this._localTeamIds.length === 0;
@@ -769,10 +767,10 @@ export default class {
       return false;
 
     // Local games don't impose restrictions.
-    let bot      = teams.find(t => !!t.bot);
-    let opponent = teams.find(t => t.playerId !== myTeam.playerId);
-    if (!bot && !opponent)
+    if (this.isLocalGame)
       return true;
+
+    let isBotGame = this.isBotGame;
 
     if (myTeam === this.currentTeam) {
       if (actions.length === 0)
@@ -781,7 +779,7 @@ export default class {
     // If actions were made since the team's turn, approval is required.
     else {
       // Bot rejects undo if it is not your turn.
-      if (bot) return false;
+      if (isBotGame) return false;
 
       let turnOffset = (-teams.length + (myTeam.id - this.currentTeam.id)) % teams.length;
 
@@ -793,7 +791,7 @@ export default class {
       return true;
     }
 
-    if (bot) {
+    if (isBotGame) {
       let lastAction = actions.last;
 
       // Bot rejects undo if the last action was a counter-attack
@@ -1532,7 +1530,8 @@ export default class {
           Tactics.playSound('victory');
         }
       }
-      else if (this.hasOneLocalTeam(winner)) {
+      // Applies to bot, opponent, and local games
+      else if (this.isMyTeam(winner)) {
         this.notice = 'You win!';
         Tactics.playSound('victory');
       }
