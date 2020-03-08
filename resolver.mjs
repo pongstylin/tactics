@@ -20,8 +20,9 @@ const basePath = process.cwd();
 const baseURL = new URL('file://');
 baseURL.pathname = `${basePath}/`;
 
-export function resolve(specifier, parentModuleURL = baseURL.href, defaultResolve) {
-  defaultResolve = defaultResolve.bind(this, specifier, parentModuleURL);
+export function resolve(specifier, context, defaultResolve) {
+  defaultResolve = defaultResolve.bind(this, specifier, context);
+  let parentURL = context.parentURL || baseURL.href;
 
   if (builtins.includes(specifier))
     return {
@@ -48,12 +49,12 @@ export function resolve(specifier, parentModuleURL = baseURL.href, defaultResolv
     return moduleResolve(`${basePath}/node_modules`, specifier, defaultResolve);
   }
   // Matches path specifiers called from node modules
-  else if (parentModuleURL.startsWith(`${baseURL}node_modules`)) {
-    let parentModulePath = parentModuleURL.replace(/^file:\/\/\//, '');
+  else if (parentURL.startsWith(`${baseURL}node_modules`)) {
+    let parentModulePath = parentURL.replace(/^file:\/\/\//, '');
     return moduleResolve(parentModulePath, specifier, defaultResolve);
   }
   else
-    resolved = new URL(specifier, parentModuleURL);
+    resolved = new URL(specifier, parentURL);
 
   const ext = path.extname(resolved.pathname);
   let format;
