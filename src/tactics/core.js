@@ -32,6 +32,7 @@ window.Tactics = (function () {
     gameClient: clientFactory('game'),
     chatClient: clientFactory('chat'),
     Progress: Progress,
+    Game: Game,
     ServerError: ServerError,
     loadedUnitTypes: new Set(),
     spriteMap: new Map(),
@@ -432,24 +433,6 @@ window.Tactics = (function () {
         let localTeamIds = transport.teams
           .filter(team => !team.bot)
           .map(team => team.originalId);
-
-        return new Game(transport, localTeamIds);
-      });
-    },
-    getRemoteGameData: function (gameId) {
-      return gameClient.getGameData(gameId);
-    },
-    joinRemoteGame: function (playerName, gameId, set) {
-      return authClient.setAccountName(playerName)
-        .then(() => gameClient.joinGame(gameId, { set }));
-    },
-    loadRemoteGame: function (gameId, gameData) {
-      let transport = new RemoteTransport(gameId, gameData);
-
-      return transport.whenReady.then(() => {
-        let localTeamIds = transport.teams
-          .filter(t => t && t.playerId === authClient.playerId)
-          .map(t => t.originalId);
 
         return new Game(transport, localTeamIds);
       });

@@ -1,3 +1,4 @@
+import RemoteTransport from 'tactics/RemoteTransport.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
@@ -380,12 +381,11 @@ $(window).on('resize', () => {
 });
 
 function initGame() {
-  return Tactics.getRemoteGameData(gameId)
-    .then(loadResources)
+  return getGameData(gameId)
     .then(gameData => {
       // An account is not required to view an ended game.
       if (gameData.state.ended)
-        return Tactics.loadRemoteGame(gameId, gameData);
+        return loadTransportAndGame(gameId, gameData);
 
       // No account?  Provide a name before joining/watching!
       if (!authClient.token)
@@ -393,7 +393,7 @@ function initGame() {
 
       // Account exists and game started?  Immediately start watching!
       if (gameData.state.started)
-        return Tactics.loadRemoteGame(gameId, gameData);
+        return loadTransportAndGame(gameId, gameData);
 
       let hasJoined = gameData.state.teams.find(t => t && t.playerId === authClient.playerId);
       if (hasJoined)
@@ -469,8 +469,33 @@ function initGame() {
     });
 }
 
-async function loadResources(gameData) {
-  let gameState = gameData.state;
+async function getGameData(gameId) {
+  return gameClient.getGameData(gameId);
+}
+async function joinGame(playerName, gameId, set) {
+  return authClient.setAccountName(playerName)
+    .then(() => gameClient.joinGame(gameId, { set }));
+}
+async function loadTransportAndGame(gameId, gameData) {
+  return loadGame(await loadTransport(gameId, gameData));
+}
+// Must be authorized first or the game already ended
+async function loadTransport(gameId, gameData) {
+  let transport = new RemoteTransport(gameId, gameData);
+  await transport.whenReady;
+
+  return transport;
+}
+async function loadGame(transport) {
+  await loadResources(transport);
+
+  let localTeamIds = transport.teams
+    .filter(t => t && t.playerId === authClient.playerId)
+    .map(t => t.originalId);
+
+  return new Tactics.Game(transport, localTeamIds);
+}
+async function loadResources(gameState) {
   let gameTypeConfig = await gameClient.getGameTypeConfig(gameState.type);
   let unitTypes;
 
@@ -509,7 +534,7 @@ async function loadResources(gameData) {
       progress.message = label;
       progress.percent = percent;
     });
-  }).then(() => gameData);
+  });
 }
 
 function initMessages(messages) {
@@ -542,39 +567,39 @@ function renderMessage(message) {
   `);
 }
 
-function showPublicIntro(gameData) {
+async function showPublicIntro(gameData) {
   renderShareLink(gameData.id, document.querySelector('#public .shareLink'));
 
   let $greeting = $('#public .greeting');
   let myTeam = gameData.state.teams.find(t => t && t.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
 
-  return Tactics.loadRemoteGame(gameData.id).then(game => {
-    progress.hide();
-    $('#public').show();
+  let transport = await loadTransport(gameData.id);
 
-    return game.whenStarted.then(() => {
-      $('#public').hide();
-      return game;
-    });
-  });
+  progress.hide();
+  $('#public').show();
+  await transport.whenStarted;
+  $('#public').hide();
+  progress.show();
+
+  return loadGame(transport);
 }
-function showPrivateIntro(gameData) {
+async function showPrivateIntro(gameData) {
   renderShareLink(gameData.id, document.querySelector('#private .shareLink'));
 
   let $greeting = $('#private .greeting');
   let myTeam = gameData.state.teams.find(t => t && t.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
 
-  return Tactics.loadRemoteGame(gameData.id).then(game => {
-    progress.hide();
-    $('#private').show();
+  let transport = await loadTransport(gameData.id);
 
-    return game.whenStarted.then(() => {
-      $('#private').hide();
-      return game;
-    });
-  });
+  progress.hide();
+  $('#private').show();
+  await transport.whenStarted;
+  $('#private').hide();
+  progress.show();
+
+  return loadGame(transport);
 }
 function renderShareLink(gameId, container) {
   let link = location.origin + '/game.html?' + gameId;
@@ -692,14 +717,20 @@ async function showJoinIntro(gameData) {
     btnJoin.textContent = 'Watch Game';
 
     return new Promise((resolve, reject) => {
-      btnJoin.addEventListener('click', event => {
-        authClient.setAccountName(txtPlayerName.value)
-          .then(() => Tactics.loadRemoteGame(gameData.id, gameData))
-          .then(game => {
-            $('#join').hide();
-            resolve(game);
-          })
-          .catch(error => reject(error));
+      btnJoin.addEventListener('click', async event => {
+        $('#join').hide();
+        progress.message = 'Loading game...';
+        progress.show();
+
+        try {
+          await authClient.setAccountName(txtPlayerName.value);
+          resolve(
+            await loadTransportAndGame(gameData.id, gameData)
+          );
+        }
+        catch (error) {
+          reject(error);
+        }
       });
 
       progress.hide();
@@ -753,16 +784,23 @@ async function showJoinIntro(gameData) {
     }
 
     return new Promise((resolve, reject) => {
-      btnJoin.addEventListener('click', event => {
+      btnJoin.addEventListener('click', async event => {
         let set = $('#join INPUT[name=set]:checked').val();
 
-        Tactics.joinRemoteGame(txtPlayerName.value, gameData.id, set)
-          .then(() => Tactics.loadRemoteGame(gameData.id, gameData))
-          .then(game => {
-            $('#join').hide();
-            resolve(game);
-          })
-          .catch(error => reject(error));
+        $('#join').hide();
+        progress.message = 'Joining game...';
+        progress.show();
+
+        try {
+          await joinGame(txtPlayerName.value, gameData.id, set);
+          progress.message = 'Loading game...';
+          resolve(
+            await loadTransportAndGame(gameData.id, gameData)
+          );
+        }
+        catch (error) {
+          reject(error);
+        }
       });
 
       progress.hide();
