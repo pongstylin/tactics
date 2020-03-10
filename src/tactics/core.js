@@ -2,6 +2,7 @@ import 'howler';
 import 'plugins/pixi.js';
 import { Texture } from '@pixi/core';
 import { Loader } from '@pixi/loaders';
+import { Rectangle } from '@pixi/math';
 
 import config from 'config/client.js';
 import ServerError from 'server/Error.js';
@@ -167,23 +168,39 @@ window.Tactics = (function () {
             else if (typeof image.name === 'string')
               image.name = [image.name];
 
-            if (image.src.startsWith('sprite:'))
-              image.texture = this.getSpriteURI(image.src).texture;
-            else if (image.src.startsWith('data:')) {
-              image.texture = Texture.from( this.shrinkDataURI(image.src) );
-              if (!image.texture.baseTexture.valid) {
-                loading++;
-                image.texture.baseTexture
-                  .on('loaded', progress)
-                  .on('error', () =>
-                    reject(new Error(
-                      `Failed to load sprite:${spriteName}/images/${i}`
-                    ))
-                  );
+            if (image.type === 'sheet') {
+              if (image.src.startsWith('data:'))
+                image.texture = Texture.from( this.shrinkDataURI(image.src) ).baseTexture;
+              else
+                throw 'Unsupported image source for sheet';
+            }
+            else if (image.type === 'frame') {
+              image.texture = new PIXI.Texture(
+                spriteData.images[image.src].texture,
+                new Rectangle(image.x, image.y, image.width, image.height),
+              );
+            }
+            else if (image.type === undefined) {
+              if (image.src.startsWith('sprite:'))
+                image.texture = this.getSpriteURI(image.src).texture;
+              else if (image.src.startsWith('data:')) {
+                image.texture = Texture.from( this.shrinkDataURI(image.src) );
+                if (!image.texture.baseTexture.valid) {
+                  loading++;
+                  image.texture.baseTexture
+                    .on('loaded', progress)
+                    .on('error', () =>
+                      reject(new Error(
+                        `Failed to load sprite:${spriteName}/images/${i}`
+                      ))
+                    );
+                }
               }
+              else
+                throw 'Unsupported image source';
             }
             else
-              throw 'Unsupported image source';
+              throw 'Unsupported image type';
             delete image.src;
           }
 
@@ -295,7 +312,7 @@ window.Tactics = (function () {
       let byteString = atob(base64Data);
       let bytesCount = byteString.length;
       let bytes = new Uint8Array(bytesCount);
-      for (var i = 0; i < bytesCount; i++) {
+      for (let i = 0; i < bytesCount; i++) {
         bytes[i] = byteString[i].charCodeAt(0);
       }
       let blob = new Blob([bytes], { type:mimeType });
