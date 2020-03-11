@@ -181,7 +181,20 @@ function renderPN(reg) {
 
   let pushClient = clientFactory('push');
 
-  if (Notification.permission === 'denied') {
+  /*
+   * It is possible to disable notifications in Firefox such that the object is
+   * completely unavailable.
+   */
+  if (!window.Notification) {
+    pushClient.setSubscription(null);
+
+    divPN.innerHTML = `
+      <DIV>Push notifications are currently <SPAN class="blocked">DISABLED</SPAN>.</DIV>
+      <DIV>You will not get notified when it is your turn.</DIV>
+    `;
+    return;
+  }
+  if (window.Notification.permission === 'denied') {
     pushClient.setSubscription(null);
 
     divPN.innerHTML = `
@@ -241,7 +254,7 @@ function subscribePN() {
       renderPN(reg);
     })
     .catch(error => {
-      if (Notification.permission === 'denied')
+      if (window.Notification.permission === 'denied')
         return renderPN(reg);
 
       console.error('subscribe:', error);
