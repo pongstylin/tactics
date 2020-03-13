@@ -24,7 +24,7 @@ var chatClient = clientFactory('chat');
 window.Tactics = (function () {
   var self = {};
 
-  $.extend(self, {
+  Object.assign(self, {
     version: config.version,
     width:  22 + 88*9 + 22,
     height: 44 + 4 + 56*9,
@@ -410,36 +410,44 @@ window.Tactics = (function () {
 
       if (!data.children) return;
 
-      $.each(data.children, function (k,v) {
-        var cls = types[v.type];
-        var child;
+      for (let [name, pData] of Object.entries(data.children)) {
+        let cls = types[pData.type];
+        let pixi;
 
-        if (cls == 'Text') {
-          child = new PIXI[cls](v.text || '',$.extend({},data.textStyle,v.style || {}));
-        }
-        else {
-          child = new PIXI[cls]();
-        }
+        if (cls == 'Text')
+          pixi = new PIXI[cls](
+            pData.text || '',
+            Object.assign({}, data.textStyle, pData.style),
+          );
+        else
+          pixi = new PIXI[cls]();
 
-        if ('x'        in v) child.position.x = v.x;
-        if ('y'        in v) child.position.y = v.y;
-        if ('visible'  in v) child.visible = v.visible;
-        if ('anchor'   in v) {
-          for (let key in v['anchor']) {
-            if (v['anchor'].hasOwnProperty(key))
-              child['anchor'][key] = v['anchor'][key];
+        if ('x'        in pData) pixi.position.x = pData.x;
+        if ('y'        in pData) pixi.position.y = pData.y;
+        if ('visible'  in pData) pixi.visible = pData.visible;
+        if ('anchor'   in pData) {
+          for (let key in pData['anchor']) {
+            if (pData['anchor'].hasOwnProperty(key))
+              pixi['anchor'][key] = pData['anchor'][key];
           }
         }
-        if ('onSelect' in v) {
-          child.interactive = child.buttonMode = true;
-          child.hitArea = new PIXI.Rectangle(0,0,v.w,v.h);
-          child.click = child.tap = () => v.onSelect.call(child,child);
+        if ('onSelect' in pData) {
+          pixi.interactive = pixi.buttonMode = true;
+          pixi.hitArea = new PIXI.Rectangle(0, 0, pData.w, pData.h);
+          pixi.click = pixi.tap = () => pData.onSelect.call(pixi,pixi);
         }
-        if ('children' in v) $.extend(elements,self.draw($.extend({},data,{context:child,children:v.children})));
-        if ('draw'     in v) v.draw(child);
+        if ('children' in pData)
+          Object.assign(
+            elements,
+            self.draw(
+              Object.assign({}, data, { context:pixi, children:pData.children }),
+            ),
+          );
+        if ('draw' in pData)
+          pData.draw(pixi);
 
-        context.addChild(elements[k] = child);
-      });
+        context.addChild(elements[name] = pixi);
+      }
 
       return elements;
     },
