@@ -553,6 +553,7 @@ export default class {
       direction,
       styles: {
         trim: { rgb:this.color },
+        shadow: { alpha:0 },
       },
       forCanvas: true,
     }).container;

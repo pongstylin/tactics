@@ -903,6 +903,8 @@ function applyColor(displayObject, color) {
  * The canvas renderer does not support filters...
  * It also doesn't support applying tints to containers...
  * So, apply tints to all descendent sprites.
+ *
+ * Alpha may be applied directly to the container.
  */
 function applyColorForCanvas(displayObject, color) {
   let sprites = [];
@@ -924,6 +926,8 @@ function applyColorForCanvas(displayObject, color) {
 
       sprite.tint = tint;
     }
+
+    displayObject.alpha = Math.min(1, color[7] + color[3]);
   }
   else {
     for (let i = 0; i < sprites.length; i++) {
@@ -931,5 +935,7 @@ function applyColorForCanvas(displayObject, color) {
 
       sprite.tint = 0xFFFFFF;
     }
+
+    displayObject.alpha = 1;
   }
 }
