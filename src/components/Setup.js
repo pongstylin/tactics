@@ -474,8 +474,33 @@ export default class {
    * Private Methods
    ****************************************************************************/
   _onBack(event) {
-    this.hide();
-    this._emit({ type:'back' });
+    let emitBack = () => {
+      this.hide();
+      this._emit({ type:'back' });
+    };
+
+    /*
+     * Check if the current set is different from the initial set
+     */
+    let board = this._board;
+    let units = this._team.set.map(unitData => ({ ...unitData, direction:'S' }));
+    let mismatch = units.find(unit => {
+      let unit2 = board.getTileRotation(unit.assignment, 180).assigned;
+
+      return !(unit2 && unit2.type === unit.type);
+    });
+
+    if (mismatch) {
+      popup({
+        message: 'Any changes you made will be lost.  Are you sure?',
+        buttons: [
+          { label:'Yes', onClick:emitBack },
+          { label:'No' },
+        ],
+      });
+    }
+    else
+      emitBack();
   }
   _onSave(event) {
     let emitSave = () => {
@@ -681,12 +706,37 @@ export default class {
   }
 
   _getPositions(num) {
+    let board = this._board;
+
     if (num < 10)
       return [
         [5, 5], [3, 5], [7, 5], [1, 5], [9, 5],
         [5, 7], [3, 7], [7, 7],
         [5, 9],
       ];
+    else if (num < 14) {
+      /*
+       * Space out the tiles a bit
+       */
+      for (let y = 0; y < 6; y++) {
+        for (let x = 0; x < 11; x++) {
+          let tile = board.getTile(x, y);
+          if (!tile) continue;
+
+          let distance = 5 - Math.abs(x - 10);
+          let offset = board.getOffset(distance / 3, 'E');
+
+          tile.pixi.position.x += offset[0] + TILE_WIDTH/8;
+          tile.pixi.position.y += offset[1];
+        }
+      }
+
+      return [
+        [5, 5], [4, 5], [6, 5], [3, 5], [7, 5], [2, 5], [8, 5],
+        [5, 7], [4, 7], [6, 7], [3, 7], [7, 7],
+        [5, 9],
+      ];
+    }
 
     let cols = [5, 3, 7, 1, 9];
     let rows = [5, 7, 9, 6, 8, 10];
@@ -694,7 +744,7 @@ export default class {
 
     for (let y = 0; y < rows.length; y++) {
       for (let x = 0; x < cols.length; x++) {
-        if (!this._board.getTile(cols[x], rows[y])) continue;
+        if (!board.getTile(cols[x], rows[y])) continue;
 
         positions.push([ cols[x], rows[y] ]);
       }
@@ -794,36 +844,18 @@ export default class {
         text = count;
       }
 
-      let position = unit.assignment.getTop();
-      let countBox = new PIXI.Graphics();
-      countBox.position = new PIXI.Point(
-        position.x - TILE_WIDTH/4,
-        position.y - TILE_HEIGHT,
-      );
-      countBox.lineStyle(1, borderColor, 1);
-      countBox.beginFill(bgColor, 1);
-      countBox.drawPolygon([
-        20,  0,
-        50,  0,
-        60, 12,
-        56, 20,
-        24, 20,
-        14,  8,
-        20,  0,
-      ]);
       let countText = new PIXI.Text(text, {
         fontFamily:      'Arial',
-        fontSize:        '12px',
+        fontSize:        '16px',
         stroke:          0,
         strokeThickness: 3,
         fill:            textColor,
       });
-      countText.x = 37;
-      countText.y = 1;
+      countText.position = unit.assignment.getBottom();
+      countText.position.y -= 20;
       countText.anchor.x = 0.5;
-      countBox.addChild(countText);
 
-      this._countsContainer.addChild(countBox);
+      this._countsContainer.addChild(countText);
     });
   }
 
