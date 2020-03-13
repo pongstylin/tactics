@@ -124,23 +124,26 @@ export default class {
     card.elements = Tactics.draw({
       textStyle: {
         fontFamily: 'Arial',
-        fontSize:   '11px',
-        fill:       'white',
+        fontSize: '11px',
+        fill: 'white',
+        stroke: 0,
+        strokeThickness: 3,
       },
-      context:card.stage,
+      context: card.stage,
       children: {
         upper: {
           type    :'C',
           children: {
-            avatar: {type:'C',x:22,y:75},
+            avatar: {type:'C',x:28,y:0},
             name  : {
               type: 'T',
-              x:    60,
-              y:    10,
+              x: 60,
+              y: 4,
               style: {
                 fontFamily: 'Arial',
-                fontSize:   '11px',
+                fontSize:   '12px',
                 fontWeight: 'bold',
+                letterSpacing: 1,
               },
             },
             notice: {
@@ -149,7 +152,7 @@ export default class {
                 fontFamily: 'Arial',
               },
             },
-            healthBar: {type: 'C', x: 60, y: 48}
+            healthBar: { type:'C', x:60, y:47 }
           }
         },
         divider: {
@@ -174,24 +177,24 @@ export default class {
           }
         },
         lower: {
-          type    :'C',
-          x       :8,
-          y       :66,
+          type: 'C',
+          x: 8,
+          y: 66,
           children: {
             layer1: {
-              type:'C',
+              type: 'C',
               children: {
-                pLabel:{type:'T',x:  0,y:0,text:'Power' },
-                power :{type:'T',x: 39,y:0              },
-                mPower:{type:'T',x: 70,y:0              },
+                pLabel: { type:'T', x:0,   y:0,  text:'Power' },
+                power : { type:'T', x:39,  y:0,  style:{ letterSpacing:1 }},
+                mPower: { type:'T', x:70,  y:0,  style:{ letterSpacing:1 }},
 
-                bLabel:{type:'T',x: 80,y: 0,text:'Block' },
-                block :{type:'T',x:115,y: 0              },
-                mBlock:{type:'T',x:143,y: 0              },
+                bLabel: { type:'T', x:80,  y:0,  text:'Block' },
+                block : { type:'T', x:115, y:0,  style:{ letterSpacing:1 }},
+                mBlock: { type:'T', x:143, y:0,  style:{ letterSpacing:1 }},
 
-                aLabel:{type:'T',x: 0,y:16,text:'Armor' },
-                armor :{type:'T',x:39,y:16              },
-                mArmor:{type:'T',x:70,y:16              }
+                aLabel: { type:'T', x:0,   y:16, text:'Armor' },
+                armor : { type:'T', x:39,  y:16, style:{ letterSpacing:1 }},
+                mArmor: { type:'T', x:70,  y:16, style:{ letterSpacing:1 }},
               },
             },
             layer2: {
@@ -834,31 +837,32 @@ export default class {
 
     // Create the health text
     var textOptions = {
-      fontFamily:      'Arial',
-      fontSize:        '12px',
-      stroke:          0,
+      fontFamily: 'Arial',
+      fontSize: '12px',
+      stroke: 0,
       strokeThickness: 3,
-      fill:            'white',
+      letterSpacing: 1,
+      fill: 'white',
     };
     var currentHealthText = new PIXI.Text(
       currentHealth,
       textOptions,
     );
     currentHealthText.x = 28;
-    currentHealthText.y = -16;
+    currentHealthText.y = -15;
     currentHealthText.anchor.x = 1;
     var dividedByText = new PIXI.Text(
       '/',
       {...textOptions, fontSize: '20px'}
     );
     dividedByText.x = 27;
-    dividedByText.y = -17;
+    dividedByText.y = -16;
     var totalHealthText = new PIXI.Text(
       unit.health,
       textOptions,
     );
     totalHealthText.x = 34;
-    totalHealthText.y = -10;
+    totalHealthText.y = -9;
 
     // Add everything to a container
     var container = new PIXI.Container();
@@ -893,7 +897,6 @@ export default class {
 
     let card = this.card;
     let els  = card.elements;
-    let mask;
     let notice;
     let notices = [];
     let important = 0;
@@ -906,11 +909,8 @@ export default class {
     if (els.healthBar.children.length) els.healthBar.removeChildren();
 
     if (unit) {
-      mask = new PIXI.Graphics();
-      mask.drawRect(0,0,88,60);
-
       els.notice.x = 174;
-      els.notice.y = 27;
+      els.notice.y = 23;
       els.notice.anchor.x = 1;
       els.notice.style.fontSize = unit.notice ? '12px' : '11px';
 
@@ -959,10 +959,6 @@ export default class {
       //
       //  Draw the top part of the card.
       //
-      if (els.avatar.children.length) els.avatar.removeChildren();
-      els.avatar.addChild(unit.drawAvatar());
-      els.avatar.children[0].mask = mask;
-
       els.name.text = unit.name;
 
       els.notice.text = notice;
@@ -978,11 +974,11 @@ export default class {
 
           if (unit.mBlocking > 0) {
             els.mBlock.text = '+'+Math.round(unit.mBlocking)+'%';
-            els.mBlock.style.fill = '#00FF00';
+            els.mBlock.style.fill = '#00CC00';
           }
           else {
             els.mBlock.text = Math.round(unit.mBlocking)+'%';
-            els.mBlock.style.fill = '#FF0000';
+            els.mBlock.style.fill = '#FF4444';
           }
 
           els.block.updateText();
@@ -1053,27 +1049,17 @@ export default class {
       els.notice1.text = notices.length ? notices.shift() : '---';
       els.notice2.text = notices.length ? notices.shift() : '---';
       els.notice3.text = notices.length ? notices.shift() : '---';
-
-      card.stage.buttonMode = true;
-      card.render();
     }
     else if (defaultNotice) {
       unit = this._trophy;
 
-      mask = new PIXI.Graphics();
-      mask.drawRect(0,0,88,60);
-
       //
       //  Draw the top part of the card.
       //
-      if (els.avatar.children.length) els.avatar.removeChildren();
-      els.avatar.addChild(unit.drawAvatar());
-      els.avatar.children[0].mask = mask;
-
       els.name.text = 'Champion';
 
       els.notice.x = 110;
-      els.notice.y = 32;
+      els.notice.y = 28;
       els.notice.anchor.x = 0.5;
       els.notice.style.fontSize = '12px';
       els.notice.text = defaultNotice;
@@ -1084,12 +1070,38 @@ export default class {
       els.layer1.visible = false;
       els.layer2.visible = false;
       els.layer3.visible = false;
+    }
+    else
+      this.eraseCard();
+
+    if (unit) {
+      let mask = new PIXI.Graphics();
+      mask.drawRect(0, 0, 150, 60);
+
+      let avatar = unit.drawAvatar();
+      let avatarBounds = avatar.getLocalBounds();
+      avatar.position.y = Math.max(54, -avatarBounds.y);
+      avatar.filters = this.unitsContainer.filters;
+      avatar.mask = mask;
+
+      els.avatar.removeChildren();
+      els.avatar.addChild(avatar);
+
+      let nameColor;
+      if (unit.tier === 1)
+        nameColor = '#AAA9AD';
+      else if (unit.tier === 2)
+        nameColor = '#DAA520';
+      else if (unit.tier === 3 || unit.tier === 4)
+        nameColor = '#FFA500';
+      else
+        nameColor = '#ffffff';
+
+      els.name.style.fill = nameColor;
 
       card.stage.buttonMode = true;
       card.render();
     }
-    else
-      this.eraseCard();
 
     let old_carded = this.carded;
     this.carded = unit || null;
