@@ -86,9 +86,9 @@ export default class {
         height: 100,
         transparent: true,
       }),
-      stage:     new PIXI.Container(),
+      stage: new PIXI.Container(),
       rendering: false,
-      render:    () => {
+      render: () => {
         if (card.rendering) return;
         card.rendering = true;
 
@@ -96,8 +96,16 @@ export default class {
           card.renderer.render(card.stage);
           card.rendering = false;
         });
-      }
+      },
+      updatePointer: () => {
+        let interaction = card.renderer.plugins.interaction;
+        interaction.didMove = false;
+        interaction.update();
+      },
     };
+
+    // Save battery life by updating manually.
+    card.renderer.plugins.interaction.useSystemTicker = false;
 
     card.canvas = card.renderer.view;
 

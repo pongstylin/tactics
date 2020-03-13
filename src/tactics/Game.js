@@ -29,6 +29,9 @@ export default class {
     // Let's not go crazy with the move events.
     renderer.plugins.interaction.moveWhenInside = true;
 
+    // Save battery life by updating manually.
+    renderer.plugins.interaction.useSystemTicker = false;
+
     let board = new Board();
     board.initCard();
     board.draw();

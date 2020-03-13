@@ -923,6 +923,11 @@ function startGame() {
         buttons.lock($('BUTTON[name=lock]'));
     })
     .on('card-change', event => {
+      // Update the pointer once the card finishes (dis)appearing.
+      $card.one('transitionend', event => {
+        game.card.updatePointer();
+      });
+
       if (event.nvalue && event.ovalue === null)
         $card.addClass('show');
       else if (event.nvalue === null)
