@@ -1,12 +1,8 @@
-'use strict';
-
 import Unit from 'tactics/Unit.js';
 
 export default class Assassin extends Unit {
-  /*
-   * Special Attack Configuration
-   */
   canSpecial() {
+    // Can't use bomb if there is more than one Assassin
     let unitCount = this.team.units.filter(u => u.type === this.type).length;
     if (unitCount > 1)
       return false;

@@ -1,5 +1,3 @@
-'use strict';
-
 import Unit from 'tactics/Unit.js';
 
 export default class Pyromancer extends Unit {
