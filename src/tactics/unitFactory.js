@@ -4,7 +4,6 @@ import Pyromancer from 'tactics/Unit/Pyromancer.js';
 import Scout from 'tactics/Unit/Scout.js';
 import Cleric from 'tactics/Unit/Cleric.js';
 import BarrierWard from 'tactics/Unit/BarrierWard.js';
-import DarkMagicWitch from 'tactics/Unit/DarkMagicWitch.js';
 import Assassin from 'tactics/Unit/Assassin.js';
 import Enchantress from 'tactics/Unit/Enchantress.js';
 import ChaosSeed from 'tactics/Unit/ChaosSeed.js';
@@ -15,7 +14,6 @@ const unitClassMap = new Map([
   ['Scout',          Scout],
   ['Cleric',         Cleric],
   ['BarrierWard',    BarrierWard],
-  ['DarkMagicWitch', DarkMagicWitch],
   ['Assassin',       Assassin],
   ['Enchantress',    Enchantress],
 

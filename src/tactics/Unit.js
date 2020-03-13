@@ -76,6 +76,20 @@ export default class {
       return this.getLOSTargetTiles(target);
     else if (this.aAll === true)
       return this.getAttackTiles();
+    else if (this.aLinear === true) {
+      let direction = this.board.getDirection(this.assignment, target);
+      let targets = [];
+
+      let context = this.assignment;
+      while (targets.length < this.aRange[1]) {
+        context = context[direction];
+        if (!context) break;
+
+        targets.push(context);
+      }
+
+      return targets;
+    }
 
     return [target];
   }
