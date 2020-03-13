@@ -1261,7 +1261,7 @@ export default class {
         let diff = unit.mHealth - mHealth;
 
         // Die if the unit is dead and isn't a hatching Chaos Seed
-        if (mHealth === -unit.health && unit.name !== 'Chaos Seed' && unit.assignment) {
+        if (mHealth === -unit.health && unit.type !== 'ChaosSeed' && unit.assignment) {
           // This heuristic catches wards, which cannot speak...
           if (unit.directional !== false) {
             let caption = result.notice || 'Nooo...';
@@ -1719,8 +1719,10 @@ export default class {
           let firstAction = actions[0];
           let lastAction = actions.last;
           if (lastAction.type !== 'endTurn' && this.isMyTeam(firstAction.teamId)) {
-            this.unlock();
             this.selected = firstAction.unit;
+            // Unlock after select to ensure focused tiles behave according to
+            // any highlights applied by selecting the unit and mode.
+            this.unlock();
           }
         });
       };
