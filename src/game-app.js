@@ -19,6 +19,9 @@ var pointer;
 var fullscreen = Tactics.fullscreen;
 
 var buttons = {
+  home: () => {
+    location.href = '/online.html';
+  },
   swapbar: () => {
     var $active = $('#game > .buttons.active');
     var $next = $active.next('.buttons');

@@ -27,6 +27,9 @@ var gameStateData = {
 };
 
 var buttons = {
+  home: () => {
+    location.href = '/';
+  },
   swapbar: function () {
     var $active = $('#game > .buttons.active');
     var $next = $active.next('.buttons');
