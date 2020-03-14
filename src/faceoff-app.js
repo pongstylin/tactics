@@ -42,14 +42,6 @@ var buttons = {
     $('#app').toggleClass('left right');
     $button.toggleClass('fa-rotate-270 fa-rotate-90');
   },
-  lock: function ($button) {
-    $button.toggleClass('fa-lock fa-unlock');
-
-    if ($button.hasClass('fa-lock'))
-      game.panzoom.lock();
-    else
-      game.panzoom.unlock();
-  },
   rotate: function ($button) {
     let classesToToggle;
 
@@ -270,10 +262,6 @@ function startGame() {
         $('BUTTON[name=pass]').addClass('ready');
       else
         $('BUTTON[name=pass]').removeClass('ready');
-
-      // Automatically lock panzoom for improved game interaction
-      if (!panzoom.locked)
-        buttons.lock($('BUTTON[name=lock]'));
     })
     .on('card-change', event => {
       if (event.nvalue && event.ovalue === null)

@@ -73,6 +73,22 @@ export default class {
       .on('card-change', event => this._emit(event))
       .on('lock-change', event => this._emit(event));
 
+    /*
+     * Disable tile selection while pinching is in progress
+     */
+    let panzoom = PanZoom({ target:renderer.view })
+      .on('start', () => {
+        board.tilesContainer.interactive = false;
+        board.tilesContainer.interactiveChildren = false;
+      })
+      .on('stop', () => {
+        // Delay interactivity to prevent tap events triggered by release.
+        setTimeout(() => {
+          board.tilesContainer.interactive = true;
+          board.tilesContainer.interactiveChildren = true;
+        }, 100);
+      });
+
     Object.assign(this, {
       // Crude tracking of the pointer type being used.  Ideally, this should
       // reflect the last pointer type to fire an event on the board.
@@ -100,10 +116,7 @@ export default class {
       _notice: null,
       _board: board,
 
-      _panzoom: PanZoom({
-        target: renderer.view,
-        locked: true,
-      }),
+      _panzoom: panzoom,
 
       _emitter: new EventEmitter(),
     });

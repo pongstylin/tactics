@@ -615,7 +615,7 @@ export default class {
     sprite.filters = [lightFilter];
     pixi.addChild(sprite);
 
-    let tilesContainer = new PIXI.Container();
+    let tilesContainer = this.tilesContainer = new PIXI.Container();
     let tiles = this.tiles;
 
     // The tiles container is interactive since we want to detect a tap on a

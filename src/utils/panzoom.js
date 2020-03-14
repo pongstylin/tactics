@@ -1,5 +1,3 @@
-'use strict';
-
 import Impetus from 'impetus';
 import touchPinch from 'touch-pinch';
 import EventEmitter from 'events';
@@ -13,11 +11,12 @@ export default function (options) {
 
   let initial = options.initial || {};
   let current = Object.assign({
-    origin:    {x:0, y:0},
-    scale:     1,
-    translate: {x:0, y:0},
+    origin: { x:0, y:0 },
+    scale: 1,
+    translate: { x:0, y:0 },
   }, initial);
   let locked = !!options.locked;
+  let enableOneFinger = options.enableOneFinger || false;
   let minScale = options.minScale || 1;
   let maxScale = options.maxScale || 1;
   let panWidth = options.panWidth;
@@ -132,11 +131,15 @@ export default function (options) {
     };
   };
 
-  // One-finger panning
+  /*
+   * One-finger panning
+   */
   let paused  = false;
   let impetus = null;
 
   let startImpetus = () => {
+    if (!enableOneFinger) return;
+
     let bounds = getBounds();
 
     impetus = new Impetus({
@@ -263,6 +266,8 @@ export default function (options) {
     let f2 = getTouchPoint(fingers[1].touch);
 
     setFingers(f1, f2);
+
+    emitter.emit('start');
   });
   pinch.on('change', () => {
     if (locked || !pinch.pinching) return;
@@ -277,6 +282,8 @@ export default function (options) {
     if (locked) return;
 
     resumeImpetus();
+
+    emitter.emit('stop');
   });
 
   let instance = {
@@ -369,8 +376,14 @@ export default function (options) {
 
       cancelAnimationFrame(frame_id);
     },
-    on: emitter.addListener.bind(emitter),
-    off: emitter.removeListener.bind(emitter),
+    on: function () {
+      emitter.addListener(...arguments);
+      return this;
+    },
+    off: function () {
+      emitter.removeListener(...arguments);
+      return this;
+    },
   };
 
   Object.defineProperty(instance, 'locked', {
