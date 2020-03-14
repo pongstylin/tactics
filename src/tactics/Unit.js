@@ -15,7 +15,7 @@ export default class {
       id:    null,
       title: null,
       team:  null,
-      color: 0,
+      color: null,
 
       assignment: null,
       notice:     null,
@@ -134,6 +134,9 @@ export default class {
       target_units = this.getTargetTiles(target)
         .filter(tile => !!tile.assigned)
         .map(tile => tile.assigned);
+
+    if (this.aType !== 'melee' && this.aType !== 'magic')
+      target_units = target_units.filter(u => u.type !== 'Shrub');
 
     return target_units;
   }
@@ -710,7 +713,12 @@ export default class {
    * Currently assumes walking, but this will change
    */
   move(action) {
-    return this.animWalk(action.assignment).play();
+    if (this.mType === 'path')
+      return this.animWalk(action.assignment).play();
+    else if (this.mType === 'teleport')
+      return this.animTeleport(action).play();
+    else
+      throw 'Unknown movement type';
   }
   attack(action) {
     let anim = new Tactics.Animation();
@@ -1068,7 +1076,10 @@ export default class {
     if (direction === this.board.getRotation(this.direction, 180)) {
       let spriteAction = this._sprite.getAction('turn');
 
-      anim.addFrame(spriteAction.sounds);
+      if (spriteAction.sounds)
+        anim.addFrame(spriteAction.sounds);
+      else
+        anim.addFrame([]);
       anim.addFrame(() => this.drawTurn(90));
     }
 
@@ -1226,6 +1237,21 @@ export default class {
 
     return anim;
   }
+  animTeleport(action) {
+    let anim = new Tactics.Animation();
+    let board = this.board;
+
+    if (this.directional !== false)
+      anim.splice(this.animTurn(action.direction));
+
+    anim.splice(this.renderAnimation('moveOut', action.direction));
+    let index = anim.frames.length;
+    anim.splice(index, () => board.assign(this, action.assignment));
+    anim.splice(index, this.renderAnimation('moveIn', action.direction));
+    anim.addFrame(() => this.stand(action.direction));
+
+    return anim;
+  }
   animAttack(action) {
     let anim         = this.renderAnimation('attack', action.direction);
     let spriteAction = this._sprite.getAction('attack');
@@ -1263,21 +1289,28 @@ export default class {
   animAttackEffect(effect, target, isHit) {
     let anim = new Tactics.Animation();
     let board = this.board;
-    let effectSprite = Tactics.getSpriteURI(effect.spriteId);
+    let effectSprite = effect.spriteId && Tactics.getSpriteURI(effect.spriteId);
     let offset = [0, 0];
 
     if (!effect.type)
       effect.type = this.aType;
 
     // Render stagger animation before the effect so that it may be colored
-    let targetUnit = target.assigned
+    let targetUnit = target.assigned;
+    if (!isHit && targetUnit && targetUnit.type === 'Shrub')
+      targetUnit = null;
+
     if (targetUnit) {
-      let reactOffset = effectSprite.frames.findIndex(f => f.interrupt) + 1;
-      if (anim.frames.length < reactOffset)
-        anim.addFrame({
-          scripts: [],
-          repeat: reactOffset - anim.frames.length,
-        });
+      if (effectSprite) {
+        let reactOffset = effectSprite.frames.findIndex(f => f.interrupt) + 1;
+        if (anim.frames.length < reactOffset)
+          anim.addFrame({
+            scripts: [],
+            repeat: reactOffset - anim.frames.length,
+          });
+      }
+      else
+        anim.addFrame([]);
 
       let offsetRatio;
       if (!isHit) {
@@ -1285,28 +1318,44 @@ export default class {
         offsetRatio = 0.50;
       }
       else if (targetUnit !== this) {
-        anim.splice(-1, targetUnit.animHit(this, effect.type));
+        anim.splice(-1, targetUnit.animHit(this, effect.type, effect.silent));
         offsetRatio = 0.25;
       }
 
       if (targetUnit.type === 'ChaosSeed')
         offsetRatio = 0.25;
+      else if (targetUnit.type === 'Shrub')
+        offsetRatio = 0.125;
 
-      if (effect.type === 'melee')
-        offset = board.getOffset(
-          offsetRatio,
-          board.getDirection(
-            targetUnit.assignment,
-            this.assignment,
-            targetUnit.direction,
-          ),
-        );
+      if (effect.type === 'melee') {
+        if (targetUnit.type === 'Shrub') {
+          offset = board.getOffset(
+            offsetRatio,
+            board.getDirection(
+              targetUnit.assignment,
+              this.assignment,
+              true, // allow directions such as SE and NW
+            ),
+          );
+          // Shrubs are short, so lower the offset further
+          offset[1] += 7;
+        }
+        else
+          offset = board.getOffset(
+            offsetRatio,
+            board.getDirection(
+              targetUnit.assignment,
+              this.assignment,
+              targetUnit.direction,
+            ),
+          );
+      }
     }
     else
       anim.addFrame([]);
 
     // Some effects aren't dispayed if no unit is impacted
-    if (targetUnit || !effect.impactOnly) {
+    if (effectSprite && (targetUnit || !effect.impactOnly)) {
       let unitsContainer = board.unitsContainer;
       let pos = target.getCenter();
       let container = new PIXI.Container();
@@ -1356,7 +1405,7 @@ export default class {
    * Melee attacks will push the unit off-center briefly.
    * Nothing happens at all for effect attacks, i.e. heal, poison, barrier, paralyze
    */
-  animHit(attacker, attackType) {
+  animHit(attacker, attackType, silent = false) {
     let anim = new Tactics.Animation();
     let doStagger;
     let direction;
@@ -1376,7 +1425,10 @@ export default class {
        */
       let spriteAction = this._sprite.getAction('stagger');
 
-      anim.addFrame(spriteAction.sounds);
+      if (silent)
+        anim.addFrame([]);
+      else
+        anim.addFrame(spriteAction.sounds);
     }
     else if (attackType === 'magic') {
       // Magic attacks cause a stagger
@@ -1624,7 +1676,7 @@ export default class {
         direction = board.getDirection(path[path.length-2], path[path.length-1]);
       }
       else
-        direction = board.getDirection(this.assignment, action.assignment);
+        direction = board.getDirection(this.assignment, action.assignment, this.direction);
 
       if (validate.direction && validate.direction !== direction)
         return null;

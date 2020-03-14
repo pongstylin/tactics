@@ -1,184 +1,233 @@
 export const unitDataMap = new Map();
 
 unitDataMap.set('Knight', {
-  name:     'Knight',
-  ability:  'Sword & Shield',
-  power:    22,
-  armor:    25,
-  health:   50,
+  name: 'Knight',
+  ability: 'Sword & Shield',
+  power: 22,
+  armor: 25,
+  health: 50,
   recovery: 1,
   blocking: 80,
-  mType:    'path',
-  mRadius:  3,
-  aType:    'melee',
-  aRange:   [1, 1],
+  mType: 'path',
+  mRadius: 3,
+  aType: 'melee',
+  aRange: [1, 1],
+  tier: 1,
 });
 
 unitDataMap.set('Pyromancer', {
-  name:     'Pyromancer',
-  ability:  'Fire',
-  power:    15,
-  armor:    0,
-  health:   30,
+  name: 'Pyromancer',
+  ability: 'Fire',
+  power: 15,
+  armor: 0,
+  health: 30,
   recovery: 3,
   blocking: 33,
-  mType:    'path',
-  mRadius:  3,
-  aType:    'magic',
-  aRange:   [0, 3],
+  mType: 'path',
+  mRadius: 3,
+  aType: 'magic',
+  aRange: [0, 3],
   waitFirstTurn: true,
+  tier: 1,
 });
 
 unitDataMap.set('Scout', {
-  name:     'Scout',
-  ability:  'Long Shot',
-  power:    18,
-  armor:    8,
-  health:   40,
+  name: 'Scout',
+  ability: 'Long Shot',
+  power: 18,
+  armor: 8,
+  health: 40,
   recovery: 2,
   blocking: 60,
-  mType:    'path',
-  mRadius:  4,
-  aType:    'melee',
-  aRange:   [1, 6],
-  aLOS:     true,
+  mType: 'path',
+  mRadius: 4,
+  aType: 'melee',
+  aRange: [1, 6],
+  aLOS: true,
   waitFirstTurn: true,
+  tier: 1,
 });
 
 unitDataMap.set('Cleric', {
-  name:    'Cleric',
+  name: 'Cleric',
   ability: 'Holy Mass',
-  power:    12,
-  armor:    0,
-  health:   24,
+  power: 12,
+  armor: 0,
+  health: 24,
   recovery: 5,
   blocking: 0,
-  mType:    'path',
-  mRadius:  3,
-  aType:    'heal',
-  aAll:     true,
+  mType: 'path',
+  mRadius: 3,
+  aType: 'heal',
+  aAll: true,
+  tier: 1,
 });
 
 unitDataMap.set('BarrierWard', {
-  name:        'Barrier Ward',
-  ability:     'Barrier',
-  power:       0,
-  armor:       0,
-  health:      32,
-  recovery:    2,
-  blocking:    100,
-  mType:       false,
-  mRadius:     0,
-  mPass:       false,
-  aType:       'barrier',
-  aFocus:      true,
-  aRange:      [0, 6],
+  name: 'Barrier Ward',
+  ability: 'Barrier',
+  power: 0,
+  armor: 0,
+  health: 32,
+  recovery: 2,
+  blocking: 100,
+  mType: false,
+  mRadius: 0,
+  mPass: false,
+  aType: 'barrier',
+  aFocus: true,
+  aRange: [0, 6],
   directional: false,
+  tier: 1,
 });
 
 unitDataMap.set('LightningWard', {
-  name:        'Lightning Ward',
-  ability:     'Lightning',
-  power:       30,
-  armor:       18,
-  health:      56,
-  recovery:    4,
-  blocking:    100,
-  mType:       false,
-  mRadius:     0,
-  mPass:       false,
-  aType:       'magic',
-  aRange:      [0, 3],
+  name: 'Lightning Ward',
+  ability: 'Lightning',
+  power: 30,
+  armor: 18,
+  health: 56,
+  recovery: 4,
+  blocking: 100,
+  mType: false,
+  mRadius: 0,
+  mPass: false,
+  aType: 'magic',
+  aRange: [0, 3],
   directional: false,
+  tier: 1,
 });
 
 unitDataMap.set('DarkMagicWitch', {
-  name:     'Dark Magic Witch',
-  ability:  'Black Spikes',
-  power:    24,
-  armor:    0,
-  health:   28,
+  name: 'Dark Magic Witch',
+  ability: 'Black Spikes',
+  power: 24,
+  armor: 0,
+  health: 28,
   recovery: 3,
   blocking: 20,
-  mType:    'path',
-  mRadius:  3,
-  aType:    'magic',
-  aRange:   [1, 4],
-  aLinear:  true,
+  mType: 'path',
+  mRadius: 3,
+  aType: 'magic',
+  aRange: [1, 4],
+  aLinear: true,
   waitFirstTurn: true,
+  tier: 1,
 });
 
 unitDataMap.set('Assassin', {
-  name:      'Assassin',
-  ability:   'Multi-Strike',
+  name: 'Assassin',
+  ability: 'Multi-Strike',
   specialty: 'Deathblow',
-  power:     18,
-  armor:     12,
-  health:    35,
-  recovery:  1,
-  blocking:  70,
-  mType:     'path',
-  mRadius:   4,
-  aType:     'melee',
-  aRange:    [1, 1],
-  aAll:      true,
+  power: 18,
+  armor: 12,
+  health: 35,
+  recovery: 1,
+  blocking: 70,
+  mType: 'path',
+  mRadius: 4,
+  aType: 'melee',
+  aRange: [1, 1],
+  aAll: true,
+  tier: 1,
 });
 
 unitDataMap.set('Enchantress', {
-  name:     'Enchantress',
-  ability:  'Paralytic Field',
-  power:    0,
-  armor:    0,
-  health:   35,
+  name: 'Enchantress',
+  ability: 'Paralytic Field',
+  power: 0,
+  armor: 0,
+  health: 35,
   recovery: 3,
   blocking: 0,
-  mType:    'path',
-  mRadius:  3,
-  aType:    'paralyze',
-  aFocus:   true,
-  aRange:   [1, 2],
-  aAll:     true,
+  mType: 'path',
+  mRadius: 3,
+  aType: 'paralyze',
+  aFocus: true,
+  aRange: [1, 2],
+  aAll: true,
+  tier: 1,
 });
 
 unitDataMap.set('MudGolem', {
   name: 'Mud Golem',
+  ability: 'Punch',
+  specialty: 'Quake',
+  power: 20,
+  armor: 0,
+  health: 60,
+  recovery: 2,
+  blocking: 0,
+  mType: 'teleport',
+  mRadius: 5,
+  aType: 'melee',
+  aRange: [1, 1],
+  tier: 2,
 });
 
 unitDataMap.set('FrostGolem', {
   name: 'Frost Golem',
+  ability: 'Paralyze',
+  power: 0,
+  armor: 0,
+  health: 60,
+  recovery: 2,
+  blocking: 0,
+  mType: 'path',
+  mRadius: 2,
+  aType: 'paralyze',
+  aFocus: true,
+  aRange: [1, 4],
+  tier: 2,
 });
 
 unitDataMap.set('StoneGolem', {
   name: 'Stone Golem',
+  tier: 3,
 });
 
 unitDataMap.set('DragonTyrant', {
   name: 'Dragon Tyrant',
   ability: 'Fire Blast',
   waitFirstTurn: true,
+  tier: 3,
 });
 
 unitDataMap.set('BeastRider', {
-  name: 'Beast Rider'
+  name: 'Beast Rider',
+  ability: 'Piercing Thrust',
+  power: 19,
+  armor: 15,
+  health: 38,
+  recovery: 1,
+  blocking: 45,
+  mType: 'path',
+  mRadius: 4,
+  mPass: false,
+  aType: 'melee',
+  aRange: [1, 2],
+  aLinear: true,
+  tier: 2,
 });
 
 unitDataMap.set('DragonspeakerMage', {
   name:'Dragonspeaker Mage',
   waitFirstTurn: true,
+  tier: 4,
 });
 
 unitDataMap.set('ChaosSeed', {
-  name:        'Chaos Seed',
-  ability:     'Chaos',
-  specialty:   'Awaken',
-  power:       24,
-  armor:       99,
-  health:      6,
-  recovery:    0,
-  blocking:    50,
-  mType:       false,
-  mRadius:     0,
-  aType:       'magic',
+  name: 'Chaos Seed',
+  ability: 'Chaos',
+  specialty: 'Awaken',
+  power: 24,
+  armor: 99,
+  health: 6,
+  recovery: 0,
+  blocking: 50,
+  mType: false,
+  mRadius: 0,
+  aType: 'magic',
   directional: false,
 
   legacy: true,
@@ -190,13 +239,13 @@ unitDataMap.set('ChaosSeed', {
     heal: 'sound1203',
     wind: {
       file:'chaos',
-      volume:0.25,
+      volume: 0.25,
       sprite: {
-        wind1:[   0,1950],
-        wind2:[2150,1950],
-        wind3:[4300,1800],
-        wind4:[6300,2500],
-        wind5:[9000,1725]
+        wind1: [   0, 1950],
+        wind2: [2150, 1950],
+        wind3: [4300, 1800],
+        wind4: [6300, 2500],
+        wind5: [9000, 1725]
       }
     },
     phase: {
@@ -206,7 +255,7 @@ unitDataMap.set('ChaosSeed', {
     roar: {
       file:'chaos',
       sprite: {
-        roar :[10925,1675]
+        roar: [10925, 1675],
       }
     }
   },
@@ -216,39 +265,65 @@ unitDataMap.set('ChaosSeed', {
       x: -1,
       y: 7,
       c: [
-        {id:6459, x:-12.5, y:-19.5},
-        {id:1351, x:-21,   y:-61},
-        {id:1354, x:-20,   y:-57},
+        { id:6459, x:-12.5, y:-19.5 },
+        { id:1351, x:-21,   y:-61   },
+        { id:1354, x:-20,   y:-57   },
       ]
     }
-  ]
+  ],
+  tier: 5,
 });
 
 unitDataMap.set('Wisp', {
   name: 'Wisp',
   waitFirstTurn: true,
+  tier: 3,
 });
 
 unitDataMap.set('Furgon', {
   name: 'Furgon',
+  ability: 'Summon Nature',
+  specialty: 'Entangle',
+  power: 0,
+  armor: 0,
+  health: 48,
+  recovery: 1,
+  blocking: 50,
+  mType: 'path',
+  mRadius: 3,
+  aType: 'summon',
+  aRange: [0, 2],
+  tier: 2,
 });
 
 unitDataMap.set('Shrub', {
   name: 'Shrub',
+  power: 0,
+  armor: 0,
+  health: 1,
+  recovery: 0,
+  blocking: 0,
+  mType: false,
+  mPass: false,
+  aType: false,
   directional: false,
+  tier: 4,
 });
 
 unitDataMap.set('Trophy', {
   name: 'Trophy',
+  tier: 5,
 });
 
 unitDataMap.set('Ambusher', {
   name: 'Ambusher',
   waitFirstTurn: true,
+  tier: 3,
 });
 
 unitDataMap.set('Berserker', {
   name: 'Berserker',
+  tier: 3,
 });
 
 unitDataMap.set('ChaosDragon', {
@@ -260,25 +335,25 @@ unitDataMap.set('ChaosDragon', {
   health:38,
   recovery:1,
   blocking:50,
-  mType:   'teleport',
+  mType: 'teleport',
   mRadius: 4,
-  mPass:   false,
-  aType:   'magic',
-  aLOS:    true,
+  mPass: false,
+  aType: 'magic',
+  aLOS: true,
   aLinear: true,
-  aRange:  [1, 3],
+  aRange: [1, 3],
 
   legacy: true,
   imports: ['Sparkle'],
   sounds: {
-    flap:   'sound7',
-    block:  'sound11',
-    heal:   'sound1203',
+    flap: 'sound7',
+    block: 'sound11',
+    heal: 'sound1203',
     attack: 'sound1602',
     impact: 'sound6',
     charge: {file:'charge', rate:0.6},
-    buzz:   {file:'buzz',   rate:0.6},
-    phase:  {file:'sound4', rate:0.5},
+    buzz: {file:'buzz',   rate:0.6},
+    phase: {file:'sound4', rate:0.5},
   },
   stills: {
     S: 0,
@@ -293,7 +368,7 @@ unitDataMap.set('ChaosDragon', {
     E: 145,
   },
   animations: {
-    S:{move:{s:  2,l:23},attack:{s: 25,l:9},block:{s: 34,l:6},hatch:{s: 40,l:8}},
+    S:{move:{s: 2,l:23},attack:{s: 25,l:9},block:{s: 34,l:6},hatch:{s: 40,l:8}},
     W:{move:{s: 50,l:23},attack:{s: 73,l:9},block:{s: 82,l:6},hatch:{s: 88,l:8}},
     N:{move:{s: 98,l:23},attack:{s:121,l:9},block:{s:130,l:6},hatch:{s:136,l:8}},
     E:{move:{s:146,l:23},attack:{s:169,l:9},block:{s:178,l:6},hatch:{s:184,l:8}}
@@ -515,7 +590,8 @@ unitDataMap.set('ChaosDragon', {
     {c:[{id:6123,x:-32,y:-31,a:0.5,f:'B',w:84,h:59},{id:4240,x:-53,y:-63},{id:4097,x:-19,y:-53}]},
     {c:[{id:6121,x:-30,y:-38,a:0.5,f:'B',w:88,h:66},{id:4238,x:-61,y:-66},{id:4095,x:-17,y:-54}]},
     {c:[{id:6091,x:-26,y:-45,a:0.5,f:'B',w:86,h:73},{id:4208,x:-61,y:-83},{id:4065,x:-21,y:-56}]}
-  ]
+  ],
+  tier: 5,
 });
 
 // Map unit type names to IDs until we get rid of the IDs.
