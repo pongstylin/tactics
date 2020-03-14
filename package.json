@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "0.7.11",
+  "version": "0.7.12",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
@@ -24,14 +24,14 @@
     "@babel/preset-env": "^7.5.5",
     "babel-loader": "^8.0.6",
     "core-js": "^3.2.1",
-    "css-loader": "^3.0.0",
+    "css-loader": "^3.4.2",
     "debug": "^4.1.1",
     "dotenv": "^7.0.0",
     "dotenv-webpack": "^1.7.0",
     "node-sass": "^4.13.1",
     "sass-loader": "^7.1.0",
     "style-loader": "^0.23.1",
-    "webpack": "^4.41.6",
+    "webpack": "^4.42.0",
     "webpack-cli": "^3.1.2"
   },
   "dependencies": {
