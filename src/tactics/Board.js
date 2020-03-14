@@ -142,7 +142,7 @@ export default class {
         upper: {
           type    :'C',
           children: {
-            avatar: {type:'C',x:28,y:0},
+            avatar: { type:'C', x:28, y:0 },
             name  : {
               type: 'T',
               x: 60,
@@ -151,7 +151,6 @@ export default class {
                 fontFamily: 'Arial',
                 fontSize:   '12px',
                 fontWeight: 'bold',
-                letterSpacing: 1,
               },
             },
             notice: {
