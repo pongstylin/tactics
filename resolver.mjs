@@ -21,7 +21,7 @@ const baseURL = new URL('file://');
 baseURL.pathname = `${basePath}/`;
 
 export function resolve(specifier, context, defaultResolve) {
-  defaultResolve = defaultResolve.bind(this, specifier, context);
+  defaultResolve = defaultResolve.bind(this, specifier, context, defaultResolve);
   let parentURL = context.parentURL || baseURL.href;
 
   if (builtins.includes(specifier))
