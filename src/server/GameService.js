@@ -396,19 +396,29 @@ class GameService extends Service {
 
       if (params.since === 'start') {
         if (state.started) {
-          response.events.push({
-            type: 'startGame',
-            data: {
-              started: state.started,
-              teams: state.teams,
-              units: state.units,
-            },
-          });
-
           params.since = new Date(state.started);
           params.turnId = 0;
           params.actions = 0;
           turnData = state.getTurnData(params.turnId);
+
+          response.events.push(
+            {
+              type: 'startGame',
+              data: {
+                started: state.started,
+                teams: state.teams,
+                units: state.units,
+              },
+            },
+            {
+              type: 'startTurn',
+              data: {
+                started: turnData.started,
+                turnId: turnData.id,
+                teamId: turnData.teamId,
+              },
+            },
+          );
         }
       }
       else {
