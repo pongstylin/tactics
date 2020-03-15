@@ -1,4 +1,3 @@
-import RemoteTransport from 'tactics/RemoteTransport.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
@@ -476,7 +475,7 @@ async function loadTransportAndGame(gameId, gameData) {
 }
 // Must be authorized first or the game already ended
 async function loadTransport(gameId, gameData) {
-  let transport = new RemoteTransport(gameId, gameData);
+  let transport = new Tactics.RemoteTransport(gameId, gameData);
   await transport.whenReady;
 
   return transport;

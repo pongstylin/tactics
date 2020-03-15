@@ -33,6 +33,7 @@ window.Tactics = (function () {
     gameClient: clientFactory('game'),
     chatClient: clientFactory('chat'),
     Progress: Progress,
+    RemoteTransport: RemoteTransport,
     Game: Game,
     ServerError: ServerError,
     loadedUnitTypes: new Set(),

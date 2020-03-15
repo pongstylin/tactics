@@ -531,8 +531,16 @@ export default class ServerSocket {
       /*
        * Only communicate with compatible servers.
        */
-      if (isNew)
-        this._emit({ type:'open', data:{ reason:'new', outbox } });
+      if (isNew) {
+        // New connections do not reset the session.  Presumably, this is to let
+        // requests made before the connection was established to be submitted
+        // once it is.  In that case, flush the outbox.  This is useful when the
+        // game page requests game data before the connection is open.  It would
+        // hang for ~5 seconds until a sync message was received.
+        this._onSyncMessage(message);
+
+        this._emit({ type:'open', data:{ reason:'new' } });
+      }
       else
         this._emit({ type:'open', data:{ reason:'reset', outbox } });
 

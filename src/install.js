@@ -26,11 +26,12 @@ if ('serviceWorker' in navigator) {
           sessionStorage.setItem('isWarnedInsecure', true);
         }
       }
-      else
+      else {
+        console.log('throwing error');
         throw error;
+      }
     });
-
-  if (ENVIRONMENT !== 'production') {
+  else if (ENVIRONMENT !== 'production') {
     sw.getRegistration().then(async reg => {
       if (!reg) return;
 

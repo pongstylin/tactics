@@ -236,11 +236,18 @@ export default class RemoteTransport {
     let gameId = this._data.id;
     let state = this._data.state;
     let actions = state.actions;
-    let resume = state.ended ? null : {
-      turnId: state.currentTurnId,
-      actions: actions.length,
-      since: actions.length ? actions.last.created : state.turnStarted,
-    };
+    let resume;
+
+    if (state.ended)
+      resume = null;
+    else if (state.started)
+      resume = {
+        turnId: state.currentTurnId,
+        actions: actions.length,
+        since: actions.length ? actions.last.created : state.turnStarted,
+      };
+    else
+      resume = { since:'start' };
 
     // Instead of watching the game from its current point, resume watching
     // the game from the point we lost connection.
