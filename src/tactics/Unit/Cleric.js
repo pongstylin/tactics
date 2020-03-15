@@ -1,5 +1,3 @@
-'use strict';
-
 import Unit from 'tactics/Unit.js';
 
 export default class Cleric extends Unit {
@@ -23,7 +21,9 @@ export default class Cleric extends Unit {
     if (this.directional !== false)
       anim.addFrame(() => this.stand());
 
-    let targets = this.team.units.map(u => u.assignment);
+    let targets = this.team.units
+      .filter(u => u.type !== 'Shrub')
+      .map(u => u.assignment);
 
     targets.forEach(target => {
       let isHit = !target.assigned.barriered;
