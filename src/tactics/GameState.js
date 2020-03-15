@@ -903,7 +903,7 @@ export default class GameState {
           let mRecovery;
           if (unit === selected) {
             // Allow a unit (such as Furgon) to provide custom recovery.
-            if (selected.recovery === 0) {
+            if (selected.mRecovery === 0) {
               let recovery = selected.recovery;
 
               if ((moved || !selected.mType) && attacked)
