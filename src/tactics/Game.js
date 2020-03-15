@@ -941,9 +941,18 @@ export default class {
     this.lock();
     return this.state.submitAction(this._board.encodeAction(action))
       .catch(error => {
-        if (error.code === 403 && error.message === 'Not your turn!') {
-          // This error can occur if an undo was submitted and the prior turn
-          // reverted just before we made our first action.  Ignore it.
+        if (
+          error.code === 403 &&
+          (
+            // This error can occur if an undo was submitted and the prior turn
+            // reverted just before we made our first action.
+            error.message === 'Not your turn!' ||
+            // This error can occur if opponent surrendered and game ended right
+            // before the action was submitted.
+            error.message === 'The game has ended'
+          )
+        ) {
+          // Ignore this error.
         }
         else {
           this.notice = 'Server Error!';
