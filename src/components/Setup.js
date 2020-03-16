@@ -220,6 +220,13 @@ export default class {
     return this._canvas;
   }
 
+  get set() {
+    return this._team.set;
+  }
+  set set(set) {
+    return this._team.set = set;
+  }
+
   get board() {
     return this._board;
   }
@@ -506,12 +513,12 @@ export default class {
     let emitSave = () => {
       this.hide();
 
-      let data = this._board.getState()[0].map(unit => {
+      let set = this._board.getState()[0].map(unit => {
         delete unit.direction;
         return unit;
       });
 
-      this._emit({ type:'save', data });
+      this._emit({ type:'save', data:set });
     };
 
     let counts = this._getAvailableUnitCounts();

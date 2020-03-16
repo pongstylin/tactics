@@ -388,6 +388,8 @@ window.Tactics = (function () {
             autoOpen: 1000, // open after one second
           });
 
+          setup.set = set;
+
           gameClient.saveDefaultPlayerSet(gameType, set).then(() => {
             notice.close();
 
