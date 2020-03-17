@@ -87,7 +87,7 @@ export default class {
     await this._lockAndUpdateFile(`player_${playerId}_sets`, [], sets => {
       let index = sets.findIndex(s => s.type === gameType);
       if (index === -1)
-        sets.push({ type:gameType, units:setUnits });
+        sets.push({ type:gameType, units:setUnits, createdAt:new Date() });
       else
         sets[index].units = setUnits;
     });
@@ -286,6 +286,23 @@ export default class {
   /*
    * Not intended for use by applications.
    */
+  listAllPlayerIds() {
+    return new Promise((resolve, reject) => {
+      let playerIds = [];
+      let regex = /^player_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
+
+      fs.readdir(filesDir, (err, fileNames) => {
+        for (let i=0; i<fileNames.length; i++) {
+          let match = regex.exec(fileNames[i]);
+          if (!match) continue;
+
+          playerIds.push(match[1]);
+        }
+
+        resolve(playerIds);
+      });
+    });
+  }
   listAllGameIds() {
     return new Promise((resolve, reject) => {
       let gameIds = [];
