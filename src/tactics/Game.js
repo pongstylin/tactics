@@ -1209,6 +1209,8 @@ export default class {
       results = [results];
 
     let showResult = async result => {
+      if (result.type === 'summon') return;
+
       let anim = new Tactics.Animation();
       let changes = Object.assign({}, result.changes);
 
@@ -1241,6 +1243,9 @@ export default class {
 
         return anim.play();
       }
+      // Don't show shrub death.  They are broken apart during attack.
+      else if (unit.type === 'Shrub' && mHealth === -1)
+        return anim.play();
 
       // Show the effect on the unit
       this.drawCard(unit);
@@ -1353,6 +1358,8 @@ export default class {
       if (!unit) continue;
       // Choas Seed doesn't die.  It hatches.
       if (unit.type === 'ChaosSeed') continue;
+      // Shrub doesn't die.  It is broken apart.
+      if (unit.type === 'Shrub') continue;
       // Units consumed by Chaos don't die normally.
       if (!unit.assignment) continue;
 

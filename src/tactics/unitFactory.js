@@ -6,6 +6,10 @@ import Cleric from 'tactics/Unit/Cleric.js';
 import BarrierWard from 'tactics/Unit/BarrierWard.js';
 import Assassin from 'tactics/Unit/Assassin.js';
 import Enchantress from 'tactics/Unit/Enchantress.js';
+import MudGolem from 'tactics/Unit/MudGolem.js';
+import FrostGolem from 'tactics/Unit/FrostGolem.js';
+import Furgon from 'tactics/Unit/Furgon.js';
+import Shrub from 'tactics/Unit/Shrub.js';
 import ChaosSeed from 'tactics/Unit/ChaosSeed.js';
 import ChaosDragon from 'tactics/Unit/ChaosDragon.js';
 
@@ -16,6 +20,10 @@ const unitClassMap = new Map([
   ['BarrierWard',    BarrierWard],
   ['Assassin',       Assassin],
   ['Enchantress',    Enchantress],
+  ['MudGolem',       MudGolem],
+  ['FrostGolem',     FrostGolem],
+  ['Furgon',         Furgon],
+  ['Shrub',          Shrub],
 
   ['ChaosSeed',      ChaosSeed],
   ['ChaosDragon',    ChaosDragon],

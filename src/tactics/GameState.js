@@ -137,6 +137,10 @@ export default class GameState {
         if (unit.type === 'BarrierWard' || unit.type === 'LightningWard')
           return false;
 
+        // Shrubs don't count.
+        if (unit.type === 'Shrub')
+          return false;
+
         // Paralyzed units don't count.
         if (unit.paralyzed)
           return false;
@@ -898,17 +902,20 @@ export default class GameState {
         if (team === currentTeam) {
           let mRecovery;
           if (unit === selected) {
-            let recovery = selected.recovery;
+            // Allow a unit (such as Furgon) to provide custom recovery.
+            if (selected.mRecovery === 0) {
+              let recovery = selected.recovery;
 
-            if ((moved || !selected.mType) && attacked)
-              mRecovery = recovery;
-            else if (moved)
-              mRecovery = Math.floor(recovery / 2);
-            else if (attacked)
-              mRecovery = Math.ceil(recovery / 2);
+              if ((moved || !selected.mType) && attacked)
+                mRecovery = recovery;
+              else if (moved)
+                mRecovery = Math.floor(recovery / 2);
+              else if (attacked)
+                mRecovery = Math.ceil(recovery / 2);
 
-            if (mRecovery === 0)
-              mRecovery = undefined;
+              if (mRecovery === 0)
+                mRecovery = undefined;
+            }
           }
           else if (unit.mRecovery)
             mRecovery = unit.mRecovery - 1;
@@ -916,7 +923,7 @@ export default class GameState {
           if (mRecovery !== undefined)
             results.push({
               unit:    unit,
-              changes: { mRecovery:mRecovery },
+              changes: { mRecovery },
             });
         }
 
@@ -1026,36 +1033,42 @@ export default class GameState {
     if (!results) return;
 
     results.forEach(result => {
-      let unit    = result.unit;
-      // Use a shallow clone to protect against modification.
-      let changes = Object.assign({}, result.changes);
+      let unit = result.unit;
 
-      if (Object.keys(changes).length) {
-        // For a change in type, we need to replace the unit instance.
-        // Only Chaos Seed changes type to a Chaos Dragon.
-        // By default, only the old unit id, direction, assignment, and color is inherited.
-        if (changes.type) {
-          // Dropping a unit clears the assignment.  So get it first.
-          let assignment = unit.assignment;
+      if (result.type === 'summon') {
+        this._board.addUnit(unit, this.teams[result.teamId]);
+      }
+      else {
+        // Use a shallow clone to protect against modification.
+        let changes = Object.assign({}, result.changes);
 
-          unit = this._board
-            .dropUnit(unit)
-            .addUnit({
-              id:         unit.id,
-              type:       changes.type,
-              assignment: assignment,
-              direction:  changes.direction || unit.direction,
-              color:      unit.color,
-            }, unit.team);
-          delete changes.type;
+        if (Object.keys(changes).length) {
+          // For a change in type, we need to replace the unit instance.
+          // Only Chaos Seed changes type to a Chaos Dragon.
+          // By default, only the old unit id, direction, assignment, and color is inherited.
+          if (changes.type) {
+            // Dropping a unit clears the assignment.  So get it first.
+            let assignment = unit.assignment;
+
+            unit = this._board
+              .dropUnit(unit)
+              .addUnit({
+                id:         unit.id,
+                type:       changes.type,
+                assignment: assignment,
+                direction:  changes.direction || unit.direction,
+                color:      unit.color,
+              }, unit.team);
+            delete changes.type;
+          }
+
+          if (Object.keys(changes).length)
+            unit.change(changes);
         }
 
-        if (Object.keys(changes).length)
-          unit.change(changes);
+        if (result.results)
+          this._applyChangeResults(result.results);
       }
-
-      if (result.results)
-        this._applyChangeResults(result.results);
     });
   }
 

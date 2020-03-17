@@ -1,5 +1,6 @@
 import EventEmitter from 'events';
 import Tile from 'tactics/Tile.js';
+import Unit from 'tactics/Unit.js';
 import unitFactory from 'tactics/unitFactory.js';
 import colorMap from 'tactics/colorMap.js';
 
@@ -285,8 +286,11 @@ export default class {
         if (distance > max) continue;
 
         tile = tiles[y*11 + x];
-        if (!tile || (isUnassigned && tile.assigned))
-          continue;
+        if (
+          !tile ||
+          (isUnassigned === true && tile.assigned) ||
+          (isUnassigned === false && !tile.assigned)
+        ) continue;
 
         range.push(tile);
       }
@@ -379,15 +383,30 @@ export default class {
 
   // Public functions
   getOffset(offsetRatio, direction) {
-    if (direction === undefined)
+    if (!offsetRatio || !direction)
       return [0, 0];
 
-    let xSign = direction === 'S' || direction === 'E' ? 1 : -1;
-    let ySign = direction === 'S' || direction === 'W' ? 1 : -1;
-    return [
-      Math.round(HALF_TILE_WIDTH * offsetRatio) * xSign,
-      Math.round(HALF_TILE_HEIGHT * offsetRatio) * ySign,
-    ];
+    let xOffset = Math.round(HALF_TILE_WIDTH * offsetRatio);
+    let yOffset = Math.round(HALF_TILE_HEIGHT * offsetRatio);
+
+    if (direction === 'N')
+      return [-xOffset, -yOffset];
+    else if (direction === 'NE')
+      return [0, -yOffset];
+    else if (direction === 'E')
+      return [xOffset, -yOffset];
+    else if (direction === 'SE')
+      return [xOffset, 0];
+    else if (direction === 'S')
+      return [xOffset, yOffset];
+    else if (direction === 'SW')
+      return [0, yOffset];
+    else if (direction === 'W')
+      return [-xOffset, yOffset];
+    else if (direction === 'NW')
+      return [-xOffset, 0];
+    else
+      throw 'Unrecognized direction';
   }
   getDistance(a, b) {
     // Return the distance between two tiles.
@@ -945,8 +964,12 @@ export default class {
       if (unit.poisoned)
         notices.push('Poisoned!');
 
-      if (unit.canSpecial())
-        notices.push('Enraged!');
+      if (unit.canSpecial()) {
+        if (unit.type === 'Assassin')
+          notices.push('Enraged!');
+        else if (unit.type === 'Furgon')
+          notices.push('Empowered!');
+      }
 
       if (unit.focusing)
         notices.push('Focused!');
@@ -966,7 +989,10 @@ export default class {
       //
       //  Draw the top part of the card.
       //
-      els.name.text = unit.name;
+      if (unit.type === 'Furgon' && unit.mRecovery > 1)
+        els.name.text = 'Exhausted Furgon';
+      else
+        els.name.text = unit.name;
 
       els.notice.text = notice;
 
@@ -1044,7 +1070,7 @@ export default class {
       //
       els.layer2.visible = false;
 
-      els.ability.text = unit.ability;
+      els.ability.text = unit.ability || 'None';
       els.specialty.text = unit.specialty || 'None';
 
       //
@@ -1144,28 +1170,37 @@ export default class {
     return this;
   }
 
-  addUnit(unitState, team) {
-    if (Array.isArray(unitState.assignment))
-      unitState.assignment = this.getTile(...unitState.assignment);
-
+  makeUnit(unitState) {
     let unit = unitFactory(unitState.type, this);
-    unit.id = unitState.id;
-    unit.team = team;
-    unit.color = 'color' in unitState
-      ? unitState.color
-      : colorMap.get('colorId' in unitState ? unitState.colorId : team.colorId);
-    unit.stand(unit.directional === false ? 'S' : unitState.direction);
+    if (unitState.colorId)
+      unit.color = colorMap.get(unitState.colorId);
+    else if (unitState.color)
+      unit.color = unitState.color;
+    unit.direction = unit.directional === false ? 'S' : unitState.direction;
 
-    this.assign(unit, unitState.assignment);
+    for (let [key, value] of Object.entries(unitState)) {
+      if (key === 'type' || key === 'direction' || key === 'color' || key === 'colorId')
+        continue;
+      else if (key === 'assignment')
+        unit[key] = Array.isArray(value) ? this.getTile(...value) : value;
+      else
+        unit[key] = value;
+    }
+
+    return unit;
+  }
+  addUnit(unit, team) {
+    if (!(unit instanceof Unit))
+      unit = this.makeUnit(unit);
+
+    unit.team = team;
+    if (unit.color === null)
+      unit.color = colorMap.get(team.colorId);
+    unit.stand();
+
+    this.assign(unit, unit.assignment);
 
     team.units.push(unit);
-
-    Object.keys(unitState).forEach(key => {
-      if (key === 'type' || key === 'tile' || key === 'direction')
-        return;
-
-      unit[key] = unitState[key];
-    });
 
     return unit;
   }
@@ -1200,7 +1235,9 @@ export default class {
     if (tile.assigned)
       this.dismiss(tile.assigned);
 
-    this.dismiss(unit);
+    // The unit may have an assignment before it is added to the board.
+    if (unit.assignment !== tile)
+      this.dismiss(unit);
     tile.assign(unit);
 
     let unitsContainer = this.unitsContainer;
@@ -1306,7 +1343,14 @@ export default class {
       let encoded = {...obj};
 
       if ('unit' in encoded)
-        encoded.unit = encoded.unit.id;
+        if (obj.type === 'summon') {
+          let unit = encoded.unit = encoded.unit.toJSON();
+          if (unit.direction)
+            unit.direction = this.getRotation(unit.direction, degree);
+          unit.assignment = this.getTileRotation(unit.assignment, degree).coords;
+        }
+        else
+          encoded.unit = encoded.unit.id;
       if ('assignment' in encoded)
         encoded.assignment = this.getTileRotation(encoded.assignment, degree).coords;
       if ('target' in encoded)
@@ -1344,8 +1388,16 @@ export default class {
     let decode = obj => {
       let decoded = {...obj};
 
-      if ('unit' in decoded)
-        decoded.unit = units.find(u => u.id === decoded.unit);
+      if ('unit' in decoded) {
+        if (obj.type === 'summon') {
+          let unit = decoded.unit = this.makeUnit(decoded.unit);
+          if (unit.directional !== false)
+            unit.direction = this.getRotation(unit.direction, degree);
+          unit.assignment = this.getTileRotation(unit.assignment, degree);
+        }
+        else
+          decoded.unit = units.find(u => u.id === decoded.unit);
+      }
       if ('assignment' in decoded)
         decoded.assignment = this.getTileRotation(decoded.assignment, degree);
       if ('target' in decoded)
