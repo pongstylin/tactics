@@ -60,6 +60,7 @@ unitDataMap.set('Cleric', {
   mRadius: 3,
   aType: 'heal',
   aAll: true,
+  waitFirstTurn: true,
   tier: 1,
 });
 
@@ -162,6 +163,7 @@ unitDataMap.set('MudGolem', {
   mRadius: 5,
   aType: 'melee',
   aRange: [1, 1],
+  waitFirstTurn: true,
   tier: 2,
 });
 
