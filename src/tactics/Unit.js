@@ -1263,7 +1263,7 @@ export default class {
     if (this.aLOS === true) {
       let targetUnit = this.getLOSTargetUnit(action.target);
       if (targetUnit)
-        targets.push(target.assignment);
+        targets.push(targetUnit.assignment);
     }
     else
       targets = this.getTargetTiles(action.target);
