@@ -185,12 +185,36 @@ unitDataMap.set('FrostGolem', {
 
 unitDataMap.set('StoneGolem', {
   name: 'Stone Golem',
+  ability: 'Shell',
+  power: 0,
+  armor: 30,
+  health: 60,
+  recovery: 4,
+  blocking: 0,
+  mType: 'path',
+  mRadius: 2,
+  aType: 'armor',
+  aFocus: true,
+  aRange: [0, 1],
+  aAll: true,
   tier: 3,
 });
 
 unitDataMap.set('DragonTyrant', {
   name: 'Dragon Tyrant',
   ability: 'Fire Blast',
+  power: 28,
+  armor: 16,
+  health: 68,
+  recovery: 3,
+  blocking: 40,
+  mType: 'teleport',
+  mRadius: 4,
+  mPass: false,
+  aType: 'magic',
+  aRange: [1, 3],
+  aLOS: true,
+  aLinear: true,
   waitFirstTurn: true,
   tier: 3,
 });
@@ -276,8 +300,20 @@ unitDataMap.set('ChaosSeed', {
   tier: 5,
 });
 
-unitDataMap.set('Wisp', {
-  name: 'Wisp',
+unitDataMap.set('PoisonWisp', {
+  name: 'Poison Wisp',
+  ability: 'Poison',
+  power: 4,
+  armor: 0,
+  health: 30,
+  recovery: 2,
+  blocking: 0,
+  mType: 'teleport',
+  mRadius: 6,
+  aType: 'poison',
+  aRange: [1, 2],
+  aAll: true,
+  aLinear: true,
   waitFirstTurn: true,
   tier: 3,
 });
@@ -317,14 +353,35 @@ unitDataMap.set('Trophy', {
   tier: 5,
 });
 
-unitDataMap.set('Ambusher', {
-  name: 'Ambusher',
+unitDataMap.set('GolemAmbusher', {
+  name: 'Golem Ambusher',
+  ability: 'Boulder',
+  power: 20,
+  armor: 0,
+  health: 60,
+  recovery: 3,
+  blocking: 0,
+  mType: 'path',
+  mRadius: 2,
+  aType: 'melee',
+  aRange: [4, 5],
   waitFirstTurn: true,
   tier: 3,
 });
 
 unitDataMap.set('Berserker', {
   name: 'Berserker',
+  ability: 'Stun',
+  power: 22,
+  armor: 0,
+  health: 42,
+  recovery: 1,
+  blocking: 25,
+  mType: 'path',
+  mRadius: 3,
+  mPass: false,
+  aType: 'melee',
+  aRange: [1, 1],
   tier: 3,
 });
 

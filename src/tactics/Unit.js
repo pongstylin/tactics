@@ -35,6 +35,7 @@ export default class {
       poisoned:  false,
       paralyzed: false,
       barriered: false,
+      armored:   false,
 
       pixi:    null,
       filters: {},
@@ -307,233 +308,140 @@ export default class {
 
     return calc;
   }
+  /*
+   * Units are changed in the course of determining the result data.  It's the
+   * simplest way to make subsequent results take prior results into account.
+   */
   getAttackResults(action) {
-    let assignment   = this.assignment;
-    let results      = [];
-    let target       = action.target;
-    let target_units = this.getTargetUnits(target);
-    let focusing     = [];
+    let board = this.board;
 
-    results.push(...target_units.map(unit => {
-      let result = { unit };
-      let calc   = this.calcAttack(unit, assignment, target);
-
-      if (calc.immune) {
-        result.miss = 'immune';
-
-        return result;
-      }
-      else if (calc.effect) {
-        let property;
-        if (calc.effect === 'paralyze')
-          property = 'paralyzed';
-        else if (calc.effect === 'poison')
-          property = 'poisoned';
-        else if (calc.effect === 'barrier')
-          property = 'barriered';
-        else
-          throw new Error('Unrecognized effect');
-
-        // Get a list of units currently focused upon this one...
-        //  ...excluding units that are being attacked.
-        let currentValue = (unit[property] || [])
-          .filter(u => !target_units.find(tu => tu === u));
-
-        result.changes = {
-          [property]: [...currentValue, this],
-        };
-
-        if (this.aFocus) {
-          focusing.push(unit);
-
-          result.results = [{
-            unit: this,
-            changes: { focusing:focusing.slice() },
-          }];
-        }
-
-        return result;
-      }
-      else if (calc.chance === 0) {
-        if (calc.penalty)
-          Object.assign(result, {
-            miss: 'blocked',
-            changes: {
-              direction: this.board.getDirection(unit.assignment, assignment, unit.direction),
-              mBlocking: unit.mBlocking - calc.penalty,
-            },
-          });
-        else
-          result.miss = 'blocked';
-
-        return result;
-      }
-
-      let bad_luck = Math.random() * 100;
-
-      // This metric is used to determine which actions required luck to determine results.
-      if (calc.chance < 100)
-        result.luck = Math.round(calc.chance - bad_luck);
-
-      if (bad_luck < calc.chance) {
-        result.changes = {
-          mHealth: Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage)),
-        };
-
-        if (calc.bonus)
-          result.changes.mBlocking = unit.mBlocking + calc.bonus;
-      }
-      else {
-        result.miss = 'blocked';
-
-        if (calc.penalty || unit.directional !== false) {
-          result.changes = {};
-
-          if (unit.directional !== false)
-            result.changes.direction = this.board.getDirection(unit.assignment, assignment, unit.direction);
-
-          if (calc.penalty)
-            result.changes.mBlocking = unit.mBlocking - calc.penalty;
-        }
-      }
-
+    let results = this.getTargetUnits(action.target).map(unit => {
+      let result = this.getAttackResult(action, unit);
+      board.applyActionResults([result]);
       return result;
-    }));
+    });
 
     // Deaths occur last
     results.sort((a, b) => {
-      let isDeadA = a.changes && a.changes.mHealth === -a.unit.health ? 1 : 0;
-      let isDeadB = b.changes && b.changes.mHealth === -b.unit.health ? 1 : 0;
+      let isDeadA = a.unit.mHealth === -a.unit.health ? 1 : 0;
+      let isDeadB = b.unit.mHealth === -b.unit.health ? 1 : 0;
       return isDeadA - isDeadB;
     });
 
+    // Calculating sub results must occur after death sorting.
     this.getAttackSubResults(results);
 
     return results;
   }
   /*
+   * The default behavior for this method is appropriate for melee and magic
+   * attacks and healing, but units with other attacks should override this.
+   */
+  getAttackResult(action, unit) {
+    let result = { unit };
+    let calc = this.calcAttack(unit, this.assignment, action.target);
+
+    if (calc.immune) {
+      result.miss = 'immune';
+
+      return result;
+    }
+
+    let bad_luck = Math.random() * 100;
+
+    // This metric is used to determine which actions required luck to determine results.
+    if (calc.chance > 0 && calc.chance < 100)
+      result.luck = Math.round(calc.chance - bad_luck);
+
+    if (bad_luck < calc.chance) {
+      result.changes = {};
+      result.changes.mHealth = unit.mHealth =
+        Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage));
+
+      if (calc.bonus)
+        result.changes.mBlocking = unit.mBlocking += calc.bonus;
+    }
+    else {
+      result.miss = 'blocked';
+
+      if (calc.penalty || unit.directional !== false) {
+        result.changes = {};
+
+        if (unit.directional !== false) {
+          let direction = this.board.getDirection(unit.assignment, this.assignment, unit.direction);
+          if (direction !== unit.direction)
+            result.changes.direction = unit.direction = direction;
+        }
+
+        if (calc.penalty)
+          result.changes.mBlocking = unit.mBlocking -= calc.penalty;
+      }
+    }
+
+    return result;
+  }
+  /*
    * Apply sub-results that are after-effects of certain results.
    */
   getAttackSubResults(results) {
-    // Keep track of changes to unit data from one result to another.
-    let unitsData = [];
+    let board = this.board;
 
     results.forEach(result => {
-      let unit    = result.unit;
+      if (result.miss) return;
+
+      let unit = result.unit;
       let changes = result.changes;
-      if (!changes) return;
 
-      let resultUnit = unitsData.find(ud => ud.unit === unit);
-      if (!resultUnit)
-        unitsData.push(resultUnit = {
-          unit:      unit,
-          focusing:  unit.focusing  && unit.focusing.slice(),
-          paralyzed: unit.paralyzed && unit.paralyzed.slice(),
-          barriered: unit.barriered && unit.barriered.slice(),
-          poisoned:  unit.poisoned  && unit.poisoned.slice(),
-        });
-
-      if (changes.paralyzed)
-        resultUnit.paralyzed = changes.paralyzed;
-      if (changes.barriered)
-        resultUnit.barriered = changes.barriered;
-      if (changes.poisoned)
-        resultUnit.poisoned = changes.poisoned;
-
-      // Break the focus of attacked focusing units
-      if (resultUnit.focusing) {
+      // Most attacks break the focus of focusing units.
+      if (unit.focusing) {
         if (
-          !changes.paralyzed &&
-          !changes.poisoned &&
-          !('mHealth' in changes && changes.mHealth < unit.mHealth)
+          this.aType === 'heal' ||
+          this.aType === 'barrier' ||
+          this.aType === 'armor'
         ) return;
 
         let subResults = result.results || (result.results = []);
-        subResults.push({
-          unit: unit,
-          changes: { focusing:false },
-        });
-
-        resultUnit.focusing.forEach(fUnit => {
-          let focusedUnit = unitsData.find(ud => ud.unit === fUnit);
-          if (!focusedUnit)
-            unitsData.push(focusedUnit = {
-              unit:      fUnit,
-              focusing:  fUnit.focusing  && fUnit.focusing.slice(),
-              paralyzed: fUnit.paralyzed && fUnit.paralyzed.slice(),
-              barriered: fUnit.barriered && fUnit.barriered.slice(),
-              poisoned:  fUnit.poisoned  && fUnit.poisoned.slice(),
-            });
-
-          let property;
-          if (unit.aType === 'paralyze')
-            property = 'paralyzed';
-          else if (unit.aType === 'barrier')
-            property = 'barriered';
-          else if (unit.aType === 'poison')
-            property = 'poisoned';
-          else
-            throw new Error('Unrecognized aType');
-
-          let newValue = focusedUnit[property].filter(u => u !== unit);
-          focusedUnit[property] = newValue.length ? newValue : false;
-
-          subResults.push({
-            unit: fUnit,
-            changes: { [property]:focusedUnit[property] },
-          });
-        });
-
-        resultUnit.focusing = false;
+        subResults.push(...unit.getBreakFocusResult(true));
       }
       // Remove focus from dead units
-      else if (unit.paralyzed || unit.poisoned) {
-        if (!('mHealth' in changes)) return;
-        if (changes.mHealth > -unit.health) return;
+      else if (unit.paralyzed || unit.poisoned || unit.armored) {
+        if (unit.mHealth > -unit.health) return;
 
-        let subResults = [];
+        let subResults = result.results || (result.results = []);
         let focusingUnits = [
           ...(unit.paralyzed || []),
           ...(unit.poisoned  || []),
+          ...(unit.armored   || []),
         ];
 
         // All units focusing on this dead unit can stop.
         focusingUnits.forEach(fUnit => {
-          let focusingUnit = unitsData.find(ud => ud.unit === fUnit);
-          if (!focusingUnit)
-            unitsData.push(focusingUnit = {
-              unit:      fUnit,
-              focusing:  fUnit.focusing  && fUnit.focusing.slice(),
-              paralyzed: fUnit.paralyzed && fUnit.paralyzed.slice(),
-              barriered: fUnit.barriered && fUnit.barriered.slice(),
-              poisoned:  fUnit.poisoned  && fUnit.poisoned.slice(),
-            });
-
-          // Skip units that aren't focusing anymore.
-          if (focusingUnit.focusing === false) return;
-
-          let newValue = focusingUnit.focusing.filter(u => u !== unit);
-          focusingUnit.focusing = newValue.length ? newValue : false;
-
           subResults.push({
             unit: fUnit,
-            changes: { focusing:focusingUnit.focusing },
+            changes: {
+              focusing: fUnit.focusing = fUnit.focusing.length === 1
+                ? false
+                : fUnit.focusing.filter(t => t !== this),
+            }
           });
         });
 
-        let subChanges = {};
-        if (unit.paralyzed)
-          subChanges.paralyzed = false;
-        if (unit.poisoned)
-          subChanges.poisoned = false;
+        // Stop showing the unit as paralyzed or poisoned
+        if (unit.paralyzed || unit.poisoned) {
+          let subChanges = {};
+          if (unit.paralyzed)
+            subChanges.paralyzed = unit.paralyzed = false;
+          if (unit.poisoned)
+            subChanges.poisoned = unit.poisoned = false;
 
-        subResults.push({
-          unit: unit,
-          changes: subChanges,
-        });
-
-        result.results = subResults;
+          subResults.push({
+            unit: unit,
+            changes: subChanges,
+          });
+        }
       }
+
+      board.applyActionResults(result.results);
     });
   }
   /*
@@ -1646,6 +1554,9 @@ export default class {
         ],
       });
 
+    if (breakAction.results.length === 0)
+      return null;
+
     return breakAction;
   }
   validateAction(action) {
@@ -1773,7 +1684,13 @@ export default class {
     return this.directional !== false;
   }
   isPassable() {
-    return this.focusing === false && !this.paralyzed && !this.barriered && this.mPass !== false;
+    return (
+      !this.focusing &&
+      !this.paralyzed &&
+      !this.barriered &&
+      !this.poisoned &&
+      this.mPass !== false
+    );
   }
 
   on() {
@@ -1811,11 +1728,18 @@ export default class {
       'paralyzed',
       'barriered',
       'poisoned',
+      'armored',
     ];
 
     properties.forEach(prop => {
       if (this[prop])
-        if (prop === 'focusing' || prop === 'paralyzed' || prop === 'barriered' || prop === 'poisoned')
+        if (
+          prop === 'focusing' ||
+          prop === 'paralyzed' ||
+          prop === 'barriered' ||
+          prop === 'poisoned' ||
+          prop === 'armored'
+        )
           state[prop] = this[prop].map(u => u.id);
         else
           state[prop] = this[prop];

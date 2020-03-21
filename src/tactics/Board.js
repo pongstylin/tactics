@@ -976,6 +976,9 @@ export default class {
       if (unit.barriered)
         notices.push('Barriered!');
 
+      if (unit.armored)
+        notices.push('Armored!');
+
       if (unit.mBlocking < 0)
         notices.push('Vulnerable!');
 
@@ -1022,11 +1025,11 @@ export default class {
         }
       }
       else {
-        els.block.text = '---';
+        els.block.text = '—';
         els.mBlock.text = '';
       }
 
-      els.power.text = unit.power || '--';
+      els.power.text = unit.power || '—';
 
       if (unit.mPower) {
         if (unit.mPower > 0) {
@@ -1045,7 +1048,7 @@ export default class {
         els.mPower.text = '';
       }
 
-      els.armor.text = unit.armor || '--';
+      els.armor.text = unit.armor || '—';
 
       if (unit.mArmor) {
         if (unit.mArmor > 0) {
@@ -1078,9 +1081,9 @@ export default class {
       els.layer3.visible = false;
 
       els.recovery.text = 'Recovery  '+unit.mRecovery+'/'+unit.recovery;
-      els.notice1.text = notices.length ? notices.shift() : '---';
-      els.notice2.text = notices.length ? notices.shift() : '---';
-      els.notice3.text = notices.length ? notices.shift() : '---';
+      els.notice1.text = notices.length ? notices.shift() : '—';
+      els.notice2.text = notices.length ? notices.shift() : '—';
+      els.notice3.text = notices.length ? notices.shift() : '—';
     }
     else if (defaultNotice) {
       unit = this._trophy;
@@ -1112,7 +1115,7 @@ export default class {
 
       let avatar = unit.drawAvatar();
       let avatarBounds = avatar.getLocalBounds();
-      avatar.position.y = Math.max(54, -avatarBounds.y);
+      avatar.position.y = Math.min(76, Math.max(54, -avatarBounds.y));
       avatar.filters = this.unitsContainer.filters;
       avatar.mask = mask;
 
@@ -1259,6 +1262,72 @@ export default class {
     return this;
   }
 
+  applyAction(action) {
+    let unit = action.unit;
+
+    if (unit) {
+      if (action.assignment)
+        this.assign(unit, action.assignment);
+      if (action.direction)
+        unit.direction = action.direction;
+      if (action.colorId)
+        unit.color = colorMap.get(action.colorId);
+    }
+
+    this.applyActionResults(action.results);
+
+    // Remove dead units.
+    this.teamsUnits.flat().forEach(unit => {
+      // Chaos Seed doesn't die.  It hatches.
+      if (unit.type === 'ChaosSeed') return;
+
+      if (unit.mHealth === -unit.health)
+        this.dropUnit(unit);
+    });
+  }
+  applyActionResults(results) {
+    if (!results) return;
+
+    results.forEach(result => {
+      let unit = result.unit;
+
+      if (result.type === 'summon') {
+        this.addUnit(unit, this.teams[result.teamId]);
+      }
+      else {
+        // Use a shallow clone to protect against modification.
+        let changes = Object.assign({}, result.changes);
+
+        if (Object.keys(changes).length) {
+          // For a change in type, we need to replace the unit instance.
+          // Only Chaos Seed changes type to a Chaos Dragon.
+          // By default, only the old unit id, direction, assignment, and color is inherited.
+          if (changes.type) {
+            // Dropping a unit clears the assignment.  So get it first.
+            let assignment = unit.assignment;
+
+            unit = this
+              .dropUnit(unit)
+              .addUnit({
+                id:         unit.id,
+                type:       changes.type,
+                assignment: assignment,
+                direction:  changes.direction || unit.direction,
+                color:      unit.color,
+              }, unit.team);
+            delete changes.type;
+          }
+
+          if (Object.keys(changes).length)
+            unit.change(changes);
+        }
+
+        if (result.results)
+          this.applyActionResults(result.results);
+      }
+    });
+  }
+
   /*
     This does not actually rotate the board - that causes all kinds of
     complexity.  Rather, it rearranges the units so that it appears the
@@ -1364,6 +1433,8 @@ export default class {
         encoded.barriered = encoded.barriered.map(u => u.id);
       if (encoded.poisoned)
         encoded.poisoned = encoded.poisoned.map(u => u.id);
+      if (encoded.armored)
+        encoded.armored = encoded.armored.map(u => u.id);
 
       if ('changes' in encoded)
         encoded.changes = encode(encoded.changes);
@@ -1411,6 +1482,8 @@ export default class {
         decoded.barriered = decoded.barriered.map(uId => units.find(u => u.id === uId));
       if (decoded.poisoned)
         decoded.poisoned = decoded.poisoned.map(uId => units.find(u => u.id === uId));
+      if (decoded.armored)
+        decoded.armored = decoded.armored.map(uId => units.find(u => u.id === uId));
 
       if ('changes' in decoded)
         decoded.changes = decode(decoded.changes);
@@ -1486,6 +1559,8 @@ export default class {
         unit.barriered = unit.barriered.map(uId => units.find(u => u.id === uId));
       if (unit.poisoned)
         unit.poisoned = unit.poisoned.map(uId => units.find(u => u.id === uId));
+      if (unit.armored)
+        unit.armored = unit.armored.map(uId => units.find(u => u.id === uId));
 
       if (unit.pixi) {
         if (unit.focusing || unit.paralyzed || unit.poisoned)

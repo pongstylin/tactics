@@ -1,11 +1,21 @@
 import Unit from 'tactics/Unit.js';
 
-export default class FrostGolem extends Unit {
+export default class StoneGolem extends Unit {
+  getTargetUnits(target) {
+    let targetUnits = super.getTargetUnits(target);
+
+    return targetUnits.sort((a, b) => {
+      if (a === this) return -1;
+      if (b === this) return 1;
+      return 0;
+    });
+  }
   getAttackResult(action, unit) {
     return {
       unit,
       changes: {
-        paralyzed: [...(unit.paralyzed || []), this],
+        mArmor: unit.mArmor + 30,
+        armored: [...(unit.armored || []), this],
       },
       results: [{
         unit: this,
@@ -23,9 +33,10 @@ export default class FrostGolem extends Unit {
     let subResults = this.focusing.map(tUnit => ({
       unit: tUnit,
       changes: {
-        paralyzed: tUnit.paralyzed.length === 1
+        mArmor: tUnit.mArmor - 30,
+        armored: tUnit.armored.length === 1
           ? false
-          : tUnit.paralyzed.filter(t => t !== this),
+          : tUnit.armored.filter(t => t !== this),
       },
     }));
 
@@ -37,4 +48,4 @@ export default class FrostGolem extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-FrostGolem.prototype.type = 'FrostGolem';
+StoneGolem.prototype.type = 'StoneGolem';
