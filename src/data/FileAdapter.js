@@ -49,7 +49,6 @@ export default class {
     game.version = getLatestVersionNumber('game');
 
     await this._lockAndCreateFile(`game_${game.id}`, game);
-    await this._saveGameSummary(game);
 
     return game;
   }
