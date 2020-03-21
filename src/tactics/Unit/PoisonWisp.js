@@ -1,11 +1,12 @@
 import Unit from 'tactics/Unit.js';
 
-export default class FrostGolem extends Unit {
+export default class PoisonWisp extends Unit {
   getAttackResult(action, unit) {
     return {
       unit,
       changes: {
-        paralyzed: [...(unit.paralyzed || []), this],
+        mHealth: Math.max(-unit.health + 1, unit.mHealth - this.power),
+        poisoned: [...(unit.poisoned || []), this],
       },
       results: [{
         unit: this,
@@ -23,9 +24,9 @@ export default class FrostGolem extends Unit {
     let subResults = this.focusing.map(tUnit => ({
       unit: tUnit,
       changes: {
-        paralyzed: tUnit.paralyzed.length === 1
+        poisoned: tUnit.poisoned.length === 1
           ? false
-          : tUnit.paralyzed.filter(t => t !== this),
+          : tUnit.poisoned.filter(t => t !== this),
       },
     }));
 
@@ -37,4 +38,4 @@ export default class FrostGolem extends Unit {
 }
 
 // Dynamically add unit data properties to the class.
-FrostGolem.prototype.type = 'FrostGolem';
+PoisonWisp.prototype.type = 'PoisonWisp';

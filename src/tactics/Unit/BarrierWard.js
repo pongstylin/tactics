@@ -1,23 +1,38 @@
 import Unit from 'tactics/Unit.js';
 
 export default class BarrierWard extends Unit {
-  getBreakFocusResult() {
+  getAttackResult(action, unit) {
     return {
-      unit: this,
+      unit,
       changes: {
-        focusing: false,
+        barriered: [...(unit.barriered || []), this],
       },
-      results: [
-        ...this.focusing.map(tUnit => ({
-          unit: tUnit,
-          changes: {
-            barriered: tUnit.barriered.length === 1
-              ? false
-              : tUnit.barriered.filter(t => t !== this),
-          },
-        })),
-      ],
+      results: [{
+        unit: this,
+        changes: {
+          focusing: [...(this.focusing || []), unit],
+        },
+      }],
     };
+  }
+  getBreakFocusResult(flatten = false) {
+    let result = {
+      unit: this,
+      changes: { focusing:false },
+    };
+    let subResults = this.focusing.map(tUnit => ({
+      unit: tUnit,
+      changes: {
+        barriered: tUnit.barriered.length === 1
+          ? false
+          : tUnit.barriered.filter(t => t !== this),
+      },
+    }));
+
+    if (flatten)
+      return [result, ...subResults];
+    else
+      return {...result, results:subResults};
   }
   focus(view_only) {
     super.focus(view_only);

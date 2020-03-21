@@ -144,5 +144,54 @@
         ]
       }]
     }
+  ],
+  [
+    "singleGold",
+    {
+      "name": "Single Gold",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "units": {
+          "max": 10,
+
+          "types": [
+            ["Cleric",         { "max":10 }],
+            ["Knight",         { "max":3  }],
+            ["Assassin",       { "max":10 }],
+            ["DarkMagicWitch", { "max":10 }],
+            ["Pyromancer",     { "max":10 }],
+            ["Enchantress",    { "max":10 }],
+            ["Scout",          { "max":1  }],
+            ["BeastRider",     { "max":10 }],
+            ["LightningWard",  { "max":1  }],
+            ["MudGolem",       { "max":10 }],
+            ["BarrierWard",    { "max":9  }],
+            ["Furgon",         { "max":1  }],
+            ["FrostGolem",     { "max":10 }],
+            ["StoneGolem",     { "max":1  }],
+            ["DragonTyrant",   { "max":1  }],
+            ["PoisonWisp",     { "max":1  }],
+            ["GolemAmbusher",  { "max":1  }],
+            ["Berserker",      { "max":1  }]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[2, 1], "type":"DarkMagicWitch" },
+          { "assignment":[3, 1], "type":"Pyromancer" },
+          { "assignment":[7, 1], "type":"Pyromancer" },
+          { "assignment":[8, 1], "type":"Enchantress" },
+          { "assignment":[1, 2], "type":"Assassin" },
+          { "assignment":[4, 2], "type":"Knight" },
+          { "assignment":[5, 2], "type":"Knight" },
+          { "assignment":[6, 2], "type":"Knight" },
+          { "assignment":[9, 2], "type":"Scout" }
+        ]
+      }]
+    }
   ]
 ]

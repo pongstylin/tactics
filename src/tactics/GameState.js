@@ -513,20 +513,32 @@ export default class GameState {
 
       // Taking an action may break certain status effects.
       let breakAction = unit.getBreakAction(action);
-      if (breakAction.results.length)
+      if (breakAction)
         pushAction(breakAction);
 
       // Apply unit-specific validation and determine results.
       action = unit.validateAction(action);
       if (!action) return;
 
-      // Prevent multiple actions of a type within a turn.
+      /*
+       * Validate the action taking game state into consideration.
+       */
       let moved    = this.moved;
       let attacked = this.attacked;
 
-      if      (action.type === 'move'          && moved   ) return;
-      else if (action.type === 'attack'        && attacked) return;
-      else if (action.type === 'attackSpecial' && attacked) return;
+      if (action.type === 'move') {
+        // Can't move twice.
+        if (moved) return;
+      }
+      else if (action.type === 'attack' || action.type === 'attackSpecial') {
+        // Can't attack twice
+        if (attacked) return;
+
+        // Can't attack if poisoned at turn start.
+        let unitState = this.units[unit.team.id].find(u => u.id === unit.id);
+        if (unitState.poisoned)
+          return;
+      }
 
       // Turning in the current direction is the same as ending your turn.
       if (action.type === 'turn' && action.direction === unit.direction)
@@ -963,6 +975,8 @@ export default class GameState {
 
     teams.forEach(team => {
       team.units.forEach(unit => {
+        let result = { unit, changes:{} };
+
         // Adjust recovery for the outgoing team.
         if (team === currentTeam) {
           let mRecovery;
@@ -986,10 +1000,16 @@ export default class GameState {
             mRecovery = unit.mRecovery - 1;
 
           if (mRecovery !== undefined)
-            results.push({
-              unit:    unit,
-              changes: { mRecovery },
-            });
+            result.changes.mRecovery = mRecovery;
+        }
+
+        if (unit.poisoned) {
+          let mHealth = unit.mHealth;
+          unit.poisoned.forEach(attacker => mHealth -= attacker.power);
+          mHealth = Math.max(-unit.health + 1, mHealth);
+
+          if (mHealth !== unit.mHealth)
+            result.changes.mHealth = mHealth;
         }
 
         // Decay blocking modifiers for all applicable units
@@ -997,11 +1017,11 @@ export default class GameState {
           let mBlocking = unit.mBlocking * (1 - 0.2/decay);
           if (Math.abs(mBlocking) < 2) mBlocking = 0;
 
-          results.push({
-            unit:    unit,
-            changes: { mBlocking:mBlocking },
-          });
+          result.changes.mBlocking = mBlocking;
         }
+
+        if (Object.keys(result.changes).length)
+          results.push(result);
       });
     });
 
@@ -1068,73 +1088,10 @@ export default class GameState {
   _applyAction(action) {
     this._actions.push(action);
 
-    let board = this._board;
-    let unit = action.unit;
-
-    if (unit) {
-      if (action.assignment)
-        board.assign(unit, action.assignment);
-      if (action.direction)
-        unit.direction = action.direction;
-      if (action.colorId)
-        unit.color = colorMap.get(action.colorId);
-    }
-
-    this._applyChangeResults(action.results);
-
-    // Remove dead units.
-    board.teamsUnits.flat().forEach(unit => {
-      // Chaos Seed doesn't die.  It hatches.
-      if (unit.type === 'ChaosSeed') return;
-
-      if (unit.mHealth === -unit.health)
-        board.dropUnit(unit);
-    });
+    this._board.applyAction(action);
 
     if (action.type === 'endTurn')
       this._pushHistory();
-  }
-  _applyChangeResults(results) {
-    if (!results) return;
-
-    results.forEach(result => {
-      let unit = result.unit;
-
-      if (result.type === 'summon') {
-        this._board.addUnit(unit, this.teams[result.teamId]);
-      }
-      else {
-        // Use a shallow clone to protect against modification.
-        let changes = Object.assign({}, result.changes);
-
-        if (Object.keys(changes).length) {
-          // For a change in type, we need to replace the unit instance.
-          // Only Chaos Seed changes type to a Chaos Dragon.
-          // By default, only the old unit id, direction, assignment, and color is inherited.
-          if (changes.type) {
-            // Dropping a unit clears the assignment.  So get it first.
-            let assignment = unit.assignment;
-
-            unit = this._board
-              .dropUnit(unit)
-              .addUnit({
-                id:         unit.id,
-                type:       changes.type,
-                assignment: assignment,
-                direction:  changes.direction || unit.direction,
-                color:      unit.color,
-              }, unit.team);
-            delete changes.type;
-          }
-
-          if (Object.keys(changes).length)
-            unit.change(changes);
-        }
-
-        if (result.results)
-          this._applyChangeResults(result.results);
-      }
-    });
   }
 
   _resetTurn() {
