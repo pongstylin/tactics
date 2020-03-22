@@ -14,7 +14,7 @@ It is not enough to recreate the original game experience.  It is important to m
 
 The final goal of this project is to keep the game relevant as technology changes.  The original game used Flash and did not transition well to the mobile lifestyle.  So this project uses HTML5 web technology that can be used on any system whether you're using a mouse, your finger, or a stylus.  To meet this goal, this game will differ in minor ways from the original, but not in ways that anybody would complain about.
 
-That is as far as it goes.  This project is intended to recreate the core game experience in the modern world.  It will not include community support features such as clans, private messaging, tournament hosting, or enforcing different styles of play.  Anybody who hosts this game is responsible for building such features according to their personal preference.
+That is as far as it goes.  This project is intended to recreate the core game experience in the modern world.  It will not include community support features such as clans, private messaging, or tournament hosting.  Anybody who hosts this game is responsible for building such features according to their personal preference.
 
 ## Requirements
 * Node.js v12.16.1+
