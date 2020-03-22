@@ -1300,6 +1300,21 @@ export default class {
         );
 
       anim = this.renderAnimation('block', direction);
+
+      /*
+       * Poisoned units can block.  Maintain focus as they do so.
+       */
+      let focusContainer = this.getContainerByName('Focus');
+      if (focusContainer) {
+        anim.splice(0, {
+          script: () => {
+            let shadowContainer = this.getContainerByName('shadow');
+            shadowContainer.addChild(focusContainer);
+          },
+          repeat: anim.frames.length,
+        });
+      }
+
       anim.addFrame(() => this.stand(direction));
     }
 
