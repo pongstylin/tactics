@@ -772,8 +772,39 @@ export default class {
         [5, 9],
       ];
     }
+    else if (num < 19) {
+      /*
+       * Space out the tiles a bit
+       */
+      for (let y = 0; y < 6; y++) {
+        for (let x = 0; x < 11; x++) {
+          let tile = board.getTile(x, y);
+          if (!tile) continue;
 
-    let cols = [5, 3, 7, 1, 9];
+          let distanceX = 5 - Math.abs(x - 10);
+          let offsetX = board.getOffset(distanceX / 4, 'E');
+          let distanceY = Math.abs(y - 5);
+          let offsetY = board.getOffset(distanceY / 2, 'N');
+
+          tile.pixi.position.x += offsetX[0] + offsetY[0];
+          tile.pixi.position.y += offsetX[1] + offsetY[1];
+
+          if (y === 4) {
+            let offset = board.getOffset(1 /3, 'E');
+            tile.pixi.position.x += offset[0];
+            tile.pixi.position.y += offset[1];
+          }
+        }
+      }
+
+      return [
+        [5, 5], [4, 5], [6, 5], [3, 5], [7, 5], [2, 5], [8, 5], [1, 5], [9, 5],
+        [5, 6], [6, 6], [4, 6], [7, 6], [3, 6], [8, 6],
+        [5, 7], [4, 7], [6, 7],
+      ];
+    }
+
+    let cols = [5, 4, 6, 3, 7, 2, 8, 1, 9];
     let rows = [5, 7, 9, 6, 8, 10];
     let positions = [];
 
@@ -863,20 +894,14 @@ export default class {
       else
         unit.showFocus(0.8);
 
-      let bgColor;
       let textColor;
-      let borderColor;
       let text;
       if (count === 0) {
-        bgColor = 0x444444;
-        textColor = 0xFF0000;
-        borderColor = 0x222222;
-        text = 'X';
+        textColor = 0x888888;
+        text = 'x';
       }
       else {
-        bgColor = 0x008800;
         textColor = 0xFFFFFF;
-        borderColor = 0x888888;
         text = count;
       }
 
