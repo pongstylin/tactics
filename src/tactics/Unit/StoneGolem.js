@@ -1,6 +1,9 @@
 import Unit from 'tactics/Unit.js';
 
 export default class StoneGolem extends Unit {
+  getTargetTiles(target) {
+    return this.board.getTileRange(target, 0, 1);
+  }
   getTargetUnits(target) {
     let targetUnits = super.getTargetUnits(target);
 

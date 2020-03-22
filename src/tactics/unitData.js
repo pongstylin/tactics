@@ -196,7 +196,6 @@ unitDataMap.set('StoneGolem', {
   aType: 'armor',
   aFocus: true,
   aRange: [0, 1],
-  aAll: true,
   tier: 3,
 });
 
