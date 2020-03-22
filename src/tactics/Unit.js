@@ -419,9 +419,9 @@ export default class {
           subResults.push({
             unit: fUnit,
             changes: {
-              focusing: fUnit.focusing = fUnit.focusing.length === 1
+              focusing: fUnit.focusing.length === 1
                 ? false
-                : fUnit.focusing.filter(t => t !== this),
+                : fUnit.focusing.filter(t => t !== unit),
             }
           });
         });
