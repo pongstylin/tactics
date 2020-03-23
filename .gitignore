@@ -2,3 +2,4 @@ node_modules
 dist
 static/*.min.js
 static/sw.js
+!static/jquery*
