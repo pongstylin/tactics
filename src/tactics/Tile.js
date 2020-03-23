@@ -247,8 +247,10 @@ export default class {
     // Events are posted even if not interactive so that the board can track
     // the currently focused tile.
     this._emit({
-      type:   'focus',
+      type: 'focus',
       target: this,
+      pixiEvent: event,
+      pointerEvent: event.data.originalEvent,
     });
   }
   onBlur(event) {

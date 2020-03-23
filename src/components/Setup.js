@@ -64,6 +64,7 @@ export default class {
 
     board
       .on('focus', ({ tile, unit }) => {
+        Tactics.playSound('focus');
         board.focused = unit;
 
         if (unit.team.name === 'Set')
@@ -87,6 +88,7 @@ export default class {
       .on('select', ({ target:tile, pointerEvent }) => {
         let unit = tile.assigned;
 
+        Tactics.playSound('select');
         if (pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2) {
           if (unit.team.name === 'Pick') return;
 
@@ -553,8 +555,10 @@ export default class {
     this._stage.interactive = true;
     this.render();
   }
-  _onDragFocus({ target:tile }) {
-    tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
+  _onDragFocus(event) {
+    Tactics.playSound('focus');
+    event.target.paint('focus', 0.3, FOCUS_TILE_COLOR);
+    this._onDragMove(event);
   }
   _onDragBlur({ target:tile }) {
     tile.strip();
@@ -608,20 +612,34 @@ export default class {
       dragAvatar.position = pixiEvent.data.getLocalPosition(this._stage);
       this._onTrashBlur();
     }
-    else {
-      // Hide shadow while over trash can
-      dragUnit.getContainerByName('shadow', dragAvatar).alpha = 0;
+    else if (!this._trashIsFocused()) {
+      // There can be a very brief delay between the old tile blurring and a new
+      // tile focusing.  So, only focus trash if appropriate after a delay.
+      setTimeout(() => {
+        if (board.focusedTile) return;
 
-      let trashPoint = this._trash.position;
-      dragAvatar.position.set(
-        trashPoint.x,
-        trashPoint.y - TILE_HEIGHT/4,
-      );
-      this._onTrashFocus();
+        // Hide shadow while over trash can
+        dragUnit.getContainerByName('shadow', dragAvatar).alpha = 0;
+
+        let trashPoint = this._trash.position;
+        dragAvatar.position.set(
+          trashPoint.x,
+          trashPoint.y - TILE_HEIGHT/4,
+        );
+        this._onTrashFocus();
+      });
     }
 
     this.render();
   }
+  /*
+   * If cancelled === true:
+   *   It means the unit was dropped outside a valid tile or on the origin tile.
+   *   If tile is defined, it is the latter.
+   * else
+   *   The unit was dropped on an empty or occupied tile.
+   *   If occupied, the units are swapped.
+   */
   _onDragDrop({ pixiEvent, target:tile, cancelled }) {
     let dragSource = this._dragSource;
     if (!dragSource) return;
@@ -630,6 +648,8 @@ export default class {
     this._stage.interactive = false;
 
     if (this._dragAvatar) {
+      Tactics.playSound('select');
+
       this._dragAvatar.destroy();
       this._dragAvatar = null;
       this._board.tiles.forEach(tile => {
@@ -638,12 +658,14 @@ export default class {
 
       let dragUnit = dragSource.targetUnit;
       if (cancelled) {
-        // Prevent tap event from firing
-        pixiEvent.stopPropagation();
-
         if (dragUnit.team.name === 'Set') {
-          if (tile)
+          if (tile) {
             this._board.assign(dragUnit, tile);
+
+            // Prevent tap event from firing
+            tile.set_interactive(false);
+            setTimeout(() => tile.set_interactive(true));
+          }
           else {
             this._board.dropUnit(dragUnit);
             this._drawPicks();
@@ -676,13 +698,18 @@ export default class {
   }
 
   _onTrashSelect() {
+    Tactics.playSound('select');
     let selected = this.selected;
     this.selected = null;
 
     this.removeUnit(selected);
     this._disableTrash();
   }
+  _trashIsFocused() {
+    return this._trash.children[0].alpha !== 0;
+  }
   _onTrashFocus() {
+    Tactics.playSound('focus');
     this._trash.children[0].alpha = 1;
   }
   _onTrashBlur() {
@@ -796,6 +823,7 @@ export default class {
         this.render();
       },
       onSelect: ({ target:tile }) => {
+        Tactics.playSound('select');
         board.clearHighlight(tile);
 
         if (unit.team.name === 'Pick')
