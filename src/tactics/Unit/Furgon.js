@@ -121,16 +121,15 @@ export default class Furgon extends Unit {
     let results = action.results;
     if (!results.length) return anim;
 
-    let distances = results.map(result =>
+    let shrubResults = results.filter(r => r.unit.type === 'Shrub');
+    let distances = shrubResults.map(result =>
       board.getDistance(this.assignment, result.unit.assignment)
     );
     let closest = Math.min(...distances);
     let range = Math.max(...distances) - closest;
     let maxDelay = 4;
 
-    for (let result of action.results) {
-      if (result.unit === this) continue;
-
+    for (let result of shrubResults) {
       let target = result.unit.assignment;
       let distance = distances.shift() - closest;
       let delay = Math.round(distance / range * maxDelay);

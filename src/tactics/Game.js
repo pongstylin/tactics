@@ -1136,7 +1136,10 @@ export default class {
             // Wait 2 seconds then do it.
             setTimeout(() => {
               attacker.deactivate();
-              this._performAction(action).then(resolve);
+              this._performAction(action).then(() => {
+                selected.activate();
+                resolve();
+              });
             }, 2000);
           }
         });
