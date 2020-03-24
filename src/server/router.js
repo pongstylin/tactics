@@ -435,7 +435,7 @@ function debugMessage(client, message, inOrOut) {
   }
   else if (message.type === 'response')
     if (body.error)
-      suffix = `[${message.id}] requestId=${body.requestId}; error=${body.error.message}`;
+      suffix = `[${message.id}] requestId=${body.requestId}; error=[${body.error.code}] ${body.error.message}`;
     else
       suffix = `[${message.id}] requestId=${body.requestId}`;
   else if (
@@ -450,7 +450,7 @@ function debugMessage(client, message, inOrOut) {
   else if (message.type === 'resume')
     suffix = `sessionId=${body.sessionId}`;
   else if (message.type === 'error')
-    suffix = `error=${message.error.message}`;
+    suffix = `error=[${message.error.code}] ${message.error.message}`;
 
   if (message.type === 'sync') {
     if (suffix || suffixV) {

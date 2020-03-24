@@ -714,7 +714,7 @@ class GameService extends Service {
     let playerId = this.clientPara.get(client.id).playerId;
 
     if (game.state.ended)
-      throw new ServerError(403, 'The game has ended');
+      throw new ServerError(409, 'The game has ended');
 
     let undoRequest = game.undoRequest || {};
     if (undoRequest.status === 'pending')
@@ -745,7 +745,7 @@ class GameService extends Service {
     else if (myTeams.includes(game.state.currentTeam))
       action.forEach(a => a.teamId = game.state.currentTeamId);
     else
-      throw new ServerError(403, 'Not your turn!');
+      throw new ServerError(409, 'Not your turn!');
 
     game.state.submitAction(action);
     // Clear a rejected undo request after an action is performed.
