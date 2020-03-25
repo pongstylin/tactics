@@ -865,7 +865,7 @@ function onClose(code, reason) {
  * Connection and Session Monitoring
  *
  * Send sync messages every 5 seconds on otherwise outbound-idle connections.
- * Close connections after 10 seconds of being inbound-idle.
+ * Close connections after inbound-idle connection timeout has been reached.
  ******************************************************************************/
 /*
  * These sets are ordered by clients that are idle longest to shortest.
@@ -875,7 +875,7 @@ let outboundClients = new Set();
 
 setInterval(() => {
   try {
-    let inboundTimeout = new Date() - 10000; // 10 seconds ago
+    let inboundTimeout = new Date() - process.env.CONNECTION_TIMEOUT;
     for (let client of inboundClients) {
       if (client.lastReceivedAt > inboundTimeout)
         break;

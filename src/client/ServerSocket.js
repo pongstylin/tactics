@@ -432,7 +432,10 @@ export default class ServerSocket {
 
     // Reset the close timeout
     clearTimeout(this._closeTimeout);
-    this._closeTimeout = setTimeout(() => this.close(CLOSE_SERVER_TIMEOUT), 10000);
+    this._closeTimeout = setTimeout(
+      () => this.close(CLOSE_SERVER_TIMEOUT),
+      process.env.CONNECTION_TIMEOUT,
+    );
 
     /*
      * Discard repeat messages.  Resync if a message was skipped.
