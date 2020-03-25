@@ -1534,7 +1534,9 @@ export default class {
     });
 
     anim.on('stop', event => {
-      container.parent.removeChild(container);
+      // Conditional just in case we stopped before we started.
+      if (container.parent)
+        container.parent.removeChild(container);
     });
 
     return anim;
