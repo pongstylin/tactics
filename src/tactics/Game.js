@@ -1667,7 +1667,7 @@ export default class {
         unit.color = colorMap.get(action.colorId);
     }
 
-    this._applyChangeResults(action.results);
+    this._applyChangeResults(action.results, true);
 
     // Remove dead units.
     board.teamsUnits.flat().forEach(unit => {
@@ -1678,7 +1678,7 @@ export default class {
         board.dropUnit(unit);
     });
   }
-  _applyChangeResults(results) {
+  _applyChangeResults(results, applyFocusChanges = false) {
     if (!results) return;
 
     results.forEach(result => {
@@ -1690,10 +1690,22 @@ export default class {
           unit.stand(changes.direction);
 
         unit.change(result.changes);
+
+        if (applyFocusChanges) {
+          if (unit.focusing || unit.paralyzed || unit.poisoned)
+            unit.showFocus();
+          else
+            unit.hideFocus();
+
+          if (unit.barriered)
+            unit.showBarrier();
+          else
+            unit.hideBarrier();
+        }
       }
 
       if (result.results)
-        this._applyChangeResults(result.results);
+        this._applyChangeResults(result.results, applyFocusChanges);
     });
   }
   _animApplyFocusChanges(result) {
