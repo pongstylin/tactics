@@ -803,9 +803,9 @@ export default class {
     }
     else {
       matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
-      matrix[3]  = color[0];
-      matrix[8]  = color[1];
-      matrix[13] = color[2];
+      matrix[4]  = color[0];
+      matrix[9]  = color[1];
+      matrix[14] = color[2];
     }
 
     return this;
@@ -1531,12 +1531,15 @@ export default class {
         container.filters = [blurFilter].concat(unitContainer.filters);
       else
         container.filters = [blurFilter];
+
+      this.colorize(0xFF3300, 0.15);
     });
 
     anim.on('stop', event => {
       // Conditional just in case we stopped before we started.
       if (container.parent)
         container.parent.removeChild(container);
+      this.colorize(null);
     });
 
     return anim;
