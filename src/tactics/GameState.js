@@ -335,6 +335,17 @@ export default class GameState {
         units: this.units,
       },
     });
+
+    // Pass the first turn if we can't find one playable unit.
+    let pass = !this.currentTeam.units.find(u => u.mRecovery === 0);
+    if (pass) {
+      let action = this._getEndTurnAction(true);
+      action.created = this.turnStarted;
+      action.teamId = action.teamId || this.currentTeamId;
+
+      this._applyAction(action);
+    }
+
     this._emit({
       type: 'startTurn',
       data: {
