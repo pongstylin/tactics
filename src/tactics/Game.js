@@ -123,6 +123,39 @@ export default class {
 
     this._stage.addChild(board.pixi);
 
+    state.whenStarted.then(() => {
+      // Clone teams since board.setState() applies a units property to each.
+      let teams = this._teams = state.teams.map(team => ({...team}));
+
+      // Rotate the board such that the first local team is south/red.
+      let board = this._board;
+      let degree = 0;
+      if (this._localTeamIds.length) {
+        let teamId = Math.min(...this._localTeamIds);
+        let team = teams.find(t => t.originalId === teamId);
+        degree = board.getDegree(team.position, 'S');
+
+        board.rotate(degree);
+      }
+
+      /*
+       * Apply team colors based on the team's (rotated?) position.
+       */
+      let colorIds = new Map([
+        ['N', 'Blue'  ],
+        ['E', 'Yellow'],
+        ['S', 'Red'   ],
+        ['W', 'Green' ],
+        ['C', 'White' ], // Chaos starts in a center position
+      ]);
+
+      teams.forEach(team => {
+        let position = board.getRotation(team.position, degree);
+
+        team.colorId = colorIds.get(position);
+      });
+    });
+
     Tactics.game = this;
   }
 
@@ -418,42 +451,14 @@ export default class {
   /*
    * Used to start playing the game... even if it is from the middle of it.
    */
-  start() {
+  async start() {
     let state = this.state;
+
+    await state.whenStarted;
 
     return new Promise((resolve, reject) => {
       // Let the caller finish what they are doing.
       setTimeout(() => {
-        // Clone teams since board.setState() applies a units property to each.
-        let teams = this._teams = state.teams.map(team => ({...team}));
-
-        // Rotate the board such that the first local team is south/red.
-        let board = this._board;
-        let degree = 0;
-        if (this._localTeamIds.length) {
-          let teamId = Math.min(...this._localTeamIds);
-          let team = teams.find(t => t.originalId === teamId);
-          degree = board.getDegree(team.position, 'S');
-
-          board.rotate(degree);
-        }
-
-        /*
-         * Apply team colors based on the team's (rotated?) position.
-         */
-        let colorIds = new Map([
-          ['N', 'Blue'  ],
-          ['E', 'Yellow'],
-          ['S', 'Red'   ],
-          ['W', 'Green' ],
-          ['C', 'White' ], // Chaos starts in a center position
-        ]);
-        teams.forEach(team => {
-          let position = board.getRotation(team.position, degree);
-
-          team.colorId = colorIds.get(position);
-        });
-
         /*
          * Before listening to events, determine current state so that only
          * events leading up to this point is played and any following events
@@ -469,7 +474,7 @@ export default class {
         state.on('event', this._onStateEventListener);
 
         if (state.ended) {
-          board.setState(state.units, teams);
+          board.setState(state.units, this.teams);
           this.actions.forEach(action => this._applyAction(action));
           this.render();
 

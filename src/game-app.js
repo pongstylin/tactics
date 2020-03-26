@@ -553,9 +553,17 @@ function appendMessages(messages) {
   updateChatButton();
 }
 function renderMessage(message) {
+  let playerId = message.player.id;
+  let playerName = message.player.name;
+  if (game.teams.filter(t => t.name === playerName).length > 1) {
+    let team = game.teams.find(t => t.playerId === playerId);
+    if (game.isMyTeam(team))
+      playerName = '<I>You</I> ';
+  }
+
   $('#messages').append(`
     <DIV class="message">
-      <SPAN class="player">${message.player.name}</SPAN>
+      <SPAN class="player">${playerName}</SPAN>
       <SPAN class="content">${message.content}</SPAN>
     </DIV>
   `);

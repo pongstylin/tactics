@@ -649,11 +649,7 @@ class GameService extends Service {
         if (!playerId || players.has(playerId))
           return;
 
-        let teamName = team.name;
-        if (teams.filter(t => t.name === teamName).length > 1)
-          teamName = team.color;
-
-        players.set(playerId, teamName);
+        players.set(playerId, team.name);
       });
 
       if (players.size > 1)
