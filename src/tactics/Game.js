@@ -1246,6 +1246,8 @@ export default class {
 
       // Show the effect on the unit
       this.drawCard(unit);
+      if (unit.type === 'Furgon' && changes.mRecovery === 6)
+        await sleep(2000);
 
       if (result.miss) {
         let notice = result.miss.toUpperCase('first')+'!';

@@ -967,7 +967,7 @@ export default class {
       if (unit.canSpecial()) {
         if (unit.type === 'Assassin')
           notices.push('Enraged!');
-        else if (unit.type === 'Furgon')
+        else if (unit.type === 'Furgon' && unit.mRecovery <= unit.recovery)
           notices.push('Empowered!');
       }
 
@@ -989,7 +989,7 @@ export default class {
       //
       //  Draw the top part of the card.
       //
-      if (unit.type === 'Furgon' && unit.mRecovery > 1)
+      if (unit.type === 'Furgon' && unit.mRecovery > unit.recovery)
         els.name.text = 'Exhausted Furgon';
       else
         els.name.text = unit.name;

@@ -544,6 +544,7 @@ export default class GameState {
        *   3) Assassin blew herself up.
        *   4) Enchantress paralyzed at least 1 unit.
        *   5) Lightning Ward attacked.
+       *   6) Furgon did special attack - immediately incurring recovery
        */
       if (action.type === 'attack' || action.type === 'attackSpecial') {
         let selected = this.selected;
@@ -551,6 +552,8 @@ export default class GameState {
           if (selected.mHealth === -selected.health)
             return true;
           if (selected.focusing)
+            return true;
+          if (selected.mRecovery)
             return true;
           if ((moved || !selected.canMove()) && !selected.canTurn())
             return true;
