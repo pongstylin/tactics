@@ -620,6 +620,7 @@ export default class GameState {
         let minTurnId = Math.max(-1, maxTurnId - attackTurnLimit);
         TURN:for (let i = maxTurnId; i > minTurnId; i--) {
           let actions = this._turns[i].actions;
+          let teamsUnits = this._turns[i].units;
 
           // If the only action that took place is ending the turn...
           if (actions.length === 1) {
@@ -633,14 +634,28 @@ export default class GameState {
               let action = actions[j];
               if (!action.type.startsWith('attack')) continue;
 
-              let attackerTeam = board.getUnit(action.unit).team;
+              let attackerTeamId;
+              for (let t = 0; t < teamsUnits.length; t++) {
+                if (teamsUnits[t].find(u => u.id === action.unit)) {
+                  attackerTeamId = t;
+                  break;
+                }
+              }
 
               for (let k = 0; k < action.results.length; k++) {
                 let result = action.results[k];
                 // This check ignores summoned units, e.g. shrubs
                 if (typeof result.unit !== 'number') continue;
 
-                if (board.getUnit(result.unit).team !== attackerTeam)
+                let defenderTeamId;
+                for (let t = 0; t < teamsUnits.length; t++) {
+                  if (teamsUnits[t].find(u => u.id === result.unit)) {
+                    defenderTeamId = t;
+                    break;
+                  }
+                }
+
+                if (defenderTeamId !== attackerTeamId)
                   break TURN;
               }
             }
