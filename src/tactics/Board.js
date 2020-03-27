@@ -242,9 +242,11 @@ export default class {
     return this;
   }
 
-  // Property accessors
   getTile(x, y) {
     return this.tiles[x+y*11];
+  }
+  getUnit(unitId) {
+    return this.teamsUnits.flat().find(tu => tu.id === unitId);
   }
   /*
    * Get all tiles that are within range.

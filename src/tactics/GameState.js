@@ -456,7 +456,8 @@ export default class GameState {
     if (!Array.isArray(actions))
       actions = [actions];
 
-    actions = this._board.decodeAction(actions);
+    let board = this._board;
+    actions = board.decodeAction(actions);
 
     let newActions = [];
     let pushAction = action => {
@@ -607,16 +608,51 @@ export default class GameState {
       while (turnEnded) {
         pushAction(endTurn);
 
+        // If all teams pass their turns 3 times, draw!
         let passedTurnLimit = this.teams.length * 3;
         let passedTurnCount = 0;
-        for (let i=this._turns.length-1; i > -1; i--) {
-          let actions = this._turns[i].actions;
-          if (actions.length > 1) break;
 
-          passedTurnCount++;
+        // If no teams attack each other for 15 cycles, draw!
+        let attackTurnLimit = this.teams.length * 15;
+        let attackTurnCount = 0;
+
+        let maxTurnId = this._turns.length - 1;
+        let minTurnId = Math.max(-1, maxTurnId - attackTurnLimit);
+        TURN:for (let i = maxTurnId; i > minTurnId; i--) {
+          let actions = this._turns[i].actions;
+
+          // If the only action that took place is ending the turn...
+          if (actions.length === 1) {
+            if (passedTurnCount !== null && ++passedTurnCount === passedTurnLimit)
+              break;
+          }
+          else {
+            passedTurnCount = null;
+
+            for (let j = 0; j < actions.length-1; j++) {
+              let action = actions[j];
+              if (!action.type.startsWith('attack')) continue;
+
+              let attackerTeam = board.getUnit(action.unit).team;
+
+              for (let k = 0; k < action.results.length; k++) {
+                let result = action.results[k];
+                // This check ignores summoned units, e.g. shrubs
+                if (typeof result.unit !== 'number') continue;
+
+                if (board.getUnit(result.unit).team !== attackerTeam)
+                  break TURN;
+              }
+            }
+          }
+
+          attackTurnCount++;
         }
 
-        if (passedTurnCount === passedTurnLimit) {
+        if (
+          passedTurnCount === passedTurnLimit ||
+          attackTurnCount === attackTurnLimit
+        ) {
           this.ended = new Date();
           break;
         }
@@ -637,7 +673,7 @@ export default class GameState {
     if (newActions.length)
       this._emit({
         type: 'action',
-        data: this._board.encodeAction(newActions),
+        data: board.encodeAction(newActions),
       });
 
     if (this.ended)
