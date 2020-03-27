@@ -453,6 +453,7 @@ export default class {
    */
   async start() {
     let state = this.state;
+    let board = this._board;
 
     await state.whenStarted;
 
