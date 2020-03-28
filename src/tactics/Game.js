@@ -948,11 +948,12 @@ export default class {
     return this.state.submitAction(this._board.encodeAction(action))
       .catch(error => {
         if (error.code === 409) {
-          // This can happen if we haven't received an action that has taken
-          // place right before submitting this one.
+          // This can happen if the opponent surrendered or hit 'undo' right
+          // before submitting this action.  The unit is reselected and board is
+          // unlocked just in case it is an undo request that will be rejected.
           this.notice = null;
-          this.unlock();
           this.selected = selected;
+          this.unlock();
         }
         else {
           this.notice = 'Server Error!';
