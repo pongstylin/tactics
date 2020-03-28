@@ -1453,8 +1453,9 @@ export default class {
         anim.addFrames([
           () => this.drawStagger().offsetFrame(0.12, direction),
           () => this.offsetFrame(-0.16, direction),
-          () => this.drawStand(),
         ]);
+
+      anim.addFrame(() => this.drawStand());
     }
 
     return anim;
