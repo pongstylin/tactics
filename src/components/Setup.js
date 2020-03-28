@@ -137,7 +137,7 @@ export default class {
 
     let stage = new PIXI.Container();
     // Clip unused empty space part #2
-    stage.position.set(width - Tactics.width, height - Tactics.height);
+    stage.position.set(width - Tactics.width + 20, height - Tactics.height);
     stage.addChild(board.pixi);
     stage.addChild(countsContainer);
     stage.addChild(trash);
@@ -369,6 +369,7 @@ export default class {
     let width     = container.clientWidth;
     let height    = container.clientHeight;
 
+    console.log('container', width, height);
     height -= canvas.offsetTop;
 
     let widthRatio   = width  / canvas.width;
@@ -760,7 +761,7 @@ export default class {
           let distance = 5 - Math.abs(x - 10);
           let offset = board.getOffset(distance / 3, 'E');
 
-          tile.pixi.position.x += offset[0] + TILE_WIDTH/8;
+          tile.pixi.position.x += offset[0];
           tile.pixi.position.y += offset[1];
         }
       }

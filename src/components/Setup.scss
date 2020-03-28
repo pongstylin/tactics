@@ -1,14 +1,20 @@
 .view.setup {
   display: flex;
   flex-direction: column;
+  align-items: center;
   max-height: 100%;
-  max-width: 100%;
+  max-width: calc(100% - 16px);
 
   .field {
     position: relative;
     height: calc(100% - 38px);
+    max-width: 100%;
     // let the field shrink despite large canvas
     overflow: hidden;
+
+    CANVAS {
+      display: block;
+    }
   }
 
   .menubar {
@@ -16,10 +22,12 @@
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
-    margin-top: 6px;
+    box-sizing: border-box;
+    margin-top: 8px;
     border-top: 2px solid #444444;
-    padding: 1px 12px;
+    padding: 1px 4px;
     text-align: center;
+    width: 100%;
     color: white;
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 
