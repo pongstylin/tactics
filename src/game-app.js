@@ -285,11 +285,17 @@ $(() => {
           if ($newMessage.is(':focus'))
             return $newMessage.blur();
 
-        if (!event.shiftKey && !event.metaKey)
-          chatClient.postMessage(gameId, message).then(() => {
-            $newMessage.val('');
-            $newMessage.trigger('input');
-          });
+        /*
+         * Wait until the 'input' event fires to submit the message since there
+         * is an apparent bug in Android Chrome that truncates the input value
+         * at the cursor location where Enter is submitted IF an edit occurred
+         * in the middle of the text.  The text is only truncated briefly.
+         */
+        if (!event.shiftKey && !event.metaKey) {
+          $newMessage.data('submit', true);
+
+          setTimeout(() => $newMessage.trigger('input'));
+        }
       }
       else if (keyChar === 'Escape') {
         if ($app.hasClass('chat-open')) {
@@ -317,12 +323,24 @@ $(() => {
 
   // It takes some JS-work to base a TEXTAREA's height on its content.
   $('TEXTAREA')
-    .on('input', function () {
-      this.style.height = 'auto';
-      let style = window.getComputedStyle(this);
+    .on('input', async event => {
+      let $chat = $('#chat');
+      let $messages = $chat.find('#messages');
+      let $newMessage = $chat.find('.new-message');
+
+      if ($newMessage.data('submit')) {
+        $newMessage.removeData('submit');
+
+        await chatClient.postMessage(gameId, $newMessage.val().trim());
+        $newMessage.val('');
+      }
+
+      let newMessage = $newMessage.get(0);
+      newMessage.style.height = 'auto';
+      let style = window.getComputedStyle(newMessage);
       let paddingHeight = parseInt(style.paddingTop) + parseInt(style.paddingBottom);
 
-      let height = this.scrollHeight;
+      let height = newMessage.scrollHeight;
       if (style.boxSizing === 'content-box') {
         height -= paddingHeight;
         // The initial height can be computed as zero in some cases (flexbox?)
@@ -333,14 +351,14 @@ $(() => {
         height = Math.max(height, 18 + paddingHeight);
       }
 
-      this.style.height = `${height}px`;
+      newMessage.style.height = `${height}px`;
 
       // As the height of the textarea increases, the height of the messages
       // decreases.  As it does so, make sure it remains scrolled to bottom.
       if (style.position === 'relative')
-        $('#messages').scrollTop($('#messages').prop('scrollHeight'));
+        $messages.scrollTop($('#messages').prop('scrollHeight'));
     })
-    .each(function () {
+    .each(() => {
       $(this).trigger('input');
     });
 
