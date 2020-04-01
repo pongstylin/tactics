@@ -52,7 +52,7 @@ class PushService extends Service {
    * Socket Message Event Handlers
    ****************************************************************************/
   onAuthorize(client, { token:tokenValue }) {
-    if (!token)
+    if (!tokenValue)
       throw new ServerError(422, 'Required authorization token');
 
     let token = AccessToken.verify(tokenValue);
