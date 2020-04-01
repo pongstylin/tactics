@@ -1,5 +1,3 @@
-'use strict';
-
 import fs from 'fs';
 
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
@@ -14,6 +12,33 @@ const filesDir = 'src/data/files';
 export default class {
   constructor() {
     this._locks = new Map();
+  }
+
+  /*
+   * Serially refresh tokens despite parallel refresh requests.
+   */
+  async refreshAccessToken(playerId, deviceId) {
+    let name = `player_${playerId}`;
+
+    return this._lock(name, 'write', async () => {
+      let playerData = await this._readFile(name);
+      let player = Player.load(migrate('player', playerData));
+      let device = player.devices.get(deviceId);
+      let token = device.token;
+      let nextToken = device.nextToken;
+      let freshToken;
+
+      if (nextToken && (nextToken.age < (nextToken.ttl * 0.1)))
+        freshToken = nextToken;
+      else if (token.age < (token.ttl * 0.1))
+        freshToken = token;
+      else {
+        freshToken = device.nextToken = player.createAccessToken(device.id);
+        await this._writeFile(name, player);
+      }
+
+      return freshToken;
+    });
   }
 
   async createPlayer(playerData) {

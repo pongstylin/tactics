@@ -26,7 +26,10 @@ export default class Token {
   }
   // Remaining time till expiration, in ms
   get expiresIn() {
-    return this.expiresAt - new Date();
+    return this.expiresAt - Date.now();
+  }
+  get isExpired() {
+    return this.expiresAt < Date.now();
   }
 
   equals(token) {

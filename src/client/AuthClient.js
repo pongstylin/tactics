@@ -168,10 +168,6 @@ export default class AuthClient extends Client {
     return this._server.request(this.name, 'refreshToken', [token])
       .then(token => this._setToken(token))
       .catch(error => {
-        // Ignore 'Revoked token' errors in the assumption that another tab
-        // is about to inform this one that a new token is available.
-        if (error.code === 409) return;
-
         // If the device was deleted or if the account doesn't exist anymore,
         // pretend as if we were never authenticated in the first place.
         if (error.code === 401 || error.code === 404) {
@@ -228,34 +224,18 @@ export default class AuthClient extends Client {
   }
   async _setToken(tokenValue) {
     let token = new Token(tokenValue);
-    let storedToken = this._fetchToken();
-    let myToken = this.token;
 
-    // Ignore the provided token if it is older than the stored token.
-    if (storedToken && storedToken.createdAt > token.createdAt)
-      token = storedToken;
-    // Ignore the provided token if it is older than my token.
-    if (myToken && myToken.createdAt > token.createdAt)
-      token = myToken;
-    // Store the newest token if it is newer than the stored token.
-    if (!storedToken || storedToken.createdAt < token.createdAt) {
+    if (!token.equals(this._fetchToken())) {
       this._storeToken(token);
       await this._storeCachedToken(token);
     }
 
-    if (this.isAuthorized && token.equals(myToken))
-      return;
-
-    // Use the token on the next tick to help guarantee it is saved first.
-    return new Promise(resolve => {
-      setTimeout(() => {
-        this.token = token;
-        this._setRefreshTimeout();
-        this._authorize(token);
-        this._emit({ type:'token', data:token });
-        resolve();
-      });
-    });
+    if (!this.isAuthorized || !token.equals(this.token)) {
+      this.token = token;
+      this._setRefreshTimeout();
+      this._authorize(token);
+      this._emit({ type:'token', data:token });
+    }
   }
   _setRefreshTimeout() {
     this._clearRefreshTimeout();

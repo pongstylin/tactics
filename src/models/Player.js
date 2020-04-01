@@ -1,7 +1,6 @@
-'use strict';
-
 import uuid from 'uuid/v4';
-import jwt from 'jsonwebtoken';
+import IdentityToken from 'server/IdentityToken.js';
+import AccessToken from 'server/AccessToken.js';
 import config from 'config/server.js';
 
 export default class Player {
@@ -25,10 +24,14 @@ export default class Player {
   static load(data) {
     if (typeof data.created === 'string')
       data.created = new Date(data.created);
+    if (data.identityToken)
+      data.identityToken = new IdentityToken(data.identityToken);
     if (Array.isArray(data.devices))
       data.devices = new Map(data.devices.map(device => [
         device.id,
         Object.assign(device, {
+          token: new AccessToken(device.token),
+          nextToken: device.nextToken && new AccessToken(device.nextToken),
           agents: new Map(device.agents.map(([agent, addresses]) => [
             agent,
             new Map(addresses.map(
@@ -59,6 +62,7 @@ export default class Player {
       id: uuid(),
       name: null,
       token: null,
+      nextToken: null,
     }, device);
 
     this.devices.set(device.id, device);
@@ -76,25 +80,21 @@ export default class Player {
    * An access token allows a device to access resources.
    */
   createAccessToken(deviceId) {
-    return jwt.sign({
-      name: this.name,
-      deviceId: deviceId,
-    }, config.privateKey, {
-      algorithm: 'RS512',
-      expiresIn: config.ACCESS_TOKEN_TTL || '1h',
+    return AccessToken.create({
       subject: this.id,
+      expiresIn: config.ACCESS_TOKEN_TTL || '1h',
+      name: this.name,
+      deviceId,
     });
   }
   /*
    * An identity token can be used to obtain an access token for a device.
    */
   createIdentityToken() {
-    return jwt.sign({
-      name: this.name,
-    }, config.privateKey, {
-      algorithm: 'RS512',
-      expiresIn: config.IDENTITY_TOKEN_TTL || '30d',
+    return IdentityToken.create({
       subject: this.id,
+      expiresIn: config.IDENTITY_TOKEN_TTL || '30d',
+      name: this.name,
     });
   }
 

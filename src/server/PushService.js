@@ -1,7 +1,7 @@
-import jwt from 'jsonwebtoken';
 import webpush from 'web-push';
 
 import config from 'config/server.js';
+import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import adapterFactory from 'data/adapterFactory.js';
@@ -51,25 +51,15 @@ class PushService extends Service {
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
-  onAuthorize(client, { token }) {
+  onAuthorize(client, { token:tokenValue }) {
     if (!token)
       throw new ServerError(422, 'Required authorization token');
 
-    let claims;
-    
-    try {
-      claims = jwt.verify(token, config.publicKey);
-    }
-    catch (error) {
-      throw new ServerError(401, error.message);
-    }
-
-    if (!claims.deviceId)
-      throw new ServerError(401, 'Required access token');
+    let token = AccessToken.verify(tokenValue);
 
     this.sessions.set(client.id, {
-      playerId: claims.sub,
-      deviceId: claims.deviceId,
+      playerId: token.playerId,
+      deviceId: token.deviceId,
     });
   }
 

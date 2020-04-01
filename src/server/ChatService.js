@@ -1,6 +1,4 @@
-import jwt from 'jsonwebtoken';
-
-import config from 'config/server.js';
+import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import adapterFactory from 'data/adapterFactory.js';
@@ -26,7 +24,7 @@ class ChatService extends Service {
     let clientPara = this.clientPara.get(client.id);
     if (!clientPara)
       throw new ServerError(401, 'Authorization is required');
-    if (clientPara.expires < (new Date() / 1000))
+    if (clientPara.token.isExpired)
       throw new ServerError(401, 'Token is expired');
   }
 
@@ -49,23 +47,16 @@ class ChatService extends Service {
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
-  onAuthorize(client, { token }) {
-    if (!token)
+  onAuthorize(client, { token:tokenValue }) {
+    if (!tokenValue)
       throw new ServerError(422, 'Required authorization token');
 
     let clientPara = this.clientPara.get(client.id) || {};
-    let claims;
+    let token = AccessToken.verify(tokenValue);
     
-    try {
-      claims = jwt.verify(token, config.publicKey);
-    }
-    catch (error) {
-      throw new ServerError(401, error.message);
-    }
-
-    let playerId = clientPara.playerId = claims.sub;
-    clientPara.name = claims.name;
-    clientPara.expires = claims.exp;
+    let playerId = clientPara.playerId = token.playerId;
+    clientPara.name = token.playerName;
+    clientPara.token = token;
     this.clientPara.set(client.id, clientPara);
   }
 
