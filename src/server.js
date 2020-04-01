@@ -3,7 +3,6 @@ import http from 'http';
 import express from 'express';
 import morgan from 'morgan';
 import ws from 'ws';
-import jwt from 'jsonwebtoken';
 
 // Object extensions/polyfills
 import 'plugins/array.js';
@@ -13,6 +12,7 @@ import config from 'config/server.js';
 import router from 'server/router.js';
 import GameService from 'server/GameService.js';
 import ServerError from 'server/Error.js';
+import AccessToken from 'server/AccessToken.js';
 
 const PORT   = process.env.PORT;
 const app    = express();
@@ -56,18 +56,8 @@ async function getYourTurnNotification(req, res) {
   if (!req.headers.authorization)
     throw new ServerError(401, 'Authorization is required');
 
-  let token = req.headers.authorization.replace(/^Bearer /, '');
-  let claims;
-  try {
-    claims = jwt.verify(token, config.publicKey, {
-      ignoreExpiration: true,
-    });
-  }
-  catch (error) {
-    throw new ServerError(401, error.message);
-  }
-
-  let playerId = claims.sub;
+  let tokenValue = req.headers.authorization.replace(/^Bearer /, '');
+  let playerId = AccessToken.verify(tokenValue).playerId;
   let notification = await GameService.getYourTurnNotification(playerId);
 
   res.send(notification);
