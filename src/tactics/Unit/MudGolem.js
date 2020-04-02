@@ -46,13 +46,13 @@ export default class MudGolem extends Unit {
 
       let result = { unit };
 
-      if (target.assigned.barriered) {
+      if (unit.barriered) {
         result.miss = 'immune';
       }
       else {
         let distance = board.getDistance(this.assignment, target);
         let power = this.power - distance * 5;
-        let armor = target.assigned.armor;
+        let armor = unit.armor + unit.mArmor;
         let damage = Math.max(1, Math.round(power * (1 - armor/100)));
 
         result.changes = {
