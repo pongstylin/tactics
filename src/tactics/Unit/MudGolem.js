@@ -61,6 +61,7 @@ export default class MudGolem extends Unit {
       }
 
       results.push(result);
+      board.applyActionResults([result]);
     }
 
     // Deaths occur last
