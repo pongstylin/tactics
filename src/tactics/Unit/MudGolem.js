@@ -40,23 +40,22 @@ export default class MudGolem extends Unit {
     let results = [];
 
     for (let target of targets) {
-      let unit = target.assigned;
-      if (unit.type === 'PoisonWisp')
+      let targetUnit = target.assigned;
+      if (targetUnit.type === 'PoisonWisp')
         continue;
 
-      let result = { unit };
+      let result = { unit:targetUnit };
 
-      if (unit.barriered) {
+      if (targetUnit.barriered)
         result.miss = 'immune';
-      }
       else {
         let distance = board.getDistance(this.assignment, target);
         let power = this.power - distance * 5;
-        let armor = unit.armor + unit.mArmor;
+        let armor = targetUnit.armor + targetUnit.mArmor;
         let damage = Math.max(1, Math.round(power * (1 - armor/100)));
 
         result.changes = {
-          mHealth: Math.max(-unit.health, Math.min(0, unit.mHealth - damage)),
+          mHealth: Math.max(-targetUnit.health, Math.min(0, targetUnit.mHealth - damage)),
         };
       }
 

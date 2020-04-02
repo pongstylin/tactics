@@ -43,25 +43,28 @@ export default class Assassin extends Unit {
     return anim;
   }
   getAttackSpecialResults() {
-    let results = [];
+    let board = this.board;
+    let targets = this.getAttackTiles();
     let cries = ['My legs!', 'What?', 'Mommy!', 'No fair!'];
     let taunts = ['Worth it', 'Bye', '...'];
+    let results = [];
 
-    this.getAttackTiles().forEach(tile => {
-      let target_unit = tile.assigned;
-      if (!target_unit) return;
+    for (let target of targets) {
+      let targetUnit = target.assigned;
+      if (!targetUnit) continue;
 
-      let result = {unit:target_unit};
+      let result = { unit:targetUnit };
 
-      if (target_unit.barriered)
+      if (targetUnit.barriered)
         result.miss = 'immune';
       else {
         result.notice  = cries.shuffle().shift();
-        result.changes = { mHealth:-target_unit.health };
+        result.changes = { mHealth:-targetUnit.health };
       }
 
       results.push(result);
-    });
+      board.applyActionResults([result]);
+    }
 
     results.push({
       unit:    this,
