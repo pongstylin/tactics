@@ -60,7 +60,6 @@ unitDataMap.set('Cleric', {
   mRadius: 3,
   aType: 'heal',
   aAll: true,
-  waitFirstTurn: true,
   tier: 1,
 });
 
