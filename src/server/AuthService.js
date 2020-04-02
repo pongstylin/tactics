@@ -244,7 +244,7 @@ class AuthService extends Service {
    *
    * Right now, the client must first register or refresh token first.
    */
-  onSaveProfileRequest(client, profile) {
+  async onSaveProfileRequest(client, profile) {
     let session = this.sessions.get(client.id) || {};
     if (!session.token)
       throw new ServerError(401, 'Authorization is required');
@@ -253,12 +253,15 @@ class AuthService extends Service {
       this._validatePlayerName(profile.name);
 
     let player = session.player;
-    player.update(profile);
-    dataAdapter.savePlayer(player);
+    let device = session.device;
 
+    player.update(profile);
     // A new token is generated with the new name, if any, but the old token is
     // not revoked until the new token is used to ensure the client received it.
-    return player.createAccessToken(session.token.deviceId);
+    device.nextToken = player.createAccessToken(device.id);
+    await dataAdapter.savePlayer(player);
+
+    return device.nextToken;
   }
 
   _validatePlayerName(name) {
@@ -307,7 +310,7 @@ class AuthService extends Service {
 
       device.token = token;
       device.nextToken = null;
-      dataAdapter.savePlayer(player);
+      await dataAdapter.savePlayer(player);
     }
     else {
       // This should never happen unless tokens are leaked and used without permission.
