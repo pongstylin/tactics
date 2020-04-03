@@ -1,5 +1,3 @@
-'use strict';
-
 import EventEmitter from 'events';
 
 var counter = 0;
@@ -114,6 +112,15 @@ export default class LocalTransport {
   }
   get currentTeamId() {
     return this._getStateData('currentTeamId');
+  }
+  // This property is not natively actually kept in sync.  The ww only sends
+  // units' data at initialization, start of game, or on revert.  But, the game
+  // object will keep it in sync as each turn ends.
+  get units() {
+    return this._getStateData('units');
+  }
+  set units(units) {
+    this._data.state.units = units;
   }
   get actions() {
     return this._getStateData('actions');
