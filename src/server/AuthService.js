@@ -102,8 +102,7 @@ class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     let player = session.player;
-    let token = IdentityToken.verify(player.identityToken, { ignoreExpiration:true });
-    if (!token) return null;
+    let token = player.identityToken;
 
     return token.isExpired ? null : token;
   }
