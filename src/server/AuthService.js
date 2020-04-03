@@ -104,7 +104,7 @@ class AuthService extends Service {
     let player = session.player;
     let token = player.identityToken;
 
-    return token.isExpired ? null : token;
+    return token && !token.isExpired ? token : null;
   }
 
   onGetDevicesRequest(client) {
