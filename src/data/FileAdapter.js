@@ -37,6 +37,11 @@ export default class {
         await this._writeFile(name, player);
       }
 
+      if (freshToken.playerName !== player.name) {
+        freshToken = device.nextToken = player.createAccessToken(device.id);
+        await this._writeFile(name, player);
+      }
+
       return freshToken;
     });
   }

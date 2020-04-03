@@ -230,12 +230,11 @@ class AuthService extends Service {
 
     let { player, device } = await this._validateAccessToken(client, tokenValue);
 
-    return dataAdapter.refreshAccessToken(player.id, device.id).then(token => {
-      if (!token.equals(device.token) && !token.equals(device.nextToken))
-        this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
+    let token = await dataAdapter.refreshAccessToken(player.id, device.id);
+    if (!token.equals(device.token) && !token.equals(device.nextToken))
+      this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
 
-      return token;
-    });
+    return token;
   }
 
   /*
@@ -251,16 +250,17 @@ class AuthService extends Service {
     if ('name' in profile)
       this._validatePlayerName(profile.name);
 
-    let player = session.player;
-    let device = session.device;
+    let { player, device } = session;
 
     player.update(profile);
-    // A new token is generated with the new name, if any, but the old token is
-    // not revoked until the new token is used to ensure the client received it.
-    device.nextToken = player.createAccessToken(device.id);
     await dataAdapter.savePlayer(player);
 
-    return device.nextToken;
+    // Generate a new token with the new name
+    let token = await dataAdapter.refreshAccessToken(player.id, device.id);
+    if (!token.equals(device.token) && !token.equals(device.nextToken))
+      this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
+
+    return token;
   }
 
   _validatePlayerName(name) {
