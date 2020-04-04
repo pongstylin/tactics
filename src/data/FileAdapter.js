@@ -46,6 +46,31 @@ export default class {
     });
   }
 
+  async createIdentityToken(playerId) {
+    let name = `player_${playerId}`;
+
+    return this._lock(name, 'write', async () => {
+      let playerData = await this._readFile(name);
+      let player = Player.load(migrate('player', playerData));
+
+      player.identityToken = player.createIdentityToken();
+      await this._writeFile(name, player);
+
+      return player.identityToken;
+    });
+  }
+  async revokeIdentityToken(playerId) {
+    let name = `player_${playerId}`;
+
+    return this._lock(name, 'write', async () => {
+      let playerData = await this._readFile(name);
+      let player = Player.load(migrate('player', playerData));
+
+      player.identityToken = null;
+      await this._writeFile(name, player);
+    });
+  }
+
   async createPlayer(playerData) {
     let player = Player.create(playerData);
     player.version = getLatestVersionNumber('player');

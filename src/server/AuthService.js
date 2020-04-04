@@ -81,9 +81,8 @@ class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     let player = session.player;
-    player.identityToken = player.createIdentityToken();
 
-    return dataAdapter.savePlayer(player).then(() => player.identityToken);
+    return dataAdapter.createIdentityToken(player.id);
   }
   onRevokeIdentityTokenRequest(client) {
     let session = this.sessions.get(client.id) || {};
@@ -91,9 +90,8 @@ class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     let player = session.player;
-    player.identityToken = null;
 
-    dataAdapter.savePlayer(player);
+    return dataAdapter.revokeIdentityToken(player.id);
   }
 
   onGetIdentityTokenRequest(client) {
