@@ -57,7 +57,8 @@ async function getYourTurnNotification(req, res) {
     throw new ServerError(401, 'Authorization is required');
 
   let tokenValue = req.headers.authorization.replace(/^Bearer /, '');
-  let playerId = AccessToken.verify(tokenValue).playerId;
+  let token = AccessToken.verify(tokenValue, { ignoreExpiration:true });
+  let playerId = token.playerId;
   let notification = await GameService.getYourTurnNotification(playerId);
 
   res.send(notification);
