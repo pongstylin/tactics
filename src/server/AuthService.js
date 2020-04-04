@@ -147,7 +147,7 @@ class AuthService extends Service {
     let token = IdentityToken.verify(identityTokenValue);
 
     let player = await dataAdapter.getPlayer(token.playerId);
-    if (player.identityToken !== identityToken)
+    if (!token.equals(player.identityToken))
       throw new ServerError(403, 'Identity token was revoked');
 
     let device = player.addDevice({
