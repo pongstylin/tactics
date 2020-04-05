@@ -37,16 +37,20 @@ export default class MudGolem extends Unit {
   getAttackSpecialResults() {
     let board = this.board;
     let targets = board.getTileRange(this.assignment, 1, 3, false);
-    let results = [];
 
-    for (let target of targets) {
+    // Sort targets by distance
+    targets.sort((a, b) => {
+      let distanceA = board.getDistance(this.assignment, a);
+      let distanceB = board.getDistance(this.assignment, b);
+
+      return distanceA - distanceB;
+    })
+
+    return targets.map(target => {
       let targetUnit = target.assigned;
-      if (targetUnit.type === 'PoisonWisp')
-        continue;
-
       let result = { unit:targetUnit };
 
-      if (targetUnit.barriered)
+      if (targetUnit.barriered || targetUnit.type === 'PoisonWisp')
         result.miss = 'immune';
       else {
         let distance = board.getDistance(this.assignment, target);
@@ -59,23 +63,10 @@ export default class MudGolem extends Unit {
         };
       }
 
-      results.push(result);
       board.applyActionResults([result]);
-    }
-
-    // Deaths occur last
-    results.sort((a, b) => {
-      let isDeadA = a.changes && a.changes.mHealth === -a.unit.health ? 1 : 0;
-      let isDeadB = b.changes && b.changes.mHealth === -b.unit.health ? 1 : 0;
-      let distanceA = board.getDistance(this.assignment, a.unit.assignment);
-      let distanceB = board.getDistance(this.assignment, b.unit.assignment);
-
-      return isDeadA - isDeadB || distanceA - distanceB;
+      this.getAttackSubResults(result);
+      return result;
     });
-
-    this.getAttackSubResults(results);
-
-    return results;
   }
 }
 

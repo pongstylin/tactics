@@ -54,6 +54,20 @@ export default class AnimatedSprite {
     return this._data.sounds.find(s => s.name.includes(name));
   }
 
+  hasAction(actionName, options = {}) {
+    let sprites = this._data.sprites;
+
+    let sprite;
+    if (options.spriteName === undefined)
+      sprite = sprites[0];
+    else {
+      sprite = sprites.find(s => s.name === options.spriteName);
+      if (!sprite)
+        throw `No sprite called ${options.spriteName} in ${this.name}`;
+    }
+
+    return sprite.actions && sprite.actions[actionName];
+  }
   renderAnimation(options) {
     let anim = new Tactics.Animation();
     let { sprites, sprite, framesData } = this._getSpriteData(options);

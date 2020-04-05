@@ -1348,11 +1348,6 @@ export default class {
             },
           ]);
         }
-
-        // Die if the unit is dead and isn't a hatching Chaos Seed
-        if (mHealth === -unit.health && unit.type !== 'ChaosSeed' && unit.assignment) {
-          anim.splice(unit.animDie());
-        }
       }
 
       return anim.play();
@@ -1388,37 +1383,28 @@ export default class {
     for (let i = 0; i < results.length; i++) {
       let result = results[i];
 
-      if (!deadUnits.has(result.unit))
-        await showResult(result);
+      await showResult(result);
 
       let unit = result.unit;
       if (unit) unit.change({notice: null});
     }
 
-    if (deadUnits.size === 1) {
-      for (let [unit, result] of deadUnits) {
-        await showResult(result);
-      }
-    }
-    else if (deadUnits.size > 1) {
-      this.notice = 'Multi kill!';
-
-      let animDie1 = new Tactics.Animation();
-      let animDie2 = new Tactics.Animation();
+    if (deadUnits.size > 0) {
+      let animDie = new Tactics.Animation();
 
       deadUnits.forEach((result, unit) => {
-        this._applyChangeResults([result]);
-        if (result.results)
-          result.results.forEach(r =>
-            animDie1.splice(0, this._animApplyFocusChanges(r))
-          );
-
-        animDie2.splice(0, unit.animDie());
+        animDie.splice(0, unit.animDie());
       });
 
-      animDie1.splice(animDie2);
+      if (deadUnits.size > 1) {
+        this.notice = 'Multi kill!';
 
-      await animDie1.play();
+        // Add a few frames to take in the notice
+        for (let i = 0; i < 4; i++)
+          animDie.addFrame([]);
+      }
+
+      await animDie.play();
     }
 
     this.drawCard();

@@ -315,23 +315,12 @@ export default class {
   getAttackResults(action) {
     let board = this.board;
 
-    let results = this.getTargetUnits(action.target).map(unit => {
-      let result = this.getAttackResult(action, unit);
+    return this.getTargetUnits(action.target).map(targetUnit => {
+      let result = this.getAttackResult(action, targetUnit);
       board.applyActionResults([result]);
+      this.getAttackSubResults(result);
       return result;
     });
-
-    // Deaths occur last
-    results.sort((a, b) => {
-      let isDeadA = a.unit.mHealth === -a.unit.health ? 1 : 0;
-      let isDeadB = b.unit.mHealth === -b.unit.health ? 1 : 0;
-      return isDeadA - isDeadB;
-    });
-
-    // Calculating sub results must occur after death sorting.
-    this.getAttackSubResults(results);
-
-    return results;
   }
   /*
    * The default behavior for this method is appropriate for melee and magic
@@ -383,66 +372,63 @@ export default class {
   /*
    * Apply sub-results that are after-effects of certain results.
    */
-  getAttackSubResults(results) {
+  getAttackSubResults(result) {
+    if (result.miss) return;
+
     let board = this.board;
+    let unit = result.unit;
+    let changes = result.changes;
 
-    results.forEach(result => {
-      if (result.miss) return;
+    // Most attacks break the focus of focusing units.
+    if (unit.focusing) {
+      if (
+        this.aType === 'heal' ||
+        this.aType === 'barrier' ||
+        this.aType === 'armor'
+      ) return;
 
-      let unit = result.unit;
-      let changes = result.changes;
+      let subResults = result.results || (result.results = []);
+      subResults.push(...unit.getBreakFocusResult(true));
+    }
+    // Remove focus from dead units
+    else if (unit.paralyzed || unit.poisoned || unit.armored) {
+      if (unit.mHealth > -unit.health) return;
 
-      // Most attacks break the focus of focusing units.
-      if (unit.focusing) {
-        if (
-          this.aType === 'heal' ||
-          this.aType === 'barrier' ||
-          this.aType === 'armor'
-        ) return;
+      let subResults = result.results || (result.results = []);
+      let focusingUnits = [
+        ...(unit.paralyzed || []),
+        ...(unit.poisoned  || []),
+        ...(unit.armored   || []),
+      ];
 
-        let subResults = result.results || (result.results = []);
-        subResults.push(...unit.getBreakFocusResult(true));
-      }
-      // Remove focus from dead units
-      else if (unit.paralyzed || unit.poisoned || unit.armored) {
-        if (unit.mHealth > -unit.health) return;
-
-        let subResults = result.results || (result.results = []);
-        let focusingUnits = [
-          ...(unit.paralyzed || []),
-          ...(unit.poisoned  || []),
-          ...(unit.armored   || []),
-        ];
-
-        // All units focusing on this dead unit can stop.
-        focusingUnits.forEach(fUnit => {
-          subResults.push({
-            unit: fUnit,
-            changes: {
-              focusing: fUnit.focusing.length === 1
-                ? false
-                : fUnit.focusing.filter(t => t !== unit),
-            }
-          });
+      // All units focusing on this dead unit can stop.
+      focusingUnits.forEach(fUnit => {
+        subResults.push({
+          unit: fUnit,
+          changes: {
+            focusing: fUnit.focusing.length === 1
+              ? false
+              : fUnit.focusing.filter(t => t !== unit),
+          }
         });
+      });
 
-        // Stop showing the unit as paralyzed or poisoned
-        if (unit.paralyzed || unit.poisoned) {
-          let subChanges = {};
-          if (unit.paralyzed)
-            subChanges.paralyzed = unit.paralyzed = false;
-          if (unit.poisoned)
-            subChanges.poisoned = unit.poisoned = false;
+      // Stop showing the unit as paralyzed or poisoned
+      if (unit.paralyzed || unit.poisoned) {
+        let subChanges = {};
+        if (unit.paralyzed)
+          subChanges.paralyzed = unit.paralyzed = false;
+        if (unit.poisoned)
+          subChanges.poisoned = unit.poisoned = false;
 
-          subResults.push({
-            unit: unit,
-            changes: subChanges,
-          });
-        }
+        subResults.push({
+          unit: unit,
+          changes: subChanges,
+        });
       }
+    }
 
-      board.applyActionResults(result.results);
-    });
+    board.applyActionResults(result.results);
   }
   /*
    * Before drawing a unit, it must first have an assignment and direction.
@@ -536,6 +522,9 @@ export default class {
     }
 
     return this.drawFrame('stagger', direction);
+  }
+  hasAction(actionName) {
+    return this._sprite.hasAction(actionName);
   }
   renderAnimation(actionName, direction = this.direction) {
     return this._sprite.renderAnimation({
@@ -1290,7 +1279,7 @@ export default class {
 
     if (this.barriered)
       anim = this.animBarrierDeflect(attacker, attackType);
-    else {
+    else if (this.hasAction('block')) {
       let direction;
       if (this.directional !== false)
         direction = this.board.getDirection(
