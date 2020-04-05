@@ -25,10 +25,31 @@ export default class AuthClient extends Client {
      */
     window.addEventListener('storage', event => {
       if (event.key !== 'token') return;
-      let tokenValue = event.newValue;
+      let token = event.newValue && new Token(event.newValue);
 
-      if (tokenValue)
-        this._setToken(tokenValue);
+      if (token) {
+        // Getting strange infinite loops on iOS 13.3.1.  The client authorizes to
+        // many services many times using many revoked tokens.  I'm assuming the
+        // source is this 'storage' event.  Let's try to understand the problem.
+        let storedToken = this._fetchToken();
+        let myToken = this.token;
+        let newestToken = token;
+
+        if (storedToken && storedToken.createdAt > newestToken.createdAt)
+          newestToken = storedToken;
+        if (myToken && myToken.createdAt > newestToken.createdAt)
+          newestToken = myToken;
+
+        this._setToken(newestToken);
+
+        if (!newestToken.equals(token))
+          reportError(JSON.stringify({
+            type: 'Invalid token from storage event',
+            token,
+            storedToken,
+            myToken,
+          }));
+      }
       else
         this.token = null;
     });
@@ -222,8 +243,9 @@ export default class AuthClient extends Client {
       body: JSON.stringify({ token }),
     });
   }
-  async _setToken(tokenValue) {
-    let token = new Token(tokenValue);
+  async _setToken(token) {
+    if (typeof token === 'string')
+      token = new Token(token);
 
     if (!token.equals(this._fetchToken())) {
       this._storeToken(token);

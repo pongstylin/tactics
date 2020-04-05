@@ -102,3 +102,5 @@ function reportError(logData) {
     setTimeout(function () { reportError(logData) }, 5000);
   });
 }
+
+window.reportError = reportError;
