@@ -404,8 +404,9 @@ export default class {
       let subResults = result.results || (result.results = []);
       subResults.push(...unit.getBreakFocusResult(true));
     }
+
     // Remove focus from dead units
-    else if (unit.paralyzed || unit.poisoned || unit.armored) {
+    if (unit.paralyzed || unit.poisoned || unit.armored) {
       if (unit.mHealth > -unit.health) return;
 
       let subResults = result.results || (result.results = []);
