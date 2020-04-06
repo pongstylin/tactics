@@ -125,7 +125,6 @@ window.addEventListener('DOMContentLoaded', () => {
   selGameType.addEventListener('change', event => {
     let gameType = selGameType.querySelector(':checked').value;
 
-    console.log('change', gameType);
     aChangeLink.style.display = gameType === 'classic' ? 'none' : '';
   });
   // setTimeout() seemed to be necessary in Chrome to detect auto-fill of

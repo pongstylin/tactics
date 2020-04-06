@@ -20,38 +20,14 @@ export default class AuthClient extends Client {
     this.on('close', this._onClose.bind(this));
 
     /*
-     * When a token is stored by another window/tab, this event gets fired.
-     * Handle a newer token as if it was obtained locally.
+     * This event gets fired when a token is stored by another window/tab.  This
+     * allows this tab to fetch and use the most recent token.  Warning: the
+     * 'event.newValue' property does not always contain the most recent token.
+     * Always obtain the token from storage.
      */
     window.addEventListener('storage', event => {
       if (event.key !== 'token') return;
-      let token = event.newValue && new Token(event.newValue);
-
-      if (token) {
-        // Getting strange infinite loops on iOS 13.3.1.  The client authorizes to
-        // many services many times using many revoked tokens.  I'm assuming the
-        // source is this 'storage' event.  Let's try to understand the problem.
-        let storedToken = this._fetchToken();
-        let myToken = this.token;
-        let newestToken = token;
-
-        if (storedToken && storedToken.createdAt > newestToken.createdAt)
-          newestToken = storedToken;
-        if (myToken && myToken.createdAt > newestToken.createdAt)
-          newestToken = myToken;
-
-        this._setToken(newestToken);
-
-        if (!newestToken.equals(token))
-          reportError(JSON.stringify({
-            type: 'Invalid token from storage event',
-            token,
-            storedToken,
-            myToken,
-          }));
-      }
-      else
-        this.token = null;
+      this._setToken();
     });
 
     // If the server connection is already open, fire the open event.
@@ -244,12 +220,22 @@ export default class AuthClient extends Client {
     });
   }
   async _setToken(token) {
-    if (typeof token === 'string')
-      token = new Token(token);
+    let storedToken = this._fetchToken();
 
-    if (!token.equals(this._fetchToken())) {
-      this._storeToken(token);
-      await this._storeCachedToken(token);
+    if (!token) {
+      if (!storedToken)
+        return this.token = null;
+
+      token = storedToken;
+    }
+    else {
+      if (typeof token === 'string')
+        token = new Token(token);
+
+      if (!token.equals(storedToken)) {
+        this._storeToken(token);
+        await this._storeCachedToken(token);
+      }
     }
 
     if (!this.isAuthorized || !token.equals(this.token)) {
