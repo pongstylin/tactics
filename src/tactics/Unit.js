@@ -216,7 +216,8 @@ export default class {
     let armor    = target_unit.armor    + target_unit.mArmor;
     let blocking = target_unit.blocking + target_unit.mBlocking;
 
-    if (this.aLOS && this.getLOSTargetUnit(target, from) !== target_unit) {
+    // Equality check the unit ID since target_unit may be a clone.
+    if (this.aLOS && this.getLOSTargetUnit(target, from).id !== target_unit.id) {
       // Armor reduces melee/magic damage.
       calc.damage = Math.round(power * (1 - armor/100));
       if (calc.damage === 0) calc.damage = 1;
