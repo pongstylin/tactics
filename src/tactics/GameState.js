@@ -442,8 +442,10 @@ export default class GameState {
 
     if (turnId === this.currentTurnId)
       turnActions = this.actions;
-    else
+    else if (turnId < this._turns.length)
       turnActions = this._turns[turnId].actions;
+    else
+      throw new ServerError(409, 'No such turn ID');
 
     return turnActions;
   }

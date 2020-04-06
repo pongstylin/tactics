@@ -1470,7 +1470,15 @@ export default class {
       }
 
       await this._performActions(actions);
-      actions = await state.getTurnActions(++turnId);
+      try {
+        actions = await state.getTurnActions(++turnId);
+      }
+      catch (error) {
+        // This can happen if the opponent reverted.  Ignore.
+        if (error.code === 409)
+          break;
+        throw error;
+      }
     } while (turnId <= stopTurnId);
   }
   _startTurn(teamId) {
