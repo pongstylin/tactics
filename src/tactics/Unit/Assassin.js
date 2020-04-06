@@ -45,15 +45,19 @@ export default class Assassin extends Unit {
   getAttackSpecialResults() {
     let board = this.board;
     let targets = board.getTileRange(this.assignment, 0, 1, false);
+    let cUnits = new Map();
+
+    board.teamsUnits.flat().forEach(unit => cUnits.set(unit.id, unit.clone()));
 
     return targets.map(target => {
       let targetUnit = target.assigned;
+      let cUnit = cUnits.get(targetUnit.id);
       let result = { unit:targetUnit };
 
-      if (targetUnit.barriered)
+      if (cUnit.barriered)
         result.miss = 'immune';
       else
-        result.changes = { mHealth:-targetUnit.health };
+        result.changes = { mHealth:-cUnit.health };
 
       board.applyActionResults([result]);
       this.getAttackSubResults(result);

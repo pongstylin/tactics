@@ -309,14 +309,27 @@ export default class {
     return calc;
   }
   /*
-   * Units are changed in the course of determining the result data.  It's the
-   * simplest way to make subsequent results take prior results into account.
+   * Attack results must not take prior attack results into consideration.
+   * In other words, if attacking a previous unit removed armored effect from
+   * a following unit, the following unit should still be armored.
+   *
+   * But there's a catch.  If attacking a previous unit removed paralysis from
+   * a following unit, and we are adding paralysis to the following unit, then
+   * it should only be paralyzed once - not by both.
+   *
+   * If prior attack results are needed, then use the board unit normally.  As
+   * changes are calculated, they are applied to the board unit.  Otherwise,
+   * use the clone of the unit if initial unit state is needed.
    */
   getAttackResults(action) {
     let board = this.board;
+    let cUnits = new Map();
+
+    board.teamsUnits.flat().forEach(unit => cUnits.set(unit.id, unit.clone()));
 
     return this.getTargetUnits(action.target).map(targetUnit => {
-      let result = this.getAttackResult(action, targetUnit);
+      let cUnit = cUnits.get(targetUnit.id);
+      let result = this.getAttackResult(action, targetUnit, cUnit);
       board.applyActionResults([result]);
       this.getAttackSubResults(result);
       return result;
@@ -326,9 +339,9 @@ export default class {
    * The default behavior for this method is appropriate for melee and magic
    * attacks and healing, but units with other attacks should override this.
    */
-  getAttackResult(action, unit) {
+  getAttackResult(action, unit, cUnit) {
     let result = { unit };
-    let calc = this.calcAttack(unit, this.assignment, action.target);
+    let calc = this.calcAttack(cUnit, this.assignment, action.target);
 
     if (calc.immune) {
       result.miss = 'immune';
@@ -1704,6 +1717,10 @@ export default class {
   off() {
     this._emitter.removeListener(...arguments);
     return this;
+  }
+
+  clone() {
+    return this.board.makeUnit(this.toJSON());
   }
 
   toJSON() {

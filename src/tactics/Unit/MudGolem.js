@@ -37,6 +37,7 @@ export default class MudGolem extends Unit {
   getAttackSpecialResults() {
     let board = this.board;
     let targets = board.getTileRange(this.assignment, 1, 3, false);
+    let cUnits = new Map();
 
     // Sort targets by distance
     targets.sort((a, b) => {
@@ -46,20 +47,23 @@ export default class MudGolem extends Unit {
       return distanceA - distanceB;
     })
 
+    board.teamsUnits.flat().forEach(unit => cUnits.set(unit.id, unit.clone()));
+
     return targets.map(target => {
       let targetUnit = target.assigned;
+      let cUnit = cUnits.get(targetUnit.id);
       let result = { unit:targetUnit };
 
-      if (targetUnit.barriered || targetUnit.type === 'PoisonWisp')
+      if (cUnit.barriered || cUnit.type === 'PoisonWisp')
         result.miss = 'immune';
       else {
         let distance = board.getDistance(this.assignment, target);
         let power = this.power - distance * 5;
-        let armor = targetUnit.armor + targetUnit.mArmor;
+        let armor = cUnit.armor + cUnit.mArmor;
         let damage = Math.max(1, Math.round(power * (1 - armor/100)));
 
         result.changes = {
-          mHealth: Math.max(-targetUnit.health, Math.min(0, targetUnit.mHealth - damage)),
+          mHealth: Math.max(-cUnit.health, Math.min(0, cUnit.mHealth - damage)),
         };
       }
 
