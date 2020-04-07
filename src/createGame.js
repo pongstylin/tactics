@@ -166,7 +166,8 @@ window.addEventListener('DOMContentLoaded', () => {
     let gameOptions = {
       type: type,
       randomFirstTurn: vs === 'you' || turnOrder === 'random',
-      turnTimeLimit: 86400 * 7, // 7 days
+      // Temporarily set Single Gold to 12 hour time limits for tournament
+      turnTimeLimit: type === 'singleGold' ? 3600 * 12 : 86400 * 7, // 7 days
       isPublic: vs === 'public',
     };
     let slot =
