@@ -1027,6 +1027,24 @@ export default class GameState {
       });
     });
 
+    /*
+     * Furgon resumes a calm disposition if:
+     *   1) It is still enraged at the end of its turn.
+     *   2) It has recovered after becoming exhausted.
+     */
+    let furgon = this.currentTeam.units.find(u => u.type === 'Furgon');
+    if (
+      furgon &&
+      (
+        furgon.disposition === 'enraged' ||
+        furgon.disposition === 'exhausted' && furgon.mRecovery === 1
+      )
+    )
+      results.push({
+        unit: furgon,
+        changes: { name:'Furgon', disposition:null },
+      });
+
     // If the player team was killed, he can take over for a bot team.
     // This behavior is restricted to the Chaos app.
     if (this.type === 'chaos') {

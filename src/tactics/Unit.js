@@ -8,6 +8,7 @@ const HALF_TILE_HEIGHT = 28;
 export default class {
   constructor(data, board) {
     Object.assign(this, data, {
+      data: data,
       board: board,
       sprite: null,
 
@@ -17,8 +18,9 @@ export default class {
       team:  null,
       color: null,
 
-      assignment: null,
-      notice:     null,
+      assignment:  null,
+      disposition: null,
+      notice:      null,
 
       activated: false,
       focused:   false,
@@ -392,6 +394,7 @@ export default class {
     let board = this.board;
     let unit = result.unit;
     let changes = result.changes;
+    let subResults = result.results || [];
 
     // Most attacks break the focus of focusing units.
     if (unit.focusing) {
@@ -401,47 +404,61 @@ export default class {
         this.aType === 'armor'
       ) return;
 
-      let subResults = result.results || (result.results = []);
       subResults.push(...unit.getBreakFocusResult(true));
     }
 
-    // Remove focus from dead units
-    if (unit.paralyzed || unit.poisoned || unit.armored) {
-      if (unit.mHealth > -unit.health) return;
+    if (unit.mHealth === -unit.health) {
+      /*
+       * The Furgon, if any, on the dead unit's team becomes enraged if a non-
+       * ward ally is killed by an opponent team.
+       */
+      let furgon = unit.team.units.find(u => u.type === 'Furgon');
+      if (furgon && unit.team !== this.team && unit.id !== furgon.id && !unit.type.endsWith('Ward')) {
+        let changes = { name:'Enraged Furgon', disposition:'enraged' };
+        if (furgon.mRecovery)
+          changes.mRecovery = 0;
 
-      let subResults = result.results || (result.results = []);
-      let focusingUnits = [
-        ...(unit.paralyzed || []),
-        ...(unit.poisoned  || []),
-        ...(unit.armored   || []),
-      ];
+        subResults.push({ unit:furgon, changes });
+      }
 
-      // All units focusing on this dead unit can stop.
-      focusingUnits.forEach(fUnit => {
-        subResults.push({
-          unit: fUnit,
-          changes: {
-            focusing: fUnit.focusing.length === 1
-              ? false
-              : fUnit.focusing.filter(t => t !== unit),
-          }
+      // Remove focus from dead units
+      if (unit.paralyzed || unit.poisoned || unit.armored) {
+        let focusingUnits = [
+          ...(unit.paralyzed || []),
+          ...(unit.poisoned  || []),
+          ...(unit.armored   || []),
+        ];
+
+        // All units focusing on this dead unit can stop.
+        focusingUnits.forEach(fUnit => {
+          subResults.push({
+            unit: fUnit,
+            changes: {
+              focusing: fUnit.focusing.length === 1
+                ? false
+                : fUnit.focusing.filter(t => t !== unit),
+            }
+          });
         });
-      });
 
-      // Stop showing the unit as paralyzed or poisoned
-      if (unit.paralyzed || unit.poisoned) {
-        let subChanges = {};
-        if (unit.paralyzed)
-          subChanges.paralyzed = unit.paralyzed = false;
-        if (unit.poisoned)
-          subChanges.poisoned = unit.poisoned = false;
+        // Stop showing the unit as paralyzed or poisoned
+        if (unit.paralyzed || unit.poisoned) {
+          let subChanges = {};
+          if (unit.paralyzed)
+            subChanges.paralyzed = unit.paralyzed = false;
+          if (unit.poisoned)
+            subChanges.poisoned = unit.poisoned = false;
 
-        subResults.push({
-          unit: unit,
-          changes: subChanges,
-        });
+          subResults.push({
+            unit: unit,
+            changes: subChanges,
+          });
+        }
       }
     }
+
+    if (subResults.length)
+      result.results = subResults;
 
     board.applyActionResults(result.results);
   }
@@ -1734,6 +1751,9 @@ export default class {
     if (this.id)
       state.id = this.id;
 
+    if (this.name !== this.data.name)
+      state.name = this.name;
+
     if (this.directional !== false)
       state.direction = this.direction;
 
@@ -1742,6 +1762,7 @@ export default class {
       state.colorId = colorId;
 
     let properties = [
+      'disposition',
       'mHealth',
       'mBlocking',
       'mPower',

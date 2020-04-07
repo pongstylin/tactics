@@ -41,7 +41,7 @@ export default class Furgon extends Unit {
     let enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
     let results = [{
       unit: this,
-      changes: { mRecovery:6 },
+      changes: { name:'Exhausted Furgon', disposition:'exhausted', mRecovery:6 },
     }];
     let targetIds = new Set();
 
@@ -161,6 +161,7 @@ export default class Furgon extends Unit {
     let me = this.assignment;
 
     return (
+      this.disposition === 'enraged' &&
       me.N && me.N.assigned && me.N.assigned.type === 'Shrub' &&
       me.E && me.E.assigned && me.E.assigned.type === 'Shrub' &&
       me.S && me.S.assigned && me.S.assigned.type === 'Shrub' &&

@@ -991,10 +991,7 @@ export default class {
       //
       //  Draw the top part of the card.
       //
-      if (unit.type === 'Furgon' && unit.mRecovery > unit.recovery)
-        els.name.text = 'Exhausted Furgon';
-      else
-        els.name.text = unit.name;
+      els.name.text = unit.name;
 
       els.notice.text = notice;
 
