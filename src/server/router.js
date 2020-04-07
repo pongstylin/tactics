@@ -681,7 +681,9 @@ function onEventMessage(client, message) {
 
   service.will(client, message.type, body.type);
 
-  service[method](client, body.group, body.data);
+  let response = service[method](client, body.group, body.data);
+  if (response instanceof Promise)
+    response.catch(error => sendError(client, error, message));
 }
 
 function onRequestMessage(client, message) {
