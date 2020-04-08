@@ -413,7 +413,12 @@ export default class {
        * ward ally is killed by an opponent team.
        */
       let furgon = unit.team.units.find(u => u.type === 'Furgon');
-      if (furgon && unit.team !== this.team && unit.id !== furgon.id && !unit.type.endsWith('Ward')) {
+      if (
+        furgon &&
+        unit.team !== this.team &&
+        unit.id !== furgon.id &&
+        !/Ward$|^Shrub$/.test(unit.type)
+      ) {
         let changes = { name:'Enraged Furgon', disposition:'enraged' };
         if (furgon.mRecovery)
           changes.mRecovery = 0;
