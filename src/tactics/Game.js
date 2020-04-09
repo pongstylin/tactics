@@ -965,7 +965,10 @@ export default class {
           // before submitting this action.  The unit is reselected and board is
           // unlocked just in case it is an undo request that will be rejected.
           this.notice = null;
-          this.selected = selected;
+          // Re-select the unit if it is still valid.  It won't be if a revert
+          // has already taken place.
+          if (selected.assignment)
+            this.selected = selected;
           this.unlock();
         }
         else {
