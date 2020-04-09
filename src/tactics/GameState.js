@@ -297,26 +297,43 @@ export default class GameState {
     let unitId = 1;
 
     // Place the units according to team position.
-    this.units = teams.map(team => team.set.map(unitSetData => {
-      let degree   = board.getDegree('N', team.position);
-      let tile     = board.getTileRotation(unitSetData.assignment, degree);
-      let unitData = unitDataMap.get(unitSetData.type);
+    this.units = teams.map(team => {
+      let dragonPower = unitDataMap.get('DragonTyrant').power;
+      let mageTypes = ['DragonspeakerMage', 'Pyromancer'];
+      let dragons = team.set.filter(u => u.type === 'DragonTyrant');
+      let mages = team.set.filter(u => mageTypes.includes(u.type));
+      let speakers = mages.filter(u => u.type === 'DragonspeakerMage');
+      let dragonDrain = Math.min(dragonPower, Math.round(12 * speakers.length * mages.length));
+      let speakerBonus = Math.round(dragonDrain * dragons.length / mages.length);
 
-      let unitState = {
-        id: unitId++,
-        type: unitSetData.type,
-        assignment: [tile.x, tile.y],
-      };
+      return team.set.map(unitSetData => {
+        let degree   = board.getDegree('N', team.position);
+        let tile     = board.getTileRotation(unitSetData.assignment, degree);
+        let unitData = unitDataMap.get(unitSetData.type);
 
-      if (unitData.directional !== false)
-        unitState.direction = board.getRotation('S', degree);
+        let unitState = {
+          id: unitId++,
+          type: unitSetData.type,
+          assignment: [tile.x, tile.y],
+        };
 
-      // Apply a 1-turn wait to units in the team that goes first.
-      if (team.id === 0 && unitData.waitFirstTurn)
-        unitState.mRecovery = 1;
+        if (unitData.directional !== false)
+          unitState.direction = board.getRotation('S', degree);
 
-      return unitState;
-    }));
+        // Apply a 1-turn wait to units in the team that goes first.
+        if (team.id === 0 && unitData.waitFirstTurn)
+          unitState.mRecovery = 1;
+
+        if (dragons.length && speakers.length) {
+          if (dragons.includes(unitSetData))
+            unitState.mPower = -dragonDrain;
+          else if (mages.includes(unitSetData))
+            unitState.mPower = speakerBonus;
+        }
+
+        return unitState;
+      });
+    });
 
     board.setState(this.units, teams);
 
@@ -690,6 +707,7 @@ export default class GameState {
         turnEnded = !this.currentTeam.units.find(unit => {
           if (unit.mRecovery) return;
           if (unit.paralyzed) return;
+          if (unit.type === 'Shrub') return;
 
           return true;
         });
