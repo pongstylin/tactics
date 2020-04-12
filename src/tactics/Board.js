@@ -141,16 +141,17 @@ export default class {
       context: card.stage,
       children: {
         upper: {
-          type    :'C',
+          type: 'C',
           children: {
             avatar: { type:'C', x:28, y:0 },
-            name  : {
+            name: {
               type: 'T',
-              x: 60,
+              x: 114,
               y: 4,
+              anchor: { x:0.5 },
               style: {
                 fontFamily: 'Arial',
-                fontSize:   '12px',
+                fontSize: '12px',
                 fontWeight: 'bold',
               },
             },
@@ -239,6 +240,10 @@ export default class {
   }
   off() {
     this._emitter.removeListener(...arguments);
+    return this;
+  }
+  trigger(event) {
+    this._emitter.emit(event.type, event);
     return this;
   }
 
@@ -628,7 +633,7 @@ export default class {
     let lightFilter = new PIXI.filters.ColorMatrixFilter();
     lightFilter.brightness(1.25);
 
-    let core = Tactics.spriteMap.get('core');
+    let core = Tactics.getSprite('core');
     let sprite = this.sprite = PIXI.Sprite.from(core.getImage('board').texture);
     sprite.filters = [lightFilter];
     pixi.addChild(sprite);
@@ -832,7 +837,7 @@ export default class {
     return new PIXI.Sprite(healthBarData.texture);
   }
   drawHealth(unit) {
-    var currentHealth = unit.health + unit.mHealth;
+    var currentHealth = Math.max(0, unit.health + unit.mHealth);
     var healthRatio = currentHealth / unit.health;
     var toColorCode = num => '#' + parseInt(num).toString(16);
     var gradientStartColor = Tactics.utils.getColorStop(0xFF0000, 0xc2f442, healthRatio);
@@ -944,7 +949,7 @@ export default class {
       //
       //  Status Detection
       //
-      if (unit.mHealth === -unit.health) {
+      if (unit.mHealth <= -unit.health) {
         if (unit.type === 'ChaosSeed')
           notice = 'Hatched!';
         else
@@ -1031,11 +1036,11 @@ export default class {
       if (unit.mPower) {
         if (unit.mPower > 0) {
           els.mPower.text = '+'+unit.mPower;
-          els.mPower.style.fill = '#00FF00';
+          els.mPower.style.fill = '#00CC00';
         }
         else {
           els.mPower.text = unit.mPower;
-          els.mPower.style.fill = '#FF0000';
+          els.mPower.style.fill = '#FF4444';
         }
 
         els.power.updateText();
@@ -1200,6 +1205,7 @@ export default class {
     this.assign(unit, unit.assignment);
 
     team.units.push(unit);
+    unit.attach();
 
     return unit;
   }
@@ -1227,6 +1233,7 @@ export default class {
     this.dismiss(unit);
 
     units.splice(units.indexOf(unit), 1);
+    unit.detach();
 
     return this;
   }
@@ -1278,7 +1285,7 @@ export default class {
       // Chaos Seed doesn't die.  It hatches.
       if (unit.type === 'ChaosSeed') return;
 
-      if (unit.mHealth === -unit.health)
+      if (unit.mHealth <= -unit.health)
         this.dropUnit(unit);
     });
   }
@@ -1692,7 +1699,7 @@ export default class {
       let thp = 50 * 3;
       let chp = 0;
 
-      team.units.forEach(unit => chp += unit.health + unit.mHealth);
+      team.units.forEach(u => chp += Math.max(0, u.health + u.mHealth));
 
       choices.push({
         id:     team.id,

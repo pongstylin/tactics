@@ -60,10 +60,10 @@ export default class MudGolem extends Unit {
         let distance = board.getDistance(this.assignment, target);
         let power = this.power - distance * 5;
         let armor = cUnit.armor + cUnit.mArmor;
-        let damage = Math.max(1, Math.round(power * (1 - armor/100)));
+        let damage = Math.round(power * (100 - armor) / 100);
 
         result.changes = {
-          mHealth: Math.max(-cUnit.health, Math.min(0, cUnit.mHealth - damage)),
+          mHealth: cUnit.mHealth - damage,
         };
       }
 

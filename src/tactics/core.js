@@ -1,6 +1,5 @@
 import 'howler';
 import 'plugins/pixi.js';
-import { Texture } from '@pixi/core';
 import { Loader } from '@pixi/loaders';
 import { Rectangle } from '@pixi/math';
 
@@ -37,16 +36,15 @@ window.Tactics = (function () {
     Game: Game,
     ServerError: ServerError,
     loadedUnitTypes: new Set(),
-    spriteMap: new Map(),
     _setupMap: new Map(),
     _resolveSetup: null,
 
     load: async function (unitTypes, cb = () => {}) {
       if (!Array.isArray(unitTypes))
         unitTypes = [...unitTypes];
-      unitTypes = unitTypes.filter(ut => !this.spriteMap.has(ut));
+      unitTypes = unitTypes.filter(ut => !AnimatedSprite.has(ut));
 
-      if (!this.spriteMap.has('core'))
+      if (!AnimatedSprite.has('core'))
         unitTypes.unshift('core');
 
       if (unitTypes.find(ut => ut === 'ChaosSeed'))
@@ -103,7 +101,7 @@ window.Tactics = (function () {
         });
       }));
 
-      let spriteDataMap = new Map(
+      AnimatedSprite.dataMap = new Map(
         unitsData.concat(effectsData).map(sd => [sd.name, sd])
       );
       progress = 0;
@@ -119,11 +117,11 @@ window.Tactics = (function () {
           if (unitData && unitData.legacy) {
             if (unitData.imports)
               for (let spriteName of unitData.imports) {
-                await this.loadSprite(spriteDataMap, spriteName);
+                await AnimatedSprite.load(spriteName);
               }
           }
           else
-            await this.loadSprite(spriteDataMap, unitType);
+            await AnimatedSprite.load(unitType);
         }
         catch (e) {
           cb(
@@ -137,109 +135,6 @@ window.Tactics = (function () {
       }
 
       cb(1, `Done!`);
-    },
-    loadSprite: async function (spriteDataMap, spriteName) {
-      if (this.spriteMap.has(spriteName))
-        return;
-
-      let spriteData = spriteDataMap.get(spriteName);
-
-      if (spriteData.imports)
-        for (let i = 0; i < spriteData.imports.length; i++) {
-          await this.loadSprite(spriteDataMap, spriteData.imports[i]);
-        }
-
-      await new Promise((resolve, reject) => {
-        let loading = 0;
-        let loaded = -1;
-        let progress = () => {
-          loaded++;
-          if (loading === loaded)
-            resolve();
-        };
-
-        if (spriteData.images)
-          for (let i = 0; i < spriteData.images.length; i++) {
-            let image = spriteData.images[i];
-            if (typeof image === 'string')
-              image = spriteData.images[i] = { src:image };
-
-            if (!image.name)
-              image.name = [];
-            else if (typeof image.name === 'string')
-              image.name = [image.name];
-
-            if (image.type === 'sheet') {
-              if (image.src.startsWith('data:'))
-                image.texture = Texture.from( this.shrinkDataURI(image.src) ).baseTexture;
-              else
-                throw 'Unsupported image source for sheet';
-            }
-            else if (image.type === 'frame') {
-              image.texture = new PIXI.Texture(
-                spriteData.images[image.src].texture,
-                new Rectangle(image.x, image.y, image.width, image.height),
-              );
-            }
-            else if (image.type === undefined) {
-              if (image.src.startsWith('sprite:'))
-                image.texture = this.getSpriteURI(image.src).texture;
-              else if (image.src.startsWith('data:')) {
-                image.texture = Texture.from( this.shrinkDataURI(image.src) );
-                if (!image.texture.baseTexture.valid) {
-                  loading++;
-                  image.texture.baseTexture
-                    .on('loaded', progress)
-                    .on('error', () =>
-                      reject(new Error(
-                        `Failed to load sprite:${spriteName}/images/${i}`
-                      ))
-                    );
-                }
-              }
-              else
-                throw 'Unsupported image source';
-            }
-            else
-              throw 'Unsupported image type';
-            delete image.src;
-          }
-
-        if (spriteData.sounds)
-          for (let i = 0; i < spriteData.sounds.length; i++) {
-            let sound = spriteData.sounds[i];
-            if (typeof sound === 'string')
-              sound = spriteData.sounds[i] = { src:sound };
-
-            if (!sound.name)
-              sound.name = [];
-            else if (typeof sound.name === 'string')
-              sound.name = [sound.name];
-
-            if (sound.src.startsWith('sprite:'))
-              sound.howl = this.getSpriteURI(sound.src).howl;
-            else if (sound.src.startsWith('data:')) {
-              loading++;
-              sound.howl = new Howl({
-                src: [ this.shrinkDataURI(sound.src) ],
-                format: 'mp3',
-                volume: parseFloat(process.env.VOLUME_SCALE) || 1,
-                onload: progress,
-                onloaderror: (id, error) =>
-                  reject(new Error(
-                    `Failed to load sprite:${spriteName}/sounds/${i}: ${id}, ${error}`
-                  )),
-              });
-            }
-            else
-              throw 'Unsupported sound source';
-            delete sound.src;
-          }
-
-        progress();
-      });
-
-      this.spriteMap.set(spriteName, new AnimatedSprite(spriteData));
     },
     loadLegacySprite: async function (unitType) {
       if (this.loadedUnitTypes.has(unitType))
@@ -306,41 +201,11 @@ window.Tactics = (function () {
         }
       });
     },
-    shrinkDataURI: function (dataURI) {
-      let parts = dataURI.slice(5).split(';base64,');
-      let mimeType = parts[0];
-      let base64Data = parts[1];
-      let byteString = atob(base64Data);
-      let bytesCount = byteString.length;
-      let bytes = new Uint8Array(bytesCount);
-      for (let i = 0; i < bytesCount; i++) {
-        bytes[i] = byteString[i].charCodeAt(0);
-      }
-      let blob = new Blob([bytes], { type:mimeType });
-
-      return URL.createObjectURL(blob);
-    },
-    getSpriteURI: function (path) {
-      let parts = path.replace(/^sprite:/, '').split('/');
-      if (parts.length === 3) {
-        let [spriteName, memberName, elementIndex] = parts;
-        let member = this.spriteMap.get(spriteName)[memberName];
-        if (typeof elementIndex === 'number')
-          return member[elementIndex];
-        else
-          return member.find(e => e.name.includes(elementIndex));
-      }
-      else if (parts.length === 2) {
-        let [spriteName, memberName] = parts;
-        return this.spriteMap.get(spriteName)[memberName];
-      }
-      else if (parts.length === 1)
-        return this.spriteMap.get(parts[0]);
-
-      return null;
+    getSprite: function (spriteName) {
+      return AnimatedSprite.get(spriteName);
     },
     playSound: function (name) {
-      this.spriteMap.get('core').getSound(name).howl.play();
+      AnimatedSprite.get('core').getSound(name).howl.play();
     },
     /*
      * This is a shared interface for launching and handling the result of game

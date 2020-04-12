@@ -236,6 +236,16 @@ unitDataMap.set('BeastRider', {
 
 unitDataMap.set('DragonspeakerMage', {
   name:'Dragonspeaker Mage',
+  ability: 'Dragon Fire',
+  power: 15,
+  armor: 0,
+  health: 30,
+  recovery: 3,
+  blocking: 33,
+  mType: 'path',
+  mRadius: 3,
+  aType: 'magic',
+  aRange: [0, 3],
   waitFirstTurn: true,
   tier: 4,
 });
@@ -245,7 +255,7 @@ unitDataMap.set('ChaosSeed', {
   ability: 'Chaos',
   specialty: 'Awaken',
   power: 24,
-  armor: 99,
+  armor: 95,
   health: 6,
   recovery: 0,
   blocking: 50,

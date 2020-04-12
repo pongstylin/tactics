@@ -1199,7 +1199,7 @@ export default class {
     let unit = action.unit;
 
     return unit[action.type](action)
-      .then(() => this._playResults(action.results));
+      .then(() => this._playResults(action));
   }
   _showActions(actions = this.actions) {
     let board = this._board;
@@ -1235,11 +1235,9 @@ export default class {
   /*
    * Show the player the results of an attack
    */
-  async _playResults(results) {
-    if (!results)
+  async _playResults(action) {
+    if (!action.results)
       return;
-    if (!Array.isArray(results))
-      results = [results];
 
     let showResult = async result => {
       if (result.type === 'summon') return;
@@ -1269,7 +1267,7 @@ export default class {
 
       anim.splice(this._animApplyFocusChanges(result));
 
-      if (changes.armored && changes.armored[0] === unit) {
+      if (changes.armored && unit === action.unit) {
         this.drawCard(unit);
 
         let caption = 'Armor Up!';
@@ -1285,7 +1283,7 @@ export default class {
         return anim.play();
       }
       // Don't show shrub death.  They are broken apart during attack.
-      else if (unit.type === 'Shrub' && mHealth === -1)
+      else if (unit.type === 'Shrub' && mHealth <= -unit.health)
         return anim.play();
       else if ('armored' in changes)
         return anim.play();
@@ -1320,7 +1318,7 @@ export default class {
 
         if (mHealth > unit.mHealth)
           options.color = '#00FF00';
-        else if (mHealth < unit.mHealth && mHealth !== -unit.health)
+        else if (mHealth < unit.mHealth && mHealth > -unit.health)
           options.color = '#FFBB44';
 
         let diff = unit.mHealth - mHealth;
@@ -1360,7 +1358,7 @@ export default class {
             // Pause to reflect upon the new health amount
             {
               script: () => {},
-              repeat: 4,
+              repeat: 6,
             },
           ]);
         }
@@ -1375,8 +1373,8 @@ export default class {
      * All deaths are played last.
      */
     let deadUnits = new Map();
-    for (let i = 0; i < results.length; i++) {
-      let result = results[i];
+    for (let i = 0; i < action.results.length; i++) {
+      let result = action.results[i];
 
       let unit = result.unit;
       if (!unit) continue;
@@ -1390,14 +1388,12 @@ export default class {
       let changes = result.changes;
       if (!changes) continue;
 
-      let mHealth = changes.mHealth;
-      if (mHealth !== -unit.health) continue;
-
-      deadUnits.set(unit, result);
+      if (changes.mHealth <= -unit.health)
+        deadUnits.set(unit, result);
     }
 
-    for (let i = 0; i < results.length; i++) {
-      let result = results[i];
+    for (let i = 0; i < action.results.length; i++) {
+      let result = action.results[i];
 
       await showResult(result);
 
@@ -1699,7 +1695,7 @@ export default class {
       // Chaos Seed doesn't die.  It hatches.
       if (unit.type === 'ChaosSeed') return;
 
-      if (unit.mHealth === -unit.health)
+      if (unit.mHealth <= -unit.health)
         board.dropUnit(unit);
     });
   }
