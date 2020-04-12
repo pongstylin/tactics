@@ -48,6 +48,14 @@ export default class {
     });
   }
 
+  /*
+   * Stubs.  Used by some Unit subclasses.
+   */
+  attach() {
+  }
+  detach() {
+  }
+
   getMoveTiles() {
     let board = this.board;
     if (this.mType === 'path')
@@ -221,8 +229,7 @@ export default class {
     // Equality check the unit ID since target_unit may be a clone.
     if (this.aLOS && this.getLOSTargetUnit(target, from).id !== target_unit.id) {
       // Armor reduces melee/magic damage.
-      calc.damage = Math.round(power * (1 - armor/100));
-      if (calc.damage === 0) calc.damage = 1;
+      calc.damage = Math.round(power * (100 - armor) / 100);
 
       // Another unit is in the way.  No chance to hit target unit.
       calc.chance = 0;
@@ -246,8 +253,7 @@ export default class {
     }
     else if (this.aType === 'melee') {
       // Armor reduces magic damage.
-      calc.damage = Math.round(power * (1 - armor/100));
-      if (calc.damage === 0) calc.damage = 1;
+      calc.damage = Math.round(power * (100 - armor) / 100);
 
       if (target_unit.paralyzed || target_unit.focusing)
         calc.chance = 100;
@@ -288,8 +294,7 @@ export default class {
     }
     else if (this.aType === 'magic') {
       // Armor reduces magic damage.
-      calc.damage = Math.round(power * (1 - armor/100));
-      if (calc.damage === 0) calc.damage = 1;
+      calc.damage = Math.round(power * (100 - armor) / 100);
 
       // Magic can only be stopped by barriers.
       calc.chance = 100;
@@ -360,8 +365,7 @@ export default class {
 
     if (bad_luck < calc.chance) {
       result.changes = {};
-      result.changes.mHealth = unit.mHealth =
-        Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage));
+      result.changes.mHealth = unit.mHealth - calc.damage;
 
       if (calc.bonus)
         result.changes.mBlocking = unit.mBlocking += calc.bonus;
@@ -407,24 +411,13 @@ export default class {
       subResults.push(...unit.getBreakFocusResult(true));
     }
 
-    if (unit.mHealth === -unit.health) {
-      /*
-       * The Furgon, if any, on the dead unit's team becomes enraged if a non-
-       * ward ally is killed by an opponent team.
-       */
-      let furgon = unit.team.units.find(u => u.type === 'Furgon');
-      if (
-        furgon &&
-        unit.team !== this.team &&
-        unit.id !== furgon.id &&
-        !/Ward$|^Shrub$/.test(unit.type)
-      ) {
-        let changes = { name:'Enraged Furgon', disposition:'enraged' };
-        if (furgon.mRecovery)
-          changes.mRecovery = 0;
-
-        subResults.push({ unit:furgon, changes });
-      }
+    if (unit.mHealth <= -unit.health) {
+      board.trigger({
+        type: 'death',
+        attacker: this,
+        defender: unit,
+        addResults: r => subResults.push(...r),
+      });
 
       // Remove focus from dead units
       if (unit.paralyzed || unit.poisoned || unit.armored) {
@@ -493,7 +486,7 @@ export default class {
   }
   drawAvatar(direction = 'S') {
     if (!this._sprite)
-      this._sprite = Tactics.spriteMap.get(this.type);
+      this._sprite = Tactics.getSprite(this.type);
 
     let actionName = 'stand';
     return this._sprite.renderFrame({
@@ -508,7 +501,7 @@ export default class {
   }
   drawFrame(actionName, direction = this.direction) {
     if (!this._sprite)
-      this._sprite = Tactics.spriteMap.get(this.type);
+      this._sprite = Tactics.getSprite(this.type);
 
     let frame = this._sprite.renderFrame({
       actionName,
@@ -804,7 +797,7 @@ export default class {
   showFocus(alpha = 1, color = this.color) {
     let focusContainer = this.getContainerByName('Focus');
     if (!focusContainer) {
-      let core = Tactics.spriteMap.get('core');
+      let core = Tactics.getSprite('core');
       focusContainer = core.renderFrame({ spriteName:'Focus' }).container;
 
       let shadowContainer = this.getContainerByName('shadow');
@@ -828,7 +821,7 @@ export default class {
   }
   showBarrier() {
     if (!this.hasBarrier()) {
-      let barrier = Tactics.spriteMap.get('Barrier');
+      let barrier = Tactics.getSprite('Barrier');
       let container = new PIXI.Container();
       container.name = 'Barrier';
       this.pixi.addChild(container)
@@ -903,7 +896,7 @@ export default class {
   }
   animShowBarrier() {
     let anim = new Tactics.Animation();
-    let barrier = Tactics.spriteMap.get('Barrier');
+    let barrier = Tactics.getSprite('Barrier');
     let container = this.getContainerByName('Barrier', this.pixi);
     if (!container) {
       container = new PIXI.Container();
@@ -923,7 +916,7 @@ export default class {
   }
   animActivateBarrier() {
     let anim = new Tactics.Animation({ loop:true, fps:8 });
-    let barrier = Tactics.spriteMap.get('Barrier');
+    let barrier = Tactics.getSprite('Barrier');
     let container = this.getContainerByName('Barrier', this.pixi);
     let child = container.children[0];
 
@@ -944,7 +937,7 @@ export default class {
   }
   animBarrierDeflect(attacker, attackType) {
     let anim = new Tactics.Animation();
-    let barrier = Tactics.spriteMap.get('Barrier');
+    let barrier = Tactics.getSprite('Barrier');
     let container = this.getContainerByName('Barrier', this.pixi);
 
     if (attackType === undefined)
@@ -963,7 +956,7 @@ export default class {
   }
   animHideBarrier() {
     let anim = new Tactics.Animation();
-    let barrier = Tactics.spriteMap.get('Barrier');
+    let barrier = Tactics.getSprite('Barrier');
     let container = this.getContainerByName('Barrier', this.pixi);
 
     anim.splice(barrier.renderAnimation({
@@ -1223,7 +1216,7 @@ export default class {
   animAttackEffect(effect, target, isHit) {
     let anim = new Tactics.Animation();
     let board = this.board;
-    let effectSprite = effect.spriteId && Tactics.getSpriteURI(effect.spriteId);
+    let effectSprite = effect.spriteId && Tactics.getSprite(effect.spriteId);
     let offset = [0, 0];
 
     if (!effect.type)
@@ -1495,7 +1488,7 @@ export default class {
     return anim;
   }
   animDie() {
-    let core = Tactics.spriteMap.get('core');
+    let core = Tactics.getSprite('core');
     let container = new PIXI.Container();
     let anim = core.renderAnimation({
       spriteName: 'Die',
@@ -1524,7 +1517,8 @@ export default class {
         fontFamily:      'Arial',
         fontSize:        '12px',
         stroke:          0,
-        strokeThickness: 1,
+        strokeThickness: 3,
+        letterSpacing:   0,
         fill:            options.color,
       },
       options,

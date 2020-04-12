@@ -1,7 +1,24 @@
 import EventEmitter from 'events';
+import { Texture } from '@pixi/core';
+import { Rectangle } from '@pixi/math';
 import { Container } from '@pixi/display';
 import { Sprite } from '@pixi/sprite';
 import { ColorMatrixFilter } from '@pixi/filter-color-matrix';
+
+function shrinkDataURI(dataURI) {
+  let parts = dataURI.slice(5).split(';base64,');
+  let mimeType = parts[0];
+  let base64Data = parts[1];
+  let byteString = atob(base64Data);
+  let bytesCount = byteString.length;
+  let bytes = new Uint8Array(bytesCount);
+  for (let i = 0; i < bytesCount; i++) {
+    bytes[i] = byteString[i].charCodeAt(0);
+  }
+  let blob = new Blob([bytes], { type:mimeType });
+
+  return URL.createObjectURL(blob);
+}
 
 /*
  * Every AnimatedSprite has a PIXI container.
@@ -16,6 +33,142 @@ export default class AnimatedSprite {
     this._renders = new Map();
 
     this._normalize(data);
+  }
+
+  /*
+   * Before loading sprites, one must first assign the static 'dataMap' property
+   * to all required sprite data objects.
+   */
+  static async load(spriteName) {
+    if (this.spriteMap.has(spriteName))
+      return;
+
+    let spriteData = this.dataMap.get(spriteName);
+
+    if (spriteData.imports)
+      for (let i = 0; i < spriteData.imports.length; i++) {
+        await this.load(spriteData.imports[i]);
+      }
+
+    await new Promise((resolve, reject) => {
+      let loading = 0;
+      let loaded = -1;
+      let progress = () => {
+        loaded++;
+        if (loading === loaded)
+          resolve();
+      };
+
+      if (spriteData.images)
+        for (let i = 0; i < spriteData.images.length; i++) {
+          let image = spriteData.images[i];
+          if (typeof image === 'string')
+            image = spriteData.images[i] = { src:image };
+
+          if (!image.name)
+            image.name = [];
+          else if (typeof image.name === 'string')
+            image.name = [image.name];
+
+          if (image.type === 'sheet') {
+            if (image.src.startsWith('data:'))
+              image.texture = Texture.from( shrinkDataURI(image.src) ).baseTexture;
+            else
+              throw 'Unsupported image source for sheet';
+          }
+          else if (image.type === 'frame') {
+            image.texture = new PIXI.Texture(
+              spriteData.images[image.src].texture,
+              new Rectangle(image.x, image.y, image.width, image.height),
+            );
+          }
+          else if (image.type === undefined) {
+            if (image.src.startsWith('sprite:'))
+              image.texture = AnimatedSprite.get(image.src).texture;
+            else if (image.src.startsWith('data:')) {
+              image.texture = Texture.from( shrinkDataURI(image.src) );
+              if (!image.texture.baseTexture.valid) {
+                loading++;
+                image.texture.baseTexture
+                  .on('loaded', progress)
+                  .on('error', () =>
+                    reject(new Error(
+                      `Failed to load sprite:${spriteName}/images/${i}`
+                    ))
+                  );
+              }
+            }
+            else
+              throw 'Unsupported image source';
+          }
+          else
+            throw 'Unsupported image type';
+          delete image.src;
+        }
+
+      if (spriteData.sounds)
+        for (let i = 0; i < spriteData.sounds.length; i++) {
+          let sound = spriteData.sounds[i];
+          if (typeof sound === 'string')
+            sound = spriteData.sounds[i] = { src:sound };
+
+          if (!sound.name)
+            sound.name = [];
+          else if (typeof sound.name === 'string')
+            sound.name = [sound.name];
+
+          if (sound.src.startsWith('sprite:'))
+            sound.howl = AnimatedSprite.get(sound.src).howl;
+          else if (sound.src.startsWith('data:')) {
+            loading++;
+            sound.howl = new Howl({
+              src: [ shrinkDataURI(sound.src) ],
+              format: 'mp3',
+              volume: parseFloat(process.env.VOLUME_SCALE) || 1,
+              onload: progress,
+              onloaderror: (id, error) =>
+                reject(new Error(
+                  `Failed to load sprite:${spriteName}/sounds/${i}: ${id}, ${error}`
+                )),
+            });
+          }
+          else
+            throw 'Unsupported sound source';
+          delete sound.src;
+        }
+
+      progress();
+    });
+
+    this.spriteMap.set(spriteName, new AnimatedSprite(spriteData));
+  }
+
+  static has(spriteName) {
+    return this.spriteMap.has(spriteName);
+  }
+  static get(path) {
+    if (path.startsWith('sprite:')) {
+      let parts = path.replace(/^sprite:/, '').split('/');
+      if (parts.length === 3) {
+        let [spriteName, memberName, elementIndex] = parts;
+        let member = this.spriteMap.get(spriteName)[memberName];
+        if (typeof elementIndex === 'number')
+          return member[elementIndex];
+        else
+          return member.find(e => e.name.includes(elementIndex));
+      }
+      else if (parts.length === 2) {
+        let [spriteName, memberName] = parts;
+        return this.spriteMap.get(spriteName)[memberName];
+      }
+      else if (parts.length === 1)
+        return this.spriteMap.get(parts[0]);
+
+      return null;
+    }
+    else {
+      return this.spriteMap.get(path);
+    }
   }
 
   on() {
@@ -196,7 +349,12 @@ export default class AnimatedSprite {
     }
   }
   _normalizeSprite(data, spriteId) {
-    let sprite = data.sprites[spriteId];
+    let sprite;
+
+    if (typeof spriteId !== 'number')
+      return AnimatedSprite.get(spriteId);
+
+    sprite = data.sprites[spriteId];
 
     // A sprite may already be normalized if used by another sprite.
     if (sprite.isNormal) return sprite;
@@ -536,7 +694,11 @@ export default class AnimatedSprite {
           layer.frameId !== undefined
         ) continue;
 
-        let subSprite = data.sprites[layer.spriteId];
+        let subSprite;
+        if (typeof layer.spriteId === 'number')
+          subSprite = data.sprites[layer.spriteId];
+        else
+          subSprite = AnimatedSprite.get(layer.spriteId);
 
         let lastLayer = lastLayers.find(l => l.depth === layer.depth);
         if (lastLayer && lastLayer.spriteId === layer.spriteId)
@@ -582,7 +744,12 @@ export default class AnimatedSprite {
             continue;
           if (layer.frameId === undefined)
             continue;
-          let subSprite = data.sprites[layer.spriteId];
+
+          let subSprite;
+          if (typeof layer.spriteId === 'number')
+            subSprite = data.sprites[layer.spriteId];
+          else
+            subSprite = AnimatedSprite.get(layer.spriteId);
           if (subSprite.loop)
             continue;
           if (layer.frameId === subSprite.frames.length-1)
@@ -717,9 +884,20 @@ export default class AnimatedSprite {
         let layer;
 
         if (layerData.type === 'sprite') {
-          let subSprite = sprites[layerData.spriteId];
-          let subFrameData = subSprite.frames[layerData.frameId];
-          let spriteFrame = this._renderFrame(sprites, subSprite, layerData.frameId, options);
+          let spriteFrame;
+          let subFrameData;
+          if (typeof layerData.spriteId === 'number') {
+            let subSprite = sprites[layerData.spriteId];
+            subFrameData = subSprite.frames[layerData.frameId];
+            spriteFrame = this._renderFrame(sprites, subSprite, layerData.frameId, options);
+          }
+          else {
+            let importSpriteName = layerData.spriteId.replace(/\/.+$/, '');
+            let importSprite = AnimatedSprite.get(importSpriteName);
+            let subSprite = AnimatedSprite.get(layerData.spriteId);
+            subFrameData = subSprite.frames[layerData.frameId];
+            spriteFrame = importSprite._renderFrame(importSprite.sprites, subSprite, layerData.frameId, options);
+          }
 
           scripts.push(...spriteFrame.scripts);
           layer = spriteFrame.container;
@@ -734,8 +912,12 @@ export default class AnimatedSprite {
 
           if (layerData.transform)
             applyTransform(layer, layerData.transform);
-          if (layerData.color)
-            applyColor(layer, layerData.color);
+          if (layerData.color) {
+            if (options.forCanvas)
+              applyColorForCanvas(layer, layerData.color);
+            else
+              applyColor(layer, layerData.color);
+          }
         }
         else
           throw `Unsupported frame type: ${layerData.type}`;
@@ -953,3 +1135,6 @@ function applyColorForCanvas(displayObject, color) {
     displayObject.alpha = 1;
   }
 }
+
+// Static property
+AnimatedSprite.spriteMap = new Map();

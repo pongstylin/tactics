@@ -110,7 +110,7 @@ export default class {
     let countsContainer = new PIXI.Container();
     countsContainer.position = board.pixi.position.clone();
 
-    let core = Tactics.spriteMap.get('core');
+    let core = Tactics.getSprite('core');
 
     let tilePoint = board.getTile(5, 10).getCenter();
     let trash = core.renderFrame({ spriteName:'Trash' }).container;
@@ -369,7 +369,6 @@ export default class {
     let width     = container.clientWidth;
     let height    = container.clientHeight;
 
-    console.log('container', width, height);
     height -= canvas.offsetTop;
 
     let widthRatio   = width  / canvas.width;
@@ -790,7 +789,7 @@ export default class {
           tile.pixi.position.y += offsetX[1] + offsetY[1];
 
           if (y === 4) {
-            let offset = board.getOffset(1 /3, 'E');
+            let offset = board.getOffset(1 / 3, 'E');
             tile.pixi.position.x += offset[0];
             tile.pixi.position.y += offset[1];
           }
@@ -800,20 +799,44 @@ export default class {
       return [
         [5, 5], [4, 5], [6, 5], [3, 5], [7, 5], [2, 5], [8, 5], [1, 5], [9, 5],
         [5, 6], [6, 6], [4, 6], [7, 6], [3, 6], [8, 6],
-        [5, 7], [4, 7], [6, 7],
+        [5, 7], [6, 7], [4, 7],
       ];
     }
+    else if (num < 20) {
+      /*
+       * Space out the tiles a bit
+       */
+      for (let y = 0; y < 6; y++) {
+        for (let x = 0; x < 11; x++) {
+          let tile = board.getTile(x, y);
+          if (!tile) continue;
 
-    let cols = [5, 4, 6, 3, 7, 2, 8, 1, 9];
-    let rows = [5, 7, 9, 6, 8, 10];
-    let positions = [];
+          let distanceX = 5 - Math.abs(x - 10);
+          let offsetX = board.getOffset(distanceX / 4, 'E');
+          let distanceY = Math.abs(y - 5);
+          let offsetY = board.getOffset(distanceY / 2, 'N');
 
-    for (let y = 0; y < rows.length; y++) {
-      for (let x = 0; x < cols.length; x++) {
-        if (!board.getTile(cols[x], rows[y])) continue;
+          tile.pixi.position.x += offsetX[0] + offsetY[0];
+          tile.pixi.position.y += offsetX[1] + offsetY[1];
 
-        positions.push([ cols[x], rows[y] ]);
+          if (y === 3) {
+            let offset = board.getOffset(2 / 3, 'E');
+            tile.pixi.position.x += offset[0];
+            tile.pixi.position.y += offset[1];
+          }
+          else if (y === 4) {
+            let offset = board.getOffset(1 / 3, 'E');
+            tile.pixi.position.x += offset[0];
+            tile.pixi.position.y += offset[1];
+          }
+        }
       }
+
+      return [
+        [5, 5], [4, 5], [6, 5], [3, 5], [7, 5], [2, 5], [8, 5], [1, 5], [9, 5],
+        [5, 6], [6, 6], [4, 6], [7, 6], [3, 6], [8, 6],
+        [5, 7], [6, 7], [4, 7], [7, 7],
+      ];
     }
 
     return positions;

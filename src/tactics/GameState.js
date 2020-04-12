@@ -337,6 +337,11 @@ export default class GameState {
 
     board.setState(this.units, teams);
 
+    // Triggering board init event allows units to apply ambient effects, such
+    // as Dragonspeaker Mage.
+    board.trigger({ type:'init' });
+    this.units = board.getState();
+
     this._bots = teams
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
@@ -581,7 +586,7 @@ export default class GameState {
       if (action.type === 'attack' || action.type === 'attackSpecial') {
         let selected = this.selected;
         let forceEndTurn = () => {
-          if (selected.mHealth === -selected.health)
+          if (selected.mHealth <= -selected.health)
             return true;
           if (selected.focusing)
             return true;
@@ -1045,23 +1050,11 @@ export default class GameState {
       });
     });
 
-    /*
-     * Furgon resumes a calm disposition if:
-     *   1) It is still enraged at the end of its turn.
-     *   2) It has recovered after becoming exhausted.
-     */
-    let furgon = this.currentTeam.units.find(u => u.type === 'Furgon');
-    if (
-      furgon &&
-      (
-        furgon.disposition === 'enraged' ||
-        furgon.disposition === 'exhausted' && furgon.mRecovery === 1
-      )
-    )
-      results.push({
-        unit: furgon,
-        changes: { name:'Furgon', disposition:null },
-      });
+    this._board.trigger({
+      type: 'endTurn',
+      currentTeam: this.currentTeam,
+      addResults: r => results.push(...r),
+    });
 
     // If the player team was killed, he can take over for a bot team.
     // This behavior is restricted to the Chaos app.

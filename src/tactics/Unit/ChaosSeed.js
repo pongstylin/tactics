@@ -315,7 +315,7 @@ export default class ChaosSeed extends Unit {
           target: target_unit.assignment,
           results: [{
             unit:    target_unit,
-            changes: { mHealth:Math.max(-target_unit.health, mHealth) },
+            changes: { mHealth },
           }],
         };
       }

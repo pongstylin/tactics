@@ -1,6 +1,64 @@
 import Unit from 'tactics/Unit.js';
 
 export default class Furgon extends Unit {
+  attach() {
+    this.board
+      .on('death', this._onBoardDeath = this.onBoardDeath.bind(this))
+      .on('endTurn', this._onBoardEndTurn = this.onBoardEndTurn.bind(this));
+  }
+  detach() {
+    this.board
+      .off('death', this._onBoardDeath)
+      .off('endTurn', this._onBoardEndTurn);
+  }
+
+  /*
+   * The Furgon, if any, on the dead unit's team becomes enraged if a non-
+   * ward ally is killed by an opponent team.
+   */
+  onBoardDeath(event) {
+    let attacker = event.attacker;
+    let defender = event.defender;
+
+    // Nothing can be done if this used died.
+    // Compare using IDs since the unit may be a clone.
+    if (defender.id === this.id)
+      return;
+    // Don't care if we killed our own unit.
+    if (attacker.team === this.team)
+      return;
+    // Don't care unless a member of this Furgon's team died.
+    if (defender.team !== this.team)
+      return;
+    // Don't care if wards or shrubs die.
+    if (/Ward$|^Shrub$/.test(defender.type))
+      return;
+
+    let changes = { name:'Enraged Furgon', disposition:'enraged' };
+    if (this.mRecovery)
+      changes.mRecovery = 0;
+
+    event.addResults([{ unit:this, changes }]);
+  }
+  /*
+   * Furgon resumes a calm disposition if:
+   *   1) It is still enraged at the end of its turn.
+   *   2) It has recovered after becoming exhausted.
+   */
+  onBoardEndTurn(event) {
+    if (event.currentTeam !== this.team)
+      return;
+
+    if (
+      this.disposition === 'enraged' ||
+      this.disposition === 'exhausted' && this.mRecovery === 1
+    )
+      event.addResults([{
+        unit: this,
+        changes: { name:'Furgon', disposition:null },
+      }]);
+  }
+
   getAttackTiles(start = this.assignment) {
     let board = this.board;
     let range = this.aRange;
