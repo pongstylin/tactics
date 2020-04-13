@@ -48,7 +48,11 @@ window.addEventListener('DOMContentLoaded', () => {
     if (myPlayerId) {
       divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
 
+      // immediately fetch and render games
       fetchAndRenderGames();
+
+      // fetch and render games every so often
+      setInterval(fetchAndRenderGames, 30 * 1000);
     } else {
       divGreeting.textContent = `Welcome!`;
       divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
@@ -267,6 +271,7 @@ function renderGames(gms) {
 
   document.querySelector('#notice').textContent = '';
 
+  clearGameLists();
   renderActiveGames();
   renderWaitingGames();
   renderCompleteGames();
@@ -280,6 +285,12 @@ function renderGames(gms) {
   document.querySelector('.tabs').style.display = '';
   document.querySelector('.tabs .' + tab).classList.add('is-active');
   document.querySelector('.tabContent .' + tab).style.display = '';
+}
+
+function clearGameLists() {
+  document.getElementsByClassName('gameList').forEach((gameList) => {
+    gameList.innerHTML = null;
+  });
 }
 
 function renderActiveGames() {
