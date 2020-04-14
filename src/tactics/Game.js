@@ -593,11 +593,14 @@ export default class {
    * just by whipping around the mouse over the game board), then the calls
    * will be throttled thanks to requestAnimationFrame().
    */
-  render() {
+  render(skipRequest = false) {
     if (this._rendering) return;
     this._rendering = true;
 
-    requestAnimationFrame(this._render.bind(this));
+    if (skipRequest)
+      this._render();
+    else
+      requestAnimationFrame(this._render.bind(this));
   }
   /*
    * This clever function will call your animator every throttle millseconds
@@ -619,22 +622,21 @@ export default class {
 
       // stop the loop if all animators returned false
       if (animators.length) {
-        if (count) {
+        if (count === 0) {
+          start = now;
+          setTimeout(() => requestAnimationFrame(loop), throttle);
+        }
+        else {
           delay = (now - start) - (count * throttle);
 
           if (delay > throttle) {
             skip = Math.floor(delay / throttle);
             count += skip;
 
-            requestAnimationFrame(loop);
+            delay = (now - start) - (count * throttle);
           }
-          else {
-            setTimeout(() => requestAnimationFrame(loop), throttle - delay);
-          }
-        }
-        else {
-          start = now;
-          setTimeout(() => requestAnimationFrame(loop), throttle);
+
+          setTimeout(() => requestAnimationFrame(loop), throttle - delay);
         }
 
         // Iterate backward since elements may be removed.
@@ -642,7 +644,11 @@ export default class {
           if (animators[i](skip) === false)
             animators.splice(i, 1);
         }
-        this.render();
+
+        // This loop was called by requestAnimationFrame.  Don't call rAF again
+        // when rendering by passing true.
+        this.render(true);
+
         count++;
       }
       else {
@@ -1447,6 +1453,7 @@ export default class {
     renderer.plugins.interaction.update();
 
     renderer.render(this._stage);
+
     this._rendering = false;
   }
 
