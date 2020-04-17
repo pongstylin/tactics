@@ -1111,16 +1111,44 @@ export default class GameState {
     return team;
   }
   _getSurrenderResults(team) {
-    let results = [];
+    return team.units.map(unit => {
+      let result = { unit, changes: { mHealth:-unit.health } };
 
-    team.units.forEach(unit => {
-      results.push({
-        unit:    unit,
-        changes: { mHealth:-unit.health },
-      });
+      // Remove focus from dead units
+      if (unit.paralyzed || unit.poisoned || unit.armored) {
+        let focusingUnits = [
+          ...(unit.paralyzed || []),
+          ...(unit.poisoned  || []),
+          ...(unit.armored   || []),
+        ];
+
+        // All units focusing on this dead unit can stop.
+        result.results = focusingUnits.map(fUnit => ({
+          unit: fUnit,
+          changes: {
+            focusing: fUnit.focusing.length === 1
+              ? false
+              : fUnit.focusing.filter(t => t !== unit),
+          }
+        }));
+
+        // Stop showing the unit as paralyzed or poisoned
+        if (unit.paralyzed || unit.poisoned) {
+          let subChanges = {};
+          if (unit.paralyzed)
+            subChanges.paralyzed = unit.paralyzed = false;
+          if (unit.poisoned)
+            subChanges.poisoned = unit.poisoned = false;
+
+          result.results.push({
+            unit: unit,
+            changes: subChanges,
+          });
+        }
+      }
+
+      return result;
     });
-
-    return results;
   }
 
   _applyAction(action) {
