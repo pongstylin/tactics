@@ -758,12 +758,19 @@ export default class {
     // If you release after ~2 secs then the attack is launched. 
     promise.release = () => {
       anim.stop();
-      if (anim.state.ready)
+      if (anim.state.ready) {
         this._submitAction({type:'attackSpecial'});
+
+        // Set this to false to prevent releasing twice.
+        anim.state.ready = false;
+      }
     };
 
     // For the sake of all that's holy, don't attack even if ready!
-    promise.cancel = () => anim.stop();
+    promise.cancel = () => {
+      anim.stop();
+      anim.state.ready = false;
+    };
 
     return promise;
   }
