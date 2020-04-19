@@ -1762,9 +1762,11 @@ export default class {
     if (this.directional !== false)
       state.direction = this.direction;
 
-    let colorId = reverseColorMap.get(this.color);
-    if (colorId !== this.team.colorId)
-      state.colorId = colorId;
+    if (this.team) {
+      let colorId = reverseColorMap.get(this.color);
+      if (colorId !== this.team.colorId)
+        state.colorId = colorId;
+    }
 
     let properties = [
       'disposition',

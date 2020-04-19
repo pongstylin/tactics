@@ -1289,7 +1289,8 @@ export default class {
       let unit = result.unit;
 
       if (result.type === 'summon') {
-        this.addUnit(unit, this.teams[result.teamId]);
+        // Add a clone of the unit so that the original unit remains unchanged
+        this.addUnit(unit.clone(), this.teams[result.teamId]);
       }
       else {
         // Use a shallow clone to protect against modification.
