@@ -52,7 +52,7 @@ window.addEventListener('DOMContentLoaded', () => {
       fetchAndRenderGames();
 
       // fetch and render games every so often
-      setInterval(fetchAndRenderGames, 30 * 1000);
+      setInterval(fetchAndRenderGames, 5 * 1000);
     } else {
       divGreeting.textContent = `Welcome!`;
       divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
