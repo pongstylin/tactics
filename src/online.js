@@ -1,3 +1,4 @@
+import ifvisible from 'ifvisible.js';
 import 'plugins/element.js';
 import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
@@ -542,11 +543,13 @@ function fetchGames() {
 }
 
 function fetchAndRenderGames() {
-  fetchGames()
-    .then(renderGames)
-    .catch((error) => {
-      divNotice.textContent =
-        "Sorry!  There was an error while loading your games.";
-      throw error;
-    });
+  if (ifvisible.now()) {
+    fetchGames()
+      .then(renderGames)
+      .catch((error) => {
+          divNotice.textContent =
+              "Sorry!  There was an error while loading your games.";
+          throw error;
+      });
+  }
 }
