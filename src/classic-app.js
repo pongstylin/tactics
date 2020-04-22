@@ -4,6 +4,8 @@ var game;
 var pointer;
 var progress;
 var fullscreen = Tactics.fullscreen;
+var readySpecial;
+
 var set = [
   // Back Row
   {assignment:[5, 0], type:'Cleric'},
@@ -138,15 +140,24 @@ $(() => {
      *   2) The attack button is pressed for 2 seconds and released.
      */
     .on('mousedown touchstart', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
-      let readySpecial = game.readySpecial();
+      // Ignore mouse events on touch devices
+      if (pointer === 'touch' && event.type === 'mousedown')
+        return;
+      // Ignore repeated mousedown/touchstart before mouseup/touchend
+      if (readySpecial)
+        return;
+      readySpecial = game.readySpecial();
+
       let button = event.target;
-      let eventType = pointer === 'touch' ? 'touchend' : 'mouseup';
+      let eventType = event.type === 'touchstart' ? 'touchend' : 'mouseup';
 
       $(document).one(eventType, event => {
         if (event.target === button)
           readySpecial.release();
         else
           readySpecial.cancel();
+
+        readySpecial = null;
       });
     })
     .on('mouseover','#app BUTTON:enabled', event => {
