@@ -59,9 +59,9 @@ class AuthService extends Service {
     /*
      * More than one client may be registered to a given IP address, e.g.
      * two mobile phones on the same wireless network.  Just don't register
-     * more than one account per minute to protect against DoS.
+     * more than one account within 30 seconds to protect against DoS.
      */
-    this.throttle(client.address, 'register', 1, 60);
+    this.throttle(client.address, 'register', 1, 30);
 
     let player = await dataAdapter.createPlayer(playerData);
     let device = player.addDevice({
