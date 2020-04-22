@@ -554,6 +554,7 @@ function fetchAndRenderGames() {
     fetchGames()
       .then(renderGames)
       .catch((error) => {
+          const divNotice = document.querySelector('#notice');
           divNotice.textContent =
               "Sorry!  There was an error while loading your games.";
           throw error;
