@@ -255,6 +255,8 @@ function unsubscribePN() {
 }
 
 function renderGames(gms) {
+  clearGameLists();
+
   gms.forEach(g => {
     if (g.ended)
       games.complete.set(g.id, g);
@@ -272,7 +274,6 @@ function renderGames(gms) {
 
   document.querySelector('#notice').textContent = '';
 
-  clearGameLists();
   renderActiveGames();
   renderWaitingGames();
   renderCompleteGames();
@@ -289,6 +290,12 @@ function renderGames(gms) {
 }
 
 function clearGameLists() {
+  // Clear the global game mappings
+   Object.keys(games).forEach((gameType) => {
+     games[gameType].clear();
+   });
+
+  // Clear the game lists in the DOM
   document.getElementsByClassName('gameList').forEach((gameList) => {
     gameList.innerHTML = null;
   });
