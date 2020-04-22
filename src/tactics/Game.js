@@ -729,7 +729,7 @@ export default class {
   }
   canSelectSpecial() {
     let selected = this.selected;
-    if (selected)
+    if (selected && this.isMyTeam(selected.team))
       return selected.canSpecial();
 
     return false;
