@@ -1428,15 +1428,21 @@ export default class {
   _playSurrender(action) {
     let team = this.teams[action.teamId];
     let anim = new Tactics.Animation();
+    let deathAnim = new Tactics.Animation();
     let notice = `${team.colorId} Surrenders!`;
 
     anim.addFrame(() => this.notice = notice);
 
+    this._applyChangeResults(action.results);
+
     action.results.forEach(result => {
       let unit = result.unit;
 
-      anim.splice(0, unit.animDie());
+      anim.splice(0, this._animApplyFocusChanges(result));
+      deathAnim.splice(0, unit.animDie());
     });
+
+    anim.splice(deathAnim);
 
     // Show the notice for 2 seconds.
     let timeout = 2000 - (anim.frames.length * anim.fps);
