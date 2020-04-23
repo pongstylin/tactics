@@ -60,7 +60,7 @@ const INSTALL_CACHE_NAME = 'app' + SUFFIX;
 //   1) A minor change to a file has taken place (e.g. changing an image)
 //   2) A file is moved from the fetch cache to the install cache.
 //   3) One or more files are no longer used by a new app version.
-const FETCH_CACHE_NAME = 'dynamic-20200320';
+const FETCH_CACHE_NAME = 'dynamic-20200423';
 const LOCAL_CACHE_NAME = 'local';
 
 const ACTIVE_CACHE_NAMES = [
@@ -160,9 +160,6 @@ self.addEventListener('fetch', event => {
     return event.respondWith(routeLocalRequest(request));
   if (request.method !== 'GET')
     return event.respondWith(fetch(request));
-  // Google Fonts API disallows CORS requests.
-  if (url.startsWith('https://fonts.googleapis.com/css'))
-    return event.respondWith(fetch(request));
 
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {
@@ -170,8 +167,15 @@ self.addEventListener('fetch', event => {
       if (cachedResponse && (ENVIRONMENT !== 'development' || !url.startsWith('http://localhost:')))
         return cachedResponse;
 
+      let fetchPromise;
+      // Google Fonts API disallows CORS requests.
+      if (url.startsWith('https://fonts.googleapis.com/css'))
+        fetchPromise = fetch(request);
+      else
+        fetchPromise = fetch(url, OPTIONS);
+
       // Cache miss or localhost URL.  Fetch response and cache it.
-      return fetch(url, OPTIONS)
+      return fetchPromise
         .then(response => {
           // Only cache successful responses.
           if (!response || response.status !== 200)
