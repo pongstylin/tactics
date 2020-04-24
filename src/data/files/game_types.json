@@ -148,7 +148,7 @@
   [
     "delta",
     {
-      "name": "Delta",
+      "name": "Delta Force",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
@@ -185,9 +185,9 @@
     }
   ],
   [
-    "singleGold",
+    "legendsGold",
     {
-      "name": "Single Gold",
+      "name": "Legends Gold, no DSM",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
@@ -195,24 +195,24 @@
           "max": 10,
 
           "types": [
-            ["Assassin",       { "max":10 }],
-            ["Knight",         { "max":3  }],
-            ["Cleric",         { "max":10 }],
-            ["Scout",          { "max":1  }],
-            ["Pyromancer",     { "max":10 }],
-            ["Enchantress",    { "max":10 }],
-            ["DarkMagicWitch", { "max":10 }],
-            ["BarrierWard",    { "max":9  }],
-            ["LightningWard",  { "max":1  }],
-            ["MudGolem",       { "max":10 }],
-            ["PoisonWisp",     { "max":1  }],
-            ["FrostGolem",     { "max":10 }],
+            ["Assassin",       { "max":1 }],
+            ["Knight",         { "max":3 }],
+            ["Cleric",         { "max":1 }],
+            ["Scout",          { "max":1 }],
+            ["Pyromancer",     { "max":2 }],
+            ["Enchantress",    { "max":1 }],
+            ["DarkMagicWitch", { "max":1 }],
+            ["BarrierWard",    { "max":1 }],
+            ["LightningWard",  { "max":1 }],
+            ["MudGolem",       { "max":1 }],
+            ["PoisonWisp",     { "max":1 }],
+            ["FrostGolem",     { "max":1 }],
             ["DragonTyrant",   { "max":1, "size":2 }],
-            ["Furgon",         { "max":1  }],
-            ["StoneGolem",     { "max":1  }],
-            ["BeastRider",     { "max":10 }],
-            ["GolemAmbusher",  { "max":1  }],
-            ["Berserker",      { "max":1  }]
+            ["Furgon",         { "max":1 }],
+            ["StoneGolem",     { "max":1 }],
+            ["BeastRider",     { "max":1 }],
+            ["GolemAmbusher",  { "max":1 }],
+            ["Berserker",      { "max":1 }]
           ]
         }
       },
@@ -233,9 +233,58 @@
     }
   ],
   [
-    "doubleGold",
+    "fpsGold",
     {
-      "name": "Double Gold",
+      "name": "FPS Gold",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "units": {
+          "max": 10,
+
+          "types": [
+            ["Scout",             { "max":2  }],
+            ["Assassin",          { "max":1  }],
+            ["Knight",            { "max":3  }],
+            ["Cleric",            { "max":1  }],
+            ["StoneGolem",        { "max":1  }],
+            ["Pyromancer",        { "max":2  }],
+            ["Enchantress",       { "max":1  }],
+            ["DarkMagicWitch",    { "max":1  }],
+            ["BarrierWard",       { "max":1  }],
+            ["LightningWard",     { "max":1  }],
+            ["MudGolem",          { "max":1  }],
+            ["PoisonWisp",        { "max":1  }],
+            ["FrostGolem",        { "max":1  }],
+            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["Furgon",            { "max":1  }],
+            ["DragonspeakerMage", { "max":1  }],
+            ["BeastRider",        { "max":1  }],
+            ["GolemAmbusher",     { "max":1  }],
+            ["Berserker",         { "max":1  }]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[5, 2], "type":"DragonTyrant" },
+          { "assignment":[1, 4], "type":"Scout" },
+          { "assignment":[2, 4], "type":"Knight" },
+          { "assignment":[4, 4], "type":"MudGolem" },
+          { "assignment":[5, 4], "type":"Knight" },
+          { "assignment":[6, 4], "type":"DragonspeakerMage" },
+          { "assignment":[8, 4], "type":"Knight" },
+          { "assignment":[9, 4], "type":"Scout" }
+        ]
+      }]
+    }
+  ],
+  [
+    "freestyle",
+    {
+      "name": "Freestyle",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
