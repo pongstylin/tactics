@@ -295,7 +295,7 @@ function clearGameLists() {
    });
 
   // Clear the game lists in the DOM
-  document.getElementsByClassName('gameList').forEach((gameList) => {
+  document.getElementsByClassName("gameList").forEach((gameList) => {
     gameList.innerHTML = null;
   });
 }
@@ -506,12 +506,12 @@ function openTab(tab) {
 }
 
 function getTabNameForElement(el) {
-    if (el.classList.contains('active'))
-        return 'active';
-    else if (el.classList.contains('waiting'))
-        return 'waiting';
-    else if (el.classList.contains('complete'))
-        return 'complete';
+  if (el.classList.contains('active'))
+    return 'active';
+  else if (el.classList.contains('waiting'))
+    return 'waiting';
+  else if (el.classList.contains('complete'))
+    return 'complete';
 }
 
 function fetchGames() {
@@ -556,15 +556,15 @@ function fetchGames() {
  * making requests when the server is disconnected (i.e. when the user changes tabs).
  */
 function fetchAndRenderGames() {
-    fetchGames()
-      .then(renderGames)
-      .catch((error) => {
-          const divNotice = document.querySelector('#notice');
-          divNotice.textContent =
-              "Sorry!  There was an error while loading your games.";
-          throw error;
+  fetchGames()
+    .then(renderGames)
+    .catch((error) => {
+      const divNotice = document.querySelector("#notice");
+      divNotice.textContent =
+          "Sorry!  There was an error while loading your games.";
+      throw error;
     })
     .then(() => {
       setTimeout(fetchAndRenderGames, GAMES_FETCH_INTERVAL);
-      });
-  }
+    });
+}
