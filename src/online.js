@@ -1,10 +1,12 @@
-import ifvisible from 'ifvisible.js';
 import 'plugins/element.js';
 import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
+
+// We will be fetching the updates games list from the server on this interval
+const GAMES_FETCH_INTERVAL = 5 * 1000;
 
 let authClient = clientFactory('auth');
 let gameClient = clientFactory('game');
@@ -49,11 +51,8 @@ window.addEventListener('DOMContentLoaded', () => {
     if (myPlayerId) {
       divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
 
-      // immediately fetch and render games
+      // This kicks off the game fetching and rendering loop
       fetchAndRenderGames();
-
-      // fetch and render games every so often
-      setInterval(fetchAndRenderGames, 5 * 1000);
     } else {
       divGreeting.textContent = `Welcome!`;
       divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
@@ -549,8 +548,14 @@ function fetchGames() {
   });
 }
 
+/**
+ * Calling this function will kick off a loop of fetching the latest games from the server, rendering them, and then
+ * repeating this process at the specified interval.
+ *
+ * NOTE: We purposely use recursive `setTimeout` calls instead of `setInterval` to avoid
+ * making requests when the server is disconnected (i.e. when the user changes tabs).
+ */
 function fetchAndRenderGames() {
-  if (ifvisible.now()) {
     fetchGames()
       .then(renderGames)
       .catch((error) => {
@@ -558,6 +563,8 @@ function fetchAndRenderGames() {
           divNotice.textContent =
               "Sorry!  There was an error while loading your games.";
           throw error;
+    })
+    .then(() => {
+      setTimeout(fetchAndRenderGames, GAMES_FETCH_INTERVAL);
       });
   }
-}
