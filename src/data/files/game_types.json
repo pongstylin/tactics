@@ -185,6 +185,172 @@
     }
   ],
   [
+    "legendsTurtle",
+    {
+      "name": "Legends Turtle",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[5,4] },
+        "units": {
+          "max": 10,
+
+          "types": [
+            [
+              "Scout",
+              {
+                "max": 1,
+                "tiles": { "start":[0,0], "end":[5,3] }
+              }
+            ],
+            ["BarrierWard",       { "max":1  }],
+            ["Knight",            { "max":3  }],
+            ["LightningWard",     { "max":1  }],
+            ["Cleric",            { "max":1  }],
+            ["Assassin",          { "max":1  }],
+            ["Enchantress",       { "max":1  }],
+            ["PoisonWisp",        { "max":1  }],
+            ["MudGolem",          { "max":1  }],
+            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["FrostGolem",        { "max":1  }],
+            [
+              "StoneGolem",
+              {
+                "max": 1,
+                "required": 1,
+                "rules": {
+                  "maxStone": true
+                },
+                "tiles": [
+                  { "start":[0,0], "end":[5,0] },
+                  [1,1],
+                  {
+                    "adjacentTo": {
+                      "type": "Cleric",
+                      "tiles": [ [2,0], [1,1] ]
+                    }
+                  }
+                ]
+              }
+            ],
+            ["Furgon",            { "max":1  }],
+            ["Berserker",         { "max":1  }],
+            ["BeastRider",        { "max":1  }]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[2, 0], "type":"FrostGolem" },
+          { "assignment":[1, 1], "type":"Cleric" },
+          { "assignment":[2, 1], "type":"StoneGolem" },
+          { "assignment":[1, 2], "type":"PoisonWisp" },
+          { "assignment":[2, 2], "type":"MudGolem" },
+          { "assignment":[3, 2], "type":"Scout" },
+          { "assignment":[2, 3], "type":"BeastRider" },
+          { "assignment":[5, 3], "type":"DragonTyrant" },
+          { "assignment":[5, 4], "type":"Knight" }
+        ]
+      }]
+    }
+  ],
+  [
+    "alphaTurtle",
+    {
+      "name": "Alpha Turtle",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "rules": {
+          "oneSide": 6
+        },
+        "units": {
+          "max": 10,
+
+          "types": [
+            [
+              "Scout",
+              {
+                "max": 2,
+                "tiles": { "start":[0,0], "end":[10,3] }
+              }
+            ],
+            ["Assassin",          { "max":10 }],
+            ["Knight",            { "max":3  }],
+            ["Cleric",            { "max":10 }],
+            [
+              "StoneGolem",
+              {
+                "max": 1,
+                "required": 1,
+                "rules": {
+                  "maxStone": true
+                },
+                "tiles": [
+                  { "start":[0,0], "end":[10,0] },
+                  [1,1],
+                  [9,1]
+                ]
+              }
+            ],
+            [
+              "Pyromancer",
+              {
+                "max": 10,
+                "tiles": { "start":[0,0], "end":[10,2] }
+              }
+            ],
+            ["Enchantress",       { "max":10 }],
+            [
+              "DarkMagicWitch",
+              {
+                "max": 10,
+                "tiles": { "start":[0,0], "end":[10,2] }
+              }
+            ],
+            ["BarrierWard",       { "max":9  }],
+            ["LightningWard",     { "max":1  }],
+            ["MudGolem",          { "max":10 }],
+            ["PoisonWisp",        { "max":1  }],
+            ["FrostGolem",        { "max":10 }],
+            [
+              "DragonTyrant",
+              {
+                "max": 1,
+                "size": 2,
+                "tiles": { "start":[0,0], "end":[10,3] }
+              }
+            ],
+            ["Furgon",            { "max":1  }],
+            [
+              "DragonspeakerMage",
+              {
+                "max": 1,
+                "tiles": { "start":[0,0], "end":[10,2] }
+              }
+            ],
+            ["BeastRider",        { "max":10 }],
+            ["Berserker",         { "max":1  }]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[4, 0], "type":"StoneGolem" },
+          { "assignment":[3, 0], "type":"FrostGolem" },
+          { "assignment":[5, 1], "type":"Scout" },
+          { "assignment":[4, 1], "type":"MudGolem" },
+          { "assignment":[3, 1], "type":"Scout" },
+          { "assignment":[5, 2], "type":"Knight" },
+          { "assignment":[4, 2], "type":"DragonTyrant" },
+          { "assignment":[3, 2], "type":"Knight" }
+        ]
+      }]
+    }
+  ],
+  [
     "legendsGold",
     {
       "name": "Legends Gold, no DSM",

@@ -1,5 +1,6 @@
 import config from 'config/client.js';
 import Client from 'client/Client.js';
+import GameType from 'tactics/GameType.js';
 
 export default class GameClient extends Client {
   constructor(server, authClient) {
@@ -41,18 +42,13 @@ export default class GameClient extends Client {
     return this._server.requestAuthorized(this.name, 'joinGame', args);
   }
 
-  getGameTypeConfig(gameType) {
+  getGameType(gameTypeId) {
     // Authorization not required
-    return this._server.request(this.name, 'getGameTypeConfig', [gameType])
-      .then(data => {
-        if (data.limits)
-          data.limits.units.types = new Map(data.limits.units.types);
-
-        return data;
-      })
+    return this._server.request(this.name, 'getGameTypeConfig', [gameTypeId])
+      .then(gameTypeConfig => GameType.load(gameTypeId, gameTypeConfig))
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getGameTypeConfig(gameType);
+          return this.getGameTypeConfig(gameTypeId);
         throw error;
       });
   }

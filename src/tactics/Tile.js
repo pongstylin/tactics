@@ -11,12 +11,12 @@ export const TILE_HEIGHT       = 56;
 const points = [
   42,0,  // top-left
   45,0,  // top-right
-  86,27, // right-top
-  86,28, // right-bottom
+  87,27, // right-top
+  87,28, // right-bottom
   45,55, // bottom-right
   42,55, // bottom-left
-  1 ,28, // left-bottom
-  1 ,27, // left-top
+  0 ,28, // left-bottom
+  0 ,27, // left-top
   42,0   // close
 ];
 

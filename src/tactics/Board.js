@@ -16,8 +16,8 @@ export const TARGET_TILE_COLOR = 0xFF3300;
 export default class {
   constructor() {
     let tiles = new Array(11*11);
-    var sx = 6 - TILE_WIDTH;        // padding-left, 1 tile  wide
-    var sy = 4 + TILE_HEIGHT*4 + 1; // padding-top , 4 tiles tall, tweak
+    var sx = 7 - TILE_WIDTH;        // padding-left, 1 tile  wide
+    var sy = 3 + TILE_HEIGHT*4 + 1; // padding-top , 4 tiles tall, tweak
 
     for (let x = 0; x < 11; x++) {
       let start = 0;
@@ -649,7 +649,11 @@ export default class {
       if (this.locked === true) return;
 
       if (this.viewed || this.selected)
-        this._emit({ type:'deselect' });
+        this._emit({
+          type: 'deselect',
+          target: null,
+          pointerEvent: event.data.originalEvent,
+        });
     };
 
     /*
@@ -674,9 +678,9 @@ export default class {
       let unit = tile.assigned;
 
       if (this.viewed === unit)
-        this._emit({ type:'deselect' });
+        this._emit({ ...event, type:'deselect' });
       else if (!this.viewed && this.selected === unit)
-        this._emit({ type:'deselect' });
+        this._emit({ ...event, type:'deselect' });
       else
         this._emit(event);
     };

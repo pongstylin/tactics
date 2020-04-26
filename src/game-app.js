@@ -518,13 +518,8 @@ async function loadGame(transport) {
   return new Tactics.Game(transport, localTeamIds);
 }
 async function loadResources(gameState) {
-  let gameTypeConfig = await gameClient.getGameTypeConfig(gameState.type);
-  let unitTypes;
-
-  if (gameTypeConfig.limits)
-    unitTypes = gameTypeConfig.limits.units.types.keys();
-  else
-    unitTypes = new Set(gameTypeConfig.sets[0].units.map(u => u.type));
+  let gameType = await gameClient.getGameType(gameState.type);
+  let unitTypes = gameType.getUnitTypes();
 
   // If the user will see the game immediately after the resources are loaded,
   // then require a tap to make sure sound effects work.
@@ -772,8 +767,7 @@ async function showJoinIntro(gameData) {
 
     challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`;
 
-    let gameType = gameData.state.type;
-    let gameTypeConfig = await gameClient.getGameTypeConfig(gameType);
+    let gameType = await gameClient.getGameType(gameData.state.type);
     let person;
     if (gameData.state.randomFirstTurn)
       person = 'random';
@@ -783,14 +777,14 @@ async function showJoinIntro(gameData) {
       person = 'you';
 
     details.innerHTML = `
-      <DIV>This is a <I>${gameTypeConfig.name}</I> game.</DIV>
+      <DIV>This is a <I>${gameType.name}</I> game.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
     `;
 
-    if (gameTypeConfig.customizable) {
+    if (gameType.isCustomizable) {
       $('#join .set').show();
 
-      let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType);
+      let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id);
       if (hasCustomSet)
         $('#join INPUT[name=set][value=mine]').prop('checked', true);
       else
