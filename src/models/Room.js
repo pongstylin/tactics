@@ -74,6 +74,6 @@ export default class Room {
   }
 
   toJSON() {
-    return Object.assign({}, this);
+    return {...this};
   }
 }

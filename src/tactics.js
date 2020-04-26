@@ -1,4 +1,6 @@
 import 'plugins/array.js';
+import 'plugins/set.js';
+import 'plugins/map.js';
 import 'plugins/string.js';
 
 import 'utils/event.js';

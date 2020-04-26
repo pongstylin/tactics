@@ -52,13 +52,6 @@ export default class Game {
   }
 
   toJSON() {
-    let json = {...this};
-
-    if (json.undoRequest)
-      json.undoRequest = Object.assign({}, json.undoRequest, {
-        accepts: [...json.undoRequest.accepts],
-      });
-
-    return json;
+    return {...this};
   }
 }

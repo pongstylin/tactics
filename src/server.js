@@ -6,6 +6,8 @@ import ws from 'ws';
 
 // Object extensions/polyfills
 import 'plugins/array.js';
+import 'plugins/set.js';
+import 'plugins/map.js';
 import 'plugins/string.js';
 
 import config from 'config/server.js';

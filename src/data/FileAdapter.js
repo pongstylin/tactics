@@ -5,6 +5,7 @@ import Player from 'models/Player.js';
 import Game from 'models/Game.js';
 import Room from 'models/Room.js';
 import GameSummary from 'models/GameSummary.js';
+import GameType from 'tactics/GameType.js';
 import ServerError from 'server/Error.js';
 
 const filesDir = 'src/data/files';
@@ -125,13 +126,13 @@ export default class {
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getDefaultPlayerSet(playerId, gameType) {
+  async getDefaultPlayerSet(playerId, gameTypeId) {
     let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
-    let set = sets.find(s => s.type === gameType);
+    let set = sets.find(s => s.type === gameTypeId);
     if (set) return set.units;
 
-    let gameTypeConfig = await this.getGameTypeConfig(gameType);
-    return gameTypeConfig.sets[0].units;
+    let gameType = await this.getGameType(gameTypeId);
+    return gameType.getDefaultSet();
   }
   /*
    * Setting the default set for a game type involves REPLACING the first set
@@ -150,9 +151,11 @@ export default class {
     let gameTypes = new Map(await this._lockAndReadFile('game_types'));
     return gameTypes.has(gameType);
   }
-  async getGameTypeConfig(gameType) {
+  async getGameType(gameTypeId) {
     let gameTypes = new Map(await this._lockAndReadFile('game_types'));
-    return gameTypes.get(gameType);
+    let gameTypeConfig = gameTypes.get(gameTypeId);
+
+    return GameType.load(gameTypeId, gameTypeConfig);
   }
 
   async createRoom(players, options) {
@@ -388,7 +391,7 @@ export default class {
    * Update the game summary for all participating players.
    */
   async _saveGameSummary(game) {
-    let gameType = await this.getGameTypeConfig(game.state.type);
+    let gameType = await this.getGameType(game.state.type);
     let summary = new GameSummary(gameType, game);
 
     // Get a unique list of player IDs from the teams.

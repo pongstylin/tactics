@@ -1,6 +1,7 @@
 import { Renderer } from '@pixi/core';
 import { Container } from '@pixi/display';
 import EventEmitter from 'events';
+import ServerError from 'server/Error.js';
 
 import './Setup.scss';
 import popup from 'components/popup.js';
@@ -24,14 +25,14 @@ const template = `
 `;
 
 export default class {
-  constructor(team, gameTypeConfig) {
+  constructor(team, gameType) {
     let root = document.createElement('DIV');
     root.className = 'view setup';
     root.innerHTML = template;
     root.querySelector('.back A')
       .addEventListener('click', this._onBack.bind(this));
     root.querySelector('.title')
-      .textContent = gameTypeConfig.name;
+      .textContent = gameType.name;
     root.querySelector('BUTTON[name=save]')
       .addEventListener('click', this._onSave.bind(this));
 
@@ -64,6 +65,11 @@ export default class {
 
     board
       .on('focus', ({ tile, unit }) => {
+        if (unit.team.name === 'Pick') {
+          let count = this._getAvailableUnitCounts().get(unit.type);
+          if (count === 0) return;
+        }
+
         Tactics.playSound('focus');
         board.focused = unit;
 
@@ -75,6 +81,11 @@ export default class {
         this.render();
       })
       .on('blur', ({ tile, unit }) => {
+        if (unit.team.name === 'Pick') {
+          let count = this._getAvailableUnitCounts().get(unit.type);
+          if (count === 0) return;
+        }
+
         if (board.focused === unit)
           board.focused = null;
 
@@ -92,14 +103,30 @@ export default class {
         if (pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2) {
           if (unit.team.name === 'Pick') return;
 
+          // Don't show context menu
           pointerEvent.preventDefault();
           this.removeUnit(tile.assigned);
         }
         else {
+          if (unit.team.name === 'Pick') {
+            let count = this._getAvailableUnitCounts().get(unit.type);
+            if (count === 0) return;
+          }
+
           this.selected = unit === board.selected ? null : unit;
         }
       })
-      .on('deselect', () => {
+      .on('deselect', ({ target:tile, pointerEvent }) => {
+        let unit = board.selected;
+
+        if (tile && pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2) {
+          if (unit.team.name === 'Pick') return;
+
+          // Don't show context menu
+          pointerEvent.preventDefault();
+          this.removeUnit(unit);
+        }
+
         this.selected = null;
       })
       .on('dragStart', this._onDragStart.bind(this))
@@ -154,7 +181,7 @@ export default class {
       // Crude tracking of the pointer type being used.  Ideally, this should
       // reflect the last pointer type to fire an event on the board.
       pointerType: 'ontouchstart' in window ? 'touch' : 'mouse',
-      gameTypeConfig: gameTypeConfig,
+      gameType: gameType,
 
       _team:      { name:'Set',  ...team              },
       _picksTeam: { name:'Pick', colorId:team.colorId },
@@ -180,7 +207,7 @@ export default class {
 
     this._canvas.addEventListener('contextmenu', event => event.preventDefault());
 
-    let unitTypes = [...gameTypeConfig.limits.units.types.keys()].reverse();
+    let unitTypes = gameType.getUnitTypes().reverse();
     let positions = this._getPositions(unitTypes.length);
     this._picksTeam.set = unitTypes.map((ut, i) => ({ type:ut, assignment:positions[i] }));
 
@@ -247,7 +274,7 @@ export default class {
       unit.activate();
       board.selected = unit;
 
-      this._highlightPlaces(unit);
+      this._highlightPlaces();
 
       if (unit.team.name === 'Set')
         this._enableTrash();
@@ -256,7 +283,8 @@ export default class {
       board.selected.deactivate();
       board.selected = null;
 
-      board.clearHighlight();
+      this._highlightPlaces();
+
       this._disableTrash();
     }
     else
@@ -291,6 +319,7 @@ export default class {
     board.setState([units, picksTeamUnits], [this._team, this._picksTeam]);
     board.teamsUnits.flat().forEach(u => u.draggable = true);
 
+    this._highlightPlaces();
     this._drawPicks();
     this.render();
   }
@@ -309,30 +338,20 @@ export default class {
     }, this._team);
     unit.draggable = true;
 
-    let unitCounts = this._getAvailableUnitCounts();
-
-    if (unitCounts.get(unitType) < 0) {
-      this.removeUnit(
-        this._team.units.find(u => !u.dead && u.type === unitType)
-      );
-    }
-    else {
-      while (unitCounts.get('any') < 0) {
-        this.removeUnit(this._team.units.find(u => !u.dead));
-
-        // Multiple units might have to die to make room for a large unit.
-        unitCounts = this._getAvailableUnitCounts();
-      }
-    }
-
     this._drawPicks();
+
+    return unit;
   }
   moveUnit(unit, tile) {
     let board = this._board;
-    let oldTile = unit.assignment;
+
+    if (tile.assigned)
+      board.dropUnit(tile.assigned);
 
     board.assign(unit, tile);
-    this._highlightPlaces(unit, oldTile);
+
+    // Moving and replacing units may require removing other units.
+    this.removeUnit();
   }
   swapUnit(unit, srcTile, dstTile) {
     let board = this._board;
@@ -341,21 +360,47 @@ export default class {
     board.assign(unit, dstTile);
     if (dstUnit)
       board.assign(dstUnit, srcTile);
+
+    // Moving units may require removing other units.
+    this.removeUnit();
   }
   removeUnit(unit) {
-    let board = this._board;
-    let tile = unit.assignment;
+    let animDeath;
+    if (unit) {
+      unit.dead = true;
+      unit.assignment.set_interactive(false);
+      animDeath = unit.animDie();
+    }
+    else
+      animDeath = new Tactics.Animation();
 
-    unit.dead = true;
-    tile.set_interactive(false);
-    board.clearHighlight(tile);
+    let auditUnits;
+    while (auditUnits = this._auditUnitPlaces()) {
+      auditUnits.forEach(unit => {
+        unit.dead = true;
+        unit.assignment.set_interactive(false);
+        animDeath.splice(0, unit.animDie());
+      });
+    }
 
-    unit.animDie().play().then(() => {
-      if (board.selected && !tile.assigned)
-        this._highlightPlaces(board.selected, tile);
+    if (animDeath.frames.length) {
+      animDeath.play().then(() => this._highlightPlaces());
+
+      this._drawPicks();
+    }
+  }
+  _auditUnitPlaces() {
+    let auditUnits = [];
+
+    this._team.units.forEach(unit => {
+      if (unit.dead) return;
+
+      let tiles = this._getAvailableTiles(unit.type);
+      if (!tiles.has(unit.assignment))
+        auditUnits.push(unit);
     });
 
-    this._drawPicks();
+    return auditUnits.length ? auditUnits : null;
   }
   /*
    * Allow touch devices to upscale to normal size.
@@ -512,27 +557,32 @@ export default class {
       emitBack();
   }
   _onSave(event) {
+    let set = this._board.getState()[0].map(unit => {
+      delete unit.direction;
+      return unit;
+    });
+
+    try {
+      this.gameType.validateSet(set);
+    }
+    catch (error) {
+      if (error instanceof ServerError)
+        popup(error.message);
+      else {
+        popup('Unexpected validation error');
+        throw error;
+      }
+      return;
+    }
+
     let emitSave = () => {
       this.hide();
-
-      let set = this._board.getState()[0].map(unit => {
-        delete unit.direction;
-        return unit;
-      });
 
       this._emit({ type:'save', data:set });
     };
 
     let counts = this._getAvailableUnitCounts();
-    let nonWardUnit = this._team.units.find(u => {
-      if (u.type === 'LightningWard') return false;
-      if (u.type === 'BarrierWard') return false;
-      return true;
-    });
-
-    if (!nonWardUnit)
-      popup('You need at least one unit that is not a ward.');
-    else if (counts.get('any'))
+    if (counts.get('any'))
       popup({
         message: 'You can still add more unit(s) to your team.  Are you sure?',
         buttons: [
@@ -550,6 +600,12 @@ export default class {
    * So, track mouse position to see if it is dragged before release.
    */
   _onDragStart(event) {
+    let unit = event.targetUnit;
+    if (unit.team.name === 'Pick') {
+      let count = this._getAvailableUnitCounts().get(unit.type);
+      if (count === 0) return;
+    }
+
     this._dragSource = event;
 
     this._stage.interactive = true;
@@ -597,8 +653,13 @@ export default class {
         this._stage.addChild(this._dragAvatar = dragAvatar);
       }
 
-      this._getAvailableTiles(dragUnit.type).forEach(tile => {
+      let { places, noplaces } = this._highlightPlaces(dragUnit, true);
+
+      places.forEach(tile => {
         tile.isDropTarget = true;
+      });
+      noplaces.forEach(tile => {
+        tile.set_interactive(false);
       });
     }
 
@@ -609,14 +670,16 @@ export default class {
       // Show shadow while over tiles
       dragUnit.getContainerByName('shadow', dragAvatar).alpha = 1;
 
-      dragAvatar.position = pixiEvent.data.getLocalPosition(this._stage);
+      if (pixiEvent)
+        dragAvatar.position = pixiEvent.data.getLocalPosition(this._stage);
       this._onTrashBlur();
     }
     else if (!this._trashIsFocused()) {
       // There can be a very brief delay between the old tile blurring and a new
       // tile focusing.  So, only focus trash if appropriate after a delay.
       setTimeout(() => {
-        if (board.focusedTile) return;
+        let focusedTile = board.focusedTile;
+        if (focusedTile && focusedTile.isDropTarget) return;
 
         // Hide shadow while over trash can
         dragUnit.getContainerByName('shadow', dragAvatar).alpha = 0;
@@ -654,6 +717,7 @@ export default class {
       this._dragAvatar = null;
       this._board.tiles.forEach(tile => {
         tile.isDropTarget = false;
+        tile.set_interactive(!!tile.assigned);
       });
 
       let dragUnit = dragSource.targetUnit;
@@ -664,19 +728,30 @@ export default class {
 
             // Prevent tap event from firing
             tile.set_interactive(false);
-            setTimeout(() => tile.set_interactive(true));
+            setTimeout(() => {
+              tile.set_interactive(true);
+              this._drawPicks();
+              this._highlightPlaces();
+            });
           }
           else {
             this._board.dropUnit(dragUnit);
             this._drawPicks();
+            this._highlightPlaces();
           }
         }
       }
       else {
+        // Make sure the unit is focused after assignment
+        this._board.clearHighlight(tile);
+
         if (dragUnit.team.name === 'Set')
           this.swapUnit(dragUnit, dragSource.target, tile);
         else
           this.placeUnit(dragUnit.type, tile);
+
+        this._drawPicks();
+        this._highlightPlaces();
       }
 
       this._disableTrash();
@@ -715,28 +790,8 @@ export default class {
   _onTrashBlur() {
     this._trash.children[0].alpha = 0;
   }
-
-  /*
-   * It is not used right now, but the unit type will be used to limit the tiles
-   * in which THIS unit type is allowed to be placed.
-   */
   _getAvailableTiles(unitType) {
-    let board = this._board;
-    let degree = board.getDegree(board.rotation, 'N');
-    let gameTypeConfig = this.gameTypeConfig;
-    let tileLimit = gameTypeConfig.limits.tiles;
-    let tiles = [];
-
-    for (let x = tileLimit.start[0]; x <= tileLimit.end[0]; x++) {
-      for (let y = tileLimit.start[1]; y <= tileLimit.end[1]; y++) {
-        let tile = board.getTileRotation([x, y], degree);
-        if (!tile) continue;
-
-        tiles.push(tile);
-      }
-    }
-
-    return tiles;
+    return this.gameType.getAvailableTiles(this._board, unitType);
   }
 
   _getPositions(num) {
@@ -842,34 +897,66 @@ export default class {
     return positions;
   }
   _getAvailableUnitCounts() {
-    let gameTypeConfig = this.gameTypeConfig;
-    let unitTypes = gameTypeConfig.limits.units.types;
-    let counts = new Map(
-      [...unitTypes].map(([unitType, { max }]) => [unitType, max])
-    );
-    counts.set('any', gameTypeConfig.limits.units.max);
+    let gameType = this.gameType;
+    let anyCount = gameType.getMaxUnits();
+    let unitCounts = new Map();
+    let counts = new Map();
 
     this._team.units.forEach(unit => {
       if (unit.dead) return;
 
-      counts.set(unit.type, counts.get(unit.type) - 1);
+      let unitCount = unitCounts.get(unit.type) || 0;
+      let unitSize = gameType.getUnitSize(unit.type);
 
-      let unitSize = unitTypes.get(unit.type).size || 1;
-      counts.set('any', counts.get('any') - unitSize);
+      anyCount -= unitSize;
+      unitCounts.set(unit.type, unitCount + 1);
+    });
+
+    counts.set('any', anyCount);
+
+    gameType.getUnitTypes().forEach(unitType => {
+      let unitCount = unitCounts.get(unitType) || 0;
+      let unitSize = gameType.getUnitSize(unitType);
+      let unitMaxCount = gameType.getUnitMaxCount(unitType);
+
+      if (anyCount < unitSize)
+        counts.set(unitType, 0);
+      else
+        counts.set(unitType, unitMaxCount - unitCount);
     });
 
     return counts;
   }
-  _highlightPlaces(unit, tiles) {
+  _highlightPlaces(unit = this._board.selected, dragMode) {
     let board = this._board;
-    if (tiles === undefined)
-      tiles = this._getAvailableTiles(unit.type).filter(t => !t.assigned);
+    let tiles = this._getAvailableTiles(unit && unit.type);
+    let places = [];
+    let noplaces = [];
 
-    board.setHighlight(tiles, {
+    for (let x = 0; x < 11; x++) {
+      for (let y = 6; y < 11; y++) {
+        let tile = board.getTile(x, y);
+        if (!tile) continue;
+
+        if (tiles.has(tile)) {
+          if (unit && (!tile.assigned || dragMode))
+            places.push(tile);
+        }
+        else {
+          tile.set_interactive(!!tile.assigned);
+          noplaces.push(tile);
+        }
+      }
+    }
+
+    board.clearHighlight();
+
+    board.setHighlight(places, {
       action: 'place',
       color: 0xFFFFFF,
       alpha: 0,
       onFocus: ({ target:tile }) => {
+        Tactics.playSound('focus');
         tile.setAlpha(0.3);
         this.render();
       },
@@ -879,6 +966,7 @@ export default class {
       },
       onSelect: ({ target:tile }) => {
         Tactics.playSound('select');
+        // Make sure the unit is focused after assignment
         board.clearHighlight(tile);
 
         if (unit.team.name === 'Pick')
@@ -886,22 +974,32 @@ export default class {
         else
           this.moveUnit(unit, tile);
 
+        this._highlightPlaces();
         this.render();
       },
     });
-  }
-  /*
-   * Not used yet... intended for use in places a unit may not go.
-   */
-  _highlightNoPlaces(tiles) {
-    this._board.setHighlight(tiles, {
+
+    board.setHighlight(noplaces, {
       action: 'noplace',
       color: 0x000000,
       alpha: 0.3,
-      onFocus: () => {},
-      onBlur: () => {},
+      onFocus: ({ target:tile }) => {
+        if (!tile.is_interactive()) return;
+
+        Tactics.playSound('focus');
+        tile.paint('focus', 0.3, 0xFFFFFF);
+        this.render();
+      },
+      onBlur: ({ target:tile }) => {
+        if (!tile.is_interactive()) return;
+
+        tile.paint('noplace', 0.3, 0x000000);
+        this.render();
+      },
       onSelect: () => {},
     }, true);
+
+    return { places, noplaces };
   }
   _drawPicks() {
     let counts = this._getAvailableUnitCounts();
@@ -910,12 +1008,25 @@ export default class {
 
     let board = this._board;
     this._picksTeam.units.forEach(unit => {
-      let count = counts.get(unit.type) || 0;
+      let count = counts.get(unit.type);
 
-      if (board.focused === unit || board.selected === unit)
-        unit.showFocus(0.8, 0xFFFFFF);
-      else
+      if (count === 0) {
+        if (board.selected === unit)
+          this.selected = null;
+        if (board.focused === unit)
+          board.focused = null;
+
+        unit.assignment.set_interactive(false);
         unit.showFocus(0.8);
+      }
+      else {
+        unit.assignment.set_interactive(true);
+
+        if (board.focused === unit || board.selected === unit)
+          unit.showFocus(0.8, 0xFFFFFF);
+        else
+          unit.showFocus(0.8);
+      }
 
       let textColor;
       let text;

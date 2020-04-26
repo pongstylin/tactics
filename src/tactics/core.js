@@ -211,9 +211,15 @@ window.Tactics = (function () {
      * This is a shared interface for launching and handling the result of game
      * type setup.  It is only appropriate for online use.
      */
-    setup: async function (gameType) {
+    setup: async function (gameTypeId) {
+      let gameType;
+      if (typeof gameTypeId !== 'string') {
+        gameType = gameTypeId;
+        gameTypeId = gameType.id;
+      }
+
       let progress = new Progress();
-      let setup = this._setupMap.get(gameType);
+      let setup = this._setupMap.get(gameTypeId);
       let promise = new Promise(r => this._resolveSetup = r);
 
       if (!setup) {
@@ -224,10 +230,11 @@ window.Tactics = (function () {
         // Allow the message to show
         await sleep(200);
 
-        let gameTypeConfig = await gameClient.getGameTypeConfig(gameType);
+        if (!gameType)
+          gameType = await gameClient.getGameType(gameTypeId);
 
         await Tactics.load(
-          gameTypeConfig.limits.units.types.keys(),
+          gameType.getUnitTypes(),
           percent => progress.percent = percent,
         );
 
@@ -235,11 +242,11 @@ window.Tactics = (function () {
         // Allow the message to show
         await sleep(200);
 
-        let defaultSet = await gameClient.getDefaultPlayerSet(gameType);
+        let defaultSet = await gameClient.getDefaultPlayerSet(gameType.id);
         setup = new Setup({
           colorId: 'Red',
           set: defaultSet,
-        }, gameTypeConfig);
+        }, gameType);
         setup.on('back', () => {
           this._resolveSetup(false);
 
@@ -255,14 +262,14 @@ window.Tactics = (function () {
 
           setup.set = set;
 
-          gameClient.saveDefaultPlayerSet(gameType, set).then(() => {
+          gameClient.saveDefaultPlayerSet(gameType.id, set).then(() => {
             notice.close();
 
             this._resolveSetup(true);
           });
         });
 
-        this._setupMap.set(gameType, setup);
+        this._setupMap.set(gameType.id, setup);
 
         progress.hide();
       }

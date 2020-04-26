@@ -229,23 +229,26 @@ class GameService extends Service {
     return dataAdapter.createGame(gameOptions).then(game => game.id);
   }
 
-  async onGetGameTypeConfigRequest(client, gameType) {
-    return dataAdapter.getGameTypeConfig(gameType);
+  async onGetGameTypeConfigRequest(client, gameTypeId) {
+    return dataAdapter.getGameType(gameTypeId);
   }
-  async onHasCustomPlayerSetRequest(client, gameType) {
+  async onHasCustomPlayerSetRequest(client, gameTypeId) {
     let clientPara = this.clientPara.get(client.id);
 
-    return dataAdapter.hasCustomPlayerSet(clientPara.playerId, gameType);
+    return dataAdapter.hasCustomPlayerSet(clientPara.playerId, gameTypeId);
   }
-  async onGetDefaultPlayerSetRequest(client, gameType) {
+  async onGetDefaultPlayerSetRequest(client, gameTypeId) {
     let clientPara = this.clientPara.get(client.id);
 
-    return dataAdapter.getDefaultPlayerSet(clientPara.playerId, gameType);
+    return dataAdapter.getDefaultPlayerSet(clientPara.playerId, gameTypeId);
   }
-  async onSaveDefaultPlayerSetRequest(client, gameType, set) {
+  async onSaveDefaultPlayerSetRequest(client, gameTypeId, set) {
     let clientPara = this.clientPara.get(client.id);
 
-    return dataAdapter.setDefaultPlayerSet(clientPara.playerId, gameType, set);
+    let gameType = await dataAdapter.getGameType(gameTypeId);
+    gameType.validateSet(set);
+
+    return dataAdapter.setDefaultPlayerSet(clientPara.playerId, gameTypeId, set);
   }
 
   async onGetGameRequest(client, gameId) {
