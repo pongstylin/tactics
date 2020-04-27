@@ -6,7 +6,8 @@ import popup from 'components/popup.js';
 let authClient = clientFactory('auth');
 
 window.addEventListener('DOMContentLoaded', () => {
-  let identityToken = new Token(location.search.slice(1));
+  let tokenValue = location.search.slice(1).replace(/[&=].*$/, '');
+  let identityToken = new Token(tokenValue);
 
   if (authClient.playerId === identityToken.playerId)
     authClient.whenReady.then(() => popup({
