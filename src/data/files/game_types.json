@@ -353,7 +353,7 @@
   [
     "legendsGold",
     {
-      "name": "Legends Gold, no DSM",
+      "name": "Legends Gold",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
