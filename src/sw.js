@@ -130,25 +130,34 @@ async function routeLocalRequest(request) {
     statusText: 'OK',
     headers: {
       'Content-Type': 'application/json',
-    }
+    },
   };
 
-  if (request.method === 'POST')
-    return request.json().then(data =>
-      caches.open(LOCAL_CACHE_NAME).then(cache => {
-        cache.put(LOCAL_ENDPOINT, new Response(JSON.stringify(data), responseMeta));
+  let cache = await caches.open(LOCAL_CACHE_NAME);
 
-        return new Response(null, {
-          status: 201,
-          statusText: 'Created',
-        });
-      })
-    );
+  if (request.method === 'POST') {
+    let data = await request.json();
 
-  return caches.open(LOCAL_CACHE_NAME)
-    .then(cache => cache.match(LOCAL_ENDPOINT)
-      .then(response => response || new Response('{}', responseMeta))
-    );
+    await cache.put(LOCAL_ENDPOINT, new Response(JSON.stringify(data), responseMeta));
+
+    return new Response(null, {
+      status: 201,
+      statusText: 'Created',
+    });
+  }
+  else if (request.method === 'DELETE') {
+    await cache.delete(LOCAL_ENDPOINT);
+
+    return new Response(null, {
+      status: 200,
+      statusText: 'Deleted',
+    });
+  }
+  else /* GET */ {
+    let response = await cache.match(LOCAL_ENDPOINT);
+
+    return response || new Response('{}', responseMeta);
+  }
 }
 
 self.addEventListener('fetch', event => {

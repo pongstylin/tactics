@@ -167,11 +167,8 @@ export default class AuthClient extends Client {
       .catch(error => {
         // If the device was deleted or if the account doesn't exist anymore,
         // pretend as if we were never authenticated in the first place.
-        if (error.code === 401 || error.code === 404) {
-          localStorage.removeItem('token');
-          this.token = null;
-          return;
-        }
+        if (error.code === 401 || error.code === 404)
+          return this._unsetToken();
 
         if (error !== 'Connection reset')
           throw error;
@@ -244,6 +241,15 @@ export default class AuthClient extends Client {
       this._authorize(token);
       this._emit({ type:'token', data:token });
     }
+  }
+  async _unsetToken() {
+    this.token = null;
+
+    await fetch(LOCAL_ENDPOINT, {
+      method: 'DELETE',
+    });
+
+    localStorage.removeItem('token');
   }
   _setRefreshTimeout() {
     this._clearRefreshTimeout();

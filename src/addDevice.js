@@ -5,19 +5,21 @@ import popup from 'components/popup.js';
 
 let authClient = clientFactory('auth');
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   let tokenValue = location.search.slice(1).replace(/[&=].*$/, '');
   let identityToken = new Token(tokenValue);
 
+  await authClient.whenReady;
+
   if (authClient.playerId === identityToken.playerId)
-    authClient.whenReady.then(() => popup({
+    popup({
       message: `This device is already associated with the ${authClient.playerName} account.`,
       buttons: [],
       closeOnCancel: false,
       minWidth: '300px',
-    }));
+    });
   else if (authClient.playerId)
-    authClient.whenReady.then(() => popup({
+    popup({
       title: 'Transfer Device',
       message: `You are about to add this device to the ${identityToken.playerName} account.  This means the device must be removed from the ${authClient.playerName} account.  Do you want to proceed?`,
       buttons: [
@@ -36,10 +38,9 @@ window.addEventListener('DOMContentLoaded', () => {
       ],
       closeOnCancel: false,
       minWidth: '300px',
-    }));
+    });
   else
     addDevice(identityToken);
-
 });
 
 function addDevice(identityToken) {
@@ -49,10 +50,10 @@ function addDevice(identityToken) {
     })
     .catch(error => {
       if (error.code === 403)
-        error.message = 'This link was removed';
+        error.message = 'Sorry!  This link was either removed or already used on another device.  You may generate a new link and try again.';
 
       popup({
-        message: error.toString(),
+        message: error.message,
         closeOnCancel: false,
         buttons: [],
       });
