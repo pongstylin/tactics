@@ -388,10 +388,10 @@
           { "assignment":[8, 0], "type":"Cleric" },
           { "assignment":[9, 1], "type":"FrostGolem" },
           { "assignment":[8, 1], "type":"StoneGolem" },
+          { "assignment":[7, 1], "type":"Furgon" },
           { "assignment":[9, 2], "type":"Scout" },
           { "assignment":[8, 2], "type":"MudGolem" },
           { "assignment":[7, 2], "type":"DragonTyrant" },
-          { "assignment":[6, 2], "type":"Furgon" },
           { "assignment":[8, 3], "type":"Knight" },
           { "assignment":[7, 4], "type":"LightningWard" }
         ]
