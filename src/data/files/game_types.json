@@ -268,6 +268,9 @@
           "max": 10,
 
           "types": [
+            ["Assassin",          { "max":10 }],
+            ["Knight",            { "max":3  }],
+            ["Cleric",            { "max":10 }],
             [
               "Scout",
               {
@@ -275,9 +278,41 @@
                 "tiles": { "start":[0,0], "end":[10,3] }
               }
             ],
-            ["Assassin",          { "max":10 }],
-            ["Knight",            { "max":3  }],
-            ["Cleric",            { "max":10 }],
+            [
+              "DragonspeakerMage",
+              {
+                "max": 1,
+                "tiles": { "start":[0,0], "end":[10,2] }
+              }
+            ],
+            ["BarrierWard",       { "max":9  }],
+            [
+              "Pyromancer",
+              {
+                "max": 10,
+                "tiles": { "start":[0,0], "end":[10,2] }
+              }
+            ],
+            ["LightningWard",     { "max":1  }],
+            [
+              "DarkMagicWitch",
+              {
+                "max": 10,
+                "tiles": { "start":[0,0], "end":[10,2] }
+              }
+            ],
+            ["Enchantress",       { "max":10 }],
+            ["PoisonWisp",        { "max":1  }],
+            ["MudGolem",          { "max":10 }],
+            [
+              "DragonTyrant",
+              {
+                "max": 1,
+                "size": 2,
+                "tiles": { "start":[0,0], "end":[10,3] }
+              }
+            ],
+            ["FrostGolem",        { "max":10 }],
             [
               "StoneGolem",
               {
@@ -293,44 +328,9 @@
                 ]
               }
             ],
-            [
-              "Pyromancer",
-              {
-                "max": 10,
-                "tiles": { "start":[0,0], "end":[10,2] }
-              }
-            ],
-            ["Enchantress",       { "max":10 }],
-            [
-              "DarkMagicWitch",
-              {
-                "max": 10,
-                "tiles": { "start":[0,0], "end":[10,2] }
-              }
-            ],
-            ["BarrierWard",       { "max":9  }],
-            ["LightningWard",     { "max":1  }],
-            ["MudGolem",          { "max":10 }],
-            ["PoisonWisp",        { "max":1  }],
-            ["FrostGolem",        { "max":10 }],
-            [
-              "DragonTyrant",
-              {
-                "max": 1,
-                "size": 2,
-                "tiles": { "start":[0,0], "end":[10,3] }
-              }
-            ],
             ["Furgon",            { "max":1  }],
-            [
-              "DragonspeakerMage",
-              {
-                "max": 1,
-                "tiles": { "start":[0,0], "end":[10,2] }
-              }
-            ],
-            ["BeastRider",        { "max":10 }],
-            ["Berserker",         { "max":1  }]
+            ["Berserker",         { "max":1  }],
+            ["BeastRider",        { "max":10 }]
           ]
         }
       },
