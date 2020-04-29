@@ -5,6 +5,9 @@ import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
 
+// We will be fetching the updates games list from the server on this interval
+const GAMES_FETCH_INTERVAL = 5 * 1000;
+
 let authClient = clientFactory('auth');
 let gameClient = clientFactory('game');
 let myPlayerId = null;
@@ -48,39 +51,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (myPlayerId) {
       divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
 
-      /*
-       * Get 50 of the most recent games.  Once the player creates or plays more
-       * than 50 games, the oldest ones will drop out of view.
-       */
-      gameClient.searchMyGames({
-        // Exclude my public, waiting games
-        filter: { '!': {
-          isPublic: true,
-          started: null,
-        }},
-        sort: { field:'updated', order:'desc' },
-        limit: 50,
-      })
-        .then(async result => {
-          /*
-           * Due to automated game-matching, there should not be any more than 1
-           * game per public configuration permutation.
-           */
-          let openGames = await gameClient.searchOpenGames({
-            sort: 'created',
-            limit: 10,
-          });
-
-          result.hits = result.hits.concat(openGames.hits);
-          return result;
-        })
-        .then(result => renderGames(result.hits))
-        .catch(error => {
-          divNotice.textContent = 'Sorry!  There was an error while loading your games.';
-          throw error;
-        });
-    }
-    else {
+      // This kicks off the game fetching and rendering loop
+      fetchAndRenderGames();
+    } else {
       divGreeting.textContent = `Welcome!`;
       divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
       return;
@@ -281,6 +254,8 @@ function unsubscribePN() {
 }
 
 function renderGames(gms) {
+  clearGameLists();
+
   gms.forEach(g => {
     if (g.ended)
       games.complete.set(g.id, g);
@@ -311,6 +286,18 @@ function renderGames(gms) {
   document.querySelector('.tabs').style.display = '';
   document.querySelector('.tabs .' + tab).classList.add('is-active');
   document.querySelector('.tabContent .' + tab).style.display = '';
+}
+
+function clearGameLists() {
+  // Clear the global game mappings
+   Object.keys(games).forEach((gameType) => {
+     games[gameType].clear();
+   });
+
+  // Clear the game lists in the DOM
+  document.getElementsByClassName("gameList").forEach((gameList) => {
+    gameList.innerHTML = null;
+  });
 }
 
 function renderActiveGames() {
@@ -525,4 +512,59 @@ function getTabNameForElement(el) {
     return 'waiting';
   else if (el.classList.contains('complete'))
     return 'complete';
+}
+
+function fetchGames() {
+  return new Promise((res) => {
+    /*
+     * Get 50 of the most recent games.  Once the player creates or plays more
+     * than 50 games, the oldest ones will drop out of view.
+     */
+    gameClient
+      .searchMyGames({
+        // Exclude my public, waiting games
+        filter: {
+          "!": {
+            isPublic: true,
+            started: null,
+          },
+        },
+        sort: { field: "updated", order: "desc" },
+        limit: 50,
+      })
+      .then(async (result) => {
+        /*
+         * Due to automated game-matching, there should not be any more than 1
+         * game per public configuration permutation.
+         */
+        let openGames = await gameClient.searchOpenGames({
+          sort: "created",
+          limit: 10,
+        });
+
+        const games = result.hits.concat(openGames.hits);
+        res(games);
+      });
+  });
+}
+
+/**
+ * Calling this function will kick off a loop of fetching the latest games from the server, rendering them, and then
+ * repeating this process at the specified interval.
+ *
+ * NOTE: We purposely use recursive `setTimeout` calls instead of `setInterval` to avoid
+ * making requests when the server is disconnected (i.e. when the user changes tabs).
+ */
+function fetchAndRenderGames() {
+  fetchGames()
+    .then(renderGames)
+    .catch((error) => {
+      const divNotice = document.querySelector("#notice");
+      divNotice.textContent =
+          "Sorry!  There was an error while loading your games.";
+      throw error;
+    })
+    .then(() => {
+      setTimeout(fetchAndRenderGames, GAMES_FETCH_INTERVAL);
+    });
 }
