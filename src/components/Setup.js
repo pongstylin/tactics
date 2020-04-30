@@ -237,9 +237,6 @@ export default class {
     window.addEventListener('resize', this._resizeListener);
 
     this.reset();
-
-    // Allow the Animation class to render frames.
-    Tactics.game = this;
   }
 
   /*****************************************************************************
@@ -300,10 +297,16 @@ export default class {
   show() {
     this.root.classList.add('show');
 
+    // Allow the Animation class to render frames.
+    Tactics.game = this;
+
     return this;
   }
   hide() {
     this.root.classList.remove('show');
+
+    this.selected = null;
+    Tactics.game = null;
 
     return this;
   }
