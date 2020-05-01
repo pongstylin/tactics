@@ -365,7 +365,8 @@ export default class {
 
     if (bad_luck < calc.chance) {
       result.changes = {};
-      result.changes.mHealth = unit.mHealth - calc.damage;
+      // Impose an upper limit to the health to prevent overhealing
+      result.changes.mHealth = Math.min(0, unit.mHealth - calc.damage);
 
       if (calc.bonus)
         result.changes.mBlocking = unit.mBlocking += calc.bonus;
