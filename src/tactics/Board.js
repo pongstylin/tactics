@@ -1058,7 +1058,7 @@ export default class {
 
       if (unit.mArmor) {
         if (unit.mArmor > 0) {
-          els.mArmor.text = '+'+unit.mArmor;
+          els.mArmor.text = '+'+Math.min(100 - unit.armor, unit.mArmor);
           els.mArmor.style.fill = '#00FF00';
         }
         else {

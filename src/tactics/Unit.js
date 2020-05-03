@@ -222,8 +222,8 @@ export default class {
       target = target_unit.assignment;
 
     let calc     = {};
-    let power    = this.power           + this.mPower;
-    let armor    = target_unit.armor    + target_unit.mArmor;
+    let power    = Math.max(0, this.power + this.mPower);
+    let armor    = Math.max(0, Math.min(100, target_unit.armor + target_unit.mArmor));
     let blocking = target_unit.blocking + target_unit.mBlocking;
 
     // Equality check the unit ID since target_unit may be a clone.
@@ -268,27 +268,19 @@ export default class {
         calc.penalty = 100 - target_unit.blocking;
       }
       else {
+        // My direction to target can be diagonal, such as NW
         let direction = this.board.getDirection(from, target_unit.assignment, true);
 
         if (direction.indexOf(target_unit.direction) > -1) {
           // Hitting a unit from behind always succeeds.
           calc.chance = 100;
         }
-        else if (direction.indexOf(this.board.getRotation(target_unit.direction, 180)) > -1) {
-          // Hitting a unit from the front has smallest chance of success.
-          calc.chance = Math.max(0, Math.min(100, 100 - blocking));
-
-          // The target's blocking may be boosted or penalized depending on success.
-          calc.bonus   = target_unit.blocking;
-          calc.penalty = 100 - target_unit.blocking;
-        }
         else {
-          // Hitting a unit from the side has improved chance of success.
-          calc.chance = Math.max(0, Math.min(100, 100 - blocking/2));
-
-          // The target's blocking may be boosted or penalized depending on success.
+          // Hits from the side have a greater chance and penalty
+          let factor = direction.indexOf(this.board.getRotation(target_unit.direction, 180)) > -1 ? 1 : 2;
+          calc.chance  = Math.max(0, Math.min(100, 100 - blocking/factor));
           calc.bonus   = target_unit.blocking;
-          calc.penalty = 200 - target_unit.blocking;
+          calc.penalty = 100*factor - target_unit.blocking;
         }
       }
     }

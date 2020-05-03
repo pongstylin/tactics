@@ -11,7 +11,6 @@ function calcPowerModifiers(dragonCount, speakerCount, mageCount) {
   let dragonModifier = -dragonPower;
   let mageModifier = Math.round(dragonPower * dragonCount / mageCount);
 
-  console.log('calc', dragonCount, speakerCount, mageCount, { dragonModifier, mageModifier });
   return { dragonModifier, mageModifier };
 }
 
