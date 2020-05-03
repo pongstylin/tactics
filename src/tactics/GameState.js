@@ -1115,11 +1115,12 @@ export default class GameState {
         subResults.push(...unit.getBreakFocusResult(true));
 
       // Remove focus from dead units
-      if (unit.paralyzed || unit.poisoned || unit.armored) {
+      if (unit.paralyzed || unit.poisoned || unit.armored || unit.barriered) {
         let focusingUnits = [
           ...(unit.paralyzed || []),
           ...(unit.poisoned  || []),
           ...(unit.armored   || []),
+          ...(unit.barriered || []),
         ];
 
         // All units focusing on this dead unit can stop.
@@ -1132,13 +1133,15 @@ export default class GameState {
           }
         })));
 
-        // Stop showing the unit as paralyzed or poisoned
-        if (unit.paralyzed || unit.poisoned) {
+        // Stop showing the unit as paralyzed, poisoned, or barriered
+        if (unit.paralyzed || unit.poisoned || unit.barriered) {
           let subChanges = {};
           if (unit.paralyzed)
-            subChanges.paralyzed = unit.paralyzed = false;
+            subChanges.paralyzed = false;
           if (unit.poisoned)
-            subChanges.poisoned = unit.poisoned = false;
+            subChanges.poisoned = false;
+          if (unit.barriered)
+            subChanges.barriered = false;
 
           subResults.push({
             unit: unit,
