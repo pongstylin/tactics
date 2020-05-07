@@ -122,10 +122,11 @@ window.addEventListener('DOMContentLoaded', () => {
     await Tactics.setup(gameTypeId);
     divConfigure.classList.add('show');
   });
-  selGameType.addEventListener('change', event => {
+  selGameType.addEventListener('change', async event => {
     let gameTypeId = selGameType.querySelector(':checked').value;
+    let gameType = await gameClient.getGameType(gameTypeId);
 
-    aChangeLink.style.display = gameTypeId === 'classic' ? 'none' : '';
+    aChangeLink.style.display = gameType.isCustomizable ? '' : 'none';
   });
   // setTimeout() seemed to be necessary in Chrome to detect auto-fill of
   // dropdown after hitting the browser back button.

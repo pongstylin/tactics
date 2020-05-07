@@ -60,6 +60,9 @@ export default class Furgon extends Unit {
   }
 
   getAttackTiles(start = this.assignment) {
+    if (this.canSpecial())
+      return [this.assignment];
+
     let board = this.board;
     let range = this.aRange;
     let tiles = board.getTileRange(start, ...range);
@@ -70,12 +73,39 @@ export default class Furgon extends Unit {
     );
   }
   getTargetTiles(target) {
+    if (this.canSpecial())
+      return [this.assignment, ...this.getSpecialTargetTiles()];
+
     return this.board.getTileRange(target, 0, 1);
+  }
+  getSpecialTargetTiles() {
+    let board = this.board;
+    let enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
+    let targets = new Set();
+
+    for (let enemy of enemies) {
+      board.getTileRange(enemy.assignment, 1, 1, true).forEach(target => {
+        targets.add(target);
+      });
+    }
+
+    return [...targets];
   }
   getTargetUnits() {
     return [];
   }
+  validateAttackAction(validate) {
+    let action = super.validateAttackAction(validate);
+
+    if (this.canSpecial())
+      action.type = 'attackSpecial';
+
+    return action;
+  }
   getAttackResults(action) {
+    if (this.canSpecial())
+      return this.getAttackSpecialResults();
+
     let board = this.board;
     let targets = board.getTileRange(action.target, 0, 1, true);
 
@@ -96,35 +126,25 @@ export default class Furgon extends Unit {
   }
   getAttackSpecialResults() {
     let board = this.board;
-    let enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
     let results = [{
       unit: this,
       changes: { name:'Exhausted Furgon', disposition:'exhausted', mRecovery:6 },
     }];
-    let targetIds = new Set();
 
-    for (let enemy of enemies) {
-      let targets = board.getTileRange(enemy.assignment, 1, 1, true);
+    this.getSpecialTargetTiles().forEach(target => {
+      let shrub = board.makeUnit({
+        // Kinda lazy but, for a stationary unit, the tile id is sufficiently unique.
+        id: target.id,
+        type: 'Shrub',
+        assignment: target,
+      });
 
-      for (let target of targets) {
-        // No duplicates, please
-        if (targetIds.has(target.id)) continue;
-        targetIds.add(target.id);
-
-        let shrub = board.makeUnit({
-          // Kinda lazy but, for a stationary unit, the tile id is sufficiently unique.
-          id: target.id,
-          type: 'Shrub',
-          assignment: target,
-        });
-
-        results.push({
-          type: 'summon',
-          unit: shrub,
-          teamId: this.team.id,
-        });
-      }
-    }
+      results.push({
+        type: 'summon',
+        unit: shrub,
+        teamId: this.team.id,
+      });
+    });
 
     return results;
   }

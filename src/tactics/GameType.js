@@ -21,6 +21,9 @@ export default class GameType {
   get isCustomizable() {
     return this.config.customizable;
   }
+  get hasFixedPositions() {
+    return this.isCustomizable && this.config.limits.fixedPositions;
+  }
 
   getUnitTypes() {
     let config = this.config;

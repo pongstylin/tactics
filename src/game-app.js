@@ -783,6 +783,7 @@ async function showJoinIntro(gameData) {
 
     if (gameType.isCustomizable) {
       $('#join .set').show();
+      $('#join .mirror').toggle(!gameType.hasFixedPositions);
 
       let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id);
       if (hasCustomSet)

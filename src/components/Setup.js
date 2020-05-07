@@ -685,7 +685,24 @@ export default class {
         if (focusedTile && focusedTile.isDropTarget) return;
 
         // Hide shadow while over trash can
-        dragUnit.getContainerByName('shadow', dragAvatar).alpha = 0;
+        let shadow = dragUnit.getContainerByName('shadow', dragAvatar);
+        if (shadow)
+          shadow.alpha = 0;
+        else {
+          Container.prototype.toJSON = function () {
+            return {
+              type: this.constructor.name,
+              name: this.name,
+              children: this.children.map(c => c.toJSON()),
+            };
+          };
+
+          // Try to figure out why the shadow would not exist, occasionally
+          reportError(JSON.stringify({
+            error: `Unable to find shadow for ${dragUnit.type}`,
+            dragAvatar,
+          }));
+        }
 
         let trashPoint = this._trash.position;
         dragAvatar.position.set(

@@ -3,6 +3,7 @@ import http from 'http';
 import express from 'express';
 import morgan from 'morgan';
 import ws from 'ws';
+import util from 'util';
 
 // Object extensions/polyfills
 import 'plugins/array.js';
@@ -45,7 +46,7 @@ app.get(API_PREFIX + '/version', (req, res) => {
   res.send({ version:config.version });
 });
 app.post(API_PREFIX + '/errors', (req, res) => {
-  console.log('client errors:', req.body);
+  console.log('client errors:', util.inspect(req.body, false, null, true));
   res.send(true);
 });
 

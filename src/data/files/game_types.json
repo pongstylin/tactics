@@ -190,6 +190,7 @@
       "name": "Legends Turtle",
       "customizable": true,
       "limits": {
+        "fixedPositions": true,
         "tiles": { "start":[0,0], "end":[5,4] },
         "units": {
           "max": 10,

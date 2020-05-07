@@ -612,6 +612,10 @@ class GameService extends Service {
           set = opponentSet;
           break;
         case 'mirror':
+          let gameType = await dataAdapter.getGameType(game.state.type);
+          if (gameType.hasFixedPositions)
+            throw new ServerError(403, 'May not use a mirror set with this game type');
+
           set = opponentSet.map(u => {
             let unit = {...u};
             unit.assignment = [...unit.assignment];
