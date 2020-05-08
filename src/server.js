@@ -46,7 +46,7 @@ app.get(API_PREFIX + '/version', (req, res) => {
   res.send({ version:config.version });
 });
 app.post(API_PREFIX + '/errors', (req, res) => {
-  console.log('client errors:', util.inspect(req.body, false, null, true));
+  console.log('client errors:', util.inspect(req.body, false, null));
   res.send(true);
 });
 

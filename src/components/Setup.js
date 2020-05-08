@@ -681,28 +681,15 @@ export default class {
       // There can be a very brief delay between the old tile blurring and a new
       // tile focusing.  So, only focus trash if appropriate after a delay.
       setTimeout(() => {
+        // Skip if the drag has dropped
+        if (this._dragAvatar !== dragAvatar) return;
+
+        // Skip if cursor has moved back over a drop target
         let focusedTile = board.focusedTile;
         if (focusedTile && focusedTile.isDropTarget) return;
 
         // Hide shadow while over trash can
-        let shadow = dragUnit.getContainerByName('shadow', dragAvatar);
-        if (shadow)
-          shadow.alpha = 0;
-        else {
-          Container.prototype.toJSON = function () {
-            return {
-              type: this.constructor.name,
-              name: this.name,
-              children: this.children.map(c => c.toJSON()),
-            };
-          };
-
-          // Try to figure out why the shadow would not exist, occasionally
-          reportError(JSON.stringify({
-            error: `Unable to find shadow for ${dragUnit.type}`,
-            dragAvatar,
-          }));
-        }
+        dragUnit.getContainerByName('shadow', dragAvatar).alpha = 0;
 
         let trashPoint = this._trash.position;
         dragAvatar.position.set(
