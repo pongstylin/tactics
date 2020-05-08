@@ -29,13 +29,15 @@ export default class GameSummary {
 
     let summary = {
       id: game.id,
-      type: game.state.type,
+      type: this.type.id,
       typeName: this.type.name,
       created: created,
       updated: updated,
       started: started,
       ended: ended,
       randomFirstTurn: game.state.randomFirstTurn,
+      turnStarted: game.state.turnStarted,
+      turnTimeLimit: game.state.turnTimeLimit,
       isPublic: game.isPublic,
       teams: teams.map(t => t && {
         playerId: t.playerId,

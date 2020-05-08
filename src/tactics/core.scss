@@ -1,6 +1,14 @@
+
+
 /*
  * General Look & Feel for the app.
  */
+@keyframes blinker {
+  50% {
+    opacity: 0.2;
+  }
+}
+
 #app {
   display: flex;
   flex-direction: column;
@@ -65,15 +73,13 @@
         display: none;
       }
       .player.active {
-        display: block;
+        display: flex;
         position: absolute;
-        width: 200px;
+        min-width: 200px;
         height: 20px;
         box-sizing: border-box;
         padding: 0 24px;
         line-height: 20px;
-        color: white;
-        text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 
         .status {
           position: absolute;
@@ -108,8 +114,8 @@
         }
 
         &.left {
+          flex-direction: row;
           left: 0;
-          text-align: left;
           border-radius: 10px 0 0 10px;
 
           .status {
@@ -117,6 +123,10 @@
           }
           .fa-spinner {
             left: 0;
+          }
+
+          .clock, .name {
+            margin-right: 8px;
           }
 
           &:after {
@@ -136,8 +146,8 @@
           }
         }
         &.right {
+          flex-direction: row-reverse;
           right: 0;
-          text-align: right;
           border-radius: 0 10px 10px 0;
 
           .status {
@@ -145,6 +155,10 @@
           }
           .fa-spinner {
             right: 0;
+          }
+
+          .clock, .name {
+            margin-left: 8px;
           }
 
           &:after {
@@ -175,6 +189,26 @@
       }
       #player-w {
         bottom: 0;
+      }
+
+      .name {
+        color: white;
+        text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+      }
+
+      .clock {
+        background-color: rgba(255, 255, 255, 0.75);
+        color: black;
+        font-weight: bold;
+        border-radius: 16px;
+        padding: 0 8px;
+      }
+      .clock.short, .clock.expired {
+        color: red;
+        animation: blinker 1.1s linear infinite;
+      }
+      .clock:empty {
+        display: none;
       }
     }
 
@@ -561,7 +595,7 @@
 
         .player.active {
           // Conserve space
-          width: 180px;
+          min-width: 180px;
         }
 
         // No longer place the card in the top-left corner of #field.

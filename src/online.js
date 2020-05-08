@@ -434,18 +434,26 @@ function renderGame(game) {
   }
   // Waiting Games
   else {
-    let firstTurn;
-    if (game.randomFirstTurn)
-      firstTurn = 'Random';
-    else if (
-      (!teams[0] || teams[0].playerId === myPlayerId) &&
-      (!teams[1] || teams[1].playerId !== myPlayerId)
-    )
-      firstTurn = 'You 1st';
-    else
-      firstTurn = 'You 2nd';
+    let labels = [game.typeName];
 
-    left = `<SPAN>${game.typeName},</SPAN> <SPAN>${firstTurn}</SPAN>`;
+    if (game.turnTimeLimit === 86400)
+      labels.push('1 Day');
+    else if (game.turnTimeLimit === 120)
+      labels.push('2 Min');
+    else if (game.turnTimeLimit === 60)
+      labels.push('30 sec');
+
+    if (!game.randomFirstTurn) {
+      if (
+        (!teams[0] || teams[0].playerId === myPlayerId) &&
+        (!teams[1] || teams[1].playerId !== myPlayerId)
+      )
+        labels.push('You 1st');
+      else
+        labels.push('You 2nd');
+    }
+
+    left = '<SPAN>' + labels.join(',</SPAN> <SPAN>') + '</SPAN>';
   }
 
   let middle;
@@ -466,8 +474,17 @@ function renderGame(game) {
       middle = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Invite Link</SPAN></SPAN>';
   }
 
-  let elapsed = (new Date() - game.updated) / 1000;
-  if (elapsed < 60)
+  let now = Date.now();
+  let elapsed;
+
+  if (!game.started || game.ended || !game.turnTimeLimit)
+    elapsed = (now - game.updated) / 1000;
+  else
+    elapsed = (now - (game.turnStarted.getTime() + game.turnTimeLimit*1000)) / 1000;
+
+  if (elapsed <= 0)
+    elapsed = '0';
+  else if (elapsed < 60)
     elapsed = '<1m';
   else if (elapsed < 3600)
     elapsed = Math.floor(elapsed / 60) + 'm';

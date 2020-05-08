@@ -17,6 +17,7 @@ var timeoutPopup;
 var pointer;
 var fullscreen = Tactics.fullscreen;
 var readySpecial;
+var turnTimeout;
 
 var buttons = {
   home: () => {
@@ -875,6 +876,81 @@ function resetPlayerBanners() {
       .addClass(game.state.playerStatus.get(team.playerId))
       .find('.name').text(team.name);
   });
+
+  setTurnTimeoutClock();
+}
+function setTurnTimeoutClock() {
+  clearTimeout(turnTimeout);
+  turnTimeout = null;
+
+  let timeout = game.turnTimeRemaining;
+  if (timeout === undefined) {
+    $('.clock').remove();
+    return;
+  }
+
+  let state = game.state;
+  let timeoutClass;
+  let removeClass;
+  let timeoutText;
+  if (timeout > 0) {
+    let timeLimit = state.turnTimeLimit;
+    timeoutClass = timeout < timeLimit*1000 * 0.2 ? 'short' : 'long';
+    removeClass = timeout < timeLimit*1000 * 0.2 ? 'long' : 'short';
+    removeClass += ' expired';
+
+    let tick;
+    // If greater than 23 hours, show days
+    if (timeout > 82800000) {
+      timeoutText = `&lt; ${Math.ceil(timeout / 86400000)}d`;
+      tick = (timeout % 86400000) + 250;
+    }
+    // If greater than 1 hour, show hours
+    else if (timeout > 3600000) {
+      timeoutText = `&lt; ${Math.ceil(timeout / 3600000)}h`;
+      tick = (timeout % 3600000) + 250;
+    }
+    // If greater than 2 minutes, show minutes
+    else if (timeout > 120000) {
+      timeoutText = `&lt; ${Math.ceil(timeout / 60000)}m`;
+      tick = (timeout % 60000) + 250;
+    }
+    // Show clock
+    else {
+      let min = Math.floor(timeout / 60000);
+      let sec = Math.floor((timeout % 60000) / 1000).toString().padStart(2, '0');
+      timeoutText = `${min}:${sec}`;
+      tick = (timeout % 1000) + 250;
+    }
+
+    turnTimeout = setTimeout(setTurnTimeoutClock, tick);
+  }
+  else {
+    timeoutClass = 'expired';
+    removeClass = 'short long';
+    timeoutText = '0:00';
+  }
+
+  timeoutText += ' <SPAN class="fa fa-clock"></SPAN>';
+
+  let board = game.board;
+  let degree = board.getDegree('N', board.rotation);
+
+  game.teams.forEach(team => {
+    let position = board.getRotation(team.position, degree);
+    let ePlayerId = 'player-'+position.toLowerCase();
+    let $clock = $(`#${ePlayerId} .clock`);
+
+    if (team === game.currentTeam)
+      $clock
+        .removeClass(removeClass)
+        .addClass(timeoutClass)
+        .html(timeoutText);
+    else
+      $clock
+        .removeClass('expired short long')
+        .empty();
+  });
 }
 
 function startGame() {
@@ -989,6 +1065,7 @@ function startGame() {
       if (timeoutPopup)
         timeoutPopup.close();
     })
+    .on('resetTimeout', () => setTurnTimeoutClock())
     .on('undoRequest', ({ data:request }) => updateUndoDialog(request.status === 'pending'))
     .on('undoAccept', () => updateUndoDialog())
     .on('undoReject', () => updateUndoDialog())

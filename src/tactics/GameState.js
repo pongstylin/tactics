@@ -781,7 +781,8 @@ export default class GameState {
       if (bot && turnId < this.currentTurnId)
         return false;
 
-      actions = this.getTurnData(turnId).actions;
+      let turnData = this.getTurnData(turnId);
+      actions = turnData.actions;
 
       // Current turn not actionable if no actions were made.
       if (actions.length === 0)
@@ -801,19 +802,18 @@ export default class GameState {
         continue;
       }
 
+      // Require approval if the turn time limit was reached.
+      if (this.turnTimeLimit) {
+        let turnTimeout = turnData.started.getTime() + this.turnTimeLimit*1000;
+        if (Date.now() > turnTimeout)
+          return approve;
+      }
+
       break;
     }
 
     if (requireApproval)
       return approve;
-
-    // Require approval if the turn time limit was reached.
-    if (this.turnTimeLimit) {
-      let now = new Date();
-      let turnTimeout = (this.turnStarted.getTime() + this.turnTimeLimit*1000) - now;
-      if (turnTimeout < 1)
-        return approve;
-    }
 
     // If turn not force ended, then change direction does not require approval.
     if (turnId !== this.currentTurnId && !actions.last.forced)
@@ -869,7 +869,8 @@ export default class GameState {
         if (bot && turnId < this.currentTurnId)
           return false;
 
-        let actions = this.getTurnData(turnId).actions;
+        let turnData = this.getTurnData(turnId);
+        actions = turnData.actions;
 
         // Current turn not actionable if no actions were made by opponent yet.
         if (actions.length === 0)
@@ -887,6 +888,13 @@ export default class GameState {
         if (turnTeam.id !== team.id) {
           if (!approved) return false;
           continue;
+        }
+
+        // Require approval if the turn time limit was reached.
+        if (!approved && this.turnTimeLimit) {
+          let turnTimeout = turnData.started.getTime() + this.turnTimeLimit*1000;
+          if (Date.now() > turnTimeout)
+            return false;
         }
 
         // Keep lucky actions if not approved.

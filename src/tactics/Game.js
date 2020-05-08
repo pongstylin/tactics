@@ -165,6 +165,22 @@ export default class {
   get whenStarted() {
     return this.state.whenStarted;
   }
+  get turnTimeRemaining() {
+    let state = this.state;
+    if (!state.turnTimeLimit)
+      return;
+    if (state.ended)
+      return;
+
+    let now = new Date();
+    let lastAction = state.actions.last;
+    let lastActionAt = lastAction ? lastAction.created.getTime() : 0;
+    let actionTimeout = (lastActionAt + 10000) - now;
+    let turnStartedAt = state.turnStarted.getTime();
+    let turnTimeout = (turnStartedAt + state.turnTimeLimit*1000) - now;
+
+    return Math.max(0, actionTimeout, turnTimeout);
+  }
 
   get card() {
     return this._board.card;
@@ -1643,17 +1659,10 @@ export default class {
 
     let timeout = Infinity;
 
-    if (!this.isMyTurn) {
-      let now = new Date();
-      let lastAction = state.actions.last;
-      let lastActionAt = lastAction ? lastAction.created.getTime() : 0;
-      let actionTimeout = (lastActionAt + 10000) - now;
-      let turnTimeout = (state.turnStarted.getTime() + state.turnTimeLimit*1000) - now;
+    if (!this.isMyTurn)
+      timeout = this.turnTimeRemaining;
 
-      timeout = Math.max(actionTimeout, turnTimeout);
-    }
-
-    if (timeout > 0) {
+    if (timeout) {
       if (this._turnTimeout === true) {
         this._emit({ type:'cancelTimeout' });
         this._turnTimeout = null;
@@ -1674,6 +1683,8 @@ export default class {
         this._emit({ type:'timeout' });
       }
     }
+
+    this._emit({ type:'resetTimeout' });
   }
   _applyAction(action) {
     let board = this._board;

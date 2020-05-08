@@ -139,6 +139,9 @@ window.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('INPUT[name=vs]').forEach(radio => {
     radio.addEventListener('change', event => {
       if (radio.value === 'you') {
+        document.querySelectorAll('INPUT[name=turnLimit]').forEach(radio => {
+          radio.disabled = true;
+        });
         document.querySelector('INPUT[name=turnOrder][value=random]').checked = true;
         document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = true;
         document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = true;
@@ -146,6 +149,9 @@ window.addEventListener('DOMContentLoaded', () => {
         btnCreate.textContent = 'Start Playing';
       }
       else {
+        document.querySelectorAll('INPUT[name=turnLimit]').forEach(radio => {
+          radio.disabled = false;
+        });
         document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = false;
         document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = false;
 
@@ -164,16 +170,18 @@ window.addEventListener('DOMContentLoaded', () => {
     let type = document.querySelector('SELECT[name=type] OPTION:checked').value;
     let vs = document.querySelector('INPUT[name=vs]:checked').value;
     let turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
+    let turnLimit = document.querySelector('INPUT[name=turnLimit]:checked').value;
     let gameOptions = {
       type: type,
       randomFirstTurn: vs === 'you' || turnOrder === 'random',
-      // Temporarily set Single Gold to 12 hour time limits for tournament
-      turnTimeLimit: type === 'legendsGold' ? 86400 : 86400 * 7, // 7 days
       isPublic: vs === 'public',
     };
     let slot =
       turnOrder === '1st' ? 0 :
       turnOrder === '2nd' ? 1 : null;
+
+    if (vs !== 'you')
+      gameOptions.turnTimeLimit = parseInt(turnLimit);
 
     let myGameQuery;
     let joinQuery;
@@ -213,19 +221,10 @@ window.addEventListener('DOMContentLoaded', () => {
             type: type,
             // Look for an open game with this player as a participant
             'teams[].playerId': authClient.playerId,
-            // First turn randomization must match player preference.
-            randomFirstTurn: turnOrder === 'random',
           },
           sort: 'created',
           limit: 1,
         };
-
-        if (turnOrder === '1st')
-          // 2nd turn must be available
-          myGameQuery.filter['teams[1]'] = null;
-        else if (turnOrder === '2nd')
-          // 1st turn must be available
-          myGameQuery.filter['teams[0]'] = null;
       }
 
       joinQuery = {
@@ -234,6 +233,8 @@ window.addEventListener('DOMContentLoaded', () => {
           type: type,
           // Don't join games against disqualified players
           'teams[].playerId': { '!':[...excludedPlayerIds] },
+          // Time limit must match
+          turnTimeLimit: gameOptions.turnTimeLimit,
           // First turn randomization must match player preference.
           randomFirstTurn: turnOrder === 'random',
         },

@@ -103,10 +103,9 @@ export default class GameClient extends Client {
         result.hits.forEach(hit => {
           hit.created = new Date(hit.created);
           hit.updated = new Date(hit.updated);
-          if (hit.started)
-            hit.started = new Date(hit.started);
-          if (hit.ended)
-            hit.ended = new Date(hit.ended);
+          hit.started = hit.started && new Date(hit.started);
+          hit.turnStarted = hit.turnStarted && new Date(hit.turnStarted);
+          hit.ended = hit.ended && new Date(hit.ended);
         });
 
         return result;
@@ -117,16 +116,15 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  async searchOpenGames(query) {
+  searchOpenGames(query) {
     return this._server.requestAuthorized(this.name, 'searchOpenGames', [query])
       .then(result => {
         result.hits.forEach(hit => {
           hit.created = new Date(hit.created);
           hit.updated = new Date(hit.updated);
-          if (hit.started)
-            hit.started = new Date(hit.started);
-          if (hit.ended)
-            hit.ended = new Date(hit.ended);
+          hit.started = hit.started && new Date(hit.started);
+          hit.turnStarted = hit.turnStarted && new Date(hit.turnStarted);
+          hit.ended = hit.ended && new Date(hit.ended);
         });
 
         return result;
