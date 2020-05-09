@@ -1443,6 +1443,8 @@ export default class {
     let deathAnim = new Tactics.Animation();
     let notice = `${team.colorId} Surrenders!`;
 
+    this.selected = null;
+
     anim.addFrame(() => this.notice = notice);
 
     this._applyChangeResults(action.results);
@@ -1570,6 +1572,8 @@ export default class {
   _endGame(winnerId = this.state.winnerId) {
     clearTimeout(this._turnTimeout);
     this._turnTimeout = null;
+
+    this._emit({ type:'resetTimeout' });
 
     if (winnerId === null) {
       this.notice = 'Draw!';
@@ -1786,7 +1790,8 @@ export default class {
       eventHandler = () => this._startTurn(data.teamId);
     else if (type === 'action')
       eventHandler = () => {
-        this._setTurnTimeout();
+        if (data.last.type !== 'endTurn')
+          this._setTurnTimeout();
         return this._performActions(data).then(() => {
           // If the action didn't result in ending the turn, then set mode.
           let actions = this.board.decodeAction(data);

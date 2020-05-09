@@ -453,7 +453,7 @@ function renderGame(game) {
       labels.push('1 Day');
     else if (game.turnTimeLimit === 120)
       labels.push('2 Min');
-    else if (game.turnTimeLimit === 60)
+    else if (game.turnTimeLimit === 30)
       labels.push('30 sec');
 
     if (!game.randomFirstTurn) {

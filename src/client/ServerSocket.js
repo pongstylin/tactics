@@ -27,7 +27,7 @@ export default class ServerSocket {
       ignoreUpdate: false,
 
       // The difference in ms between the server and client time
-      _serverTimeDiff: 0,
+      _serverTimeDiff: null,
       // Open connection to the server.
       _socket: null,
       // Send a sync message after 5 seconds of idle sends.
@@ -86,7 +86,7 @@ export default class ServerSocket {
   }
 
   get now() {
-    return Date.now() + this._serverTimeDiff;
+    return Date.now() + (this._serverTimeDiff || 0);
   }
   get isConnected() {
     let socket = this._socket;
@@ -443,6 +443,12 @@ export default class ServerSocket {
       process.env.CONNECTION_TIMEOUT,
     );
 
+    let serverTimeDiff = message.now - now;
+    if (this._serverTimeDiff === null)
+      this._serverTimeDiff = serverTimeDiff;
+    else
+      this._serverTimeDiff = Math.min(this._serverTimeDiff, serverTimeDiff);
+
     /*
      * Discard repeat messages.  Resync if a message was skipped.
      */
@@ -460,8 +466,6 @@ export default class ServerSocket {
         session.serverMessageId = message.id;
       }
     }
-
-    this._serverTimeDiff = message.now - now;
 
     /*
      * Route the message.
