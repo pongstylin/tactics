@@ -172,7 +172,7 @@ export default class {
     if (state.ended)
       return;
 
-    let now = new Date();
+    let now = state.now;
     let lastAction = state.actions.last;
     let lastActionAt = lastAction ? lastAction.created.getTime() : 0;
     let actionTimeout = (lastActionAt + 10000) - now;
@@ -1649,6 +1649,9 @@ export default class {
       return;
     if (state.ended)
       return;
+
+    this._emit({ type:'resetTimeout' });
+
     if (this.isViewOnly)
       return;
 
@@ -1683,8 +1686,6 @@ export default class {
         this._emit({ type:'timeout' });
       }
     }
-
-    this._emit({ type:'resetTimeout' });
   }
   _applyAction(action) {
     let board = this._board;

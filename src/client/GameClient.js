@@ -48,7 +48,7 @@ export default class GameClient extends Client {
       .then(gameTypeConfig => GameType.load(gameTypeId, gameTypeConfig))
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getGameTypeConfig(gameTypeId);
+          return this.getGameType(gameTypeId);
         throw error;
       });
   }

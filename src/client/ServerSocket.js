@@ -26,6 +26,8 @@ export default class ServerSocket {
       isActive: false,
       ignoreUpdate: false,
 
+      // The difference in ms between the server and client time
+      _serverTimeDiff: 0,
       // Open connection to the server.
       _socket: null,
       // Send a sync message after 5 seconds of idle sends.
@@ -83,6 +85,9 @@ export default class ServerSocket {
     return this;
   }
 
+  get now() {
+    return Date.now() + this._serverTimeDiff;
+  }
   get isConnected() {
     let socket = this._socket;
 
@@ -427,6 +432,7 @@ export default class ServerSocket {
   }
 
   _onMessage({data}) {
+    let now = Date.now();
     let message = JSON.parse(data);
     let session = this._session;
 
@@ -454,6 +460,8 @@ export default class ServerSocket {
         session.serverMessageId = message.id;
       }
     }
+
+    this._serverTimeDiff = message.now - now;
 
     /*
      * Route the message.

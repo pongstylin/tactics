@@ -18,6 +18,9 @@ export default class Client {
       .on('close', event => this._emit(event));
   }
 
+  get serverNow() {
+    return this._server.now;
+  }
   get isOnline() {
     return this._server.isOpen;
   }

@@ -400,6 +400,8 @@ function send(client, message) {
   if (session)
     message.ack = session.clientMessageId;
 
+  message.now = Date.now();
+
   client.send(JSON.stringify(message), error => {
     if (error) {
       debug(`${message.type}-out: client=${client.id}; send-error=${error.message}`);

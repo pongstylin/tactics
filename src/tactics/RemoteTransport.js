@@ -93,6 +93,10 @@ export default class RemoteTransport {
     return this;
   }
 
+  get now() {
+    return gameClient.serverNow;
+  }
+
   /*
    * Game Data Properties
    * These are cached and kept in sync for arbitrary access.

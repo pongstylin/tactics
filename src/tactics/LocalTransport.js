@@ -94,6 +94,10 @@ export default class LocalTransport {
     return this;
   }
 
+  get now() {
+    return Date.now();
+  }
+
   /*
    * Game Data Properties
    * These are cached and kept in sync for arbitrary access.

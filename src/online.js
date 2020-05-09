@@ -302,9 +302,22 @@ function clearGameLists() {
 
 function renderActiveGames() {
   let divTabContent = document.querySelector('.tabContent .active');
-  let activeGames = [...games.active.values()].sort((a, b) =>
-    a.updated - b.updated // descending
-  );
+  let now = gameClient.serverNow;
+  let activeGames = [...games.active.values()].sort((a, b) => {
+    if (a.turnTimeLimit && a.turnTimeRemaining === undefined)
+      a.turnTimeRemaining = a.turnTimeLimit*1000 - (now - a.turnStarted.getTime());
+    if (b.turnTimeLimit && b.turnTimeRemaining === undefined)
+      b.turnTimeRemaining = b.turnTimeLimit*1000 - (now - b.turnStarted.getTime());
+
+    if (a.turnTimeLimit && !b.turnTimeLimit)
+      return -1;
+    else if (!a.turnTimeLimit && b.turnTimeLimit)
+      return 1;
+    else if (!a.turnTimeLimit && !b.turnTimeLimit)
+      return b.updated - a.updated; // ascending
+
+    return a.turnTimeRemaining - b.turnTimeRemaining; // ascending
+  });
 
   let myTurnGames = [];
   for (let game of activeGames) {
@@ -474,13 +487,17 @@ function renderGame(game) {
       middle = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Invite Link</SPAN></SPAN>';
   }
 
-  let now = Date.now();
+  let now = gameClient.serverNow;
+  let addClass = '';
   let elapsed;
 
   if (!game.started || game.ended || !game.turnTimeLimit)
     elapsed = (now - game.updated) / 1000;
-  else
-    elapsed = (now - (game.turnStarted.getTime() + game.turnTimeLimit*1000)) / 1000;
+  else {
+    elapsed = game.turnTimeRemaining / 1000;
+    if (elapsed < (game.turnTimeLimit * 0.2))
+      addClass = 'low';
+  }
 
   if (elapsed <= 0)
     elapsed = '0';
@@ -503,7 +520,7 @@ function renderGame(game) {
   divGame.innerHTML = `
     <SPAN class="left">${left}</SPAN>
     <SPAN class="middle">${middle}</SPAN>
-    <SPAN class="right">
+    <SPAN class="right ${addClass}">
       <SPAN class="elapsed">${elapsed}</SPAN>
       <SPAN class="fa fa-clock"></SPAN>
     </SPAN>

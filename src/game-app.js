@@ -768,6 +768,18 @@ async function showJoinIntro(gameData) {
 
     challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`;
 
+    let turnLimit = '1 Week';
+    switch (gameData.state.turnTimeLimit) {
+      case 86400:
+        turnLimit = '1 Day';
+        break;
+      case 120:
+        turnLimit = '2 Min';
+        break;
+      default:
+        turnLimit = `${gameData.state.turnTimeLimit} Sec`;
+    }
+
     let gameType = await gameClient.getGameType(gameData.state.type);
     let person;
     if (gameData.state.randomFirstTurn)
@@ -779,6 +791,7 @@ async function showJoinIntro(gameData) {
 
     details.innerHTML = `
       <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+      <DIV>The turn time limit is set to ${turnLimit}.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
     `;
 
@@ -923,7 +936,8 @@ function setTurnTimeoutClock() {
       tick = (timeout % 1000) + 250;
     }
 
-    turnTimeout = setTimeout(setTurnTimeoutClock, tick);
+    if (tick < 0x80000000)
+      turnTimeout = setTimeout(setTurnTimeoutClock, tick);
   }
   else {
     timeoutClass = 'expired';
