@@ -447,7 +447,7 @@ export default class ServerSocket {
     if (this._serverTimeDiff === null)
       this._serverTimeDiff = serverTimeDiff;
     else
-      this._serverTimeDiff = Math.min(this._serverTimeDiff, serverTimeDiff);
+      this._serverTimeDiff = Math.max(this._serverTimeDiff, serverTimeDiff);
 
     /*
      * Discard repeat messages.  Resync if a message was skipped.
