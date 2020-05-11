@@ -25,10 +25,7 @@ export function resolve(specifier, context, defaultResolve) {
   let parentURL = context.parentURL || baseURL.href;
 
   if (builtins.includes(specifier))
-    return {
-      url: specifier,
-      format: 'builtin',
-    };
+    return defaultResolve();
 
   let parts = specifier.split(/\//);
   let firstPart = parts[0];
