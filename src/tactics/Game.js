@@ -1213,9 +1213,10 @@ export default class {
       return this._playSurrender(action);
 
     let unit = action.unit;
+    let speed = this.state.turnTimeLimit === 30 ? 2 : 1;
 
-    return unit[action.type](action)
-      .then(() => this._playResults(action));
+    return unit[action.type](action, speed)
+      .then(() => this._playResults(action, speed));
   }
   _showActions(actions = this.actions) {
     let board = this._board;
@@ -1251,14 +1252,14 @@ export default class {
   /*
    * Show the player the results of an attack
    */
-  async _playResults(action) {
+  async _playResults(action, speed) {
     if (!action.results)
       return;
 
     let showResult = async result => {
       if (result.type === 'summon') return;
 
-      let anim = new Tactics.Animation();
+      let anim = new Tactics.Animation({ speed });
       let changes = Object.assign({}, result.changes);
 
       // Changed separately

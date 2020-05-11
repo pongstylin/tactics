@@ -632,36 +632,48 @@ export default class {
    * Animate movement to a new tile assignment
    * Currently assumes walking, but this will change
    */
-  move(action) {
+  move(action, speed) {
+    let anim = new Tactics.Animation({ speed });
+
     if (this.mType === 'path')
-      return this.animWalk(action.assignment).play();
+      anim.splice(this.animWalk(action.assignment));
     else if (this.mType === 'teleport')
-      return this.animTeleport(action).play();
+      anim.splice(this.animTeleport(action));
     else
       throw 'Unknown movement type';
+
+    return anim.play();
   }
-  attack(action) {
-    let anim = new Tactics.Animation();
+  attack(action, speed) {
+    let anim = new Tactics.Animation({ speed });
 
     if (this.directional !== false)
       anim.splice(this.animTurn(action.direction));
 
     anim.splice(this.animAttack(action));
+    anim.addFrame(() => this.stand());
 
     return anim.play();
   }
-  attackSpecial(action) {
-    let anim = this.animAttackSpecial(action);
+  attackSpecial(action, speed) {
+    let anim = new Tactics.Animation({ speed });
 
     if (this.directional !== false)
-      anim.addFrame(() => this.stand());
+      anim.splice(this.animTurn(action.direction));
+
+    anim.splice(this.animAttackSpecial(action));
+    anim.addFrame(() => this.stand());
 
     return anim.play();
   }
-  turn(action) {
+  turn(action, speed) {
     if (this.directional === false) return this;
 
-    return this.animTurn(action.direction).play();
+    let anim = new Tactics.Animation({ speed });
+
+    anim.splice(this.animTurn(action.direction));
+
+    return anim.play();
   }
   brightness(intensity, whiteness) {
     let name = 'brightness';
@@ -1176,8 +1188,6 @@ export default class {
     let anim         = this.renderAnimation('attack', action.direction);
     let spriteAction = this._sprite.getAction('attack');
     let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
-
-    anim.addFrame(() => this.stand());
 
     let targets = [];
     if (this.aLOS === true) {

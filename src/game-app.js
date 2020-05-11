@@ -771,16 +771,16 @@ async function showJoinIntro(gameData) {
     let turnLimit;
     switch (gameData.state.turnTimeLimit) {
       case 604800:
-        turnLimit = '1 Week';
+        turnLimit = '1 week';
         break;
       case 86400:
-        turnLimit = '1 Day';
+        turnLimit = '1 day';
         break;
       case 120:
-        turnLimit = '2 Min';
+        turnLimit = '2 minutes';
         break;
       default:
-        turnLimit = `${gameData.state.turnTimeLimit} Sec`;
+        turnLimit = `${gameData.state.turnTimeLimit} seconds`;
     }
 
     let gameType = await gameClient.getGameType(gameData.state.type);

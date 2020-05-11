@@ -38,6 +38,9 @@
     if (data.loop === true)
       data.loop = 0;
 
+    if (data.speed)
+      data.fps *= data.speed;
+
     utils.addEvents.call(self);
 
     Object.assign(self, {
