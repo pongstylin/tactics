@@ -768,8 +768,11 @@ async function showJoinIntro(gameData) {
 
     challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`;
 
-    let turnLimit = '1 Week';
+    let turnLimit;
     switch (gameData.state.turnTimeLimit) {
+      case 604800:
+        turnLimit = '1 Week';
+        break;
       case 86400:
         turnLimit = '1 Day';
         break;
