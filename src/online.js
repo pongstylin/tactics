@@ -303,21 +303,23 @@ function clearGameLists() {
 function renderActiveGames() {
   let divTabContent = document.querySelector('.tabContent .active');
   let now = gameClient.serverNow;
-  let activeGames = [...games.active.values()].sort((a, b) => {
-    if (a.turnTimeLimit && a.turnTimeRemaining === undefined)
-      a.turnTimeRemaining = a.turnTimeLimit*1000 - (now - a.turnStarted.getTime());
-    if (b.turnTimeLimit && b.turnTimeRemaining === undefined)
-      b.turnTimeRemaining = b.turnTimeLimit*1000 - (now - b.turnStarted.getTime());
+  let activeGames = [...games.active.values()]
+    .map(game => {
+      if (game.turnTimeLimit)
+        game.turnTimeRemaining = game.turnTimeLimit*1000 - (now - game.turnStarted.getTime());
 
-    if (a.turnTimeLimit && !b.turnTimeLimit)
-      return -1;
-    else if (!a.turnTimeLimit && b.turnTimeLimit)
-      return 1;
-    else if (!a.turnTimeLimit && !b.turnTimeLimit)
-      return b.updated - a.updated; // ascending
+      return game;
+    })
+    .sort((a, b) => {
+      if (a.turnTimeLimit && !b.turnTimeLimit)
+        return -1;
+      else if (!a.turnTimeLimit && b.turnTimeLimit)
+        return 1;
+      else if (!a.turnTimeLimit && !b.turnTimeLimit)
+        return b.updated - a.updated; // ascending
 
-    return a.turnTimeRemaining - b.turnTimeRemaining; // ascending
-  });
+      return a.turnTimeRemaining - b.turnTimeRemaining; // ascending
+    });
 
   let myTurnGames = [];
   for (let game of activeGames) {
