@@ -996,7 +996,7 @@ export default class {
           this.notice = null;
           // Re-select the unit if it is still valid.  It won't be if a revert
           // has already taken place.
-          if (selected.assignment)
+          if (selected && selected.assignment)
             this.selected = selected;
           this.unlock();
         }
