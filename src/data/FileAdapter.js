@@ -98,8 +98,8 @@ export default class {
     await this.setPushSubscription(player.id, deviceId, null);
   }
 
-  async createGame(gameOptions) {
-    let game = Game.create(gameOptions);
+  async createGame(gameType, gameOptions) {
+    let game = Game.create(gameType, gameOptions);
     game.version = getLatestVersionNumber('game');
 
     await this._lockAndCreateFile(`game_${game.id}`, game);
@@ -149,18 +149,18 @@ export default class {
     return Game.load(migrate('game', gameData));
   }
 
-  async hasCustomPlayerSet(playerId, gameType) {
+  async hasCustomPlayerSet(playerId, gameTypeId, setName) {
     let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
 
-    return sets.findIndex(s => s.type === gameType) > -1;
+    return sets.findIndex(s => s.type === gameTypeId && s.name === setName) > -1;
   }
   /*
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getDefaultPlayerSet(playerId, gameTypeId) {
+  async getPlayerSet(playerId, gameTypeId, setName) {
     let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
-    let set = sets.find(s => s.type === gameTypeId);
+    let set = sets.find(s => s.type === gameTypeId && s.name === setName);
     if (set) return set.units;
 
     let gameType = await this.getGameType(gameTypeId);
@@ -170,15 +170,21 @@ export default class {
    * Setting the default set for a game type involves REPLACING the first set
    * for a given game type.
    */
-  async setDefaultPlayerSet(playerId, gameType, setUnits) {
+  async setPlayerSet(playerId, gameTypeId, setName, setUnits) {
     await this._lockAndUpdateFile(`player_${playerId}_sets`, [], sets => {
-      let index = sets.findIndex(s => s.type === gameType);
+      let index = sets.findIndex(s => s.type === gameTypeId && s.name === setName);
       if (index === -1)
-        sets.push({ type:gameType, units:setUnits, createdAt:new Date() });
+        sets.push({
+          type: gameTypeId,
+          name: setName,
+          units: setUnits,
+          createdAt: new Date(),
+        });
       else
         sets[index].units = setUnits;
     });
   }
+
   async hasGameType(gameType) {
     let gameTypes = new Map(await this._lockAndReadFile('game_types'));
     return gameTypes.has(gameType);
@@ -186,6 +192,9 @@ export default class {
   async getGameType(gameTypeId) {
     let gameTypes = new Map(await this._lockAndReadFile('game_types'));
     let gameTypeConfig = gameTypes.get(gameTypeId);
+
+    if (!gameTypeConfig)
+      throw new ServerError(404, 'No such game type');
 
     return GameType.load(gameTypeId, gameTypeConfig);
   }

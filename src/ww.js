@@ -19,7 +19,7 @@ self.addEventListener('message', ({data:message}) => {
 
     post('init', self.state.getData());
 
-    if (!self.state.teams.find(t => !t))
+    if (!self.state.teams.find(t => !t || !t.set))
       self.state.start();
   }
   else if (type === 'load') {

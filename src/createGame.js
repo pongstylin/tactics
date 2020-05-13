@@ -119,7 +119,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let gameTypeId = selGameType.querySelector(':checked').value;
 
     divConfigure.classList.remove('show');
-    await Tactics.setup(gameTypeId);
+    await Tactics.setup(gameTypeId, 'default');
     divConfigure.classList.add('show');
   });
   selGameType.addEventListener('change', async event => {
@@ -134,6 +134,9 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelector('SELECT[name=type]').dispatchEvent(
       new CustomEvent('change')
     );
+    document.querySelector('INPUT[name=vs]:checked').dispatchEvent(
+      new CustomEvent('change')
+    );
   });
 
   document.querySelectorAll('INPUT[name=vs]').forEach(radio => {
@@ -142,9 +145,6 @@ window.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('INPUT[name=turnLimit]').forEach(radio => {
           radio.disabled = true;
         });
-        document.querySelector('INPUT[name=turnOrder][value=random]').checked = true;
-        document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = true;
-        document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = true;
 
         btnCreate.textContent = 'Start Playing';
       }
@@ -152,8 +152,6 @@ window.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('INPUT[name=turnLimit]').forEach(radio => {
           radio.disabled = false;
         });
-        document.querySelector('INPUT[name=turnOrder][value="1st"]').disabled = false;
-        document.querySelector('INPUT[name=turnOrder][value="2nd"]').disabled = false;
 
         if (radio.value === 'public')
           btnCreate.textContent = 'Create or Join Game';
@@ -167,18 +165,22 @@ window.addEventListener('DOMContentLoaded', () => {
     divConfigure.classList.remove('show');
     divWaiting.classList.add('show');
 
-    let type = document.querySelector('SELECT[name=type] OPTION:checked').value;
+    let gameTypeId = document.querySelector('SELECT[name=type] OPTION:checked').value;
     let vs = document.querySelector('INPUT[name=vs]:checked').value;
     let turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
     let turnLimit = document.querySelector('INPUT[name=turnLimit]:checked').value;
     let gameOptions = {
-      type: type,
-      randomFirstTurn: vs === 'you' || turnOrder === 'random',
+      randomFirstTurn: turnOrder === 'random',
       isPublic: vs === 'public',
+      teams: [null, null],
     };
-    let slot =
-      turnOrder === '1st' ? 0 :
-      turnOrder === '2nd' ? 1 : null;
+
+    let youSlot = turnOrder === '2nd' ? 1 : 0;
+
+    gameOptions.teams[youSlot] = {
+      playerId: authClient.playerId,
+      set: { name:'default' },
+    };
 
     if (vs !== 'you')
       gameOptions.turnTimeLimit = parseInt(turnLimit);
@@ -197,7 +199,7 @@ window.addEventListener('DOMContentLoaded', () => {
           let games = await gameClient.searchMyGames({
             filter:{
               // Game type must match player preference.
-              type: type,
+              type: gameTypeId,
               started: { '!':null },
               ended: null,
             },
@@ -218,7 +220,7 @@ window.addEventListener('DOMContentLoaded', () => {
         myGameQuery = {
           filter: {
             // Game type must match player preference.
-            type: type,
+            type: gameTypeId,
             // Look for an open game with this player as a participant
             'teams[].playerId': authClient.playerId,
           },
@@ -230,7 +232,7 @@ window.addEventListener('DOMContentLoaded', () => {
       joinQuery = {
         filter: {
           // Game type must match player preference.
-          type: type,
+          type: gameTypeId,
           // Don't join games against disqualified players
           'teams[].playerId': { '!':[...excludedPlayerIds] },
           // Time limit must match
@@ -252,21 +254,21 @@ window.addEventListener('DOMContentLoaded', () => {
 
     Promise.resolve()
       .then(async () => {
-        let gameId = await joinOpenGame(joinQuery, slot);
+        let gameId = await joinOpenGame(joinQuery);
         if (gameId) return gameId;
 
         gameId = await findMyGame(myGameQuery);
         if (gameId) return gameId;
 
-        return gameClient.createGame(gameOptions).then(gameId => {
-          if (vs === 'you')
-            return gameClient.joinGame(gameId)
-              .then(() => gameClient.joinGame(gameId))
-              .then(() => gameId);
-          else
-            return gameClient.joinGame(gameId, { slot })
-              .then(() => gameId);
-        });
+        if (vs === 'you') {
+          let themSlot = (youSlot + 1) % 2;
+
+          // The set will be selected on the game page
+          // ...unless the set is not customizable.
+          gameOptions.teams[themSlot] = { playerId:authClient.playerId };
+        }
+
+        return await gameClient.createGame(gameTypeId, gameOptions);
       })
       .then(gameId => {
         location.href = '/game.html?' + gameId;
@@ -304,7 +306,7 @@ async function findMyGame(query) {
   }
 }
 
-async function joinOpenGame(query, slot) {
+async function joinOpenGame(query) {
   if (!query) return;
 
   try {
@@ -313,13 +315,13 @@ async function joinOpenGame(query, slot) {
 
     let gameSummary = result.hits[0];
 
-    return gameClient.joinGame(gameSummary.id, { slot })
+    return gameClient.joinGame(gameSummary.id)
       .then(() => gameSummary.id);
   }
   catch (error) {
     // If somebody else beat us to joining the game, try again.
     if (error.code === 409)
-      return joinOpenGame(query, slot);
+      return joinOpenGame(query);
 
     // On any other error, bail out to create the game.
     console.warn('Failed to join open game', error);

@@ -211,7 +211,7 @@ window.Tactics = (function () {
      * This is a shared interface for launching and handling the result of game
      * type setup.  It is only appropriate for online use.
      */
-    setup: async function (gameTypeId) {
+    setup: async function (gameTypeId, setName) {
       let gameType;
       if (typeof gameTypeId !== 'string') {
         gameType = gameTypeId;
@@ -242,11 +242,8 @@ window.Tactics = (function () {
         // Allow the message to show
         await sleep(200);
 
-        let defaultSet = await gameClient.getDefaultPlayerSet(gameType.id);
-        setup = new Setup({
-          colorId: 'Red',
-          set: defaultSet,
-        }, gameType);
+        let set = await gameClient.getPlayerSet(gameType.id, setName);
+        setup = new Setup({ colorId:'Red', set }, gameType);
         setup.on('back', () => {
           this._resolveSetup(false);
 
@@ -262,7 +259,7 @@ window.Tactics = (function () {
 
           setup.set = set;
 
-          gameClient.saveDefaultPlayerSet(gameType.id, set).then(() => {
+          gameClient.savePlayerSet(gameType.id, setName, set).then(() => {
             notice.close();
 
             this._resolveSetup(true);

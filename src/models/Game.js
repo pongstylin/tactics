@@ -18,14 +18,17 @@ export default class Game {
     Object.assign(this, data);
   }
 
-  static create(gameOptions) {
+  static create(gameType, gameOptions) {
+    if (!gameOptions.teams)
+      throw new Error(`Required 'teams' option`);
+
     let gameData = {
       id:          uuid(),
       created:     new Date(),
       undoRequest: null,
     };
 
-    let stateData = { teams:[null, null] };
+    let stateData = { type:gameType.id };
     Object.keys(gameOptions).forEach(option => {
       if (stateKeys.has(option))
         stateData[option] = gameOptions[option];
