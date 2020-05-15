@@ -119,6 +119,9 @@ var buttons = {
   },
   chat: () => {
     let $app = $('#app');
+    if ($app.hasClass('chat-opening') || $app.hasClass('chat-closing'))
+      return;
+
     let $chat = $('#chat');
     let $messages = $('#messages');
     // Microsoft Edge does not support using 'calc()' css with transition.
