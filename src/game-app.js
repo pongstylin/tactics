@@ -135,12 +135,16 @@ var buttons = {
         tickRequest = requestAnimationFrame(tick);
       };
 
-      // Sometimes this bubbles up from the #chat
-      $app.one('transitionend', () => {
+      let finish = () => {
         cancelAnimationFrame(tickRequest);
         $app.toggleClass('chat-open chat-closing');
         updateChatButton();
-      });
+
+        $app.off('transitionend transitioncancel', finish);
+      };
+
+      // Sometimes this bubbles up from the #chat
+      $app.on('transitionend transitioncancel', finish);
 
       if (isEdge && $app.hasClass('with-inlineChat')) {
         $chat.css({ height:'' });
@@ -153,11 +157,15 @@ var buttons = {
       tick();
     }
     else {
-      // Sometimes this bubbles up from the #chat
-      $app.one('transitionend', () => {
+      let finish = () => {
         $app.toggleClass('chat-open chat-opening');
         updateChatButton();
-      });
+
+        $app.off('transitionend transitioncancel', finish);
+      };
+
+      // Sometimes this bubbles up from the #chat
+      $app.on('transitionend transitioncancel', finish);
 
       if (isEdge && $app.hasClass('with-inlineChat')) {
         $chat.css({ height:$chat.css('height') });
@@ -265,8 +273,13 @@ $(() => {
       // Open chat, but otherwise ignore input until input box is ready.
       if ($app.is('.chat-opening'))
         return;
-      else if ($app.is('.with-popupChat:not(.chat-open)'))
-        return buttons.chat();
+      else if ($app.is('.with-popupChat:not(.chat-open)')) {
+        let openers = ['Enter','ArrowUp','ArrowDown','PageUp','PageDown'];
+        if (openers.includes(keyChar) || keyChar.length === 1)
+          buttons.chat();
+
+        return;
+      }
 
       if (!$newMessage.is(':focus')) {
         if (keyChar === 'ArrowUp') {
