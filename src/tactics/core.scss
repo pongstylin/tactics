@@ -510,7 +510,6 @@
   }
 }
 
-#app #game > .buttons BUTTON[name=movebar],
 #app #game > .buttons BUTTON[name=swapbar],
 .mouse #app #game > .buttons BUTTON[name=lock],
 #app #game > .buttons BUTTON.hidden {
@@ -789,11 +788,6 @@
         flex-direction: column;
         overflow-y: auto;
         overflow-x: hidden;
-
-        // Allow moving the bar to the left/right
-        BUTTON[name=movebar] {
-          display: inline-block;
-        }
 
         // The chat and swapbar buttons are aligned to the bottom
         BUTTON[name=chat] {
