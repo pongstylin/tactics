@@ -1,12 +1,14 @@
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
+import GameSettings from 'components/Modal/GameSettings.js';
 
 const ServerError = Tactics.ServerError;
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
 const chatClient = Tactics.chatClient;
 
+var settings;
 var progress;
 var gameId = location.search.slice(1).replace(/[&=].*$/, '');
 var game;
@@ -15,13 +17,15 @@ var chatMessages = [];
 var undoPopup;
 var timeoutPopup;
 var pointer;
-var fullscreen = Tactics.fullscreen;
 var readySpecial;
 var turnTimeout;
 
 var buttons = {
   home: () => {
     location.href = '/online.html';
+  },
+  settings: () => {
+    settings.show();
   },
   swapbar: () => {
     var $active = $('#game > .buttons.active');
@@ -32,11 +36,6 @@ var buttons = {
 
     $active.removeClass('active');
     $next.addClass('active');
-  },
-  resize:fullscreen.toggle,
-  movebar: $button => {
-    $('#app').toggleClass('left right');
-    $button.toggleClass('fa-rotate-270 fa-rotate-90');
   },
   rotate: $button => {
     let classesToToggle;
@@ -54,11 +53,6 @@ var buttons = {
     game.rotateBoard(90);
 
     resetPlayerBanners();
-  },
-  sound: $button => {
-    $button.toggleClass('fa-bell fa-bell-slash');
-
-    Howler.mute($button.hasClass('fa-bell-slash'));
   },
   undo: () => {
     let sendingPopup = popup({
@@ -187,6 +181,11 @@ $(() => {
   progress.message = 'Loading game...';
   progress.show();
 
+  settings = new GameSettings({
+    autoShow: false,
+    hideOnCancel: true,
+  });
+
   if ('ontouchstart' in window)
     $('body').addClass(pointer = 'touch');
   else
@@ -196,12 +195,6 @@ $(() => {
     $('.new-message').attr('placeholder', 'Touch to chat!');
   else
     $('.new-message').attr('placeholder', 'Type to chat!');
-
-  if (!fullscreen.isAvailable())
-    $('BUTTON[name=resize]').toggleClass('hidden');
-
-  if (Howler.noAudio)
-    $('BUTTON[name=sound]').toggleClass('hidden');
 
   $('BODY')
     /*
@@ -267,6 +260,7 @@ $(() => {
           keyChar = String.fromCharCode(keyCode);
       }
 
+      console.log('keyChar', keyChar);
       if (keyChar === 'Control' || keyChar === 'Alt' || keyChar === 'Shift')
         return;
 
@@ -394,10 +388,6 @@ $(() => {
 
 $(window).on('resize', () => {
   if (!game || !game.canvas.parentNode) return;
-
-  let $resize = $('BUTTON[name=resize]');
-  if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
-    $resize.toggleClass('fa-expand fa-compress');
 
   // Temporarily remove chat-open and inlineChat so that the game can
   // calculate the biggest board size it can.

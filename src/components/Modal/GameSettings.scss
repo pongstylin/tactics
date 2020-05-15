@@ -1,0 +1,32 @@
+.modal.gameSettings {
+  .content {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    grid-gap: 8px 12px;
+
+    .row {
+      display: contents;
+
+      .label {
+        margin-right: 16px;
+      }
+      LABEL {
+        white-space: nowrap;
+      }
+    }
+
+    .barPosition {
+      display: none;
+    }
+  }
+}
+
+/*
+ * Landscape Orientation
+ */
+@media (max-width: 812px) and (min-aspect-ratio: 5/3) {
+  // Allow moving the bar to the left/right
+  .modal.gameSettings .content .barPosition {
+    display: contents;
+  }
+}
