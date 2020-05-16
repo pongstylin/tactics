@@ -260,7 +260,6 @@ $(() => {
           keyChar = String.fromCharCode(keyCode);
       }
 
-      console.log('keyChar', keyChar);
       if (keyChar === 'Control' || keyChar === 'Alt' || keyChar === 'Shift')
         return;
 
@@ -424,8 +423,11 @@ function initGame() {
       if (gameData.state.started)
         return loadTransportAndGame(gameId, gameData);
 
-      let hasJoined = gameData.state.teams.find(t => t && t.playerId === authClient.playerId);
-      if (hasJoined)
+      let teams = gameData.state.teams;
+      let hasJoined = teams.filter(t => t && t.playerId === authClient.playerId);
+      if (hasJoined.length === teams.length)
+        return showPracticeIntro(gameData);
+      else if (hasJoined.length)
         if (gameData.isPublic)
           return showPublicIntro(gameData);
         else
@@ -717,25 +719,132 @@ function renderShareLink(gameType, gameData, container) {
   });
 }
 
-async function showJoinIntro(gameData) {
-  document.body.addEventListener('focus', event => {
+async function showPracticeIntro(gameData) {
+  let root = document.body.querySelector('#practice');
+
+  root.addEventListener('focus', event => {
     let target = event.target;
     if (target.matches('INPUT[name=playerName]'))
       target.select();
   }, true);
-  document.body.addEventListener('blur', event => {
+  root.addEventListener('blur', event => {
     let target = event.target;
     if (target.matches('INPUT[name=playerName]'))
       // Clear selection
       target.value = target.value;
   }, true);
-  document.body.addEventListener('keydown', event => {
+  root.addEventListener('keydown', event => {
     let target = event.target;
     if (target.matches('INPUT[name=playerName]'))
       if (event.keyCode === 13)
         event.target.blur();
   }, true);
-  document.body.addEventListener('input', event => {
+
+  let divPlayerAutoSave = root.querySelector('.playerName');
+  let txtPlayerName = divPlayerAutoSave.querySelector('INPUT[name=playerName]');
+  txtPlayerName.value = authClient.playerName;
+
+  let details = root.querySelector('.details');
+  let challenge = root.querySelector('.challenge');
+  let btnStart = root.querySelector('BUTTON[name=start]');
+
+  let teams = gameData.state.teams;
+  let creatorTeam = teams.find(t => !!t.set);
+
+  challenge.innerHTML = `Configure your opponent in the practice game.`;
+
+  let gameType = await gameClient.getGameType(gameData.state.type);
+  let person;
+  if (gameData.state.randomFirstTurn)
+    person = 'random';
+  else if (creatorTeam.originalId === 0)
+    person = creatorTeam.name;
+  else
+    person = 'this one';
+
+  details.innerHTML = `
+    <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+    <DIV>The first team to move is ${person}.</DIV>
+  `;
+
+  $('#practice .set').show();
+  $('#practice .mirror').toggle(!gameType.hasFixedPositions);
+
+  let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id, 'practice');
+  if (hasCustomSet)
+    $('#practice INPUT[name=set][value=practice]').prop('checked', true);
+  else
+    $('#practice INPUT[name=set][value=same]').prop('checked', true);
+
+  $('#practice .set A').on('click', async () => {
+    $('#practice').hide();
+
+    if (!authClient.token)
+      await authClient.register({ name:'Noob' })
+        .catch(error => popup({
+          message: 'There was an error while loading your set.',
+          buttons: [],
+          closeOnCancel: false,
+        }));
+
+    if (await Tactics.setup(gameType, 'practice'))
+      $('#practice INPUT[name=set][value=practice]').prop('checked', true);
+    $('#practice').show();
+  });
+
+  return new Promise((resolve, reject) => {
+    btnStart.addEventListener('click', async event => {
+      let set = $('#practice INPUT[name=set]:checked').val();
+      if (set === 'practice')
+        set = { name:set };
+
+      $('#practice').hide();
+      progress.message = 'Starting game...';
+      progress.show();
+
+      try {
+        await gameClient.joinGame(gameData.id, {
+          slot: teams.findIndex(t => !t.set),
+          name: txtPlayerName.value,
+          set,
+        });
+        progress.message = 'Loading game...';
+        resolve(
+          await loadTransportAndGame(gameData.id, gameData)
+        );
+      }
+      catch (error) {
+        root.querySelector('.error').textContent = error.message;
+        progress.hide();
+        $('#practice').show();
+      }
+    });
+
+    progress.hide();
+    $('#practice').show();
+  });
+}
+async function showJoinIntro(gameData) {
+  let root = document.body.querySelector('#join');
+
+  root.addEventListener('focus', event => {
+    let target = event.target;
+    if (target.matches('INPUT[name=playerName]'))
+      target.select();
+  }, true);
+  root.addEventListener('blur', event => {
+    let target = event.target;
+    if (target.matches('INPUT[name=playerName]'))
+      // Clear selection
+      target.value = target.value;
+  }, true);
+  root.addEventListener('keydown', event => {
+    let target = event.target;
+    if (target.matches('INPUT[name=playerName]'))
+      if (event.keyCode === 13)
+        event.target.blur();
+  }, true);
+  root.addEventListener('input', event => {
     let target = event.target;
     if (target.matches('INPUT[name=playerName]')) {
       let inputTextAutosave = event.target.parentElement;
@@ -744,7 +853,7 @@ async function showJoinIntro(gameData) {
     }
   }, true);
 
-  let divPlayerAutoSave = document.querySelector('.playerName');
+  let divPlayerAutoSave = root.querySelector('.playerName');
   let divPlayerError = divPlayerAutoSave.nextElementSibling;
   let txtPlayerName = divPlayerAutoSave.querySelector('INPUT[name=playerName]');
   txtPlayerName.addEventListener('blur', event => {
@@ -777,9 +886,9 @@ async function showJoinIntro(gameData) {
     }
   });
 
-  let details = document.querySelector('.details');
-  let challenge = document.querySelector('.challenge');
-  let btnJoin = document.querySelector('BUTTON[name=join]');
+  let details = root.querySelector('.details');
+  let challenge = root.querySelector('.challenge');
+  let btnJoin = root.querySelector('BUTTON[name=join]');
 
   if (authClient.token)
     txtPlayerName.value = authClient.playerName;
@@ -849,9 +958,9 @@ async function showJoinIntro(gameData) {
       $('#join .set').show();
       $('#join .mirror').toggle(!gameType.hasFixedPositions);
 
-      let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id);
+      let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id, 'default');
       if (hasCustomSet)
-        $('#join INPUT[name=set][value=mine]').prop('checked', true);
+        $('#join INPUT[name=set][value=default]').prop('checked', true);
       else
         $('#join INPUT[name=set][value=same]').prop('checked', true);
 
@@ -866,8 +975,8 @@ async function showJoinIntro(gameData) {
               closeOnCancel: false,
             }));
 
-        if (await Tactics.setup(gameType))
-          $('#join INPUT[name=set][value=mine]').prop('checked', true);
+        if (await Tactics.setup(gameType, 'default'))
+          $('#join INPUT[name=set][value=default]').prop('checked', true);
         $('#join').show();
       });
     }
@@ -875,6 +984,8 @@ async function showJoinIntro(gameData) {
     return new Promise((resolve, reject) => {
       btnJoin.addEventListener('click', async event => {
         let set = $('#join INPUT[name=set]:checked').val();
+        if (set === 'default')
+          set = { name:set };
 
         $('#join').hide();
         progress.message = 'Joining game...';
