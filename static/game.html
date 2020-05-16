@@ -62,7 +62,8 @@
     .intro .content > DIV {
       padding: 8px;
     }
-    .intro .content .shareLink {
+    .intro .content .shareLink,
+    .cancelButton {
       text-align: center;
       user-select: none;
     }
@@ -136,13 +137,15 @@
     }
 
     .share,
-    .copy {
+    .copy,
+    .cancel {
       color: #00FFFF;
       cursor: pointer;
       text-decoration: underline;
     }
     .share .label,
-    .copy .label {
+    .copy .label,
+    .cancel .label {
       margin-left: 6px;
     }
 
@@ -222,6 +225,7 @@
       <DIV class="greeting">Hello, {teamName}!</DIV>
       <DIV>Your public game hasn't started yet.  It will start automatically once somebody joins your game.</DIV>
       <DIV class="shareLink"></DIV>
+      <DIV class="cancelButton"></DIV>
       <DIV>Tips:</DIV>
       <UL class="tips">
         <LI>If you get tired of waiting for an opponent, copy and/or share the above link with someone.</LI>
@@ -237,6 +241,7 @@
       <DIV class="greeting">Hello, {teamName}!</DIV>
       <DIV>Your private game will start automatically once an invited player joins your game.</DIV>
       <DIV class="shareLink"></DIV>
+      <DIV class="cancelButton"></DIV>
       <DIV>Tips:</DIV>
       <UL class="tips">
         <LI>Invite one or more people by copying and/or sharing the above link with them, e.g. by text or email.</LI>
