@@ -82,9 +82,9 @@ export default class Unit {
     else
       return [];
   }
-  getTargetTiles(target) {
+  getTargetTiles(target, source) {
     if (this.aLOS === true)
-      return this.getLOSTargetTiles(target);
+      return this.getLOSTargetTiles(target, source);
     else if (this.aAll === true)
       return this.getAttackTiles();
     else if (this.aLinear === true) {

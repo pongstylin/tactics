@@ -1588,6 +1588,7 @@ export default class {
     this.teamsUnits = [];
     this.teams = [];
     this.clearHighlight();
+    this.hideTurnOptions();
 
     return this;
   }
@@ -1722,7 +1723,7 @@ export default class {
     let pixi = this.pixi;
     let turnOptions = this._turnOptions;
 
-    turnOptions.data = { unit:unit };
+    turnOptions.data = { unit };
     turnOptions.position = unit.assignment.getTop().clone();
     turnOptions.position.y -= HALF_TILE_HEIGHT / 2;
 
@@ -1736,17 +1737,20 @@ export default class {
 
     return this;
   }
-  showDirection(unit) {
+  showDirection(unit, tile, direction) {
+    if (tile === undefined) tile = unit.assignment;
+    if (direction === undefined) direction = unit.direction;
+
     let pixi = this.pixi;
     let turnOptions = this._turnOptions;
 
-    turnOptions.data = { unit:unit };
-    turnOptions.position = unit.assignment.getTop().clone();
+    turnOptions.data = { unit };
+    turnOptions.position = tile.getTop().clone();
     turnOptions.position.y -= HALF_TILE_HEIGHT / 2;
 
     turnOptions.children.forEach(arrow => {
       arrow.interactive = arrow.buttonMode = false;
-      arrow.visible = unit.directional === false || arrow.data.direction == unit.direction;
+      arrow.visible = unit.directional === false || arrow.data.direction == direction;
     });
 
     if (!pixi.children.includes(turnOptions))
