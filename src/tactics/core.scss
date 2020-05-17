@@ -215,8 +215,11 @@
     #game-play {
       top: 20px;
     }
-    #game-settings {
+    #game-settings, #game-replay {
       bottom: 16px;
+    }
+    #game-replay {
+      display: none;
     }
     .buttons {
       display: flex;
@@ -284,6 +287,29 @@
           line-height: 16px;
           text-align: center;
           content: attr(badge);
+        }
+      }
+
+      BUTTON[name=pause] {
+        display: none;
+      }
+    }
+
+    &.mode-replay {
+      #game-settings {
+        display: none;
+      }
+      #game-replay {
+        display: flex;
+      }
+
+      &.is-playing {
+        BUTTON[name=play] {
+          display: none;
+        }
+
+        BUTTON[name=pause] {
+          display: block;
         }
       }
     }
@@ -484,8 +510,21 @@
 
 #app.locked:not(.gameover):not(.readonly) {
   #game-play.buttons BUTTON:not([name=chat]):not([name=swapbar]),
+  #game-settings.buttons BUTTON[name=replay],
   #game-settings.buttons BUTTON[name=rotate],
   #game-settings.buttons BUTTON[name=undo] {
+    // Make the button appear disabled.
+    opacity: 0.4;
+    cursor: default;
+
+    // Override use of borders for .selected and hovered buttons
+    margin: 3px;
+    border-width: 0;
+  }
+}
+
+#app.locked.readonly {
+  #game-play.buttons BUTTON[name=pass] {
     // Make the button appear disabled.
     opacity: 0.4;
     cursor: default;
@@ -510,7 +549,19 @@
   }
 }
 
-#app #game > .buttons BUTTON[name=swapbar],
+#app #game.is-busy {
+  #game-replay.buttons BUTTON {
+    // Make the button appear disabled.
+    opacity: 0.4;
+    cursor: default;
+
+    // Override use of borders for .selected and hovered buttons
+    margin: 3px;
+    border-width: 0;
+  }
+}
+
+#app #game > .buttons:not(#game-replay) BUTTON[name=swapbar],
 .mouse #app #game > .buttons BUTTON[name=lock],
 #app #game > .buttons BUTTON.hidden {
   display: none;
@@ -621,7 +672,7 @@
           margin-right: auto !important;
         }
       }
-      #game-settings {
+      #game-settings, #game-replay {
         bottom: auto;
 
         BUTTON[name=swapbar] {
@@ -771,7 +822,7 @@
           margin-bottom: auto !important;
         }
       }
-      #game-settings {
+      #game-settings, #game-replay {
         BUTTON[name=swapbar] {
           margin-top: auto !important;
         }

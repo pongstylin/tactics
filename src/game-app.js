@@ -27,15 +27,10 @@ var buttons = {
   settings: () => {
     settings.show();
   },
-  swapbar: () => {
-    var $active = $('#game > .buttons.active');
-    var $next = $active.next('.buttons');
+  replay: () => {
+    $('#game').addClass('mode-replay is-paused');
 
-    if (!$next.length)
-      $next = $('#game > .buttons').first();
-
-    $active.removeClass('active');
-    $next.addClass('active');
+    game.pause();
   },
   rotate: $button => {
     let classesToToggle;
@@ -173,6 +168,63 @@ var buttons = {
       // Keep chat scrolled to bottom after displaying input box
       $messages.scrollTop($messages.prop('scrollHeight'));
     }
+  },
+  start: async () => {
+    $('#game').toggleClass('is-busy');
+    await game.showTurn(0);
+    $('#game').toggleClass('is-busy');
+  },
+  back: async () => {
+    $('#game').toggleClass('is-busy');
+
+    let turnId = game.currentTurnId - 1;
+    if (turnId > -1)
+      await game.showTurn(turnId);
+
+    $('#game').toggleClass('is-busy');
+  },
+  play: async () => {
+    let startTurnId = game.currentTurnId;
+    if (game.currentTurnId === game.state.currentTurnId)
+      startTurnId = 0;
+
+    $('#game').toggleClass('is-paused is-playing');
+    await game.play(startTurnId);
+    $('#game').removeClass('is-playing').addClass('is-paused');
+  },
+  pause: async () => {
+    $('#game').toggleClass('is-busy');
+    await game.pause();
+    $('#game').removeClass('is-playing').addClass('is-paused');
+    $('#game').toggleClass('is-busy');
+  },
+  forward: async () => {
+    $('#game').toggleClass('is-busy');
+
+    let turnId = game.currentTurnId + 1;
+    if (turnId <= game.state.currentTurnId)
+      await game.showTurn(turnId);
+
+    $('#game').toggleClass('is-busy');
+  },
+  end: async () => {
+    $('#game').toggleClass('is-busy');
+    await game.showTurn(-1);
+    $('#game').toggleClass('is-busy');
+  },
+  swapbar: async () => {
+    if (game.inReplay) {
+      $('#game').toggleClass('is-busy');
+      await game.resume();
+      $('#game').removeClass('mode-replay is-paused is-playing');
+      $('#game').toggleClass('is-busy');
+    }
+
+    let $active = $('#game > .buttons.active').removeClass('active');
+    if ($active.is('#game-play'))
+      $('#game-settings').addClass('active');
+    else
+      $('#game-play').addClass('active');
   },
 };
 
@@ -1245,7 +1297,17 @@ function startGame() {
     .on('undoAccept', () => updateUndoDialog())
     .on('undoReject', () => updateUndoDialog())
     .on('undoCancel', () => updateUndoDialog())
-    .on('undoComplete', hideUndoDialog);
+    .on('undoComplete', hideUndoDialog)
+    .on('showTurn', ({ data:turnData }) => {
+      let atStart = turnData.id === 0;
+      let atEnd = turnData.id === game.state.currentTurnId;
+
+      $('BUTTON[name=start]').prop('disabled', atStart);
+      $('BUTTON[name=back]').prop('disabled', atStart);
+
+      $('BUTTON[name=forward]').prop('disabled', atEnd);
+      $('BUTTON[name=end]').prop('disabled', atEnd);
+    });
 
   game.start().then(() => {
     resetPlayerBanners();

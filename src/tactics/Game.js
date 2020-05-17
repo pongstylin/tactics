@@ -103,6 +103,9 @@ export default class {
       _teams: [],
       _localTeamIds: localTeamIds,
       _turnTimeout: null,
+      _currentTurn: null,
+      _inReplay: false,
+      _whilePlaying: null,
 
       _renderer: renderer,
       _rendering: false,
@@ -302,7 +305,7 @@ export default class {
         this.selectMode = this._pickSelectMode();
       }
       else if (selected) {
-        if (this.isMyTeam(selected.team))
+        if (this.isMyTeam(selected.team) && !this._inReplay)
           this.selectMode = selected.activated;
         else {
           this._showActions();
@@ -345,7 +348,7 @@ export default class {
       board.hideMode();
       viewed.activate(selectMode, true);
     }
-    else if (selected && this.isMyTurn) {
+    else if (selected && this.isMyTurn && !this._inReplay) {
       if (selectMode === 'target')
         // Clear highlight, but not target tile
         board.hideMode();
@@ -356,7 +359,7 @@ export default class {
       selected.activate(selectMode);
     }
 
-    if (viewed || this.isMyTurn)
+    if (viewed || (this.isMyTurn && !this._inReplay))
       board.showMode();
 
     this.render();
@@ -434,8 +437,23 @@ export default class {
     return this.isMyTeam(this.currentTeam);
   }
 
+  get currentTurnId() {
+    return this._currentTurn.id;
+  }
+  get inReplay() {
+    return this._inReplay;
+  }
+  get units() {
+    let turnData = this._currentTurn;
+    if (!turnData) return [];
+
+    return turnData.units;
+  }
   get actions() {
-    return this._board.decodeAction(this.state.actions);
+    let turnData = this._currentTurn;
+    if (!turnData) return [];
+
+    return this._board.decodeAction(turnData.actions);
   }
   get moved() {
     return !!this.state.actions
@@ -481,11 +499,13 @@ export default class {
          * events leading up to this point is played and any following events
          * are handled by the event listener.
          */
-        let replayTurnId = state.currentTurnId;
-        let replayTeamId = state.currentTeamId;
-        let replayActions = state.actions.slice();
-        let replayActionId = replayActions.length;
-        let turnStarted = state.turnStarted;
+        let turnData = {
+          id: state.currentTurnId,
+          teamId: state.currentTeamId,
+          started: state.turnStarted,
+          units: state.units,
+          actions: state.actions.slice(),
+        };
         let replayUndoRequest = state.undoRequest;
 
         state.on('event', this._onStateEventListener);
@@ -498,16 +518,18 @@ export default class {
           this._endGame();
         }
         else {
+          this._setTurnTimeout();
+
           this.lock();
-          this._stateEventStack = this._replay(replayTurnId, replayActionId).then(() => {
+          this._stateEventStack = this._replay(turnData.id, turnData.actions.length).then(() => {
             if (state.ended)
               return this._endGame();
 
-            if (replayActions.length)
-              this.selected = board.decodeAction(replayActions[0]).unit;
+            if (turnData.actions.length)
+              this.selected = board.decodeAction(turnData.actions[0]).unit;
 
-            if (turnStarted)
-              this._startTurn(replayTeamId);
+            if (turnData.started)
+              this._startTurn(turnData);
 
             /*
              * Emit an undoRequest event if it was requested before listening to
@@ -549,6 +571,103 @@ export default class {
     state.restart();
 
     return this.start();
+  }
+
+  async pause() {
+    let whilePlaying = this._whilePlaying;
+    if (whilePlaying)
+      whilePlaying.interrupt = true;
+    await whilePlaying;
+
+    this.lock('readonly');
+    this.stopAllAnim();
+    this._inReplay = true;
+
+    this._emit({ type:'showTurn', data:this._currentTurn });
+  }
+  async resume() {
+    let whilePlaying = this._whilePlaying;
+    if (whilePlaying)
+      whilePlaying.interrupt = true;
+    await whilePlaying;
+
+    let state = this.state;
+    let turnData = {
+      id: state.currentTurnId,
+      teamId: state.currentTeamId,
+      started: state.turnStarted,
+      units: state.units,
+      actions: state.actions.slice(),
+    };
+
+    this.lock();
+    await this._replay(turnData.id, turnData.actions.length);
+
+    this._inReplay = false;
+    this._startTurn(turnData);
+  }
+  async play(turnId) {
+    let resolve;
+    let promise = this._whilePlaying = new Promise(r => resolve = r);
+
+    this.selected = this.viewed = null;
+    this.stopAllAnim();
+
+    let state = this.state;
+    let board = this._board;
+    if (turnId !== this.currentTurnId)
+      this._currentTurn = await state.getTurnData(turnId);
+
+    let turnData = this._currentTurn;
+
+    this.lock();
+    board.setState(turnData.units, this._teams);
+    this.render();
+
+    this._emit({ type:'showTurn', data:turnData });
+    await this._performActions(turnData.actions);
+
+    for (let turnId = turnData.id + 1; turnId <= state.currentTurnId; turnId++) {
+      turnData.id = turnId;
+      turnData.teamId = turnId % this.teams.length;
+      turnData.units = board.getState();
+      turnData.actions = await state.getTurnActions(turnId);
+
+      this._emit({ type:'showTurn', data:turnData });
+
+      if (promise.interrupt)
+        break;
+
+      await this._performActions(turnData.actions);
+    }
+
+    this.lock('readonly');
+    this._whilePlaying = null;
+    resolve();
+  }
+  async showTurn(turnId) {
+    let whilePlaying = this._whilePlaying;
+    if (whilePlaying)
+      whilePlaying.interrupt = true;
+    await whilePlaying;
+
+    this.selected = this.viewed = null;
+    this.stopAllAnim();
+
+    let state = this.state;
+    let board = this._board;
+
+    if (turnId < 0)
+      turnId += state.currentTurnId + 1;
+
+    let turnData = this._currentTurn = await state.getTurnData(turnId);
+
+    board.setState(turnData.units, this._teams);
+
+    this._showActions();
+    this.render();
+
+    this._emit({ type:'showTurn', data:turnData });
   }
 
   /*
@@ -678,6 +797,11 @@ export default class {
     else {
       this._animators[fps] = animators;
       requestAnimationFrame(loop);
+    }
+  }
+  stopAllAnim() {
+    for (let [fps, animators] of Object.entries(this._animators)) {
+      animators.length = 0;
     }
   }
 
@@ -957,17 +1081,13 @@ export default class {
       return action;
     });
 
-    this._startTurn(turnData.teamId);
+    this._startTurn(turnData);
 
     if (actions.length)
       if (this.isMyTeam(turnData.teamId))
         this.selected = actions[0].unit;
-      else {
-        let selected = board.selected = actions[0].unit.activate();
-        this.drawCard();
-
-        this._showActions(actions);
-      }
+      else
+        this._showActions();
 
     this._emit({ type:'revert' });
     this.render();
@@ -1218,36 +1338,59 @@ export default class {
     return unit[action.type](action, speed)
       .then(() => this._playResults(action, speed));
   }
-  _showActions(actions = this.actions) {
-    let board = this._board;
-    let selected = this.selected;
-    let degree = board.getDegree('N', board.rotation);
-    let origin = this.state.units.flat().find(u => u.id === selected.id).assignment;
+  _showActions() {
+    let actions = this.actions;
+    let unit = actions.length && actions[0].unit;
+    if (!unit) return;
 
-    board.setHighlight(board.getTileRotation(origin, degree), {
+    let board = this._board;
+    if (board.selected !== unit) {
+      board.selected = unit.activate();
+      this.drawCard();
+    }
+
+    let degree = board.getDegree('N', board.rotation);
+    let targets = {};
+
+    targets.origin = targets.assignment =
+      this.units.flat().find(u => u.id === unit.id).assignment;
+    targets.origin = board.getTileRotation(targets.origin, degree);
+
+    actions.forEach(action => {
+      if (action.unit !== unit) return;
+
+      if (action.type === 'move') {
+        targets.assignment = action.assignment;
+        targets.direction = action.direction;
+      }
+      else if (action.type === 'attack') {
+        targets.attack = unit.getTargetTiles(action.target, targets.assignment);
+        targets.direction = action.direction;
+      }
+      else if (action.type === 'turn') {
+        targets.direction = action.direction;
+      }
+    });
+
+    board.setHighlight(targets.origin, {
       action: 'focus',
       color: FOCUS_TILE_COLOR,
     }, true);
 
-    actions.forEach(action => {
-      if (action.unit !== selected) return;
+    if (targets.assignment !== targets.origin)
+      board.setHighlight(targets.assignment, {
+        action: 'move',
+        color: MOVE_TILE_COLOR,
+      }, true);
 
-      if (action.type === 'move')
-        board.setHighlight(action.assignment, {
-          action: 'move',
-          color: MOVE_TILE_COLOR,
-        }, true);
-      else if (action.type === 'attack') {
-        let target_tiles = selected.getTargetTiles(action.target);
+    if (targets.attack)
+      board.setHighlight(targets.attack, {
+        action: 'attack',
+        color: ATTACK_TILE_COLOR,
+      }, true);
 
-        target_tiles.forEach(tile => {
-          board.setHighlight(tile, {
-            action: 'attack',
-            color: ATTACK_TILE_COLOR,
-          }, true);
-        });
-      }
-    });
+    if (actions.last.type === 'endTurn' && unit.directional !== false)
+      board.showDirection(unit, targets.assignment, targets.direction);
   }
   /*
    * Show the player the results of an attack
@@ -1519,9 +1662,9 @@ export default class {
       }
     } while (turnId <= stopTurnId);
   }
-  _startTurn(teamId) {
-    // conditionally set, or unset, the timeout
-    this._setTurnTimeout();
+  _startTurn(turnData) {
+    this._currentTurn = turnData;
+    let teamId = turnData.teamId;
 
     let teams = this.teams;
     let team = teams[teamId];
@@ -1571,11 +1714,6 @@ export default class {
     return this;
   }
   _endGame(winnerId = this.state.winnerId) {
-    clearTimeout(this._turnTimeout);
-    this._turnTimeout = null;
-
-    this._emit({ type:'resetTimeout' });
-
     if (winnerId === null) {
       this.notice = 'Draw!';
 
@@ -1652,10 +1790,14 @@ export default class {
     let state = this.state;
     if (!state.turnTimeLimit)
       return;
-    if (state.ended)
-      return;
 
     this._emit({ type:'resetTimeout' });
+
+    if (state.ended) {
+      clearTimeout(this._turnTimeout);
+      this._turnTimeout = null;
+      return;
+    }
 
     if (this.isViewOnly)
       return;
@@ -1787,13 +1929,28 @@ export default class {
     // Event handlers are expected to either return a promise that resolves when
     // handling is complete or nothing at all.
     let eventHandler;
-    if (type === 'startTurn')
-      eventHandler = () => this._startTurn(data.teamId);
-    else if (type === 'action')
-      eventHandler = () => {
-        if (data.last.type !== 'endTurn')
-          this._setTurnTimeout();
-        return this._performActions(data).then(() => {
+    if (type === 'startTurn') {
+      this._setTurnTimeout();
+      if (this._inReplay)
+        return;
+
+      let turnData = {
+        id: data.turnId,
+        teamId: data.teamId,
+        started: this.state.turnStarted,
+        units: this.state.units,
+        actions: this.state.actions,
+      };
+
+      eventHandler = () => this._startTurn(turnData);
+    }
+    else if (type === 'action') {
+      this._setTurnTimeout();
+      if (this._inReplay)
+        return;
+
+      eventHandler = () =>
+        this._performActions(data).then(() => {
           // If the action didn't result in ending the turn, then set mode.
           let actions = this.board.decodeAction(data);
           let firstAction = actions[0];
@@ -1805,9 +1962,14 @@ export default class {
             this.unlock();
           }
         });
-      };
-    else if (type === 'revert')
+    }
+    else if (type === 'revert') {
+      this._setTurnTimeout();
+      if (this._inReplay)
+        return;
+
       eventHandler = () => this._revert(data);
+    }
     else if (type === 'undoRequest')
       eventHandler = () => this._emit({ type, data });
     else if (type === 'undoAccept')
@@ -1818,8 +1980,11 @@ export default class {
       eventHandler = () => this._emit({ type, data });
     else if (type === 'undoComplete')
       eventHandler = () => this._emit({ type, data });
-    else if (type === 'endGame')
+    else if (type === 'endGame') {
+      this._setTurnTimeout();
+
       eventHandler = () => this._endGame(data.winnerId);
+    }
     else
       return;
 
