@@ -183,7 +183,7 @@ export default class RemoteTransport {
    */
   _init(gameId) {
     gameClient.watchGame(gameId).then(({playerStatus, gameData}) => {
-      // Event caught internally to set this.playerStatus.
+      // Event emitted internally to set this.playerStatus.
       this._emit({ type:'playerStatus', data:playerStatus });
 
       if (gameData.undoRequest)
