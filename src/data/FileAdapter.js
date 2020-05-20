@@ -108,6 +108,40 @@ export default class {
 
     return game;
   }
+
+  async cancelGame(game) {
+
+    return this._lock(`game_${game.id}`, 'write', async () => {
+      let gameRefreshed = await this._readFile(`game_${game.id}`, null);
+      if (gameRefreshed === null) {
+        return true;
+      }
+      if (gameRefreshed.state.started) {
+        return false;
+      }
+      let playerIds = new Set(
+        gameRefreshed.state.teams.filter(t => t && !!t.playerId).map(t => t.playerId)
+      );
+
+      let promises = [...playerIds].map(playerId =>
+        this._lockAndUpdateFile(`player_${playerId}_games`, [], summaryList => {
+          let summaries = new Map(summaryList);
+          summaries.delete(gameRefreshed.id);
+          return summaries;
+        })
+      );
+      await Promise.all(promises);
+
+      await this._lockAndUpdateFile(`open_games`, [], (gamesSummary) => {
+        let summaries = new Map(gamesSummary);
+        summaries.delete(gameRefreshed.id);
+        return summaries;
+      })
+      await this._deleteFile(`game_${game.id}`);
+      return true;
+    });
+  }
+
   async saveGame(game) {
     await this._lockAndWriteFile(`game_${game.id}`, game);
     await this._saveGameSummary(game);
@@ -538,6 +572,20 @@ export default class {
           return initialValue;
 
       throw error;
+    });
+  }
+
+  _deleteFile(name) {
+    let fqName = `${filesDir}/${name}.json`;
+    return new Promise((resolve, reject) => {
+      fs.unlink(fqName, error => {
+        if (error) {
+          console.log('deleteFile', error);
+          reject(new ServerError(500, 'Delete failed'));
+        } else {
+          resolve();
+        }
+      });
     });
   }
 

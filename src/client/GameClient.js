@@ -35,6 +35,10 @@ export default class GameClient extends Client {
     return this._server.requestAuthorized(this.name, 'createGame', [gameOptions])
   }
 
+  cancelGame(gameId) {
+    return this._server.requestAuthorized(this.name, 'cancelGame', [gameId])
+  }
+
   joinGame(gameId, options) {
     let args = [gameId];
     if (options) args.push(options);

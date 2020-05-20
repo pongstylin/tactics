@@ -229,6 +229,33 @@ class GameService extends Service {
     return dataAdapter.createGame(gameOptions).then(game => game.id);
   }
 
+  async onCancelGameRequest(client, gameId) {
+    let clientPara = this.clientPara.get(client.id);
+    this.debug(`cancel game ${gameId}`);
+    let game = await dataAdapter.getGame(gameId);
+    if (clientPara.playerId !== game.createdBy) {
+      throw new ServerError(403, 'You cannot cancel other users\' game');
+    } else if (game.started) {
+      throw new ServerError(400, 'You cannot cancel a game which has already started');
+    }
+
+    let fileDeleted = await dataAdapter.cancelGame(game);
+    if (!fileDeleted) {
+      throw new ServerError(400, 'Game cannot be cancelled');
+    }
+    if (this.gamePara.get(gameId)) {
+      for (let clientId of this.gamePara.get(gameId).clients) {
+        let clientToKick = this.clientPara.get(clientId);
+        if (clientToKick.joinedGroups.size === 1) {
+          delete clientToKick.joinedGroups;
+        } else {
+          clientToKick.joinedGroups.delete(game.id);
+        }
+      }
+      this.gamePara.delete(gameId);
+    }
+  }
+
   async onGetGameTypeConfigRequest(client, gameTypeId) {
     return dataAdapter.getGameType(gameTypeId);
   }
@@ -677,17 +704,17 @@ class GameService extends Service {
   }
   async onGetTurnDataRequest(client, gameId, ...args) {
     let game = await this._getGame(gameId);
-    
+
     return game.state.getTurnData(...args);
   }
   async onGetTurnActionsRequest(client, gameId, ...args) {
     let game = await this._getGame(gameId);
-    
+
     return game.state.getTurnActions(...args);
   }
   async onRestartRequest(client, gameId, ...args) {
     let game = await this._getGame(gameId);
-    
+
     return game.state.restart(...args);
   }
 

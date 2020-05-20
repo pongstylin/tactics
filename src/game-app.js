@@ -611,6 +611,7 @@ function renderMessage(message) {
 
 async function showPublicIntro(gameData) {
   renderShareLink(gameData.id, document.querySelector('#public .shareLink'));
+  renderCancelButton(gameData.id, document.querySelector('#public .cancelButton'));
 
   let $greeting = $('#public .greeting');
   let myTeam = gameData.state.teams.find(t => t && t.playerId === authClient.playerId);
@@ -628,6 +629,7 @@ async function showPublicIntro(gameData) {
 }
 async function showPrivateIntro(gameData) {
   renderShareLink(gameData.id, document.querySelector('#private .shareLink'));
+  renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
   let $greeting = $('#private .greeting');
   let myTeam = gameData.state.teams.find(t => t && t.playerId === authClient.playerId);
@@ -643,6 +645,34 @@ async function showPrivateIntro(gameData) {
 
   return loadGame(transport);
 }
+
+function renderCancelButton(gameId, container) {
+  let cancelButton = '<SPAN class="cancel"><SPAN class="fa fa-trash"></SPAN><SPAN class="label">Cancel Game</SPAN></SPAN>';
+  container.innerHTML = cancelButton;
+  container.addEventListener('click', event => {
+    popup({
+      title: "Cancel the game?",
+      message: 'Please confirm that you want to cancel this game',
+      buttons: [
+        {
+          label:'Yes',
+          onClick: () => {
+            gameClient.cancelGame(gameId)
+              .then(() => {
+                location.href = '/online.html';
+              });
+          }
+        },
+        {
+          label: 'No'
+        },
+      ],
+      minWidth: '250px',
+      zIndex: 10,
+    });
+  })
+}
+
 function renderShareLink(gameId, container) {
   let link = location.origin + '/game.html?' + gameId;
 
