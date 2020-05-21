@@ -1,25 +1,14 @@
-import getTextWidth from 'string-pixel-width';
-import XRegExp from 'xregexp';
-
 import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import adapterFactory from 'data/adapterFactory.js';
 import serviceFactory from 'server/serviceFactory.js';
 import Game from 'models/Game.js';
+import Player from 'models/Player.js';
 
 const dataAdapter = adapterFactory();
 const chatService = serviceFactory('chat');
 const pushService = serviceFactory('push');
-
-/*
- * Team names may have the following characters:
- *   Letter, Number, Punctuation, Symbol, Space
- *
- * Other restrictions are imposed by the _validateTeamName() method.
- */
-XRegExp.install('astral');
-let rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 
 class GameService extends Service {
   constructor() {
@@ -312,7 +301,7 @@ class GameService extends Service {
     };
 
     if (name !== undefined) {
-      this._validateTeamName(name);
+      Player.validatePlayerName(name);
 
       team.name = name;
     }
@@ -1100,30 +1089,6 @@ class GameService extends Service {
         data: { playerId, status },
       },
     });
-  }
-
-  _validateTeamName(name) {
-    if (!name)
-      throw new ServerError(422, 'Player name is required');
-    if (name.length > 20)
-      throw new ServerError(403, 'Player name length limit is 20 characters');
-
-    let width = getTextWidth(name, { font: 'Arial', size: 12 });
-    if (width > 110)
-      throw new ServerError(403, 'Player name visual length is too long');
-
-    if (!rUnicodeLimit.test(name))
-      throw new ServerError(403, 'Name contains forbidden characters');
-    if (name.startsWith(' '))
-      throw new ServerError(403, 'Name may not start with a space');
-    if (name.endsWith(' '))
-      throw new ServerError(403, 'Name may not end with a space');
-    if (name.includes('  '))
-      throw new ServerError(403, 'Name may not contain consecutive spaces');
-    if (name.includes('#'))
-      throw new ServerError(403, 'The # symbol is reserved');
-    if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
-      throw new ServerError(403, 'The name may not contain markup');
   }
 }
 
