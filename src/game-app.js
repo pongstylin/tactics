@@ -610,7 +610,9 @@ function renderMessage(message) {
 }
 
 async function showPublicIntro(gameData) {
-  renderShareLink(gameData.id, document.querySelector('#public .shareLink'));
+  let gameType = await gameClient.getGameType(gameData.state.type);
+
+  renderShareLink(gameType, gameData, document.querySelector('#public .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#public .cancelButton'));
 
   let $greeting = $('#public .greeting');
@@ -628,7 +630,9 @@ async function showPublicIntro(gameData) {
   return loadGame(transport);
 }
 async function showPrivateIntro(gameData) {
-  renderShareLink(gameData.id, document.querySelector('#private .shareLink'));
+  let gameType = await gameClient.getGameType(gameData.state.type);
+
+  renderShareLink(gameType, gameData, document.querySelector('#private .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
   let $greeting = $('#private .greeting');
@@ -673,7 +677,14 @@ function renderCancelButton(gameId, container) {
   })
 }
 
-function renderShareLink(gameId, container) {
+function renderShareLink(gameType, gameData, container) {
+  let message = `Want to play a ${gameType.name} game`;
+  if (gameData.state.turnTimeLimit === 120)
+    message += ' at 2min per turn?';
+  else if (gameData.state.turnTimeLimit === 30)
+    message += ' at 30sec per turn?';
+  message += '?';
+
   let link = location.origin + '/game.html?' + gameId;
 
   let shareLink;
@@ -687,14 +698,14 @@ function renderShareLink(gameId, container) {
     if (navigator.share)
       share({
         title: 'Tactics',
-        text: 'Want to play?',
+        text: message,
         url: link,
       }).catch(error => {
         if (error.isInternalError)
           popup({
             message: 'App sharing failed.  You can copy the link to share it instead.',
             buttons: [
-              { label:'Copy', onClick:() => copy(link) },
+              { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
             minWidth: '250px',
@@ -703,14 +714,14 @@ function renderShareLink(gameId, container) {
           popup({
             message: 'App sharing cancelled.  You can still copy the link to share it instead.',
             buttons: [
-              { label:'Copy', onClick:() => copy(link) },
+              { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
             minWidth: '250px',
           });
       });
     else {
-      copy(link);
+      copy(`${message} ${link}`);
       popup({ message:'Copied the game link.  Paste the link to invite using your app of choice.' });
     }
   });

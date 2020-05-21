@@ -75,15 +75,26 @@ window.addEventListener('DOMContentLoaded', () => {
     location.hash = '#' + tab;
   });
 
-  let gameClickHandler = event => {
+  let gameClickHandler = async event => {
     let divGame = event.target.closest('.game');
     if (!divGame) return;
 
-    let link = location.origin + '/game.html?' + divGame.id;
+    let gameId = divGame.id;
+    let gameData = await gameClient.getGameData(gameId);
+    let gameType = await gameClient.getGameType(gameData.state.type);
+
+    let message = `Want to play a ${gameType.name} game`;
+    if (gameData.state.turnTimeLimit === 120)
+      message += ' at 2min per turn?';
+    else if (gameData.state.turnTimeLimit === 30)
+      message += ' at 30sec per turn?';
+    message += '?';
+
+    let link = location.origin + '/game.html?' + gameId;
 
     let spnCopy = event.target.closest('.copy');
     if (spnCopy) {
-      copy(link);
+      copy(`${message} ${link}`);
       popup({
         message:'Copied the game link.  Paste the link to invite using your app of choice.',
         minWidth: '250px',
@@ -95,14 +106,14 @@ window.addEventListener('DOMContentLoaded', () => {
     if (spnShare) {
       share({
         title: 'Tactics',
-        text: 'Want to play?',
+        text: message,
         url: link,
       }).catch(error => {
         if (error.isInternalError)
           popup({
             message: 'App sharing failed.  You can copy the link to share it instead.',
             buttons: [
-              { label:'Copy', onClick:() => copy(link) },
+              { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
             minWidth: '250px',
@@ -111,7 +122,7 @@ window.addEventListener('DOMContentLoaded', () => {
           popup({
             message: 'App sharing cancelled.  You can still copy the link to share it instead.',
             buttons: [
-              { label:'Copy', onClick:() => copy(link) },
+              { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
             minWidth: '250px',
