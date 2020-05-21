@@ -85,9 +85,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
     let message = `Want to play a ${gameType.name} game`;
     if (gameData.state.turnTimeLimit === 120)
-      message += ' at 2min per turn?';
+      message += ' at 2min per turn';
     else if (gameData.state.turnTimeLimit === 30)
-      message += ' at 30sec per turn?';
+      message += ' at 30sec per turn';
     message += '?';
 
     let link = location.origin + '/game.html?' + gameId;
