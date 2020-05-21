@@ -1762,7 +1762,7 @@ export default class {
     let pixi = this.pixi;
     let turnOptions = this._turnOptions;
 
-    if (pixi.children.includes(turnOptions))
+    if (pixi && pixi.children.includes(turnOptions))
       pixi.removeChild(turnOptions);
 
     return this;
