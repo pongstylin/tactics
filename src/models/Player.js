@@ -1,7 +1,19 @@
 import uuid from 'uuid/v4';
+import XRegExp from 'xregexp';
+import getTextWidth from 'string-pixel-width';
+
 import IdentityToken from 'server/IdentityToken.js';
 import AccessToken from 'server/AccessToken.js';
 import config from 'config/server.js';
+
+/*
+ * Player names may have the following characters:
+ *   Letter, Number, Punctuation, Symbol, Space
+ *
+ * Other restrictions are imposed by the validatePlayerName() method.
+ */
+XRegExp.install('astral');
+let rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 
 export default class Player {
   constructor(data) {
@@ -13,6 +25,8 @@ export default class Player {
   static create(data) {
     if (!data.name)
       throw new Error('Required player name');
+
+    Player.validatePlayerName(data.name);
 
     data.id = uuid();
     data.created = new Date();
@@ -44,28 +58,88 @@ export default class Player {
     return new Player(data);
   }
 
-  /*
-   * This is used to update a profile at the request of a user.
-   * It may not be used to update any arbitrary field.
-   */
-  update(data) {
-    Object.keys(data).forEach(property => {
-      if (property === 'name')
-        this.name = data.name;
-      else
-        throw new Error('Invalid update');
-    });
+  static validatePlayerName(name) {
+    if (!name)
+      throw new ServerError(422, 'Player name is required');
+    if (name.length > 20)
+      throw new ServerError(403, 'Player name length limit is 20 characters');
+
+    let width = getTextWidth(name, { font: 'Arial', size: 12 });
+    if (width > 110)
+      throw new ServerError(403, 'Player name visual length is too long');
+
+    if (!rUnicodeLimit.test(name))
+      throw new ServerError(403, 'Name contains forbidden characters');
+    if (name.startsWith(' '))
+      throw new ServerError(403, 'Name may not start with a space');
+    if (name.endsWith(' '))
+      throw new ServerError(403, 'Name may not end with a space');
+    if (name.includes('  '))
+      throw new ServerError(403, 'Name may not contain consecutive spaces');
+    if (name.includes('#'))
+      throw new ServerError(403, 'The # symbol is reserved');
+    if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
+      throw new ServerError(403, 'The name may not contain markup');
   }
 
-  addDevice(device) {
-    device = Object.assign({
-      id: uuid(),
-      name: null,
-      token: null,
-      nextToken: null,
-    }, device);
+  updateProfile(profile) {
+    let changed = false;
 
-    this.devices.set(device.id, device);
+    Object.keys(profile).forEach(property => {
+      if (property === 'name') {
+        if (profile.name === this.name)
+          return;
+
+        Player.validatePlayerName(profile.name);
+        this.name = profile.name;
+
+        // Create new access token(s) with the new name
+        for (let [deviceId, device] of this.devices) {
+          device.nextToken = this.createAccessToken(deviceId);
+        }
+
+        changed = true;
+      }
+      else
+        throw new Error('Invalid profile');
+    });
+
+    return changed;
+  }
+  refreshAccessToken(deviceId) {
+    let device = this.devices.get(deviceId);
+    let token = device.token;
+    let nextToken = device.nextToken;
+
+    if (nextToken)
+      if (nextToken.age < (nextToken.ttl * 0.1))
+        return false;
+      else
+        device.nextToken = this.createAccessToken(device.id);
+    else
+      if (token.age < (token.ttl * 0.1))
+        return false;
+      else
+        device.nextToken = this.createAccessToken(device.id);
+
+    return true;
+  }
+
+  addDevice(client) {
+    let now = new Date();
+    let deviceId = uuid();
+    let device = {
+      id: deviceId,
+      name: null,
+      token: this.createAccessToken(deviceId),
+      nextToken: null,
+      agents: new Map([[
+        client.agent,
+        new Map([[client.address, now]]),
+      ]]),
+    };
+
+    this.devices.set(deviceId, device);
 
     return device;
   }
@@ -87,8 +161,13 @@ export default class Player {
       deviceId,
     });
   }
+  getAccessToken(deviceId) {
+    let device = this.devices.get(deviceId);
+
+    return device.nextToken || device.token;
+  }
   /*
-   * An identity token can be used to obtain an access token for a device.
+   * An identity token can be used to create an access token for a new device.
    */
   createIdentityToken() {
     return IdentityToken.create({

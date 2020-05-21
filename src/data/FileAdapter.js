@@ -15,38 +15,42 @@ export default class {
     this._locks = new Map();
   }
 
-  /*
-   * Serially refresh tokens despite parallel refresh requests.
-   */
+  async register(playerData, client) {
+    playerData.version = getLatestVersionNumber('player');
+
+    let player = Player.create(playerData);
+    let device = player.addDevice(client);
+
+    await this._lockAndCreateFile(`player_${player.id}`, player);
+
+    return { player, device };
+  }
+  async savePlayerProfile(playerId, profile) {
+    let name = `player_${playerId}`;
+
+    return this._lock(name, 'write', async () => {
+      let playerData = await this._readFile(name);
+      let player = Player.load(migrate('player', playerData));
+
+      if (player.updateProfile(profile))
+        await this._writeFile(name, player);
+
+      return player;
+    });
+  }
   async refreshAccessToken(playerId, deviceId) {
     let name = `player_${playerId}`;
 
     return this._lock(name, 'write', async () => {
       let playerData = await this._readFile(name);
       let player = Player.load(migrate('player', playerData));
-      let device = player.devices.get(deviceId);
-      let token = device.token;
-      let nextToken = device.nextToken;
-      let freshToken;
 
-      if (nextToken && (nextToken.age < (nextToken.ttl * 0.1)))
-        freshToken = nextToken;
-      else if (token.age < (token.ttl * 0.1))
-        freshToken = token;
-      else {
-        freshToken = device.nextToken = player.createAccessToken(device.id);
+      if (player.refreshAccessToken(deviceId))
         await this._writeFile(name, player);
-      }
 
-      if (freshToken.playerName !== player.name) {
-        freshToken = device.nextToken = player.createAccessToken(device.id);
-        await this._writeFile(name, player);
-      }
-
-      return freshToken;
+      return player;
     });
   }
-
   async createIdentityToken(playerId) {
     let name = `player_${playerId}`;
 
@@ -57,7 +61,7 @@ export default class {
       player.identityToken = player.createIdentityToken();
       await this._writeFile(name, player);
 
-      return player.identityToken;
+      return player;
     });
   }
   async revokeIdentityToken(playerId) {
@@ -69,15 +73,9 @@ export default class {
 
       player.identityToken = null;
       await this._writeFile(name, player);
+
+      return player;
     });
-  }
-
-  async createPlayer(playerData) {
-    let player = Player.create(playerData);
-    player.version = getLatestVersionNumber('player');
-
-    await this._lockAndCreateFile(`player_${player.id}`, player);
-    return player;
   }
   async savePlayer(player) {
     await this._lockAndWriteFile(`player_${player.id}`, player);

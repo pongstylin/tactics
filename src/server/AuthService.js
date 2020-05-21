@@ -1,6 +1,4 @@
 import uuid from 'uuid/v4';
-import getTextWidth from 'string-pixel-width';
-import XRegExp from 'xregexp';
 import uaparser from 'ua-parser-js';
 
 import IdentityToken from 'server/IdentityToken.js';
@@ -11,15 +9,6 @@ import adapterFactory from 'data/adapterFactory.js';
 import Player from 'models/Player.js';
 
 const dataAdapter = adapterFactory();
-
-/*
- * Player names may have the following characters:
- *   Letter, Number, Punctuation, Symbol, Space
- *
- * Other restrictions are imposed by the _validatePlayerName() method.
- */
-XRegExp.install('astral');
-let rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 
 class AuthService extends Service {
   constructor() {
@@ -48,13 +37,10 @@ class AuthService extends Service {
 
   async onRegisterRequest(client, playerData) {
     let session = this.sessions.get(client.id) || {};
-    let now = new Date();
 
     // An authorized player cannot register an account.
     if (session.token)
       throw new ServerError(403, 'Already registered');
-
-    this._validatePlayerName(playerData.name);
 
     /*
      * More than one client may be registered to a given IP address, e.g.
@@ -63,35 +49,26 @@ class AuthService extends Service {
      */
     this.throttle(client.address, 'register', 1, 30);
 
-    let player = await dataAdapter.createPlayer(playerData);
-    let device = player.addDevice({
-      agents: new Map([[
-        client.agent, 
-        new Map([[client.address, now]]),
-      ]]),
-    });
-    device.token = player.createAccessToken(device.id);
+    let { player, device } = await dataAdapter.register(playerData, client);
 
-    return dataAdapter.savePlayer(player).then(() => device.token);
+    return player.getAccessToken(device.id);
   }
 
-  onCreateIdentityTokenRequest(client) {
+  async onCreateIdentityTokenRequest(client) {
     let session = this.sessions.get(client.id) || {};
     if (!session.token)
       throw new ServerError(401, 'Authorization is required');
 
-    let player = session.player;
+    session.player = await dataAdapter.createIdentityToken(session.player.id);
 
-    return dataAdapter.createIdentityToken(player.id);
+    return session.player.identityToken;
   }
-  onRevokeIdentityTokenRequest(client) {
+  async onRevokeIdentityTokenRequest(client) {
     let session = this.sessions.get(client.id) || {};
     if (!session.token)
       throw new ServerError(401, 'Authorization is required');
 
-    let player = session.player;
-
-    return dataAdapter.revokeIdentityToken(player.id);
+    session.player = await dataAdapter.revokeIdentityToken(session.player.id);
   }
 
   onGetIdentityTokenRequest(client) {
@@ -150,16 +127,10 @@ class AuthService extends Service {
     if (!token.equals(player.identityToken))
       throw new ServerError(403, 'Identity token was revoked');
 
-    let device = player.addDevice({
-      agents: new Map([[
-        client.agent, 
-        new Map([[client.address, now]]),
-      ]]),
-    });
-    device.token = player.createAccessToken(device.id);
     player.identityToken = null;
+    let device = player.addDevice(client);
 
-    dataAdapter.savePlayer(player);
+    await dataAdapter.savePlayer(player);
 
     return device.token;
   }
@@ -227,12 +198,16 @@ class AuthService extends Service {
       tokenValue = session.token.value;
 
     let { player, device } = await this._validateAccessToken(client, tokenValue);
+    let oldToken = player.getAccessToken(device.id);
 
-    let token = await dataAdapter.refreshAccessToken(player.id, device.id);
-    if (!token.equals(device.token) && !token.equals(device.nextToken))
-      this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
+    session.player = await dataAdapter.refreshAccessToken(player.id, device.id);
+    session.device = session.player.getDevice(device.id);
 
-    return token;
+    let newToken = session.player.getAccessToken(device.id);
+    if (!newToken.equals(oldToken))
+      this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${newToken.signature}`);
+
+    return newToken;
   }
 
   /*
@@ -245,44 +220,17 @@ class AuthService extends Service {
     if (!session.token)
       throw new ServerError(401, 'Authorization is required');
 
-    if ('name' in profile)
-      this._validatePlayerName(profile.name);
-
     let { player, device } = session;
+    let oldToken = player.getAccessToken(device.id);
 
-    player.update(profile);
-    await dataAdapter.savePlayer(player);
+    session.player = await dataAdapter.savePlayerProfile(player.id, profile);
+    session.device = session.player.getDevice(device.id);
 
-    // Generate a new token with the new name
-    let token = await dataAdapter.refreshAccessToken(player.id, device.id);
-    if (!token.equals(device.token) && !token.equals(device.nextToken))
-      this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
+    let newToken = session.player.getAccessToken(device.id);
+    if (!newToken.equals(oldToken))
+      this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${newToken.signature}`);
 
-    return token;
-  }
-
-  _validatePlayerName(name) {
-    if (!name)
-      throw new ServerError(422, 'Player name is required');
-    if (name.length > 20)
-      throw new ServerError(403, 'Player name length limit is 20 characters');
-
-    let width = getTextWidth(name, { font: 'Arial', size: 12 });
-    if (width > 110)
-      throw new ServerError(403, 'Player name visual length is too long');
-
-    if (!rUnicodeLimit.test(name))
-      throw new ServerError(403, 'Name contains forbidden characters');
-    if (name.startsWith(' '))
-      throw new ServerError(403, 'Name may not start with a space');
-    if (name.endsWith(' '))
-      throw new ServerError(403, 'Name may not end with a space');
-    if (name.includes('  '))
-      throw new ServerError(403, 'Name may not contain consecutive spaces');
-    if (name.includes('#'))
-      throw new ServerError(403, 'The # symbol is reserved');
-    if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
-      throw new ServerError(403, 'The name may not contain markup');
+    return newToken;
   }
 
   async _validateAccessToken(client, tokenValue) {
