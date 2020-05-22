@@ -5,7 +5,7 @@ import { reverseColorMap } from 'tactics/colorMap.js';
 const HALF_TILE_WIDTH  = 44;
 const HALF_TILE_HEIGHT = 28;
 
-export default class {
+export default class Unit {
   constructor(data, board) {
     Object.assign(this, data, {
       data: data,

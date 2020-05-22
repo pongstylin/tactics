@@ -75,11 +75,7 @@ window.addEventListener('DOMContentLoaded', () => {
     location.hash = '#' + tab;
   });
 
-  let gameClickHandler = async event => {
-    let divGame = event.target.closest('.game');
-    if (!divGame) return;
-
-    let gameId = divGame.id;
+  let getShareGameMessage = async gameId => {
     let gameData = await gameClient.getGameData(gameId);
     let gameType = await gameClient.getGameType(gameData.state.type);
 
@@ -90,10 +86,19 @@ window.addEventListener('DOMContentLoaded', () => {
       message += ' at 30sec per turn';
     message += '?';
 
+    return message;
+  };
+  let gameClickHandler = async event => {
+    let divGame = event.target.closest('.game');
+    if (!divGame) return;
+
+    let gameId = divGame.id;
     let link = location.origin + '/game.html?' + gameId;
 
     let spnCopy = event.target.closest('.copy');
     if (spnCopy) {
+      let message = await getShareGameMessage(gameId);
+
       copy(`${message} ${link}`);
       popup({
         message:'Copied the game link.  Paste the link to invite using your app of choice.',
@@ -104,6 +109,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
     let spnShare = event.target.closest('.share');
     if (spnShare) {
+      let message = await getShareGameMessage(gameId);
+
       share({
         title: 'Tactics',
         text: message,

@@ -12,7 +12,10 @@ export default class AuthClient extends Client {
       token: this._fetchToken(),
 
       // The client is ready once the token, if any, is refreshed.
-      whenReady: new Promise(resolve => this._resolveReady = resolve),
+      whenReady: new Promise(resolve => this._resolveReady = () => {
+        this.whenReady.isResolved = true;
+        resolve();
+      }),
 
       _refreshTimeout: null,
     });
@@ -27,7 +30,10 @@ export default class AuthClient extends Client {
      */
     window.addEventListener('storage', event => {
       if (event.key !== 'token') return;
-      this._setToken();
+
+      // Ignore token change events while we are still refreshing the token.
+      if (this.whenReady.isResolved)
+        this._setToken();
     });
 
     // If the server connection is already open, fire the open event.
