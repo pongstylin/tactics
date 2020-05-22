@@ -9,6 +9,11 @@ const dataAdapter = adapterFactory();
 const chatService = serviceFactory('chat');
 const pushService = serviceFactory('push');
 
+// minutes
+const REALTIME_GAME_MAX_AGE = 15;
+// ms
+const REALTIME_GAMES_CLEANUP_INTERVAL = 60 * 1000;
+
 class GameService extends Service {
   constructor() {
     super({
@@ -31,6 +36,30 @@ class GameService extends Service {
       // Paradata about each online player by player ID.
       playerPara: new Map(),
     });
+
+    setTimeout(async () => {
+      await this.cleanupRealtimeGames();
+    }, REALTIME_GAMES_CLEANUP_INTERVAL);
+  }
+
+  cleanupRealtimeGames = async () => {
+    let now = new Date();
+    let query = {
+      filter: [
+        { turnTimeLimit: 120 },
+        { turnTimeLimit: 30 }
+      ],
+    }
+
+    let openGames = await dataAdapter.searchOpenGames(query);
+    openGames.hits
+      .filter(game => (now - new Date(game.created)) / 1000 > REALTIME_GAME_MAX_AGE * 60)
+      .forEach(game => {
+        this._cancelGame(game.id);
+      });
+    setTimeout(async () => {
+      await this.cleanupRealtimeGames()
+    }, REALTIME_GAMES_CLEANUP_INTERVAL)
   }
 
   /*
@@ -229,17 +258,9 @@ class GameService extends Service {
     return dataAdapter.createGame(gameOptions).then(game => game.id);
   }
 
-  async onCancelGameRequest(client, gameId) {
-    let clientPara = this.clientPara.get(client.id);
+  async _cancelGame(gameId) {
     this.debug(`cancel game ${gameId}`);
-    let game = await dataAdapter.getGame(gameId);
-    if (clientPara.playerId !== game.createdBy) {
-      throw new ServerError(403, 'You cannot cancel other users\' game');
-    } else if (game.started) {
-      throw new ServerError(400, 'You cannot cancel a game which has already started');
-    }
-
-    let fileDeleted = await dataAdapter.cancelGame(game);
+    let fileDeleted = await dataAdapter.cancelGame(gameId);
     if (!fileDeleted) {
       throw new ServerError(400, 'Game cannot be cancelled');
     }
@@ -249,11 +270,23 @@ class GameService extends Service {
         if (clientToKick.joinedGroups.size === 1) {
           delete clientToKick.joinedGroups;
         } else {
-          clientToKick.joinedGroups.delete(game.id);
+          clientToKick.joinedGroups.delete(gameId);
         }
       }
       this.gamePara.delete(gameId);
     }
+  }
+
+  async onCancelGameRequest(client, gameId) {
+    let clientPara = this.clientPara.get(client.id);
+    let game = await dataAdapter.getGame(gameId);
+    if (clientPara.playerId !== game.createdBy) {
+      throw new ServerError(403, 'You cannot cancel other users\' game');
+    } else if (game.started) {
+      throw new ServerError(400, 'You cannot cancel a game which has already started');
+    }
+
+    await this._cancelGame(gameId);
   }
 
   async onGetGameTypeConfigRequest(client, gameTypeId) {

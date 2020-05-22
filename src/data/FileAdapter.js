@@ -107,10 +107,10 @@ export default class {
     return game;
   }
 
-  async cancelGame(game) {
+  async cancelGame(gameId) {
 
-    return this._lock(`game_${game.id}`, 'write', async () => {
-      let gameRefreshed = await this._readFile(`game_${game.id}`, null);
+    return this._lock(`game_${gameId}`, 'write', async () => {
+      let gameRefreshed = await this._readFile(`game_${gameId}`, null);
       if (gameRefreshed === null) {
         return true;
       }
@@ -135,7 +135,7 @@ export default class {
         summaries.delete(gameRefreshed.id);
         return summaries;
       })
-      await this._deleteFile(`game_${game.id}`);
+      await this._deleteFile(`game_${gameRefreshed.id}`);
       return true;
     });
   }
