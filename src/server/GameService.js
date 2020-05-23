@@ -504,142 +504,78 @@ class GameService extends Service {
       },
     });
 
+    let gameData = game.toJSON();
+    let state = gameData.state = game.state.getData();
+
     let response = {
       playerStatus: await this.onGetPlayerStatusRequest(client, game),
+      gameData,
     };
 
     // Parameters are used to resume a game from a given point.
+    // This is done by only sending the data that has changed
     if (params) {
-      response.events = [];
-      response.undoRequest = null;
-
-      let state = game.state;
-      let turnData;
+      // These values are set when a game is created and cannot be changed.
+      // So, when resuming a game, these values need not be sent.
+      delete gameData.type;
+      delete gameData.randomFirstTurn;
+      delete gameData.turnTimeLimit;
 
       if (params.since === 'start') {
-        if (state.started) {
-          params.since = new Date(state.started);
-          params.turnId = 0;
-          params.actions = 0;
-          turnData = state.getTurnData(params.turnId);
-
-          response.events.push(
-            {
-              type: 'startGame',
-              data: {
-                started: state.started,
-                teams: state.teams,
-                units: state.units,
-              },
-            },
-            {
-              type: 'startTurn',
-              data: {
-                started: turnData.started,
-                turnId: turnData.id,
-                teamId: turnData.teamId,
-              },
-            },
-          );
-        }
+        // Nothing has changed if the game hasn't started yet
+        if (!state.started)
+          delete gameData.state;
       }
+      else if (params.since === 'end')
+        // Game data doesn't change after game end
+        delete gameData.state;
       else {
+        // Once the game starts, the teams do not change... for now.
+        delete state.started;
+        delete state.teams;
+
         params.since = new Date(params.since);
-        turnData = state.getTurnData(params.turnId);
+        let since = state.actions.length ? state.actions.last.created : state.turnStarted;
 
-        /*
-         * Determine if the turn data has changed due to reversion.
-         * If so, revert to the last known point and play forward from there.
-         *
-         * This is accomplished by the client providing the date of the last seen
-         * event in the game, which could be turn start or action creation.  Using
-         * the provided turn ID and action ID, we should come up with the same
-         * date.  But, if it is a newer date or if the turn or action no longer
-         * exists then a reversion has taken place with possible new activity.
-         */
-        let since;
-        if (!turnData)
-          since = new Date();
-        else if (!params.actions)
-          since = turnData.started;
-        else if (!turnData.actions[params.actions-1])
-          since = new Date();
-        else
-          since = turnData.actions[params.actions-1].created;
+        if (+params.since === +since)
+          // Nothing has changed
+          delete gameData.state;
+        else if (state.currentTurnId === params.turnId) {
+          // Current turn hasn't changed
+          delete state.currentTurnId;
+          delete state.currentTeamId;
 
-        if (since > params.since) {
-          // Find the last turn that the client saw start
-          for (let turnId = state.currentTurnId; turnId > -1; turnId--) {
-            let thisTurnData = state.getTurnData(turnId);
-            if (thisTurnData.started > params.since) continue;
-
-            // Reset the turn of context
-            turnData = thisTurnData;
-            params.turnId = turnData.id;
-            break;
+          // Don't need the units at start of turn if they were already seen
+          if (params.since >= state.turnStarted) {
+            delete state.turnStarted;
+            delete state.units;
           }
 
-          // Find the first action that the client didn't see, if any.
-          params.actions = turnData.actions.length;
-          for (let actionId = 0; actionId < turnData.actions.length; actionId++) {
-            if (turnData.actions[actionId].created <= params.since) continue;
+          // What actions has the client not seen yet?
+          let newActions = state.actions.filter(a => a.created > params.since);
 
-            // Reset the action of context
-            params.actions = actionId;
-            break;
-          }
+          // Are all client actions still valid?  (not reverted)
+          let actionsAreValid = params.nextActionId === state.actions.length - newActions.length;
 
-          // Revert to the point of context
-          response.events.push({
-            type: 'revert',
-            data: {
-              started: turnData.started,
-              turnId:  turnData.id,
-              teamId:  turnData.teamId,
-              actions: turnData.actions.slice(0, params.actions),
-              units:   turnData.units,
+          if (actionsAreValid) {
+            // Existing actions haven't changed
+            delete state.actions;
+
+            if (newActions.length) {
+              // But there are new actions to append
+              response.newActions = newActions;
             }
-          });
+          }
         }
       }
 
-      if (turnData) {
-        // Get any actions made since the point of context
-        let actions = turnData.actions.slice(params.actions);
-
-        if (actions.length)
-          response.events.push({ type:'action', data:actions });
-
-        // Get actions made in any subsequent turns.
-        for (let i = params.turnId+1; i <= game.state.currentTurnId; i++) {
-          let turnData = game.state.getTurnData(i);
-
-          response.events.push({
-            type: 'startTurn',
-            data: {
-              started: turnData.started,
-              turnId: i,
-              teamId: i % game.state.teams.length,
-            },
-          });
-
-          actions = turnData.actions;
-
-          if (actions.length)
-            response.events.push({ type:'action', data:actions });
-        }
+      if (!state.ended) {
+        delete state.ended;
+        delete state.winnerId;
       }
 
-      if (game.state.ended)
-        response.events.push({
-          type: 'endGame',
-          data: { winnerId:game.state.winnerId },
-        });
-      else if (game.undoRequest)
-        // Make sure the client is aware of the last undo request.
-        response.undoRequest = Object.assign({}, game.undoRequest, {
-          accepts: [...game.undoRequest.accepts],
-        });
+      if (Object.keys(state).length === 0)
+        delete gameData.state;
     }
     else {
       let gameData = game.toJSON();
@@ -723,11 +659,6 @@ class GameService extends Service {
     let game = await this._getGame(gameId);
 
     return game.state.getTurnActions(...args);
-  }
-  async onRestartRequest(client, gameId, ...args) {
-    let game = await this._getGame(gameId);
-
-    return game.state.restart(...args);
   }
 
   /*

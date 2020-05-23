@@ -151,10 +151,47 @@ export default class GameClient extends Client {
   }
 
   watchGame(gameId, resume) {
-    return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume);
+    return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume)
+      .then(data => {
+        let gameData = data.gameData;
+        let state = gameData.state;
+        if (state) {
+          if (state.started)
+            state.started = new Date(state.started);
+          if (state.turnStarted)
+            state.turnStarted = new Date(state.turnStarted);
+          if (state.actions)
+            state.actions.forEach(action => {
+              action.created = new Date(action.created);
+            });
+        }
+
+        if (data.newActions)
+          data.newActions.forEach(action => {
+            action.created = new Date(action.created);
+          });
+
+        if (gameData.undoRequest)
+          Object.assign(gameData.undoRequest, {
+            createdAt: new Date(gameData.undoRequest.createdAt),
+            accepts: new Set(gameData.undoRequest.accepts),
+          });
+
+        return data;
+      });
   }
   getTurnData(gameId, turnId) {
     return this._server.requestAuthorized(this.name, 'getTurnData', [ gameId, turnId ])
+      .then(turnData => {
+        if (turnData) {
+          turnData.started = new Date(turnData.started);
+          turnData.actions.forEach(action => {
+            action.created = new Date(action.created);
+          });
+        }
+
+        return turnData;
+      })
       .catch(error => {
         if (error === 'Connection reset')
           return this.getTurnData(gameId, turnId);
@@ -163,6 +200,15 @@ export default class GameClient extends Client {
   }
   getTurnActions(gameId, turnId) {
     return this._server.requestAuthorized(this.name, 'getTurnActions', [ gameId, turnId ])
+      .then(actions => {
+        if (actions) {
+          actions.forEach(action => {
+            action.created = new Date(action.created);
+          });
+        }
+
+        return actions;
+      })
       .catch(error => {
         if (error === 'Connection reset')
           return this.getTurnActions(gameId, turnId);
@@ -206,9 +252,6 @@ export default class GameClient extends Client {
 
       throw error;
     }
-  }
-  restart() {
-    return this._server.requestAuthorized(this.name, 'restart', [...arguments]);
   }
 
   acceptUndo(gameId) {

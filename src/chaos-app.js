@@ -1,15 +1,16 @@
 import popup from 'components/popup.js';
+import GameSettings from 'components/Modal/GameSettings.js';
 
 var game;
-var pointer;
+var settings;
 var progress;
-var fullscreen = Tactics.fullscreen;
+var pointer;
 var readySpecial;
 
 var set = [
-  {assignment:[4, 1], type:'Knight'},
-  {assignment:[5, 1], type:'Knight'},
-  {assignment:[6, 1], type:'Knight'},
+  { assignment:[4, 1], type:'Knight' },
+  { assignment:[5, 1], type:'Knight' },
+  { assignment:[6, 1], type:'Knight' },
 ];
 /*
  * The player team MUST be in the 3rd position.
@@ -45,6 +46,9 @@ var buttons = {
   home: () => {
     location.href = '/';
   },
+  settings: () => {
+    settings.show();
+  },
   swapbar: function () {
     var $active = $('#game > .buttons.active');
     var $next = $active.next('.buttons');
@@ -55,7 +59,6 @@ var buttons = {
     $active.removeClass('active');
     $next.addClass('active');
   },
-  resize:fullscreen.toggle,
   movebar: function ($button) {
     $('#app').toggleClass('left right');
     $button.toggleClass('fa-rotate-270 fa-rotate-90');
@@ -74,11 +77,6 @@ var buttons = {
 
     $button.toggleClass(classesToToggle);
     game.rotateBoard(90);
-  },
-  sound: function ($button) {
-    $button.toggleClass('fa-bell fa-bell-slash');
-
-    Howler.mute($button.hasClass('fa-bell-slash'));
   },
   undo: function () {
     game.undo();
@@ -111,6 +109,8 @@ var buttons = {
             game.restart().then(() => {
               momentPopup.close();
               $('BUTTON[name=surrender]').removeClass('ready');
+
+              game.play(-1);
             });
           },
         },
@@ -127,18 +127,17 @@ $(() => {
   progress.message = 'Loading game...';
   progress.show();
 
+  settings = new GameSettings({
+    autoShow: false,
+    hideOnCancel: true,
+  });
+
   if ('ontouchstart' in window) {
     $('body').addClass(pointer = 'touch');
   }
   else {
     $('body').addClass(pointer = 'mouse');
   }
-
-  if (!fullscreen.isAvailable())
-    $('BUTTON[name=resize]').toggleClass('hidden');
-
-  if (Howler.noAudio)
-    $('BUTTON[name=sound]').toggleClass('hidden');
 
   $('BODY')
     /*
@@ -196,10 +195,6 @@ $(() => {
 });
 
 $(window).on('resize', () => {
-  let $resize = $('BUTTON[name=resize]');
-  if (fullscreen.isEnabled() !== $resize.hasClass('fa-compress'))
-    $resize.toggleClass('fa-expand fa-compress');
-
   if (game) game.resize();
 });
 
@@ -232,7 +227,7 @@ async function loadResources() {
   });
 }
 
-function startGame() {
+async function startGame() {
   let $card = $(game.card.canvas)
     .attr('id', 'card')
     .on('transitionend', event => {
@@ -314,8 +309,10 @@ function startGame() {
         $('#app').removeClass('locked');
     });
 
-  game.start().then(() => {
-    progress.hide();
-    $('#app').addClass('show');
-  });
+  await game.start();
+
+  progress.hide();
+  $('#app').addClass('show');
+
+  game.play(-1);
 }

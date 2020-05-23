@@ -212,17 +212,8 @@
       }
     }
 
-    #game-play {
-      top: 20px;
-    }
-    #game-settings, #game-replay {
-      bottom: 16px;
-    }
-    #game-replay {
-      display: none;
-    }
     .buttons {
-      display: flex;
+      display: none;
       flex-direction: row;
 
       position: absolute;
@@ -236,6 +227,19 @@
       background-color: transparent;
       font-size: 18px;
       text-align: left;
+
+      &#game-play {
+        top: 20px;
+      }
+      &#game-settings {
+        display: flex;
+      }
+      &#game-settings, &#game-replay {
+        bottom: 16px;
+      }
+      &.active {
+        display: flex;
+      }
 
       BUTTON {
         display: block; /* collapse whitespace */
@@ -292,25 +296,6 @@
 
       BUTTON[name=pause] {
         display: none;
-      }
-    }
-
-    &.mode-replay {
-      #game-settings {
-        display: none;
-      }
-      #game-replay {
-        display: flex;
-      }
-
-      &.is-playing {
-        BUTTON[name=play] {
-          display: none;
-        }
-
-        BUTTON[name=pause] {
-          display: block;
-        }
       }
     }
   }
@@ -510,7 +495,6 @@
 
 #app.locked:not(.gameover):not(.readonly) {
   #game-play.buttons BUTTON:not([name=chat]):not([name=swapbar]),
-  #game-settings.buttons BUTTON[name=replay],
   #game-settings.buttons BUTTON[name=rotate],
   #game-settings.buttons BUTTON[name=undo] {
     // Make the button appear disabled.
@@ -561,7 +545,7 @@
   }
 }
 
-#app #game > .buttons:not(#game-replay) BUTTON[name=swapbar],
+#app #game > .buttons BUTTON[name=swapbar],
 .mouse #app #game > .buttons BUTTON[name=lock],
 #app #game > .buttons BUTTON.hidden {
   display: none;
@@ -675,7 +659,7 @@
       #game-settings, #game-replay {
         bottom: auto;
 
-        BUTTON[name=swapbar] {
+        BUTTON[name=swapbar], BUTTON[name=resume] {
           margin-left: auto !important;
         }
       }
@@ -700,13 +684,10 @@
         BUTTON[name=chat] {
           order: 10;
         }
-        &:not(#game-replay) BUTTON[name=swapbar] {
+        BUTTON[name=swapbar] {
           display: inline-block;
           order: 11;
         }
-      }
-      .buttons.active {
-        display: flex;
       }
     }
 
@@ -823,7 +804,7 @@
         }
       }
       #game-settings, #game-replay {
-        BUTTON[name=swapbar] {
+        BUTTON[name=swapbar], BUTTON[name=resume] {
           margin-top: auto !important;
         }
       }
@@ -844,13 +825,10 @@
         BUTTON[name=chat] {
           order: 10;
         }
-        &:not(#game-replay) BUTTON[name=swapbar] {
+        BUTTON[name=swapbar] {
           display: inline-block;
           order: 11;
         }
-      }
-      .buttons.active {
-        display: flex;
       }
     }
 

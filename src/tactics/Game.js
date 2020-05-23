@@ -1,6 +1,8 @@
 import { Renderer } from '@pixi/core';
 import { Container } from '@pixi/display';
 import EventEmitter from 'events';
+
+import Cursor from 'tactics/GameStateCursor.js';
 import PanZoom from 'utils/panzoom.js';
 import sleep from 'utils/sleep.js';
 
@@ -11,7 +13,7 @@ import Board, {
 } from 'tactics/Board.js';
 import colorMap from 'tactics/colorMap.js';
 
-export default class {
+export default class Game {
   /*
    * Arguments:
    *  state: An object supporting the Game class interface.
@@ -62,8 +64,15 @@ export default class {
       .on('deselect', () => {
         if (this.viewed)
           this.viewed = null;
-        else if (this.selected && !this.state.actions.length && this._selectMode !== 'target')
+        else if (this.selected) {
+          if (
+            this._inReplay ||
+            this.state.actions.length ||
+            this._selectMode === 'target'
+          ) return;
+
           this.selected = null;
+        }
       })
       // 'move' and 'attack' events do not yet come from the board.
       .on('move',    event => this._submitAction(event))
@@ -98,14 +107,28 @@ export default class {
       undoAccepts:      new Set(),
 
       _onStateEventListener: this._onStateEvent.bind(this),
-      _stateEventStack: null,
+      _onCursorChangeListener: () => this._emit({ type:'cursor-change' }),
 
       _teams: [],
       _localTeamIds: localTeamIds,
       _turnTimeout: null,
-      _currentTurn: null,
+
+      // The currently displayed turn and action
+      cursor: null,
+
+      // Set to true when the user activates replay mode by pausing the game.
+      // Set to false when the user resumes normal game play.
       _inReplay: false,
-      _whilePlaying: null,
+
+      // Set to true while keeping up with current game state
+      // Set to false while gameplay is paused
+      _isSynced: false,
+
+      // Set to true while catching up to current game state
+      _isPlaying: false,
+
+      // A stack of played actions. Once one action completes, the next begins
+      _playStack: Promise.resolve(),
 
       _renderer: renderer,
       _rendering: false,
@@ -126,39 +149,6 @@ export default class {
 
     this._stage.addChild(board.pixi);
 
-    state.whenStarted.then(() => {
-      // Clone teams since board.setState() applies a units property to each.
-      let teams = this._teams = state.teams.map(team => ({...team}));
-
-      // Rotate the board such that the first local team is south/red.
-      let board = this._board;
-      let degree = 0;
-      if (this._localTeamIds.length) {
-        let teamId = Math.min(...this._localTeamIds);
-        let team = teams.find(t => t.originalId === teamId);
-        degree = board.getDegree(team.position, 'S');
-
-        board.rotate(degree);
-      }
-
-      /*
-       * Apply team colors based on the team's (rotated?) position.
-       */
-      let colorIds = new Map([
-        ['N', 'Blue'  ],
-        ['E', 'Yellow'],
-        ['S', 'Red'   ],
-        ['W', 'Green' ],
-        ['C', 'White' ], // Chaos starts in a center position
-      ]);
-
-      teams.forEach(team => {
-        let position = board.getRotation(team.position, degree);
-
-        team.colorId = colorIds.get(position);
-      });
-    });
-
     Tactics.game = this;
   }
 
@@ -177,12 +167,15 @@ export default class {
 
     let now = state.now;
     let lastAction = state.actions.last;
-    let lastActionAt = lastAction ? lastAction.created.getTime() : 0;
+    let lastActionAt = lastAction ? +lastAction.created : 0;
     let actionTimeout = (lastActionAt + 10000) - now;
-    let turnStartedAt = state.turnStarted.getTime();
+    let turnStartedAt = +state.turnStarted;
     let turnTimeout = (turnStartedAt + state.turnTimeLimit*1000) - now;
 
     return Math.max(0, actionTimeout, turnTimeout);
+  }
+  get isSynced() {
+    return this._isSynced;
   }
 
   get card() {
@@ -255,7 +248,13 @@ export default class {
         // Draw the card BEFORE selecting the mode to allow board.showTargets()
         // to override the focused unit with the targeted unit.
         this.drawCard();
-        this.selectMode = this._pickSelectMode();
+
+        if (this._inReplay) {
+          selected.activate();
+          this._showActions(!this._isSynced);
+        }
+        else
+          this.selectMode = this._pickSelectMode();
       }
       else {
         this.drawCard();
@@ -305,10 +304,10 @@ export default class {
         this.selectMode = this._pickSelectMode();
       }
       else if (selected) {
-        if (this.isMyTeam(selected.team) && !this._inReplay)
+        if (selected.activated && selected.activated !== true)
           this.selectMode = selected.activated;
-        else {
-          this._showActions();
+        else if (this._inReplay) {
+          this._showActions(true);
           this.selectMode = 'move';
         }
       }
@@ -434,27 +433,24 @@ export default class {
     return this._localTeamIds.length === 0;
   }
   get isMyTurn() {
-    return this.isMyTeam(this.currentTeam);
+    return !this.state.ended && this.isMyTeam(this.currentTeam);
   }
 
-  get currentTurnId() {
-    return this._currentTurn.id;
+  get turnId() {
+    return this.cursor.turnId;
   }
-  get inReplay() {
-    return this._inReplay;
+  get nextActionId() {
+    return this.cursor.nextActionId;
   }
   get units() {
-    let turnData = this._currentTurn;
-    if (!turnData) return [];
-
-    return turnData.units;
+    return this.cursor.units;
   }
   get actions() {
-    let turnData = this._currentTurn;
-    if (!turnData) return [];
-
-    return this._board.decodeAction(turnData.actions);
+    return this._board.decodeAction(
+      this.cursor.actions.slice(0, this.cursor.nextActionId),
+    );
   }
+
   get moved() {
     return !!this.state.actions
       .find(a => a.type === 'move');
@@ -489,66 +485,54 @@ export default class {
     let state = this.state;
     let board = this._board;
 
+    this.lock();
+
     await state.whenStarted;
 
-    return new Promise((resolve, reject) => {
-      // Let the caller finish what they are doing.
-      setTimeout(() => {
-        /*
-         * Before listening to events, determine current state so that only
-         * events leading up to this point is played and any following events
-         * are handled by the event listener.
-         */
-        let turnData = {
-          id: state.currentTurnId,
-          teamId: state.currentTeamId,
-          started: state.turnStarted,
-          units: state.units,
-          actions: state.actions.slice(),
-        };
-        let replayUndoRequest = state.undoRequest;
+    // Clone teams since board.setState() applies a units property to each.
+    let teams = this._teams = state.teams.map(team => ({...team}));
 
-        state.on('event', this._onStateEventListener);
+    // Rotate the board such that the first local team is south/red.
+    let degree = 0;
+    if (this._localTeamIds.length) {
+      let teamId = Math.min(...this._localTeamIds);
+      let team = teams.find(t => t.originalId === teamId);
+      degree = board.getDegree(team.position, 'S');
 
-        if (state.ended) {
-          board.setState(state.units, this.teams);
-          this.actions.forEach(action => this._applyAction(action));
-          this.render();
+      board.rotate(degree);
+    }
 
-          this._endGame();
-        }
-        else {
-          this._setTurnTimeout();
+    /*
+     * Apply team colors based on the team's (rotated?) position.
+     */
+    let colorIds = new Map([
+      ['N', 'Blue'  ],
+      ['E', 'Yellow'],
+      ['S', 'Red'   ],
+      ['W', 'Green' ],
+      ['C', 'White' ], // Chaos starts in a center position
+    ]);
 
-          this.lock();
-          this._stateEventStack = this._replay(turnData.id, turnData.actions.length).then(() => {
-            if (state.ended)
-              return this._endGame();
+    teams.forEach(team => {
+      let position = board.getRotation(team.position, degree);
 
-            if (turnData.actions.length)
-              this.selected = board.decodeAction(turnData.actions[0]).unit;
-
-            if (turnData.started)
-              this._startTurn(turnData);
-
-            /*
-             * Emit an undoRequest event if it was requested before listening to
-             * state events and continues to have a pending status.
-             */
-            let undoRequest = state.undoRequest;
-            if (
-              undoRequest &&
-              replayUndoRequest &&
-              replayUndoRequest.createdAt*1 === undoRequest.createdAt*1 &&
-              undoRequest.status === 'pending'
-            )
-              this._emit({ type:'undoRequest', data:undoRequest });
-          });
-        }
-
-        resolve();
-      }, 100); // A "zero" delay is sometimes not long enough
+      team.colorId = colorIds.get(position);
     });
+
+    // Wait until the game and first turn starts, if it hasn't already started.
+    await state.whenTurnStarted;
+
+    this.cursor = new Cursor(state),
+    this.cursor.on('change', this._onCursorChangeListener);
+
+    this._setTurnTimeout();
+    this._emit({ type:'state-change' });
+
+    let undoRequest = state.undoRequest;
+    if (undoRequest && undoRequest.status === 'pending')
+      this._emit({ type:'undoRequest', data:undoRequest });
+
+    state.on('event', this._onStateEventListener);
   }
   /*
    * This is used when surrendering serverless games.
@@ -562,6 +546,9 @@ export default class {
     if (state.type === 'chaos')
       this._localTeamIds.length = 1;
 
+    this.cursor.off('change', this._onCursorChangeListener);
+    this.cursor = null;
+
     state.off('event', this._onStateEventListener);
 
     this._board.rotation = 'N';
@@ -573,101 +560,164 @@ export default class {
     return this.start();
   }
 
-  async pause() {
-    let whilePlaying = this._whilePlaying;
-    if (whilePlaying)
-      whilePlaying.interrupt = true;
-    await whilePlaying;
+  async _pushPlayStack(fn) {
+    let playItem = this._playStack = this._playStack.then(fn);
+    await playItem;
 
-    this.lock('readonly');
-    this.stopAllAnim();
-    this._inReplay = true;
-
-    this._emit({ type:'showTurn', data:this._currentTurn });
+    return playItem.interrupt;
   }
+  async _interruptPlayStack() {
+    let playItem = this._playStack;
+    playItem.interrupt = true;
+    await playItem;
+  }
+
+  setState() {
+    let board = this._board;
+    board.setState(this.units, this._teams);
+
+    let actions = this.actions;
+    actions.forEach(action => this._applyAction(action));
+
+    this.selectMode = 'move';
+
+    if (actions.length)
+      this.selected = actions[0].unit;
+    else if (this._inReplay && this.cursor.actions.length) {
+      actions = board.decodeAction(this.cursor.actions);
+      this.selected = actions[0].unit;
+    }
+    else
+      this.render();
+  }
+
   async resume() {
-    let whilePlaying = this._whilePlaying;
-    if (whilePlaying)
-      whilePlaying.interrupt = true;
-    await whilePlaying;
-
-    let state = this.state;
-    let turnData = {
-      id: state.currentTurnId,
-      teamId: state.currentTeamId,
-      started: state.turnStarted,
-      units: state.units,
-      actions: state.actions.slice(),
-    };
-
-    this.lock();
-    await this._replay(turnData.id, turnData.actions.length);
+    await this._interruptPlayStack();
 
     this._inReplay = false;
-    this._startTurn(turnData);
+
+    if (this.isMyTurn) {
+      let turnId = -this._teams.length;
+
+      this.play(turnId);
+    }
+    else {
+      let turnId = -1;
+
+      if (this.state.ended) {
+        this.cursor.set(turnId);
+        this.notice = null;
+        this._endGame(true);
+      }
+      else
+        this.play(turnId);
+    }
   }
-  async play(turnId) {
-    let resolve;
-    let promise = this._whilePlaying = new Promise(r => resolve = r);
+  async play(turnId, actionId) {
+    if (this._isPlaying && turnId === undefined && actionId === undefined)
+      return;
+    await this._interruptPlayStack();
 
-    this.selected = this.viewed = null;
-    this.stopAllAnim();
-
-    let state = this.state;
     let board = this._board;
-    if (turnId !== this.currentTurnId)
-      this._currentTurn = await state.getTurnData(turnId);
 
-    let turnData = this._currentTurn;
+    // Clear a 'Sending order' notice, if present
+    // Or, clear 'Your Turn' notice so that it may be redisplayed after.
+    this.notice = null;
 
     this.lock();
-    board.setState(turnData.units, this._teams);
-    this.render();
+    this._isPlaying = true;
+    if (!this._isSynced) {
+      this._isSynced = true;
+      this._emit({ type:'startSync' });
+    }
 
-    this._emit({ type:'showTurn', data:turnData });
-    await this._performActions(turnData.actions);
+    let cursor = this.cursor;
 
-    for (let turnId = turnData.id + 1; turnId <= state.currentTurnId; turnId++) {
-      turnData.id = turnId;
-      turnData.teamId = turnId % this.teams.length;
-      turnData.units = board.getState();
-      turnData.actions = await state.getTurnActions(turnId);
+    if (turnId !== undefined || actionId !== undefined) {
+      let interrupted = await this._pushPlayStack(async () => {
+        await cursor.set(turnId, actionId);
+        this.setState();
 
-      this._emit({ type:'showTurn', data:turnData });
+        // Give the board a chance to appear before playing
+        await sleep(100);
+      });
+      if (interrupted) {
+        this.lock('readonly');
+        this._isPlaying = false;
+        return;
+      }
+    }
+    else if (await cursor.isOutOfSync()) {
+      await cursor.sync();
+      this.setState();
+    }
+    else if (cursor.atEnd) {
+      this.lock('readonly');
+      this._isPlaying = false;
+      return;
+    }
 
-      if (promise.interrupt)
-        break;
+    while (!cursor.atEnd) {
+      let action;
+      while (action = await cursor.setNextAction()) {
+        let interrupted = await this._pushPlayStack(async () => {
+          await this._performAction(action);
 
-      await this._performActions(turnData.actions);
+          /*
+           * Combine turn with endTurn actions since they are visually one
+           * action and are always received as a pair.
+           */
+          if (action.type === 'turn') {
+            let nextAction = await cursor.setNextAction();
+            await this._performAction(nextAction);
+          }
+        });
+        if (interrupted) {
+          this.lock('readonly');
+          this._isPlaying = false;
+          return;
+        }
+      }
+
+      // The undo button can cause the cursor to go out of sync.
+      if (await cursor.isOutOfSync()) {
+        await cursor.sync();
+        this.setState();
+      }
     }
 
     this.lock('readonly');
-    this._whilePlaying = null;
-    resolve();
-  }
-  async showTurn(turnId) {
-    let whilePlaying = this._whilePlaying;
-    if (whilePlaying)
-      whilePlaying.interrupt = true;
-    await whilePlaying;
+    this._isPlaying = false;
 
-    this.selected = this.viewed = null;
-    this.stopAllAnim();
-
+    // The game might have ended while playing
     let state = this.state;
-    let board = this._board;
+    if (state.ended)
+      this._endGame();
+    else if (!cursor.actions.length)
+      this._startTurn();
+    else if (cursor.actions.last.type !== 'endTurn')
+      this._resumeTurn();
+  }
+  async pause() {
+    if (!this._isSynced && this._inReplay) return;
+    await this._interruptPlayStack();
 
-    if (turnId < 0)
-      turnId += state.currentTurnId + 1;
+    this.lock('readonly');
 
-    let turnData = this._currentTurn = await state.getTurnData(turnId);
+    if (!this.actions.length)
+      this._showActions(true);
 
-    board.setState(turnData.units, this._teams);
+    this._inReplay = true;
 
-    this._showActions();
-    this.render();
-
-    this._emit({ type:'showTurn', data:turnData });
+    if (this._isSynced) {
+      this._isSynced = false;
+      this._emit({ type:'endSync' });
+    }
+  }
+  async showTurn(turnId = this.turnId, actionId = 0) {
+    await this.pause();
+    await this.cursor.set(turnId, actionId);
+    this.setState();
   }
 
   /*
@@ -922,7 +972,11 @@ export default class {
     this._submitAction({ type:'surrender' });
   }
   forceSurrender() {
-    this._submitAction({ type:'surrender', teamId:this.state.currentTeamId });
+    let currentTeam = this.currentTeam;
+    if (this.isMyTeam(currentTeam))
+      return;
+
+    this._submitAction({ type:'surrender', teamId:currentTeam.id });
   }
 
   /*
@@ -1009,7 +1063,17 @@ export default class {
   }
 
   rotateBoard(rotation) {
-    this._board.rotate(rotation);
+    let board = this._board;
+
+    board.rotate(rotation);
+
+    if (board.selected) {
+      if (this._inReplay)
+        this._showActions(true);
+      else if (!this.isMyTurn)
+        this._showActions();
+    }
+
     this.render();
   }
 
@@ -1068,34 +1132,6 @@ export default class {
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
-  _revert(turnData) {
-    turnData.id = turnData.turnId;
-    delete turnData.turnId;
-
-    let board = this._board;
-
-    this.selected = this.viewed = null;
-
-    board.setState(turnData.units, this._teams);
-
-    let actions = turnData.actions.map(actionData => {
-      let action = board.decodeAction(actionData);
-      this._applyAction(action);
-      return action;
-    });
-
-    this._startTurn(turnData);
-
-    if (actions.length)
-      if (this.isMyTeam(turnData.teamId))
-        this.selected = actions[0].unit;
-      else
-        this._showActions();
-
-    this._emit({ type:'revert' });
-    this.render();
-  }
-
   /*
    * Initiate an action, whether it be moving, attacking, turning, or passing.
    */
@@ -1103,261 +1139,223 @@ export default class {
     if (!action.unit && action.type !== 'endTurn' && action.type !== 'surrender')
       action.unit = this.selected;
 
+    let board = this._board;
     let selected = this.selected;
+
+    if (selected) {
+      board.clearMode();
+      selected.deactivate();
+    }
+
     let locked = this.locked;
 
-    this.selected = null;
+    this.notice = null;
     this.delayNotice('Sending order...');
 
     this.lock();
     return this.state.submitAction(this._board.encodeAction(action))
       .catch(error => {
+        // Re-select the unit if still selected.  It won't be if a revert has
+        // already taken place.
+        if (board.selected === selected)
+          this._resumeTurn();
+        else
+          this.lock('readonly');
+
         if (error.code === 409) {
           // This can happen if the opponent surrendered or hit 'undo' right
           // before submitting this action.  The unit is reselected and board is
           // unlocked just in case it is an undo request that will be rejected.
           this.notice = null;
-          // Re-select the unit if it is still valid.  It won't be if a revert
-          // has already taken place.
-          if (selected && selected.assignment)
-            this.selected = selected;
-          this.unlock();
         }
         else {
           this.notice = 'Server Error!';
-          // Re-select the unit if it is still valid.
-          if (selected.assignment)
-            this.selected = selected;
-          if (locked)
-            this.lock(locked)
-          else
-            this.unlock();
-
           throw error;
         }
       });
   }
-  _performActions(actions) {
-    // Clear or cancel the 'Sending order' notice
-    this.notice = null;
-
-    // The actions array can be empty due to the _replay() method.
-    if (actions.length === 0) return Promise.resolve();
-
+  async _performAction(action) {
     let board = this._board;
-    actions = board.decodeAction(actions);
-
     let selected = this.selected;
-    let promise = actions.reduce(
-      (promise, action) => promise.then(() => {
-        // Actions initiated by local players get a short performance.
-        if (this.isMyTeam(action.teamId))
-          return this._performAction(action);
+    let actionType = action.type;
 
-        if (action.type === 'endTurn') {
-          this.selected = selected = null;
-          board.clearHighlight();
+    action = board.decodeAction(action);
 
-          return this._performAction(action);
-        }
-        else if (action.type === 'surrender')
-          return this._performAction(action);
+    if (actionType === 'endTurn') {
+      let doShowDirection = (
+        selected &&
+        selected.directional !== false &&
+        (!this.isMyTeam(action.teamId) || this._inReplay)
+      );
+      if (doShowDirection) {
+        // Show the direction the unit turned for 2 seconds.
+        board.showDirection(selected);
+        await sleep(2000);
+      }
 
-        if (!selected) {
-          // Show the player the unit that is about to act.
-          board.selected = selected = action.unit;
-          if (action.type !== 'phase')
-            selected.activate();
-          board.setHighlight(selected.assignment, {
-            action: 'focus',
-            color: FOCUS_TILE_COLOR,
-          }, true);
-          this.drawCard();
-        }
-
-        return new Promise(resolve => {
-          let actionType = action.type;
-
-          if (actionType === 'move') {
-            // Show the player where the unit will move.
-            board.setHighlight(action.assignment, {
-              action: 'move',
-              color: MOVE_TILE_COLOR,
-            }, true);
-
-            // Wait 2 seconds then move.
-            setTimeout(() => {
-              selected.deactivate();
-              this._performAction(action).then(() => {
-                selected.activate();
-                resolve();
-              });
-            }, 2000);
-          }
-          else if (actionType === 'attack') {
-            // For counter-attacks, the attacker may differ from selected.
-            let attacker = action.unit;
-
-            // Show the player the units that will be attacked.
-            let target = action.target;
-            let target_tiles = attacker.getTargetTiles(target);
-            let target_units = attacker.getTargetUnits(target);
-
-            target_tiles.forEach(tile => {
-              board.setHighlight(tile, {
-                action: 'attack',
-                color: ATTACK_TILE_COLOR,
-              }, true);
-            });
-
-            if (target_units.length) {
-              target_units.forEach(tu => tu.activate());
-
-              if (target_units.length === 1) {
-                attacker.setTargetNotice(target_units[0], target);
-                this.drawCard(target_units[0]);
-              }
-              else
-                this.drawCard(attacker);
-            }
-
-            // Only possible for counter-attacks
-            if (selected !== attacker) {
-              selected.deactivate();
-              attacker.activate();
-            }
-
-            // Wait 2 seconds then attack.
-            setTimeout(() => {
-              target_units.forEach(tu => {
-                tu.deactivate();
-                tu.notice = null;
-              });
-
-              attacker.deactivate();
-              this._performAction(action).then(() => {
-                selected.activate();
-                resolve();
-              });
-            }, 2000);
-          }
-          else if (actionType === 'turn') {
-            // Show the direction the unit turned for 2 seconds.
-            selected.deactivate();
-
-            // Turn then wait 2 seconds
-            this._performAction(action).then(() => {
-              board.showDirection(selected);
-              selected.activate();
-
-              setTimeout(() => {
-                board.hideTurnOptions();
-                resolve();
-              }, 2000);
-            });
-          }
-          // Only applicable to Chaos Seed/Dragon
-          else if (actionType === 'phase') {
-            // Show the user the egg for 1 second before changing color
-            this.drawCard(action.unit);
-
-            // Changing color takes about 1 second.
-            setTimeout(() => this._performAction(action), 1000);
-
-            // Show the user the new color for 1 second.
-            setTimeout(resolve, 3000);
-          }
-          // Only applicable to Chaos Seed counter-attack
-          else if (actionType === 'heal') {
-            // Show the player the unit that will be healed.
-            let target_unit = action.target.assigned;
-            target_unit.activate();
-            this.drawCard(target_unit);
-
-            // Wait 1 second then attack.
-            setTimeout(() => {
-              target_unit.deactivate();
-
-              this._performAction(action).then(resolve);
-            }, 1000);
-          }
-          // Only applicable to Chaos Seed counter-attack
-          else if (actionType === 'hatch') {
-            let attacker = action.unit;
-
-            this.drawCard(attacker);
-            attacker.activate();
-
-            // Wait 2 seconds then do it.
-            setTimeout(() => {
-              attacker.deactivate();
-              selected.deactivate(); // the target
-
-              this._performAction(action).then(resolve);
-            }, 2000);
-          }
-          else {
-            let attacker = action.unit;
-
-            this.drawCard(attacker);
-            attacker.activate();
-
-            // Wait 2 seconds then do it.
-            setTimeout(() => {
-              attacker.deactivate();
-              this._performAction(action).then(() => {
-                selected.activate();
-                resolve();
-              });
-            }, 2000);
-          }
-        });
-      }),
-      Promise.resolve(),
-    );
-
-    // Change a readonly lock to a full lock
-    this.viewed = null;
-    let locked = board.locked;
-    this.lock();
-
-    return promise.then(() => {
-      if (locked)
-        this.lock(locked);
-      else
-        this.unlock();
-    });
-  }
-  // Act out the action on the board.
-  _performAction(action) {
-    if (action.type === 'endTurn')
-      return this._endTurn(action);
-    else if (action.type === 'surrender')
+      return this._playEndTurn(action);
+    }
+    else if (actionType === 'surrender')
       return this._playSurrender(action);
 
-    let unit = action.unit;
+    let actor = action.unit;
     let speed = this.state.turnTimeLimit === 30 ? 2 : 1;
 
-    return unit[action.type](action, speed)
-      .then(() => this._playResults(action, speed));
-  }
-  _showActions() {
-    let actions = this.actions;
-    let unit = actions.length && actions[0].unit;
-    if (!unit) return;
-
-    let board = this._board;
-    if (board.selected !== unit) {
-      board.selected = unit.activate();
+    // Show the player the unit that is about to act.
+    if (!selected) {
+      selected = board.selected = actor;
+      if (action.type !== 'phase')
+        actor.activate();
       this.drawCard();
     }
+
+    let quick = (
+      (!selected || selected === actor) &&
+      this.isMyTeam(action.teamId) &&
+      !this._inReplay
+    );
+    if (quick) {
+      actor.deactivate();
+      await actor[action.type](action, speed);
+      await this._playResults(action, speed);
+      actor.activate();
+      this.drawCard();
+      return;
+    }
+
+    this._showActions(false, actor);
+
+    if (actionType === 'move') {
+      // Show the player where the unit will move.
+      board.setHighlight(action.assignment, {
+        action: 'move',
+        color: MOVE_TILE_COLOR,
+      }, true);
+      await sleep(2000);
+
+      actor.deactivate();
+      await actor.move(action, speed);
+      actor.activate();
+    }
+    else if (actionType === 'attack') {
+      // Show the player the units that will be attacked.
+      let target = action.target;
+      let target_tiles = actor.getTargetTiles(target);
+      let target_units = actor.getTargetUnits(target);
+
+      target_tiles.forEach(tile => {
+        board.setHighlight(tile, {
+          action: 'attack',
+          color: ATTACK_TILE_COLOR,
+        }, true);
+      });
+
+      if (target_units.length) {
+        target_units.forEach(tu => tu.activate());
+
+        if (target_units.length === 1) {
+          actor.setTargetNotice(target_units[0], target);
+          this.drawCard(target_units[0]);
+        }
+        else
+          this.drawCard(actor);
+      }
+
+      // For counter-attacks, the actor may differ from selected.
+      if (selected !== actor) {
+        selected.deactivate();
+        actor.activate();
+      }
+
+      await sleep(2000);
+
+      target_units.forEach(tu => {
+        tu.deactivate();
+        tu.notice = null;
+      });
+
+      actor.deactivate();
+      await actor.attack(action, speed);
+      await this._playResults(action, speed);
+      selected.activate();
+      this.drawCard();
+    }
+    else if (actionType === 'turn') {
+      actor.deactivate();
+      await actor.turn(action, speed);
+      actor.activate();
+    }
+    // Only applicable to Chaos Seed/Dragon
+    else if (actionType === 'phase') {
+      // Show the user the egg for 1 second before changing color
+      this.drawCard(actor);
+      await sleep(1000);
+
+      await actor.phase(action, speed);
+      await sleep(1000);
+    }
+    // Only applicable to Chaos Seed counter-attack
+    else if (actionType === 'heal') {
+      // Show the player the unit that will be healed.
+      let target_unit = action.target.assigned;
+      target_unit.activate();
+      this.drawCard(target_unit);
+      await sleep(1000);
+
+      target_unit.deactivate();
+      await actor.heal(action, speed);
+    }
+    // Only applicable to Chaos Seed counter-attack
+    else if (actionType === 'hatch') {
+      this.drawCard(actor);
+      actor.activate();
+      await sleep(2000);
+
+      actor.deactivate();
+      selected.deactivate(); // the target
+      await actor.hatch(action, speed);
+    }
+    else {
+      this.drawCard(actor);
+
+      // For counter-attacks, the actor may differ from selected.
+      if (selected !== actor) {
+        selected.deactivate();
+        actor.activate();
+      }
+
+      await sleep(2000);
+
+      actor.deactivate();
+      await actor[action.type](action, speed);
+      await this._playResults(action, speed);
+      selected.activate();
+      this.drawCard();
+    }
+  }
+  _showActions(all = false, unit) {
+    let board = this._board;
+    let allActions = board.decodeAction(this.cursor.actions);
+    if (!allActions.length)
+      return;
+
+    let actions = all ? allActions : this.actions;
+    if (unit)
+      actions = actions.filter(a => !a.unit || a.unit === unit);
+    else
+      unit = allActions[0].unit;
+
+    board.clearHighlight();
+    board.hideTurnOptions();
+
+    if (board.selected !== unit)
+      this.drawCard(unit);
 
     let degree = board.getDegree('N', board.rotation);
     let targets = {};
 
-    targets.origin = targets.assignment =
-      this.units.flat().find(u => u.id === unit.id).assignment;
-    targets.origin = board.getTileRotation(targets.origin, degree);
+    let origin = this.units.flat().find(u => u.id === unit.id).assignment;
+    origin = targets.assignment = board.getTileRotation(origin, degree);
 
     actions.forEach(action => {
       if (action.unit !== unit) return;
@@ -1375,12 +1373,12 @@ export default class {
       }
     });
 
-    board.setHighlight(targets.origin, {
+    board.setHighlight(origin, {
       action: 'focus',
       color: FOCUS_TILE_COLOR,
     }, true);
 
-    if (targets.assignment !== targets.origin)
+    if (targets.assignment !== origin)
       board.setHighlight(targets.assignment, {
         action: 'move',
         color: MOVE_TILE_COLOR,
@@ -1392,7 +1390,7 @@ export default class {
         color: ATTACK_TILE_COLOR,
       }, true);
 
-    if (actions.last.type === 'endTurn' && unit.directional !== false)
+    if (actions.length && actions.last.type === 'endTurn' && unit.directional !== false)
       board.showDirection(unit, targets.assignment, targets.direction);
   }
   /*
@@ -1584,38 +1582,6 @@ export default class {
 
     this.drawCard();
   }
-  _playSurrender(action) {
-    let team = this.teams[action.teamId];
-    let anim = new Tactics.Animation();
-    let deathAnim = new Tactics.Animation();
-    let notice = `${team.colorId} Surrenders!`;
-
-    this.selected = null;
-
-    anim.addFrame(() => this.notice = notice);
-
-    this._applyChangeResults(action.results);
-
-    action.results.forEach(result => {
-      let unit = result.unit;
-
-      anim.splice(0, this._animApplyFocusChanges(result));
-      deathAnim.splice(0, unit.animDie());
-    });
-
-    anim.splice(deathAnim);
-
-    // Show the notice for 2 seconds.
-    let timeout = 2000 - (anim.frames.length * anim.fps);
-
-    return anim.play().then(() => new Promise((resolve, reject) => {
-      // Give the user some time to take in the notice.
-      setTimeout(() => {
-        this.notice = null;
-        resolve();
-      }, timeout);
-    }));
-  }
 
   _render() {
     let renderer = this._renderer;
@@ -1631,49 +1597,11 @@ export default class {
     this._rendering = false;
   }
 
-  /*
-   * Play back all activity leading up to this point.
-   *
-   * FIXME: Race condition where the player reverts actions.
-   */
-  async _replay(stopTurnId, stopActionId) {
-    let state = this.state;
-    let teams = this._teams;
-    let turnId = Math.max(0, stopTurnId - (teams.length-1));
-    let turnData = await state.getTurnData(turnId);
-    let actions = turnData.actions;
-
-    this._board.setState(turnData.units, teams);
-    this.render();
-    await sleep(1000);
-
-    do {
-      if (turnId === stopTurnId) {
-        await this._performActions(actions.slice(0, stopActionId));
-        break;
-      }
-
-      await this._performActions(actions);
-      try {
-        actions = await state.getTurnActions(++turnId);
-      }
-      catch (error) {
-        // This can happen if the opponent reverted.  Ignore.
-        if (error.code === 409)
-          break;
-        throw error;
-      }
-    } while (turnId <= stopTurnId);
-  }
-  _startTurn(turnData) {
-    this._currentTurn = turnData;
-    let teamId = turnData.teamId;
-
-    let teams = this.teams;
-    let team = teams[teamId];
+  _startTurn() {
+    let team = this.currentTeam;
     let teamMoniker;
 
-    if (team.name && teams.filter(t => t.name === team.name).length === 1)
+    if (team.name && this.teams.filter(t => t.name === team.name).length === 1)
       teamMoniker = team.name;
     else
       teamMoniker = team.colorId;
@@ -1686,22 +1614,56 @@ export default class {
       else
         this.notice = `Go ${teamMoniker}!`;
 
-      this.selectMode = this._pickSelectMode();
       this.unlock();
     }
     else {
       this.delayNotice(`Go ${teamMoniker}!`);
+
       this.lock('readonly');
     }
 
-    this._emit({
-      type: 'startTurn',
-      teamId: teamId,
+    this.selectMode = 'move';
+  }
+  _resumeTurn() {
+    this.selectMode = this._pickSelectMode();
+
+    // Unlock after select to ensure focused tiles behave according to
+    // any highlights applied by selecting the unit and mode.
+    if (this.isMyTurn)
+      this.unlock();
+    else
+      this.lock('readonly');
+  }
+  async _playSurrender(action) {
+    let team = this.teams[action.teamId];
+    let anim = new Tactics.Animation();
+    let deathAnim = new Tactics.Animation();
+
+    this.selected = this.viewed = null;
+
+    this._applyChangeResults(action.results);
+
+    action.results.forEach(result => {
+      let unit = result.unit;
+
+      anim.splice(0, this._animApplyFocusChanges(result));
+      deathAnim.splice(0, unit.animDie());
     });
 
-    return this;
+    anim.splice(deathAnim);
+
+    // Show the notice for 2 seconds.
+    let ts = new Date();
+    this.notice = `${team.colorId} Surrenders!`;
+
+    await anim.play();
+    await sleep(2000 - (new Date() - ts));
+
+    this.notice = null;
   }
-  _endTurn(action) {
+  _playEndTurn(action) {
+    this.selected = this.viewed = null;
+
     // Assuming control of a bot team is specific to the chaos game type.
     if (this.state.type === 'chaos')
       if ('newPlayerTeam' in action) {
@@ -1711,16 +1673,16 @@ export default class {
 
     this._applyChangeResults(action.results);
 
-    // Get the new board state to keep track of a unit's origin next turn.
-    this.state.units = this._board.getState();
-
     return this;
   }
-  _endGame(winnerId = this.state.winnerId) {
+  _endGame(silent = false) {
+    let winnerId = this.state.winnerId;
+
     if (winnerId === null) {
       this.notice = 'Draw!';
 
-      Tactics.playSound('defeat');
+      if (!silent)
+        Tactics.playSound('defeat');
     }
     else {
       let teams = this.teams;
@@ -1735,23 +1697,27 @@ export default class {
       if (this.state.type === 'chaos') {
         if (winner.name === 'Chaos') {
           this.notice = 'Chaos Wins!';
-          Tactics.playSound('defeat');
+          if (!silent)
+            Tactics.playSound('defeat');
         }
         else {
           this.notice = 'You win!';
-          Tactics.playSound('victory');
+          if (!silent)
+            Tactics.playSound('victory');
         }
       }
       // Applies to bot, opponent, and local games
       else if (this.isMyTeam(winner)) {
         this.notice = 'You win!';
-        Tactics.playSound('victory');
+        if (!silent)
+          Tactics.playSound('victory');
       }
       else if (this.isViewOnly)
         this.notice = `${winnerMoniker}!`;
       else {
         this.notice = 'You lose!';
-        Tactics.playSound('defeat');
+        if (!silent)
+          Tactics.playSound('defeat');
       }
     }
 
@@ -1924,74 +1890,22 @@ export default class {
     return anim;
   }
 
-  /*
-   * This method ensures state events are processed synchronously.
-   * Otherwise, 'startTurn' or 'endGame' may trigger while performing actions.
-   */
   _onStateEvent({ type, data }) {
-    // Event handlers are expected to either return a promise that resolves when
-    // handling is complete or nothing at all.
-    let eventHandler;
-    if (type === 'startTurn') {
-      this._setTurnTimeout();
-      if (this._inReplay)
-        return;
-
-      let turnData = {
-        id: data.turnId,
-        teamId: data.teamId,
-        started: this.state.turnStarted,
-        units: this.state.units,
-        actions: this.state.actions,
-      };
-
-      eventHandler = () => this._startTurn(turnData);
+    switch (type) {
+      case 'change':
+        this._setTurnTimeout();
+        this._emit({ type:'state-change' });
+        if (this._isSynced)
+          this.play();
+        break;
+      case 'undoRequest':
+      case 'undoAccept':
+      case 'undoReject':
+      case 'undoCancel':
+      case 'undoComplete':
+        this._emit({ type, data });
+        break;
     }
-    else if (type === 'action') {
-      this._setTurnTimeout();
-      if (this._inReplay)
-        return;
-
-      eventHandler = () =>
-        this._performActions(data).then(() => {
-          // If the action didn't result in ending the turn, then set mode.
-          let actions = this.board.decodeAction(data);
-          let firstAction = actions[0];
-          let lastAction = actions.last;
-          if (lastAction.type !== 'endTurn' && this.isMyTeam(firstAction.teamId)) {
-            this.selected = firstAction.unit;
-            // Unlock after select to ensure focused tiles behave according to
-            // any highlights applied by selecting the unit and mode.
-            this.unlock();
-          }
-        });
-    }
-    else if (type === 'revert') {
-      this._setTurnTimeout();
-      if (this._inReplay)
-        return;
-
-      eventHandler = () => this._revert(data);
-    }
-    else if (type === 'undoRequest')
-      eventHandler = () => this._emit({ type, data });
-    else if (type === 'undoAccept')
-      eventHandler = () => this._emit({ type, data });
-    else if (type === 'undoReject')
-      eventHandler = () => this._emit({ type, data });
-    else if (type === 'undoCancel')
-      eventHandler = () => this._emit({ type, data });
-    else if (type === 'undoComplete')
-      eventHandler = () => this._emit({ type, data });
-    else if (type === 'endGame') {
-      this._setTurnTimeout();
-
-      eventHandler = () => this._endGame(data.winnerId);
-    }
-    else
-      return;
-
-    this._stateEventStack = this._stateEventStack.then(eventHandler);
   }
 
   _emit(event) {

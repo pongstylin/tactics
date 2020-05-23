@@ -1,6 +1,7 @@
 /* Web Worker */
 
 import 'plugins/array.js';
+import 'plugins/clone.js';
 import GameState from 'tactics/GameState.js';
 
 const post = (type, data) => {
@@ -9,12 +10,23 @@ const post = (type, data) => {
 
 // The state object is stored on 'self' so that it can be inspected.
 self.state = null;
+self.data = null;
 
 self.addEventListener('message', ({data:message}) => {
   let {type, data} = message;
 
   if (type === 'create') {
-    self.state = GameState.create(data)
+    self.data = data;
+    self.state = GameState.create(data.clone())
+      .on('event', event => post('event', event));
+
+    post('init', self.state.getData());
+
+    if (!self.state.teams.find(t => !t || !t.set))
+      self.state.start();
+  }
+  else if (type === 'restart') {
+    self.state = GameState.create(self.data.clone())
       .on('event', event => post('event', event));
 
     post('init', self.state.getData());
