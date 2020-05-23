@@ -28,6 +28,9 @@ var buttons = {
     settings.show();
   },
   replay: () => {
+    $('#game > .buttons.active').removeClass('active');
+    $('#game-replay').addClass('active');
+
     $('#game').addClass('mode-replay is-paused');
 
     game.pause();
@@ -1220,8 +1223,8 @@ function startGame() {
       else if (old_mode === 'target')
         $('BUTTON[name=select][value=attack]').removeClass('targeting');
 
-      if (!$('#game-play').hasClass('active')) {
-        $('.buttons').removeClass('active');
+      if ($('#game-settings').hasClass('active')) {
+        $('#game-settings').removeClass('active');
         $('#game-play').addClass('active');
       }
 
