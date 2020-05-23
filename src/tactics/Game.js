@@ -1069,6 +1069,9 @@ export default class {
    * Private Methods
    ****************************************************************************/
   _revert(turnData) {
+    turnData.id = turnData.turnId;
+    delete turnData.turnId;
+
     let board = this._board;
 
     this.selected = this.viewed = null;
