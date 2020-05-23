@@ -700,7 +700,7 @@
         BUTTON[name=chat] {
           order: 10;
         }
-        BUTTON[name=swapbar] {
+        &:not(#game-replay) BUTTON[name=swapbar] {
           display: inline-block;
           order: 11;
         }
@@ -844,7 +844,7 @@
         BUTTON[name=chat] {
           order: 10;
         }
-        BUTTON[name=swapbar] {
+        &:not(#game-replay) BUTTON[name=swapbar] {
           display: inline-block;
           order: 11;
         }
