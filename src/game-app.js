@@ -11,6 +11,7 @@ const chatClient = Tactics.chatClient;
 var settings;
 var progress;
 var gameId = location.search.slice(1).replace(/[&=].*$/, '');
+var gameType;
 var game;
 var lastSeenEventId;
 var chatMessages = [];
@@ -27,13 +28,93 @@ var buttons = {
   settings: () => {
     settings.show();
   },
-  replay: () => {
-    $('#game > .buttons.active').removeClass('active');
+  replay: async () => {
+    let turnId = 0;
+    let nextActionId = 0;
+
+    let hash = location.hash;
+    if (hash) {
+      let params = new URLSearchParams(hash.slice(1));
+
+      if (params.has('c')) {
+        let cursor = params.get('c').split(',');
+
+        turnId = parseInt(cursor[0]) || 0;
+        nextActionId = parseInt(cursor[1]) || 0;
+      }
+    }
+
+    $('#game').toggleClass('is-busy');
+    await game.showTurn(turnId, nextActionId);
+    $('#game').toggleClass('is-busy');
+
+    $('#game-settings').removeClass('active').hide();
     $('#game-replay').addClass('active');
+  },
+  share: () => {
+    let players = new Set([...game.teams.map(t => t.playerId)]);
+    let myTeam = game.teams.find(t => t.playerId === authClient.playerId);
+    let message;
 
-    $('#game').addClass('mode-replay is-paused');
+    if (players.size === 1) {
+      if (myTeam) {
+        message = `Watch my ${gameType.name} practice game.`;
+      }
+      else {
+        myTeam = game.teams[0];
 
-    game.pause();
+        message = `Watch ${gameType.name} practice game by ${myTeam.name}.`;
+      }
+    }
+    else {
+      if (myTeam) {
+        let opponents = game.teams
+          .filter(t => t.playerId !== myTeam.playerId)
+          .map(t => t.name)
+          .join(' and ');
+
+        message = `Watch my ${gameType.name} game against ${opponents}.`;
+      }
+      else {
+        let opponents = game.teams
+          .map(t => t.name)
+          .join(' vs ');
+
+        message = `Watch ${opponents} @ ${gameType.name}.`;
+      }
+    }
+
+    let link = location.origin + '/game.html?' + gameId;
+
+    if (navigator.share)
+      share({
+        title: 'Tactics',
+        text: message,
+        url: link,
+      }).catch(error => {
+        if (error.isInternalError)
+          popup({
+            message: 'App sharing failed.  You can copy the link to share it instead.',
+            buttons: [
+              { label:'Copy', onClick:() => copy(`${message} ${link}`) },
+              { label:'Cancel' },
+            ],
+            minWidth: '250px',
+          });
+        else
+          popup({
+            message: 'App sharing cancelled.  You can still copy the link to share it instead.',
+            buttons: [
+              { label:'Copy', onClick:() => copy(`${message} ${link}`) },
+              { label:'Cancel' },
+            ],
+            minWidth: '250px',
+          });
+      });
+    else {
+      copy(`${message} ${link}`);
+      popup({ message:'Copied the game link.  Paste the link to share using your app of choice.' });
+    }
   },
   rotate: $button => {
     let classesToToggle;
@@ -172,62 +253,60 @@ var buttons = {
       $messages.scrollTop($messages.prop('scrollHeight'));
     }
   },
-  start: async () => {
-    $('#game').toggleClass('is-busy');
-    await game.showTurn(0);
-    $('#game').toggleClass('is-busy');
-  },
-  back: async () => {
-    $('#game').toggleClass('is-busy');
-
-    let turnId = game.currentTurnId - 1;
-    if (turnId > -1)
-      await game.showTurn(turnId);
-
-    $('#game').toggleClass('is-busy');
-  },
-  play: async () => {
-    let startTurnId = game.currentTurnId;
-    if (game.currentTurnId === game.state.currentTurnId)
-      startTurnId = 0;
-
-    $('#game').toggleClass('is-paused is-playing');
-    await game.play(startTurnId);
-    $('#game').removeClass('is-playing').addClass('is-paused');
-  },
-  pause: async () => {
-    $('#game').toggleClass('is-busy');
-    await game.pause();
-    $('#game').removeClass('is-playing').addClass('is-paused');
-    $('#game').toggleClass('is-busy');
-  },
-  forward: async () => {
-    $('#game').toggleClass('is-busy');
-
-    let turnId = game.currentTurnId + 1;
-    if (turnId <= game.state.currentTurnId)
-      await game.showTurn(turnId);
-
-    $('#game').toggleClass('is-busy');
-  },
-  end: async () => {
-    $('#game').toggleClass('is-busy');
-    await game.showTurn(-1);
-    $('#game').toggleClass('is-busy');
-  },
   swapbar: async () => {
-    if (game.inReplay) {
-      $('#game').toggleClass('is-busy');
-      await game.resume();
-      $('#game').removeClass('mode-replay is-paused is-playing');
-      $('#game').toggleClass('is-busy');
-    }
-
     let $active = $('#game > .buttons.active').removeClass('active');
     if ($active.is('#game-play'))
       $('#game-settings').addClass('active');
     else
       $('#game-play').addClass('active');
+  },
+  start: async () => {
+    $('#game').toggleClass('is-busy');
+    await game.showTurn(0);
+    $('#game').toggleClass('is-busy');
+    return false;
+  },
+  back: async () => {
+    $('#game').toggleClass('is-busy');
+    if (game.actions.length)
+      await game.showTurn(game.turnId);
+    else
+      await game.showTurn(game.turnId - 1);
+    $('#game').toggleClass('is-busy');
+    return false;
+  },
+  play: async () => {
+    $('#game').toggleClass('is-busy');
+    if (game.cursor.atEnd)
+      game.play(0);
+    else
+      game.play();
+    $('#game').toggleClass('is-busy');
+  },
+  pause: async () => {
+    $('#game').toggleClass('is-busy');
+    await game.pause();
+    $('#game').toggleClass('is-busy');
+  },
+  forward: async () => {
+    $('#game').toggleClass('is-busy');
+    await game.showTurn(game.turnId + 1);
+    $('#game').toggleClass('is-busy');
+    return false;
+  },
+  end: async () => {
+    $('#game').toggleClass('is-busy');
+    await game.showTurn(-1, -1);
+    $('#game').toggleClass('is-busy');
+    return false;
+  },
+  resume: async () => {
+    $('#game').toggleClass('is-busy');
+    await game.resume();
+    $('#game').toggleClass('is-busy');
+
+    $('#game-replay').removeClass('active');
+    $('#game-settings').addClass('active').show();
   },
 };
 
@@ -287,7 +366,7 @@ $(() => {
 
       Tactics.playSound('focus');
     })
-    .on('click', '#app BUTTON:enabled', event => {
+    .on('click', '#app BUTTON:enabled', async event => {
       let $button = $(event.target);
       let handler = $button.data('handler') || buttons[$button.attr('name')];
       if (!handler) return;
@@ -296,9 +375,11 @@ $(() => {
       if (window.getComputedStyle(event.target).cursor !== 'pointer')
         return;
 
-      handler($button);
-
       Tactics.playSound('select');
+
+      $button.prop('disabled', true);
+      if (await handler($button) !== false)
+        $button.prop('disabled', false);
     })
     .on('keydown', event => {
       let $app = $('#app');
@@ -463,9 +544,11 @@ $(window).on('resize', () => {
   setTimeout(updateChatButton);
 });
 
-function initGame() {
+async function initGame() {
   return getGameData(gameId)
-    .then(gameData => {
+    .then(async gameData => {
+      gameType = await gameClient.getGameType(gameData.state.type);
+
       // An account is not required to view an ended game.
       if (gameData.state.ended)
         return loadTransportAndGame(gameId, gameData);
@@ -582,7 +665,6 @@ async function loadGame(transport) {
   return new Tactics.Game(transport, localTeamIds);
 }
 async function loadResources(gameState) {
-  let gameType = await gameClient.getGameType(gameState.type);
   let unitTypes = gameType.getUnitTypes();
 
   // If the user will see the game immediately after the resources are loaded,
@@ -657,8 +739,6 @@ function renderMessage(message) {
 }
 
 async function showPublicIntro(gameData) {
-  let gameType = await gameClient.getGameType(gameData.state.type);
-
   renderShareLink(gameType, gameData, document.querySelector('#public .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#public .cancelButton'));
 
@@ -677,9 +757,7 @@ async function showPublicIntro(gameData) {
   return loadGame(transport);
 }
 async function showPrivateIntro(gameData) {
-  let gameType = await gameClient.getGameType(gameData.state.type);
-
-  renderShareLink(gameType, gameData, document.querySelector('#private .shareLink'));
+  renderShareLink(gameData, document.querySelector('#private .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
   let $greeting = $('#private .greeting');
@@ -724,7 +802,7 @@ function renderCancelButton(gameId, container) {
   })
 }
 
-function renderShareLink(gameType, gameData, container) {
+function renderShareLink(gameData, container) {
   let message = `Want to play a ${gameType.name} game`;
   if (gameData.state.turnTimeLimit === 120)
     message += ' at 2min per turn';
@@ -808,7 +886,6 @@ async function showPracticeIntro(gameData) {
 
   challenge.innerHTML = `Configure your opponent in the practice game.`;
 
-  let gameType = await gameClient.getGameType(gameData.state.type);
   let person;
   if (gameData.state.randomFirstTurn)
     person = 'random';
@@ -994,7 +1071,6 @@ async function showJoinIntro(gameData) {
         turnLimit = `${gameData.state.turnTimeLimit} seconds`;
     }
 
-    let gameType = await gameClient.getGameType(gameData.state.type);
     let person;
     if (gameData.state.randomFirstTurn)
       person = 'random';
@@ -1183,7 +1259,7 @@ function setTurnTimeoutClock() {
   });
 }
 
-function startGame() {
+async function startGame() {
   let $card = $(game.card.canvas)
     .attr('id', 'card')
     .on('transitionend', event => {
@@ -1202,9 +1278,13 @@ function startGame() {
   $(window).trigger('resize');
 
   game
-    .on('startTurn', event => {
+    .on('state-change', event => {
       $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
-      $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+      if (game.state.ended)
+        $('BUTTON[name=undo]').hide();
+      else
+        $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+      toggleReplayButtons();
     })
     .on('selectMode-change', event => {
       let panzoom     = game.panzoom;
@@ -1223,7 +1303,7 @@ function startGame() {
       else if (old_mode === 'target')
         $('BUTTON[name=select][value=attack]').removeClass('targeting');
 
-      if ($('#game-settings').hasClass('active')) {
+      if ($('#game-settings').hasClass('active') && game.isMyTurn) {
         $('#game-settings').removeClass('active');
         $('#game-play').addClass('active');
       }
@@ -1231,8 +1311,6 @@ function startGame() {
       $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
       $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
       $('BUTTON[name=select][value=turn]').prop('disabled', !can_turn);
-      $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
-      $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
 
       if (new_mode === 'attack' && can_special)
         $('BUTTON[name=select][value=attack]').addClass('ready');
@@ -1301,27 +1379,41 @@ function startGame() {
     .on('undoReject', () => updateUndoDialog())
     .on('undoCancel', () => updateUndoDialog())
     .on('undoComplete', hideUndoDialog)
-    .on('showTurn', ({ data:turnData }) => {
-      let atStart = turnData.id === 0;
-      let atEnd = turnData.id === game.state.currentTurnId;
-
-      $('BUTTON[name=start]').prop('disabled', atStart);
-      $('BUTTON[name=back]').prop('disabled', atStart);
-
-      $('BUTTON[name=forward]').prop('disabled', atEnd);
-      $('BUTTON[name=end]').prop('disabled', atEnd);
+    .on('startSync', () => {
+      $('BUTTON[name=play]').hide();
+      $('BUTTON[name=pause]').show();
+      setHistoryState();
+      toggleReplayButtons();
+    })
+    .on('endSync', () => {
+      $('BUTTON[name=play]').show();
+      $('BUTTON[name=pause]').hide();
+      setHistoryState();
+      toggleReplayButtons();
+    })
+    .on('cursor-change', () => {
+      setHistoryState();
+      toggleReplayButtons();
     });
 
-  game.start().then(() => {
-    resetPlayerBanners();
+  await game.start();
 
-    $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
-    $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+  resetPlayerBanners();
+  updateChatButton();
+  progress.hide();
+  $('#app').addClass('show');
 
-    progress.hide();
-    $('#app').addClass('show');
-    updateChatButton();
-  });
+  // Just in case a smart user changes the URL manually
+  window.addEventListener('hashchange', () => buttons.replay());
+
+  if (location.hash) {
+    await buttons.replay();
+    game.lock('readonly');
+  }
+  else if (game.isMyTurn)
+    game.play(-game.teams.length);
+  else
+    game.play(-1);
 }
 
 function updateUndoDialog(createIfNeeded = false) {
@@ -1411,4 +1503,30 @@ function updateUndoDialog(createIfNeeded = false) {
 function hideUndoDialog() {
   if (undoPopup)
     undoPopup.close();
+}
+
+function setHistoryState() {
+  let url = '';
+  if (!game.isSynced)
+    url = `#c=${game.turnId},${game.nextActionId}`;
+
+  if (url !== location.hash) {
+    if (url === '')
+      url = ' ';
+
+    history.replaceState(null, document.title, url);
+  }
+}
+
+function toggleReplayButtons() {
+  let cursor = game.cursor;
+  let isSynced = game.isSynced;
+  let atStart = isSynced || cursor.atStart;
+  let atEnd = isSynced || cursor.atEnd;
+
+  $('BUTTON[name=start]').prop('disabled', atStart);
+  $('BUTTON[name=back]').prop('disabled', atStart);
+
+  $('BUTTON[name=forward]').prop('disabled', atEnd);
+  $('BUTTON[name=end]').prop('disabled', atEnd);
 }

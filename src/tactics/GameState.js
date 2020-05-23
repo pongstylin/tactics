@@ -333,7 +333,11 @@ export default class GameState {
       type: 'startGame',
       data: {
         started: this.started,
-        teams: this.teams,
+        teams: this.teams.map(t => {
+          let team = {...t};
+          delete team.units;
+          return team;
+        }),
         units: this.units,
       },
     });
@@ -357,30 +361,6 @@ export default class GameState {
       },
     });
   }
-  restart() {
-    let teams = this.teams;
-
-    // In the event that we're restarting the game, remove team Chaos.
-    if (teams[0].name === 'Chaos') {
-      teams.shift();
-
-      // Reset bot teams that were taken over by the player.
-      this.teams.forEach(team => {
-        if (team.colorId !== 'Red')
-          team.bot = true;
-      });
-    }
-
-    this._actions.length = 0;
-    this._turns.length = 0;
-    this.ended = null;
-    this.winnerId = null;
-
-    this._bots.forEach(b => b.destroy());
-    this._bots.length = 0;
-
-    this.start();
-  }
 
   /*
    * This method is used when transmitting game state from the server to client.
@@ -402,13 +382,12 @@ export default class GameState {
 
     return {
       type:  this.type,
-      teams: teams,
-
       randomFirstTurn: this.randomFirstTurn,
       turnTimeLimit: this.turnTimeLimit,
 
+      teams: teams,
+
       started:       this.started,
-      ended:         this.ended,
 
       // Data about the current turn
       turnStarted:   this.turnStarted,
@@ -417,6 +396,7 @@ export default class GameState {
       units:         this.units,
       actions:       this.actions,
 
+      ended:         this.ended,
       winnerId:      this.winnerId,
     };
   }

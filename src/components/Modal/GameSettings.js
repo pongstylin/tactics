@@ -2,8 +2,6 @@ import 'components/Modal/GameSettings.scss';
 import Modal from 'components/Modal.js';
 import fullscreen from 'components/fullscreen.js';
 
-window.test = fullscreen;
-
 export default class GameSettings extends Modal {
   constructor(options) {
     options.title = 'Game Settings';

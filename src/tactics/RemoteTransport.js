@@ -1,5 +1,7 @@
 import EventEmitter from 'events';
+
 import clientFactory from 'client/clientFactory.js';
+import unitDataMap from 'tactics/unitData.js';
 
 let authClient = clientFactory('auth');
 let gameClient = clientFactory('game');
@@ -20,6 +22,7 @@ export default class RemoteTransport {
 
       // Started means the game has started (and possibly ended)
       whenStarted: new Promise(resolve => this._resolveStarted = resolve),
+      whenTurnStarted: new Promise(resolve => this._resolveTurnStarted = resolve),
 
       _data:    null,
       _emitter: new EventEmitter(),
@@ -66,6 +69,7 @@ export default class RemoteTransport {
       });
       this._resolveReady();
       this._resolveStarted();
+      this._resolveTurnStarted();
     }
     else
       this._init(gameId);
@@ -110,8 +114,44 @@ export default class RemoteTransport {
   get turnTimeLimit() {
     return this._getStateData('turnTimeLimit');
   }
-  get turnStarted() {
-    return this._getStateData('turnStarted');
+  get created() {
+    return this._getData('created');
+  }
+  get createdBy() {
+    return this._getData('createdBy');
+  }
+  get started() {
+    return this._getStateData('started');
+  }
+
+  get cursor() {
+    if (!this._data)
+      throw new Error('Not ready');
+
+    let state = this._data.state;
+
+    return Object.clone({
+      turnId: state.currentTurnId,
+      teamId: state.currentTeamId,
+      started: state.turnStarted,
+      units: state.units,
+      actions: state.actions,
+      nextActionId: state.actions.length,
+    });
+  }
+  get currentTurnData() {
+    if (!this._data)
+      throw new Error('Not ready');
+
+    let state = this._data.state;
+
+    return Object.clone({
+      id: state.currentTurnId,
+      teamId: state.currentTeamId,
+      started: state.turnStarted,
+      units: state.units,
+      actions: state.actions,
+    });
   }
   get currentTurnId() {
     return this._getStateData('currentTurnId');
@@ -119,27 +159,18 @@ export default class RemoteTransport {
   get currentTeamId() {
     return this._getStateData('currentTeamId');
   }
-  // This property is not natively actually kept in sync.  The server only sends
-  // units' data at initialization, start of game, or on revert.  But, the game
-  // object will keep it in sync as each turn ends.
+  get turnStarted() {
+    return this._getStateData('turnStarted');
+  }
   get units() {
     return this._getStateData('units');
-  }
-  set units(units) {
-    this._data.state.units = units;
   }
   get actions() {
     return this._getStateData('actions');
   }
+
   get winnerId() {
     return this._getStateData('winnerId');
-  }
-
-  get created() {
-    return this._getData('created');
-  }
-  get started() {
-    return this._getStateData('started');
   }
   get ended() {
     return this._getStateData('ended');
@@ -162,9 +193,6 @@ export default class RemoteTransport {
   undo() {
     return gameClient.undo(this._data.id);
   }
-  restart() {
-    return gameClient.restart(this._data.id, ...arguments);
-  }
   submitAction(action) {
     return gameClient.submitAction(this._data.id, action);
   }
@@ -186,26 +214,13 @@ export default class RemoteTransport {
       // Event emitted internally to set this.playerStatus.
       this._emit({ type:'playerStatus', data:playerStatus });
 
-      if (gameData.undoRequest)
-        Object.assign(gameData.undoRequest, {
-          createdAt: new Date(gameData.undoRequest.createdAt),
-          accepts: new Set(gameData.undoRequest.accepts),
-        });
-
       this._data = gameData;
-      Object.assign(this._data.state, {
-        started:
-          gameData.state.started && new Date(gameData.state.started),
-        turnStarted:
-          gameData.state.turnStarted && new Date(gameData.state.turnStarted),
-      });
-      this._data.state.actions.forEach(action => {
-        action.created = new Date(action.created);
-      });
       this._resolveReady();
 
       if (gameData.state.started)
         this._resolveStarted();
+      if (gameData.state.turnStarted)
+        this._resolveTurnStarted();
     }).catch(error => {
       if (error === 'Connection reset')
         return this._init(gameId);
@@ -243,11 +258,11 @@ export default class RemoteTransport {
     let resume;
 
     if (state.ended)
-      resume = null;
+      resume = { since:'end' };
     else if (state.started)
       resume = {
         turnId: state.currentTurnId,
-        actions: actions.length,
+        nextActionId: actions.length,
         since: actions.length ? actions.last.created : state.turnStarted,
       };
     else
@@ -255,19 +270,32 @@ export default class RemoteTransport {
 
     // Instead of watching the game from its current point, resume watching
     // the game from the point we lost connection.
-    gameClient.watchGame(gameId, resume).then(data => {
-      this._emit({ type:'playerStatus', data:data.playerStatus });
+    gameClient.watchGame(gameId, resume).then(({playerStatus, gameData, newActions}) => {
+      this._emit({ type:'playerStatus', data:playerStatus });
 
-      if (data.events)
-        data.events.forEach(e => this._emit(e));
+      let oldStarted = this._data.state.started;
+      let oldTurnStarted = this._data.state.turnStarted;
+      let oldUndoRequest = this._data.undoRequest;
 
-      if (data.undoRequest)
-        // Inform the game of a change in undo status, if any.
-        this._emit({ type:'undoRequest', data:data.undoRequest });
-      else if (this._data.undoRequest)
+      this._data.merge(gameData);
+      if (newActions)
+        this._data.state.actions.push(...newActions);
+
+      if (!oldStarted && this._data.state.started)
+        this._resolveStarted();
+      if (!oldTurnStarted && this._data.state.turnStarted)
+        this._resolveTurnStarted();
+
+      if (!oldUndoRequest && this._data.undoRequest)
+        // Inform the game of a change in undo status.
+        this._emit({ type:'undoRequest', data:this._data.undoRequest });
+      else if (oldUndoRequest)
         // Not sure if the request was rejected or accepted.
         // But 'complete' will result in hiding the dialog, if any.
         this._emit({ type:'undoComplete' });
+
+      // It is ok to advertise a change even if no change occurred.
+      this._emit({ type:'change' });
 
       if (!outbox) return;
 
@@ -293,29 +321,61 @@ export default class RemoteTransport {
         data.forEach(ps => this.playerStatus.set(ps.playerId, ps.status));
       })
       .on('startGame', ({ data }) => {
+        data.started = new Date(data.started);
+
         Object.assign(this._data.state, {
-          started: new Date(data.started),
+          started: data.started,
           teams: data.teams,
           units: data.units,
         });
         this._resolveStarted();
+        this._emit({ type:'change' });
       })
       .on('startTurn', ({ data }) => {
+        data.started = new Date(data.started);
+
+        this.applyActions();
+
         Object.assign(this._data.state, {
-          turnStarted: new Date(data.started),
+          turnStarted: data.started,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions: [],
         });
+        this._resolveTurnStarted();
+        this._emit({ type:'change' });
       })
       .on('action', ({ data:actions }) => {
         actions.forEach(action => {
           action.created = new Date(action.created);
         });
-        this._data.state.actions.push(...actions);
 
+        this._data.state.actions.push(...actions);
         // Clear the undo request to permit a new request.
         this._data.undoRequest = null;
+        this._emit({ type:'change' });
+      })
+      .on('revert', ({ data }) => {
+        data.started = new Date(data.started);
+        data.actions.forEach(action => {
+          action.created = new Date(action.created);
+        });
+
+        Object.assign(this._data.state, {
+          turnStarted: data.started,
+          currentTurnId: data.turnId,
+          currentTeamId: data.teamId,
+          units: data.units,
+          actions: data.actions,
+        });
+        this._emit({ type:'change' });
+      })
+      .on('endGame', ({ data }) => {
+        Object.assign(this._data.state, {
+          winnerId: data.winnerId,
+          ended:    new Date(),
+        });
+        this._emit({ type:'change' });
       })
       .on('undoRequest', ({ data }) => {
         this._data.undoRequest = Object.assign({}, data, {
@@ -343,51 +403,75 @@ export default class RemoteTransport {
       })
       .on('undoComplete', () => {
         this._data.undoRequest.status = 'completed';
-      })
-      .on('revert', ({ data }) => {
-        Object.assign(this._data.state, {
-          turnStarted: new Date(data.started),
-          currentTurnId: data.turnId,
-          currentTeamId: data.teamId,
-          // Clone the actions to avoid modifying event data
-          actions: [...data.actions],
-          units: data.units,
-        });
-
-        this._data.state.actions.forEach(action => {
-          action.created = new Date(action.created);
-        });
-      })
-      .on('endGame', ({ data }) => {
-        Object.assign(this._data.state, {
-          winnerId: data.winnerId,
-          ended:    new Date(),
-        });
       });
+  }
+  /*
+   * Kinda sucks that this duplicates some board logic.
+   * But the board logic is more than we need.
+   */
+  applyActions(teamsUnits = this._data.state.units, actions = this._data.state.actions) {
+    let units = teamsUnits.flat();
+
+    for (let action of actions) {
+      if ('unit' in action) {
+        let unit = units.find(u => u.id === action.unit);
+
+        if (action.assignment)
+          unit.assignment = action.assignment;
+        if (action.direction)
+          unit.direction = action.direction;
+        if ('colorId' in action)
+          unit.colorId = action.colorId;
+      }
+
+      this._applyActionResults(teamsUnits, action.results);
+    }
+
+    // Remove dead units
+    for (let teamUnits of teamsUnits) {
+      for (let i = teamUnits.length-1; i > -1; i--) {
+        let unit = teamUnits[i];
+        let unitData = unitDataMap.get(unit.type);
+        if (unit.mHealth <= -unitData.health)
+          teamUnits.splice(i, 1);
+      }
+    }
+
+    return teamsUnits;
+  }
+  _applyActionResults(teamsUnits, results) {
+    if (!results) return;
+
+    let units = teamsUnits.flat();
+
+    for (let result of results) {
+      if (result.type === 'summon') {
+        teamsUnits[result.teamId].push(result.unit);
+      }
+      else {
+        let unit = units.find(u => u.id === result.unit);
+
+        Object.assign(unit, result.changes);
+      }
+
+      if (result.results)
+        this._applyActionResults(result.results);
+    }
   }
 
   _getData(name) {
     if (!this._data)
       throw new Error('Not ready');
 
-    return this._clone(this._data[name]);
+    return Object.clone(this._data[name]);
   }
   _getStateData(name) {
     if (!this._data)
       throw new Error('Not ready');
 
-    return this._clone(this._data.state[name]);
+    return Object.clone(this._data.state[name]);
   }
 
-  _clone(value) {
-    if (value instanceof Date)
-      return value;
-    else if (Array.isArray(value))
-      return [...value];
-    else if (typeof value === 'object' && value !== null)
-      return {...value};
-    return value;
-  }
   _emit(event) {
     this._emitter.emit(event.type, event);
     this._emitter.emit('event', event);

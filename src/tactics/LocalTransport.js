@@ -1,5 +1,7 @@
 import EventEmitter from 'events';
 
+import unitDataMap from 'tactics/unitData.js';
+
 var counter = 0;
 
 export default class LocalTransport {
@@ -16,6 +18,7 @@ export default class LocalTransport {
 
       // Started means the game has started (and possibly ended)
       whenStarted: new Promise(resolve => this._resolveStarted = resolve),
+      whenTurnStarted: new Promise(resolve => this._resolveTurnStarted = resolve),
 
       _worker:    worker,
       _resolvers: new Map(),
@@ -24,35 +27,117 @@ export default class LocalTransport {
 
     this
       .on('startGame', ({ data }) => {
-        Object.assign(this._data.state, {
-          started: new Date(data.started),
-          teams:   data.teams,
-          units:   data.units,
-        });
+        data.started = new Date(data.started);
 
+        Object.assign(this._data.state, {
+          started: data.started,
+          teams: data.teams,
+          units: data.units,
+
+          // Useful when restarting an offline game
+          ended: null,
+          winnerId: null,
+        });
         this._resolveStarted();
+        this._emit({ type:'change' });
       })
       .on('startTurn', ({ data }) => {
+        data.started = new Date(data.started);
+
+        this.applyActions();
+
         Object.assign(this._data.state, {
-          turnStarted:   new Date(data.started),
+          turnStarted: data.started,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
-          actions:       [],
+          actions: [],
         });
+        this._resolveTurnStarted();
+        this._emit({ type:'change' });
       })
       .on('action', ({ data:actions }) => {
+        actions.forEach(action => {
+          action.created = new Date(action.created);
+        });
+
         this._data.state.actions.push(...actions);
+        this._emit({ type:'change' });
       })
       .on('revert', ({ data }) => {
+        data.started = new Date(data.started);
+        data.actions.forEach(action => {
+          action.created = new Date(action.created);
+        });
+
         Object.assign(this._data.state, {
-          turnStarted: new Date(data.started),
+          turnStarted: data.started,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
-          // Clone the actions to avoid modifying event data
-          actions: [...data.actions],
           units: data.units,
+          actions: data.actions,
         });
+        this._emit({ type:'change' });
+      })
+      .on('endGame', ({ data }) => {
+        Object.assign(this._data.state, {
+          winnerId: data.winnerId,
+          ended:    new Date(),
+        });
+        this._emit({ type:'change' });
       });
+  }
+  /*
+   * Kinda sucks that this duplicates some board logic.
+   * But the board logic is more than we need.
+   */
+  applyActions(teamsUnits = this._data.state.units, actions = this._data.state.actions) {
+    let units = teamsUnits.flat();
+
+    for (let action of actions) {
+      if ('unit' in action) {
+        let unit = units.find(u => u.id === action.unit);
+
+        if (action.assignment)
+          unit.assignment = action.assignment;
+        if (action.direction)
+          unit.direction = action.direction;
+        if ('colorId' in action)
+          unit.colorId = action.colorId;
+      }
+
+      this._applyActionResults(teamsUnits, action.results);
+    }
+
+    // Remove dead units
+    for (let teamUnits of teamsUnits) {
+      for (let i = teamUnits.length-1; i > -1; i--) {
+        let unit = teamUnits[i];
+        let unitData = unitDataMap.get(unit.type);
+        if (unit.mHealth <= -unitData.health)
+          teamUnits.splice(i, 1);
+      }
+    }
+
+    return teamsUnits;
+  }
+  _applyActionResults(teamsUnits, results) {
+    if (!results) return;
+
+    let units = teamsUnits.flat();
+
+    for (let result of results) {
+      if (result.type === 'summon') {
+        teamsUnits[result.teamId].push(result.unit);
+      }
+      else {
+        let unit = units.find(u => u.id === result.unit);
+
+        Object.assign(unit, result.changes);
+      }
+
+      if (result.results)
+        this._applyActionResults(result.results);
+    }
   }
 
   /*
@@ -108,8 +193,38 @@ export default class LocalTransport {
   get teams() {
     return this._getStateData('teams');
   }
-  get turnStarted() {
-    return this._getStateData('turnStarted');
+  get started() {
+    return this._getStateData('started');
+  }
+
+  get cursor() {
+    if (!this._data)
+      throw new Error('Not ready');
+
+    let state = this._data.state;
+
+    return Object.clone({
+      turnId: state.currentTurnId,
+      teamId: state.currentTeamId,
+      started: state.turnStarted,
+      units: state.units,
+      actions: state.actions,
+      nextActionId: state.actions.length,
+    });
+  }
+  get currentTurnData() {
+    if (!this._data)
+      throw new Error('Not ready');
+
+    let state = this._data.state;
+
+    return Object.clone({
+      id: state.currentTurnId,
+      teamId: state.currentTeamId,
+      started: state.turnStarted,
+      units: state.units,
+      actions: state.actions,
+    });
   }
   get currentTurnId() {
     return this._getStateData('currentTurnId');
@@ -117,21 +232,18 @@ export default class LocalTransport {
   get currentTeamId() {
     return this._getStateData('currentTeamId');
   }
-  // This property is not natively actually kept in sync.  The ww only sends
-  // units' data at initialization, start of game, or on revert.  But, the game
-  // object will keep it in sync as each turn ends.
+  get turnStarted() {
+    return this._getStateData('turnStarted');
+  }
   get units() {
     return this._getStateData('units');
-  }
-  set units(units) {
-    this._data.state.units = units;
   }
   get actions() {
     return this._getStateData('actions');
   }
 
-  get started() {
-    return this._getStateData('started');
+  get winnerId() {
+    return this._getStateData('winnerId');
   }
   get ended() {
     return this._getStateData('ended');
@@ -154,7 +266,11 @@ export default class LocalTransport {
     return this._call('undo', arguments);
   }
   restart() {
-    return this._call('restart', arguments);
+    this.whenReady = new Promise(resolve => this._resolveReady = resolve);
+    this.whenStarted = new Promise(resolve => this._resolveStarted = resolve);
+    this.whenTurnStarted = new Promise(resolve => this._resolveTurnStarted = resolve);
+
+    this._post({ type:'restart' });
   }
   submitAction() {
     return this._call('submitAction', arguments);
@@ -188,26 +304,14 @@ export default class LocalTransport {
     if (!this._data)
       throw new Error('Not ready');
 
-    let clone = value => {
-      if (typeof value === 'object' && value !== null)
-        return Array.isArray(value) ? [...value] : {...value};
-      return value;
-    };
-
-    return clone(this._data[name]);
+    return Object.clone(this._data[name]);
   }
 
   _getStateData(name) {
     if (!this._data)
       throw new Error('Not ready');
 
-    let clone = value => {
-      if (typeof value === 'object' && value !== null)
-        return Array.isArray(value) ? [...value] : {...value};
-      return value;
-    };
-
-    return clone(this._data.state[name]);
+    return Object.clone(this._data.state[name]);
   }
 
   _onMessage(message) {
@@ -219,6 +323,8 @@ export default class LocalTransport {
 
       if (data.started)
         this._resolveStarted();
+      if (data.turnStarted)
+        this._resolveTurnStarted();
     }
     else if (type === 'event')
       this._emit(data);

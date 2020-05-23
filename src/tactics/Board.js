@@ -940,14 +940,14 @@ export default class {
         || (this.targeted.size === 1 && [...this.targeted][0])
         || this.viewed || this.selected;
 
-    if (els.healthBar.children.length) els.healthBar.removeChildren();
-
     if (unit) {
       els.notice.x = 174;
       els.notice.y = 23;
       els.notice.anchor.x = 1;
       els.notice.style.fontSize = unit.notice ? '12px' : '11px';
 
+      if (els.healthBar.children.length)
+        els.healthBar.removeChildren();
       els.healthBar.addChild(this.drawHealth(unit));
 
       //
@@ -1104,6 +1104,9 @@ export default class {
       els.notice.anchor.x = 0.5;
       els.notice.style.fontSize = '12px';
       els.notice.text = defaultNotice;
+
+      if (els.healthBar.children.length)
+        els.healthBar.removeChildren();
 
       //
       // Hide the rest.
@@ -1745,8 +1748,17 @@ export default class {
     let turnOptions = this._turnOptions;
 
     turnOptions.data = { unit };
-    turnOptions.position = tile.getTop().clone();
-    turnOptions.position.y -= HALF_TILE_HEIGHT / 2;
+    if (tile.assigned) {
+      turnOptions.position = tile.getTop().clone();
+      turnOptions.position.y -= HALF_TILE_HEIGHT / 2;
+    }
+    else {
+      turnOptions.position = tile.getCenter().clone();
+
+      let offset = this.getOffset(0.25, direction);
+      turnOptions.position.x -= offset[0];
+      turnOptions.position.y -= offset[1];
+    }
 
     turnOptions.children.forEach(arrow => {
       arrow.interactive = arrow.buttonMode = false;
