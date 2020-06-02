@@ -1305,6 +1305,7 @@ export default class Game {
 
       target_unit.deactivate();
       await actor.heal(action, speed);
+      await this._playResults(action, speed);
     }
     // Only applicable to Chaos Seed counter-attack
     else if (actionType === 'hatch') {
@@ -1315,6 +1316,7 @@ export default class Game {
       actor.deactivate();
       selected.deactivate(); // the target
       await actor.hatch(action, speed);
+      await this._playResults(action, speed);
     }
     else {
       this.drawCard(actor);
