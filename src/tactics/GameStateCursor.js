@@ -98,8 +98,8 @@ export default class GameStateCursor {
     Object.assign(this, state.cursor);
   }
 
-  async set(turnId = this.turnId, nextActionId = 0) {
-    let cursorData = await this._getCursorData(turnId, nextActionId);
+  async set(turnId = this.turnId, nextActionId = 0, skipForcePass = true) {
+    let cursorData = await this._getCursorData(turnId, nextActionId, skipForcePass);
     let hasChanged = cursorData.turnId !== this.turnId || cursorData.nextActionId !== this.nextActionId;
 
     // Assign even if cursor hasn't changed since actions may have changed.
@@ -130,7 +130,7 @@ export default class GameStateCursor {
     }
 
     if (this.turnId < this.state.currentTurnId) {
-      await this.set(this.turnId + 1, 1);
+      await this.set(this.turnId + 1, 1, false);
       return this.thisAction;
     }
 
@@ -140,13 +140,18 @@ export default class GameStateCursor {
   /*
    * Pains are taken to request as little data as possible.
    */
-  async _getCursorData(turnId, nextActionId) {
+  async _getCursorData(turnId, nextActionId, skipForcePass = false) {
     let state = this.state;
     let stateTurnId = state.currentTurnId;
     let turnData;
 
-    if (turnId < 0)
-      turnId = this.state.currentTurnId + turnId + 1;
+    if (turnId < 0) {
+      // This trick ensures turns are skipped in the correct direction
+      if (skipForcePass)
+        this.setToCurrent();
+
+      turnId = Math.max(0, this.state.currentTurnId + turnId + 1);
+    }
     else if (turnId > this.state.currentTurnId) {
       turnId = this.state.currentTurnId;
       nextActionId = -1;
@@ -189,6 +194,16 @@ export default class GameStateCursor {
     }
     else
       turnData = await state.getTurnData(turnId);
+
+    if (skipForcePass && turnData.actions.length === 1) {
+      let action = turnData.actions[0];
+      if (action.type === 'endTurn' && action.forced) {
+        if (turnData.id > this.turnId)
+          return this._getCursorData(turnData.id + 1, nextActionId, true);
+        else if (turnData.id < this.turnId)
+          return this._getCursorData(turnData.id - 1, nextActionId, true);
+      }
+    }
 
     if (nextActionId < 0)
       nextActionId = Math.max(0, turnData.actions.length + nextActionId + 1);
