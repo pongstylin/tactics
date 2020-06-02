@@ -702,6 +702,7 @@ export default class Game {
     if (!this._isSynced && this._inReplay) return;
     await this._interruptPlayStack();
 
+    this.notice = null;
     this.lock('readonly');
 
     if (!this.actions.length)
