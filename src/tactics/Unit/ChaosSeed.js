@@ -278,12 +278,12 @@ export default class ChaosSeed extends Unit {
       let target_unit = target_units.random();
 
       return {
-        type:   'heal',
-        unit:   this,
+        type: 'heal',
+        unit:  this,
         target: target_unit.assignment,
         results: [{
-          unit:    target_unit,
-          notice:  'Nice',
+          unit: target_unit,
+          notice: 'Nice',
           changes: { mHealth:Math.min(0, target_unit.mHealth + this.power) },
         }],
       };
