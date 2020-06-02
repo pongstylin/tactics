@@ -94,8 +94,14 @@ export default class GameStateCursor {
 
   setToCurrent() {
     let state = this.state;
+    let cursorData = state.cursor;
+    let hasChanged = cursorData.turnId !== this.turnId || cursorData.nextActionId !== this.nextActionId;
 
-    Object.assign(this, state.cursor);
+    // Assign even if cursor hasn't changed since actions may have changed.
+    Object.assign(this, cursorData);
+
+    if (hasChanged)
+      this._emit({ type:'change' });
   }
 
   async set(turnId = this.turnId, nextActionId = 0, skipForcePass = true) {
@@ -144,11 +150,11 @@ export default class GameStateCursor {
     let state = this.state;
     let stateTurnId = state.currentTurnId;
     let turnData;
+    let fromEnd = false;
 
     if (turnId < 0) {
-      // This trick ensures turns are skipped in the correct direction
-      if (skipForcePass)
-        this.setToCurrent();
+      // Skip force pass turns from end when using negative turn IDs.
+      fromEnd = true;
 
       turnId = Math.max(0, this.state.currentTurnId + turnId + 1);
     }
@@ -198,10 +204,10 @@ export default class GameStateCursor {
     if (skipForcePass && turnData.actions.length === 1) {
       let action = turnData.actions[0];
       if (action.type === 'endTurn' && action.forced) {
-        if (turnData.id > this.turnId)
-          return this._getCursorData(turnData.id + 1, nextActionId, true);
-        else if (turnData.id < this.turnId)
+        if (fromEnd || turnData.id < this.turnId)
           return this._getCursorData(turnData.id - 1, nextActionId, true);
+        else if (turnData.id > this.turnId)
+          return this._getCursorData(turnData.id + 1, nextActionId, true);
       }
     }
 
