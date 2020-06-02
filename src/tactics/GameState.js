@@ -810,10 +810,24 @@ export default class GameState {
     let opponent = teams.find(t => t.playerId !== team.playerId);
 
     if (!bot && !opponent) {
-      if (actions.length)
-        this.revert(this.currentTurnId);
-      else
-        this.revert(this.currentTurnId - 1);
+      for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
+        let turnData = this.getTurnData(turnId);
+        let actions = turnData.actions;
+
+        // Not an actionable turn if the turn was forced to pass.
+        if (actions.length === 0)
+          continue;
+
+        // Not an actionable turn if the turn was forced to pass.
+        if (
+          actions.length === 1 &&
+          actions[0].type === 'endTurn' &&
+          actions[0].forced
+        ) continue;
+
+        this.revert(turnId);
+        break;
+      }
     }
     else {
       // Can't undo if there are no actions to undo.
