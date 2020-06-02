@@ -44,12 +44,12 @@ var buttons = {
       }
     }
 
+    $('#game-settings').removeClass('active').hide();
+    $('#game-replay').addClass('active');
+
     $('#game').toggleClass('is-busy');
     await game.showTurn(turnId, nextActionId);
     $('#game').toggleClass('is-busy');
-
-    $('#game-settings').removeClass('active').hide();
-    $('#game-replay').addClass('active');
   },
   share: () => {
     let players = new Set([...game.teams.map(t => t.playerId)]);

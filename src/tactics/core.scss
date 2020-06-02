@@ -648,22 +648,6 @@
         }
       }
 
-      // The chat and swapbar button are aligned to the right
-      #game-play {
-        top: auto;
-
-        BUTTON[name=surrender] {
-          margin-right: auto !important;
-        }
-      }
-      #game-settings, #game-replay {
-        bottom: auto;
-
-        BUTTON[name=swapbar], BUTTON[name=resume] {
-          margin-left: auto !important;
-        }
-      }
-
       // No longer place the buttons in the top-right corner of #app.
       // Rather, it will be placed under the #field.
       .buttons {
@@ -677,6 +661,27 @@
         display: none;
         overflow-y: hidden;
         overflow-x: auto;
+
+        // The chat and swapbar button are aligned to the right
+        &#game-play {
+          top: auto;
+
+          BUTTON[name=surrender] {
+            margin-right: auto !important;
+          }
+        }
+        &#game-settings, &#game-replay {
+          display: none;
+          bottom: auto;
+
+          &.active {
+            display: flex;
+          }
+
+          BUTTON[name=swapbar], BUTTON[name=resume] {
+            margin-left: auto !important;
+          }
+        }
 
         BUTTON {
           flex: 0 0 auto;
@@ -797,16 +802,7 @@
         }
       }
 
-      #game-play {
-        BUTTON[name=surrender] {
-          // If only I can set a minimum 3px margin...
-          margin-bottom: auto !important;
-        }
-      }
       #game-settings, #game-replay {
-        BUTTON[name=swapbar], BUTTON[name=resume] {
-          margin-top: auto !important;
-        }
       }
 
       .buttons {
@@ -820,6 +816,25 @@
         flex-direction: column;
         overflow-y: auto;
         overflow-x: hidden;
+
+        // The chat and swapbar button are aligned to the right
+        &#game-play {
+          BUTTON[name=surrender] {
+            // If only I can set a minimum 3px margin...
+            margin-bottom: auto !important;
+          }
+        }
+        &#game-settings, &#game-replay {
+          display: none;
+
+          &.active {
+            display: flex;
+          }
+
+          BUTTON[name=swapbar], BUTTON[name=resume] {
+            margin-top: auto !important;
+          }
+        }
 
         // The chat and swapbar buttons are aligned to the bottom
         BUTTON[name=chat] {
