@@ -1500,7 +1500,13 @@ export default class Unit {
 
     anim
       .splice(0, [
-        () => this.pixi.addChild(container),
+        () => {
+          // The setup component does not lock a board while animating.
+          // So, a player might drag-n-drop a unit while it is dying.
+          // Dismissing the unit as a first step solves this problem.
+          this.assignment.dismiss();
+          this.pixi.addChild(container);
+        },
         {
           script: () => this.frame.alpha /= 1.8,
           repeat: 7,
