@@ -265,7 +265,7 @@ class GameService extends Service {
      * ...unless the player to go first just started the game.
      */
     if (game.state.started) {
-      let playerId = teams[game.state.currentTeamId].playerId;
+      let playerId = game.state.currentTeam.playerId;
       if (playerId !== clientPara.playerId)
         this._notifyYourTurn(game, game.state.currentTeamId);
     }
@@ -321,7 +321,7 @@ class GameService extends Service {
      * ...unless the player to go first just started the game.
      */
     if (game.state.started) {
-      let playerId = teams[game.state.currentTeamId].playerId;
+      let playerId = game.state.currentTeam.playerId;
       if (playerId !== clientPara.playerId)
         this._notifyYourTurn(game, game.state.currentTeamId);
     }
@@ -443,7 +443,7 @@ class GameService extends Service {
     if (gamePara)
       gamePara.clients.add(client.id);
     else {
-      let listener = event => {
+      let listener = async event => {
         this._emit({
           type: 'event',
           body: {
@@ -453,9 +453,30 @@ class GameService extends Service {
           },
         });
 
-        if (event.type === 'startTurn')
-          dataAdapter.saveGame(game)
-            .then(() => this._notifyYourTurn(game, event.data.teamId));
+        if (event.type === 'startTurn') {
+          await dataAdapter.saveGame(game);
+
+          /*
+           * Skip sending a notification if this is the first playable turn
+           * AND the first team is the one who just joined to start the game.
+           */
+          let firstTurnId = 0;
+          for (; firstTurnId < game.currentTurnId; firstTurnId++) {
+            let actions = game.state.getTurnActions(firstTurnId);
+            if (actions.length === 1 && actions[0].type === 'endTurn' && actions[0].forced)
+              continue;
+            break;
+          }
+
+          if (game.state.currentTurnId === firstTurnId) {
+            let firstTeam = game.state.currentTeam;
+            let mostRecentTeam = game.state.teams.slice().sort((a, b) => b.joined - a.joined)[0];
+            if (firstTeam === mostRecentTeam)
+              return;
+          }
+
+          this._notifyYourTurn(game, event.data.teamId);
+        }
         else if (
           event.type === 'joined' ||
           event.type === 'action' ||
