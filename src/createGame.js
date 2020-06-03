@@ -315,7 +315,7 @@ async function joinOpenGame(query) {
 
     let gameSummary = result.hits[0];
 
-    return gameClient.joinGame(gameSummary.id)
+    return gameClient.joinGame(gameSummary.id, { set:{ name:'default' }})
       .then(() => gameSummary.id);
   }
   catch (error) {

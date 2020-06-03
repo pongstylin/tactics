@@ -533,7 +533,10 @@ function renderGame(game) {
     let opponents = [...new Set(
       teams.filter(t => t && t.playerId !== myPlayerId).map(t => t.name)
     )];
-    middle = opponents.join(', ');
+    if (opponents.length === 0)
+      middle = '<I>Yourself</I>';
+    else
+      middle = opponents.join(', ');
   }
   else {
     if (navigator.share)
