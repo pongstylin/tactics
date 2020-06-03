@@ -31,10 +31,23 @@ export default class GameStateCursor {
   get atEnd() {
     let state = this.state;
 
-    return (
+    if (
       this.turnId === state.currentTurnId &&
       this.nextActionId === state.actions.length
-    );
+    ) {
+      if (this.nextActionId) {
+        let actionId = this.nextActionId - 1;
+        let cursorAction = this.actions[actionId];
+        let stateAction = state.actions[actionId];
+
+        if (+cursorAction.created !== +stateAction.created)
+          return false;
+      }
+    }
+    else
+      return false;
+
+    return true;
   }
 
   on() {

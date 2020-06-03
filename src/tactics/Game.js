@@ -614,8 +614,14 @@ export default class Game {
     }
   }
   async play(turnId, actionId) {
-    if (this._isPlaying && turnId === undefined && actionId === undefined)
-      return;
+    let cursor = this.cursor;
+
+    if (turnId === undefined && actionId === undefined) {
+      if (this._isPlaying)
+        return;
+      if (this._isSynced && cursor.atEnd)
+        return;
+    }
     await this._interruptPlayStack();
 
     let board = this._board;
@@ -631,8 +637,6 @@ export default class Game {
       this._emit({ type:'startSync' });
     }
 
-    let cursor = this.cursor;
-
     if (turnId !== undefined || actionId !== undefined) {
       let interrupted = await this._pushPlayStack(async () => {
         await cursor.set(turnId, actionId);
@@ -647,17 +651,14 @@ export default class Game {
         return;
       }
     }
-    else if (await cursor.isOutOfSync()) {
-      await cursor.sync();
-      this.setState();
-    }
-    else if (cursor.atEnd) {
-      this.lock('readonly');
-      this._isPlaying = false;
-      return;
-    }
 
     while (!cursor.atEnd) {
+      // The undo button can cause the cursor to go out of sync.
+      if (await cursor.isOutOfSync()) {
+        await cursor.sync();
+        this.setState();
+      }
+
       let action;
       while (action = await cursor.setNextAction()) {
         let interrupted = await this._pushPlayStack(async () => {
@@ -677,12 +678,6 @@ export default class Game {
           this._isPlaying = false;
           return;
         }
-      }
-
-      // The undo button can cause the cursor to go out of sync.
-      if (await cursor.isOutOfSync()) {
-        await cursor.sync();
-        this.setState();
       }
     }
 
