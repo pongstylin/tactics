@@ -739,7 +739,7 @@ function renderMessage(message) {
 }
 
 async function showPublicIntro(gameData) {
-  renderShareLink(gameType, gameData, document.querySelector('#public .shareLink'));
+  renderShareLink(gameData, document.querySelector('#public .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#public .cancelButton'));
 
   let $greeting = $('#public .greeting');
