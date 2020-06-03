@@ -605,7 +605,8 @@ export default class Game {
       let turnId = -1;
 
       if (this.state.ended) {
-        this.cursor.set(turnId);
+        await this.cursor.set(turnId);
+        this.setState();
         this.notice = null;
         this._endGame(true);
       }
@@ -686,8 +687,12 @@ export default class Game {
 
     // The game might have ended while playing
     let state = this.state;
-    if (state.ended)
+    if (state.ended) {
+      if (this._inReplay)
+        await this.pause();
+
       this._endGame();
+    }
     else if (!cursor.actions.length)
       this._startTurn();
     else if (cursor.actions.last.type !== 'endTurn')
