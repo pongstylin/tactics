@@ -417,20 +417,44 @@ async function renderWaitingGames() {
     }
   }
 
-  if (games.waiting.size) {
+  let waitingGames = [...games.waiting.values()].sort((a, b) =>
+    b.updated - a.updated // ascending
+  );
+
+  let privateGames = [];
+  for (let game of waitingGames) {
+    if (game.teams.findIndex(t => !t) === -1)
+      continue;
+
+    let divGame = renderGame(game);
+
+    privateGames.push(divGame);
+  }
+
+  if (privateGames.length) {
     let header = document.createElement('HEADER');
     header.innerHTML = 'Private Games!';
+
     divTabContent.appendChild(header);
+    privateGames.forEach(div => divTabContent.appendChild(div));
+  }
 
-    let waitingGames = [...games.waiting.values()].sort((a, b) =>
-      b.updated - a.updated // ascending
-    );
+  let practiceGames = [];
+  for (let game of waitingGames) {
+    if (game.teams.findIndex(t => !t || t.playerId !== myPlayerId) > -1)
+      continue;
 
-    for (let game of waitingGames) {
-      let divGame = renderGame(game);
+    let divGame = renderGame(game);
 
-      divTabContent.appendChild(divGame);
-    }
+    practiceGames.push(divGame);
+  }
+
+  if (practiceGames.length) {
+    let header = document.createElement('HEADER');
+    header.innerHTML = 'Practice Games!';
+
+    divTabContent.appendChild(header);
+    practiceGames.forEach(div => divTabContent.appendChild(div));
   }
 }
 
@@ -490,14 +514,25 @@ function renderGame(game) {
   }
 
   let middle;
-  if (game.started || game.isPublic) {
+  let gameIsEmpty = teams.filter(t => !!t).length === 0;
+  let gameIsPractice = teams.filter(t => t && t.playerId === myPlayerId).length === teams.length;
+
+  if (gameIsEmpty) {
+    // Not supposed to happen, but bugs do.
+    middle = '<I>Empty</I>';
+  }
+  else if (gameIsPractice) {
+    if (game.started)
+      middle = '<I>Yourself</I>';
+    else
+      middle = '<I>Finish Setup</I>';
+  }
+  else if (game.started || game.isPublic) {
     // Use of 'Set' was to de-dup the names.
     // Only useful for 4-player games where 2 players have the same name.
     let opponents = [...new Set(
       teams.filter(t => t && t.playerId !== myPlayerId).map(t => t.name)
     )];
-    if (opponents.length === 0)
-      opponents[0] = '<I>Yourself</I>';
     middle = opponents.join(', ');
   }
   else {
