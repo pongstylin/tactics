@@ -177,6 +177,9 @@ export default class Game {
   get isSynced() {
     return this._isSynced;
   }
+  get inReplay() {
+    return this._inReplay;
+  }
 
   get card() {
     return this._board.card;
@@ -595,6 +598,7 @@ export default class Game {
     await this._interruptPlayStack();
 
     this._inReplay = false;
+    this._emit({ type:'endReplay' });
 
     if (this.isMyTurn) {
       let turnId = -this._teams.length;
@@ -711,7 +715,10 @@ export default class Game {
     if (!this.actions.length)
       this._showActions(true);
 
-    this._inReplay = true;
+    if (!this._inReplay) {
+      this._inReplay = true;
+      this._emit({ type:'startReplay' });
+    }
 
     if (this._isSynced) {
       this._isSynced = false;

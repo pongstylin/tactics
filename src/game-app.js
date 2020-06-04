@@ -40,12 +40,13 @@ var buttons = {
       if (params.has('c')) {
         let cursor = params.get('c').split(',');
 
-        turnId = parseInt(cursor[0]) || 0;
+        turnId = (parseInt(cursor[0]) || 1) - 1;
         nextActionId = parseInt(cursor[1]) || 0;
         skipPassedTurns = false;
       }
     }
 
+    $('#game-play').removeClass('active');
     $('#game-settings').removeClass('active').hide();
     $('#game-replay').addClass('active');
 
@@ -58,35 +59,51 @@ var buttons = {
     let myTeam = game.teams.find(t => t.playerId === authClient.playerId);
     let message;
 
-    if (players.size === 1) {
-      if (myTeam) {
-        message = `Watch my ${gameType.name} practice game.`;
-      }
-      else {
-        myTeam = game.teams[0];
+    if (game.inReplay) {
+      let turnPart = `Turn ${game.turnId + 1}/${game.nextActionId}`;
 
-        message = `Watch ${gameType.name} practice game by ${myTeam.name}.`;
-      }
-    }
-    else {
-      if (myTeam) {
-        let opponents = game.teams
-          .filter(t => t.playerId !== myTeam.playerId)
-          .map(t => t.name)
-          .join(' and ');
-
-        message = `Watch my ${gameType.name} game against ${opponents}.`;
+      if (players.size === 1) {
+        message = `${gameType.name} Practice Game ${turnPart}.`;
       }
       else {
         let opponents = game.teams
           .map(t => t.name)
           .join(' vs ');
 
-        message = `Watch ${opponents} @ ${gameType.name}.`;
+        message = `${opponents} @ ${gameType.name}, ${turnPart}`;
+      }
+    }
+    else {
+      if (players.size === 1) {
+        if (myTeam) {
+          message = `Watch my ${gameType.name} practice game.`;
+        }
+        else {
+          myTeam = game.teams[0];
+
+          message = `Watch ${gameType.name} practice game by ${myTeam.name}.`;
+        }
+      }
+      else {
+        if (myTeam) {
+          let opponents = game.teams
+            .filter(t => t.playerId !== myTeam.playerId)
+            .map(t => t.name)
+            .join(' and ');
+
+          message = `Watch my ${gameType.name} game against ${opponents}.`;
+        }
+        else {
+          let opponents = game.teams
+            .map(t => t.name)
+            .join(' vs ');
+
+          message = `Watch ${opponents} @ ${gameType.name}.`;
+        }
       }
     }
 
-    let link = location.origin + '/game.html?' + gameId;
+    let link = location.href;
 
     if (navigator.share)
       share({
@@ -1191,10 +1208,12 @@ function setTurnTimeoutClock() {
   turnTimeout = null;
 
   let timeout = game.turnTimeRemaining;
-  if (timeout === undefined) {
-    $('.clock').remove();
+  if (game.inReplay || timeout === undefined) {
+    $('.clock').css({ display:'none' });
     return;
   }
+  else
+    $('.clock').css({ display:'' });
 
   let state = game.state;
   let timeoutClass;
@@ -1386,15 +1405,26 @@ async function startGame() {
       $('BUTTON[name=pause]').show();
       setHistoryState();
       toggleReplayButtons();
+      setCursorAlert();
     })
     .on('endSync', () => {
       $('BUTTON[name=play]').show();
       $('BUTTON[name=pause]').hide();
       setHistoryState();
       toggleReplayButtons();
+      setCursorAlert();
+    })
+    .on('startReplay', () => {
+      setCursorAlert();
+      setTurnTimeoutClock();
+    })
+    .on('endReplay', () => {
+      setCursorAlert();
+      setTurnTimeoutClock();
     })
     .on('cursor-change', () => {
       setHistoryState();
+      setCursorAlert();
       toggleReplayButtons();
     });
 
@@ -1508,7 +1538,7 @@ function hideUndoDialog() {
 function setHistoryState() {
   let url = '';
   if (!game.isSynced)
-    url = `#c=${game.turnId},${game.nextActionId}`;
+    url = `#c=${game.turnId + 1},${game.nextActionId}`;
 
   if (url !== location.hash) {
     if (url === '')
@@ -1529,4 +1559,25 @@ function toggleReplayButtons() {
 
   $('BUTTON[name=forward]').prop('disabled', atCurrent);
   $('BUTTON[name=end]').prop('disabled', atCurrent);
+}
+
+function setCursorAlert() {
+  let $alert = $('#cursor');
+
+  if (!game.inReplay)
+    return $alert.remove();
+
+  if ($alert.length === 0) {
+    $alert = $(`
+      <DIV id="cursor" class="alert clickable">
+        <SPAN class="fa fa-share"></SPAN>
+        <SPAN class="label"></SPAN>
+      </DIV>
+    `).appendTo('#field');
+
+    $alert.on('click', () => buttons.share());
+  }
+
+  let label = `Turn ${game.turnId + 1} / ${game.nextActionId}`;
+  $alert.find('.label').text(label);
 }

@@ -69,6 +69,22 @@
         margin: auto;
       }
 
+      .alert {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translate(-50%);
+        border-radius: 16px;
+        padding: 0 8px;
+
+        background-color: #DED8D5;
+        color: black;
+        font-weight: bold;
+      }
+      .alert.clickable {
+        cursor: pointer;
+      }
+
       .player {
         display: none;
       }
@@ -229,6 +245,7 @@
       text-align: left;
 
       &#game-play {
+        display: flex;
         top: 20px;
       }
       &#game-settings {
@@ -623,6 +640,9 @@
       #field {
         flex-direction: column;
 
+        .alert {
+          top: -26px;
+        }
         #player-n, #player-e {
           top: 100px;
         }
@@ -664,7 +684,12 @@
 
         // The chat and swapbar button are aligned to the right
         &#game-play {
+          display: none;
           top: auto;
+
+          &.active {
+            display: flex;
+          }
 
           BUTTON[name=surrender] {
             margin-right: auto !important;
@@ -802,9 +827,6 @@
         }
       }
 
-      #game-settings, #game-replay {
-      }
-
       .buttons {
         position: fixed;
         top: 0 !important;
@@ -819,6 +841,12 @@
 
         // The chat and swapbar button are aligned to the right
         &#game-play {
+          display: none;
+
+          &.active {
+            display: flex;
+          }
+
           BUTTON[name=surrender] {
             // If only I can set a minimum 3px margin...
             margin-bottom: auto !important;
@@ -834,6 +862,9 @@
           BUTTON[name=swapbar], BUTTON[name=resume] {
             margin-top: auto !important;
           }
+        }
+        &.active {
+          display: flex;
         }
 
         // The chat and swapbar buttons are aligned to the bottom
