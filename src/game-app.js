@@ -33,6 +33,7 @@ var buttons = {
     let nextActionId = 0;
 
     let hash = location.hash;
+    let skipPassedTurns = 'back';
     if (hash) {
       let params = new URLSearchParams(hash.slice(1));
 
@@ -41,6 +42,7 @@ var buttons = {
 
         turnId = parseInt(cursor[0]) || 0;
         nextActionId = parseInt(cursor[1]) || 0;
+        skipPassedTurns = false;
       }
     }
 
@@ -48,7 +50,7 @@ var buttons = {
     $('#game-replay').addClass('active');
 
     $('#game').toggleClass('is-busy');
-    await game.showTurn(turnId, nextActionId);
+    await game.showTurn(turnId, nextActionId, skipPassedTurns);
     $('#game').toggleClass('is-busy');
   },
   share: () => {
@@ -262,22 +264,22 @@ var buttons = {
   },
   start: async () => {
     $('#game').toggleClass('is-busy');
-    await game.showTurn(0);
+    await game.showTurn(0, 0, 'back');
     $('#game').toggleClass('is-busy');
     return false;
   },
   back: async () => {
     $('#game').toggleClass('is-busy');
     if (game.actions.length)
-      await game.showTurn(game.turnId);
+      await game.showTurn(game.turnId, 0, 'back');
     else
-      await game.showTurn(game.turnId - 1);
+      await game.showTurn(game.turnId - 1, 0, 'back');
     $('#game').toggleClass('is-busy');
     return false;
   },
   play: async () => {
     $('#game').toggleClass('is-busy');
-    if (game.cursor.atEnd)
+    if (game.cursor.atCurrent)
       game.play(0);
     else
       game.play();
@@ -290,13 +292,13 @@ var buttons = {
   },
   forward: async () => {
     $('#game').toggleClass('is-busy');
-    await game.showTurn(game.turnId + 1);
+    await game.showTurn(game.turnId + 1, 0, 'forward');
     $('#game').toggleClass('is-busy');
     return false;
   },
   end: async () => {
     $('#game').toggleClass('is-busy');
-    await game.showTurn(-1, -1);
+    await game.showTurn(-1, -1, 'forward');
     $('#game').toggleClass('is-busy');
     return false;
   },
@@ -1406,10 +1408,8 @@ async function startGame() {
   // Just in case a smart user changes the URL manually
   window.addEventListener('hashchange', () => buttons.replay());
 
-  if (location.hash) {
+  if (location.hash)
     await buttons.replay();
-    game.lock('readonly');
-  }
   else if (game.isMyTurn)
     game.play(-game.teams.length);
   else
@@ -1522,11 +1522,11 @@ function toggleReplayButtons() {
   let cursor = game.cursor;
   let isSynced = game.isSynced;
   let atStart = isSynced || cursor.atStart;
-  let atEnd = isSynced || cursor.atEnd;
+  let atCurrent = isSynced || cursor.atCurrent;
 
   $('BUTTON[name=start]').prop('disabled', atStart);
   $('BUTTON[name=back]').prop('disabled', atStart);
 
-  $('BUTTON[name=forward]').prop('disabled', atEnd);
-  $('BUTTON[name=end]').prop('disabled', atEnd);
+  $('BUTTON[name=forward]').prop('disabled', atCurrent);
+  $('BUTTON[name=end]').prop('disabled', atCurrent);
 }

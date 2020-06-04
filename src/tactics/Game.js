@@ -599,28 +599,32 @@ export default class Game {
     if (this.isMyTurn) {
       let turnId = -this._teams.length;
 
-      this.play(turnId);
+      this.play(turnId, 0, 'back');
     }
     else {
       let turnId = -1;
 
       if (this.state.ended) {
-        await this.cursor.set(turnId);
+        await this.cursor.set(turnId, -1);
         this.setState();
         this.notice = null;
         this._endGame(true);
+
+        // This triggers the removal of location.hash
+        this._isSynced = true;
+        this._emit({ type:'startSync' });
       }
       else
-        this.play(turnId);
+        this.play(turnId, 0, 'back');
     }
   }
-  async play(turnId, actionId) {
+  async play(turnId, actionId, skipPassedTurns = false) {
     let cursor = this.cursor;
 
     if (turnId === undefined && actionId === undefined) {
       if (this._isPlaying)
         return;
-      if (this._isSynced && cursor.atEnd)
+      if (this._isSynced && cursor.atCurrent)
         return;
     }
     await this._interruptPlayStack();
@@ -640,7 +644,7 @@ export default class Game {
 
     if (turnId !== undefined || actionId !== undefined) {
       let interrupted = await this._pushPlayStack(async () => {
-        await cursor.set(turnId, actionId);
+        await cursor.set(turnId, actionId, skipPassedTurns);
         this.setState();
 
         // Give the board a chance to appear before playing
@@ -653,7 +657,7 @@ export default class Game {
       }
     }
 
-    while (!cursor.atEnd) {
+    while (!cursor.atCurrent) {
       // The undo button can cause the cursor to go out of sync.
       if (await cursor.isOutOfSync()) {
         await cursor.sync();
@@ -699,11 +703,10 @@ export default class Game {
       this._resumeTurn();
   }
   async pause() {
-    if (!this._isSynced && this._inReplay) return;
     await this._interruptPlayStack();
 
     this.notice = null;
-    this.lock('readonly');
+    this.lock(this.state.ended ? 'gameover' : 'readonly');
 
     if (!this.actions.length)
       this._showActions(true);
@@ -715,10 +718,13 @@ export default class Game {
       this._emit({ type:'endSync' });
     }
   }
-  async showTurn(turnId = this.turnId, actionId = 0) {
+  async showTurn(turnId = this.turnId, actionId = 0, skipPassedTurns) {
     await this.pause();
-    await this.cursor.set(turnId, actionId);
+    await this.cursor.set(turnId, actionId, skipPassedTurns);
     this.setState();
+
+    if (this.cursor.atEnd)
+      this._endGame(true);
   }
 
   /*
@@ -1350,6 +1356,10 @@ export default class Game {
 
     board.clearHighlight();
     board.hideTurnOptions();
+
+    // Possible if no unit argument and this turn was passed.
+    if (!unit)
+      return;
 
     if (board.selected !== unit)
       this.drawCard(unit);

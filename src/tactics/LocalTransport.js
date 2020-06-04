@@ -210,6 +210,7 @@ export default class LocalTransport {
       units: state.units,
       actions: state.actions,
       nextActionId: state.actions.length,
+      atEnd: !!this.ended,
     });
   }
   get currentTurnData() {

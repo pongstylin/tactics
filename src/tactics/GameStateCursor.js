@@ -28,7 +28,7 @@ export default class GameStateCursor {
   get atStart() {
     return this.turnId === 0 && this.nextActionId === 0;
   }
-  get atEnd() {
+  get atCurrent() {
     let state = this.state;
 
     if (
@@ -43,6 +43,9 @@ export default class GameStateCursor {
         if (+cursorAction.created !== +stateAction.created)
           return false;
       }
+
+      if (state.ended && !this.atEnd)
+        return false;
     }
     else
       return false;
@@ -117,8 +120,8 @@ export default class GameStateCursor {
       this._emit({ type:'change' });
   }
 
-  async set(turnId = this.turnId, nextActionId = 0, skipForcePass = true) {
-    let cursorData = await this._getCursorData(turnId, nextActionId, skipForcePass);
+  async set(turnId = this.turnId, nextActionId = 0, skipPassedTurns = false) {
+    let cursorData = await this._getCursorData(turnId, nextActionId, skipPassedTurns);
     let hasChanged = cursorData.turnId !== this.turnId || cursorData.nextActionId !== this.nextActionId;
 
     // Assign even if cursor hasn't changed since actions may have changed.
@@ -149,7 +152,7 @@ export default class GameStateCursor {
     }
 
     if (this.turnId < this.state.currentTurnId) {
-      await this.set(this.turnId + 1, 1, false);
+      await this.set(this.turnId + 1, 1);
       return this.thisAction;
     }
 
@@ -159,16 +162,12 @@ export default class GameStateCursor {
   /*
    * Pains are taken to request as little data as possible.
    */
-  async _getCursorData(turnId, nextActionId, skipForcePass = false) {
+  async _getCursorData(turnId, nextActionId, skipPassedTurns = false, skipTurnData) {
     let state = this.state;
     let stateTurnId = state.currentTurnId;
     let turnData;
-    let fromEnd = false;
 
     if (turnId < 0) {
-      // Skip force pass turns from end when using negative turn IDs.
-      fromEnd = true;
-
       turnId = Math.max(0, this.state.currentTurnId + turnId + 1);
     }
     else if (turnId > this.state.currentTurnId) {
@@ -211,21 +210,36 @@ export default class GameStateCursor {
       else
         turnData = await state.getTurnData(turnId);
     }
+    else if (skipTurnData) {
+      turnData = {
+        id: turnId,
+        teamId: (skipTurnData.teamId + 1) % state.teams.length,
+        started: skipTurnData.actions.last.created,
+        units: state.applyActions(skipTurnData.units, skipTurnData.actions),
+        actions: await state.getTurnActions(turnId),
+      };
+    }
     else
       turnData = await state.getTurnData(turnId);
 
-    if (skipForcePass && turnData.actions.length === 1) {
+    if (skipPassedTurns && turnData.actions.length === 1) {
       let action = turnData.actions[0];
-      if (action.type === 'endTurn' && action.forced) {
-        if (fromEnd || turnData.id < this.turnId)
-          return this._getCursorData(turnData.id - 1, nextActionId, true);
-        else if (turnData.id > this.turnId)
-          return this._getCursorData(turnData.id + 1, nextActionId, true);
+      if (action.type === 'endTurn') {
+        if (skipPassedTurns === 'back' && turnData.id > 0)
+          return this._getCursorData(turnData.id - 1, nextActionId, skipPassedTurns);
+        else if (skipPassedTurns === 'forward' && turnData.id < state.currentTurnId)
+          return this._getCursorData(turnData.id + 1, nextActionId, skipPassedTurns, turnData);
       }
     }
 
     if (nextActionId < 0)
       nextActionId = Math.max(0, turnData.actions.length + nextActionId + 1);
+
+    let atEnd = (
+      turnData.id === state.currentTurnId &&
+      nextActionId === state.actions.length &&
+      state.ended
+    );
 
     return {
       turnId: turnData.id,
@@ -234,6 +248,7 @@ export default class GameStateCursor {
       units: turnData.units,
       actions: turnData.actions,
       nextActionId: Math.min(turnData.actions.length, nextActionId || 0),
+      atEnd,
     };
   }
 
