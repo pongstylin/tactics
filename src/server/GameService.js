@@ -539,11 +539,14 @@ class GameService extends Service {
       // These values are set when a game is created and cannot be changed.
       // So, when resuming a game, these values need not be sent.
       delete gameData.type;
+      delete gameData.created;
+      delete gameData.createdBy;
+      delete gameData.isPublic;
       delete gameData.randomFirstTurn;
       delete gameData.turnTimeLimit;
 
       if (params.since === 'start') {
-        // Nothing has changed if the game hasn't started yet
+        // Nothing has changed if the game hasn't started yet... for now.
         if (!state.started)
           delete gameData.state;
       }

@@ -273,29 +273,35 @@ export default class RemoteTransport {
     gameClient.watchGame(gameId, resume).then(({playerStatus, gameData, newActions}) => {
       this._emit({ type:'playerStatus', data:playerStatus });
 
-      let oldStarted = this._data.state.started;
-      let oldTurnStarted = this._data.state.turnStarted;
       let oldUndoRequest = this._data.undoRequest;
-
-      this._data.merge(gameData);
-      if (newActions)
-        this._data.state.actions.push(...newActions);
-
-      if (!oldStarted && this._data.state.started)
-        this._resolveStarted();
-      if (!oldTurnStarted && this._data.state.turnStarted)
-        this._resolveTurnStarted();
-
-      if (!oldUndoRequest && this._data.undoRequest)
-        // Inform the game of a change in undo status.
-        this._emit({ type:'undoRequest', data:this._data.undoRequest });
-      else if (oldUndoRequest)
+      let newUndoRequest = gameData.undoRequest;
+      if (newUndoRequest)
+        // Inform the game of a change in undo status, if any.
+        this._emit({ type:'undoRequest', data:newUndoRequest });
+      else if (oldUndoRequest && oldUndoRequest.status === 'pending')
         // Not sure if the request was rejected or accepted.
         // But 'complete' will result in hiding the dialog, if any.
         this._emit({ type:'undoComplete' });
 
-      // It is ok to advertise a change even if no change occurred.
-      this._emit({ type:'change' });
+      if (gameData.state) {
+        let oldStarted = this._data.state.started;
+        let oldTurnStarted = this._data.state.turnStarted;
+
+        this._data.state.merge(gameData.state);
+        if (newActions)
+          this._data.state.actions.push(...newActions);
+
+        if (!oldStarted && this._data.state.started)
+          this._resolveStarted();
+        if (!oldTurnStarted && this._data.state.turnStarted)
+          this._resolveTurnStarted();
+
+        this._emit({ type:'change' });
+      }
+      else if (newActions) {
+        this._data.state.actions.push(...newActions);
+        this._emit({ type:'change' });
+      }
 
       if (!outbox) return;
 
@@ -378,10 +384,10 @@ export default class RemoteTransport {
         this._emit({ type:'change' });
       })
       .on('undoRequest', ({ data }) => {
-        this._data.undoRequest = Object.assign({}, data, {
-          createdAt: new Date(data.createdAt),
-          accepts: new Set(data.accepts),
-        });
+        data.createdAt = new Date(data.createdAt);
+        data.accepts = new Set(data.accepts);
+
+        this._data.undoRequest = data;
       })
       .on('undoAccept', ({ data }) => {
         let undoRequest = this._data.undoRequest;
