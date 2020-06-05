@@ -69,7 +69,8 @@
         margin: auto;
       }
 
-      .alert {
+      #alert {
+        height: 18px;
         position: absolute;
         top: 0;
         left: 50%;
@@ -79,10 +80,14 @@
 
         background-color: #DED8D5;
         color: black;
+        line-height: 18px;
         font-weight: bold;
       }
-      .alert.clickable {
+      #alert.clickable {
         cursor: pointer;
+      }
+      #alert:empty {
+        visibility: hidden;
       }
 
       .player {
@@ -640,7 +645,7 @@
       #field {
         flex-direction: column;
 
-        .alert {
+        #alert {
           position: relative;
           width: max-content;
           margin-bottom: 8px;

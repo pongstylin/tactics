@@ -385,6 +385,14 @@ $(() => {
 
       Tactics.playSound('focus');
     })
+    .on('click', '#app #alert', async event => {
+      let $alert = $(event.target);
+      let handler = $alert.data('handler');
+      if (!handler)
+        return;
+
+      handler();
+    })
     .on('click', '#app BUTTON:enabled', async event => {
       let $button = $(event.target);
       let handler = $button.data('handler') || buttons[$button.attr('name')];
@@ -1415,10 +1423,14 @@ async function startGame() {
       setCursorAlert();
     })
     .on('startReplay', () => {
+      $('#app').addClass('in-replay');
+
       setCursorAlert();
       setTurnTimeoutClock();
     })
     .on('endReplay', () => {
+      $('#app').removeClass('in-replay');
+
       setCursorAlert();
       setTurnTimeoutClock();
     })
@@ -1562,22 +1574,21 @@ function toggleReplayButtons() {
 }
 
 function setCursorAlert() {
-  let $alert = $('#cursor');
-
+  let $alert = $('#alert');
   if (!game.inReplay)
-    return $alert.remove();
+    return $alert.empty().removeClass().removeData();
 
-  if ($alert.length === 0) {
-    $alert = $(`
-      <DIV id="cursor" class="alert clickable">
+  if (!$alert.hasClass('cursor')) {
+    $alert
+      .addClass('cursor clickable')
+      .data('handler', buttons.share)
+      .html(`
         <SPAN class="fa fa-share"></SPAN>
         <SPAN class="label"></SPAN>
-      </DIV>
-    `).prependTo('#field');
-
-    $alert.on('click', () => buttons.share());
+      `);
   }
 
   let label = `Turn ${game.turnId + 1} / ${game.nextActionId}`;
+
   $alert.find('.label').text(label);
 }
