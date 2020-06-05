@@ -880,6 +880,8 @@ function renderShareLink(gameData, container) {
 }
 
 async function showPracticeIntro(gameData) {
+  renderCancelButton(gameData.id, document.querySelector('#practice .cancelButton'));
+
   let root = document.body.querySelector('#practice');
 
   root.addEventListener('focus', event => {
