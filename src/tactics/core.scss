@@ -641,10 +641,12 @@
         flex-direction: column;
 
         .alert {
-          top: -26px;
+          position: relative;
+          width: max-content;
+          margin-bottom: 8px;
         }
         #player-n, #player-e {
-          top: 100px;
+          top: 126px;
         }
 
         .player.active {

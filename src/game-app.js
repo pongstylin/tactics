@@ -47,7 +47,7 @@ var buttons = {
     }
 
     $('#game-play').removeClass('active');
-    $('#game-settings').removeClass('active').hide();
+    $('#game-settings').removeClass('active').css({ display:'none' });
     $('#game-replay').addClass('active');
 
     $('#game').toggleClass('is-busy');
@@ -325,7 +325,7 @@ var buttons = {
     $('#game').toggleClass('is-busy');
 
     $('#game-replay').removeClass('active');
-    $('#game-settings').addClass('active').show();
+    $('#game-settings').addClass('active').css({ display:'' });
   },
 };
 
@@ -1573,7 +1573,7 @@ function setCursorAlert() {
         <SPAN class="fa fa-share"></SPAN>
         <SPAN class="label"></SPAN>
       </DIV>
-    `).appendTo('#field');
+    `).prependTo('#field');
 
     $alert.on('click', () => buttons.share());
   }
