@@ -701,10 +701,11 @@ export default class Game {
 
       this._endGame();
     }
-    else if (!cursor.actions.length)
-      this._startTurn();
-    else if (cursor.actions.last.type !== 'endTurn')
-      this._resumeTurn();
+    else if (!this._inReplay)
+      if (!cursor.actions.length)
+        this._startTurn();
+      else if (cursor.actions.last.type !== 'endTurn')
+        this._resumeTurn();
   }
   async pause() {
     await this._interruptPlayStack();
