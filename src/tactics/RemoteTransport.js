@@ -462,7 +462,7 @@ export default class RemoteTransport {
       }
 
       if (result.results)
-        this._applyActionResults(result.results);
+        this._applyActionResults(teamsUnits, result.results);
     }
   }
 
