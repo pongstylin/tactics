@@ -92,15 +92,12 @@ export default class GameStateCursor {
     let cursorData = await this._getCursorData(this.turnId);
     let actionId = 0;
 
-    if (this.nextActionId > cursorData.actions.length)
-      actionId = cursorData.actions.length;
-    else 
-      for (; actionId < this.actions.length; actionId++) {
-        let thisAction = this.actions[actionId];
-        let thatAction = cursorData.actions[actionId];
-        if (!thatAction || +thatAction.created !== +thisAction.created)
-          break;
-      }
+    for (; actionId < this.nextActionId; actionId++) {
+      let thisAction = this.actions[actionId];
+      let thatAction = cursorData.actions[actionId];
+      if (!thatAction || +thatAction.created !== +thisAction.created)
+        break;
+    }
 
     cursorData.nextActionId = actionId;
 
