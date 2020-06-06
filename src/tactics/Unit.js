@@ -69,29 +69,29 @@ export default class Unit {
     else
       throw new TypeError('Unsupported mType');
   }
-  getAttackTiles(start = this.assignment) {
+  getAttackTiles(source = this.assignment) {
     let board  = this.board;
     let range  = this.aRange;
 
     if (this.aLinear)
       // Dark Magic Witch, Beast Rider, Dragon Tyrant, Chaos Dragon
       // All existing units have a minimum range of 1.
-      return board.getTileLinearRange(start, range[1]);
+      return board.getTileLinearRange(source, range[1]);
     else if (range)
-      return board.getTileRange(start, ...range);
+      return board.getTileRange(source, ...range);
     else
       return [];
   }
-  getTargetTiles(target, source) {
+  getTargetTiles(target, source = this.assignment) {
     if (this.aLOS === true)
       return this.getLOSTargetTiles(target, source);
     else if (this.aAll === true)
-      return this.getAttackTiles();
+      return this.getAttackTiles(source);
     else if (this.aLinear === true) {
-      let direction = this.board.getDirection(this.assignment, target);
+      let direction = this.board.getDirection(source, target);
       let targets = [];
 
-      let context = this.assignment;
+      let context = source;
       while (targets.length < this.aRange[1]) {
         context = context[direction];
         if (!context) break;
