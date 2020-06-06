@@ -20,6 +20,12 @@ Object.defineProperty(Object.prototype, 'merge', {
     return this;
   },
 });
+Object.defineProperty(Array.prototype, 'merge', {
+  writable: true,
+  value: function (item) {
+    return item;
+  },
+});
 Object.defineProperty(Set.prototype, 'merge', {
   value: function (item) {
     return item;
