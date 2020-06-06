@@ -1224,6 +1224,9 @@ export default class {
       this.focused = null;
     }
 
+    if (this.targeted.has(unit))
+      this.targeted.delete(unit);
+
     if (unit === this.viewed) {
       unit.deactivate();
       this.viewed = null;
