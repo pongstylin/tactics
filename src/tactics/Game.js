@@ -98,6 +98,9 @@ export default class Game {
         }, 100);
       });
 
+    let whilePlaying = Promise.resolve();
+    whilePlaying.stop = true;
+
     Object.assign(this, {
       // Crude tracking of the pointer type being used.  Ideally, this should
       // reflect the last pointer type to fire an event on the board.
@@ -124,11 +127,8 @@ export default class Game {
       // Set to false while gameplay is paused
       _isSynced: false,
 
-      // Set to true while catching up to current game state
-      _isPlaying: false,
-
-      // A stack of played actions. Once one action completes, the next begins
-      _playStack: Promise.resolve(),
+      // Actions are actively being played until this promise resolves
+      _whilePlaying: whilePlaying,
 
       _renderer: renderer,
       _rendering: false,
@@ -563,18 +563,6 @@ export default class Game {
     return this.start();
   }
 
-  async _pushPlayStack(fn) {
-    let playItem = this._playStack = this._playStack.then(fn);
-    await playItem;
-
-    return playItem.interrupt;
-  }
-  async _interruptPlayStack() {
-    let playItem = this._playStack;
-    playItem.interrupt = true;
-    await playItem;
-  }
-
   setState() {
     let board = this._board;
     board.setState(this.units, this._teams);
@@ -595,7 +583,8 @@ export default class Game {
   }
 
   async resume() {
-    await this._interruptPlayStack();
+    this._whilePlaying.stop = true;
+    await this._whilePlaying;
 
     this._inReplay = false;
     this._emit({ type:'endReplay' });
@@ -626,13 +615,23 @@ export default class Game {
     let cursor = this.cursor;
 
     if (turnId === undefined && actionId === undefined) {
-      if (this._isPlaying)
+      if (!this._whilePlaying.stop)
         return;
       if (this._isSynced && cursor.atCurrent)
         return;
     }
-    await this._interruptPlayStack();
 
+    this._whilePlaying.stop = true;
+    await this._whilePlaying;
+
+    let stopPlaying;
+    let whilePlaying = this._whilePlaying = new Promise(resolve => {
+      stopPlaying = () => {
+        whilePlaying.stop = true;
+        this.lock('readonly');
+        resolve();
+      };
+    });
     let board = this._board;
 
     // Clear a 'Sending order' notice, if present
@@ -640,58 +639,47 @@ export default class Game {
     this.notice = null;
 
     this.lock();
-    this._isPlaying = true;
     if (!this._isSynced) {
       this._isSynced = true;
       this._emit({ type:'startSync' });
     }
 
     if (turnId !== undefined || actionId !== undefined) {
-      let interrupted = await this._pushPlayStack(async () => {
-        await cursor.set(turnId, actionId, skipPassedTurns);
-        this.setState();
+      await cursor.set(turnId, actionId, skipPassedTurns);
+      this.setState();
 
-        // Give the board a chance to appear before playing
-        await sleep(100);
-      });
-      if (interrupted) {
-        this.lock('readonly');
-        this._isPlaying = false;
-        return;
-      }
+      // Give the board a chance to appear before playing
+      await sleep(100);
+
+      if (whilePlaying.stop)
+        return stopPlaying();
     }
 
     while (!cursor.atCurrent) {
-      // The undo button can cause the cursor to go out of sync.
-      if (await cursor.isOutOfSync()) {
-        await cursor.sync();
+      let movement = await cursor.setNextAction();
+      if (!movement) break;
+
+      if (movement === 'back')
+        // The undo button can cause the next action to be a previous one
         this.setState();
-      }
+      else if (movement === 'forward') {
+        await this._performAction(cursor.thisAction);
 
-      let action;
-      while (action = await cursor.setNextAction()) {
-        let interrupted = await this._pushPlayStack(async () => {
-          await this._performAction(action);
-
-          /*
-           * Combine turn with endTurn actions since they are visually one
-           * action and are always received as a pair.
-           */
-          if (action.type === 'turn') {
-            let nextAction = await cursor.setNextAction();
-            await this._performAction(nextAction);
-          }
-        });
-        if (interrupted) {
-          this.lock('readonly');
-          this._isPlaying = false;
-          return;
+        /*
+         * Combine turn with endTurn actions since they are visually one
+         * action and are always received as a pair.
+         */
+        if (cursor.thisAction.type === 'turn') {
+          await cursor.set(cursor.turnId, cursor.nextActionId + 1);
+          await this._performAction(cursor.thisAction);
         }
       }
+
+      if (whilePlaying.stop)
+        return stopPlaying();
     }
 
-    this.lock('readonly');
-    this._isPlaying = false;
+    stopPlaying();
 
     // The game might have ended while playing
     let state = this.state;
@@ -708,7 +696,8 @@ export default class Game {
         this._resumeTurn();
   }
   async pause() {
-    await this._interruptPlayStack();
+    this._whilePlaying.stop = true;
+    await this._whilePlaying;
 
     this.notice = null;
     this.lock(this.state.ended ? 'gameover' : 'readonly');

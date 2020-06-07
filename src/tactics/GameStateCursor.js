@@ -62,49 +62,6 @@ export default class GameStateCursor {
     return this;
   }
 
-  async isOutOfSync() {
-    let state = this.state;
-
-    if (this.turnId > state.currentTurnId)
-      return true;
-
-    let cursorData = await this._getCursorData(this.turnId);
-
-    if (this.nextActionId > cursorData.actions.length)
-      return true;
-
-    let actionId = this.nextActionId;
-    if (actionId--) {
-      let thisAction = this.actions[actionId];
-      let thatAction = cursorData.actions[actionId];
-
-      return +thisAction.created !== +thatAction.created;
-    }
-
-    return +this.started !== +cursorData.started;
-  }
-  async sync() {
-    let state = this.state;
-
-    if (this.turnId > state.currentTurnId)
-      return this.setToCurrent();
-
-    let cursorData = await this._getCursorData(this.turnId);
-    let actionId = 0;
-
-    for (; actionId < this.nextActionId; actionId++) {
-      let thisAction = this.actions[actionId];
-      let thatAction = cursorData.actions[actionId];
-      if (!thatAction || +thatAction.created !== +thisAction.created)
-        break;
-    }
-
-    cursorData.nextActionId = actionId;
-
-    Object.assign(this, cursorData);
-    this._emit({ type:'change' });
-  }
-
   setToCurrent() {
     let state = this.state;
     let cursorData = state.cursor;
@@ -133,24 +90,68 @@ export default class GameStateCursor {
   setRelativeToCurrent(numTurns) {
     return this.set(this.state.currentTurnId + numTurns);
   }
+  /*
+   * Set the cursor to the next action toward the current game cursor.
+   * This might be a step 'back' if a revert has taken place.
+   * This might be a step 'forward' if new actions/turns are available.
+   *
+   * Returns null if the cursor matches the game cursor or if the only
+   * change in cursor was to a new turn (and possibly game end).
+   */
   async setNextAction() {
-    if (await this.isOutOfSync())
-      return null;
+    let state = this.state;
 
-    // Make sure the cursor data is fresh
-    Object.assign(this,
-      await this._getCursorData(this.turnId, this.nextActionId)
-    );
-
-    let nextAction = this.nextAction;
-    if (nextAction) {
-      await this.set(this.turnId, this.nextActionId + 1);
-      return nextAction;
+    /*
+     * Is the next step forward a step back to a previous turn?
+     */
+    if (this.turnId > state.currentTurnId) {
+      this.setToCurrent();
+      return 'back';
     }
 
+    /*
+     * Is the next step forward a step back to a previous action?
+     */
+    // Getting cursor data also ensures we have all available actions.
+    let cursorData = await this._getCursorData(this.turnId);
+    let actionId = 0;
+
+    for (; actionId < this.nextActionId; actionId++) {
+      let thisAction = this.actions[actionId];
+      let thatAction = cursorData.actions[actionId];
+      if (!thatAction || +thatAction.created !== +thisAction.created)
+        break;
+    }
+
+    if (actionId < this.nextActionId) {
+      cursorData.nextActionId = actionId;
+      Object.assign(this, cursorData);
+      this._emit({ type:'change' });
+
+      return 'back';
+    }
+
+    /*
+     * Is there another action to which we can step forward?
+     */
+    if (cursorData.actions.length > actionId) {
+      cursorData.nextActionId = actionId + 1;
+      Object.assign(this, cursorData);
+      this._emit({ type:'change' });
+
+      return 'forward';
+    }
+
+    /*
+     * Is there another turn to which we can step forward?
+     */
     if (this.turnId < this.state.currentTurnId) {
+      // Pass nextActionId=1 to step to the first action in the next turn if any
       await this.set(this.turnId + 1, 1);
-      return this.thisAction;
+
+      // Was there a first action in the next turn?
+      if (this.nextActionId)
+        return 'forward';
     }
 
     return null;
@@ -173,8 +174,9 @@ export default class GameStateCursor {
     }
 
     // Data for the current turn is already available.
-    if (turnId === stateTurnId)
+    if (turnId === stateTurnId) {
       turnData = state.currentTurnData;
+    }
     // Data for the cursor is already available
     // ... but the actions are refreshed if incomplete.
     else if (turnId === this.turnId) {
