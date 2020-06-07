@@ -923,7 +923,7 @@ export default class Game {
       /*
        * If the selected unit was poisoned at turn start, can't attack.
        */
-      let unitState = this.state.units[selected.team.id].find(u => u.id === selected.id);
+      let unitState = this.units[selected.team.id].find(u => u.id === selected.id);
       if (unitState.poisoned)
         return false;
 
