@@ -252,7 +252,7 @@ export default class Game {
         // to override the focused unit with the targeted unit.
         this.drawCard();
 
-        if (this._inReplay) {
+        if (this._inReplay || !this.isMyTurn) {
           selected.activate();
           this._showActions(!this._isSynced);
         }
@@ -307,12 +307,12 @@ export default class Game {
         this.selectMode = this._pickSelectMode();
       }
       else if (selected) {
-        if (selected.activated && selected.activated !== true)
-          this.selectMode = selected.activated;
-        else if (this._inReplay) {
+        if (this._inReplay || !this.isMyTurn) {
           this._showActions(true);
           this.selectMode = 'move';
         }
+        else if (selected.activated && selected.activated !== true)
+          this.selectMode = selected.activated;
       }
       else
         this.selectMode = 'move';
