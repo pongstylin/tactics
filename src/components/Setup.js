@@ -1003,7 +1003,9 @@ export default class {
         tile.paint('noplace', 0.3, 0x000000);
         this.render();
       },
-      onSelect: () => {},
+      onSelect: ({ target:tile }) => {
+        this.selected = tile.assigned;
+      },
     }, true);
 
     return { places, noplaces };
