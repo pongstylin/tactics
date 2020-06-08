@@ -23,6 +23,7 @@ export default class GameSettings extends Modal {
       </DIV>
     `;
 
+
     super(options);
 
     this.els = {
@@ -52,6 +53,7 @@ export default class GameSettings extends Modal {
     if (!fullscreen.isAvailable())
       this.els.fullscreen.style.display = 'none';
 
+    this.restore();
     this.detectSettings();
 
     this._resizeListener = event => this.detectSettings();
@@ -60,11 +62,9 @@ export default class GameSettings extends Modal {
 
   detectSettings() {
     let app = document.querySelector('#app');
-    let settings = this.settings = {
-      audio: !Howler._muted,
-      fullscreen: fullscreen.isEnabled(),
-      barPosition: app.classList.contains('left') ? 'left' : 'right',
-    };
+    let settings = this.settings;
+
+    settings.fullscreen = fullscreen.isEnabled();
 
     if (settings.audio)
       this.el.querySelector('INPUT[name=audio][value=on]').checked = true;
@@ -84,6 +84,7 @@ export default class GameSettings extends Modal {
 
   toggleAudio() {
     this.settings.audio = !this.settings.audio;
+    this.save();
 
     Howler.mute(!this.settings.audio);
   }
@@ -96,10 +97,47 @@ export default class GameSettings extends Modal {
 
   toggleBarPosition() {
     this.settings.barPosition = this.settings.barPosition === 'left' ? 'right' : 'left';
+    this.save();
 
     let app = document.querySelector('#app');
     app.classList.toggle('left');
     app.classList.toggle('right');
+  }
+
+  save() {
+    let settings = this.settings;
+
+    localStorage.setItem('settings', JSON.stringify({
+      audio: settings.audio,
+      barPosition: settings.barPosition,
+    }));
+  }
+  restore() {
+    let settings = localStorage.getItem('settings');
+
+    if (settings) {
+      settings = JSON.parse(settings);
+
+      Howler.mute(!settings.audio);
+
+      let app = document.querySelector('#app');
+      if (settings.barPosition === 'left') {
+        app.classList.remove('left');
+        app.classList.add('right');
+      }
+      else {
+        app.classList.remove('right');
+        app.classList.add('left');
+      }
+    }
+    else {
+      settings = {
+        audio: !Howler._muted,
+        barPosition: app.classList.contains('left') ? 'right' : 'left',
+      };
+    }
+
+    this.settings = settings;
   }
 
   destroy() {
