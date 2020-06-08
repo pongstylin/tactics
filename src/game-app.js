@@ -29,6 +29,10 @@ var buttons = {
     settings.show();
   },
   replay: async () => {
+    let $app = $('#app');
+    if ($app.hasClass('chat-open'))
+      buttons.chat();
+
     let turnId = 0;
     let nextActionId = 0;
 
