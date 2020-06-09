@@ -96,7 +96,7 @@ export default class GameClient extends Client {
     return this._server.requestAuthorized(this.name, 'getPlayerSet', [gameTypeId, setName])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getPlayerSet(gameType, setName);
+          return this.getPlayerSet(gameTypeId, setName);
         throw error;
       });
   }
@@ -104,7 +104,7 @@ export default class GameClient extends Client {
     return this._server.requestAuthorized(this.name, 'savePlayerSet', [gameTypeId, setName, set])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.savePlayerSet(gameType, setName, set);
+          return this.savePlayerSet(gameTypeId, setName, set);
         throw error;
       });
   }
