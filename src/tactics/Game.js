@@ -589,26 +589,20 @@ export default class Game {
     this._inReplay = false;
     this._emit({ type:'endReplay' });
 
-    if (this.isMyTurn) {
-      let turnId = -this._teams.length;
+    if (this.state.ended) {
+      this.cursor.setToCurrent();
+      this.setState();
+      this.notice = null;
+      this._endGame(true);
 
-      this.play(turnId, 0, 'back');
+      // This triggers the removal of location.hash
+      this._isSynced = true;
+      this._emit({ type:'startSync' });
     }
     else {
-      let turnId = -1;
+      let turnId = this.isMyTurn ? -this._teams.length : -1;
 
-      if (this.state.ended) {
-        await this.cursor.set(turnId, -1);
-        this.setState();
-        this.notice = null;
-        this._endGame(true);
-
-        // This triggers the removal of location.hash
-        this._isSynced = true;
-        this._emit({ type:'startSync' });
-      }
-      else
-        this.play(turnId, 0, 'back');
+      this.play(turnId, 0, 'back');
     }
   }
   async play(turnId, actionId, skipPassedTurns = false) {

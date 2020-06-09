@@ -440,8 +440,10 @@ function debugMessage(client, message, inOrOut) {
       suffix = `[${message.id}] requestId=${body.requestId}; error=[${body.error.code}] ${body.error.message}`;
     else
       suffix = `[${message.id}] requestId=${body.requestId}`;
+  else if (message.type === 'join' && inOrOut === 'in')
+    suffix = `[${message.id}] ${body.service}:${body.group}; params=${JSON.stringify(body.params)}`;
   else if (
-    message.type === 'join' || message.type === 'leave' ||
+    message.type === 'join'  || message.type === 'leave' ||
     message.type === 'enter' || message.type === 'exit'
   )
     suffix = `[${message.id}] ${body.service}:${body.group}`;
