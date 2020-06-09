@@ -474,24 +474,23 @@ function renderCompleteGames() {
 function renderGame(game) {
   let teams = game.teams;
 
-  let left;
+  let left = `${game.typeName}`;
   // Completed Games
   if (game.ended) {
-    left = `<SPAN>${game.typeName},</SPAN> `;
     if (game.winnerId === null)
-      left += '<SPAN>Draw!</SPAN>';
+      left += ', <SPAN>Draw!</SPAN>';
     else if (teams[game.winnerId].playerId === myPlayerId)
-      left += '<SPAN>You Win!</SPAN>';
+      left += ', <SPAN>You Win!</SPAN>';
     else
-      left += '<SPAN>You Lose!</SPAN>';
+      left += ', <SPAN>You Lose!</SPAN>';
   }
   // Active Games
   else if (game.started) {
-    left = `<SPAN>${game.typeName}</SPAN>`;
+    // no-op
   }
   // Waiting Games
   else {
-    let labels = [game.typeName];
+    let labels = [];
 
     if (game.turnTimeLimit === 86400)
       labels.push('1 Day');
@@ -510,7 +509,8 @@ function renderGame(game) {
         labels.push('You 2nd');
     }
 
-    left = '<SPAN>' + labels.join(',</SPAN> <SPAN>') + '</SPAN>';
+    if (labels.length)
+      left += ', <SPAN>' + labels.join(',</SPAN> <SPAN>') + '</SPAN>';
   }
 
   let middle;

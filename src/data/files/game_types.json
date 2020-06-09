@@ -362,6 +362,55 @@
           "max": 10,
 
           "types": [
+            ["Scout",             { "max":1  }],
+            ["Assassin",          { "max":1  }],
+            ["Knight",            { "max":3  }],
+            ["Cleric",            { "max":1  }],
+            ["StoneGolem",        { "max":1  }],
+            ["Pyromancer",        { "max":2  }],
+            ["Enchantress",       { "max":1  }],
+            ["DarkMagicWitch",    { "max":1  }],
+            ["BarrierWard",       { "max":1  }],
+            ["LightningWard",     { "max":1  }],
+            ["MudGolem",          { "max":1  }],
+            ["PoisonWisp",        { "max":1  }],
+            ["FrostGolem",        { "max":1  }],
+            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["Furgon",            { "max":1  }],
+            ["DragonspeakerMage", { "max":1  }],
+            ["BeastRider",        { "max":1  }],
+            ["GolemAmbusher",     { "max":1  }],
+            ["Berserker",         { "max":1  }]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[2, 0], "type":"Cleric" },
+          { "assignment":[2, 1], "type":"DragonTyrant" },
+          { "assignment":[2, 2], "type":"PoisonWisp" },
+          { "assignment":[5, 3], "type":"Scout" },
+          { "assignment":[0, 4], "type":"DragonspeakerMage" },
+          { "assignment":[1, 4], "type":"MudGolem" },
+          { "assignment":[2, 4], "type":"Knight" },
+          { "assignment":[3, 4], "type":"Pyromancer" },
+          { "assignment":[4, 4], "type":"Knight" }
+        ]
+      }]
+    }
+  ],
+  [
+    "legendsGoldNoDSM",
+    {
+      "name": "Legends Gold (no DSM)",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "units": {
+          "max": 10,
+
+          "types": [
             ["Assassin",       { "max":1 }],
             ["Knight",         { "max":3 }],
             ["Cleric",         { "max":1 }],
