@@ -691,7 +691,7 @@ async function loadGame(transport) {
 
   let localTeamIds = transport.teams
     .filter(t => t && t.playerId === authClient.playerId)
-    .map(t => t.originalId);
+    .map(t => t.slot);
 
   return new Tactics.Game(transport, localTeamIds);
 }
@@ -922,7 +922,7 @@ async function showPracticeIntro(gameData) {
   let person;
   if (gameData.state.randomFirstTurn)
     person = 'random';
-  else if (creatorTeam.originalId === 0)
+  else if (creatorTeam.slot === 0)
     person = creatorTeam.name;
   else
     person = 'this one';
@@ -1107,7 +1107,7 @@ async function showJoinIntro(gameData) {
     let person;
     if (gameData.state.randomFirstTurn)
       person = 'random';
-    else if (creatorTeam.originalId === 0)
+    else if (creatorTeam.slot === 0)
       person = creatorTeam.name;
     else
       person = 'you';

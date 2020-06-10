@@ -160,6 +160,10 @@ export default class GameClient extends Client {
             state.started = new Date(state.started);
           if (state.turnStarted)
             state.turnStarted = new Date(state.turnStarted);
+          state.teams.forEach(team => {
+            if (!team) return;
+            team.createdAt = new Date(team.createdAt);
+          });
           if (state.actions)
             state.actions.forEach(action => {
               action.created = new Date(action.created);

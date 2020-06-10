@@ -473,7 +473,7 @@ export default class Game {
     if (typeof team === 'number')
       team = this.teams[team];
 
-    return this._localTeamIds.includes(team.originalId);
+    return this._localTeamIds.includes(team.slot);
   }
   hasOneLocalTeam(team) {
     if (team !== undefined && !this.isMyTeam(team)) return false;
@@ -499,7 +499,7 @@ export default class Game {
     let degree = 0;
     if (this._localTeamIds.length) {
       let teamId = Math.min(...this._localTeamIds);
-      let team = teams.find(t => t.originalId === teamId);
+      let team = teams.find(t => t.slot === teamId);
       degree = board.getDegree(team.position, 'S');
 
       board.rotate(degree);
@@ -1672,7 +1672,7 @@ export default class Game {
     if (this.state.type === 'chaos')
       if ('newPlayerTeam' in action) {
         let newPlayerTeam = this.teams[action.newPlayerTeam];
-        this._localTeamIds.push(newPlayerTeam.originalId);
+        this._localTeamIds.push(newPlayerTeam.slot);
       }
 
     this._applyChangeResults(action.results);

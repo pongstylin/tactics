@@ -80,6 +80,22 @@ MIGRATIONS.game = [
 
     return data;
   },
+  /*
+   * Changed a couple of team fields.
+   */
+  data => {
+    data.state.teams.forEach(team => {
+      if (!team) return;
+
+      team.createdAt = team.joined;
+      delete team.joined;
+
+      team.slot = team.originalId;
+      delete team.originalId;
+    });
+
+    return data;
+  },
 ];
 
 /*

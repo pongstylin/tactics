@@ -349,13 +349,18 @@ export default class Unit {
       return result;
     }
 
-    let bad_luck = Math.random() * 100;
+    let random;
 
     // This metric is used to determine which actions required luck to determine results.
-    if (calc.chance > 0 && calc.chance < 100)
-      result.luck = Math.round(calc.chance - bad_luck);
+    if (calc.chance > 0 && calc.chance < 100) {
+      random = this.team.random();
 
-    if (bad_luck < calc.chance) {
+      result.luck = Object.assign({ chance:calc.chance }, random);
+    }
+    else
+      random = { number:50 };
+
+    if (random.number < calc.chance) {
       result.changes = {};
       // Impose an upper limit to the health to prevent overhealing
       result.changes.mHealth = Math.min(0, unit.mHealth - calc.damage);

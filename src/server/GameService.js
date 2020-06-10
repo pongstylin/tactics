@@ -387,16 +387,6 @@ class GameService extends Service {
     let gameData = game.toJSON();
     gameData.state = gameData.state.getData();
 
-    let teamPlayerIds = new Set(gameData.state.teams.map(t => t && t.playerId));
-    let isPracticeGame = teamPlayerIds.size === 1;
-
-    // Don't allow people to view sets for a non-practice game before it starts.
-    if (!gameData.state.started && !isPracticeGame)
-      gameData.state.teams.forEach(t => {
-        if (!t) return;
-        delete t.set;
-      });
-
     return gameData;
   }
   async onGetPlayerStatusRequest(client, gameId) {
@@ -470,7 +460,7 @@ class GameService extends Service {
 
           if (game.state.currentTurnId === firstTurnId) {
             let firstTeam = game.state.currentTeam;
-            let mostRecentTeam = game.state.teams.slice().sort((a, b) => b.joined - a.joined)[0];
+            let mostRecentTeam = game.state.teams.slice().sort((a, b) => b.createdAt - a.createdAt)[0];
             if (firstTeam === mostRecentTeam)
               return;
           }

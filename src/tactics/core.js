@@ -329,7 +329,7 @@ window.Tactics = (function () {
       return transport.whenReady.then(() => {
         let localTeamIds = transport.teams
           .filter(team => !team.bot)
-          .map(team => team.originalId);
+          .map(team => team.slot);
 
         return new Game(transport, localTeamIds);
       });

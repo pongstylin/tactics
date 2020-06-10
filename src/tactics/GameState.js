@@ -1,4 +1,7 @@
 import EventEmitter from 'events';
+import seedrandom from 'seedrandom';
+
+import Team from 'models/Team.js';
 import ServerError from 'server/Error.js';
 import Board from 'tactics/Board.js';
 import botFactory from 'tactics/botFactory.js';
@@ -109,6 +112,8 @@ export default class GameState {
       });
     });
 
+    stateData.teams = stateData.teams.map(t => t && Team.load(t));
+
     return new GameState(stateData);
   }
 
@@ -197,7 +202,7 @@ export default class GameState {
    *    ],
    *  }
    */
-  join(team, slot) {
+  join(teamData, slot) {
     let teams = this.teams;
 
     if (this.started)
@@ -216,12 +221,12 @@ export default class GameState {
 
     // You may join a slot that is already assigned to you.
     // e.g. to add or modify a set.
-    if (teams[slot] && teams[slot].playerId !== team.playerId)
-      throw new TypeError('The slot is taken');
+    if (teams[slot]) {
+      if (teams[slot].playerId !== teamData.playerId)
+        throw new TypeError('The slot is taken');
 
-    team.joined = new Date();
-    team.originalId = slot;
-    teams[slot] = team;
+      return Object.assign(teams[slot], teamData);
+    }
 
     /*
      * Position teams on the board according to original team order.
@@ -232,13 +237,17 @@ export default class GameState {
      */
     let positions = teams.length === 2 ? ['N', 'S'] : ['N', 'E', 'S', 'W'];
 
-    team.position = positions[slot];
+    teamData.slot = slot;
+    teamData.position = positions[slot];
+
+    let team = teams[slot] = Team.create(teamData);
+    team.createRandom();
 
     this._emit({
       type: 'joined',
       data: {
         slot: slot,
-        team: team,
+        team: team.getData(),
       },
     });
   }
@@ -259,8 +268,8 @@ export default class GameState {
     }
 
     if (this.type === 'chaos')
-      teams.unshift({
-        originalId: 4,
+      teams.unshift(Team.create({
+        slot: 4,
         name: 'Chaos',
         colorId: 'White',
         bot: 'Chaos',
@@ -269,7 +278,7 @@ export default class GameState {
           assignment: [5, 5],
         }],
         position: 'C',
-      });
+      }));
 
     teams.forEach((team, teamId) => { team.id = teamId });
 
@@ -333,11 +342,7 @@ export default class GameState {
       type: 'startGame',
       data: {
         started: this.started,
-        teams: this.teams.map(t => {
-          let team = {...t};
-          delete team.units;
-          return team;
-        }),
+        teams: this.teams.map(t => t.getData()),
         units: this.units,
       },
     });
@@ -367,25 +372,12 @@ export default class GameState {
    * It does not include all of the data that is serialized by toJSON().
    */
   getData() {
-    /*
-     * Hide the team's unit set.  This is particularly useful when the game has
-     * not started yet.  Don't want snooping on a team's set before joining.
-     */
-    let teams = this.teams.map(team => {
-      if (team) {
-        team = {...team};
-        delete team.units;
-      }
-
-      return team;
-    });
-
     return {
       type:  this.type,
       randomFirstTurn: this.randomFirstTurn,
       turnTimeLimit: this.turnTimeLimit,
 
-      teams: teams,
+      teams: this.teams.map(t => t && t.getData()),
 
       started:       this.started,
 
@@ -929,29 +921,20 @@ export default class GameState {
    * Intended for serializing game data for persistent storage.
    */
   toJSON() {
-    let teams = this.teams.map(team => {
-      if (team) {
-        team = {...team};
-        delete team.units;
-      }
-
-      return team;
-    });
-
     return {
-      type:     this.type,
-      teams:    teams,
+      type: this.type,
+      teams: this.teams,
 
       randomFirstTurn: this.randomFirstTurn,
       turnTimeLimit: this.turnTimeLimit,
 
-      started:  this.started,
-      ended:    this.ended,
+      started: this.started,
+      ended: this.ended,
 
       turnStarted: this.turnStarted,
-      turns:       this._turns,
-      units:       this.units,
-      actions:     this.actions,
+      turns: this._turns,
+      units: this.units,
+      actions: this.actions,
 
       winnerId: this.winnerId,
     };
