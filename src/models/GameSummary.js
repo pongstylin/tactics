@@ -36,6 +36,7 @@ export default class GameSummary {
       started: started,
       ended: ended,
       randomFirstTurn: game.state.randomFirstTurn,
+      randomHitChance: game.state.randomHitChance,
       turnStarted: game.state.turnStarted,
       turnTimeLimit: game.state.turnTimeLimit,
       isPublic: game.isPublic,

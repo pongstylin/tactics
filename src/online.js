@@ -511,6 +511,9 @@ function renderGame(game) {
         labels.push('You 2nd');
     }
 
+    if (!game.randomHitChance)
+      labels.push('No Luck');
+
     if (labels.length)
       left += ', <SPAN>' + labels.join(',</SPAN> <SPAN>') + '</SPAN>';
   }

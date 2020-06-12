@@ -240,7 +240,9 @@ window.addEventListener('DOMContentLoaded', () => {
           // Time limit must match
           turnTimeLimit: gameOptions.turnTimeLimit,
           // First turn randomization must match player preference.
-          randomFirstTurn: turnOrder === 'random',
+          randomFirstTurn: gameOptions.randomFirstTurn,
+          // Blocking system must match player preference.
+          randomHitChance: gameOptions.randomHitChance,
         },
         sort: 'created',
         limit: 1,
