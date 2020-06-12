@@ -287,7 +287,7 @@ export default class Unit {
             calc.chance = chance;
           else if (chance < 50)
             calc.chance = 0;
-          else if (targetUnit.mBlocking/factor >= targetUnit.blocking/2)
+          else if (targetUnit.blocking && targetUnit.mBlocking/factor >= targetUnit.blocking/2)
             calc.chance = 0;
           else
             calc.chance = 100;
