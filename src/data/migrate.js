@@ -104,6 +104,8 @@ MIGRATIONS.game = [
 
       team.useRandom = true;
     });
+
+    return data;
   },
 ];
 
