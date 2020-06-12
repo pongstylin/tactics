@@ -839,6 +839,8 @@ function renderShareLink(gameData, container) {
     message += ' at 2min per turn';
   else if (gameData.state.turnTimeLimit === 30)
     message += ' at 30sec per turn';
+  if (!gameData.state.randomHitChance)
+    message += ' without luck';
   message += '?';
 
   let link = location.origin + '/game.html?' + gameId;
@@ -927,9 +929,12 @@ async function showPracticeIntro(gameData) {
   else
     person = 'this one';
 
+  let blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
+
   details.innerHTML = `
     <DIV>This is a <I>${gameType.name}</I> game.</DIV>
     <DIV>The first team to move is ${person}.</DIV>
+    <DIV>The blocking system is ${blocking}.</DIV>
   `;
 
   $('#practice .set').show();
@@ -1112,10 +1117,13 @@ async function showJoinIntro(gameData) {
     else
       person = 'you';
 
+    let blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
+
     details.innerHTML = `
       <DIV>This is a <I>${gameType.name}</I> game.</DIV>
       <DIV>The turn time limit is set to ${turnLimit}.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
+      <DIV>The blocking system is ${blocking}.</DIV>
     `;
 
     if (gameType.isCustomizable) {
@@ -1458,7 +1466,7 @@ async function startGame() {
 
   if (location.hash)
     await buttons.replay();
-  else if (game.isMyTurn)
+  else if (game.isMyTurn && !game.isLocalGame)
     game.play(-game.teams.length);
   else
     game.play(-1);

@@ -600,7 +600,7 @@ export default class Game {
       this._emit({ type:'startSync' });
     }
     else {
-      let turnId = this.isMyTurn ? -this._teams.length : -1;
+      let turnId = this.isMyTurn && !this.isLocalGame ? -this._teams.length : -1;
 
       this.play(turnId, 0, 'back');
     }

@@ -66,6 +66,7 @@ export default class GameState {
       // These settings may be overwritten
       {
         randomFirstTurn: true,
+        randomHitChance: true,
         turnTimeLimit: null,
       },
       stateData,
@@ -239,9 +240,9 @@ export default class GameState {
 
     teamData.slot = slot;
     teamData.position = positions[slot];
+    teamData.useRandom = this.randomHitChance;
 
     let team = teams[slot] = Team.create(teamData);
-    team.createRandom();
 
     this._emit({
       type: 'joined',
@@ -375,6 +376,7 @@ export default class GameState {
     return {
       type:  this.type,
       randomFirstTurn: this.randomFirstTurn,
+      randomHitChance: this.randomHitChance,
       turnTimeLimit: this.turnTimeLimit,
 
       teams: this.teams.map(t => t && t.getData()),
@@ -923,19 +925,20 @@ export default class GameState {
   toJSON() {
     return {
       type: this.type,
-      teams: this.teams,
-
       randomFirstTurn: this.randomFirstTurn,
+      randomHitChance: this.randomHitChance,
       turnTimeLimit: this.turnTimeLimit,
 
+      teams: this.teams,
+
       started: this.started,
-      ended: this.ended,
 
       turnStarted: this.turnStarted,
       turns: this._turns,
       units: this.units,
       actions: this.actions,
 
+      ended: this.ended,
       winnerId: this.winnerId,
     };
   }

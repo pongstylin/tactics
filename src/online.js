@@ -84,6 +84,8 @@ window.addEventListener('DOMContentLoaded', () => {
       message += ' at 2min per turn';
     else if (gameData.state.turnTimeLimit === 30)
       message += ' at 30sec per turn';
+    if (!gameData.state.randomHitChance)
+      message += ' without luck';
     message += '?';
 
     return message;

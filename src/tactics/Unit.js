@@ -215,39 +215,40 @@ export default class Unit {
    * This method calculates what might happen if this unit attacked a target unit.
    * This helps bots make a decision on the best choice to make.
    */
-  calcAttack(target_unit, from, target) {
+  calcAttack(targetUnit, from, target) {
     if (!from)
       from = this.assignment;
     if (!target)
-      target = target_unit.assignment;
+      target = targetUnit.assignment;
 
     let calc     = {};
     let power    = Math.max(0, this.power + this.mPower);
-    let armor    = Math.max(0, Math.min(100, target_unit.armor + target_unit.mArmor));
-    let blocking = target_unit.blocking + target_unit.mBlocking;
+    let armor    = Math.max(0, Math.min(100, targetUnit.armor + targetUnit.mArmor));
+    let blocking = targetUnit.blocking + targetUnit.mBlocking;
 
-    // Equality check the unit ID since target_unit may be a clone.
-    if (this.aLOS && this.getLOSTargetUnit(target, from).id !== target_unit.id) {
+    // Equality check the unit ID since targetUnit may be a clone.
+    if (this.aLOS && this.getLOSTargetUnit(target, from).id !== targetUnit.id) {
       // Armor reduces melee/magic damage.
       calc.damage = Math.round(power * (100 - armor) / 100);
 
       // Another unit is in the way.  No chance to hit target unit.
       calc.chance = 0;
+      calc.miss = 'miss';
     }
     else if (
       (
         /^(melee|magic|heal)$/.test(this.aType) &&
-        target_unit.barriered
+        targetUnit.barriered
       ) ||
       (
         this.aType === 'melee' &&
-        target_unit.blocking === 100 &&
-        target_unit.directional === false &&
-        !target_unit.paralyzed &&
-        !target_unit.focusing
+        targetUnit.blocking === 100 &&
+        targetUnit.directional === false &&
+        !targetUnit.paralyzed &&
+        !targetUnit.focusing
       )
     ) {
-      calc.immune = true;
+      calc.miss = 'immune';
       calc.chance = 0;
       calc.damage = 0;
     }
@@ -255,32 +256,47 @@ export default class Unit {
       // Armor reduces magic damage.
       calc.damage = Math.round(power * (100 - armor) / 100);
 
-      if (target_unit.paralyzed || target_unit.focusing)
+      if (targetUnit.paralyzed || targetUnit.focusing)
         calc.chance = 100;
-      else if (target_unit.directional === false) {
+      else if (targetUnit.directional === false) {
         // Wards have 100% blocking from all directions.
-        // The Chaos Seed has 50% blocking from all directions.
+        // Chaos Seed has 50% blocking from all directions.
+        // Shrubs have 0% blocking from all directions.
         calc.chance = Math.max(0, Math.min(100, 100 - blocking));
 
         // A successful block reduces Chaos Seed blocking temporarily.
         // But, a failed block does not boost Chaos Seed blocking.
         calc.bonus   = 0;
-        calc.penalty = 100 - target_unit.blocking;
+        calc.penalty = 100 - targetUnit.blocking;
       }
       else {
         // My direction to target can be diagonal, such as NW
-        let direction = this.board.getDirection(from, target_unit.assignment, true);
+        let direction = this.board.getDirection(from, targetUnit.assignment, true);
 
-        if (direction.indexOf(target_unit.direction) > -1) {
+        if (direction.indexOf(targetUnit.direction) > -1) {
           // Hitting a unit from behind always succeeds.
           calc.chance = 100;
         }
         else {
+          let team = this.team;
           // Hits from the side have a greater chance and penalty
-          let factor = direction.indexOf(this.board.getRotation(target_unit.direction, 180)) > -1 ? 1 : 2;
-          calc.chance  = Math.max(0, Math.min(100, 100 - blocking/factor));
-          calc.bonus   = target_unit.blocking;
-          calc.penalty = 100*factor - target_unit.blocking;
+          let factor = direction.indexOf(this.board.getRotation(targetUnit.direction, 180)) > -1 ? 1 : 2;
+          let chance = Math.max(0, Math.min(100, 100 - blocking/factor));
+
+          if (team.useRandom)
+            calc.chance = chance;
+          else if (chance < 50)
+            calc.chance = 0;
+          else if (targetUnit.mBlocking/factor >= targetUnit.blocking/2)
+            calc.chance = 0;
+          else
+            calc.chance = 100;
+
+          if (calc.chance === 0)
+            calc.miss = 'block';
+
+          calc.bonus   = targetUnit.blocking;
+          calc.penalty = 100*factor - targetUnit.blocking;
         }
       }
     }
@@ -343,7 +359,7 @@ export default class Unit {
     let result = { unit };
     let calc = this.calcAttack(cUnit, this.assignment, action.target);
 
-    if (calc.immune) {
+    if (calc.miss === 'immune') {
       result.miss = 'immune';
 
       return result;
@@ -1540,18 +1556,22 @@ export default class Unit {
   }
   setTargetNotice(target_unit, target) {
     let calc = this.calcAttack(target_unit, null, target);
+    let chance =
+      calc.chance === 100 ? 'Hit' :
+      calc.chance === 0 ? `${calc.miss.toUpperCase('first')}` :
+      `${Math.floor(calc.chance)}%`;
     let notice;
 
     if (calc.effect)
       notice = calc.effect.toUpperCase('first')+'!';
-    else if (calc.immune)
+    else if (calc.miss === 'immune')
       notice = 'Immune!';
     else if (calc.damage === 0)
-      notice = calc.damage+' ('+Math.round(calc.chance)+'%)';
+      notice = `No Damage!`;
     else if (calc.damage < 0)
-      notice = '+'+Math.abs(calc.damage)+' ('+Math.round(calc.chance)+'%)';
+      notice = `+${Math.abs(calc.damage)} • ${chance}`;
     else
-      notice = '-'+calc.damage+' ('+Math.round(calc.chance)+'%)';
+      notice = `-${calc.damage} • ${chance}`;
 
     target_unit.change({ notice:notice });
   }

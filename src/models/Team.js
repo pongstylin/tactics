@@ -1,5 +1,20 @@
 import seedrandom from 'seedrandom';
 
+function createRandom() {
+  let rng = seedrandom(null, { state:true });
+  let rngState = rng.state();
+
+  return {
+    // Number of times random() has been called.
+    count: 0,
+
+    // The initial rng state used for manual validation purposes.
+    initial: rngState,
+
+    current: seedrandom("", { state:rngState }),
+  };
+};
+
 export default class Team {
   constructor(data) {
     Object.assign(this, {
@@ -24,6 +39,9 @@ export default class Team {
       // The position of the team on the board
       position: null,
 
+      // Whether chance-to-hit should use random numbers
+      useRandom: true,
+
       // The random number generator to see if a unit in the team will hit
       // Not applicable to games that don't use random numbers.
       randomState: undefined,
@@ -37,6 +55,9 @@ export default class Team {
       // The bot, if any, controlling the team
       bot: undefined,
     }, data);
+
+    if (this.useRandom)
+      this.randomState = createRandom();
   }
 
   static create(data) {
@@ -55,30 +76,15 @@ export default class Team {
   }
 
   random() {
+    if (!this.useRandom)
+      throw new TypeError('May not use random');
+
     if (!this.randomState)
       return { number:Math.random() * 100 };
 
     return {
       id: ++this.randomState.count,
       number: this.randomState.current() * 100,
-    };
-  }
-
-  createRandom() {
-    if (this.randomState)
-      throw new TypeError('Already created RNG');
-
-    let rng = seedrandom(null, { state:true });
-    let rngState = rng.state();
-
-    this.randomState = {
-      // Number of times random() has been called.
-      count: 0,
-
-      // The initial rng state used for manual validation purposes.
-      initial: rngState,
-
-      current: seedrandom("", { state:rngState }),
     };
   }
 

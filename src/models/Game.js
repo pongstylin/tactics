@@ -9,6 +9,7 @@ const gameKeys = new Set([
 const stateKeys = new Set([
   'type',
   'randomFirstTurn',
+  'randomHitChance',
   'turnTimeLimit',
   'teams',
 ]);

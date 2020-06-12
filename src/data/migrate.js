@@ -96,6 +96,15 @@ MIGRATIONS.game = [
 
     return data;
   },
+  data => {
+    data.randomHitChance = true;
+
+    data.state.teams.forEach(team => {
+      if (!team) return;
+
+      team.useRandom = true;
+    });
+  },
 ];
 
 /*

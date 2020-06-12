@@ -988,7 +988,7 @@ export default class {
       if (unit.armored)
         notices.push('Armored!');
 
-      if (unit.mBlocking < 0)
+      if (unit.mBlocking < 0 && (unit.mBlocking + unit.blocking) < 50)
         notices.push('Vulnerable!');
 
       if (unit.title)
@@ -1014,11 +1014,11 @@ export default class {
           els.block.text = unit.blocking;
 
           if (unit.mBlocking > 0) {
-            els.mBlock.text = '+'+Math.round(unit.mBlocking)+'%';
+            els.mBlock.text = '+'+Math.floor(unit.mBlocking)+'%';
             els.mBlock.style.fill = '#00CC00';
           }
           else {
-            els.mBlock.text = Math.round(unit.mBlocking)+'%';
+            els.mBlock.text = Math.ceil(unit.mBlocking)+'%';
             els.mBlock.style.fill = '#FF4444';
           }
 
@@ -1919,6 +1919,10 @@ export default class {
       if (game.pointerType === 'mouse')
         this._highlightTargetMix(tile);
       else if (unit)
+        selected.setTargetNotice(unit);
+    }
+    else if (tile.action === 'target') {
+      if (unit)
         selected.setTargetNotice(unit);
     }
 

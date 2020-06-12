@@ -169,9 +169,11 @@ window.addEventListener('DOMContentLoaded', () => {
     let vs = document.querySelector('INPUT[name=vs]:checked').value;
     let turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
     let turnLimit = document.querySelector('INPUT[name=turnLimit]:checked').value;
+    let randomHitChance = document.querySelector('INPUT[name=randomHitChance]:checked').value;
     let gameOptions = {
       randomFirstTurn: turnOrder === 'random',
       isPublic: vs === 'public',
+      randomHitChance: randomHitChance === 'true',
       teams: [null, null],
     };
 
