@@ -347,8 +347,8 @@ export default class ServerSocket {
     // Can't send messages until the connection is established.
     if (!this.isConnected)
       return;
-    // Wait until session is confirmed before sending queued messages.
-    if (!session.id && message.id)
+    // Wait until session is open before sending queued messages.
+    if (!session.isOpen && message.id)
       return;
 
     if (session.id && message.type !== 'open')
