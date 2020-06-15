@@ -84,6 +84,9 @@ export default class Furgon extends Unit {
     let targets = new Set();
 
     for (let enemy of enemies) {
+      // Don't surround units that can't move, e.g. Shrubs or Wards
+      if (enemy.mType === false) continue;
+
       board.getTileRange(enemy.assignment, 1, 1, true).forEach(target => {
         targets.add(target);
       });
