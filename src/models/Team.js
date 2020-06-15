@@ -56,7 +56,7 @@ export default class Team {
       bot: undefined,
     }, data);
 
-    if (this.useRandom)
+    if (this.useRandom && !this.randomState)
       this.randomState = createRandom();
   }
 
