@@ -632,6 +632,8 @@ export default class Game {
     // Or, clear 'Your Turn' notice so that it may be redisplayed after.
     this.notice = null;
 
+    this.viewed = null;
+
     this.lock();
     if (!this._isSynced) {
       this._isSynced = true;
