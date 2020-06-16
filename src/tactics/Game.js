@@ -1107,8 +1107,8 @@ export default class Game {
     }, delay);
   }
 
-  drawCard(unit) {
-    this._board.drawCard(unit, this._notice);
+  drawCard(unit, notice) {
+    this._board.drawCard(unit, notice || this._notice);
     return this;
   }
   lock(lockMode) {
@@ -1576,7 +1576,9 @@ export default class Game {
       });
 
       if (deadUnits.size > 1) {
-        this.notice = 'Multi kill!';
+        // Use 'drawCard()' instead of 'set notice' so that the notice isn't
+        // "sticky" and the selected unit doesn't take precedence.
+        this.drawCard(null, 'Multi kill!');
 
         // Add a few frames to take in the notice
         for (let i = 0; i < 4; i++)

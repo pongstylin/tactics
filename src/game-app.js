@@ -1602,7 +1602,7 @@ function setCursorAlert() {
       `);
   }
 
-  let label = `Turn ${game.turnId + 1} / ${game.nextActionId}`;
+  let label = `Turn ${game.turnId + 1} • ${game.nextActionId}`;
 
   $alert.find('.label').text(label);
 }
