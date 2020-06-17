@@ -14,6 +14,9 @@ async function modifyPlayerSets(playerId) {
   let hasLegendsGold = await dataAdapter.hasCustomPlayerSet(playerId, 'legendsGold');
   if (hasLegendsGold) return;
 
+  let hasLegendsGoldNoDSM = await dataAdapter.hasCustomPlayerSet(playerId, 'legendsGoldNoDSM');
+  if (!hasLegendsGoldNoDSM) return;
+
   let set = await dataAdapter.getPlayerSet(playerId, 'legendsGold', 'default');
   return dataAdapter.setPlayerSet(playerId, 'legendsGoldNoDSM', 'default', set);
 }
