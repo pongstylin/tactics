@@ -956,14 +956,18 @@ export default class Game {
    * Returns a promise decorated with a couple of useful methods.
    */
   readySpecial() {
-    let anim = this.selected.animReadySpecial();
+    let selected = this.selected;
+    let anim = selected.animReadySpecial();
     let promise = anim.play();
 
     // If you release too early, the attack is cancelled.
     // If you release after ~2 secs then the attack is launched. 
     promise.release = () => {
       anim.stop();
-      if (anim.state.ready) {
+
+      // Make sure the previously selected unit is still selected.
+      // It won't be if the opponent reverted before release.
+      if (anim.state.ready && this.selected === selected) {
         this._submitAction({type:'attackSpecial'});
 
         // Set this to false to prevent releasing twice.
