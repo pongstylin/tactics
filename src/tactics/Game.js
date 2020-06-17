@@ -563,7 +563,7 @@ export default class Game {
     return this.start();
   }
 
-  setState() {
+  setState(reportIt = false) {
     let board = this._board;
     board.setState(this.units, this._teams);
 
@@ -572,11 +572,26 @@ export default class Game {
 
     this.selectMode = 'move';
 
-    if (actions.length)
+    if (actions.length) {
       this.selected = actions[0].unit;
+
+      if (reportIt)
+        reportError(JSON.stringify({
+          error: 'reselect1',
+          stack: new Error().stack,
+          actions,
+        }));
+    }
     else if (this._inReplay && this.cursor.actions.length) {
       actions = board.decodeAction(this.cursor.actions);
       this.selected = actions[0].unit;
+
+      if (reportIt)
+        reportError(JSON.stringify({
+          error: 'reselect2',
+          stack: new Error().stack,
+          actions: this.cursor.actions,
+        }));
     }
     else
       this.render();
@@ -591,7 +606,7 @@ export default class Game {
 
     if (this.state.ended) {
       this.cursor.setToCurrent();
-      this.setState();
+      this.setState(true);
       this.notice = null;
       this._endGame(true);
 
