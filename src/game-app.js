@@ -673,8 +673,23 @@ async function getGameData(gameId) {
   return gameClient.getGameData(gameId);
 }
 async function joinGame(playerName, gameId, set) {
-  return authClient.setAccountName(playerName)
-    .then(() => gameClient.joinGame(gameId, { set }));
+  await authClient.setAccountName(playerName);
+
+  return gameClient.joinGame(gameId, { set }).catch(error => {
+    if (error.code !== 409) throw error;
+
+    return new Promise(resolve => {
+      popup({
+        message: 'Oops!  Somebody else joined the game first.',
+        buttons: [
+          { label:'Back', closeOnClick:false, onClick:() => history.back() },
+          { label:'Watch', onClick:resolve },
+        ],
+        minWidth: '250px',
+        closeOnCancel: false,
+      });
+    });
+  });
 }
 async function loadTransportAndGame(gameId, gameData) {
   return loadGame(await loadTransport(gameId, gameData));
