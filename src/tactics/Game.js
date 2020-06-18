@@ -99,7 +99,7 @@ export default class Game {
       });
 
     let whilePlaying = Promise.resolve();
-    whilePlaying.stop = true;
+    whilePlaying.state = 'stopped';
 
     Object.assign(this, {
       // Crude tracking of the pointer type being used.  Ideally, this should
@@ -598,8 +598,10 @@ export default class Game {
   }
 
   async resume() {
-    this._whilePlaying.stop = true;
-    await this._whilePlaying;
+    if (this._whilePlaying.state !== 'stopped') {
+      this._whilePlaying.state = 'interrupt';
+      await this._whilePlaying;
+    }
 
     this._inReplay = false;
     this._emit({ type:'endReplay' });
@@ -624,19 +626,19 @@ export default class Game {
     let cursor = this.cursor;
 
     if (turnId === undefined && actionId === undefined) {
-      if (!this._whilePlaying.stop)
+      if (this._whilePlaying.state !== 'stopped')
         return;
       if (this._isSynced && cursor.atCurrent)
         return;
     }
 
-    this._whilePlaying.stop = true;
+    this._whilePlaying.state = 'playing';
     await this._whilePlaying;
 
     let stopPlaying;
     let whilePlaying = this._whilePlaying = new Promise(resolve => {
       stopPlaying = () => {
-        whilePlaying.stop = true;
+        whilePlaying.state = 'stopped';
         this.lock('readonly');
         resolve();
       };
@@ -662,7 +664,7 @@ export default class Game {
       // Give the board a chance to appear before playing
       await sleep(100);
 
-      if (whilePlaying.stop)
+      if (whilePlaying.state === 'interrupt')
         return stopPlaying();
     }
 
@@ -686,7 +688,7 @@ export default class Game {
         }
       }
 
-      if (whilePlaying.stop)
+      if (whilePlaying.state === 'interrupt')
         return stopPlaying();
     }
 
@@ -707,8 +709,10 @@ export default class Game {
         this._resumeTurn();
   }
   async pause() {
-    this._whilePlaying.stop = true;
-    await this._whilePlaying;
+    if (this._whilePlaying.state !== 'stopped') {
+      this._whilePlaying.state = 'interrupt';
+      await this._whilePlaying;
+    }
 
     this.notice = null;
     this.lock(this.state.ended ? 'gameover' : 'readonly');
