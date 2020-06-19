@@ -718,7 +718,7 @@ export default class {
 
     pixi.addChild(unitsContainer);
 
-    this.drawTurnOptions();
+    this._coreSprite = Tactics.getSprite('core');
 
     // Preload the Trophy data URLs
     if (this.card) {
@@ -727,62 +727,6 @@ export default class {
     }
 
     return this;
-  }
-  drawTurnOptions() {
-    let turnOptions = new PIXI.Container();
-    let onTurnSelect = event => {
-      let target = event.target;
-
-      Tactics.playSound('select');
-      this.hideTurnOptions();
-      event.currentTarget.filters = null;
-
-      this._emit({
-        type:      'turn',
-        direction: target.data.direction,
-      });
-    };
-    let onTurnFocus = event => {
-      Tactics.playSound('focus');
-
-      let filter = new PIXI.filters.ColorMatrixFilter();
-      filter.brightness(1.75);
-      event.currentTarget.filters = [filter];
-    };
-    let onTurnBlur = event => {
-      event.currentTarget.filters = null;
-    };
-
-    ['turn_tl.png','turn_tr.png','turn_bl.png','turn_br.png'].forEach((image, i) => {
-      let sprite = new PIXI.Sprite.from('https://legacy.taorankings.com/images/'+image);
-      sprite.interactive = true;
-      sprite.buttonMode  = true;
-      sprite.click       = onTurnSelect;
-      sprite.tap         = onTurnSelect;
-      sprite.mouseover   = onTurnFocus;
-      sprite.mouseout    = onTurnBlur;
-
-      if (i == 0) {
-        sprite.position = new PIXI.Point(-42, -HALF_TILE_HEIGHT);
-        sprite.data = {direction:'N'};
-      }
-      else if (i == 1) {
-        sprite.position = new PIXI.Point( 12, -HALF_TILE_HEIGHT);
-        sprite.data = {direction:'E'};
-      }
-      else if (i == 2) {
-        sprite.position = new PIXI.Point(-43, 2);
-        sprite.data = {direction:'W'};
-      }
-      else if (i == 3) {
-        sprite.position = new PIXI.Point( 12, 2);
-        sprite.data = {direction:'S'};
-      }
-
-      turnOptions.addChild(sprite);
-    });
-
-    return this._turnOptions = turnOptions;
   }
 
   createGradientSpriteForHealthBar(options) {
@@ -1614,7 +1558,7 @@ export default class {
     this.teamsUnits = [];
     this.teams = [];
     this.clearHighlight();
-    this.hideTurnOptions();
+    this.hideCompass();
 
     return this;
   }
@@ -1640,7 +1584,7 @@ export default class {
       if (this.viewed)
         this.showDirection(unit);
       else
-        this._showTurnOptions(unit);
+        this._showCompass(unit);
     }
 
     return this;
@@ -1660,7 +1604,7 @@ export default class {
       this.hideTargets();
 
     this.clearHighlight();
-    this.hideTurnOptions();
+    this.hideCompass();
 
     return this;
   }
@@ -1745,60 +1689,72 @@ export default class {
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
-  _showTurnOptions(unit) {
-    let pixi = this.pixi;
-    let turnOptions = this._turnOptions;
+  _showCompass(unit) {
+    let compass = this._compass;
+    if (compass)
+      this.hideCompass();
 
-    turnOptions.data = { unit };
-    turnOptions.position = unit.assignment.getTop().clone();
-    turnOptions.position.y -= HALF_TILE_HEIGHT / 2;
+    compass = this._compass = this._coreSprite.renderFrame({
+      spriteName: 'Compass',
+      onButtonEvent: ({ type, name:direction }) => {
+        if (type === 'select') {
+          this.hideCompass();
+          this._emit({ type:'turn', direction });
+        }
+        // The compass is only shown when there is a selected unit.  And the
+        // selected unit has a looped pulsing animation.  So extra rendering
+        // is not required when going in and out of focus (hover).
+        //else
+          //this._emit({ type:'render' });
+      },
+    }).container;
+    compass.position = unit.assignment.getCenter().clone();
 
-    turnOptions.children.forEach(arrow => {
-      arrow.interactive = arrow.buttonMode = true;
-      arrow.visible = true;
-    });
-
-    if (!pixi.children.includes(turnOptions))
-      pixi.addChild(turnOptions);
+    this.pixi.addChild(compass);
 
     return this;
   }
   showDirection(unit, tile, direction) {
+    let compass = this._compass;
+    if (compass)
+      this.hideCompass();
+
     if (tile === undefined) tile = unit.assignment;
     if (direction === undefined) direction = unit.direction;
 
-    let pixi = this.pixi;
-    let turnOptions = this._turnOptions;
-
-    turnOptions.data = { unit };
-    if (tile.assigned) {
-      turnOptions.position = tile.getTop().clone();
-      turnOptions.position.y -= HALF_TILE_HEIGHT / 2;
-    }
-    else {
-      turnOptions.position = tile.getCenter().clone();
-
-      let offset = this.getOffset(0.25, direction);
-      turnOptions.position.x -= offset[0];
-      turnOptions.position.y -= offset[1];
-    }
-
-    turnOptions.children.forEach(arrow => {
-      arrow.interactive = arrow.buttonMode = false;
-      arrow.visible = unit.directional === false || arrow.data.direction == direction;
+    let styles = {};
+    ['N','E','S','W'].forEach(d => {
+      styles[d] = {
+        visible: unit.directional === false || d === direction,
+      };
     });
 
-    if (!pixi.children.includes(turnOptions))
-      pixi.addChild(turnOptions);
+    compass = this._compass = this._coreSprite.renderFrame({
+      spriteName: 'Compass',
+      styles,
+    }).container;
+    compass.position = tile.getCenter().clone();
+
+    if (!tile.assigned) {
+      // The compass is normally raised.  Don't raise for empty tiles.
+      compass.position.y += TILE_HEIGHT * 0.75;
+
+      // Also tuck the arrow into the origin tile a bit
+      let offset = this.getOffset(0.25, direction);
+      compass.position.x -= offset[0];
+      compass.position.y -= offset[1];
+    }
+
+    this.pixi.addChild(compass);
 
     return this;
   }
-  hideTurnOptions() {
-    let pixi = this.pixi;
-    let turnOptions = this._turnOptions;
+  hideCompass() {
+    let compass = this._compass;
+    if (compass)
+      this.pixi.removeChild(compass);
 
-    if (pixi && pixi.children.includes(turnOptions))
-      pixi.removeChild(turnOptions);
+    this._compass = null;
 
     return this;
   }

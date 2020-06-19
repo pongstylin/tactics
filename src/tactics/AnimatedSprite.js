@@ -228,7 +228,13 @@ export default class AnimatedSprite {
     let container = options.container;
 
     let frames = framesData.map(frameData => {
-      let frame = this._renderFrame(sprites, sprite, frameData.id, options);
+      let frame = this._renderFrame(
+        sprites,
+        sprite.name,
+        sprite.frames,
+        frameData.id,
+        options,
+      );
 
       return [
         ...frame.scripts,
@@ -247,7 +253,13 @@ export default class AnimatedSprite {
     let { sprites, sprite, framesData } = this._getSpriteData(options);
     let frameId = options.frameId || 0;
 
-    return this._renderFrame(sprites, sprite, framesData[frameId].id, options);
+    return this._renderFrame(
+      sprites,
+      sprite.name,
+      sprite.frames,
+      framesData[frameId].id,
+      options,
+    );
   }
 
   _getSpriteData(options) {
@@ -340,6 +352,15 @@ export default class AnimatedSprite {
     }
 
     /*
+     * Normalize the buttons
+     */
+    if (!data.buttons)
+      data.buttons = [];
+    for (let buttonId = 0; buttonId < data.buttons.length; buttonId++) {
+      this._normalizeButton(data, buttonId);
+    }
+
+    /*
      * Clean up sprite metadata
      */
     for (let sprite of data.sprites) {
@@ -393,16 +414,46 @@ export default class AnimatedSprite {
     /*
      * Normalize the frames
      */
-    sprite.frames.forEach((frame, frameId) => {
+    this._normalizeFrames(data, sprite.frames);
+
+    let previousLayers = sprite.frames.last.layers;
+
+    while (sprite.frameCount > sprite.frames.length) {
+      let newFrame = { id:sprite.frames.length };
+      if (previousLayers)
+        newFrame.layers = previousLayers.map(l => ({...l}));
+
+      sprite.frames.push(newFrame);
+    }
+
+    sprite.isNormal = true;
+
+    // Pre-compile sprites that don't have scripts
+    if (!sprite.scripts)
+      this._compileSprite(sprite);
+
+    return sprite;
+  }
+  _normalizeButton(data, buttonId) {
+    let button = data.buttons[buttonId];
+
+    button.up = this._normalizeFrames(data, [button.up])[0];
+    button.over = this._normalizeFrames(data, [button.over])[0];
+    button.down = this._normalizeFrames(data, [button.down])[0];
+
+    return button;
+  }
+  _normalizeFrames(data, frames) {
+    frames.forEach((frame, frameId) => {
       /*
        * Make sure every frame is an object with an id
        */
       if (Array.isArray(frame))
-        sprite.frames[frameId] = frame = { id:frameId, layers:frame };
+        frames[frameId] = frame = { id:frameId, layers:frame };
       if (frame.id === undefined)
         frame.id = frameId;
 
-      let previousLayers = frameId > 0 ? sprite.frames[frameId-1].layers || [] : [];
+      let previousLayers = frameId > 0 ? frames[frameId-1].layers || [] : [];
       let layers = frame.layers || [];
 
       /*
@@ -419,7 +470,7 @@ export default class AnimatedSprite {
         if (previousLayers.length)
           newFrame.layers = previousLayers.map(l => ({...l}));
 
-        sprite.frames.splice(frameId, 0, newFrame);
+        frames.splice(frameId, 0, newFrame);
       }
 
       /*
@@ -491,6 +542,10 @@ export default class AnimatedSprite {
               if (layer.imageId === undefined)
                 layer.imageId = previousLayer.imageId;
             }
+            else if (layer.type === 'button') {
+              if (layer.buttonId === undefined)
+                layer.buttonId = previousLayer.buttonId;
+            }
           }
         }
         else {
@@ -507,23 +562,7 @@ export default class AnimatedSprite {
         delete frame.layers;
     });
 
-    let previousLayers = sprite.frames.last.layers;
-
-    while (sprite.frameCount > sprite.frames.length) {
-      let newFrame = { id:sprite.frames.length };
-      if (previousLayers)
-        newFrame.layers = previousLayers.map(l => ({...l}));
-
-      sprite.frames.push(newFrame);
-    }
-
-    sprite.isNormal = true;
-
-    // Pre-compile sprites that don't have scripts
-    if (!sprite.scripts)
-      this._compileSprite(sprite);
-
-    return sprite;
+    return frames;
   }
 
   _compile() {
@@ -836,29 +875,29 @@ export default class AnimatedSprite {
     });
   }
 
-  _renderFrame(sprites, sprite, frameId, options) {
+  _renderFrame(sprites, name, frames, frameId, options) {
     let scripts = [];
     let container = new Container();
-    container.name = sprite.name;
+    container.name = name;
 
     let frameData;
-    if (options.styles && options.styles[sprite.name]) {
-      let style = options.styles[sprite.name];
+    if (options.styles && options.styles[name]) {
+      let style = options.styles[name];
       normalizeTransform(style);
       normalizeColor(style);
 
-      frameData = {...sprite.frames[frameId]};
+      frameData = {...frames[frameId]};
       if (style.transform)
         frameData.transform = mergeTransforms(style.transform, frameData.transform);
       if (style.color)
         frameData.color = mergeColors(style.color, frameData.color);
     }
     else
-      frameData = sprite.frames[frameId];
+      frameData = frames[frameId];
 
     if (options.unit) {
       let unit = options.unit;
-      let prevFrameData = frameId > 0 ? sprite.frames[frameId-1] : {};
+      let prevFrameData = frameId > 0 ? frames[frameId-1] : {};
 
       // Apply unit styles
       if (frameData.unit)
@@ -883,20 +922,49 @@ export default class AnimatedSprite {
       frameData.layers.forEach(layerData => {
         let layer;
 
+        if (options.styles && options.styles[layerData.name]) {
+          let style = options.styles[layerData.name];
+          normalizeTransform(style);
+          normalizeColor(style);
+
+          let transform = style.transform;
+          delete style.transform;
+          let color = style.color;
+          delete style.color;
+
+          layerData = Object.assign({}, layerData, style);
+          if (transform)
+            layerData.transform = mergeTransforms(transform, layerData.transform);
+          if (color)
+            layerData.color = mergeColors(color, frameData.color);
+        }
+
         if (layerData.type === 'sprite') {
           let spriteFrame;
           let subFrameData;
           if (typeof layerData.spriteId === 'number') {
             let subSprite = sprites[layerData.spriteId];
             subFrameData = subSprite.frames[layerData.frameId];
-            spriteFrame = this._renderFrame(sprites, subSprite, layerData.frameId, options);
+            spriteFrame = this._renderFrame(
+              sprites,
+              subSprite.name,
+              subSprite.frames,
+              layerData.frameId,
+              options,
+            );
           }
           else {
             let importSpriteName = layerData.spriteId.replace(/\/.+$/, '');
             let importSprite = AnimatedSprite.get(importSpriteName);
             let subSprite = AnimatedSprite.get(layerData.spriteId);
             subFrameData = subSprite.frames[layerData.frameId];
-            spriteFrame = importSprite._renderFrame(importSprite.sprites, subSprite, layerData.frameId, options);
+            spriteFrame = importSprite._renderFrame(
+              importSprite.sprites,
+              subSprite.name,
+              subSprite.frames,
+              layerData.frameId,
+              options,
+            );
           }
 
           scripts.push(...spriteFrame.scripts);
@@ -919,8 +987,85 @@ export default class AnimatedSprite {
               applyColor(layer, layerData.color);
           }
         }
+        else if (layerData.type === 'button') {
+          let button = this._data.buttons[layerData.buttonId];
+          let buttonUpFrame = this._renderFrame(
+            sprites,
+            null,
+            [button.up],
+            0,
+            options,
+          );
+          let buttonOverFrame = this._renderFrame(
+            sprites,
+            null,
+            [button.over],
+            0,
+            options,
+          );
+          buttonOverFrame.container.alpha = 0;
+          let buttonDownFrame = this._renderFrame(
+            sprites,
+            null,
+            [button.down],
+            0,
+            options,
+          );
+
+          scripts.push(...buttonUpFrame.scripts);
+          layer = new Container();
+          layer.name = layerData.name;
+          /*
+           * Adding both states to the container since swapping children or even
+           * visibility can cause the over/out events to rapidly alternate.
+           * Changing alpha, however, does not exhibit this behavior.
+           */
+          layer.addChild(buttonUpFrame.container);
+          layer.addChild(buttonOverFrame.container);
+
+          if (options.onButtonEvent) {
+            layer.interactive = true;
+            layer.buttonMode = true;
+            layer.pointertap = () => {
+              buttonDownFrame.scripts.forEach(s => s());
+
+              options.onButtonEvent({
+                type: 'select',
+                name: layerData.name,
+              });
+            };
+            layer.pointerover = () => {
+              buttonUpFrame.container.alpha = 0;
+              buttonOverFrame.container.alpha = 1;
+
+              buttonOverFrame.scripts.forEach(s => s());
+
+              options.onButtonEvent({
+                type: 'focus',
+                name: layerData.name,
+              });
+            };
+            layer.pointerout = () => {
+              buttonUpFrame.container.alpha = 1;
+              buttonOverFrame.container.alpha = 0;
+
+              options.onButtonEvent({
+                type: 'blur',
+                name: layerData.name,
+              });
+            };
+          }
+
+          if (layerData.transform)
+            applyTransform(layer, layerData.transform);
+          if (layerData.color)
+            applyColor(layer, layerData.color);
+        }
         else
-          throw `Unsupported frame type: ${layerData.type}`;
+          throw `Unsupported layer type: ${layerData.type}`;
+
+        if (layerData.visible !== undefined)
+          layer.visible = !!layerData.visible;
 
         container.addChild(layer);
       });

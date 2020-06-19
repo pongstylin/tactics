@@ -1371,7 +1371,7 @@ export default class Game {
       unit = allActions[0].unit;
 
     board.clearHighlight();
-    board.hideTurnOptions();
+    board.hideCompass();
 
     // Possible if no unit argument and this turn was passed.
     if (!unit)

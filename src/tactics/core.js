@@ -334,12 +334,6 @@ window.Tactics = (function () {
         return new Game(transport, localTeamIds);
       });
     },
-    images: [
-      'turn_tl.png',
-      'turn_tr.png', // Inefficient.  Better to flip the tl horizontally.
-      'turn_bl.png',
-      'turn_br.png'  // Inefficient.  Better to flip the bl horizontally.
-    ],
     animations: {
       death: [
         [

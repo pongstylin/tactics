@@ -1,4 +1,3 @@
-'use strict';
 /*
   Philosophy:
     A tile should have no awareness of the overall board.
