@@ -282,6 +282,10 @@ export default class {
     return this;
   }
 
+  toJSON() {
+    return [this.x, this.y];
+  }
+
   _emit(event) {
     this._emitter.emit(event.type, event);
   }
