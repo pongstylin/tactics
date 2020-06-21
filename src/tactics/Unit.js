@@ -1778,7 +1778,7 @@ export default class Unit {
   toJSON() {
     let state = {
       type: this.type,
-      assignment: this.assignment,
+      assignment: this.assignment && this.assignment.toJSON(),
     };
 
     if (this.id)

@@ -137,7 +137,7 @@ export default class RemoteTransport {
       units: state.units,
       actions: state.actions,
       nextActionId: state.actions.length,
-      atEnd: !!this.ended,
+      atEnd: !!state.ended,
     });
   }
   get currentTurnData() {

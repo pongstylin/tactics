@@ -1535,26 +1535,6 @@ export default class {
   clear() {
     this.eraseCard();
     this.teamsUnits.flat().forEach(unit => this.dropUnit(unit));
-
-    if (this.focused || this.viewed || this.selected || this.targeted.size) {
-      let log = {
-        error: 'Not cleared',
-        stack: new Error().stack,
-      };
-
-      if (this.focused)
-        log.focused = this.focused.id;
-      if (this.viewed)
-        log.viewed = this.viewed.id;
-      if (this.selected)
-        log.selected = this.selected.id;
-      if (this.targeted.size)
-        log.targeted = [...this.targeted].map(u => u.id);
-
-      console.error(log);
-      reportError(JSON.stringify(log));
-    }
-
     this.teamsUnits = [];
     this.teams = [];
     this.clearHighlight();

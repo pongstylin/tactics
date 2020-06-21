@@ -580,6 +580,7 @@ export default class Game {
           error: 'reselect1',
           stack: new Error().stack,
           actions,
+          state: this.state.cursor,
         }));
     }
     else if (this._inReplay && this.cursor.actions.length) {
@@ -591,6 +592,7 @@ export default class Game {
           error: 'reselect2',
           stack: new Error().stack,
           actions: this.cursor.actions,
+          state: this.state.cursor,
         }));
     }
     else
