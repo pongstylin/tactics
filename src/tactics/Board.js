@@ -1906,6 +1906,8 @@ export default class {
     else if (tile.action === 'target') {
       if (game.pointerType === 'mouse')
         this._clearTargetMix(tile);
+      if (unit)
+        unit.change({ notice:null });
     }
 
     /*

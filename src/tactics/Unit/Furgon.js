@@ -13,6 +13,13 @@ export default class Furgon extends Unit {
   }
 
   /*
+   * Furgon does not target units
+   */
+  setTargetNotice() {
+    return;
+  }
+
+  /*
    * The Furgon, if any, on the dead unit's team becomes enraged if a non-
    * ward ally is killed by an opponent team.
    */

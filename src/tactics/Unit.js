@@ -1554,8 +1554,8 @@ export default class Unit {
       options,
     );
   }
-  setTargetNotice(target_unit, target) {
-    let calc = this.calcAttack(target_unit, null, target);
+  setTargetNotice(targetUnit, target) {
+    let calc = this.calcAttack(targetUnit, null, target);
     let chance =
       calc.chance === 100 ? 'Hit' :
       calc.chance === 0 ? `${calc.miss.toUpperCase('first')}` :
@@ -1573,7 +1573,7 @@ export default class Unit {
     else
       notice = `-${calc.damage} • ${chance}`;
 
-    target_unit.change({ notice:notice });
+    targetUnit.change({ notice:notice });
   }
   /*
    * Certain actions can break certain status effects.
