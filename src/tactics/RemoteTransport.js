@@ -339,16 +339,13 @@ export default class RemoteTransport {
         this._emit({ type:'change' });
       })
       .on('startTurn', ({ data }) => {
+        let state = this._data.state;
+        // Only interested in the first turn of the game
+        if (state.turnStarted) return;
+
         data.started = new Date(data.started);
 
-        this.applyActions();
-
-        Object.assign(this._data.state, {
-          turnStarted: data.started,
-          currentTurnId: data.turnId,
-          currentTeamId: data.teamId,
-          actions: [],
-        });
+        this._pushNewTurn(date.started);
         this._resolveTurnStarted();
         this._emit({ type:'change' });
       })
@@ -360,6 +357,10 @@ export default class RemoteTransport {
         this._data.state.actions.push(...actions);
         // Clear the undo request to permit a new request.
         this._data.undoRequest = null;
+
+        if (actions.last.type === 'endTurn')
+          this._pushNewTurn(actions.last.created);
+
         this._emit({ type:'change' });
       })
       .on('revert', ({ data }) => {
@@ -380,7 +381,7 @@ export default class RemoteTransport {
       .on('endGame', ({ data }) => {
         Object.assign(this._data.state, {
           winnerId: data.winnerId,
-          ended:    new Date(),
+          ended: new Date(),
         });
         this._emit({ type:'change' });
       })
@@ -411,6 +412,19 @@ export default class RemoteTransport {
       .on('undoComplete', () => {
         this._data.undoRequest.status = 'completed';
       });
+  }
+
+  _pushNewTurn(turnStarted) {
+    let state = this._data.state;
+
+    this.applyActions();
+
+    Object.assign(state, {
+      turnStarted: turnStarted,
+      currentTurnId: state.currentTurnId + 1,
+      currentTeamId: (state.currentTeamId + 1) % state.teams.length,
+      actions: [],
+    });
   }
   /*
    * Kinda sucks that this duplicates some board logic.

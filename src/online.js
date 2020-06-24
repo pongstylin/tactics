@@ -488,7 +488,13 @@ function renderGame(game) {
   }
   // Active Games
   else if (game.started) {
-    // no-op
+    let labels = [];
+
+    if (!game.randomHitChance)
+      labels.push('No Luck');
+
+    if (labels.length)
+      left += ', <SPAN>' + labels.join(',</SPAN> <SPAN>') + '</SPAN>';
   }
   // Waiting Games
   else {
