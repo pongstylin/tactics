@@ -265,7 +265,7 @@ unitDataMap.set('ChaosSeed', {
   directional: false,
 
   legacy: true,
-  imports: ['Lightning'],
+  imports: ['WyvernEgg','Lightning','Sparkle'],
   sounds: {
     crack: 'crack',
     attack: 'sound1370',
@@ -293,18 +293,6 @@ unitDataMap.set('ChaosSeed', {
       }
     }
   },
-  stills: {S: 0},
-  frames: [
-    {
-      x: -1,
-      y: 7,
-      c: [
-        { id:6459, x:-12.5, y:-19.5 },
-        { id:1351, x:-21,   y:-61   },
-        { id:1354, x:-20,   y:-57   },
-      ]
-    }
-  ],
   tier: 5,
 });
 

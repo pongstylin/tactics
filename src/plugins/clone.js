@@ -12,12 +12,22 @@ Object.defineProperty(Object, 'getProperties', {
   },
 });
 
+/*
+ * The fastest way to deep-clone an object, only suitable for
+ * objects that can be converted to JSON and back without loss
+ * of fidelity.
+ */
+Object.defineProperty(JSON, 'clone', {
+  value: function(item) {
+    return JSON.parse(JSON.stringify(item));
+  },
+});
 Object.defineProperty(Object, 'clone', {
   value: function (item) {
     if (item === null || typeof item !== 'object')
       return item;
 
-    return item.clone();
+    return typeof item.clone === 'function' ? item.clone() : item;
   },
 });
 

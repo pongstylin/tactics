@@ -1250,7 +1250,13 @@ export default class Game {
       // Show the player the units that will be attacked.
       let target = action.target;
       let target_tiles = actor.getTargetTiles(target);
-      let target_units = actor.getTargetUnits(target);
+      let targetUnits = actor.getTargetUnits(target);
+
+      // For counter-attacks, the actor may differ from selected.
+      if (selected !== actor) {
+        selected.deactivate();
+        actor.activate();
+      }
 
       target_tiles.forEach(tile => {
         board.setHighlight(tile, {
@@ -1259,26 +1265,20 @@ export default class Game {
         }, true);
       });
 
-      if (target_units.length) {
-        target_units.forEach(tu => tu.activate());
+      if (targetUnits.length) {
+        targetUnits.forEach(tu => tu.activate());
 
-        if (target_units.length === 1) {
-          actor.setTargetNotice(target_units[0], target);
-          this.drawCard(target_units[0]);
+        if (targetUnits.length === 1) {
+          actor.setTargetNotice(targetUnits[0], target);
+          this.drawCard(targetUnits[0]);
         }
         else
           this.drawCard(actor);
       }
 
-      // For counter-attacks, the actor may differ from selected.
-      if (selected !== actor) {
-        selected.deactivate();
-        actor.activate();
-      }
-
       await sleep(2000);
 
-      target_units.forEach(tu => {
+      targetUnits.forEach(tu => {
         tu.deactivate();
         tu.notice = null;
       });
@@ -1306,12 +1306,20 @@ export default class Game {
     // Only applicable to Chaos Seed counter-attack
     else if (actionType === 'heal') {
       // Show the player the unit that will be healed.
-      let target_unit = action.target.assigned;
-      target_unit.activate();
-      this.drawCard(target_unit);
+      let targetUnit = action.target.assigned;
+
+      if (selected !== actor) {
+        selected.deactivate();
+        actor.activate();
+      }
+
+      targetUnit.activate();
+      this.drawCard(targetUnit);
+
       await sleep(1000);
 
-      target_unit.deactivate();
+      targetUnit.deactivate();
+      actor.deactivate();
       await actor.heal(action, speed);
       await this._playResults(action, speed);
     }

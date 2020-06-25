@@ -46,6 +46,8 @@ export default class Unit {
       _pulse: null,
       _emitter: new EventEmitter(),
     });
+
+    this.spriteName = this.type;
   }
 
   /*
@@ -500,7 +502,7 @@ export default class Unit {
   }
   drawAvatar(direction = 'S') {
     if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.type);
+      this._sprite = Tactics.getSprite(this.spriteName);
 
     let actionName = 'stand';
     return this._sprite.renderFrame({
@@ -515,7 +517,7 @@ export default class Unit {
   }
   drawFrame(actionName, direction = this.direction) {
     if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.type);
+      this._sprite = Tactics.getSprite(this.spriteName);
 
     let frame = this._sprite.renderFrame({
       actionName,
@@ -559,6 +561,9 @@ export default class Unit {
     return this.drawFrame('stand', direction);
   }
   drawStagger(direction = this.direction) {
+    if (!this.hasAction('stagger'))
+      return this.drawStand(direction);
+
     if (this.directional === false)
       direction = 'S';
     else {
@@ -728,6 +733,29 @@ export default class Unit {
     else {
       matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
       matrix[3] = matrix[8] = matrix[13] = intensity;
+    }
+
+    return this;
+  }
+  tint(color) {
+    let name = 'tint';
+    let matrix;
+
+    if (typeof color === 'number')
+      color = [
+        (color & 0xFF0000) / 0xFF0000,
+        (color & 0x00FF00) / 0x00FF00,
+        (color & 0x0000FF) / 0x0000FF,
+      ];
+
+    if (color === null || color.join() === '1,1,1') {
+      this._setFilter(name, undefined);
+    }
+    else {
+      matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
+      matrix[0]  = color[0];
+      matrix[6]  = color[1];
+      matrix[12] = color[2];
     }
 
     return this;

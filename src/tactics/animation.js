@@ -86,7 +86,7 @@
           delete frame.repeat;
 
           for (let i = 0; i < repeat; i++) {
-            let repeat_frame = $.extend(true, {}, frame, {index: index + i});
+            let repeat_frame = Object.assign({}, frame.clone(), { index:index + i });
 
             repeat_frame.scripts = repeat_frame.scripts.map(s => s.bind(this,
               Object.assign({repeat_index: i}, repeat_frame)

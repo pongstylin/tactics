@@ -179,18 +179,19 @@ window.Tactics = (function () {
           });
         }
 
-        unitData.frames.forEach(frame => {
-          if (!frame) return;
+        if (unitData.frames)
+          unitData.frames.forEach(frame => {
+            if (!frame) return;
 
-          frame.c.forEach(sprite => {
-            let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+sprite.id+'.png';
-            if (resources.includes(url))
-              return;
+            frame.c.forEach(sprite => {
+              let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+sprite.id+'.png';
+              if (resources.includes(url))
+                return;
 
-            resources.push(url);
-            loader.add({ url:url });
+              resources.push(url);
+              loader.add({ url:url });
+            });
           });
-        });
 
         if (resources.length === 0)
           resolve();

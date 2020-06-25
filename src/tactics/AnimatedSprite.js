@@ -222,30 +222,52 @@ export default class AnimatedSprite {
     return sprite.actions && sprite.actions[actionName];
   }
   renderAnimation(options) {
-    let anim = new Tactics.Animation();
-    let { sprites, sprite, framesData } = this._getSpriteData(options);
-
+    let { sprites, sprite, action, framesData } = this._getSpriteData(options);
     let container = options.container;
+    let anim;
 
-    let frames = framesData.map(frameData => {
-      let frame = this._renderFrame(
-        sprites,
-        sprite.name,
-        sprite.frames,
-        frameData.id,
-        options,
-      );
+    if (action && action.loop) {
+      anim = new Tactics.Animation({ loop:true });
+      let index = 0;
 
-      return [
-        ...frame.scripts,
-        () => {
-          container.removeChildren();
-          container.addChild(frame.container);
-        },
-      ];
-    });
+      anim.addFrame(() => {
+        let frame = this._renderFrame(
+          sprites,
+          sprite.name,
+          sprite.frames,
+          index++,
+          options,
+        );
 
-    anim.addFrames(frames);
+        frame.scripts.forEach(s => s());
+
+        container.removeChildren();
+        container.addChild(frame.container);
+      });
+    }
+    else {
+      anim = new Tactics.Animation();
+
+      let frames = framesData.map(frameData => {
+        let frame = this._renderFrame(
+          sprites,
+          sprite.name,
+          sprite.frames,
+          frameData.id,
+          options,
+        );
+
+        return [
+          ...frame.scripts,
+          () => {
+            container.removeChildren();
+            container.addChild(frame.container);
+          },
+        ];
+      });
+
+      anim.addFrames(frames);
+    }
 
     return anim;
   }
@@ -282,6 +304,8 @@ export default class AnimatedSprite {
       switch (sprite.name) {
         case 'LightningWard':
         case 'BarrierWard':
+        case 'WyvernEgg':
+        case 'Shrub':
           offset = 0;
           break;
         case 'Trophy':
@@ -303,12 +327,13 @@ export default class AnimatedSprite {
     }
 
     let framesData;
+    let action;
     if (options.actionName === undefined)
       framesData = sprite.frames;
     else {
       framesData = [];
 
-      let action = sprite.actions && sprite.actions[options.actionName];
+      action = sprite.actions && sprite.actions[options.actionName];
       if (!action)
         throw `No action called ${options.actionName} in ${this.name}`;
 
@@ -320,7 +345,7 @@ export default class AnimatedSprite {
       });
     }
 
-    return { sprites, sprite, framesData };
+    return { sprites, sprite, action, framesData };
   }
 
   /*
@@ -390,6 +415,8 @@ export default class AnimatedSprite {
         let action = sprite.actions[actionName];
         if (typeof action !== 'object' || Array.isArray(action))
           action = sprite.actions[actionName] = { clips:[action] };
+        if (action.clips === undefined)
+          action.clips = [[0, sprite.frames.length]];
 
         for (let i = 0; i < action.clips.length; i++) {
           let clip = action.clips[i];
@@ -517,7 +544,7 @@ export default class AnimatedSprite {
             let spriteData = this._normalizeSprite(data, layer.spriteId);
             if (spriteData.scripts) {
               if (spriteData.isUsed) {
-                let cloneSpriteData = JSON.parse(JSON.stringify(spriteData));
+                let cloneSpriteData = JSON.clone(spriteData);
                 cloneSpriteData.id = data.sprites.length;
                 data.sprites.push(cloneSpriteData);
 
@@ -583,26 +610,47 @@ export default class AnimatedSprite {
 
     if (sprite.scripts) {
       // Only modify a copy of the original data
-      sprite = JSON.parse(JSON.stringify(sprite));
+      sprite = JSON.clone(sprite);
 
       sprite.scripts.forEach(script => {
+        /*
+         * Apply randomness to when and where a sub sprite starts.
+         *
+         * Example: Sparkle
+         *   {
+         *     "name":"offsetStart",
+         *     "layer":[ "s0", "s2", "s1" ],
+         *     "randomOffset": [
+         *       { "range":[2,3] },
+         *       { "range":[5,3] },
+         *       { "range":[8,3] }
+         *     ]
+         *   }
+         *
+         * Example: Lightning
+         *   {
+         *     "name":"offsetStart",
+         *     "layer":"fx",
+         *     "randomStart": {
+         *       "range":[0,6]
+         *     }
+         *   }
+         */
         if (script.name === 'offsetStart') {
-          let layer = script.layer;
+          // The sprite may exist on one or more layers
+          let layerNames = script.layer;
           if (Array.isArray(script.layer))
-            layer = script.layer.slice();
+            layerNames = script.layer.slice();
           else
-            layer = [layer];
+            layerNames = [layerNames];
 
-          let newLayer = [];
-          while (layer.length) {
-            let indice = Math.floor(Math.random() * layer.length);
-            newLayer.push(layer.splice(indice, 1)[0]);
-          }
-          layer = newLayer;
+          // Randomize which layer gets which random offset or start
+          layerNames.shuffle();
 
-          for (let i = 0; i < layer.length; i++) {
-            let layerName = layer[i];
+          for (let i = 0; i < layerNames.length; i++) {
+            let layerName = layerNames[i];
 
+            // Randomize the sub sprite starting frameId (useful for looped sprites)
             if (script.randomStart) {
               let randomStart;
               if (Array.isArray(script.randomStart))
@@ -631,12 +679,13 @@ export default class AnimatedSprite {
                 if (layer === null)
                   throw 'Layer not found';
 
-                layer.frameId = start;
+                layer.startFrameId = start;
               }
               else
                 throw 'Unsupported random start';
             }
 
+            // Randomize the parent sprite starting frameId for sub sprite
             if (script.randomOffset) {
               let randomOffset;
               if (Array.isArray(script.randomOffset))
@@ -728,10 +777,7 @@ export default class AnimatedSprite {
       let lastLayers = frameId ? sprite.frames[frameId-1].layers || [] : [];
       for (let layerId = frame.layers.length-1; layerId > -1; layerId--) {
         let layer = frame.layers[layerId];
-        if (
-          layer.type !== 'sprite' ||
-          layer.frameId !== undefined
-        ) continue;
+        if (layer.type !== 'sprite') continue;
 
         let subSprite;
         if (typeof layer.spriteId === 'number')
@@ -740,10 +786,17 @@ export default class AnimatedSprite {
           subSprite = AnimatedSprite.get(layer.spriteId);
 
         let lastLayer = lastLayers.find(l => l.depth === layer.depth);
-        if (lastLayer && lastLayer.spriteId === layer.spriteId)
+        if (lastLayer && lastLayer.spriteId === layer.spriteId) {
+          layer.startFrameId = lastLayer.startFrameId;
+          layer.offsetFrameId = lastLayer.offsetFrameId;
           layer.frameId = lastLayer.frameId + 1;
-        else
+        }
+        else {
+          if (!layer.startFrameId)
+            layer.startFrameId = 0;
+          layer.offsetFrameId = frameId;
           layer.frameId = 0;
+        }
 
         if (layer.frameId === subSprite.frames.length) {
           if (subSprite.loop)
@@ -789,7 +842,7 @@ export default class AnimatedSprite {
             subSprite = data.sprites[layer.spriteId];
           else
             subSprite = AnimatedSprite.get(layer.spriteId);
-          if (subSprite.loop)
+          if (subSprite.loop)// && sprite.frames.length >= subSprite.frames.length)
             continue;
           if (layer.frameId === subSprite.frames.length-1)
             continue;
@@ -876,6 +929,7 @@ export default class AnimatedSprite {
   }
 
   _renderFrame(sprites, name, frames, frameId, options) {
+    let frameIndex = frameId % frames.length;
     let scripts = [];
     let container = new Container();
     container.name = name;
@@ -886,18 +940,18 @@ export default class AnimatedSprite {
       normalizeTransform(style);
       normalizeColor(style);
 
-      frameData = {...frames[frameId]};
+      frameData = {...frames[frameIndex]};
       if (style.transform)
         frameData.transform = mergeTransforms(style.transform, frameData.transform);
       if (style.color)
         frameData.color = mergeColors(style.color, frameData.color);
     }
     else
-      frameData = frames[frameId];
+      frameData = frames[frameIndex];
 
     if (options.unit) {
       let unit = options.unit;
-      let prevFrameData = frameId > 0 ? frames[frameId-1] : {};
+      let prevFrameData = frameId > 0 ? frames[(frameId - 1) % frames.length] : {};
 
       // Apply unit styles
       if (frameData.unit)
@@ -941,15 +995,17 @@ export default class AnimatedSprite {
 
         if (layerData.type === 'sprite') {
           let spriteFrame;
+          let subFrameId = layerData.startFrameId + (frameId - layerData.offsetFrameId);
           let subFrameData;
           if (typeof layerData.spriteId === 'number') {
             let subSprite = sprites[layerData.spriteId];
-            subFrameData = subSprite.frames[layerData.frameId];
+            let subFrameIndex = subFrameId % subSprite.frames.length;
+            subFrameData = subSprite.frames[subFrameIndex];
             spriteFrame = this._renderFrame(
               sprites,
               subSprite.name,
               subSprite.frames,
-              layerData.frameId,
+              subFrameId,
               options,
             );
           }
@@ -957,12 +1013,13 @@ export default class AnimatedSprite {
             let importSpriteName = layerData.spriteId.replace(/\/.+$/, '');
             let importSprite = AnimatedSprite.get(importSpriteName);
             let subSprite = AnimatedSprite.get(layerData.spriteId);
-            subFrameData = subSprite.frames[layerData.frameId];
+            let subFrameIndex = subFrameId % subSprite.frames.length;
+            subFrameData = subSprite.frames[subFrameIndex];
             spriteFrame = importSprite._renderFrame(
               importSprite.sprites,
               subSprite.name,
               subSprite.frames,
-              layerData.frameId,
+              subFrameId,
               options,
             );
           }
@@ -1164,35 +1221,38 @@ function applyTransform(displayObject, transform = [1,0,0,1,0,0]) {
   );
 }
 
-function normalizeColor(data, fromColor = [0,0,0,0,1,1,1,1]) {
-  data.color = data.color || fromColor.slice();
+function normalizeColor(data, fromColor) {
+  let hasColor = data.color || data.rgba || data.rgb || data.alpha !== undefined;
 
-  if (data.color.length === 3)
-    data.color.push(0,1,1,1,1);
-  if (data.color.length === 4)
-    data.color.push(1,1,1,1);
-  if (data.rgba) {
-    data.color.splice(4, 4, ...data.rgba);
-    delete data.rgba;
-  }
-  if (data.rgb) {
-    if (typeof data.rgb === 'number')
-      data.color.splice(4, 3,
-        (data.rgb & 0xFF0000) / 0xFF0000,
-        (data.rgb & 0x00FF00) / 0x00FF00,
-        (data.rgb & 0x0000FF) / 0x0000FF,
-      );
-    else
-      data.color.splice(4, 3, ...data.rgb);
-    delete data.rgb;
-  }
-  if (data.alpha !== undefined) {
-    data.color.splice(7, 1, data.alpha);
-    delete data.alpha;
-  }
+  if (hasColor) {
+    data.color = data.color || (fromColor ? fromColor.slice() : [0,0,0,0,1,1,1,1]);
 
-  if (data.color.join(',') === '0,0,0,0,1,1,1,1')
-    delete data.color;
+    if (data.color.length === 3)
+      data.color.push(0,1,1,1,1);
+    if (data.color.length === 4)
+      data.color.push(1,1,1,1);
+    if (data.rgba) {
+      data.color.splice(4, 4, ...data.rgba);
+      delete data.rgba;
+    }
+    if (data.rgb) {
+      if (typeof data.rgb === 'number')
+        data.color.splice(4, 3,
+          (data.rgb & 0xFF0000) / 0xFF0000,
+          (data.rgb & 0x00FF00) / 0x00FF00,
+          (data.rgb & 0x0000FF) / 0x0000FF,
+        );
+      else
+        data.color.splice(4, 3, ...data.rgb);
+      delete data.rgb;
+    }
+    if (data.alpha !== undefined) {
+      data.color.splice(7, 1, data.alpha);
+      delete data.alpha;
+    }
+  }
+  else if (fromColor)
+    data.color = fromColor.slice();
 }
 function mergeColors(...colorMatrices) {
   colorMatrices = colorMatrices.filter(m => !!m);
@@ -1224,7 +1284,7 @@ function mergeColors(...colorMatrices) {
 }
 function applyColor(displayObject, color) {
   let filter;
-  if (color) {
+  if (color && color.join() !== '0,0,0,0,1,1,1,1') {
     filter = new ColorMatrixFilter();
     filter.matrix[4]  = Math.min(255, color[0]) / 255;
     filter.matrix[9]  = Math.min(255, color[1]) / 255;

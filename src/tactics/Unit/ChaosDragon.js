@@ -22,6 +22,12 @@ export default class ChaosDragon extends Unit {
     });
   }
 
+  hasAction(actionName) {
+    if (actionName === 'stagger')
+      return true;
+
+    return false;
+  }
   draw() {
     this._frames = this.frames.map(frame => this.compileFrame(frame));
 

@@ -2,218 +2,29 @@ import Unit from 'tactics/Unit.js';
 import { unitDataMap, unitTypeToIdMap } from 'tactics/unitData.js';
 import colorMap from 'tactics/colorMap.js';
 
-const HALF_TILE_HEIGHT = 28;
-
 export default class ChaosSeed extends Unit {
   constructor(data, board) {
     super(data, board);
 
     this.title = '...sleeps...';
+    this.spriteName = 'WyvernEgg';
   }
 
-  draw() {
-    this._frames = this.frames.map(frame => this.compileFrame(frame));
+  drawStand(direction) {
+    super.drawStand(direction);
 
-    return super.draw();
-  }
-  drawAvatar(direction = 'S') {
-    return this.compileFrame(this.frames[this.stills[direction]]);
-  }
-  compileFrame(frame, data = this) {
-    let container = new PIXI.Container();
-    container.name = 'frame';
-    container.data = frame;
-    if (!frame.length && !frame.c) return container;
+    let shadow = this.getContainerByName('shadow');
+    let unit = this.getContainerByName('unit');
+    let trim = this.getContainerByName('trim');
 
-    let shadowContainer = new PIXI.Container();
-    shadowContainer.name = 'shadow';
-    container.addChild(shadowContainer);
+    // Remove darkening of the trim
+    trim.children[0].children[0].children[0].filters = null;
 
-    let unitContainer = new PIXI.Container();
-    unitContainer.name = 'unit';
-    container.addChild(unitContainer);
-
-    let offset;
-    if (data.width && data.height) {
-      offset = new PIXI.Point(
-        Math.floor(-data.width / 2),
-        Math.floor(-data.height + (HALF_TILE_HEIGHT*4/3)),
-      );
-
-      // Finicky
-      if (data.frames_offset) {
-        offset.x += data.frames_offset.x || 0;
-        offset.y += data.frames_offset.y || 0;
-      }
-    }
-    else // Legacy
-      offset = new PIXI.Point(frame.x || 0, (frame.y || 0) - 2);
-
-    container.alpha = 'a' in frame ? frame.a : 1;
-
-    let shapes;
-    if (frame.c)
-      shapes = frame.c;
-    else
-      shapes = frame;
-
-    let unitTypeId = unitTypeToIdMap.get(this.type);
-
-    shapes.forEach((shape, i) => {
-      /*
-       * Translate short form to long form
-       */
-      if (!('image' in shape)) {
-        if ('i' in shape) {
-          shape.image = data.images[shape.i];
-          delete shape.i;
-        }
-        else if ('id' in shape) {
-          // Legacy
-          shape.image = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+shape.id+'.png';
-          delete shape.id;
-        }
-        else {
-          throw new Error('Frames without images are not supported');
-        }
-
-        if ('n' in shape) {
-          if (shape.n === 's' || shape.n === 'shadow')
-            shape.name = 'shadow';
-          if (shape.n === 'b' || shape.n === 'base')
-            shape.name = 'base';
-          if (shape.n === 't' || shape.n === 'trim')
-            shape.name = 'trim';
-          delete shape.n;
-        }
-        // Legacy
-        else if ('c' in frame) {
-          shape.name =
-            i === 0 ? 'shadow' :
-            i === 1 ? 'base'   :
-            i === 2 ? 'trim'   : null;
-        }
-
-        // Legacy translation
-        if ('a' in shape) {
-          shape.am = shape.a;
-          delete shape.a;
-        }
-
-        if (!('x' in shape))
-          shape.x = 0;
-        if (!('y' in shape))
-          shape.y = 0;
-      }
-
-      /*
-       * Configure a sprite using shape data
-       */
-      let sprite = PIXI.Sprite.from(shape.image);
-      sprite.data = shape;
-      sprite.position = new PIXI.Point(shape.x + offset.x, shape.y + offset.y);
-      sprite.alpha = 'am' in shape ? shape.am : 1;
-
-      // Legacy
-      if (shape.f === 'B') {
-        sprite.rotation = Math.PI;
-        sprite.position.x *= -1;
-        sprite.position.y *= -1;
-        if (shape.w) sprite.position.x += sprite.width - shape.w;
-        if (shape.h) sprite.position.y += sprite.height - shape.h;
-      }
-      else if (shape.f === 'H') {
-        if (shape.w) sprite.position.x -= (sprite.width - shape.w);
-        sprite.scale.x = -1;
-      }
-
-      if ('s' in shape) {
-        // Legacy
-        if (data.width === undefined) {
-          sprite.position.x += sprite.width - (sprite.width * shape.s);
-          sprite.position.y += sprite.height - (sprite.height * shape.s);
-        }
-        sprite.scale = new PIXI.Point(shape.s, shape.s);
-      }
-      else {
-        if ('sx' in shape)
-          sprite.scale.x = shape.sx;
-        if ('sy' in shape)
-          sprite.scale.y = shape.sy;
-      }
-
-      if (shape.name === 'trim')
-        sprite.tint = this.color;
-
-      if (shape.name === 'shadow') {
-        sprite.alpha = 0.5;
-        sprite.inheritTint = false;
-      }
-
-      sprite.name = shape.name;
-
-      if (shape.name === 'shadow')
-        shadowContainer.addChild(sprite);
-      else
-        unitContainer.addChild(sprite);
-    });
-
-    return container;
-  }
-  drawFrame(actionName, direction) {
-    let frameId;
-    let context;
-    if (typeof actionName === 'number') {
-      frameId = actionName;
-      context = direction;
-    }
-    else {
-      if (actionName === 'stand' || actionName === 'turn' || actionName === 'stagger')
-        actionName = 'stills';
-      else
-        throw `Unexpected action name: ${actionName}`;
-
-      if (direction === undefined)
-        direction = this.direction;
-      frameId = this[actionName][direction];
-    }
-
-    let pixi = this.pixi;
-    let frame = this._frames[frameId];
-    let focus;
-
-    if (this.frame) {
-      focus = this.hideFocus();
-      pixi.removeChild(this.frame);
-    }
-    if (!frame)
-      return;
-
-    pixi.addChildAt(this.frame = frame, 0);
-    if (focus)
-      this.showFocus(focus.alpha);
-
-    if (context)
-      pixi.position = context.getCenter().clone();
-
-    if (frame.data) {
-      // Reset Normal Appearance
-      if (this.width && this.height) {
-        // Reset the position after using .offsetFrame()
-        frame.position.x = 0;
-        frame.position.y = 0;
-      }
-      else { // Legacy
-        frame.position.x = frame.data.x || 0;
-        frame.position.y = (frame.data.y || 0) - 2;
-      }
-
-      let unitContainer = this.getContainerByName('unit');
-      unitContainer.filters = Object.keys(this.filters).map(name => this.filters[name]);
-
-      let trim = this.getContainerByName('trim');
-      trim.tint = this.color;
-    }
+    // Lower the egg to the ground
+    let factor = 11;
+    unit.position.y += 1 * factor;
+    shadow.scale.x += 0.01 * factor;
+    shadow.scale.y += 0.01 * factor;
 
     return this;
   }
@@ -240,17 +51,26 @@ export default class ChaosSeed extends Unit {
   animPhase(colorId) {
     let old_color = this.color;
     let new_color = colorMap.get(colorId);
+    let trim = this.getContainerByName('trim');
+    let tint;
+
+    if (trim.filters)
+      tint = trim.filters[0];
+    else
+      tint = (trim.filters = [new PIXI.filters.ColorMatrixFilter()])[0];
 
     return new Tactics.Animation({frames: [
       () => this.sounds.phase.play(),
       {
         script: ({ repeat_index }) => {
           repeat_index++;
-          let color = Tactics.utils.getColorStop(old_color, new_color, repeat_index / 12);
-          this.change({ color });
 
-          let trim = this.getContainerByName('trim');
-          trim.tint = this.color;
+          let color = Tactics.utils.getColorStop(old_color, new_color, repeat_index / 12);
+          tint.matrix[0]  = (color & 0xFF0000) / 0xFF0000;
+          tint.matrix[6]  = (color & 0x00FF00) / 0x00FF00;
+          tint.matrix[12] = (color & 0x0000FF) / 0x0000FF;
+
+          this.change({ color });
         },
         repeat: 12,
       }
@@ -345,72 +165,72 @@ export default class ChaosSeed extends Unit {
     let anim   = new Tactics.Animation();
     let sounds = this.sounds;
     let winds  = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
-    let target_unit = action.target.assigned;
+    let shadow = this.getContainerByName('shadow');
+    let unit = this.getContainerByName('unit');
 
     anim
       .addFrames([
-        { // 0 - 12
+        { // 0 - 11 - Brighten and gain tint
           script: frame => {
             let step = frame.repeat_index + 1;
             this.brightness(1 + (step * 0.2));
-            this.frame.tint = Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12);
+            this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
 
-            // Shadow
-            this.frame.children[0].scale.x     = 1 - (step * 0.025);
-            this.frame.children[0].scale.y     = 1 - (step * 0.025);
-            this.frame.children[0].position.x += 0.3;
-            this.frame.children[0].position.y += 0.2;
-
-            // Unit
-            this.frame.children[1].position.y -= 3;
+            let factor = 3;
+            unit.position.y -= factor;
+            shadow.scale.x -= 0.01 * factor;
+            shadow.scale.y -= 0.01 * factor;
           },
           repeat: 12,
         },
-        { // 12 - 18
+        { // 12 - 17 - Darken and lose half the tint
           script: frame => {
             let step = 11 - frame.repeat_index;
             this.brightness(1 + (step * 0.2));
+            step = 1 + frame.repeat_index;
+            this.tint(Tactics.utils.getColorStop(this.color, 0xFFFFFF, step / 12));
           },
           repeat: 6,
         },
-        { // 18 - 24
+        { // 18 - 23 - Brighten and lose all tint
           script: frame => {
             let step = 7 + frame.repeat_index;
             this.brightness(1 + (step * 0.2), (step - 6) * 0.6);
+            this.tint(Tactics.utils.getColorStop(this.color, 0xFFFFFF, step / 12));
           },
           repeat: 6,
         }
       ])
-      // Lightning strike started 2 frames earlier
+      // Lightning strike started 4 frames earlier (3 visible)
       .addFrames([
-        { // 24 - 30
+        { // 24 - 29 - Darken and gain half the tint
           script: frame => {
             let step = 11 - frame.repeat_index;
             this.brightness(1 + (step * 0.2), (step - 6) * 0.6);
+            step = 1 + frame.repeat_index;
+            this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
           },
           repeat: 6,
         },
-        { // 30 - 36
+        { // 30 - 35 - Brighten and gain full tint
           script: frame => {
             let step = 7 + frame.repeat_index;
             this.brightness(1 + (step * 0.2));
+            this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
           },
           repeat: 6,
         },
-        { // 36 - 48
+        { // 36 - 47 - Darken and lose tint
           script: frame => {
             let step = 11 - frame.repeat_index;
             this.brightness(1 + (step * 0.2));
-            this.frame.tint = Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12);
+            step = frame.repeat_index + 1;
+            this.tint(Tactics.utils.getColorStop(this.color, 0xFFFFFF, step / 12));
 
-            // Shadow
-            this.frame.children[0].scale.x = 1 - (step * 0.025);
-            this.frame.children[0].scale.y = 1 - (step * 0.025);
-            this.frame.children[0].position.x -= 0.3;
-            this.frame.children[0].position.y -= 0.2;
-
-            // Unit
-            this.frame.children[1].position.y += 3;
+            let factor = 3;
+            unit.position.y += factor;
+            shadow.scale.x += 0.01 * factor;
+            shadow.scale.y += 0.01 * factor;
           },
           repeat: 12,
         },
@@ -421,30 +241,25 @@ export default class ChaosSeed extends Unit {
       .splice(12, () => sounds.roar.play('roar'))
       .splice(16, () => sounds.wind.play(winds.shift()))
       .splice(20, () => sounds.wind.fade(1, 0, 1700, sounds.wind.play(winds.shift())))
-      .splice(22, () => sounds.attack.play())
-      .splice(23, this.animAttackEffect(
+      .splice(20, this.animAttackEffect(
         { spriteId:'sprite:Lightning' },
-        target_unit.assignment,
+        action.target,
         true,
-      ));
+      ))
+      .splice(22, () => sounds.attack.play());
     
     return anim.play();
   }
   heal(action) {
-    let anim        = new Tactics.Animation();
-    let target_unit = action.target.assigned;
-    let pixi        = this.pixi;
-    let filter      = new PIXI.filters.ColorMatrixFilter();
-    pixi.filters = [filter];
+    let anim = new Tactics.Animation();
 
     anim
       .addFrame({
         script: frame => {
           let step = 1 + frame.repeat_index;
 
-          filter.brightness(1 + (step * 0.2));
-          let base = this.getContainerByName('base');
-          base.tint = Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12);
+          this.brightness(1 + (step * 0.2));
+          this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
 
           if (step === 8) this.sounds.heal.play();
         },
@@ -452,24 +267,24 @@ export default class ChaosSeed extends Unit {
       })
       .splice(9, this.animAttackEffect(
         { spriteId:'sprite:Sparkle', type:'heal' },
-        target_unit.assignment,
+        action.target,
         true,
       ))
       .addFrame({
         script: frame => {
           let step = 11 - frame.repeat_index;
 
-          filter.brightness(1 + (step * 0.2));
-          let base = this.getContainerByName('base');
-          base.tint = Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12);
-
-          if (step === 0) pixi.filters = null;
+          this.brightness(1 + (step * 0.2));
+          this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
         },
         repeat: 12,
       });
 
     return anim.play();
   }
+  /*
+   * Customized to play the 'crack' sound upon getting hit.
+   */
   animHit(attacker, attackType) {
     let anim = new Tactics.Animation();
     let doStagger;
@@ -479,15 +294,19 @@ export default class ChaosSeed extends Unit {
       attackType = attacker.aType;
 
     if (attackType === 'melee') {
+      // Melee attacks cause a stagger
       doStagger = true;
 
+      // Melee attacks cause the victim to stagger in a particular direction
       direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
 
       anim.addFrame(() => this.sounds.crack.play());
     }
     else if (attackType === 'magic') {
+      // Magic attacks cause a stagger
       doStagger = true;
 
+      // No impact sound for magic attacks
       anim.addFrame([]);
     }
 
@@ -503,12 +322,16 @@ export default class ChaosSeed extends Unit {
         anim.addFrames([
           () => this.drawStagger().offsetFrame(0.12, direction),
           () => this.offsetFrame(-0.16, direction),
-          () => this.drawStand(),
         ]);
+
+      anim.addFrame(() => this.drawStand());
     }
 
     return anim;
   }
+  /*
+   * Customized to play the 'block' sound.
+   */
   animMiss(attacker) {
     let anim = new Tactics.Animation();
 
@@ -528,7 +351,8 @@ export default class ChaosSeed extends Unit {
     let dragon;
     let hatch       = unitDataMap.get('ChaosDragon').animations[direction].hatch;
     let team        = this.team;
-    let tint        = this.color;
+    let startColor  = this.color;
+    let tint        = this.getContainerByName('trim').filters[0];
     let winds       = ['wind1','wind2','wind3','wind4','wind5'];
 
     if (direction === 'S')
@@ -546,8 +370,13 @@ export default class ChaosSeed extends Unit {
           repeat_index++;
           if (repeat_index === 1) this.sounds.phase.play();
           this.whiten(repeat_index / 12);
-          let trim = this.getContainerByName('trim');
-          trim.tint = Tactics.utils.getColorStop(tint, 0xFFFFFF, repeat_index / 12);
+
+          let color = Tactics.utils.getColorStop(startColor, 0xFFFFFF, repeat_index / 12);
+          tint.matrix[0]  = (color & 0xFF0000) / 0xFF0000;
+          tint.matrix[6]  = (color & 0x00FF00) / 0x00FF00;
+          tint.matrix[12] = (color & 0x0000FF) / 0x0000FF;
+
+          this.change({ color });
         },
         repeat: 12,
       })
@@ -624,14 +453,17 @@ export default class ChaosSeed extends Unit {
         script: ({ repeat_index }) => {
           repeat_index++;
           let trim = dragon.getContainerByName('trim');
-          trim.tint = Tactics.utils.getColorStop(0xFFFFFF, tint, repeat_index / 12);
+          let color = Tactics.utils.getColorStop(0xFFFFFF, startColor, repeat_index / 12);
+          trim.tint = color;
+
+          dragon.change({ color });
         },
         repeat: 12,
       })
       // 90
       .splice({
         script: ({ repeat_index }) => {
-          dragon.color = tint;
+          dragon.color = startColor;
           dragon.drawFrame(hatch.s + 6 + repeat_index);
         },
         repeat: 2,
