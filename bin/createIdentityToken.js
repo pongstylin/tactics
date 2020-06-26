@@ -29,10 +29,10 @@ let tokenValue = process.argv[3];
       console.log(`  To restore: npm run script bin/createIdentityToken.js ${playerId} ${player.identityToken}`);
       console.log('');
 
-      tokenValue = player.identityToken;
+      tokenValue = player.identityToken.value;
     }
     else {
-      tokenValue = await dataAdapter.createIdentityToken(playerId);
+      tokenValue = (await dataAdapter.createIdentityToken(playerId)).identityToken.value;
     }
 
     console.log(`/addDevice.html?${tokenValue}`);
