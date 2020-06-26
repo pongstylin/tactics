@@ -643,8 +643,6 @@ async function initGame() {
         lastSeenEventId = players.find(p => p.id === playerId).lastSeenEventId;
 
         initMessages(events.filter(e => e.type === 'message'));
-
-        startGame();
       }
       else
         $('#app').addClass('for-practice');
