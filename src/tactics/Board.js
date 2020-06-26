@@ -1411,7 +1411,7 @@ export default class {
   /*
    * Decode unit and tile references by modifying original object.
    */
-  decodeAction(action) {
+  decodeAction(action, reportIt = true) {
     let degree = this.getDegree('N', this.rotation);
     let units = this.teamsUnits.flat();
     let decode = obj => {
@@ -1427,7 +1427,7 @@ export default class {
         else {
           decoded.unit = units.find(u => u.id === decoded.unit);
 
-          if (decoded.unit === undefined)
+          if (reportIt && decoded.unit === undefined)
             reportError(JSON.stringify({
               error: 'Unable to decode unit',
               stack: new Error().stack,
