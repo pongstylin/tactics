@@ -694,7 +694,7 @@ export default class Game {
       else if (cursor.actions.last.type !== 'endTurn')
         this._resumeTurn();
   }
-  async pause() {
+  async pause(showActions = false) {
     if (this._whilePlaying.state !== 'stopped') {
       this._whilePlaying.state = 'interrupt';
       await this._whilePlaying;
@@ -703,7 +703,7 @@ export default class Game {
     this.notice = null;
     this.lock(this.state.ended ? 'gameover' : 'readonly');
 
-    if (!this.actions.length)
+    if (showActions && !this.actions.length)
       this._showActions(true);
 
     if (!this._inReplay) {

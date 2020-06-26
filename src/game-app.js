@@ -308,7 +308,7 @@ var buttons = {
   },
   pause: async () => {
     $('#game').toggleClass('is-busy');
-    await game.pause();
+    await game.pause(true);
     $('#game').toggleClass('is-busy');
   },
   forward: async () => {
@@ -617,6 +617,9 @@ async function initGame() {
         let groupId = `/rooms/${gameId}`;
         let playerId = authClient.playerId;
 
+        let opponentName = game.teams.find(t => t.playerId !== playerId).name;
+        document.title = `Tactics vs ${opponentName}`;
+
         /*
          * Don't listen to 'open' event until the chat has been joined to avoid
          * race conditions where we might try to join chat twice in one session.
@@ -644,8 +647,10 @@ async function initGame() {
 
         initMessages(events.filter(e => e.type === 'message'));
       }
-      else
+      else {
         $('#app').addClass('for-practice');
+        document.title `Tactics Practice`;
+      }
 
       startGame();
     })
