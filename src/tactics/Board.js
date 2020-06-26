@@ -1411,7 +1411,7 @@ export default class {
   /*
    * Decode unit and tile references by modifying original object.
    */
-  decodeAction(action, reportIt = true) {
+  decodeAction(action) {
     let degree = this.getDegree('N', this.rotation);
     let units = this.teamsUnits.flat();
     let decode = obj => {
@@ -1427,7 +1427,9 @@ export default class {
         else {
           decoded.unit = units.find(u => u.id === decoded.unit);
 
-          if (reportIt && decoded.unit === undefined)
+          // It is common for a result unit to be missing, since it may have
+          // been killed in a previous turn.  So only report a missing actor.
+          if (obj.type && decoded.unit === undefined)
             reportError(JSON.stringify({
               error: 'Unable to decode unit',
               stack: new Error().stack,

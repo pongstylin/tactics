@@ -1354,7 +1354,7 @@ export default class Game {
   }
   _showActions(all = false, unit) {
     let board = this._board;
-    let allActions = board.decodeAction(this.cursor.actions, false);
+    let allActions = board.decodeAction(this.cursor.actions);
     if (!allActions.length)
       return;
 
