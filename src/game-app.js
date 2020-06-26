@@ -604,7 +604,7 @@ async function initGame() {
       else
         return showJoinIntro(gameData);
     })
-    .then(g => {
+    .then(async g => {
       game = g;
       game.state.on('playerStatus', resetPlayerBanners);
 
@@ -613,35 +613,38 @@ async function initGame() {
       else if (game.hasOneLocalTeam()) {
         $('#app').addClass('for-playing');
 
+        let { players, events } = await chatClient.joinChat(gameId);
         let groupId = `/rooms/${gameId}`;
         let playerId = authClient.playerId;
 
-        chatClient.on('open', ({ data }) => {
-          if (data.reason === 'resume') return;
+        /*
+         * Don't listen to 'open' event until the chat has been joined to avoid
+         * race conditions where we might try to join chat twice in one session.
+         */
+        chatClient
+          .on('open', async ({ data }) => {
+            if (data.reason === 'resume') return;
 
-          let resume = chatMessages.last ? chatMessages.last.id : null;
+            let resume = {
+              id: chatMessages.length ? chatMessages.last.id : null,
+            };
+            let { events } = await chatClient.joinChat(gameId, resume);
 
-          chatClient.joinChat(gameId, { id:resume }).then(({ events }) => {
             appendMessages(events.filter(e => e.type === 'message'));
+          })
+          .on('event', event => {
+            if (event.body.group !== groupId) return;
+            if (event.body.type !== 'message') return;
+
+            let message = event.body.data;
+            appendMessages(message);
           });
-        });
 
-        chatClient.on('event', event => {
-          if (event.body.group !== groupId) return;
-          if (event.body.type !== 'message') return;
+        lastSeenEventId = players.find(p => p.id === playerId).lastSeenEventId;
 
-          let message = event.body.data;
-          appendMessages(message);
-        });
+        initMessages(events.filter(e => e.type === 'message'));
 
-        return chatClient.joinChat(gameId).then(({ players, events }) => {
-          lastSeenEventId = players
-            .find(p => p.id === playerId).lastSeenEventId;
-
-          initMessages(events.filter(e => e.type === 'message'));
-
-          startGame();
-        });
+        startGame();
       }
       else
         $('#app').addClass('for-practice');
