@@ -649,7 +649,7 @@ async function initGame() {
       }
       else {
         $('#app').addClass('for-practice');
-        document.title `Tactics Practice`;
+        document.title = `Tactics Practice`;
       }
 
       startGame();
