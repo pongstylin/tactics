@@ -18,6 +18,8 @@ export default class Cleric extends Unit {
     let spriteAction = this._sprite.getAction('attack');
     let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
 
+    anim.addFrame(() => this.stand());
+
     if (this.directional !== false)
       anim.addFrame(() => this.stand());
 
