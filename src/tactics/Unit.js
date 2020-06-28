@@ -677,7 +677,6 @@ export default class Unit {
       anim.splice(this.animTurn(action.direction));
 
     anim.splice(this.animAttack(action));
-    anim.addFrame(() => this.stand());
 
     return anim.play();
   }
@@ -1234,9 +1233,11 @@ export default class Unit {
     return anim;
   }
   animAttack(action) {
-    let anim         = this.renderAnimation('attack', action.direction);
+    let anim = this.renderAnimation('attack', action.direction);
     let spriteAction = this._sprite.getAction('attack');
     let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
+
+    anim.addFrame(() => this.stand());
 
     let targets = [];
     if (this.aLOS === true) {

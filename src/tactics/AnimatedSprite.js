@@ -574,6 +574,9 @@ export default class AnimatedSprite {
                 layer.buttonId = previousLayer.buttonId;
             }
           }
+
+          if (layer.name === undefined && previousLayer.name !== undefined)
+            layer.name = previousLayer.name;
         }
         else {
           layer = Object.assign({}, previousLayer);
@@ -934,20 +937,17 @@ export default class AnimatedSprite {
     let container = new Container();
     container.name = name;
 
-    let frameData;
+    let frameData = frames[frameIndex];
     if (options.styles && options.styles[name]) {
       let style = options.styles[name];
       normalizeTransform(style);
       normalizeColor(style);
 
-      frameData = {...frames[frameIndex]};
-      if (style.transform)
-        frameData.transform = mergeTransforms(style.transform, frameData.transform);
-      if (style.color)
-        frameData.color = mergeColors(style.color, frameData.color);
+      frameData = Object.assign({}, frameData, style, {
+        transform: mergeTransforms(frameData.transform, style.transform),
+        color: mergeColors(frameData.color, style.color),
+      });
     }
-    else
-      frameData = frames[frameIndex];
 
     if (options.unit) {
       let unit = options.unit;
@@ -981,16 +981,10 @@ export default class AnimatedSprite {
           normalizeTransform(style);
           normalizeColor(style);
 
-          let transform = style.transform;
-          delete style.transform;
-          let color = style.color;
-          delete style.color;
-
-          layerData = Object.assign({}, layerData, style);
-          if (transform)
-            layerData.transform = mergeTransforms(transform, layerData.transform);
-          if (color)
-            layerData.color = mergeColors(color, frameData.color);
+          layerData = Object.assign({}, layerData, style, {
+            transform: mergeTransforms(layerData.transform, style.transform),
+            color: mergeColors(layerData.color, style.color),
+          });
         }
 
         if (layerData.type === 'sprite') {
@@ -1035,6 +1029,8 @@ export default class AnimatedSprite {
         else if (layerData.type === 'image') {
           layer = PIXI.Sprite.from(this._data.images[layerData.imageId].texture);
 
+          if (layerData.name !== undefined)
+            layer.name = layerData.name;
           if (layerData.transform)
             applyTransform(layer, layerData.transform);
           if (layerData.color) {
@@ -1182,7 +1178,7 @@ function normalizeTransform(data, fromTransform = [1,0,0,1,0,0]) {
 function mergeTransforms(...matrices) {
   matrices = matrices.filter(m => !!m);
   if (matrices.length === 0)
-    return [1, 0, 0, 1, 0, 0];
+    return;
   else if (matrices.length === 1)
     return matrices[0];
 
@@ -1257,7 +1253,7 @@ function normalizeColor(data, fromColor) {
 function mergeColors(...colorMatrices) {
   colorMatrices = colorMatrices.filter(m => !!m);
   if (colorMatrices.length === 0)
-    return [0, 0, 0, 0, 1, 1, 1, 1];
+    return;
   else if (colorMatrices.length === 1)
     return colorMatrices[0];
 
