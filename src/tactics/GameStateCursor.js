@@ -65,7 +65,10 @@ export default class GameStateCursor {
   setToCurrent() {
     let state = this.state;
     let cursorData = state.cursor;
-    let hasChanged = cursorData.turnId !== this.turnId || cursorData.nextActionId !== this.nextActionId;
+    let hasChanged =
+      cursorData.turnId !== this.turnId ||
+      cursorData.nextActionId !== this.nextActionId ||
+      cursorData.atEnd !== this.atEnd;
 
     // Assign even if cursor hasn't changed since actions may have changed.
     Object.assign(this, cursorData);
@@ -76,7 +79,10 @@ export default class GameStateCursor {
 
   async set(turnId = this.turnId, nextActionId = 0, skipPassedTurns = false) {
     let cursorData = await this._getCursorData(turnId, nextActionId, skipPassedTurns);
-    let hasChanged = cursorData.turnId !== this.turnId || cursorData.nextActionId !== this.nextActionId;
+    let hasChanged =
+      cursorData.turnId !== this.turnId ||
+      cursorData.nextActionId !== this.nextActionId ||
+      cursorData.atEnd !== this.atEnd;
 
     // Assign even if cursor hasn't changed since actions may have changed.
     Object.assign(this, cursorData);
@@ -233,6 +239,8 @@ export default class GameStateCursor {
 
     if (nextActionId < 0)
       nextActionId = Math.max(0, turnData.actions.length + nextActionId + 1);
+    else
+      nextActionId = Math.min(turnData.actions.length, nextActionId || 0);
 
     let atEnd = (
       turnData.id === state.currentTurnId &&
@@ -246,7 +254,7 @@ export default class GameStateCursor {
       started: turnData.started,
       units: turnData.units,
       actions: turnData.actions,
-      nextActionId: Math.min(turnData.actions.length, nextActionId || 0),
+      nextActionId,
       atEnd,
     };
   }
