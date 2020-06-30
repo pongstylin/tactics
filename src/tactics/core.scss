@@ -82,6 +82,8 @@
         color: black;
         line-height: 18px;
         font-weight: bold;
+
+        z-index: 2;
       }
       #alert.clickable {
         cursor: pointer;
@@ -327,7 +329,7 @@
     flex-direction: column;
 
     position: absolute;
-    z-index: 2;
+    z-index: 20;
     box-sizing: border-box;
     width: 100%;
 
@@ -404,8 +406,6 @@
     border-bottom: 0 none;
     border-top-left-radius: 12px;
     border-top-right-radius: 12px;
-
-    z-index: 20;
   }
 
   &.chat-opening,

@@ -390,7 +390,7 @@ $(() => {
       Tactics.playSound('focus');
     })
     .on('click', '#app #alert', async event => {
-      let $alert = $(event.target);
+      let $alert = $(event.target).closest('#alert');
       let handler = $alert.data('handler');
       if (!handler)
         return;
