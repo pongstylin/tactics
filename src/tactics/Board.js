@@ -1424,19 +1424,8 @@ export default class {
             unit.direction = this.getRotation(unit.direction, degree);
           unit.assignment = this.getTileRotation(unit.assignment, degree);
         }
-        else {
+        else
           decoded.unit = units.find(u => u.id === decoded.unit);
-
-          // It is common for a result unit to be missing, since it may have
-          // been killed in a previous turn.  So only report a missing actor.
-          if (obj.type && decoded.unit === undefined)
-            reportError(JSON.stringify({
-              error: 'Unable to decode unit',
-              stack: new Error().stack,
-              units,
-              action,
-            }));
-        }
       }
       if ('assignment' in decoded)
         decoded.assignment = this.getTileRotation(decoded.assignment, degree);
