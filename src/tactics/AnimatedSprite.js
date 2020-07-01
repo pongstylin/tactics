@@ -239,6 +239,9 @@ export default class AnimatedSprite {
           options,
         );
 
+        if (options.fixup)
+          options.fixup(frame);
+
         frame.scripts.forEach(s => s());
 
         container.removeChildren();
@@ -257,6 +260,9 @@ export default class AnimatedSprite {
           options,
         );
 
+        if (options.fixup)
+          options.fixup(frame);
+
         return [
           ...frame.scripts,
           () => {
@@ -274,14 +280,18 @@ export default class AnimatedSprite {
   renderFrame(options) {
     let { sprites, sprite, framesData } = this._getSpriteData(options);
     let frameId = options.frameId || 0;
-
-    return this._renderFrame(
+    let frame = this._renderFrame(
       sprites,
       sprite.name,
       sprite.frames,
       framesData[frameId].id,
       options,
     );
+
+    if (options.fixup)
+      options.fixup(frame);
+
+    return frame;
   }
 
   _getSpriteData(options) {
@@ -959,6 +969,7 @@ export default class AnimatedSprite {
           let container = unit.getContainerByName('unit');
           applyTransform(container, frameData.unit.transform);
           applyColor(container, frameData.unit.color);
+          applyEffects(container, frameData.unit.effects);
         });
       // Clear previously applied unit styles
       else if (prevFrameData.unit)
@@ -966,6 +977,7 @@ export default class AnimatedSprite {
           let container = unit.getContainerByName('unit');
           applyTransform(container);
           applyColor(container);
+          applyEffects(container);
         });
     }
 
@@ -1025,6 +1037,8 @@ export default class AnimatedSprite {
             applyTransform(layer, mergeTransforms(subFrameData.transform, layerData.transform));
           if (layerData.color)
             applyColor(layer, mergeColors(subFrameData.color, layerData.color));
+          if (layerData.effects)
+            applyEffects(layer, layerData.effects);
         }
         else if (layerData.type === 'image') {
           layer = PIXI.Sprite.from(this._data.images[layerData.imageId].texture);
@@ -1039,6 +1053,8 @@ export default class AnimatedSprite {
             else
               applyColor(layer, layerData.color);
           }
+          if (layerData.effects)
+            applyEffects(layer, layerData.effects);
         }
         else if (layerData.type === 'button') {
           let button = this._data.buttons[layerData.buttonId];
@@ -1113,6 +1129,8 @@ export default class AnimatedSprite {
             applyTransform(layer, layerData.transform);
           if (layerData.color)
             applyColor(layer, layerData.color);
+          if (layerData.effects)
+            applyEffects(layer, layerData.effects);
         }
         else
           throw `Unsupported layer type: ${layerData.type}`;
@@ -1132,6 +1150,8 @@ export default class AnimatedSprite {
       else
         applyColor(container, frameData.color);
     }
+    if (frameData.effects)
+      applyEffects(layer, frameData.effects);
 
     return { container, scripts };
   }
@@ -1218,34 +1238,48 @@ function applyTransform(displayObject, transform = [1,0,0,1,0,0]) {
 }
 
 function normalizeColor(data, fromColor) {
-  let hasColor = data.color || data.rgba || data.rgb || data.alpha !== undefined;
+  if (
+    data.color !== undefined ||
+    data.rgba ||
+    data.rgb !== undefined ||
+    data.alpha !== undefined
+  ) {
+    let color = fromColor ? fromColor.slice() : [0,0,0,0,1,1,1,1];
 
-  if (hasColor) {
-    data.color = data.color || (fromColor ? fromColor.slice() : [0,0,0,0,1,1,1,1]);
+    if (Array.isArray(data.color)) {
+      if (typeof data.color === 'number')
+        color.splice(0, 3,
+          (data.color & 0xFF0000) / 0x010000,
+          (data.color & 0x00FF00) / 0x000100,
+          (data.color & 0x0000FF) / 0x000001,
+        );
+      else // expected length: 3 or 4
+        color.splice(0, data.color.length, ...data.color);
+    }
 
-    if (data.color.length === 3)
-      data.color.push(0,1,1,1,1);
-    if (data.color.length === 4)
-      data.color.push(1,1,1,1);
     if (data.rgba) {
-      data.color.splice(4, 4, ...data.rgba);
+      color.splice(4, 4, ...data.rgba);
       delete data.rgba;
     }
+
     if (data.rgb) {
       if (typeof data.rgb === 'number')
-        data.color.splice(4, 3,
+        color.splice(4, 3,
           (data.rgb & 0xFF0000) / 0xFF0000,
           (data.rgb & 0x00FF00) / 0x00FF00,
           (data.rgb & 0x0000FF) / 0x0000FF,
         );
       else
-        data.color.splice(4, 3, ...data.rgb);
+        color.splice(4, 3, ...data.rgb);
       delete data.rgb;
     }
+
     if (data.alpha !== undefined) {
-      data.color.splice(7, 1, data.alpha);
+      color.splice(7, 1, data.alpha);
       delete data.alpha;
     }
+
+    data.color = color;
   }
   else if (fromColor)
     data.color = fromColor.slice();
@@ -1278,10 +1312,34 @@ function mergeColors(...colorMatrices) {
 
   return r;
 }
+function setFilter(displayObject, name, seq, filter) {
+  filter.name = name;
+  filter.seq = seq;
+
+  if (!displayObject.filters)
+    displayObject.filters = [filter];
+
+  let index = displayObject.filters.findIndex(f => f.name === name);
+  if (index > -1)
+    displayObject.filters[index] = filter;
+  else {
+    displayObject.filters.push(filter);
+    displayObject.filters.sort((a, b) => a.seq - b.seq);
+  }
+}
+function clearFilter(displayObject, name) {
+  if (!displayObject.filters) return;
+  let index = displayObject.filters.findIndex(f => f.name === name);
+  if (index === -1) return;
+
+  if (displayObject.filters.length === 1)
+    displayObject.filters = null;
+  else
+    displayObject.filters.splice(index, 1);
+}
 function applyColor(displayObject, color) {
-  let filter;
   if (color && color.join() !== '0,0,0,0,1,1,1,1') {
-    filter = new ColorMatrixFilter();
+    let filter = new ColorMatrixFilter();
     filter.matrix[4]  = Math.min(255, color[0]) / 255;
     filter.matrix[9]  = Math.min(255, color[1]) / 255;
     filter.matrix[14] = Math.min(255, color[2]) / 255;
@@ -1291,10 +1349,26 @@ function applyColor(displayObject, color) {
     filter.matrix[12] = color[6];
     filter.matrix[18] = color[7];
 
-    displayObject.filters = [filter];
+    setFilter(displayObject, 'color', 0, filter);
   }
   else
-    displayObject.filters = null;
+    clearFilter(displayObject, 'color');
+}
+function applyEffects(displayObject, effects) {
+  if (effects && Object.keys(effects).length > 0) {
+    let filter = new ColorMatrixFilter();
+
+    for (let effect of effects) {
+      if (effect.args)
+        filter[effect.method](...effect.args);
+      else
+        filter[effect.method]();
+    }
+
+    setFilter(displayObject, 'effects', 1, filter);
+  }
+  else
+    clearFilter(displayObject, 'effects');
 }
 /*
  * The canvas renderer does not support filters...

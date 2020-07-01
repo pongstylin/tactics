@@ -487,6 +487,15 @@ export default class Unit {
     // Reset the visual position, if any
     delete this.pixi.data.position;
   }
+  getStyles() {
+    return { trim:{ rgb:this.color } };
+  }
+  /*
+   * A hook for changing a frame before it is rendered.
+   */
+  fixupFrame() {
+    // stub, used by Chaos Dragon
+  }
   draw(skipPosition = false) {
     this.frame = new PIXI.Container();
     this.frame.name = 'frame';
@@ -508,23 +517,22 @@ export default class Unit {
     return this._sprite.renderFrame({
       actionName,
       direction,
-      styles: {
-        trim: { rgb:this.color },
+      styles: Object.assign(this.getStyles(), {
         shadow: { alpha:0 },
-      },
+      }),
       forCanvas: true,
     }).container;
   }
-  drawFrame(actionName, direction = this.direction) {
+  drawFrame(actionName, direction = this.direction, frameId) {
     if (!this._sprite)
       this._sprite = Tactics.getSprite(this.spriteName);
 
     let frame = this._sprite.renderFrame({
       actionName,
       direction,
-      styles: {
-        trim: { rgb:this.color },
-      },
+      frameId,
+      styles: this.getStyles(),
+      fixup: this.fixupFrame.bind(this),
     });
 
     let focusContainer = this.getContainerByName('Focus');
@@ -580,9 +588,8 @@ export default class Unit {
       actionName,
       direction,
       container: this.frame,
-      styles: {
-        trim: { rgb:this.color },
-      },
+      styles: this.getStyles(),
+      fixup: this.fixupFrame.bind(this),
     });
   }
   getContainerByName(name, container = this.frame) {

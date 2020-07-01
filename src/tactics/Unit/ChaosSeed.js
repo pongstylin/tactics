@@ -1,13 +1,15 @@
 import Unit from 'tactics/Unit.js';
-import { unitDataMap, unitTypeToIdMap } from 'tactics/unitData.js';
+import { unitDataMap } from 'tactics/unitData.js';
 import colorMap from 'tactics/colorMap.js';
 
 export default class ChaosSeed extends Unit {
   constructor(data, board) {
     super(data, board);
 
-    this.title = '...sleeps...';
-    this.spriteName = 'WyvernEgg';
+    Object.assign(this, {
+      spriteName: 'WyvernEgg',
+      title: '...sleeps...',
+    });
   }
 
   drawStand(direction) {
@@ -349,7 +351,6 @@ export default class ChaosSeed extends Unit {
     let myPos       = assignment.getCenter();
     let caption;
     let dragon;
-    let hatch       = unitDataMap.get('ChaosDragon').animations[direction].hatch;
     let team        = this.team;
     let startColor  = this.color;
     let tint        = this.getContainerByName('trim').filters[0];
@@ -404,7 +405,7 @@ export default class ChaosSeed extends Unit {
           }, this.team);
 
         dragon = team.units[0];
-        dragon.drawFrame(hatch.s);
+        dragon.drawHatch();
       })
       .splice(36, {
         script: ({ repeat_index }) =>
@@ -445,16 +446,25 @@ export default class ChaosSeed extends Unit {
       // 73
       .splice({
         script: ({ repeat_index }) =>
-          dragon.drawFrame(hatch.s + 1 + repeat_index),
-        repeat: hatch.l-3
+          dragon.drawHatch(1 + repeat_index),
+        repeat: 5,
       })
       // 78
       .splice({
         script: ({ repeat_index }) => {
           repeat_index++;
+
           let trim = dragon.getContainerByName('trim');
+          let dragonTint;
+          if (trim.filters)
+            dragonTint = trim.filters[0];
+          else
+            trim.filters = [dragonTint = new PIXI.filters.ColorMatrixFilter()];
+
           let color = Tactics.utils.getColorStop(0xFFFFFF, startColor, repeat_index / 12);
-          trim.tint = color;
+          dragonTint.matrix[0]  = (color & 0xFF0000) / 0xFF0000;
+          dragonTint.matrix[6]  = (color & 0x00FF00) / 0x00FF00;
+          dragonTint.matrix[12] = (color & 0x0000FF) / 0x0000FF;
 
           dragon.change({ color });
         },
@@ -464,7 +474,7 @@ export default class ChaosSeed extends Unit {
       .splice({
         script: ({ repeat_index }) => {
           dragon.color = startColor;
-          dragon.drawFrame(hatch.s + 6 + repeat_index);
+          dragon.drawHatch(6 + repeat_index);
         },
         repeat: 2,
       });

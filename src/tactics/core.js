@@ -48,7 +48,7 @@ window.Tactics = (function () {
         unitTypes.unshift('core');
 
       if (unitTypes.find(ut => ut === 'ChaosSeed'))
-        unitTypes.push('ChaosDragon');
+        unitTypes.push('DragonTyrant','WyvernEgg','ChaosDragon');
 
       let baseURL = new URL(process.env.SPRITE_SOURCE, location.href);
       let progress = 0;
@@ -56,11 +56,11 @@ window.Tactics = (function () {
 
       let unitsData = await Promise.all(unitTypes.map(unitType => {
         let unitData = unitDataMap.get(unitType);
-        if (unitData && unitData.legacy) {
+        if (unitData && unitData.custom) {
           if (unitData.imports)
             unitData.imports.forEach(effectType => effectTypes.add(effectType));
 
-          return this.loadLegacySprite(unitType);
+          return this.loadCustomSprite(unitType);
         }
 
         let spriteURL = new URL(`${unitType}.json`, baseURL);
@@ -114,7 +114,7 @@ window.Tactics = (function () {
 
         let unitData = unitDataMap.get(unitType);
         try {
-          if (unitData && unitData.legacy) {
+          if (unitData && unitData.custom) {
             if (unitData.imports)
               for (let spriteName of unitData.imports) {
                 await AnimatedSprite.load(spriteName);
@@ -136,7 +136,7 @@ window.Tactics = (function () {
 
       cb(1, `Done!`);
     },
-    loadLegacySprite: async function (unitType) {
+    loadCustomSprite: async function (unitType) {
       if (this.loadedUnitTypes.has(unitType))
         return;
       this.loadedUnitTypes.add(unitType);
@@ -178,20 +178,6 @@ window.Tactics = (function () {
             resources.push(url);
           });
         }
-
-        if (unitData.frames)
-          unitData.frames.forEach(frame => {
-            if (!frame) return;
-
-            frame.c.forEach(sprite => {
-              let url = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+sprite.id+'.png';
-              if (resources.includes(url))
-                return;
-
-              resources.push(url);
-              loader.add({ url:url });
-            });
-          });
 
         if (resources.length === 0)
           resolve();

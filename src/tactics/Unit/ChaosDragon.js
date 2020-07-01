@@ -1,261 +1,43 @@
 import Unit from 'tactics/Unit.js';
-import { unitTypeToIdMap } from 'tactics/unitData.js';
 import colorMap from 'tactics/colorMap.js';
 
 export default class ChaosDragon extends Unit {
   constructor(data, board) {
     super(data, board);
 
-    this.frames.forEach((frame, i) => {
-      if (!frame) return;
-      let names = ['shadow', 'base', 'trim'];
-
-      frame.c.forEach(shape => {
-        if (names.length && shape.id !== 56)
-          shape.n = names.shift();
-      });
-    });
-
     Object.assign(this, {
-      title:  'Awakened!',
+      spriteName: 'DragonTyrant',
+      title: 'Awakened!',
       banned: [],
     });
   }
 
-  hasAction(actionName) {
-    if (actionName === 'stagger')
-      return true;
-
-    return false;
-  }
-  draw() {
-    this._frames = this.frames.map(frame => this.compileFrame(frame));
-
-    return super.draw();
-  }
-  drawAvatar(direction = 'S') {
-    return this.compileFrame(this.frames[this.stills[direction]]);
-  }
-  compileFrame(frame, data = this) {
-    let container = new PIXI.Container();
-    container.name = 'frame';
-    container.data = frame;
-    if (!frame.length && !frame.c) return container;
-
-    let shadowContainer = new PIXI.Container();
-    shadowContainer.name = 'shadow';
-    container.addChild(shadowContainer);
-
-    let unitContainer = new PIXI.Container();
-    unitContainer.name = 'unit';
-    container.addChild(unitContainer);
-
-    let offset;
-    if (data.width && data.height) {
-      offset = new PIXI.Point(
-        Math.floor(-data.width / 2),
-        Math.floor(-data.height + (HALF_TILE_HEIGHT*4/3)),
-      );
-
-      // Finicky
-      if (data.frames_offset) {
-        offset.x += data.frames_offset.x || 0;
-        offset.y += data.frames_offset.y || 0;
-      }
-    }
-    else // Legacy
-      offset = new PIXI.Point(frame.x || 0, (frame.y || 0) - 2);
-
-    container.alpha = 'a' in frame ? frame.a : 1;
-
-    let shapes;
-    if (frame.c)
-      shapes = frame.c;
-    else
-      shapes = frame;
-
-    let unitTypeId = unitTypeToIdMap.get(this.type);
-
-    shapes.forEach((shape, i) => {
-      /*
-       * Translate short form to long form
-       */
-      if (!('image' in shape)) {
-        if ('i' in shape) {
-          shape.image = data.images[shape.i];
-          delete shape.i;
-        }
-        else if ('id' in shape) {
-          // Legacy
-          shape.image = 'https://legacy.taorankings.com/units/'+unitTypeId+'/image'+shape.id+'.png';
-          delete shape.id;
-        }
-        else {
-          throw new Error('Frames without images are not supported');
-        }
-
-        if ('n' in shape) {
-          if (shape.n === 's')
-            shape.name = 'shadow';
-          else if (shape.n === 'b')
-            shape.name = 'base';
-          else if (shape.n === 't')
-            shape.name = 'trim';
-          else
-            shape.name = shape.n;
-          delete shape.n;
-        }
-        // Legacy
-        else if ('c' in frame) {
-          shape.name =
-            i === 0 ? 'shadow' :
-            i === 1 ? 'base'   :
-            i === 2 ? 'trim'   : null;
-        }
-
-        // Legacy translation
-        if ('a' in shape) {
-          shape.am = shape.a;
-          delete shape.a;
-        }
-
-        if (!('x' in shape))
-          shape.x = 0;
-        if (!('y' in shape))
-          shape.y = 0;
-      }
-
-      /*
-       * Configure a sprite using shape data
-       */
-      let sprite = PIXI.Sprite.from(shape.image);
-      sprite.data = shape;
-      sprite.position = new PIXI.Point(shape.x + offset.x, shape.y + offset.y);
-      sprite.alpha = 'am' in shape ? shape.am : 1;
-
-      // Legacy
-      if (shape.f === 'B') {
-        sprite.rotation = Math.PI;
-        sprite.position.x *= -1;
-        sprite.position.y *= -1;
-        if (shape.w) sprite.position.x += sprite.width - shape.w;
-        if (shape.h) sprite.position.y += sprite.height - shape.h;
-      }
-      else if (shape.f === 'H') {
-        if (shape.w) sprite.position.x -= (sprite.width - shape.w);
-        sprite.scale.x = -1;
-      }
-
-      if ('s' in shape) {
-        // Legacy
-        if (data.width === undefined) {
-          sprite.position.x += sprite.width - (sprite.width * shape.s);
-          sprite.position.y += sprite.height - (sprite.height * shape.s);
-        }
-        sprite.scale = new PIXI.Point(shape.s, shape.s);
-      }
-      else {
-        if ('sx' in shape)
-          sprite.scale.x = shape.sx;
-        if ('sy' in shape)
-          sprite.scale.y = shape.sy;
-      }
-
-      if (shape.name === 'trim')
-        sprite.tint = this.color;
-
-      if (shape.name === 'shadow') {
-        sprite.alpha = 0.5;
-        sprite.inheritTint = false;
-      }
-
-      sprite.name = shape.name;
-
-      if (shape.name === 'shadow')
-        shadowContainer.addChild(sprite);
-      else
-        unitContainer.addChild(sprite);
+  getStyles() {
+    return Object.assign(super.getStyles(), {
+      fire: { alpha:0 },
     });
-
-    return container;
   }
-  drawFrame(actionName, direction) {
-    let frameId;
-    let context;
-    if (typeof actionName === 'number') {
-      frameId = actionName;
-      context = direction;
-    }
-    else {
-      if (actionName === 'stand')
-        actionName = 'stills';
-      else if (actionName === 'turn' || actionName === 'stagger')
-        actionName = 'turns';
-      else
-        throw `Unexpected action name: ${actionName}`;
+  fixupFrame(frame) {
+    let unit = this.getContainerByName('unit', frame.container);
+    // This heuristic skips empty frames (while dragon flies)
+    if (unit.children.length === 1) return;
+    let trim = this.getContainerByName('trim', frame.container);
+    let filter = new PIXI.filters.ColorMatrixFilter();
+    filter.matrix[0] = 2;
+    filter.matrix[6] = 2;
+    filter.matrix[12] = 2;
 
-      if (direction === undefined)
-        direction = this.direction;
-      frameId = this[actionName][direction];
-    }
-
-    let pixi = this.pixi;
-    let frame = this._frames[frameId];
-    let focus;
-
-    if (this.frame) {
-      focus = this.hideFocus();
-      pixi.removeChild(this.frame);
-    }
-    if (!frame)
-      return;
-
-    pixi.addChildAt(this.frame = frame, 0);
-    if (focus)
-      this.showFocus(focus.alpha);
-
-    if (context)
-      pixi.position = context.getCenter().clone();
-
-    if (frame.data) {
-      // Reset Normal Appearance
-      if (this.width && this.height) {
-        // Reset the position after using .offsetFrame()
-        frame.position.x = 0;
-        frame.position.y = 0;
-      }
-      else { // Legacy
-        frame.position.x = frame.data.x || 0;
-        frame.position.y = (frame.data.y || 0) - 2;
-      }
-
-      let unitContainer = this.getContainerByName('unit');
-      unitContainer.filters = Object.keys(this.filters).map(name => this.filters[name]);
-
-      let trim = this.getContainerByName('trim');
-      trim.tint = this.color;
-    }
-
-    return this;
+    unit.children[0].filters = [filter];
+    trim.children[0].filters = [filter];
   }
-  move(action) {
-    return this.animMove(action.assignment).play();
+  drawHatch(frameId = 0) {
+    let hatchFrame = this.hatch[frameId];
+
+    return this.drawFrame(hatchFrame[0], this.direction, hatchFrame[1]);
   }
-  attack(action) {
-    let anim = new Tactics.Animation({fps:10});
-
-    // Make sure we strike the actual target (LOS can change it).
-    let target = action.target;
-    let target_unit = this.getTargetUnits(target)[0];
-    if (target_unit)
-      target = target_unit.assignment;
-
-    anim
-      .splice(this.animTurn(action.direction))
-      .splice(this.animAttack(target));
-
-    return anim.play();
-  }
+  /*
+   * Dragon Tyrant fire effects should be hidden
+   */
   getPhaseAction(attacker, result) {
     let banned = this.banned.slice();
     if (attacker)
@@ -295,55 +77,91 @@ export default class ChaosDragon extends Unit {
   animPhase(colorId) {
     let old_color = this.color;
     let new_color = colorMap.get(colorId);
+    let trim = this.getContainerByName('trim');
+    let tint;
+
+    if (trim.filters)
+      tint = trim.filters[0];
+    else
+      tint = (trim.filters = [new PIXI.filters.ColorMatrixFilter()])[0];
 
     return new Tactics.Animation({frames: [
       () => this.sounds.phase.play(),
       {
-        script: frame => {
-          let step = frame.repeat_index + 1;
-          let color = Tactics.utils.getColorStop(old_color, new_color, step / 12);
-          this.change({ color:color });
-          this.getContainerByName('trim').tint = this.color;
+        script: ({ repeat_index }) => {
+          repeat_index++;
+
+          let color = Tactics.utils.getColorStop(old_color, new_color, repeat_index / 12);
+          tint.matrix[0]  = (color & 0xFF0000) / 0xFF0000;
+          tint.matrix[6]  = (color & 0x00FF00) / 0x00FF00;
+          tint.matrix[12] = (color & 0x0000FF) / 0x0000FF;
+
+          this.change({ color });
         },
         repeat: 12,
       }
     ]});
   }
-  animMove(assignment) {
-    let board       = this.board;
-    let anim        = new Tactics.Animation({fps:10});
-    let frame_index = 0;
+  animAttack(action) {
+    let anim = this._sprite.renderAnimation({
+      actionName: 'attack',
+      direction: action.direction || this.direction,
+      container: this.frame,
+      silent: true,
+      styles: Object.assign(super.getStyles(), {
+        fire: { effects:[{ method:'grayscale', args:[0.75] }] },
+      }),
+      fixup: this.fixupFrame.bind(this),
+    });
+    let spriteAction = this._sprite.getAction('attack');
+    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
 
-    anim.addFrame(() => this.assignment.dismiss());
-
-    // Turn frames are not typically required while walking unless the very
-    // next tile is in the opposite direction of where the unit is facing.
-    let direction = board.getDirection(this.assignment, assignment, this.direction);
-    if (direction === board.getRotation(this.direction, 180))
-      anim.splice(frame_index++, () => this.drawTurn(90));
-
-    let move = this.animations[direction].move;
     anim
-      .splice(frame_index,
-        new Tactics.Animation({frames: [{
-          script: frame => this.drawFrame(move.s + frame.repeat_index),
-          repeat: move.l,
-        }]})
-          .splice(10, () => this.assign(assignment))
-          .splice([2,7,11,16], () => this.sounds.flap.play())
+      .splice(0, () => this.sounds.charge.fade(0, 1, 500, this.sounds.charge.play()))
+      .splice(3, () => {
+        this.sounds.buzz.play();
+        this.sounds.charge.stop();
+        Tactics.playSound('sound1602');
+      })
+      .addFrame(() => {
+        this.sounds.buzz.stop();
+        this.stand();
+      });
+
+    let targets = [];
+    if (this.aLOS === true) {
+      let targetUnit = this.getLOSTargetUnit(action.target);
+      if (targetUnit)
+        targets.push(targetUnit.assignment);
+    }
+    else
+      targets = this.getTargetTiles(action.target);
+
+    targets.forEach(target => {
+      let result = action.results.find(r => r.unit === target.assigned);
+      let isHit = result && !result.miss;
+
+      if (anim.frames.length < effectOffset)
+        anim.addFrame({
+          scripts: [],
+          repeat: effectOffset - anim.frames.length,
+        });
+
+      anim.splice(
+        effectOffset,
+        this.animAttackEffect(spriteAction.effect, target, isHit),
       );
-    anim.addFrame(() => this.stand(direction));
+    });
 
     return anim;
   }
-  animAttack(target) {
+  animAttackEffect(effect, target, isHit) {
     let board     = this.board;
     let anim      = new Tactics.Animation();
     let tunit     = target.assigned;
     let direction = board.getDirection(this.assignment, target, 1);
-    let attack    = this.animations[direction].attack, frame=0;
     let whiten    = [0.25, 0.5, 0];
-    let adjust    = direction === 'N' ? {x:-5,y:0} : direction === 'W' ? {x:-5,y:3} : {x:5,y:3};
+    let unitsContainer = board.unitsContainer;
     let container = new PIXI.Container();
     let filter1   = new PIXI.filters.BlurFilter();
     let filter2   = new PIXI.filters.BlurFilter();
@@ -351,8 +169,11 @@ export default class ChaosDragon extends Unit {
     let streaks2  = new PIXI.Graphics;
     let streaks3  = new PIXI.Graphics;
 
-    adjust.x -= board.pixi.position.x;
-    adjust.y -= board.pixi.position.y;
+    // Make sure streaks overlap naturally
+    // If the dragon is facing N or E, then streaks appear behind dragon.
+    // Otherwise, streaks appear before dragon.
+    container.data = { position:{ y:this.pixi.position.y } };
+    container.data.position.y += ['N','E'].includes(this.direction) ? -1 : 1;
 
     //filter1.blur = 6;
     streaks1.filters = [filter1];
@@ -365,46 +186,57 @@ export default class ChaosDragon extends Unit {
     streaks3.filters = [filter2];
     container.addChild(streaks3);
 
+    let glowFrame2;
+    let start;
+    let end = target.getTop().clone();
+    let offset = { x:0, y:0 };
+    let parent = unitsContainer;
+    while (parent) {
+      offset.x += parent.x;
+      offset.y += parent.y;
+      parent = parent.parent;
+    }
+
     anim
       .addFrame({
-        script: () => this.drawFrame(attack.s + frame++),
-        repeat: attack.l,
+        script: ({ repeat_index }) => {
+          let glow = this.getContainerByName('fire');
+          if (!glow) return;
+          if (repeat_index === 2)
+            glowFrame2 = glow;
+          if (repeat_index === 4) {
+            let parent = glow.parent;
+            let index = parent.getChildIndex(glow);
+            parent.removeChild(glow);
+            parent.addChildAt(glow = glowFrame2, index);
+          }
+
+          let bounds = glow.getBounds();
+          start = new PIXI.Point(bounds.x - offset.x, bounds.y - offset.y);
+          start.x += Math.floor(glow.width  / 2);
+          start.y += Math.floor(glow.height / 2);
+        },
+        repeat: 5,
       })
-      .splice(0, () => this.sounds.charge.fade(0, 1, 500, this.sounds.charge.play()))
-      .splice(3, tunit.animHit(this))
-      .splice(5, () => {
-        this.sounds.buzz.play();
-        this.sounds.charge.stop();
-        this.sounds.attack.play();
-      })
-      .splice(5, {
+      .splice(1, tunit.animHit(this))
+      .splice(3, {
         script: () => tunit.whiten(whiten.shift()),
         repeat: 3,
       })
+      .splice(3, () => {
+        this.drawStreaks(container, target, start, end);
+        unitsContainer.addChild(container);
+      })
+      .splice(4, () => {
+        this.drawStreaks(container, target, start, end);
+      })
       .splice(5, () => {
-        this.drawStreaks(container, target, adjust);
-        board.pixi.addChild(container);
-      })
-      .splice(6, () => {
-        this.drawStreaks(container, target, adjust);
-      })
-      .splice(7, () => {
-        board.pixi.removeChild(container);
-        this.sounds.buzz.stop();
+        unitsContainer.removeChild(container);
       });
 
     return anim;
   }
-  drawStreaks(container, target, adjust) {
-    let sprite = this.getContainerByName('glow');
-    let bounds = sprite.getBounds();
-    let start  = new PIXI.Point(bounds.x + adjust.x, bounds.y + adjust.y);
-    let end    = target.getCenter().clone();
-
-    start.x += Math.floor(sprite.width  / 2);
-    start.y += Math.floor(sprite.height / 2);
-    end.y   -= 14;
-
+  drawStreaks(container, target, start, end) {
     // Determine the stops the lightning will make.
     let stops = [
       {
@@ -463,83 +295,6 @@ export default class ChaosDragon extends Unit {
 
     return this;
   }
-  animTurn(direction, andStand = true) {
-    let anim = new Tactics.Animation();
-
-    // Do nothing if already facing the desired direction
-    if (!direction || direction === this.direction) return anim;
-
-    // If turning to the opposite direction, first turn right.
-    if (direction === this.board.getRotation(this.direction, 180)) {
-      anim.addFrame(() => {
-        let playId = this.sounds.flap.play();
-        this.sounds.flap.volume(0.65 * 0.5, playId);
-      });
-      anim.addFrame(() => this.drawTurn(90));
-    }
-
-    // Now stand facing the desired direction.
-    if (andStand)
-      anim.addFrame(() => this.stand(direction));
-
-    return anim;
-  }
-  animHit(attacker, attackType) {
-    let anim = new Tactics.Animation();
-    let doStagger;
-    let direction;
-
-    if (attackType === undefined)
-      attackType = attacker.aType;
-
-    if (attackType === 'melee') {
-      doStagger = true;
-
-      direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
-
-      anim.addFrame(() => this.sounds.impact.play());
-    }
-    else if (attackType === 'magic') {
-      doStagger = true;
-
-      anim.addFrame([]);
-    }
-
-    if (doStagger) {
-      anim.addFrame([]);
-
-      if (this.paralyzed)
-        anim.addFrames([
-          () => this.offsetFrame(0.12, direction),
-          () => this.offsetFrame(-0.16, direction),
-        ]);
-      else
-        anim.addFrames([
-          () => this.drawStagger().offsetFrame(0.12, direction),
-          () => this.offsetFrame(-0.16, direction),
-          () => this.drawStand(),
-        ]);
-    }
-
-    return anim;
-  }
-  animMiss(attacker) {
-    let anim      = new Tactics.Animation();
-    let direction = this.board.getDirection(this.assignment, attacker.assignment, this.direction);
-    let block     = this.animations[direction].block;
-
-    anim
-      .addFrames([
-        () => this.direction = direction,
-        () => this.sounds.block.play(),
-      ])
-      .splice(0, {
-        script: frame => this.drawFrame(block.s + frame.repeat_index),
-        repeat: block.l,
-      });
-
-    return anim;
-  }
 
   /*
    * Implement ability to self-heal
@@ -555,27 +310,28 @@ export default class ChaosDragon extends Unit {
       },
     }];
   }
-  attackSpecial(action) {
-    let anim  = new Tactics.Animation();
-    let block = this.animations[this.direction].block;
+  animAttackSpecial(action) {
+    let anim = new Tactics.Animation();
+    let block = this._sprite.renderAnimation({
+      actionName: 'block',
+      direction: action.direction || this.direction,
+      container: this.frame,
+      silent: true,
+      styles: super.getStyles(),
+      fixup: this.fixupFrame.bind(this),
+    });
 
     anim
-      .splice([
-        () => this.drawFrame(block.s),
-        () => this.drawFrame(block.s+1),
-      ])
-      .splice(0, () => this.sounds.heal.play())
-      .splice(0, this.animAttackEffect(
+      .splice(block.frames.slice(0, 2))
+      .splice(0, () => Tactics.playSound('sound1203'))
+      .splice(0, super.animAttackEffect(
         { spriteId:'sprite:Sparkle', type:'heal' },
         this.assignment,
-        true,
+        true, // isHit
       ))
-      .splice([
-        () => this.drawFrame(block.s+4),
-        () => this.drawFrame(block.s+5),
-      ]);
+      .splice(-1, block.frames.slice(3));
 
-    return anim.play();
+    return anim;
   }
 
   /*
