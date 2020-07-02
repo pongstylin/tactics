@@ -20,7 +20,9 @@ import { CanvasSpriteRenderer } from '@pixi/canvas-sprite';
 import { CanvasGraphicsRenderer } from '@pixi/canvas-graphics';
 import '@pixi/canvas-display';
 import '@pixi/canvas-text';
+import { Extract } from '@pixi/extract';
 
+Renderer.registerPlugin('extract', Extract);
 Renderer.registerPlugin('batch', BatchRenderer);
 Renderer.registerPlugin('interaction', InteractionManager);
 CanvasRenderer.registerPlugin('sprite', CanvasSpriteRenderer);

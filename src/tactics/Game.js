@@ -181,6 +181,9 @@ export default class Game {
     return this._inReplay;
   }
 
+  get renderer() {
+    return this._renderer;
+  }
   get card() {
     return this._board.card;
   }

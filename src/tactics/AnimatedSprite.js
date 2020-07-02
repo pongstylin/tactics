@@ -1047,12 +1047,8 @@ export default class AnimatedSprite {
             layer.name = layerData.name;
           if (layerData.transform)
             applyTransform(layer, layerData.transform);
-          if (layerData.color) {
-            if (options.forCanvas)
-              applyColorForCanvas(layer, layerData.color);
-            else
-              applyColor(layer, layerData.color);
-          }
+          if (layerData.color)
+            applyColor(layer, layerData.color);
           if (layerData.effects)
             applyEffects(layer, layerData.effects);
         }
@@ -1144,12 +1140,8 @@ export default class AnimatedSprite {
 
     if (frameData.transform)
       applyTransform(container, frameData.transform);
-    if (frameData.color) {
-      if (options.forCanvas)
-        applyColorForCanvas(container, frameData.color);
-      else
-        applyColor(container, frameData.color);
-    }
+    if (frameData.color)
+      applyColor(container, frameData.color);
     if (frameData.effects)
       applyEffects(layer, frameData.effects);
 
@@ -1369,46 +1361,6 @@ function applyEffects(displayObject, effects) {
   }
   else
     clearFilter(displayObject, 'effects');
-}
-/*
- * The canvas renderer does not support filters...
- * It also doesn't support applying tints to containers...
- * So, apply tints to all descendent sprites.
- *
- * Alpha may be applied directly to the container.
- */
-function applyColorForCanvas(displayObject, color) {
-  let sprites = [];
-  let stack = [displayObject];
-  while (stack.length) {
-    let item = stack.shift();
-
-    if (item instanceof Sprite)
-      sprites.push(item);
-    else
-      stack.push(...item.children);
-  }
-
-  if (color) {
-    let tint = ((color[4] * 255) << 16) + ((color[5] * 255) << 8) + color[6] * 255;
-
-    for (let i = 0; i < sprites.length; i++) {
-      let sprite = sprites[i];
-
-      sprite.tint = tint;
-    }
-
-    displayObject.alpha = Math.min(1, color[7] + color[3]);
-  }
-  else {
-    for (let i = 0; i < sprites.length; i++) {
-      let sprite = sprites[i];
-
-      sprite.tint = 0xFFFFFF;
-    }
-
-    displayObject.alpha = 1;
-  }
 }
 
 // Static property

@@ -513,15 +513,42 @@ export default class Unit {
     if (!this._sprite)
       this._sprite = Tactics.getSprite(this.spriteName);
 
-    let actionName = 'stand';
-    return this._sprite.renderFrame({
-      actionName,
+    /*
+     * Most avatars have the same direction and trim color.
+     * So caching the avatar can be useful.
+     */
+    if (
+      this._avatar &&
+      this._avatar.direction === direction &&
+      // Cheating.  Should make sure all styles are the same instead
+      this._avatar.color === this.color
+    ) return this._avatar.avatar.clone();
+
+    let frame = this._sprite.renderFrame({
+      actionName: 'stand',
       direction,
       styles: Object.assign(this.getStyles(), {
         shadow: { alpha:0 },
       }),
-      forCanvas: true,
+      fixup: this.fixupFrame.bind(this),
     }).container;
+
+    frame.filters = this.board.unitsContainer.filters;
+
+    let bounds = frame.getLocalBounds();
+    frame.position.x = -bounds.x;
+    frame.position.y = -bounds.y;
+
+    let frameContainer = new PIXI.Container();
+    frameContainer.addChild(frame);
+
+    let avatarCanvas = Tactics.game.renderer.extract.canvas(frameContainer);
+    let avatar = PIXI.Sprite.from(avatarCanvas);
+    avatar.x = bounds.x;
+    avatar.y = bounds.y;
+
+    this._avatar = { direction, color:this.color, avatar };
+    return avatar.clone();
   }
   drawFrame(actionName, direction = this.direction, frameId) {
     if (!this._sprite)

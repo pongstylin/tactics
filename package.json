@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "0.14.25",
+  "version": "0.14.26",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
@@ -41,6 +41,7 @@
     "@pixi/canvas-sprite": "^5.2.1",
     "@pixi/canvas-text": "^5.2.1",
     "@pixi/display": "^5.2.1",
+    "@pixi/extract": "^5.2.1",
     "@pixi/filter-blur": "^5.2.1",
     "@pixi/filter-color-matrix": "^5.2.1",
     "@pixi/graphics": "^5.2.1",

@@ -1,19 +1,3 @@
-/*
- * The original game had a color table from which a color is picked and saved
- * against your account.  This color dictated the color of units on the board.
- *
- * The original game used color multiplication where each channel may be
- * increased by multiplying it with a number greater than 1 or decreased by
- * multiplying it with a number between 0 and 1.  PIXI supports this with the
- * ColorMatrixFilter, but only with WebGL renderers (game board) and not with
- * canvas renderers (info card).  It would require some work to customize the
- * canvas renderer to support ColorMatrixFilter or to otherwise use the WebGL
- * renderer for the info card.  So, fallback to using PIXI tints instead.  A
- * tint is just a numeric color, so it is not possible to increase a color
- * channel - only decrease.  In other words, 0xFFFFFF means to use the existing
- * red/green/blue of the underlying image, while 0x000000 means to remove all
- * red/green/blue from the underlying image.
- */
 const colorsData = [
   0xFFFFFF,
   0,

@@ -720,11 +720,8 @@ export default class {
 
     this._coreSprite = Tactics.getSprite('core');
 
-    // Preload the Trophy data URLs
-    if (this.card) {
+    if (this.card)
       this._trophy = unitFactory('Trophy', this);
-      this._trophy.drawAvatar();
-    }
 
     return this;
   }
@@ -1067,9 +1064,7 @@ export default class {
       mask.drawRect(0, 0, 150, 60);
 
       let avatar = unit.drawAvatar();
-      let avatarBounds = avatar.getLocalBounds();
-      avatar.position.y = Math.min(76, Math.max(54, -avatarBounds.y));
-      avatar.filters = this.unitsContainer.filters;
+      avatar.y += Math.min(76, Math.max(54, -avatar.y));
       avatar.mask = mask;
 
       els.avatar.removeChildren();
