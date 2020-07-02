@@ -242,6 +242,9 @@ export default class {
   /*****************************************************************************
    * Public Properties
    ****************************************************************************/
+  get renderer() {
+    return this._renderer;
+  }
   get canvas() {
     return this._canvas;
   }
@@ -639,7 +642,7 @@ export default class {
       if (dist < 5) return;
 
       dragAvatar = new PIXI.Container();
-      dragAvatar.addChild(dragUnit.drawAvatar(dragUnit.direction));
+      dragAvatar.addChild(dragUnit.drawAvatar(dragUnit.direction, false));
 
       this.selected = null;
 

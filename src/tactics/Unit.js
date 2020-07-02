@@ -509,7 +509,7 @@ export default class Unit {
 
     return this.drawStand();
   }
-  drawAvatar(direction = 'S') {
+  drawAvatar(direction = 'S', forCanvas = true) {
     if (!this._sprite)
       this._sprite = Tactics.getSprite(this.spriteName);
 
@@ -518,6 +518,7 @@ export default class Unit {
      * So caching the avatar can be useful.
      */
     if (
+      forCanvas &&
       this._avatar &&
       this._avatar.direction === direction &&
       // Cheating.  Should make sure all styles are the same instead
@@ -534,6 +535,8 @@ export default class Unit {
     }).container;
 
     frame.filters = this.board.unitsContainer.filters;
+
+    if (!forCanvas) return frame;
 
     let bounds = frame.getLocalBounds();
     frame.position.x = -bounds.x;
