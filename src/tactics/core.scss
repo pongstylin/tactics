@@ -578,11 +578,9 @@
  */
 #app #game > .buttons {
   BUTTON[name=select][value=move] {
-    background-image: url('https://legacy.taorankings.com/images/move.png');
     border-color: #0088FF;
   }
   BUTTON[name=select][value=attack] {
-    background-image: url('https://legacy.taorankings.com/images/attack.png');
     border-color: #FF8800;
   }
   BUTTON[name=select][value=attack].targeting {
@@ -590,14 +588,9 @@
     cursor: pointer;
   }
   BUTTON[name=select][value=turn] {
-    background-image: url('https://legacy.taorankings.com/images/turn.png');
     border-color: #FFE991;
   }
-  BUTTON[name=pass] {
-    background-image: url('https://legacy.taorankings.com/images/pass.png');
-  }
-  BUTTON[name=surrender] {
-    background-image: url('https://legacy.taorankings.com/images/surrender.png');
+  BUTTON[name=pass], BUTTON[name=surrender] {
     border-color: #FFFFFF;
   }
 }

@@ -82,6 +82,7 @@ export default class AnimatedSprite {
               new Rectangle(image.x, image.y, image.width, image.height),
             );
           }
+          // By default the image is a texture
           else if (image.type === undefined) {
             if (image.src.startsWith('sprite:'))
               image.texture = AnimatedSprite.get(image.src).texture;
@@ -101,8 +102,14 @@ export default class AnimatedSprite {
             else
               throw 'Unsupported image source';
           }
+          // Ordinary images are not used in sprites
+          else if (image.type === 'image') {
+            image.src = shrinkDataURI(image.src);
+            continue;
+          }
           else
             throw 'Unsupported image type';
+
           delete image.src;
         }
 

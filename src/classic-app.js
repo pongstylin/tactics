@@ -205,6 +205,19 @@ async function loadResources() {
   return new Promise(resolve => {
     progress
       .on('complete', () => {
+        let core = Tactics.getSprite('core');
+
+        $('BUTTON[name=select][value=move]')
+          .css({ backgroundImage:`url('${core.getImage('move').src}')` });
+        $('BUTTON[name=select][value=attack]')
+          .css({ backgroundImage:`url('${core.getImage('attack').src}')` });
+        $('BUTTON[name=select][value=turn]')
+          .css({ backgroundImage:`url('${core.getImage('turn').src}')` });
+        $('BUTTON[name=pass]')
+          .css({ backgroundImage:`url('${core.getImage('pass').src}')` });
+        $('BUTTON[name=surrender]')
+          .css({ backgroundImage:`url('${core.getImage('surrender').src}')` });
+
         let tapHandler = () => {
           progress.disableButtonMode(tapHandler);
           progress.message = 'One moment...';

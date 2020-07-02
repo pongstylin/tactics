@@ -60,7 +60,7 @@ const INSTALL_CACHE_NAME = 'app' + SUFFIX;
 //   1) A minor change to a file has taken place (e.g. changing an image)
 //   2) A file is moved from the fetch cache to the install cache.
 //   3) One or more files are no longer used by a new app version.
-const FETCH_CACHE_NAME = 'dynamic-20200628';
+const FETCH_CACHE_NAME = 'dynamic-20200702';
 const LOCAL_CACHE_NAME = 'local';
 
 const ACTIVE_CACHE_NAMES = [

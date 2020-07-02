@@ -54,7 +54,7 @@ Be aware that no license currently exists for distributing this game as-is for p
 All content under the `src` directory fall under the following license:
 [Unlicense](https://choosealicense.com/licenses/unlicense/)
 
-All image and audio resources loaded from the \*.taorankings.com domain are not licensed ([No License](https://choosealicense.com/no-permission/)).
+No license is available for audio and iamges resources contained in JSON files downloaded from the tactics.taorankings.com site ([No License](https://choosealicense.com/no-permission/)).
 
 ## Credits
 [<img src="https://user-images.githubusercontent.com/8408196/68429603-675de280-017c-11ea-9dba-a736d34dace3.png" alt="Browser Stack Logo" width="200">](https://www.browserstack.com/)
