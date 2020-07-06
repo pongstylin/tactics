@@ -132,9 +132,11 @@ export default class AnimatedSprite {
           let isCustom = sound.volume !== undefined || sound.rate !== undefined;
 
           if (isURL || isDataURL || isCustom) {
-            if (isDataURL)
+            if (isURL)
+              sound.src = sound.src.toString();
+            else if (isDataURL)
               sound.src = shrinkDataURI(sound.src);
-            if (isSpriteURI)
+            else if (isSpriteURI)
               sound.src = AnimatedSprite.get(sound.src).howl._src;
 
             let soundName = sound.name[0] || i;
