@@ -47,58 +47,78 @@ window.Tactics = (function () {
       if (!AnimatedSprite.has('core'))
         unitTypes.unshift('core');
 
-      if (unitTypes.find(ut => ut === 'ChaosSeed'))
-        unitTypes.push('DragonTyrant','WyvernEgg','ChaosDragon');
-
-      let baseURL = new URL(process.env.SPRITE_SOURCE, location.href);
+      let baseSpriteURL = new URL(process.env.SPRITE_SOURCE, location.href);
+      let baseSoundURL = new URL(process.env.SOUND_SOURCE, location.href);
       let progress = 0;
       let effectTypes = new Set();
 
-      let unitsData = await Promise.all(unitTypes.map(unitType => {
-        let unitData = unitDataMap.get(unitType);
-        if (unitData && unitData.custom) {
-          if (unitData.imports)
-            unitData.imports.forEach(effectType => effectTypes.add(effectType));
+      let unitsData = await Promise.all(unitTypes.map(async unitType => {
+        let spriteName;
 
-          return this.loadCustomSprite(unitType);
+        let unitData = unitDataMap.get(unitType);
+        if (unitData && unitData.baseSprite)
+          spriteName = unitData.baseSprite;
+        else
+          spriteName = unitType;
+
+        let spriteURL = new URL(`${spriteName}.json`, baseSpriteURL);
+        let rsp = await fetch(spriteURL);
+        let spriteData = await rsp.json();
+
+        spriteData.name = unitType;
+
+        if (unitData) {
+          if (unitData.imports)
+            if (spriteData.imports)
+              spriteData.imports.push(...unitData.imports);
+            else
+              spriteData.imports = unitData.imports;
+          if (unitData.sounds)
+            for (let name of Object.keys(unitData.sounds)) {
+              let sound = unitData.sounds[name];
+              if (typeof sound === 'string')
+                sound = { src:sound };
+
+              sound.name = name;
+              if (!sound.src.startsWith('sprite:'))
+                sound.src = new URL(`${sound.src}.mp3`, baseSoundURL);
+
+              unitData.sounds[name] = sound;
+
+              spriteData.sounds.push(sound);
+            }
         }
 
-        let spriteURL = new URL(`${unitType}.json`, baseURL);
+        if (spriteData.imports)
+          for (let i = 0; i < spriteData.imports.length; i++) {
+            effectTypes.add(spriteData.imports[i]);
+          }
 
-        return fetch(spriteURL).then(rsp => rsp.json()).then(data => {
-          data.name = unitType;
-          if (data.imports)
-            for (let i = 0; i < data.imports.length; i++) {
-              effectTypes.add(data.imports[i]);
-            }
+        progress++;
+        cb(
+          progress / unitTypes.length * 0.30,
+          `Loading unit data...`
+        );
 
-          progress++;
-          cb(
-            progress / unitTypes.length * 0.30,
-            `Loading unit data...`
-          );
-
-          return data;
-        });
+        return spriteData;
       }));
-      unitsData = unitsData.filter(ud => !!ud);
       effectTypes = [...effectTypes];
       progress = 0;
 
-      let effectsData = await Promise.all(effectTypes.map(effectType => {
-        let spriteURL = new URL(`${effectType}.json`, baseURL);
+      let effectsData = await Promise.all(effectTypes.map(async effectType => {
+        let spriteURL = new URL(`${effectType}.json`, baseSpriteURL);
+        let rsp = await fetch(spriteURL);
+        let spriteData = await rsp.json();
 
-        return fetch(spriteURL).then(rsp => rsp.json()).then(data => {
-          data.name = effectType;
+        spriteData.name = effectType;
 
-          progress++;
-          cb(
-            0.30 + progress / effectTypes.length * 0.20,
-            `Loading unit data...`
-          );
+        progress++;
+        cb(
+          0.30 + progress / effectTypes.length * 0.20,
+          `Loading unit data...`
+        );
 
-          return data;
-        });
+        return spriteData;
       }));
 
       AnimatedSprite.dataMap = new Map(
@@ -114,14 +134,7 @@ window.Tactics = (function () {
 
         let unitData = unitDataMap.get(unitType);
         try {
-          if (unitData && unitData.custom) {
-            if (unitData.imports)
-              for (let spriteName of unitData.imports) {
-                await AnimatedSprite.load(spriteName);
-              }
-          }
-          else
-            await AnimatedSprite.load(unitType);
+          await AnimatedSprite.load(unitType);
         }
         catch (e) {
           cb(
@@ -135,58 +148,6 @@ window.Tactics = (function () {
       }
 
       cb(1, `Done!`);
-    },
-    loadCustomSprite: async function (unitType) {
-      if (this.loadedUnitTypes.has(unitType))
-        return;
-      this.loadedUnitTypes.add(unitType);
-
-      return new Promise((resolve, reject) => {
-        let resources = [];
-        let loaded = 0;
-        let loader = new Loader();
-        let effects = {};
-
-        let progress = () => {
-          let percent = (++loaded / resources.length) * 100;
-
-          if (percent === 100)
-            resolve();
-        };
-
-        let unitData   = unitDataMap.get(unitType);
-        let unitTypeId = unitTypeToIdMap.get(unitType);
-        let sprites    = [];
-
-        if (unitData.sounds) {
-          Object.keys(unitData.sounds).forEach(name => {
-            let sound = unitData.sounds[name];
-            if (typeof sound === 'string')
-              sound = {file: sound};
-
-            let url = 'https://tactics.taorankings.com/sounds/'+sound.file;
-
-            unitData.sounds[name] = new Howl({
-              src:         [url+'.mp3', url+'.ogg'],
-              sprite:      sound.sprite,
-              volume:      (sound.volume || 1) * (process.env.VOLUME_SCALE || 1),
-              rate:        sound.rate || 1,
-              onload:      () => progress(),
-              onloaderror: () => {},
-            });
-
-            resources.push(url);
-          });
-        }
-
-        if (resources.length === 0)
-          resolve();
-        else {
-          loader
-            .on('progress', progress)
-            .load();
-        }
-      });
     },
     getSprite: function (spriteName) {
       return AnimatedSprite.get(spriteName);

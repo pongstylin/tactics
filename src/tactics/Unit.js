@@ -46,8 +46,6 @@ export default class Unit {
       _pulse: null,
       _emitter: new EventEmitter(),
     });
-
-    this.spriteName = this.type;
   }
 
   /*
@@ -511,7 +509,7 @@ export default class Unit {
   }
   drawAvatar(direction = 'S', forCanvas = true) {
     if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.spriteName);
+      this._sprite = Tactics.getSprite(this.type);
 
     /*
      * Most avatars have the same direction and trim color.
@@ -555,7 +553,7 @@ export default class Unit {
   }
   drawFrame(actionName, direction = this.direction, frameId) {
     if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.spriteName);
+      this._sprite = Tactics.getSprite(this.type);
 
     let frame = this._sprite.renderFrame({
       actionName,

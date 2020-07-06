@@ -6,7 +6,6 @@ export default class ChaosDragon extends Unit {
     super(data, board);
 
     Object.assign(this, {
-      spriteName: 'DragonTyrant',
       title: 'Awakened!',
       banned: [],
     });
@@ -86,7 +85,7 @@ export default class ChaosDragon extends Unit {
       tint = (trim.filters = [new PIXI.filters.ColorMatrixFilter()])[0];
 
     return new Tactics.Animation({frames: [
-      () => this.sounds.phase.play(),
+      () => this.sounds.phase.howl.play(),
       {
         script: ({ repeat_index }) => {
           repeat_index++;
@@ -115,16 +114,17 @@ export default class ChaosDragon extends Unit {
     });
     let spriteAction = this._sprite.getAction('attack');
     let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
+    let charge = this.sounds.charge.howl;
 
     anim
-      .splice(0, () => this.sounds.charge.fade(0, 1, 500, this.sounds.charge.play()))
+      .splice(0, () => charge.fade(0, 1, 500, charge.play()))
       .splice(3, () => {
-        this.sounds.buzz.play();
-        this.sounds.charge.stop();
-        Tactics.playSound('sound1602');
+        this.sounds.buzz.howl.play();
+        charge.stop();
+        this.sounds.attack.howl.play();
       })
       .addFrame(() => {
-        this.sounds.buzz.stop();
+        this.sounds.buzz.howl.stop();
         this.stand();
       });
 
@@ -323,7 +323,7 @@ export default class ChaosDragon extends Unit {
 
     anim
       .splice(block.frames.slice(0, 2))
-      .splice(0, () => Tactics.playSound('sound1203'))
+      .splice(0, () => this.sounds.heal.howl.play())
       .splice(0, super.animAttackEffect(
         { spriteId:'sprite:Sparkle', type:'heal' },
         this.assignment,

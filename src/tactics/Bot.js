@@ -750,6 +750,9 @@ export default class {
         defense: this.calcDefense(target_unit),
         random:  Math.random(),
       });
+
+      if (target_unit.type === 'ChaosSeed')
+        return targetsData.last;
     }
 
     if (!targetsData.length) return;

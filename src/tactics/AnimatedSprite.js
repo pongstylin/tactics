@@ -113,7 +113,9 @@ export default class AnimatedSprite {
           delete image.src;
         }
 
-      if (spriteData.sounds)
+      if (spriteData.sounds) {
+        const VOLUME_SCALE = parseFloat(process.env.VOLUME_SCALE) || 1;
+
         for (let i = 0; i < spriteData.sounds.length; i++) {
           let sound = spriteData.sounds[i];
           if (typeof sound === 'string')
@@ -124,25 +126,40 @@ export default class AnimatedSprite {
           else if (typeof sound.name === 'string')
             sound.name = [sound.name];
 
-          if (sound.src.startsWith('sprite:'))
-            sound.howl = AnimatedSprite.get(sound.src).howl;
-          else if (sound.src.startsWith('data:')) {
+          let isURL = sound.src instanceof URL;
+          let isDataURL = !isURL && sound.src.startsWith('data:');
+          let isSpriteURI = !isURL && sound.src.startsWith('sprite:');
+          let isCustom = sound.volume !== undefined || sound.rate !== undefined;
+
+          if (isURL || isDataURL || isCustom) {
+            if (isDataURL)
+              sound.src = shrinkDataURI(sound.src);
+            if (isSpriteURI)
+              sound.src = AnimatedSprite.get(sound.src).howl._src;
+
+            let soundName = sound.name[0] || i;
+
             loading++;
             sound.howl = new Howl({
-              src: [ shrinkDataURI(sound.src) ],
+              src: [ sound.src ],
               format: 'mp3',
-              volume: parseFloat(process.env.VOLUME_SCALE) || 1,
+              volume: (sound.volume || 1) * VOLUME_SCALE,
+              rate: sound.rate || 1,
+              sprite: sound.sprite,
               onload: progress,
               onloaderror: (id, error) =>
                 reject(new Error(
-                  `Failed to load sprite:${spriteName}/sounds/${i}: ${id}, ${error}`
+                  `Failed to load sprite:${spriteName}/sounds/${soundName}: ${id}, ${error}`
                 )),
             });
           }
+          else if (isSpriteURI)
+            sound.howl = AnimatedSprite.get(sound.src).howl;
           else
             throw 'Unsupported sound source';
           delete sound.src;
         }
+      }
 
       progress();
     });

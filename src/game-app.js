@@ -761,6 +761,9 @@ async function loadResources(gameState) {
     return Tactics.load(unitTypes, (percent, label) => {
       progress.message = label;
       progress.percent = percent;
+    }).catch(error => {
+      progress.message = 'Loading failed!';
+      throw error;
     });
   });
 }

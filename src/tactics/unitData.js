@@ -264,16 +264,16 @@ unitDataMap.set('ChaosSeed', {
   aType: 'magic',
   directional: false,
 
-  custom: true,
+  baseSprite: 'WyvernEgg',
   imports: ['Lightning','Sparkle'],
   sounds: {
     crack: 'crack',
-    attack: 'sound1370',
-    block: 'sound8',
-    heal: 'sound1203',
+    attack: 'sprite:core/sounds/sound1370',
+    block: 'sprite:core/sounds/sound8',
+    heal: 'sprite:core/sounds/sound1203',
     wind: {
-      file:'chaos',
-      volume: 0.25,
+      src: 'chaos',
+      volume: 0.5,
       sprite: {
         wind1: [   0, 1950],
         wind2: [2150, 1950],
@@ -283,11 +283,11 @@ unitDataMap.set('ChaosSeed', {
       }
     },
     phase: {
-      file: 'sound4',
+      src: 'sprite:core/sounds/sound4',
       rate: 0.5,
     },
     roar: {
-      file:'chaos',
+      src: 'chaos',
       sprite: {
         roar: [10925, 1675],
       }
@@ -398,12 +398,14 @@ unitDataMap.set('ChaosDragon', {
   aLinear: true,
   aRange: [1, 3],
 
-  custom: true,
+  baseSprite: 'DragonTyrant',
   imports: ['Sparkle'],
   sounds: {
-    charge: { file:'charge', rate:0.6 },
-    buzz: { file:'buzz', rate:0.6 },
-    phase: { file:'sound4', rate:0.5 },
+    heal: 'sprite:core/sounds/sound1203',
+    attack: 'sprite:core/sounds/sound1602',
+    charge: { src:'charge', rate:0.6 },
+    buzz: { src:'buzz', rate:0.6 },
+    phase: { src:'sound4', rate:0.5 },
   },
   // The frames used when hatching
   hatch: [

@@ -7,7 +7,6 @@ export default class ChaosSeed extends Unit {
     super(data, board);
 
     Object.assign(this, {
-      spriteName: 'WyvernEgg',
       title: '...sleeps...',
     });
   }
@@ -62,7 +61,7 @@ export default class ChaosSeed extends Unit {
       tint = (trim.filters = [new PIXI.filters.ColorMatrixFilter()])[0];
 
     return new Tactics.Animation({frames: [
-      () => this.sounds.phase.play(),
+      () => this.sounds.phase.howl.play(),
       {
         script: ({ repeat_index }) => {
           repeat_index++;
@@ -165,7 +164,7 @@ export default class ChaosSeed extends Unit {
   }
   attack(action) {
     let anim   = new Tactics.Animation();
-    let sounds = this.sounds;
+    let wind = this.sounds.wind.howl;
     let winds  = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
     let shadow = this.getContainerByName('shadow');
     let unit = this.getContainerByName('unit');
@@ -237,18 +236,18 @@ export default class ChaosSeed extends Unit {
           repeat: 12,
         },
       ])
-      .splice( 0, () => sounds.wind.fade(0, 0.25, 500, sounds.wind.play(winds.shift())))
-      .splice( 4, () => sounds.wind.play(winds.shift()))
-      .splice( 8, () => sounds.wind.play(winds.shift()))
-      .splice(12, () => sounds.roar.play('roar'))
-      .splice(16, () => sounds.wind.play(winds.shift()))
-      .splice(20, () => sounds.wind.fade(1, 0, 1700, sounds.wind.play(winds.shift())))
+      .splice( 0, () => wind.fade(0, 0.25, 500, wind.play(winds.shift())))
+      .splice( 4, () => wind.play(winds.shift()))
+      .splice( 8, () => wind.play(winds.shift()))
+      .splice(12, () => this.sounds.roar.howl.play('roar'))
+      .splice(16, () => wind.play(winds.shift()))
+      .splice(20, () => wind.fade(1, 0, 1700, wind.play(winds.shift())))
       .splice(20, this.animAttackEffect(
         { spriteId:'sprite:Lightning' },
         action.target,
         true,
       ))
-      .splice(22, () => sounds.attack.play());
+      .splice(22, () => this.sounds.attack.howl.play());
     
     return anim.play();
   }
@@ -263,7 +262,7 @@ export default class ChaosSeed extends Unit {
           this.brightness(1 + (step * 0.2));
           this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
 
-          if (step === 8) this.sounds.heal.play();
+          if (step === 8) this.sounds.heal.howl.play();
         },
         repeat: 12,
       })
@@ -302,7 +301,8 @@ export default class ChaosSeed extends Unit {
       // Melee attacks cause the victim to stagger in a particular direction
       direction = this.board.getDirection(attacker.assignment, this.assignment, this.direction);
 
-      anim.addFrame(() => this.sounds.crack.play());
+      // Delay the crack sound
+      anim.addFrame([]);
     }
     else if (attackType === 'magic') {
       // Magic attacks cause a stagger
@@ -313,7 +313,7 @@ export default class ChaosSeed extends Unit {
     }
 
     if (doStagger) {
-      anim.addFrame([]);
+      anim.addFrame(() => this.sounds.crack.howl.play());
 
       if (this.paralyzed)
         anim.addFrames([
@@ -337,7 +337,7 @@ export default class ChaosSeed extends Unit {
   animMiss(attacker) {
     let anim = new Tactics.Animation();
 
-    anim.addFrame(() => this.sounds.block.play());
+    anim.addFrame(() => this.sounds.block.howl.play());
 
     return anim;
   }
@@ -369,7 +369,7 @@ export default class ChaosSeed extends Unit {
       .splice({ // 0
         script: ({ repeat_index }) => {
           repeat_index++;
-          if (repeat_index === 1) this.sounds.phase.play();
+          if (repeat_index === 1) this.sounds.phase.howl.play();
           this.whiten(repeat_index / 12);
 
           let color = Tactics.utils.getColorStop(startColor, 0xFFFFFF, repeat_index / 12);
@@ -389,7 +389,7 @@ export default class ChaosSeed extends Unit {
       .splice({ // 24
         script: ({ repeat_index }) => {
           repeat_index++;
-          if (repeat_index === 1) this.sounds.phase.play();
+          if (repeat_index === 1) this.sounds.phase.howl.play();
           this.alpha = 1 - repeat_index / 12;
         },
         repeat: 12,
@@ -431,7 +431,7 @@ export default class ChaosSeed extends Unit {
       .splice({
         script: ({ repeat_index }) => {
           repeat_index++;
-          if (repeat_index === 1) this.sounds.phase.play();
+          if (repeat_index === 1) this.sounds.phase.howl.play();
           dragon.whiten(repeat_index / 12);
           if (repeat_index < 7) dragon.alpha = repeat_index / 6;
         },
@@ -505,21 +505,21 @@ export default class ChaosSeed extends Unit {
       });
     }
 
+    let wind = this.sounds.wind.howl;
+
     for (let i = 0; i < anim.frames.length; i++) {
       if (i  %   4) continue;
       if (i === 84) break;
 
       if (i === 0)
-        anim.splice(i, () =>
-          this.sounds.wind.fade(0, 0.25, 500, this.sounds.wind.play(winds.random()))
-        );
+        anim.splice(i, () => wind.fade(0, 0.25, 500, wind.play(winds.random())));
       else if (i === 76)
         anim.splice(i, () => {
-          this.sounds.roar.play('roar');
+          this.sounds.roar.howl.play('roar');
           board.drawCard(dragon);
         });
       else
-        anim.splice(i, () => this.sounds.wind.play(winds.random()));
+        anim.splice(i, () => wind.play(winds.random()));
     }
 
     return anim.play();
