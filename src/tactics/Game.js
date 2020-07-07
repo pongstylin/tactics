@@ -1378,46 +1378,45 @@ export default class Game {
       this.drawCard(unit);
 
     let degree = board.getDegree('N', board.rotation);
-    let targets = {};
+    let tracker = {};
 
     let origin = this.units.flat().find(u => u.id === unit.id).assignment;
-    origin = targets.assignment = board.getTileRotation(origin, degree);
-
-    actions.forEach(action => {
-      if (action.unit !== unit) return;
-
-      if (action.type === 'move') {
-        targets.assignment = action.assignment;
-        targets.direction = action.direction;
-      }
-      else if (action.type === 'attack') {
-        targets.attack = unit.getTargetTiles(action.target, targets.assignment);
-        targets.direction = action.direction;
-      }
-      else if (action.type === 'turn') {
-        targets.direction = action.direction;
-      }
-    });
+    origin = tracker.assignment = board.getTileRotation(origin, degree);
 
     board.setHighlight(origin, {
       action: 'focus',
       color: FOCUS_TILE_COLOR,
     }, true);
 
-    if (targets.assignment !== origin)
-      board.setHighlight(targets.assignment, {
-        action: 'move',
-        color: MOVE_TILE_COLOR,
-      }, true);
+    actions.forEach(action => {
+      if (action.unit !== unit) return;
 
-    if (targets.attack)
-      board.setHighlight(targets.attack, {
-        action: 'attack',
-        color: ATTACK_TILE_COLOR,
-      }, true);
+      if (action.type === 'move') {
+        tracker.assignment = action.assignment;
+        tracker.direction = action.direction;
 
-    if (actions.length && actions.last.type === 'endTurn' && unit.directional !== false)
-      board.showDirection(unit, targets.assignment, targets.direction);
+        board.setHighlight(tracker.assignment, {
+          action: 'move',
+          color: MOVE_TILE_COLOR,
+        }, true);
+      }
+      else if (action.type === 'attack') {
+        tracker.attack = unit.getTargetTiles(action.target, tracker.assignment);
+        tracker.direction = action.direction;
+
+        board.setHighlight(tracker.attack, {
+          action: 'attack',
+          color: ATTACK_TILE_COLOR,
+        }, true);
+      }
+      else if (action.type === 'turn') {
+        tracker.direction = action.direction;
+      }
+      else if (action.type === 'endTurn') {
+        if (unit.directional !== false)
+          board.showDirection(unit, tracker.assignment, tracker.direction);
+      }
+    });
   }
   /*
    * Show the player the results of an attack
@@ -1690,6 +1689,11 @@ export default class Game {
     this.notice = null;
   }
   _playEndTurn(action) {
+    // A unit that dies while making its turn will no longer be selected.
+    // So, make sure any shown action tiles are cleared.
+    if (!this.selected)
+      this._board.clearHighlight();
+
     this.selected = this.viewed = null;
 
     // Assuming control of a bot team is specific to the chaos game type.
