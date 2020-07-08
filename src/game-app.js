@@ -200,18 +200,32 @@ var buttons = {
     game.pass();
   },
   surrender: () => {
-    popup({
-      message: 'Do you surrender?',
-      buttons: [
-        {
-          label: 'Yes',
-          onClick: () => game.surrender(),
-        },
-        {
-          label: 'No',
-        },
-      ],
-    });
+    if (!game.isMyTurn && !game.turnTimeRemaining)
+      popup({
+        message: 'Force your opponent to surrender?',
+        buttons: [
+          {
+            label: 'Yes',
+            onClick: () => game.forceSurrender(),
+          },
+          {
+            label: 'No',
+          },
+        ],
+      });
+    else
+      popup({
+        message: 'Do you surrender?',
+        buttons: [
+          {
+            label: 'Yes',
+            onClick: () => game.surrender(),
+          },
+          {
+            label: 'No',
+          },
+        ],
+      });
   },
   chat: () => {
     let $app = $('#app');
@@ -1432,22 +1446,20 @@ async function startGame() {
         $('#app').removeClass('locked');
     })
     .on('timeout', () => {
-      timeoutPopup = popup({
-        title: "Time's up!",
-        message: 'The turn time limit has been reached.  You can continue to wait or force surrender.',
-        onClose: () => {
-          timeoutPopup = null;
-        },
-        buttons: [
-          { label:'Wait' },
-          {
-            label: 'Force Surrender',
-            onClick: () => game.forceSurrender(),
+      // Only display once per page load
+      if (timeoutPopup === undefined)
+        timeoutPopup = popup({
+          title: "Time's up!",
+          message: `
+            The turn time limit has been reached.
+            Use the surrender button to force your opponent to surrender.
+          `,
+          onClose: () => {
+            timeoutPopup = null;
           },
-        ],
-        minWidth: '250px',
-        zIndex: 10,
-      });
+          minWidth: '250px',
+          zIndex: 10,
+        });
     })
     .on('cancelTimeout', () => {
       if (timeoutPopup)
