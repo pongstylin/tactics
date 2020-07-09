@@ -71,7 +71,7 @@ class AuthService extends Service {
     session.player = await dataAdapter.revokeIdentityToken(session.player.id);
   }
 
-  onGetIdentityTokenRequest(client) {
+  async onGetIdentityTokenRequest(client) {
     let session = this.sessions.get(client.id) || {};
     if (!session.token)
       throw new ServerError(401, 'Authorization is required');
@@ -79,7 +79,12 @@ class AuthService extends Service {
     let player = session.player;
     let token = player.identityToken;
 
-    return token && !token.isExpired ? token : null;
+    if (token && token.isExpired) {
+      session.player = await dataAdapter.revokeIdentityToken(session.player.id);
+      token = null;
+    }
+
+    return token;
   }
 
   onGetDevicesRequest(client) {

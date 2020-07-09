@@ -9,6 +9,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   let tokenValue = location.search.slice(1).replace(/[&=].*$/, '');
   let identityToken = new Token(tokenValue);
 
+  if (identityToken.isExpired)
+    return popup({
+      message: `Sorry!  This link has expired.`,
+      buttons: [],
+      closeOnCancel: false,
+      minWidth: '300px',
+    });
+
   await authClient.whenReady;
 
   if (authClient.playerId === identityToken.playerId)
