@@ -2,6 +2,8 @@
  * The purpose of this module is to migrate the JSON representation of player
  * and game objects to the latest version.
  */
+import unitDataMap from 'tactics/unitData.js';
+
 const MIGRATIONS = {};
 
 MIGRATIONS.player = [
@@ -103,6 +105,45 @@ MIGRATIONS.game = [
       if (!team) return;
 
       team.useRandom = true;
+    });
+
+    return data;
+  },
+  /*
+   * Place a lower limit on mHealth
+   */
+  data => {
+    let migrateResults = (units, results) => {
+      if (!results) return;
+
+      results.forEach(result => {
+        if (result.changes) {
+          let newMHealth = result.changes.mHealth;
+          if (newMHealth !== undefined) {
+            let unit = units.find(u => u.id === result.unit);
+            let oldMHealth = unit.mHealth || 0;
+            let unitData = unitDataMap.get(unit.type);
+
+            if (newMHealth < oldMHealth)
+              result.damage = oldMHealth - newMHealth;
+            else if (newMHealth > oldMHealth)
+              result.damage = -12; // assume 12 heal power (cleric)
+            else
+              result.damage = 0;
+
+            if (newMHealth < -unitData.health)
+              result.changes.mHealth = -unitData.health;
+          }
+        }
+
+        migrateResults(units, result.results);
+      });
+    };
+
+    migrateResults(data.state.units.flat(), data.state.actions);
+
+    data.state.turns.forEach(turn => {
+      migrateResults(turn.units.flat(), turn.actions);
     });
 
     return data;

@@ -4,6 +4,7 @@ export default class PoisonWisp extends Unit {
   getAttackResult(action, unit) {
     return {
       unit,
+      damage: this.power,
       changes: {
         mHealth: Math.max(-unit.health + 1, unit.mHealth - this.power),
         poisoned: [...(unit.poisoned || []), this],

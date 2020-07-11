@@ -1469,7 +1469,7 @@ export default class Game {
         return anim.play();
       }
       // Don't show shrub death.  They are broken apart during attack.
-      else if (unit.type === 'Shrub' && mHealth <= -unit.health)
+      else if (unit.type === 'Shrub' && mHealth === -unit.health)
         return anim.play();
       else if ('armored' in changes)
         return anim.play();
@@ -1514,7 +1514,9 @@ export default class Game {
           anim.splice(0, unit.animCaption(caption));
         }
         else {
-          let caption = result.notice || Math.abs(diff).toString();
+          let caption = result.notice || Math.abs(
+            result.damage === undefined ? diff : result.damage,
+          ).toString();
           anim.splice(0, unit.animCaption(caption, options));
         }
 
@@ -1574,7 +1576,7 @@ export default class Game {
       let changes = result.changes;
       if (!changes) continue;
 
-      if (changes.mHealth <= -unit.health)
+      if (changes.mHealth === -unit.health)
         deadUnits.set(unit, result);
     }
 
@@ -1855,7 +1857,7 @@ export default class Game {
       // Chaos Seed doesn't die.  It hatches.
       if (unit.type === 'ChaosSeed') return;
 
-      if (unit.mHealth <= -unit.health)
+      if (unit.mHealth === -unit.health)
         board.dropUnit(unit);
     });
   }

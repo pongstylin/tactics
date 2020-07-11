@@ -454,7 +454,7 @@ export default class RemoteTransport {
       for (let i = teamUnits.length-1; i > -1; i--) {
         let unit = teamUnits[i];
         let unitData = unitDataMap.get(unit.type);
-        if (unit.mHealth <= -unitData.health)
+        if (unit.mHealth === -unitData.health)
           teamUnits.splice(i, 1);
       }
     }

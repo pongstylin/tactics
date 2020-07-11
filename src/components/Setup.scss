@@ -16,6 +16,34 @@
       display: block;
       user-select: none;
     }
+
+    .card {
+      position: absolute;
+      top: 0;
+      left: 0;
+      // Only present to fix a bug in Edge.
+      width: 176px;
+
+      // The card must show above the board when they overlap.
+      z-index: 1;
+
+      background: #000000;
+      border-radius: 16px;
+      box-shadow: 4px 4px 12px #444444;
+      padding: 0 0 4px 0;
+
+      // Fade out the card, somewhat slowly.
+      transition: opacity 600ms linear;
+      opacity: 0;
+      pointer-events: none;
+
+      &.show {
+        // Fade in the card, somewhat quickly.
+        transition: opacity 400ms linear;
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
   }
 
   .menubar {
@@ -51,9 +79,32 @@
   }
 }
 
-@media (max-width: 510px) and (min-aspect-ratio: 5/3) {
+@media (max-width: 835px) and (max-aspect-ratio: 2/3), (max-width: 440px) {
+  .view.setup {
+    .field {
+      // No longer place the card in the top-left corner of #field.
+      // Rather, horizontally center the card at the top of #field.
+      .card {
+        position: relative;
+        top: auto;
+        box-shadow: 0 0 12px #888888;
+        margin: 6px auto 12px;
+      }
+    }
+  }
+}
+
+@media (max-width: 812px) and (min-aspect-ratio: 5/3) {
   .view.setup {
     width: 100%;
+
+    .field {
+      width: 100%;
+
+      .board {
+        margin-left: auto;
+      }
+    }
   }
 }
 

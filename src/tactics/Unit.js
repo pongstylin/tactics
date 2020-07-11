@@ -377,9 +377,9 @@ export default class Unit {
       random = { number:50 };
 
     if (random.number < calc.chance) {
+      result.damage = calc.damage;
       result.changes = {};
-      // Impose an upper limit to the health to prevent overhealing
-      result.changes.mHealth = Math.min(0, unit.mHealth - calc.damage);
+      result.changes.mHealth = Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage));
 
       if (calc.bonus)
         result.changes.mBlocking = unit.mBlocking += calc.bonus;
@@ -425,11 +425,11 @@ export default class Unit {
       subResults.push(...unit.getBreakFocusResult(true));
     }
 
-    if (unit.mHealth <= -unit.health) {
+    if (unit.mHealth === -unit.health) {
       board.trigger({
-        type: 'death',
+        type: 'dropUnit',
+        unit,
         attacker: this,
-        defender: unit,
         addResults: r => subResults.push(...r),
       });
 
@@ -874,7 +874,7 @@ export default class Unit {
     if (dirty) {
       Object.assign(this, changes);
 
-      this._emit({type:'change', changes:changes});
+      this._emit({ type:'change', changes });
     }
 
     return this;

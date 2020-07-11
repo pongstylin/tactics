@@ -305,6 +305,7 @@ export default class ChaosDragon extends Unit {
   getAttackSpecialResults(action) {
     return [{
       unit: this,
+      damage: -this.power,
       changes: {
         mHealth: Math.min(0, this.mHealth + this.power),
       },

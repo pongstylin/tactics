@@ -894,7 +894,7 @@ export default class {
       //
       //  Status Detection
       //
-      if (unit.mHealth <= -unit.health) {
+      if (unit.mHealth === -unit.health) {
         if (unit.type === 'ChaosSeed')
           notice = 'Hatched!';
         else
@@ -1234,7 +1234,7 @@ export default class {
       // Chaos Seed doesn't die.  It hatches.
       if (unit.type === 'ChaosSeed') return;
 
-      if (unit.mHealth <= -unit.health)
+      if (unit.mHealth === -unit.health)
         this.dropUnit(unit);
     });
   }
@@ -1649,7 +1649,7 @@ export default class {
       let thp = 50 * 3;
       let chp = 0;
 
-      team.units.forEach(u => chp += Math.max(0, u.health + u.mHealth));
+      team.units.forEach(u => chp += u.health + u.mHealth);
 
       choices.push({
         id:     team.id,

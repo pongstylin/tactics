@@ -93,19 +93,20 @@ export default class ChaosSeed extends Unit {
         if (!units) return;
       }
 
-      let target_units = units.filter(unit => unit.mHealth < 0);
-      if (!target_units.length) return;
+      let targetUnits = units.filter(unit => unit.mHealth < 0);
+      if (!targetUnits.length) return;
 
-      let target_unit = target_units.random();
+      let targetUnit = targetUnits.random();
 
       return {
         type: 'heal',
         unit:  this,
-        target: target_unit.assignment,
+        target: targetUnit.assignment,
         results: [{
-          unit: target_unit,
+          unit: targetUnit,
           notice: 'Nice',
-          changes: { mHealth:Math.min(0, target_unit.mHealth + this.power) },
+          damage: -this.power,
+          changes: { mHealth:Math.min(0, targetUnit.mHealth + this.power) },
         }],
       };
     }
@@ -125,17 +126,19 @@ export default class ChaosSeed extends Unit {
         else
           units = attacker.team.units;
 
-        let target_unit = units.random();
-        let power       = this.power + this.mPower;
-        let armor       = target_unit.armor + target_unit.mArmor;
-        let mHealth     = target_unit.mHealth - Math.round(power * (1 - armor / 100));
+        let targetUnit = units.random();
+        let power = this.power + this.mPower;
+        let armor = targetUnit.armor + targetUnit.mArmor;
+        let damage = Math.round(power * (1 - armor / 100));
+        let mHealth = Math.max(-targetUnit.health, targetUnit.mHealth - damage);
 
         return {
-          type:   'attack',
-          unit:   this,
-          target: target_unit.assignment,
+          type: 'attack',
+          unit: this,
+          target: targetUnit.assignment,
           results: [{
-            unit:    target_unit,
+            unit: targetUnit,
+            damage,
             changes: { mHealth },
           }],
         };
@@ -155,7 +158,7 @@ export default class ChaosSeed extends Unit {
             },
             {
               unit:    attacker,
-              changes: { mHealth: -attacker.health },
+              changes: { mHealth:-attacker.health },
             },
           ],
         };

@@ -16,55 +16,31 @@ function calcPowerModifiers(dragonCount, speakerCount, mageCount) {
 
 export default class DragonspeakerMage extends Pyromancer {
   attach() {
+    this._adjustBonusListener = this._adjustBonus.bind(this);
     this.board
-      .on('init', this._onBoardInit = this.onBoardInit.bind(this))
-      .on('death', this._onBoardDeath = this.onBoardDeath.bind(this));
+      .on('addUnit', this._adjustBonusListener)
+      .on('dropUnit', this._adjustBonusListener);
   }
   detach() {
     this.board
-      .off('init', this._onBoardInit)
-      .off('death', this._onBoardDeath);
+      .off('addUnit', this._adjustBonusListener)
+      .off('dropUnit', this._adjustBonusListener);
   }
 
   /*
-   * When the game starts, initialize dragons and mages with power modifiers.
+   * Compute the change in power modifiers as a dragon, DSM, or pyro is added or
+   * removed from the board.  This is called while computing attack results as
+   * a unit is killed during a game.  It is also called in set setup as units
+   * are added or removed from the board.
    */
-  onBoardInit() {
-    let dragons = this.team.units.filter(u => u.type === 'DragonTyrant');
-    let speakers = this.team.units.filter(u => u.type === 'DragonspeakerMage');
-    let mages = this.team.units.filter(u => u instanceof Pyromancer);
-
-    // Only apply initialization once even if there are multiple speakers
-    if (speakers[0] !== this)
-      return;
-    if (dragons.length === 0)
-      return;
-
-    let { dragonModifier, mageModifier } = calcPowerModifiers(
-      dragons.length,
-      speakers.length,
-      mages.length,
-    );
-
-    dragons.forEach(u => u.mPower = dragonModifier);
-    mages.forEach(u => u.mPower = mageModifier);
-  }
-
-  /*
-   * This event is fired while getting attack results for each killed unit.  It
-   * allows event listeners to return sub-results that happened as a result of
-   * the death.  In this case, dragon power modifiers are changed as a result of
-   * a dragon, dragon speaker, or pyromancer dying.
-   */
-  onBoardDeath(event) {
+  _adjustBonus({ type, unit, addResults }) {
     // Only apply recalibration once even if there are multiple speakers
     if (this !== this.team.units.find(u => u.type === 'DragonspeakerMage'))
       return;
 
-    let defender = event.defender;
-    if (defender.team !== this.team)
+    if (unit.team !== this.team)
       return;
-    if (!(defender.type === 'DragonTyrant' || defender instanceof Pyromancer))
+    if (!(unit.type === 'DragonTyrant' || unit instanceof Pyromancer))
       return;
 
     let dragons = this.team.units.filter(u =>
@@ -79,28 +55,45 @@ export default class DragonspeakerMage extends Pyromancer {
     let counts = [dragons.length, speakers.length, mages.length];
     let next = calcPowerModifiers(...counts);
 
-    if (defender.type === 'DragonTyrant')
-      counts[0]++;
-    else if (defender.type === 'DragonspeakerMage') {
-      counts[1]++;
-      counts[2]++;
+    let change = 0;
+    if (type === 'addUnit')
+      change = -1;
+    else if (type === 'dropUnit')
+      change = 1;
+
+    if (unit.type === 'DragonTyrant')
+      counts[0] += change;
+    else if (unit.type === 'DragonspeakerMage') {
+      counts[1] += change;
+      counts[2] += change;
     }
-    else if (defender.type === 'Pyromancer')
-      counts[2]++;
+    else if (unit.type === 'Pyromancer')
+      counts[2] += change;
 
     let prev = calcPowerModifiers(...counts);
+    let results = [];
 
-    if (dragons.length && prev.dragonModifier !== next.dragonModifier)
-      event.addResults(dragons.map(unit => ({
-        unit,
-        changes:{ mPower:unit.mPower - prev.dragonModifier + next.dragonModifier },
+    if (dragons.length)
+      results = dragons.map(u => ({
+        unit: u,
+        changes: {
+          mPower: u === unit
+            ? next.dragonModifier
+            : u.mPower - prev.dragonModifier + next.dragonModifier,
+        },
+      }));
+
+    if (mages.length)
+      results = results.concat(mages.map(u => ({
+        unit: u,
+        changes: {
+          mPower: u === unit
+            ? next.mageModifier
+            : u.mPower - prev.mageModifier + next.mageModifier,
+        }
       })));
 
-    if (mages.length && prev.mageModifier !== next.mageModifier)
-      event.addResults(mages.map(unit => ({
-        unit,
-        changes:{ mPower:unit.mPower - prev.mageModifier + next.mageModifier }
-      })));
+    addResults(results.filter(r => r.unit.mPower !== r.changes.mPower));
   }
 }
 

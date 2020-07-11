@@ -62,8 +62,9 @@ export default class MudGolem extends Unit {
         let armor = Math.max(0, Math.min(100, cUnit.armor + cUnit.mArmor));
         let damage = Math.round(power * (100 - armor) / 100);
 
+        result.damage = damage;
         result.changes = {
-          mHealth: cUnit.mHealth - damage,
+          mHealth: Math.max(-cUnit.health, cUnit.mHealth - damage),
         };
       }
 

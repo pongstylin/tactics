@@ -3,12 +3,12 @@ import Unit from 'tactics/Unit.js';
 export default class Furgon extends Unit {
   attach() {
     this.board
-      .on('death', this._onBoardDeath = this.onBoardDeath.bind(this))
+      .on('dropUnit', this._onBoardDropUnit = this.onBoardDropUnit.bind(this))
       .on('endTurn', this._onBoardEndTurn = this.onBoardEndTurn.bind(this));
   }
   detach() {
     this.board
-      .off('death', this._onBoardDeath)
+      .off('dropUnit', this._onBoardDropUnit)
       .off('endTurn', this._onBoardEndTurn);
   }
 
@@ -23,16 +23,16 @@ export default class Furgon extends Unit {
    * The Furgon, if any, on the dead unit's team becomes enraged if a non-
    * ward ally is killed by an opponent team.
    */
-  onBoardDeath(event) {
+  onBoardDropUnit(event) {
     let attacker = event.attacker;
-    let defender = event.defender;
+    let defender = event.unit;
 
     // Nothing can be done if this used died.
     // Compare using IDs since the unit may be a clone.
     if (defender.id === this.id)
       return;
     // Don't care if we killed our own unit.
-    if (attacker.team === this.team)
+    if (!attacker || attacker.team === this.team)
       return;
     // Don't care unless a member of this Furgon's team died.
     if (defender.team !== this.team)

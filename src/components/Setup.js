@@ -47,6 +47,7 @@ export default class {
     renderer.plugins.interaction.moveWhenInside = true;
 
     let board = new Board();
+    board.initCard();
     board.rotation = 'S';
     board.draw();
 
@@ -73,8 +74,10 @@ export default class {
         Tactics.playSound('focus');
         board.focused = unit;
 
-        if (unit.team.name === 'Set')
+        if (unit.team.name === 'Set') {
+          this.drawCard();
           tile.paint('focus', 0.3, FOCUS_TILE_COLOR);
+        }
         else
           this._drawPicks();
 
@@ -89,8 +92,10 @@ export default class {
         if (board.focused === unit)
           board.focused = null;
 
-        if (unit.team.name === 'Set')
+        if (unit.team.name === 'Set') {
+          this.drawCard();
           tile.strip();
+        }
         else
           this._drawPicks();
 
@@ -132,7 +137,23 @@ export default class {
       .on('dragStart', this._onDragStart.bind(this))
       .on('dragFocus', this._onDragFocus.bind(this))
       .on('dragBlur',  this._onDragBlur.bind(this))
-      .on('dragDrop',  this._onDragDrop.bind(this));
+      .on('dragDrop',  this._onDragDrop.bind(this))
+      .on('card-change', event => {
+        let card = board.card;
+        let cardCanvas = card.canvas;
+
+        // Update the pointer once the card finishes (dis)appearing.
+        let transitionEndListener = () => {
+          card.updatePointer();
+          cardCanvas.removeEventListener('transitionend', transitionEndListener);
+        };
+        cardCanvas.addEventListener('transitionend', transitionEndListener);
+
+        if (event.nvalue && event.ovalue === null)
+          cardCanvas.classList.add('show');
+        else if (event.nvalue === null)
+          cardCanvas.classList.remove('show');
+      });
 
     let countsContainer = new PIXI.Container();
     countsContainer.position = board.pixi.position.clone();
@@ -203,6 +224,10 @@ export default class {
       _emitter: new EventEmitter(),
     });
 
+    board.card.canvas.classList.add('card');
+    this.canvas.classList.add('board');
+
+    root.querySelector('.field').appendChild(board.card.canvas);
     root.querySelector('.field').appendChild(this.canvas);
 
     this._canvas.addEventListener('contextmenu', event => event.preventDefault());
@@ -273,6 +298,7 @@ export default class {
 
       unit.activate();
       board.selected = unit;
+      this.drawCard();
 
       this._highlightPlaces();
 
@@ -282,6 +308,7 @@ export default class {
     else if (board.selected) {
       board.selected.deactivate();
       board.selected = null;
+      this.drawCard();
 
       this._highlightPlaces();
 
@@ -344,6 +371,11 @@ export default class {
     }, this._team);
     unit.draggable = true;
 
+    board.trigger({
+      type: 'addUnit',
+      unit,
+      addResults: r => board.applyActionResults(r),
+    });
     this._drawPicks();
 
     return unit;
@@ -372,25 +404,39 @@ export default class {
   }
   removeUnit(unit) {
     let animDeath;
+    let deadUnits = [];
     if (unit) {
-      unit.dead = true;
+      unit.change({ mHealth:-unit.health });
       unit.assignment.set_interactive(false);
+      deadUnits.push(unit);
       animDeath = unit.animDie();
     }
     else
       animDeath = new Tactics.Animation();
 
+    let board = this._board;
     let auditUnits;
     while (auditUnits = this._auditUnitPlaces()) {
       auditUnits.forEach(unit => {
-        unit.dead = true;
+        unit.change({ mHealth:-unit.health });
         unit.assignment.set_interactive(false);
+        deadUnits.push(unit);
         animDeath.splice(0, unit.animDie());
       });
     }
 
     if (animDeath.frames.length) {
-      animDeath.play().then(() => this._highlightPlaces());
+      for (let deadUnit of deadUnits)
+        board.trigger({
+          type: 'dropUnit',
+          unit: deadUnit,
+          attacker: null,
+          addResults: r => board.applyActionResults(r),
+        });
+
+      animDeath.play().then(() => {
+        this._highlightPlaces()
+      });
 
       this._drawPicks();
     }
@@ -399,7 +445,7 @@ export default class {
     let auditUnits = [];
 
     this._team.units.forEach(unit => {
-      if (unit.dead) return;
+      if (unit.mHealth === -unit.health) return;
 
       let tiles = this._getAvailableTiles(unit.type);
       if (!tiles.has(unit.assignment))
@@ -519,6 +565,16 @@ export default class {
   rotateBoard(rotation) {
     this._board.rotate(rotation);
     this.render();
+  }
+
+  drawCard() {
+    let board = this._board;
+    let unit = board.selected;
+    if (board.focused && board.focused.team.name === 'Set')
+      unit = board.focused;
+
+    board.drawCard(unit);
+    return this;
   }
 
   on() {
@@ -913,7 +969,7 @@ export default class {
     let counts = new Map();
 
     this._team.units.forEach(unit => {
-      if (unit.dead) return;
+      if (unit.mHealth === -unit.health) return;
 
       let unitCount = unitCounts.get(unit.type) || 0;
       let unitSize = gameType.getUnitSize(unit.type);
@@ -1025,8 +1081,10 @@ export default class {
       if (count === 0) {
         if (board.selected === unit)
           this.selected = null;
-        if (board.focused === unit)
+        if (board.focused === unit) {
           board.focused = null;
+          this.drawCard();
+        }
 
         unit.assignment.set_interactive(false);
         unit.showFocus(0.8);

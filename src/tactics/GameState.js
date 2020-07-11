@@ -326,10 +326,6 @@ export default class GameState {
     });
 
     board.setState(this.units, teams);
-
-    // Triggering board init event allows units to apply ambient effects, such
-    // as Dragonspeaker Mage.
-    board.trigger({ type:'init' });
     this.units = board.getState();
 
     this._bots = teams
@@ -540,7 +536,7 @@ export default class GameState {
       if (action.type === 'attack' || action.type === 'attackSpecial') {
         let selected = this.selected;
         let forceEndTurn = () => {
-          if (selected.mHealth <= -selected.health)
+          if (selected.mHealth === -selected.health)
             return true;
           if (selected.focusing)
             return true;
