@@ -58,7 +58,7 @@ export default class Assassin extends Unit {
         result.miss = 'immune';
       else {
         result.damage = 99;
-        result.changes = { mHealth:-cUnit.mHealth };
+        result.changes = { mHealth:-cUnit.health };
       }
 
       board.applyActionResults([result]);
