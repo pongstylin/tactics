@@ -10,7 +10,7 @@ export default class MudGolem extends Unit {
     return true;
   }
   getSpecialTargetTiles(target, source = this.assignment) {
-    return this.board.getTileRange(source, 1, 3, false);
+    return this.board.getTileRange(source, 1, 3, true);
   }
   animAttackSpecial(action) {
     let anim = this.renderAnimation('attackSpecial', action.direction);
@@ -39,7 +39,7 @@ export default class MudGolem extends Unit {
   }
   getAttackSpecialResults() {
     let board = this.board;
-    let targets = this.getSpecialTargetTiles();
+    let targets = this.getSpecialTargetTiles().filter(t => !!t.assigned);
     let cUnits = new Map();
 
     // Sort targets by distance
