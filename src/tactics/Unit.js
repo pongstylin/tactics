@@ -104,6 +104,9 @@ export default class Unit {
 
     return [target];
   }
+  getSpecialTargetTiles() {
+    return [];
+  }
   /*
    * Reviews all combinations of moving (or not) then attacking to determine all
    * tiles that can be targeted by an attack.

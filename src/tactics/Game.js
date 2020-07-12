@@ -1399,6 +1399,15 @@ export default class Game {
           color: ATTACK_TILE_COLOR,
         }, true);
       }
+      else if (action.type === 'attackSpecial') {
+        tracker.attack = unit.getSpecialTargetTiles(action.target, tracker.assignment);
+        tracker.direction = action.direction;
+
+        board.setHighlight(tracker.attack, {
+          action: 'attack',
+          color: ATTACK_TILE_COLOR,
+        }, true);
+      }
       else if (action.type === 'turn') {
         tracker.direction = action.direction;
       }

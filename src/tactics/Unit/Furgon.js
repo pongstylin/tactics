@@ -85,7 +85,7 @@ export default class Furgon extends Unit {
 
     return this.board.getTileRange(target, 0, 1);
   }
-  getSpecialTargetTiles() {
+  getSpecialTargetTiles(target, source) {
     let board = this.board;
     let enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
     let targets = new Set();
@@ -222,7 +222,7 @@ export default class Furgon extends Unit {
     for (let result of shrubResults) {
       let target = result.unit.assignment;
       let distance = distances.shift() - closest;
-      let delay = Math.round(distance / range * maxDelay);
+      let delay = range && Math.round(distance / range * maxDelay);
       let offset = effectOffset + delay;
       let isHit = !result.miss;
 

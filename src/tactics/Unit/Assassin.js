@@ -9,6 +9,9 @@ export default class Assassin extends Unit {
 
     return (this.health + this.mHealth) < 5;
   }
+  getSpecialTargetTiles(target, source) {
+    return this.getTargetTiles(target, source);
+  }
   /*
    * Customized to include the assigned tile in the list of targets.
    */
