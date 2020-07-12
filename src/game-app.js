@@ -1509,6 +1509,8 @@ async function startGame() {
     .on('cursor-change', () => {
       if (game.cursor.atEnd)
         wakelock.disable();
+      else
+        wakelock.stayAwake();
 
       setHistoryState();
       setCursorAlert();
