@@ -664,18 +664,8 @@ export default class Game {
       if (movement === 'back')
         // The undo button can cause the next action to be a previous one
         this.setState();
-      else if (movement === 'forward') {
+      else if (movement === 'forward')
         await this._performAction(cursor.thisAction);
-
-        /*
-         * Combine turn with endTurn actions since they are visually one
-         * action and are always received as a pair.
-         */
-        if (cursor.thisAction.type === 'turn') {
-          await cursor.set(cursor.turnId, cursor.nextActionId + 1);
-          await this._performAction(cursor.thisAction);
-        }
-      }
 
       if (whilePlaying.state === 'interrupt')
         return stopPlaying();
