@@ -1,6 +1,7 @@
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
+import wakelock from 'components/wakelock.js';
 import GameSettings from 'components/Modal/GameSettings.js';
 
 const ServerError = Tactics.ServerError;
@@ -313,6 +314,8 @@ var buttons = {
     return false;
   },
   play: async () => {
+    wakelock.enable();
+
     $('#game').toggleClass('is-busy');
     if (game.cursor.atCurrent)
       game.play(0);
@@ -338,6 +341,8 @@ var buttons = {
     return false;
   },
   resume: async () => {
+    wakelock.toggle(!game.state.ended);
+
     $('#game').toggleClass('is-busy');
     await game.resume();
     $('#game').toggleClass('is-busy');
@@ -756,6 +761,8 @@ async function loadResources(gameState) {
         if (!requireTap) return resolve();
 
         let tapHandler = () => {
+          wakelock.toggle(!gameState.ended && !location.hash);
+
           progress.disableButtonMode(tapHandler);
           progress.message = 'One moment...';
           resolve();
@@ -1479,6 +1486,8 @@ async function startGame() {
       setCursorAlert();
     })
     .on('endSync', () => {
+      wakelock.disable();
+
       $('BUTTON[name=play]').show();
       $('BUTTON[name=pause]').hide();
       setHistoryState();
@@ -1498,6 +1507,9 @@ async function startGame() {
       setTurnTimeoutClock();
     })
     .on('cursor-change', () => {
+      if (game.cursor.atEnd)
+        wakelock.disable();
+
       setHistoryState();
       setCursorAlert();
       toggleReplayButtons();
