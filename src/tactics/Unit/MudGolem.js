@@ -10,7 +10,7 @@ export default class MudGolem extends Unit {
     return true;
   }
   getSpecialTargetTiles(target, source = this.assignment) {
-    return this.board.getTileRange(source, 1, 3, true);
+    return this.board.getTileRange(source, 1, 3);
   }
   animAttackSpecial(action) {
     let anim = this.renderAnimation('attackSpecial', action.direction);
