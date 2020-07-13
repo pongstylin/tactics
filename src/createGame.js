@@ -188,6 +188,7 @@ window.addEventListener('DOMContentLoaded', () => {
       gameOptions.turnTimeLimit = parseInt(turnLimit);
 
     let myGameQuery;
+    let matchingGameQuery;
     let joinQuery;
     if (gameOptions.isPublic) {
       let excludedPlayerIds = new Set();
@@ -220,6 +221,23 @@ window.addEventListener('DOMContentLoaded', () => {
         }
 
         myGameQuery = {
+          filter: {
+            // Game type must match player preference.
+            type: gameTypeId,
+            // Look for an open game with this player as a participant
+            'teams[].playerId': authClient.playerId,
+            // Time limit must match
+            turnTimeLimit: gameOptions.turnTimeLimit,
+            // First turn randomization must match player preference.
+            randomFirstTurn: gameOptions.randomFirstTurn,
+            // Blocking system must match player preference.
+            randomHitChance: gameOptions.randomHitChance,
+          },
+          sort: 'created',
+          limit: 1,
+        };
+
+        matchingGameQuery = {
           filter: {
             // Game type must match player preference.
             type: gameTypeId,
@@ -261,7 +279,7 @@ window.addEventListener('DOMContentLoaded', () => {
         let gameId = await joinOpenGame(joinQuery);
         if (gameId) return gameId;
 
-        gameId = await findMyGame(myGameQuery);
+        gameId = await findMyGame(myGameQuery, matchingGameQuery);
         if (gameId) return gameId;
 
         if (vs === 'you') {
@@ -294,20 +312,17 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-async function findMyGame(query) {
-  if (!query) return;
+async function findMyGame(myGameQuery, matchingGameQuery) {
+  if (!myGameQuery) return;
 
-  try {
-    let result = await gameClient.searchOpenGames(query);
-    if (!result.count) return;
-
+  let result = await gameClient.searchOpenGames(myGameQuery);
+  if (result.count)
     return result.hits[0].id;
-  }
-  catch (error) {
-    // On any other error, bail out to create the game.
-    console.warn('Failed to join open game', error);
-    return;
-  }
+
+  result = await gameClient.searchOpenGames(matchingGameQuery);
+  if (!result.count) return;
+
+  gameClient.cancelGame(result.hits[0].id);
 }
 
 async function joinOpenGame(query) {
