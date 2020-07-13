@@ -1626,7 +1626,7 @@ export default class Unit {
     let chance =
       calc.chance === 100 ? 'Hit' :
       calc.chance === 0 ? `${calc.miss.toUpperCase('first')}` :
-      `${Math.floor(calc.chance)}%`;
+      `${Math.min(99, Math.max(1, Math.round(calc.chance)))}%`;
     let notice;
 
     if (calc.effect)
@@ -1640,7 +1640,7 @@ export default class Unit {
     else
       notice = `-${calc.damage} • ${chance}`;
 
-    targetUnit.change({ notice:notice });
+    targetUnit.change({ notice });
   }
   /*
    * Certain actions can break certain status effects.
