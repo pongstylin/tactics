@@ -40,6 +40,15 @@ export default class GameClient extends Client {
       });
   }
 
+  forkGame(gameId, turn) {
+    return this._server.requestAuthorized(this.name, 'forkGame', [gameId, turn])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.forkGame(gameId, turn);
+        throw error;
+      });
+  }
+
   cancelGame(gameId) {
     return this._server.requestAuthorized(this.name, 'cancelGame', [gameId])
   }

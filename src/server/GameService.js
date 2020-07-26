@@ -272,6 +272,15 @@ class GameService extends Service {
 
     return game.id;
   }
+
+  async onForkGameRequest(client, gameId, turn) {
+    this.debug(`forkGame: gameId=${gameId}`);
+    let newGame = await dataAdapter.forkGame(gameId, this.clientPara.get(client.id).playerId);
+    newGame.state.revert(turn);
+    await dataAdapter.saveGame(newGame);
+    return newGame.id;
+  }
+
   async onJoinGameRequest(client, gameId, { name, set, slot } = {}) {
     this.debug(`joinGame: gameId=${gameId}; slot=${slot}`);
 

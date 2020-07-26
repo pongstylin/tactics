@@ -1,5 +1,5 @@
 import fs from 'fs';
-
+import uuid from 'uuid/v4';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import Player from 'models/Player.js';
 import Game from 'models/Game.js';
@@ -105,6 +105,19 @@ export default class {
     await this._lockAndCreateFile(`game_${game.id}`, game);
 
     return game;
+  }
+
+  async forkGame(gameId, playerId) {
+    let game = await this.getGame(gameId);
+    let newId = uuid();
+    await this._lockAndCopyFile(`game_${game.id}`, `game_${newId}`);
+    let newGame = await this.getGame(newId);
+    newGame.id = newId;
+    newGame.isPublic = false;
+    newGame.state.teams.forEach(team => {
+      team.playerId = playerId;
+    });
+    return newGame;
   }
 
   async cancelGame(game) {
@@ -518,6 +531,10 @@ export default class {
   }
   async _lockAndReadFile(name, initialValue) {
     return this._lock(name, 'read', () => this._readFile(name, initialValue));
+  }
+  async _lockAndCopyFile(name, newName) {
+    let data = await this._lockAndReadFile(name);
+    return this._lockAndWriteFile(newName, data);
   }
 
   /*

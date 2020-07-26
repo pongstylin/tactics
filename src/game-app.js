@@ -340,6 +340,9 @@ var buttons = {
     $('#game').toggleClass('is-busy');
     return false;
   },
+  fork: async () => {
+    showForkDialog(game.state._data.id, game.turnId);
+  },
   resume: async () => {
     wakelock.toggle(!game.state.ended);
 
@@ -1237,6 +1240,29 @@ async function showJoinIntro(gameData) {
       $('#join').show();
     });
   }
+}
+
+function showForkDialog(gameId, turn) {
+    popup({
+      title: "Fork the game?",
+      message: `You are about to create a practice game playable from the beginning of turn ${turn + 1}.`,
+      buttons: [
+        {
+          label:'Fork the game',
+          onClick: () => {
+            gameClient.forkGame(gameId, turn)
+              .then((newId) => {
+                location.href = `/game.html?${newId}`;
+              });
+          }
+        },
+        {
+          label: 'Cancel'
+        },
+      ],
+      minWidth: '250px',
+      zIndex: 10,
+    });
 }
 
 function updateChatButton() {
