@@ -1668,12 +1668,14 @@ function toggleReplayButtons() {
   let isSynced = game.isSynced;
   let atStart = isSynced || cursor.atStart;
   let atCurrent = isSynced || cursor.atCurrent;
+  let atEnd = isSynced || cursor.atEnd;
 
   $('BUTTON[name=start]').prop('disabled', atStart);
   $('BUTTON[name=back]').prop('disabled', atStart);
 
   $('BUTTON[name=forward]').prop('disabled', atCurrent);
   $('BUTTON[name=end]').prop('disabled', atCurrent);
+  $('BUTTON[name=fork]').prop('disabled', atEnd);
 }
 
 function setCursorAlert() {

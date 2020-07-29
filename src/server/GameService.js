@@ -276,7 +276,16 @@ class GameService extends Service {
   async onForkGameRequest(client, gameId, turn) {
     this.debug(`forkGame: gameId=${gameId}`);
     let newGame = await dataAdapter.forkGame(gameId, this.clientPara.get(client.id).playerId);
-    newGame.state.revert(turn);
+    let turnToStartFrom = turn;
+    if (newGame.state.ended) {
+      newGame.state.winnerId = null;
+      newGame.state.ended = null;
+      // Don't include the winning turn, otherwise there's just one team left
+      if (turn === newGame.state._turns.length) {
+        turnToStartFrom = turn - 1 >= 0 ? turn - 1 : 0;
+      }
+    }
+    newGame.state.revert(turnToStartFrom);
     await dataAdapter.saveGame(newGame);
     return newGame.id;
   }
