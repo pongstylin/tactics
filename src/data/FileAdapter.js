@@ -114,6 +114,7 @@ export default class {
     let newGame = await this.getGame(newId);
     newGame.id = newId;
     newGame.isPublic = false;
+    newGame.state.turnTimeLimit = null;
     newGame.state.teams.forEach(team => {
       team.playerId = playerId;
     });
