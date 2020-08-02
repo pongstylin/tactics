@@ -1927,6 +1927,11 @@ export default class Game {
     switch (type) {
       case 'change':
         this._setTurnTimeout();
+
+        // Immediately save the new action(s), if any, before they are cleared
+        // by a new turn.
+        this.cursor.sync();
+
         this._emit({ type:'state-change' });
         if (this._isSynced)
           this.play();

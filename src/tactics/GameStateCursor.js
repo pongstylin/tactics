@@ -62,9 +62,30 @@ export default class GameStateCursor {
     return this;
   }
 
+  /*
+   * Append any additional actions to the current turn
+   */
+  sync() {
+    let current = this.state.cursor;
+    if (current.turnId !== this.turnId)
+      return;
+    if (current.nextActionId <= this.nextActionId)
+      return;
+    if (+current.started !== +this.started)
+      return;
+
+    for (let i = 0; i < this.nextActionId; i++) {
+      let stateAction = current.actions[i];
+      let thisAction = this.actions[i];
+
+      if (+stateAction.created !== +thisAction.created)
+        return;
+    }
+
+    this.actions = current.actions;
+  }
   setToCurrent() {
-    let state = this.state;
-    let cursorData = state.cursor;
+    let cursorData = this.state.cursor;
     let hasChanged =
       cursorData.turnId !== this.turnId ||
       cursorData.nextActionId !== this.nextActionId ||

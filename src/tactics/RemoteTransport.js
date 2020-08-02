@@ -363,6 +363,16 @@ export default class RemoteTransport {
         // Clear the undo request to permit a new request.
         this._data.undoRequest = null;
 
+        // Emit a change so that the game state cursor can pick up on the new
+        // action before it is potentially cleared in the next step.
+        this._emit({ type:'change' });
+
+        /*
+         * If the new action is an 'endTurn' action, update the state so that it
+         * recognizes the new turn.  This is mostly useful when the game ends
+         * and a 'startTurn' event never follows.  We could also just push the
+         * new turn during an 'endGame' event, but connection lag can delay it.
+         */
         if (actions.last.type === 'endTurn') {
           this.applyActions();
 
@@ -372,9 +382,9 @@ export default class RemoteTransport {
             currentTeamId: (state.currentTeamId + 1) % state.teams.length,
             actions: [],
           });
-        }
 
-        this._emit({ type:'change' });
+          this._emit({ type:'change' });
+        }
       })
       .on('revert', ({ data }) => {
         data.started = new Date(data.started);
