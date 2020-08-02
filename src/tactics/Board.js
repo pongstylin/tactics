@@ -687,6 +687,7 @@ export default class {
 
     Object.values(tiles).forEach(tile => {
       tile.on('select', selectEvent);
+      tile.on('altSelect', event => this._emit(event));
       tile.on('focus',  event => this.onTileFocus(event));
       tile.on('blur',   event => this.onTileBlur(event));
       tile.on('assign', () => {

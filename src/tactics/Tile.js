@@ -168,11 +168,14 @@ export default class {
       // Prevent the board object from receiving this event.
       event.stopPropagation();
 
+      let pointerEvent = event.data.originalEvent;
+
       this._emit({
-        type: 'select',
+        type: pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2
+          ? 'altSelect' : 'select',
         target: this,
         pixiEvent: event,
-        pointerEvent: event.data.originalEvent,
+        pointerEvent,
       });
     }
   }

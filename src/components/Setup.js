@@ -101,37 +101,24 @@ export default class {
 
         this.render();
       })
-      .on('select', ({ target:tile, pointerEvent }) => {
+      .on('select', ({ target:tile }) => {
         let unit = tile.assigned;
 
         Tactics.playSound('select');
-        if (pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2) {
-          if (unit.team.name === 'Pick') return;
-
-          // Don't show context menu
-          pointerEvent.preventDefault();
-          this.removeUnit(tile.assigned);
+        if (unit.team.name === 'Pick') {
+          let count = this._getAvailableUnitCounts().get(unit.type);
+          if (count === 0) return;
         }
-        else {
-          if (unit.team.name === 'Pick') {
-            let count = this._getAvailableUnitCounts().get(unit.type);
-            if (count === 0) return;
-          }
 
-          this.selected = unit === board.selected ? null : unit;
-        }
+        this.selected = unit === board.selected ? null : unit;
       })
-      .on('deselect', ({ target:tile, pointerEvent }) => {
-        let unit = board.selected;
+      .on('altSelect', ({ target:tile }) => {
+        let unit = tile.assigned;
+        if (unit.team.name === 'Pick') return;
 
-        if (tile && pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2) {
-          if (unit.team.name === 'Pick') return;
-
-          // Don't show context menu
-          pointerEvent.preventDefault();
-          this.removeUnit(unit);
-        }
-
+        this.removeUnit(tile.assigned);
+      })
+      .on('deselect', () => {
         this.selected = null;
       })
       .on('dragStart', this._onDragStart.bind(this))
