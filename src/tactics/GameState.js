@@ -335,15 +335,6 @@ export default class GameState {
     this.started = new Date();
     this.turnStarted = this.started;
 
-    this._emit({
-      type: 'startGame',
-      data: {
-        started: this.started,
-        teams: this.teams.map(t => t.getData()),
-        units: this.units,
-      },
-    });
-
     // Pass the first turn if we can't find one playable unit.
     let pass = !this.currentTeam.units.find(u => u.mRecovery === 0);
     if (pass) {
@@ -353,6 +344,15 @@ export default class GameState {
 
       this._applyAction(action);
     }
+
+    this._emit({
+      type: 'startGame',
+      data: {
+        started: this.started,
+        teams: this.teams.map(t => t.getData()),
+        units: this.units,
+      },
+    });
 
     this._emit({
       type: 'startTurn',
