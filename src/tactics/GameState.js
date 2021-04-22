@@ -701,8 +701,12 @@ export default class GameState {
   canUndo(team = this.currentTeam) {
     let teams = this.teams;
 
-    // Can't undo if there are no actions or turns to undo.
-    if (this._turns.length === 0 && this._actions.length === 0)
+    // Can't undo if we haven't had a turn yet.
+    if (team.id > this.currentTurnId)
+      return false;
+
+    // Can't undo if we haven't made an action yet.
+    if (team.id === this.currentTurnId && this._actions.length === 0)
       return false;
 
     // Local games don't impose restrictions.
@@ -710,10 +714,6 @@ export default class GameState {
     let opponent = teams.find(t => t.playerId !== team.playerId);
     if (!bot && !opponent)
       return true;
-
-    // Can't undo if there are no actions to undo.
-    if (team === this.currentTeam && this._actions.length === 0)
-      return false;
 
     // Bots will never approve anything that requires approval.
     let approve = bot ? false : 'approve';
@@ -791,8 +791,12 @@ export default class GameState {
     let teams   = this.teams;
     let actions = this._actions;
 
-    // Can't undo if there are no actions or turns to undo.
-    if (this._turns.length === 0 && actions.length === 0)
+    // Can't undo if we haven't had a turn yet.
+    if (team.id > this.currentTurnId)
+      return false;
+
+    // Can't undo if we haven't made an action yet.
+    if (team.id === this.currentTurnId && this._actions.length === 0)
       return false;
 
     // Local games don't impose restrictions.
@@ -820,10 +824,6 @@ export default class GameState {
       }
     }
     else {
-      // Can't undo if there are no actions to undo.
-      if (team === this.currentTeam && actions.length === 0)
-        return false;
-
       for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
         // Can't undo if team has no actionable turns to undo.
         if (turnId < 0)

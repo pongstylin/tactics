@@ -1006,36 +1006,23 @@ export default class Game {
 
     let actions = state.actions;
 
-    // Can't undo if there are no actions or turns to undo.
-    if (state.currentTurnId === 0 && actions.length === 0)
+    // Can't undo if we haven't had a turn yet.
+    if (myTeam.id > state.currentTurnId)
+      return false;
+
+    // Can't undo if we haven't made an action yet.
+    if (myTeam.id === state.currentTurnId && actions.length === 0)
       return false;
 
     // Local games don't impose restrictions.
     if (this.isLocalGame)
       return true;
 
-    let isBotGame = this.isBotGame;
-
-    if (myTeam === this.currentTeam) {
-      if (actions.length === 0)
-        return false;
-    }
-    // If actions were made since the team's turn, approval is required.
-    else {
+    if (this.isBotGame) {
       // Bot rejects undo if it is not your turn.
-      if (isBotGame) return false;
-
-      let turnOffset = (-teams.length + (myTeam.id - this.currentTeam.id)) % teams.length;
-
-      // Can't undo if the team hasn't made a turn yet.
-      let turnId = state.currentTurnId + turnOffset;
-      if (turnId < 0)
+      if (myTeam !== this.currentTeam)
         return false;
 
-      return true;
-    }
-
-    if (isBotGame) {
       let lastAction = actions.last;
 
       // Bot rejects undo if the last action was a counter-attack
