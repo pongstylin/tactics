@@ -65,8 +65,10 @@ export default class GameClient extends Client {
       });
   }
 
+  /*
+   * Authorization not required for these read operations
+   */
   getGameType(gameTypeId) {
-    // Authorization not required
     return this._server.request(this.name, 'getGameTypeConfig', [gameTypeId])
       .then(gameTypeConfig => GameType.load(gameTypeId, gameTypeConfig))
       .catch(error => {
@@ -76,7 +78,6 @@ export default class GameClient extends Client {
       });
   }
   getGameData(gameId) {
-    // Authorization not required
     return this._server.request(this.name, 'getGame', [gameId])
       .catch(error => {
         if (error === 'Connection reset')
@@ -84,6 +85,42 @@ export default class GameClient extends Client {
         throw error;
       });
   }
+  getTurnData(gameId, turnId) {
+    return this._server.request(this.name, 'getTurnData', [ gameId, turnId ])
+      .then(turnData => {
+        if (turnData) {
+          turnData.started = new Date(turnData.started);
+          turnData.actions.forEach(action => {
+            action.created = new Date(action.created);
+          });
+        }
+
+        return turnData;
+      })
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getTurnData(gameId, turnId);
+        throw error;
+      });
+  }
+  getTurnActions(gameId, turnId) {
+    return this._server.request(this.name, 'getTurnActions', [ gameId, turnId ])
+      .then(actions => {
+        if (actions) {
+          actions.forEach(action => {
+            action.created = new Date(action.created);
+          });
+        }
+
+        return actions;
+      })
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getTurnActions(gameId, turnId);
+        throw error;
+      });
+  }
+
   getPlayerStatus(gameId) {
     return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId])
       .catch(error => {
@@ -192,41 +229,6 @@ export default class GameClient extends Client {
           });
 
         return data;
-      });
-  }
-  getTurnData(gameId, turnId) {
-    return this._server.requestAuthorized(this.name, 'getTurnData', [ gameId, turnId ])
-      .then(turnData => {
-        if (turnData) {
-          turnData.started = new Date(turnData.started);
-          turnData.actions.forEach(action => {
-            action.created = new Date(action.created);
-          });
-        }
-
-        return turnData;
-      })
-      .catch(error => {
-        if (error === 'Connection reset')
-          return this.getTurnData(gameId, turnId);
-        throw error;
-      });
-  }
-  getTurnActions(gameId, turnId) {
-    return this._server.requestAuthorized(this.name, 'getTurnActions', [ gameId, turnId ])
-      .then(actions => {
-        if (actions) {
-          actions.forEach(action => {
-            action.created = new Date(action.created);
-          });
-        }
-
-        return actions;
-      })
-      .catch(error => {
-        if (error === 'Connection reset')
-          return this.getTurnActions(gameId, turnId);
-        throw error;
       });
   }
   async submitAction(gameId, action) {

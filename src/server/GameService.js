@@ -40,6 +40,8 @@ class GameService extends Service {
   will(client, messageType, bodyType) {
     // No authorization required
     if (bodyType === 'getGame') return true;
+    if (bodyType === 'getTurnData') return true;
+    if (bodyType === 'getTurnActions') return true;
     if (bodyType === 'getGameTypeConfig') return true;
 
     // Authorization required
@@ -407,6 +409,21 @@ class GameService extends Service {
 
     return gameData;
   }
+  async onGetTurnDataRequest(client, gameId, ...args) {
+    this.throttle(client.address, 'getTurnData', 300, 300);
+
+    let game = await this._getGame(gameId);
+
+    return game.state.getTurnData(...args);
+  }
+  async onGetTurnActionsRequest(client, gameId, ...args) {
+    this.throttle(client.address, 'getTurnData', 300, 300);
+
+    let game = await this._getGame(gameId);
+
+    return game.state.getTurnActions(...args);
+  }
+
   async onGetPlayerStatusRequest(client, gameId) {
     let game = gameId instanceof Game ? gameId : await this._getGame(gameId);
     let playerStatus = new Map();
@@ -680,17 +697,6 @@ class GameService extends Service {
         },
       },
     });
-  }
-
-  async onGetTurnDataRequest(client, gameId, ...args) {
-    let game = await this._getGame(gameId);
-
-    return game.state.getTurnData(...args);
-  }
-  async onGetTurnActionsRequest(client, gameId, ...args) {
-    let game = await this._getGame(gameId);
-
-    return game.state.getTurnActions(...args);
   }
 
   /*
