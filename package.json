@@ -62,7 +62,7 @@
     "socket.io-client": "^2.2.0",
     "string-pixel-width": "^1.10.0",
     "touch-pinch": "^1.0.1",
-    "ua-parser-js": "^0.7.20",
+    "ua-parser-js": "^0.7.24",
     "utf-8-validate": "^5.0.2",
     "uuid": "^3.3.2",
     "web-push": "^3.3.5",
