@@ -1150,7 +1150,7 @@ export default class GameState {
       actions: this.actions,
     });
 
-    this.turnStarted = new Date();
+    this.turnStarted = this.actions.last.created;
     this.units = board.getState();
     this._actions.length = 0;
 

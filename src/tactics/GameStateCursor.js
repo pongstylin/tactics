@@ -218,6 +218,10 @@ export default class GameStateCursor {
       if (turnId < stateTurnId) {
         let lastAction = turnData.actions.last;
         if (!lastAction || lastAction.type !== 'endTurn')
+          // Refresh the actions because the actions aren't complete
+          turnData.actions = await state.getTurnActions(turnId);
+        else if (turnId === (stateTurnId - 1) && +lastAction.created !== +state.turnStarted)
+          // Refresh the actions because a revert has taken place.
           turnData.actions = await state.getTurnActions(turnId);
       }
     }
