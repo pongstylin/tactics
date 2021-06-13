@@ -317,7 +317,7 @@ var buttons = {
     wakelock.enable();
 
     $('#game').toggleClass('is-busy');
-    if (game.cursor.atCurrent)
+    if (game.cursor.atEnd)
       game.play(0);
     else
       game.play();
