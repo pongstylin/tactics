@@ -1,5 +1,4 @@
 import fs from 'fs';
-import uuid from 'uuid/v4';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import Player from 'models/Player.js';
 import Game from 'models/Game.js';
@@ -98,31 +97,14 @@ export default class {
     await this.setPushSubscription(player.id, deviceId, null);
   }
 
-  async createGame(gameType, gameOptions) {
-    let game = Game.create(gameType, gameOptions);
+  async createGame(game) {
     game.version = getLatestVersionNumber('game');
 
     await this._lockAndCreateFile(`game_${game.id}`, game);
-
-    return game;
-  }
-
-  async forkGame(gameId, playerId) {
-    let game = await this.getGame(gameId);
-    let newId = uuid();
-    await this._lockAndCopyFile(`game_${game.id}`, `game_${newId}`);
-    let newGame = await this.getGame(newId);
-    newGame.id = newId;
-    newGame.isPublic = false;
-    newGame.state.turnTimeLimit = null;
-    newGame.state.teams.forEach(team => {
-      team.playerId = playerId;
-    });
-    return newGame;
+    await this._saveGameSummary(game);
   }
 
   async cancelGame(game) {
-
     return this._lock(`game_${game.id}`, 'write', async () => {
       let gameRefreshed = await this._readFile(`game_${game.id}`, null);
       if (gameRefreshed === null) {

@@ -55,6 +55,31 @@ export default class Game {
     return new Game(data);
   }
 
+  fork(playerId, turnId) {
+    // Effectively clone this game before converting the clone to a fork
+    let forkGame = Game.load(JSON.parse(JSON.stringify(this)));
+
+    forkGame.id = uuid();
+    forkGame.isPublic = false;
+    forkGame.state.turnTimeLimit = null;
+    forkGame.state.teams.forEach(team => {
+      team.playerId = playerId;
+      team.resetRandom();
+    });
+
+    if (forkGame.state.ended) {
+      forkGame.state.winnerId = null;
+      forkGame.state.ended = null;
+
+      // Don't include the winning turn, otherwise there's just one team left
+      if (turnId >= forkGame.state.currentTurnId)
+        turnId = forkGame.state.currentTurnId - 1;
+    }
+    forkGame.state.revert(turnId);
+
+    return forkGame;
+  }
+
   toJSON() {
     return {...this};
   }

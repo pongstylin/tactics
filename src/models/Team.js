@@ -75,6 +75,11 @@ export default class Team {
     return new Team(data);
   }
 
+  resetRandom() {
+    if (this.randomState)
+      this.randomState = createRandom();
+  }
+
   random() {
     if (!this.useRandom)
       throw new TypeError('May not use random');

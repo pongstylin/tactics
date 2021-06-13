@@ -251,7 +251,7 @@ class GameService extends Service {
 
     gameOptions.teams = new Array(teams.length);
 
-    let game = await dataAdapter.createGame(gameType, gameOptions);
+    let game = Game.create(gameType, gameOptions);
 
     for (let [slot, team] of teams.entries()) {
       if (!team) continue;
@@ -260,7 +260,7 @@ class GameService extends Service {
     }
 
     // Save the game before generating a notification to ensure it is accurate.
-    await dataAdapter.saveGame(game);
+    await dataAdapter.createGame(game);
 
     /*
      * Notify the player that goes first that it is their turn.
@@ -275,20 +275,15 @@ class GameService extends Service {
     return game.id;
   }
 
-  async onForkGameRequest(client, gameId, turn) {
-    this.debug(`forkGame: gameId=${gameId}`);
-    let newGame = await dataAdapter.forkGame(gameId, this.clientPara.get(client.id).playerId);
-    let turnToStartFrom = turn;
-    if (newGame.state.ended) {
-      newGame.state.winnerId = null;
-      newGame.state.ended = null;
-      // Don't include the winning turn, otherwise there's just one team left
-      if (turn === newGame.state._turns.length) {
-        turnToStartFrom = turn - 1 >= 0 ? turn - 1 : 0;
-      }
-    }
-    newGame.state.revert(turnToStartFrom);
-    await dataAdapter.saveGame(newGame);
+  async onForkGameRequest(client, gameId, turnId) {
+    this.debug(`forkGame: gameId=${gameId}; turnId=${turnId}`);
+
+    let clientPara = this.clientPara.get(client.id);
+    let game = await this._getGame(gameId);
+    let newGame = game.fork(clientPara.playerId, turnId);
+
+    await dataAdapter.createGame(newGame);
+
     return newGame.id;
   }
 
@@ -568,6 +563,7 @@ class GameService extends Service {
       delete gameData.createdBy;
       delete gameData.isPublic;
       delete gameData.randomFirstTurn;
+      delete gameData.randomHitChance;
       delete gameData.turnTimeLimit;
 
       if (params.since === 'start') {
