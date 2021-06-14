@@ -1023,6 +1023,10 @@ export default class Game {
       if (myTeam !== this.currentTeam)
         return false;
 
+      // Bot rejects undo if it involves undoing a previous turn.
+      if (actions.length === 0)
+        return false;
+
       let lastAction = actions.last;
 
       // Bot rejects undo if the last action was a counter-attack
