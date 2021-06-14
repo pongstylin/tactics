@@ -2,6 +2,7 @@ const package = require('./package.json');
 const path = require('path');
 const Dotenv = require('dotenv-webpack');
 const webpack = require('webpack');
+const TerserPlugin = require("terser-webpack-plugin");
 
 module.exports = {
   mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
@@ -38,7 +39,7 @@ module.exports = {
                   edge: 15,
                 },
                 useBuiltIns: 'usage',
-                corejs: 3,
+                corejs: 3.14,
               }],
             ],
           }
@@ -47,16 +48,16 @@ module.exports = {
       {
         test: /\.css$/,
         use: [
-          { loader: 'style-loader' },
-          { loader: 'css-loader', options: { url: false } }
+          { loader:'style-loader' },
+          { loader:'css-loader', options:{ url:false } }
         ]
       },
       {
         test: /\.scss$/,
         use: [
-          { loader: 'style-loader' },
-          { loader: 'css-loader', options: { url: false } },
-          { loader: 'sass-loader' }
+          { loader:'style-loader' },
+          { loader:'css-loader', options:{ url:false } },
+          { loader:'sass-loader' }
         ]
       }
     ]
@@ -66,7 +67,10 @@ module.exports = {
     filename: chunkData => chunkData.chunk.name === 'sw' ? '[name].js': '[name].min.js',
   },
   optimization: {
-    minimize: true
+    minimize: true,
+    minimizer: [new TerserPlugin({
+      extractComments: false,
+    })]
   },
   resolve: {
     alias: {
