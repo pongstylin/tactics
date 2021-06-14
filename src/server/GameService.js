@@ -193,6 +193,8 @@ class GameService extends Service {
   onPlayerOnline(playerId) {
     this.gamePara.forEach(gamePara => {
       let game = gamePara.game;
+      if (game instanceof Promise)
+        return;
       if (game.state.ended)
         return;
       if (!game.state.teams.find(t => t && t.playerId === playerId))
@@ -204,6 +206,8 @@ class GameService extends Service {
   onPlayerOffline(playerId) {
     this.gamePara.forEach(gamePara => {
       let game = gamePara.game;
+      if (game instanceof Promise)
+        return;
       if (game.state.ended)
         return;
       if (!game.state.teams.find(t => t && t.playerId === playerId))
