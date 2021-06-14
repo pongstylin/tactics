@@ -38,7 +38,7 @@ class ChatService extends Service {
 
     if (clientPara.joinedGroups)
       clientPara.joinedGroups.forEach(room =>
-        this.onLeaveGameGroup(client, `/rooms/${room.id}`, room.id)
+        this.onLeaveRoomGroup(client, `/rooms/${room.id}`, room.id)
       );
 
     this.clientPara.delete(client.id);
@@ -76,13 +76,14 @@ class ChatService extends Service {
   async onJoinRoomGroup(client, groupPath, roomId, resume) {
     let clientPara = this.clientPara.get(client.id);
     let playerId = clientPara.playerId;
-    let roomPara = this.roomPara.get(roomId);
-    let room = roomPara ? roomPara.room : await this._getRoom(roomId);
+    let room = await this._getRoom(roomId);
 
     let player = room.players.find(p => p.id === playerId);
     if (!player)
       throw new ServerError(403, 'You are not a participant of this room');
 
+    // Check roomPara after awaiting _getRoom() to avoid race condition.
+    let roomPara = this.roomPara.get(roomId);
     if (roomPara)
       roomPara.clients.add(clientPara);
     else
@@ -122,7 +123,7 @@ class ChatService extends Service {
   /*
    * No longer send message events to the client about this room.
    */
-  async onLeaveGameGroup(client, groupPath, roomId) {
+  async onLeaveRoomGroup(client, groupPath, roomId) {
     let clientPara = this.clientPara.get(client.id);
     let playerId = clientPara.playerId;
     let room = roomId instanceof Room ? roomId : await this._getRoom(roomId);
@@ -135,6 +136,9 @@ class ChatService extends Service {
       return;
 
     let roomPara = this.roomPara.get(room.id);
+    if (!roomPara || !roomPara.clients.has(clientPara))
+      throw new Error(`Expected client (${client.id}) to be in group (${groupPath})`);
+
     if (roomPara.clients.size > 1)
       roomPara.clients.delete(clientPara);
     else {

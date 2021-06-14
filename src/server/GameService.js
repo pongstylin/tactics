@@ -58,8 +58,8 @@ class GameService extends Service {
 
     if (clientPara.joinedGroups)
       await Promise.all(
-        [...clientPara.joinedGroups.values()].map(game =>
-          this.onLeaveGameGroup(client, `/games/${game.id}`, game.id)
+        [...clientPara.joinedGroups].map(gameId =>
+          this.onLeaveGameGroup(client, `/games/${gameId}`, gameId)
         )
       );
 
@@ -458,12 +458,13 @@ class GameService extends Service {
 
   async onJoinGameGroup(client, groupPath, gameId, params) {
     let gamePara = this.gamePara.get(gameId);
-    let game = gamePara ? gamePara.game : await this._getGame(gameId);
 
-    if (gamePara)
+    if (gamePara) {
       gamePara.clients.add(client.id);
-    else {
+    } else {
       let listener = async event => {
+        let game = gamePara.game;
+
         this._emit({
           type: 'event',
           body: {
@@ -481,7 +482,7 @@ class GameService extends Service {
            * AND the first team is the one who just joined to start the game.
            */
           let firstTurnId = 0;
-          for (; firstTurnId < game.currentTurnId; firstTurnId++) {
+          for (; firstTurnId < game.state.currentTurnId; firstTurnId++) {
             let actions = game.state.getTurnActions(firstTurnId);
             if (actions.length === 1 && actions[0].type === 'endTurn' && actions[0].forced)
               continue;
@@ -509,27 +510,37 @@ class GameService extends Service {
           dataAdapter.saveGame(game);
       };
 
-      game.state.on('event', listener);
-
       this.gamePara.set(gameId, gamePara = {
-        game:     game,
+        game:     dataAdapter.getGame(gameId),
         clients:  new Set([client.id]),
         listener: listener,
       });
     }
 
+    /*
+     * This might seem weird, but solves a race condition.  Two clients may join
+     * the game at the same time.  So, a gamePara object must be created before
+     * we await getting the game from the data adapter.  This solution forces
+     * both clients to await the same promise and will redundantly set the event
+     * listener.
+     */
+    if (gamePara.game instanceof Promise) {
+      gamePara.game = await gamePara.game;
+      gamePara.game.state.on('event', gamePara.listener);
+    }
+
     let clientPara = this.clientPara.get(client.id);
     if (clientPara.joinedGroups)
-      clientPara.joinedGroups.set(game.id, game);
+      clientPara.joinedGroups.add(gameId);
     else
-      clientPara.joinedGroups = new Map([[game.id, game]]);
+      clientPara.joinedGroups = new Set([ gameId ]);
 
     let playerId = clientPara.playerId;
     let playerPara = this.playerPara.get(playerId);
-    if (playerPara.joinedGroups.has(game.id))
-      playerPara.joinedGroups.get(game.id).add(client.id);
+    if (playerPara.joinedGroups.has(gameId))
+      playerPara.joinedGroups.get(gameId).add(client.id);
     else {
-      playerPara.joinedGroups.set(game.id, new Set([client.id]));
+      playerPara.joinedGroups.set(gameId, new Set([client.id]));
       this._emitPlayerStatus(groupPath, playerId, 'ingame');
     }
 
@@ -545,6 +556,7 @@ class GameService extends Service {
       },
     });
 
+    let game = gamePara.game;
     let gameData = game.toJSON();
     let state = gameData.state = game.state.getData();
 
