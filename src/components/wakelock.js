@@ -6,9 +6,7 @@ const KEEP_AWAKE = 15 * 60 * 1000;
 let timeout = null;
 
 export default {
-  enabled: false,
-
-  toggle(toggle = !this.enabled) {
+  toggle(toggle = !noSleep.enabled) {
     if (toggle)
       this.enable();
     else
@@ -16,24 +14,22 @@ export default {
   },
 
   enable() {
-    if (this.enabled) return this.stayAwake();
+    if (noSleep.enabled) return this.stayAwake();
 
     timeout = setTimeout(() => this.disable(), KEEP_AWAKE);
     noSleep.enable();
-    this.enabled = true;
   },
 
   disable() {
-    if (!this.enabled) return;
+    if (!noSleep.enabled) return;
 
     clearTimeout(timeout);
     timeout = null;
     noSleep.disable();
-    this.enabled = false;
   },
 
   stayAwake() {
-    if (!this.enabled) return;
+    if (!noSleep.enabled) return;
 
     clearTimeout(timeout);
     timeout = setTimeout(() => this.disable(), KEEP_AWAKE);
