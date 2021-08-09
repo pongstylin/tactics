@@ -114,9 +114,9 @@ export default class {
       })
       .on('altSelect', ({ target:tile }) => {
         let unit = tile.assigned;
-        if (unit.team.name === 'Pick') return;
+        if (!unit || unit.team.name === 'Pick') return;
 
-        this.removeUnit(tile.assigned);
+        this.killUnit(unit);
       })
       .on('deselect', () => {
         this.selected = null;
@@ -349,7 +349,7 @@ export default class {
     let degree = board.getDegree('N', board.rotation);
 
     if (tile.assigned)
-      board.dropUnit(tile.assigned);
+      this.removeUnit(tile.assigned);
 
     let unit = board.addUnit({
       type: unitType,
@@ -365,18 +365,19 @@ export default class {
     });
     this._drawPicks();
 
-    return unit;
+    // Replacing units may require removing other units.
+    this.killUnit();
   }
   moveUnit(unit, tile) {
     let board = this._board;
 
     if (tile.assigned)
-      board.dropUnit(tile.assigned);
+      this.removeUnit(tile.assigned);
 
     board.assign(unit, tile);
 
     // Moving and replacing units may require removing other units.
-    this.removeUnit();
+    this.killUnit();
   }
   swapUnit(unit, srcTile, dstTile) {
     let board = this._board;
@@ -387,9 +388,9 @@ export default class {
       board.assign(dstUnit, srcTile);
 
     // Moving units may require removing other units.
-    this.removeUnit();
+    this.killUnit();
   }
-  removeUnit(unit) {
+  killUnit(unit) {
     let animDeath;
     let deadUnits = [];
     if (unit) {
@@ -427,6 +428,18 @@ export default class {
 
       this._drawPicks();
     }
+  }
+  removeUnit(unit) {
+    let board = this._board;
+
+    unit.change({ mHealth:-unit.health });
+    board.trigger({
+      type: 'dropUnit',
+      unit,
+      attacker: null,
+      addResults: r => board.applyActionResults(r),
+    });
+    board.dropUnit(unit);
   }
   _auditUnitPlaces() {
     let auditUnits = [];
@@ -788,9 +801,10 @@ export default class {
             });
           }
           else {
-            this._board.dropUnit(dragUnit);
+            this.removeUnit(dragUnit);
             this._drawPicks();
             this._highlightPlaces();
+            this.killUnit();
           }
         }
       }
@@ -830,7 +844,7 @@ export default class {
     let selected = this.selected;
     this.selected = null;
 
-    this.removeUnit(selected);
+    this.killUnit(selected);
     this._disableTrash();
   }
   _trashIsFocused() {
