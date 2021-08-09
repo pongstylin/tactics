@@ -990,6 +990,12 @@ export default class Game {
     if (state.ended || this.isViewOnly)
       return false;
 
+    let actions = state.actions;
+
+    // Local games can always undo if there is something to undo
+    if (this.isLocalGame)
+      return !!(state.currentTurnId > 0 || actions.length > 0);
+
     // Determine the team that is requesting the undo.
     let teams  = this.teams;
     let myTeam = this.currentTeam;
@@ -1004,8 +1010,6 @@ export default class Game {
         if (undoRequest.teamId === myTeam.id)
           return false;
 
-    let actions = state.actions;
-
     // Can't undo if we haven't had a turn yet.
     if (myTeam.id > state.currentTurnId)
       return false;
@@ -1013,10 +1017,6 @@ export default class Game {
     // Can't undo if we haven't made an action yet.
     if (myTeam.id === state.currentTurnId && actions.length === 0)
       return false;
-
-    // Local games don't impose restrictions.
-    if (this.isLocalGame)
-      return true;
 
     if (this.isBotGame) {
       // Bot rejects undo if it is not your turn.

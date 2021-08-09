@@ -701,6 +701,12 @@ export default class GameState {
   canUndo(team = this.currentTeam) {
     let teams = this.teams;
 
+    // Practice games don't impose restrictions.
+    let bot = teams.find(t => !!t.bot);
+    let opponent = teams.find(t => t.playerId !== team.playerId);
+    if (!bot && !opponent)
+      return !!(this.currentTurnId > 0 || this._actions.length > 0);
+
     // Can't undo if we haven't had a turn yet.
     if (team.id > this.currentTurnId)
       return false;
@@ -708,12 +714,6 @@ export default class GameState {
     // Can't undo if we haven't made an action yet.
     if (team.id === this.currentTurnId && this._actions.length === 0)
       return false;
-
-    // Local games don't impose restrictions.
-    let bot = teams.find(t => !!t.bot);
-    let opponent = teams.find(t => t.playerId !== team.playerId);
-    if (!bot && !opponent)
-      return true;
 
     // Bots will never approve anything that requires approval.
     let approve = bot ? false : 'approve';
@@ -799,7 +799,7 @@ export default class GameState {
     if (team.id === this.currentTurnId && this._actions.length === 0)
       return false;
 
-    // Local games don't impose restrictions.
+    // Practice games don't impose restrictions.
     let bot      = teams.find(t => !!t.bot);
     let opponent = teams.find(t => t.playerId !== team.playerId);
 

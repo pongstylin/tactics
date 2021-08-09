@@ -775,17 +775,25 @@ class GameService extends Service {
       throw new ServerError(401, 'You must first join the game group');
 
     let game = gamePara.game;
+    let teams = game.state.teams;
     let playerId = this.clientPara.get(client.id).playerId;
 
     // Determine the team that is requesting the undo.
     let team = game.state.currentTeam;
-    while (team.playerId !== playerId) {
-      let prevTeamId = (team.id === 0 ? game.state.teams.length : team.id) - 1;
-      team = game.state.teams[prevTeamId];
+    let prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
+    let prevTeam = teams[prevTeamId];
+    if (team.playerId === playerId) {
+      if (prevTeam.playerId === playerId && game.state._actions.length === 0)
+        team = prevTeam;
+    } else {
+      while (team.playerId !== playerId) {
+        prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
+        team = teams[prevTeamId];
+      }
     }
 
     // In case a player controls multiple teams...
-    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
+    let myTeams = teams.filter(t => t.playerId === playerId);
     if (myTeams.length === 0)
       throw new ServerError(401, 'You are not a player in this game.');
 
