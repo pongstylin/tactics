@@ -635,7 +635,17 @@ async function initGame() {
       else if (game.hasOneLocalTeam()) {
         $('#app').addClass('for-playing');
 
-        let { players, events } = await chatClient.joinChat(gameId);
+        let players, events;
+        while (!players) {
+          try {
+            ({ players, events } = await chatClient.joinChat(gameId));
+          } catch (error) {
+            // Retry after a connection reset
+            if (error !== 'Connection reset')
+              throw error;
+          }
+        }
+
         let groupId = `/rooms/${gameId}`;
         let playerId = authClient.playerId;
 
@@ -653,9 +663,16 @@ async function initGame() {
             let resume = {
               id: chatMessages.length ? chatMessages.last.id : null,
             };
-            let { events } = await chatClient.joinChat(gameId, resume);
 
-            appendMessages(events.filter(e => e.type === 'message'));
+            try {
+              let { events } = await chatClient.joinChat(gameId, resume);
+
+              appendMessages(events.filter(e => e.type === 'message'));
+            } catch (error) {
+              // Ignore connection resets since we'll try again with the next 'open'
+              if (error !== 'Connection reset')
+                throw error;
+            }
           })
           .on('event', event => {
             if (event.body.group !== groupId) return;
