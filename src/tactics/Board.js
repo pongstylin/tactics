@@ -1459,7 +1459,8 @@ export default class {
     // calls this method and the Game board instance is never rotated.
     let degree = this.getDegree(this.rotation, 'N');
 
-    return this.teamsUnits.map(units => units.map(unit => {
+    // The 'filter' is to ignore units that are still dying during set setup.
+    return this.teamsUnits.map(units => units.filter(u => !!u.assignment).map(unit => {
       let unitState = unit.toJSON();
 
       if (degree) {

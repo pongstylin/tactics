@@ -274,13 +274,7 @@ window.Tactics = (function () {
     createLocalGame: function (stateData) {
       let transport = LocalTransport.createGame(stateData);
 
-      return transport.whenReady.then(() => {
-        let localTeamIds = transport.teams
-          .filter(team => !team.bot)
-          .map(team => team.slot);
-
-        return new Game(transport, localTeamIds);
-      });
+      return transport.whenReady.then(() => new Game(transport));
     },
     animations: {
       death: [

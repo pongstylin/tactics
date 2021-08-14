@@ -22,7 +22,7 @@ self.addEventListener('message', ({data:message}) => {
 
     post('init', self.state.getData());
 
-    if (!self.state.teams.find(t => !t || !t.set))
+    if (self.state.teams.findIndex(t => !t?.joinedAt) === -1)
       self.state.start();
   }
   else if (type === 'restart') {
@@ -31,7 +31,7 @@ self.addEventListener('message', ({data:message}) => {
 
     post('init', self.state.getData());
 
-    if (!self.state.teams.find(t => !t || !t.set))
+    if (self.state.teams.findIndex(t => !t?.joinedAt) === -1)
       self.state.start();
   }
   else if (type === 'load') {

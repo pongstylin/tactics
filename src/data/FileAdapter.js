@@ -114,7 +114,7 @@ export default class {
         return false;
       }
       let playerIds = new Set(
-        gameRefreshed.state.teams.filter(t => t && !!t.playerId).map(t => t.playerId)
+        gameRefreshed.state.teams.filter(t => !!t?.playerId).map(t => t.playerId)
       );
 
       let promises = [...playerIds].map(playerId =>
@@ -154,36 +154,41 @@ export default class {
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getPlayerSet(playerId, gameTypeId, setName) {
-    let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
-    let set = sets.find(s => s.type === gameTypeId && s.name === setName);
-    if (set) return set.units;
+  async getPlayerSet(playerId, gameType, setName) {
+    if (typeof gameType === 'string')
+      gameType = await this.getGameType(gameType);
 
-    let gameType = await this.getGameType(gameTypeId);
+    let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
+    let set = sets.find(s => s.type === gameType.id && s.name === setName);
+    if (set) return gameType.applySetUnitState(set);
+
     return gameType.getDefaultSet();
   }
   /*
    * Setting the default set for a game type involves REPLACING the first set
    * for a given game type.
    */
-  async setPlayerSet(playerId, gameTypeId, setName, setUnits) {
+  async setPlayerSet(playerId, gameType, setName, set) {
+    if (typeof gameType === 'string')
+      gameType = await this.getGameType(gameType);
+
+    gameType.validateSet(set);
+    set.type = gameType.id;
+    set.name = set.name ?? setName;
+    set.createdAt = new Date();
+
     await this._lockAndUpdateFile(`player_${playerId}_sets`, [], sets => {
-      let index = sets.findIndex(s => s.type === gameTypeId && s.name === setName);
+      let index = sets.findIndex(s => s.type === gameType.id && s.name === setName);
       if (index === -1)
-        sets.push({
-          type: gameTypeId,
-          name: setName,
-          units: setUnits,
-          createdAt: new Date(),
-        });
+        sets.push(set);
       else
-        sets[index].units = setUnits;
+        sets[index] = set;
     });
   }
 
-  async hasGameType(gameType) {
+  async hasGameType(gameTypeId) {
     let gameTypes = new Map(await this._lockAndReadFile('game_types'));
-    return gameTypes.has(gameType);
+    return gameTypes.has(gameTypeId);
   }
   async getGameType(gameTypeId) {
     let gameTypes = new Map(await this._lockAndReadFile('game_types'));
@@ -433,7 +438,7 @@ export default class {
 
     // Get a unique list of player IDs from the teams.
     let playerIds = new Set(
-      game.state.teams.filter(t => t && !!t.playerId).map(t => t.playerId)
+      game.state.teams.filter(t => !!t?.playerId).map(t => t.playerId)
     );
 
     // Convert the player IDs to a list of promises.

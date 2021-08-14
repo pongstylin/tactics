@@ -205,18 +205,21 @@
       </DIV>
       <DIV class="details"></DIV>
       <DIV class="set" style="display:none">
-        <UL style="margin-left:12px; list-style:none">
+        <UL class="choices">
           <LI>
             <LABEL><INPUT type="radio" name="set" value="practice">Practice Set</LABEL>
-            &#x2022; <A href="javascript:void(0)">Change Set</A>
+            <span class="sep"></span>
+            <A href="javascript:void(0)">Change Set</A>
           </LI>
           <LI>
             <LABEL><INPUT type="radio" name="set" value="same">My Set</LABEL>
-            &#x2022; Opposite side for corner sets
+            <span class="sep"></span>
+            Opposite side for corner sets
           </LI>
           <LI class="mirror">
             <LABEL><INPUT type="radio" name="set" value="mirror">Mirror My Set</LABEL>
-            &#x2022; Same side for corner sets
+            <span class="sep"></span>
+            Same side for corner sets
           </LI>
         </UL>
       </DIV>
@@ -224,6 +227,36 @@
         <BUTTON name="start">Start Practice Game</BUTTON>
       </DIV>
       <DIV class="error"></DIV>
+    </DIV>
+  </DIV>
+  <DIV id="fork" style="display:none" class="intro">
+    <DIV class="content">
+      <DIV class="back" style="text-align:center">
+        <A href="/online.html">Back to Game List</A>
+      </DIV>
+      <DIV class="challenge"></DIV>
+      <DIV class="playerSetup">
+        <DIV>What name would you like to use for <B><I><U>this</U></I></B> game?</DIV>
+        <DIV class="playerName is-saved">
+          <INPUT
+            type="text"
+            name="playerName"
+            maxLength=20
+            spellcheck="false"
+          />
+          <DIV class="icons">
+            <SPAN class="saved">
+              <SPAN class="fa fa-spinner fa-pulse"></SPAN>
+              <SPAN class="fa fa-check-circle"></SPAN>
+            </SPAN>
+          </DIV>
+        </DIV>
+        <DIV class="error"></DIV>
+      </DIV>
+      <DIV class="details"></DIV>
+      <DIV class="buttons">
+        <BUTTON name="join">Join Fork Game</BUTTON>
+      </DIV>
     </DIV>
   </DIV>
   <DIV id="join" style="display:none" class="intro">
@@ -252,18 +285,21 @@
       </DIV>
       <DIV class="details"></DIV>
       <DIV class="set" style="display:none">
-        <UL style="margin-left:12px; list-style:none">
+        <UL class="choices">
           <LI>
             <LABEL><INPUT type="radio" name="set" value="default">My Set</LABEL>
-            &#x2022; <A href="javascript:void(0)">Change Set</A>
+            <span class="sep"></span>
+            <A href="javascript:void(0)">Change Set</A>
           </LI>
           <LI>
             <LABEL><INPUT type="radio" name="set" value="same">Same Set</LABEL>
-            &#x2022; Opposite side for corner sets
+            <span class="sep"></span>
+            Opposite side for corner sets
           </LI>
           <LI class="mirror">
             <LABEL><INPUT type="radio" name="set" value="mirror">Mirror Set</LABEL>
-            &#x2022; Same side for corner sets
+            <span class="sep"></span>
+            Same side for corner sets
           </LI>
         </UL>
       </DIV>

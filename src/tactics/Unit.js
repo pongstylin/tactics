@@ -451,7 +451,7 @@ export default class Unit {
             changes: {
               focusing: fUnit.focusing.length === 1
                 ? false
-                : fUnit.focusing.filter(t => t !== unit),
+                : fUnit.focusing.filter(u => u !== unit),
             }
           });
         });
@@ -1665,7 +1665,7 @@ export default class Unit {
             changes: {
               focusing: fUnit.focusing.length === 1
                 ? false
-                : fUnit.focusing.filter(t => t !== this),
+                : fUnit.focusing.filter(u => u !== this),
             },
           })),
         ],
@@ -1684,7 +1684,7 @@ export default class Unit {
             changes: {
               focusing: fUnit.focusing.length === 1
                 ? false
-                : fUnit.focusing.filter(t => t !== this),
+                : fUnit.focusing.filter(u => u !== this),
             },
           })),
         ],

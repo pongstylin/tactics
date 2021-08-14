@@ -1,10 +1,11 @@
 import 'components/Modal.scss';
 
 export default class Modal {
-  constructor(options) {
+  constructor(options, data = {}) {
     Object.assign(this, {
       el: null,
       options: null,
+      data,
       whenClosed: new Promise((resolve, reject) => {
         this._resolveClosed = resolve;
         this._rejectClosed = reject;

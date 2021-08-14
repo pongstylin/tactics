@@ -108,6 +108,9 @@ export default class RemoteTransport {
   get type() {
     return this._getStateData('type');
   }
+  get forkOf() {
+    return this._getData('forkOf');
+  }
   get teams() {
     return this._getStateData('teams');
   }

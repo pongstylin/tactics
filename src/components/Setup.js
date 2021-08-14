@@ -221,7 +221,9 @@ export default class {
 
     let unitTypes = gameType.getUnitTypes().reverse();
     let positions = this._getPositions(unitTypes.length);
-    this._picksTeam.set = unitTypes.map((ut, i) => ({ type:ut, assignment:positions[i] }));
+    this._picksTeam.set = {
+      units: unitTypes.map((ut, i) => ({ type:ut, assignment:positions[i] })),
+    };
 
     let leftPoint = board.getTile(0, 6).getLeft();
     leftPoint.set(
@@ -330,8 +332,8 @@ export default class {
 
   reset() {
     let board = this._board;
-    let units = this._team.set.map(unitData => ({ ...unitData, direction:'S' }));
-    let picksTeamUnits = this._picksTeam.set.map(unitData => ({
+    let units = this._team.set.units.map(unitData => ({ ...unitData, direction:'S' }));
+    let picksTeamUnits = this._picksTeam.set.units.map(unitData => ({
       ...unitData, direction:'N'
     }));
 
@@ -341,6 +343,7 @@ export default class {
 
     this._highlightPlaces();
     this._drawPicks();
+    this._setUnitsState();
     this.render();
   }
 
@@ -358,12 +361,9 @@ export default class {
     }, this._team);
     unit.draggable = true;
 
-    board.trigger({
-      type: 'addUnit',
-      unit,
-      addResults: r => board.applyActionResults(r),
-    });
+    this._highlightPlaces();
     this._drawPicks();
+    this._setUnitsState();
 
     // Replacing units may require removing other units.
     this.killUnit();
@@ -390,7 +390,7 @@ export default class {
     // Moving units may require removing other units.
     this.killUnit();
   }
-  killUnit(unit) {
+  async killUnit(unit) {
     let animDeath;
     let deadUnits = [];
     if (unit) {
@@ -414,32 +414,22 @@ export default class {
     }
 
     if (animDeath.frames.length) {
-      for (let deadUnit of deadUnits)
-        board.trigger({
-          type: 'dropUnit',
-          unit: deadUnit,
-          attacker: null,
-          addResults: r => board.applyActionResults(r),
-        });
+      await animDeath.play();
 
-      animDeath.play().then(() => {
-        this._highlightPlaces()
-      });
-
+      this._highlightPlaces();
       this._drawPicks();
+      this._setUnitsState();
     }
   }
   removeUnit(unit) {
     let board = this._board;
 
     unit.change({ mHealth:-unit.health });
-    board.trigger({
-      type: 'dropUnit',
-      unit,
-      attacker: null,
-      addResults: r => board.applyActionResults(r),
-    });
     board.dropUnit(unit);
+
+    this._highlightPlaces();
+    this._drawPicks();
+    this._setUnitsState();
   }
   _auditUnitPlaces() {
     let auditUnits = [];
@@ -599,8 +589,9 @@ export default class {
      * Check if the current set is different from the initial set
      */
     let board = this._board;
-    let units = this._team.set.map(unitData => ({ ...unitData, direction:'S' }));
-    let mismatch = units.find(unit => {
+    let oUnits = this._team.set.units.map(unitData => ({ ...unitData, direction:'S' }));
+    let nUnits = this._team.units;
+    let mismatch = oUnits.length !== nUnits.length || oUnits.find(unit => {
       let unit2 = board.getTileRotation(unit.assignment, 180).assigned;
 
       return !(unit2 && unit2.type === unit.type);
@@ -619,10 +610,10 @@ export default class {
       emitBack();
   }
   _onSave(event) {
-    let set = this._board.getState()[0].map(unit => {
-      delete unit.direction;
-      return unit;
-    });
+    let board = this._board;
+    let set = {
+      units: board.getState()[0],
+    };
 
     try {
       this.gameType.validateSet(set);
@@ -796,14 +787,13 @@ export default class {
             tile.set_interactive(false);
             setTimeout(() => {
               tile.set_interactive(true);
-              this._drawPicks();
               this._highlightPlaces();
+              this._drawPicks();
+              this._setUnitsState();
             });
           }
           else {
             this.removeUnit(dragUnit);
-            this._drawPicks();
-            this._highlightPlaces();
             this.killUnit();
           }
         }
@@ -816,9 +806,6 @@ export default class {
           this.swapUnit(dragUnit, dragSource.target, tile);
         else
           this.placeUnit(dragUnit.type, tile);
-
-        this._drawPicks();
-        this._highlightPlaces();
       }
 
       this._disableTrash();
@@ -1123,6 +1110,26 @@ export default class {
 
       this._countsContainer.addChild(countText);
     });
+  }
+  _setUnitsState() {
+    let gameType = this.gameType;
+    let set = gameType.applySetUnitState(gameType.cleanSet({
+      units: this._board.getState()[0],
+    }));
+
+    for (let i = 0; i < this._team.units.length; i++) {
+      let unit = this._team.units[i];
+
+      let changes = {
+        mPower: 0,
+        ...set.units[i],
+      };
+      delete changes.type;
+      delete changes.assignment;
+      delete changes.direction;
+
+      unit.change(changes);
+    }
   }
 
   _render() {

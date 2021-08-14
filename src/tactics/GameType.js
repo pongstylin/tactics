@@ -1,6 +1,7 @@
 import Board from 'tactics/Board.js';
 import ServerError from 'server/Error.js';
 import unitDataMap from 'tactics/unitData.js';
+import { calcPowerModifiers } from 'tactics/Unit/DragonspeakerMage.js';
 
 export default class GameType {
   constructor(id, config) {
@@ -34,7 +35,7 @@ export default class GameType {
       return [...new Set(config.sets[0].units.map(u => u.type))];
   }
   getDefaultSet() {
-    return this.config.sets[0].units;
+    return this.applySetUnitState(this.config.sets[0]);
   }
   getMaxUnits() {
     return this.config.limits.units.max;
@@ -60,9 +61,35 @@ export default class GameType {
 
     return tiles;
   }
+  applySetUnitState(set) {
+    // Compute dragonspeaker modifiers
+    let dragons = set.units.filter(u => u.type === 'DragonTyrant').length;
+    let speakers = set.units.filter(u => u.type === 'DragonspeakerMage').length;
+    let pyros = set.units.filter(u => u.type === 'Pyromancer').length;
+    let powerModifiers = calcPowerModifiers(dragons, speakers, speakers + pyros);
 
-  validateSet(set) {
-    let nonWardUnit = set.find(u => {
+    for (let unitState of set.units) {
+      let unitData = unitDataMap.get(unitState.type);
+
+      if (unitData.directional !== false && !unitState.direction)
+        unitState.direction = 'S';
+
+      if (powerModifiers.dragonModifier) {
+        if (unitState.type === 'DragonTyrant')
+          unitState.mPower = powerModifiers.dragonModifier;
+        else if (unitState.type === 'DragonspeakerMage' || unitState.type === 'Pyromancer')
+          unitState.mPower = powerModifiers.mageModifier;
+      }
+
+      if (unitData.waitFirstTurn)
+        unitState.mRecovery = 1;
+    }
+
+    return set;
+  }
+
+  validateSetIsNotEmpty(units) {
+    let nonWardUnit = units.find(u => {
       if (u.type === 'LightningWard') return false;
       if (u.type === 'BarrierWard') return false;
       return true;
@@ -70,15 +97,15 @@ export default class GameType {
 
     if (!nonWardUnit)
       throw new ServerError(429, 'You need at least one unit that is not a ward.');
-
+  }
+  validateSetIsNotOverFull(units) {
     let limits = this.config.limits;
-    if (set.length > limits.units.max)
+    if (units.length > limits.units.max)
       throw new ServerError(403, 'You have exceed the max allowed units');
-
+  }
+  validateSetUnitPlacements(board, units) {
+    let limits = this.config.limits;
     let unitTypesLimits = limits.units.types;
-    let team = {};
-    let board = new Board();
-    board.setState([set], [team]);
 
     /*
      * For each unit validate the following aspects:
@@ -87,7 +114,7 @@ export default class GameType {
      *   3) The unit is allowed to be assigned to its tile.
      */
     let unitCounts = new Map();
-    for (let unit of team.units) {
+    for (let unit of units) {
       let unitLimits = unitTypesLimits.get(unit.type);
       if (!unitLimits)
         throw new ServerError(403, 'The set contains invalid units');
@@ -109,7 +136,7 @@ export default class GameType {
       let maxDistance = rules.oneSide;
 
       // Find a unit that violates the one side rule
-      let found = team.units.find(unit => {
+      let found = units.find(unit => {
         let unitColumn = unit.assignment.x;
         let leftDistance = unitColumn;
         let rightDistance = 10 - unitColumn;
@@ -149,7 +176,7 @@ export default class GameType {
 
       let unitRules = unitLimits.rules || {};
       if (unitRules.maxStone) {
-        let unitFound = team.units.find(unit => {
+        let unitFound = units.find(unit => {
           if (unit.type !== unitType) return false;
 
           return unit.getAttackTiles().find(target => {
@@ -164,6 +191,47 @@ export default class GameType {
           throw new ServerError(429, `A ${unitTypeName} must be able to armor the maximum units without moving`);
       }
     }
+  }
+  cleanSet(set) {
+    for (let propName of Object.keys(set)) {
+      if (propName === 'name') continue;
+      if (propName === 'units') continue;
+
+      delete set[propName];
+    }
+
+    for (let unitState of set.units) {
+      let unitData = unitDataMap.get(unitState.type);
+
+      /*
+       * The client may dictate unit type, assignment, and sometimes direction.
+       * Other state properties will be computed by the server.
+       */
+      for (let propName of Object.keys(unitState)) {
+        if (propName === 'type' || propName === 'assignment')
+          continue;
+        else if (propName === 'direction') {
+          if (unitData.directional !== false)
+            continue;
+        }
+
+        delete unitState[propName];
+      }
+    }
+
+    return set;
+  }
+  validateSet(set) {
+    let team = {};
+    let board = new Board();
+    board.setState([set.units], [team]);
+
+    this.validateSetIsNotEmpty(team.units);
+    this.validateSetIsNotOverFull(team.units);
+    this.validateSetUnitPlacements(board, team.units);
+    this.cleanSet(set);
+
+    return set;
   }
 
   toJSON() {

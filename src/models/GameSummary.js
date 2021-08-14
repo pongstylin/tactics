@@ -40,7 +40,10 @@ export default class GameSummary {
       turnStarted: game.state.turnStarted,
       turnTimeLimit: game.state.turnTimeLimit,
       isPublic: game.isPublic,
+      isFork: !!game.forkOf,
       teams: teams.map(t => t && {
+        createdAt: t.createdAt,
+        joinedAt: t.joinedAt,
         playerId: t.playerId,
         name: t.name,
       }),

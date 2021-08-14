@@ -3,6 +3,7 @@ import copy from 'components/copy.js';
 import share from 'components/share.js';
 import wakelock from 'components/wakelock.js';
 import GameSettings from 'components/Modal/GameSettings.js';
+import ForkModal from 'components/Modal/Fork.js';
 
 const ServerError = Tactics.ServerError;
 const authClient = Tactics.authClient;
@@ -341,7 +342,7 @@ var buttons = {
     return false;
   },
   fork: async () => {
-    showForkDialog(game.state._data.id, game.turnId);
+    new ForkModal({ closeOnCancel:true, }, { game });
   },
   resume: async () => {
     wakelock.toggle(!game.state.ended);
@@ -615,7 +616,7 @@ async function initGame() {
         return loadTransportAndGame(gameId, gameData);
 
       let teams = gameData.state.teams;
-      let hasJoined = teams.filter(t => t && t.playerId === authClient.playerId);
+      let hasJoined = teams.filter(t => t?.playerId === authClient.playerId);
       if (hasJoined.length === teams.length)
         return showPracticeIntro(gameData);
       else if (hasJoined.length)
@@ -624,10 +625,14 @@ async function initGame() {
         else
           return showPrivateIntro(gameData);
       else
-        return showJoinIntro(gameData);
+        if (!gameData.state.started && gameData.forkOf)
+          return showJoinFork(gameData);
+        else
+          return showJoinIntro(gameData);
     })
     .then(async g => {
       game = g;
+      game.id = gameId;
       game.state.on('playerStatus', resetPlayerBanners);
 
       if (game.isViewOnly)
@@ -749,11 +754,7 @@ async function loadTransport(gameId, gameData) {
 async function loadGame(transport) {
   await loadResources(transport);
 
-  let localTeamIds = transport.teams
-    .filter(t => t && t.playerId === authClient.playerId)
-    .map(t => t.slot);
-
-  return new Tactics.Game(transport, localTeamIds);
+  return new Tactics.Game(transport, authClient.playerId);
 }
 async function loadResources(gameState) {
   let unitTypes = gameType.getUnitTypes();
@@ -852,7 +853,7 @@ async function showPublicIntro(gameData) {
   renderCancelButton(gameData.id, document.querySelector('#public .cancelButton'));
 
   let $greeting = $('#public .greeting');
-  let myTeam = gameData.state.teams.find(t => t && t.playerId === authClient.playerId);
+  let myTeam = gameData.state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
 
   let transport = await loadTransport(gameData.id);
@@ -870,7 +871,7 @@ async function showPrivateIntro(gameData) {
   renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
   let $greeting = $('#private .greeting');
-  let myTeam = gameData.state.teams.find(t => t && t.playerId === authClient.playerId);
+  let myTeam = gameData.state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
 
   let transport = await loadTransport(gameData.id);
@@ -994,8 +995,7 @@ async function showPracticeIntro(gameData) {
   let challenge = root.querySelector('.challenge');
   let btnStart = root.querySelector('BUTTON[name=start]');
 
-  let teams = gameData.state.teams;
-  let creatorTeam = teams.find(t => !!t.set);
+  let creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
 
   challenge.innerHTML = `Configure your opponent in the practice game.`;
 
@@ -1052,7 +1052,6 @@ async function showPracticeIntro(gameData) {
 
       try {
         await gameClient.joinGame(gameData.id, {
-          slot: teams.findIndex(t => !t.set),
           name: txtPlayerName.value,
           set,
         });
@@ -1070,6 +1069,155 @@ async function showPracticeIntro(gameData) {
 
     progress.hide();
     $('#practice').show();
+  });
+}
+async function showJoinFork(gameData) {
+  let root = document.body.querySelector('#fork');
+
+  root.addEventListener('focus', event => {
+    let target = event.target;
+    if (target.matches('INPUT[name=playerName]'))
+      target.select();
+  }, true);
+  root.addEventListener('blur', event => {
+    let target = event.target;
+    if (target.matches('INPUT[name=playerName]'))
+      // Clear selection
+      target.value = target.value;
+  }, true);
+  root.addEventListener('keydown', event => {
+    let target = event.target;
+    if (target.matches('INPUT[name=playerName]'))
+      if (event.keyCode === 13)
+        event.target.blur();
+  }, true);
+  root.addEventListener('input', event => {
+    let target = event.target;
+    if (target.matches('INPUT[name=playerName]')) {
+      let inputTextAutosave = event.target.parentElement;
+      inputTextAutosave.classList.remove('is-saved');
+      inputTextAutosave.classList.remove('is-saving');
+    }
+  }, true);
+
+  let divPlayerAutoSave = root.querySelector('.playerName');
+  let divPlayerError = divPlayerAutoSave.nextElementSibling;
+  let txtPlayerName = divPlayerAutoSave.querySelector('INPUT[name=playerName]');
+  txtPlayerName.addEventListener('blur', event => {
+    let newPlayerName = txtPlayerName.value.trim().length
+      ? txtPlayerName.value.trim() : null;
+
+    if (newPlayerName === null)
+      newPlayerName = authClient.playerName;
+
+    // Just in case spaces were trimmed or the name unset.
+    txtPlayerName.value = newPlayerName;
+
+    divPlayerError.textContent = '';
+
+    if (newPlayerName === authClient.playerName)
+      divPlayerAutoSave.classList.add('is-saved');
+    else {
+      divPlayerAutoSave.classList.remove('is-saved');
+      divPlayerAutoSave.classList.add('is-saving');
+
+      authClient.setAccountName(newPlayerName)
+        .then(() => {
+          divPlayerAutoSave.classList.remove('is-saving');
+          divPlayerAutoSave.classList.add('is-saved');
+        })
+        .catch(error => {
+          divPlayerAutoSave.classList.remove('is-saving');
+          divPlayerError.textContent = error.toString();
+        });
+    }
+  });
+
+  let details = root.querySelector('.details');
+  let challenge = root.querySelector('.challenge');
+  let btnJoin = root.querySelector('BUTTON[name=join]');
+
+  if (authClient.token)
+    txtPlayerName.value = authClient.playerName;
+  else
+    txtPlayerName.value = 'Noob';
+
+  let creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
+  let opponentTeam = gameData.state.teams.find(t => !t.joinedAt);
+  let forkPlayerIds = new Set(gameData.state.teams.map(t => t.forkOf.playerId));
+  let as1;
+  let as2;
+  let who = forkPlayerIds.has(creatorTeam.playerId) ? 'their' : `another's`;
+  let of;
+
+  if (forkPlayerIds.size === 1) {
+    let practicePlayerId = [ ...forkPlayerIds ][0];
+
+    as1 = `<I>${creatorTeam.forkOf.name}</I>`;
+    as2 = `<I>${opponentTeam.forkOf.name}</I>`;
+    of = 'practice game';
+  } else {
+    as1 =
+      creatorTeam.forkOf.playerId === creatorTeam.playerId ? 'themself' :
+      creatorTeam.forkOf.playerId === authClient.playerId ? 'you' : `<I>${creatorTeam.forkOf.name}</I>`;
+    as2 = authClient.playerId === opponentTeam.forkOf.playerId ? 'yourself' : `<I>${opponentTeam.forkOf.name}</I>`;
+    of = 'game';
+  }
+
+  challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting to play as ${as1} in a fork of ${who} ${of}.  Want to play as ${as2}?`;
+
+  let turnLimit;
+  switch (gameData.state.turnTimeLimit) {
+    case 604800:
+      turnLimit = '1 week';
+      break;
+    case 86400:
+      turnLimit = '1 day';
+      break;
+    case 120:
+      turnLimit = '2 minutes';
+      break;
+    default:
+      turnLimit = `${gameData.state.turnTimeLimit} seconds`;
+  }
+
+  let person;
+  if (creatorTeam.id === gameData.state.currentTeamId)
+    person = `<I>${creatorTeam.name}</I>`;
+  else
+    person = 'you';
+
+  let blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
+  let forkOfURL = `/game.html?${gameData.forkOf.gameId}#c=${gameData.forkOf.turnId + 1},0`;
+
+  details.innerHTML = `
+    <DIV>This is a fork of <A href="${forkOfURL}" target="_blank">this ${of} and turn</A>.</DIV>
+    <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+    <DIV>The turn time limit is set to ${turnLimit}.</DIV>
+    <DIV>The next person to move is ${person}.</DIV>
+    <DIV>The blocking system is ${blocking}.</DIV>
+  `;
+
+  return new Promise((resolve, reject) => {
+    btnJoin.addEventListener('click', async event => {
+      $('#fork').hide();
+      progress.message = 'Joining game...';
+      progress.show();
+
+      try {
+        await joinGame(txtPlayerName.value, gameData.id);
+        progress.message = 'Loading game...';
+        resolve(
+          await loadTransportAndGame(gameData.id, gameData)
+        );
+      }
+      catch (error) {
+        reject(error);
+      }
+    });
+
+    progress.hide();
+    $('#fork').show();
   });
 }
 async function showJoinIntro(gameData) {
@@ -1168,7 +1316,7 @@ async function showJoinIntro(gameData) {
     });
   }
   else {
-    let creatorTeam = gameData.state.teams.find(t => !!t);
+    let creatorTeam = gameData.state.teams.find(t => !!t?.joinedAt);
 
     challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`;
 
@@ -1259,29 +1407,6 @@ async function showJoinIntro(gameData) {
   }
 }
 
-function showForkDialog(gameId, turn) {
-    popup({
-      title: "Fork the game?",
-      message: `You are about to create a practice game playable from the beginning of turn ${turn + 1}.`,
-      buttons: [
-        {
-          label:'Fork the game',
-          onClick: () => {
-            gameClient.forkGame(gameId, turn)
-              .then((newId) => {
-                location.href = `/game.html?${newId}`;
-              });
-          }
-        },
-        {
-          label: 'Cancel'
-        },
-      ],
-      minWidth: '250px',
-      zIndex: 10,
-    });
-}
-
 function updateChatButton() {
   if (!chatMessages.length) return;
 
@@ -1320,8 +1445,26 @@ function resetPlayerBanners() {
     $player
       .addClass('active bronze')
       .removeClass('offline online ingame unavailable')
-      .addClass(game.state.playerStatus.get(team.playerId))
-      .find('.name').text(team.name);
+      .addClass(game.state.playerStatus.get(team.playerId));
+
+    let $name = $player.find('.name').text(team.name);
+
+    if (team.forkOf) {
+      let $fork = $player.find('.fork');
+      if (!$fork.length)
+        $fork = $('<SPAN>').insertAfter($name).addClass('fork fa fa-code-branch');
+
+      if (!game.isPracticeGame && !game.ofPracticeGame) {
+        let $forkName = $player.find('.forkName');
+        if (!$forkName.length)
+          $forkName = $('<SPAN>').insertAfter($fork).addClass('forkName');
+
+        if (team.forkOf.playerId === team.playerId)
+          $forkName.html('<I>Me</I>');
+        else
+          $forkName.text(team.forkOf.name);
+      }
+    }
   });
 
   setTurnTimeoutClock();

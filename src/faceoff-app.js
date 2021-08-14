@@ -7,11 +7,13 @@ var progress;
 var pointer;
 var readySpecial;
 
-var set = [
-  { assignment:[4, 2], type:'Knight' },
-  { assignment:[5, 2], type:'Knight' },
-  { assignment:[6, 2], type:'Knight' },
-];
+var set = {
+  units: [
+    { assignment:[4, 2], direction:'S', type:'Knight' },
+    { assignment:[5, 2], direction:'S', type:'Knight' },
+    { assignment:[6, 2], direction:'S', type:'Knight' },
+  ],
+};
 var gameStateData = {
   teams: [
     {

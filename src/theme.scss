@@ -34,16 +34,39 @@ INPUT, BUTTON, SELECT {
   font-size: inherit;
 }
 
+UL.choices {
+  margin: 0;
+  padding-left: 12px;
+  list-style: none;
+
+  LI {
+    display: flex;
+    align-items: center;
+
+    .sep::before {
+      content: '\2022';
+      margin: 0 6px 0 4px;
+    }
+  }
+}
+
 INPUT[type=radio] {
   padding: 0;
   margin: 0;
   vertical-align: middle;
 }
 LABEL {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
   cursor: pointer;
 }
+LABEL:first-child {
+  padding: 4px 4px 4px 0;
+}
+
 LABEL INPUT[type=radio]:first-child {
-  margin-right: 0.4em;
+  margin: 0 0.4em 0 0;
 }
 
 TEXTAREA {

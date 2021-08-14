@@ -7,11 +7,13 @@ var progress;
 var pointer;
 var readySpecial;
 
-var set = [
-  { assignment:[4, 1], type:'Knight' },
-  { assignment:[5, 1], type:'Knight' },
-  { assignment:[6, 1], type:'Knight' },
-];
+var set = {
+  units: [
+    { assignment:[4, 1], direction:'S', type:'Knight' },
+    { assignment:[5, 1], direction:'S', type:'Knight' },
+    { assignment:[6, 1], direction:'S', type:'Knight' },
+  ],
+};
 /*
  * The player team MUST be in the 3rd position.
  * This ensures that the Game object doesn't recolor teams.

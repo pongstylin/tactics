@@ -443,7 +443,7 @@ async function renderWaitingGames() {
 
   let practiceGames = [];
   for (let game of waitingGames) {
-    if (game.teams.findIndex(t => !t || t.playerId !== myPlayerId) > -1)
+    if (game.teams.findIndex(t => t?.playerId !== myPlayerId) > -1)
       continue;
 
     let divGame = renderGame(game);
@@ -485,6 +485,9 @@ function renderGame(game) {
       left += ', <SPAN>You Win!</SPAN>';
     else
       left += ', <SPAN>You Lose!</SPAN>';
+
+    if (game.isFork)
+      left += ', <SPAN>Fork</SPAN>';
   }
   // Active Games
   else if (game.started) {
@@ -492,6 +495,9 @@ function renderGame(game) {
 
     if (!game.randomHitChance)
       labels.push('No Luck');
+
+    if (game.isFork)
+      labels.push('Fork');
 
     if (labels.length)
       left += ', <SPAN>' + labels.join(',</SPAN> <SPAN>') + '</SPAN>';
@@ -525,8 +531,8 @@ function renderGame(game) {
   }
 
   let middle;
-  let gameIsEmpty = teams.filter(t => !!t).length === 0;
-  let gameIsPractice = teams.filter(t => t && t.playerId === myPlayerId).length === teams.length;
+  let gameIsEmpty = teams.filter(t => !!t?.joinedAt).length === 0;
+  let gameIsPractice = teams.filter(t => t?.playerId === myPlayerId).length === teams.length;
 
   if (gameIsEmpty) {
     // Not supposed to happen, but bugs do.
@@ -542,7 +548,7 @@ function renderGame(game) {
     // Use of 'Set' was to de-dup the names.
     // Only useful for 4-player games where 2 players have the same name.
     let opponents = [...new Set(
-      teams.filter(t => t && t.playerId !== myPlayerId).map(t => t.name)
+      teams.filter(t => t?.joinedAt && t.playerId !== myPlayerId).map(t => t.name)
     )];
     if (opponents.length === 0)
       middle = '<I>Yourself</I>';

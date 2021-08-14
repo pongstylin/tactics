@@ -4,6 +4,7 @@ import ServerError from 'server/Error.js';
 import adapterFactory from 'data/adapterFactory.js';
 import serviceFactory from 'server/serviceFactory.js';
 import Game from 'models/Game.js';
+import Team from 'models/Team.js';
 import Player from 'models/Player.js';
 
 const dataAdapter = adapterFactory();
@@ -197,7 +198,7 @@ class GameService extends Service {
         return;
       if (game.state.ended)
         return;
-      if (!game.state.teams.find(t => t && t.playerId === playerId))
+      if (!game.state.teams.find(t => t?.playerId === playerId))
         return;
 
       this._emitPlayerStatus(`/games/${game.id}`, playerId, 'online');
@@ -210,7 +211,7 @@ class GameService extends Service {
         return;
       if (game.state.ended)
         return;
-      if (!game.state.teams.find(t => t && t.playerId === playerId))
+      if (!game.state.teams.find(t => t?.playerId === playerId))
         return;
 
       this._emitPlayerStatus(`/games/${game.id}`, playerId, 'offline');
@@ -222,128 +223,116 @@ class GameService extends Service {
    */
   async onCreateGameRequest(client, gameTypeId, gameOptions) {
     let clientPara = this.clientPara.get(client.id);
-    this.throttle(clientPara.playerId, 'createGame');
-
-    gameOptions.createdBy = clientPara.playerId;
-
-    if (!await dataAdapter.hasGameType(gameTypeId))
-      throw new ServerError(400, 'No such game type');
+    let playerId = clientPara.playerId;
+    this.throttle(playerId, 'createGame');
 
     if (!gameOptions || !gameOptions.teams)
       throw new ServerError(400, 'Required teams');
     else if (gameOptions.teams.length !== 2 && gameOptions.teams.length !== 4)
       throw new ServerError(400, 'Required 2 or 4 teams');
+    else if (gameOptions.teams.findIndex(t => !!t?.playerId))
+      throw new ServerError(400, 'At least one team must be assigned to a player');
 
+    gameOptions.createdBy = playerId;
+    gameOptions.type = gameTypeId;
+
+    let game = Game.create({
+      ...gameOptions,
+      teams: new Array(gameOptions.teams.length).fill(null),
+    });
     let gameType = await dataAdapter.getGameType(gameTypeId);
-    let teams = gameOptions.teams;
 
-    for (let team of teams) {
-      if (!team) continue;
+    for (let [slot, teamData] of gameOptions.teams.entries()) {
+      if (!teamData) continue;
 
-      if (!team.playerId)
-        throw new ServerError(400, 'Each team must have a valid player ID');
+      delete teamData.slot;
 
-      let player = await dataAdapter.getPlayer(team.playerId);
-      if (!player)
-        throw new ServerError(400, 'Player ID not found for team');
+      let team;
+      if (teamData.playerId && teamData.playerId !== playerId) {
+        let player = await dataAdpter.getPlayer(teamData.playerId);
+        if (!player)
+          throw new ServerError(404, 'A team has an unrecognized player ID');
 
-      if (!team.name)
-        team.name = player.name;
-    }
+        team = Team.createReserve({ slot, playerId:teamData.playerId }, clientPara);
+      } else if (teamData.set === undefined) {
+        team = Team.createReserve({ slot }, clientPara);
+      } else {
+        team = Team.createJoin({ slot, ...teamData }, clientPara, game, gameType);
+      }
 
-    await this._validateTeamsSets(gameType, teams);
-
-    gameOptions.teams = new Array(teams.length);
-
-    let game = Game.create(gameType, gameOptions);
-
-    for (let [slot, team] of teams.entries()) {
-      if (!team) continue;
-
-      await this._joinGame(game, team, slot);
+      await this._joinGame(game, gameType, team);
     }
 
     // Save the game before generating a notification to ensure it is accurate.
     await dataAdapter.createGame(game);
 
-    /*
-     * Notify the player that goes first that it is their turn.
-     * ...unless the player to go first just started the game.
-     */
-    if (game.state.started) {
-      let playerId = game.state.currentTeam.playerId;
-      if (playerId !== clientPara.playerId)
-        this._notifyYourTurn(game, game.state.currentTeamId);
-    }
-
     return game.id;
   }
 
-  async onForkGameRequest(client, gameId, turnId) {
-    this.debug(`forkGame: gameId=${gameId}; turnId=${turnId}`);
+  async onForkGameRequest(client, gameId, options) {
+    this.debug(`forkGame: gameId=${gameId}; turnId=${options.turnId}, vs=${options.vs}, as=${options.as}`);
 
     let clientPara = this.clientPara.get(client.id);
     let game = await this._getGame(gameId);
-    let newGame = game.fork(clientPara.playerId, turnId);
+    let newGame = game.fork(clientPara, options);
 
     await dataAdapter.createGame(newGame);
 
     return newGame.id;
   }
 
-  async onJoinGameRequest(client, gameId, { name, set, slot } = {}) {
-    this.debug(`joinGame: gameId=${gameId}; slot=${slot}`);
+  async onJoinGameRequest(client, gameId, teamData = {}) {
+    this.debug(`joinGame: gameId=${gameId}`);
 
     let clientPara = this.clientPara.get(client.id);
+    let playerId = clientPara.playerId;
     let game = await this._getGame(gameId);
     if (game.state.started)
       throw new ServerError(409, 'The game has already started.');
 
     let gameType = await dataAdapter.getGameType(game.state.type);
-    let teams = game.state.teams.slice();
+    let teams = game.state.teams;
+    let team;
 
-    if (slot === undefined || slot === null) {
-      slot = teams.findIndex(t => !t);
+    let openSlot = teams.findIndex(t => !t?.playerId);
+    if (openSlot === -1) openSlot = null;
+
+    let reservedSlot = teams.findIndex(t => !t?.joinedAt && t?.playerId === playerId);
+    if (reservedSlot === -1) reservedSlot = null;
+
+    // You may not join a game under more than one team
+    // ...unless a slot was reserved for you, e.g. practice game.
+    if (!reservedSlot && teams.findIndex(t => t?.joinedAt && t.playerId === playerId) !== -1)
+      throw new ServerError(409, 'Already joined this game');
+
+    if (teamData.slot === undefined || teamData.slot === null) {
+      teamData.slot = reservedSlot ?? openSlot;
 
       // If still not found, can't join!
-      if (slot === -1)
+      if (teamData.slot === null)
         throw new ServerError(409, 'No slots are available');
-    }
-    if (slot >= teams.length)
-      throw new ServerError(400, 'The slot does not exist');
-    if (teams[slot] && teams[slot].playerId !== clientPara.playerId)
-      throw new ServerError(409, 'The slot is taken');
 
-    let team = teams[slot] = teams[slot] || {
-      playerId: clientPara.playerId,
-      name: clientPara.name,
-    };
+      team = teams[teamData.slot];
+    } else {
+      if (typeof teamData.slot !== 'number')
+        throw new ServerError(400, 'Invalid slot');
 
-    if (name !== undefined) {
-      Player.validatePlayerName(name);
-
-      team.name = name;
+      team = teams[teamData.slot];
+      if (team === undefined)
+        throw new ServerError(400, 'The slot does not exist');
+      if (reservedSlot && reservedSlot !== teamData.slot)
+        throw new ServerError(403, 'Must join the reserved team');
     }
 
-    if (set)
-      team.set = set;
+    if (team)
+      team.join(teamData, clientPara, game, gameType);
+    else
+      team = Team.createJoin(teamData, clientPara, game, gameType);
 
-    await this._validateTeamsSets(gameType, teams);
-
-    await this._joinGame(game, team, slot);
+    await this._joinGame(game, gameType, team);
 
     // Save the game before generating a notification to ensure it is accurate.
     await dataAdapter.saveGame(game);
-
-    /*
-     * Notify the player that goes first that it is their turn.
-     * ...unless the player to go first just started the game.
-     */
-    if (game.state.started) {
-      let playerId = game.state.currentTeam.playerId;
-      if (playerId !== clientPara.playerId)
-        this._notifyYourTurn(game, game.state.currentTeamId);
-    }
   }
 
   async onCancelGameRequest(client, gameId) {
@@ -390,8 +379,14 @@ class GameService extends Service {
   async onSavePlayerSetRequest(client, gameTypeId, setName, set) {
     let clientPara = this.clientPara.get(client.id);
 
-    let gameType = await dataAdapter.getGameType(gameTypeId);
-    gameType.validateSet(set);
+    if (!set)
+      throw new ServerError(400, 'Required set');
+    if (typeof set !== 'object')
+      throw new ServerError(400, 'Invalid set');
+    if (!set.units)
+      throw new ServerError(400, 'Required set units');
+    if (!Array.isArray(set.units))
+      throw new ServerError(400, 'Invalid set units');
 
     return dataAdapter.setPlayerSet(clientPara.playerId, gameTypeId, setName, set);
   }
@@ -949,7 +944,7 @@ class GameService extends Service {
 
     return game;
   }
-  async _validateTeamsSets(gameType, teams) {
+  async _resolveTeamsSets(game, gameType, teams) {
     /*
      * Resolve default sets before resolving opponent sets
      */
@@ -959,51 +954,54 @@ class GameService extends Service {
       if (!team)
         continue;
 
-      if (!gameType.isCustomizable)
+      if (!gameType.isCustomizable || team.set === null)
         team.set = gameType.getDefaultSet();
-      else if (team.set === undefined || Array.isArray(team.set))
-        continue;
-      else if (typeof team.set === 'object')
-        team.set = await dataAdapter.getPlayerSet(team.playerId, gameType.id, team.set.name);
+      else if (typeof team.set === 'object' && !team.set.units)
+        team.set = await dataAdapter.getPlayerSet(team.playerId, gameType, team.set.name);
       else if (team.set === 'same')
         opponentSetTeams.push(team);
       else if (team.set === 'mirror')
         opponentSetTeams.push(team);
-      else
-        throw new ServerError(400, 'Unrecognized set choice');
+
+      // Avoid saving the set name in the game data
+      if (typeof team.set === 'object')
+        delete team.set.name;
     }
 
     if (opponentSetTeams.length) {
-      if (teams.length !== 2)
-        throw new ServerError(400, `The 'same' and 'mirror' set options are only available for 2-player games`);
-
-      let opponentSet = teams.find(t => t && t.set && typeof t.set !== 'string').set;
+      let opponentSet = teams.find(t => typeof t?.set !== 'string').set;
       for (let team of opponentSetTeams) {
         if (team.set === 'same')
-          team.set = opponentSet;
+          team.set = {
+            via: 'same',
+            ...opponentSet,
+          };
         else if (team.set === 'mirror') {
-          if (gameType.hasFixedPositions)
-            throw new ServerError(403, 'May not use a mirror set with this game type');
-
-          team.set = opponentSet.map(u => {
-            let unit = {...u};
-            unit.assignment = [...unit.assignment];
-            unit.assignment[0] = 10 - unit.assignment[0];
-            return unit;
-          });
+          team.set = {
+            via: 'mirror',
+            units: opponentSet.map(u => {
+              let unit = {...u};
+              unit.assignment = [...unit.assignment];
+              unit.assignment[0] = 10 - unit.assignment[0];
+              return unit;
+            }),
+          };
         }
       }
     }
   }
-  async _joinGame(game, team, slot) {
-    game.state.join(team, slot);
+  async _joinGame(game, gameType, team) {
+    let teams = game.state.teams;
+
+    game.state.join(team);
 
     /*
      * If no open slots remain, start the game.
      */
-    if (game.state.teams.findIndex(t => !t || !t.set) === -1) {
-      let teams = game.state.teams;
+    if (teams.findIndex(t => !t?.joinedAt) === -1) {
       let players = new Map();
+
+      await this._resolveTeamsSets(game, gameType, teams);
 
       teams.forEach(team => {
         let playerId = team.playerId;
@@ -1021,6 +1019,16 @@ class GameService extends Service {
 
       // Now that the chat room is created, start the game.
       game.state.start();
+
+      /*
+       * Notify the player that goes first that it is their turn.
+       * ...unless the player to go first just joined.
+       */
+      if (game.state.started) {
+        let playerId = game.state.currentTeam.playerId;
+        if (playerId !== team.playerId)
+          this._notifyYourTurn(game, game.state.currentTeamId);
+      }
     }
   }
   _getPlayerStatus(playerId, game) {

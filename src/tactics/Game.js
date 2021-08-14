@@ -16,9 +16,9 @@ import colorMap from 'tactics/colorMap.js';
 export default class Game {
   /*
    * Arguments:
-   *  state: An object supporting the Game class interface.
+   *  state: An object supporting the GameState class interface.
    */
-  constructor(state, localTeamIds = []) {
+  constructor(state, playerId = null) {
     if (!state)
       throw new TypeError('Required game state');
 
@@ -106,14 +106,14 @@ export default class Game {
       // reflect the last pointer type to fire an event on the board.
       pointerType: 'ontouchstart' in window ? 'touch' : 'mouse',
 
-      state:            state,
-      undoAccepts:      new Set(),
+      playerId,
+      state,
+      undoAccepts: new Set(),
 
       _onStateEventListener: this._onStateEvent.bind(this),
       _onCursorChangeListener: () => this._emit({ type:'cursor-change' }),
 
       _teams: [],
-      _localTeamIds: localTeamIds,
       _turnTimeout: null,
 
       // The currently displayed turn and action
@@ -433,13 +433,29 @@ export default class Game {
     return !!this.state.teams.find(t => !!t.bot);
   }
   get isLocalGame() {
-    return this._localTeamIds.length === this.state.teams.length;
+    let myTeams = this.state.teams.filter(t => this.isMyTeam(t));
+
+    return myTeams.length === this.state.teams.length;
   }
   get isViewOnly() {
-    return this._localTeamIds.length === 0;
+    let myTeams = this.state.teams.filter(t => this.isMyTeam(t));
+
+    return myTeams.length === 0;
   }
   get isMyTurn() {
     return !this.state.ended && this.isMyTeam(this.currentTeam);
+  }
+  get isPracticeGame() {
+    let playerIds = new Set(this.state.teams.map(t => t.playerId));
+
+    return playerIds.size === 1;
+  }
+  get ofPracticeGame() {
+    if (!this.state.forkOf) return false;
+
+    let playerIds = new Set(this.state.teams.map(t => t.forkOf.playerId));
+
+    return playerIds.size === 1;
   }
 
   get turnId() {
@@ -476,12 +492,15 @@ export default class Game {
     if (typeof team === 'number')
       team = this.teams[team];
 
-    return this._localTeamIds.includes(team.slot);
+    if (this.playerId)
+      return team.playerId === this.playerId;
+    else
+      return !team.bot;
   }
   hasOneLocalTeam(team) {
     if (team !== undefined && !this.isMyTeam(team)) return false;
 
-    return this._localTeamIds.length === 1;
+    return this.teams.filter(t => this.isMyTeam(t)).length === 1;
   }
 
   /*
@@ -498,13 +517,27 @@ export default class Game {
     // Clone teams since board.setState() applies a units property to each.
     let teams = this._teams = state.teams.map(team => ({...team}));
 
-    // Rotate the board such that the first local team is south/red.
-    let degree = 0;
-    if (this._localTeamIds.length) {
-      let teamId = Math.min(...this._localTeamIds);
-      let team = teams.find(t => t.slot === teamId);
-      degree = board.getDegree(team.position, 'S');
+    // Rotate the board such that my first local team is south/red.
+    let myTeams = this.teams.filter(t => this.isMyTeam(t));
+    let myTeam;
+    if (myTeams.length === 1)
+      myTeam = myTeams[0];
+    else if (myTeams.length > 1) {
+      if (state.forkOf) {
+        let myOldTeams = myTeams.filter(t => t.forkOf.playerId === this.playerId);
+        if (myOldTeams.length === 0)
+          myTeam = myTeams.sort((a,b) => a.slot - b.slot)[0];
+        else if (myOldTeams.length === 1)
+          myTeam = myOldTeams[0];
+        else
+          myTeam = myOldTeams.sort((a,b) => a.slot - b.slot)[0];
+      } else
+        myTeam = myTeams.sort((a,b) => a.slot - b.slot)[0];
+    }
 
+    let degree = 0;
+    if (myTeam) {
+      degree = board.getDegree(myTeam.position, 'S');
       board.rotate(degree);
     }
 
@@ -547,10 +580,6 @@ export default class Game {
     this.lock();
 
     let state = this.state;
-
-    // Reset controlled teams.
-    if (state.type === 'chaos')
-      this._localTeamIds.length = 1;
 
     this.cursor.off('change', this._onCursorChangeListener);
     this.cursor = null;
@@ -994,7 +1023,7 @@ export default class Game {
 
     // Local games can always undo if there is something to undo
     if (this.isLocalGame)
-      return !!(state.currentTurnId > 0 || actions.length > 0);
+      return !!(state.currentTurnId > 1 || actions.length > 0);
 
     // Determine the team that is requesting the undo.
     let teams  = this.teams;
@@ -1010,12 +1039,16 @@ export default class Game {
         if (undoRequest.teamId === myTeam.id)
           return false;
 
+    // Pretend the first team is the last since it was force-passed.
+    let testTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
+    let testTurnId = state.currentTurnId - 1;
+
     // Can't undo if we haven't had a turn yet.
-    if (myTeam.id > state.currentTurnId)
+    if (testTeamId > testTurnId)
       return false;
 
     // Can't undo if we haven't made an action yet.
-    if (myTeam.id === state.currentTurnId && actions.length === 0)
+    if (testTeamId === testTurnId && actions.length === 0)
       return false;
 
     if (this.isBotGame) {
@@ -1692,7 +1725,7 @@ export default class Game {
     if (this.state.type === 'chaos')
       if ('newPlayerTeam' in action) {
         let newPlayerTeam = this.teams[action.newPlayerTeam];
-        this._localTeamIds.push(newPlayerTeam.slot);
+        newPlayerTeam.bot = false;
       }
 
     this._applyChangeResults(action.results);

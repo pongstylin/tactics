@@ -1,12 +1,9 @@
 import EventEmitter from 'events';
-import seedrandom from 'seedrandom';
 
 import Team from 'models/Team.js';
 import ServerError from 'server/Error.js';
 import Board from 'tactics/Board.js';
 import botFactory from 'tactics/botFactory.js';
-import colorMap from 'tactics/colorMap.js';
-import unitDataMap from 'tactics/unitData.js';
 
 export default class GameState {
   /*****************************************************************************
@@ -33,16 +30,19 @@ export default class GameState {
       },
       stateData,
       {
-        _bots:    [],
-        _turns:   turns,
-        _board:   board,
-        _actions: [],
-        _emitter: new EventEmitter(),
+        _bots:       [],
+        _turns:      turns,
+        _board:      board,
+        _newActions: [],
+        _actions:    [],
+        _emitter:    new EventEmitter(),
       }
     );
 
-    board.setState(this.units, this.teams);
-    board.decodeAction(actions).forEach(a => this._applyAction(a));
+    if (stateData.started) {
+      board.setState(this.units, this.teams);
+      board.decodeAction(actions).forEach(a => this._applyAction(a));
+    }
   }
 
   /*
@@ -59,7 +59,7 @@ export default class GameState {
     else if (stateData.teams.length !== 2 && stateData.teams.length !== 4)
       throw new TypeError('Required 2 or 4 teams');
 
-    let teams = stateData.teams;
+    let teamsData = stateData.teams;
     delete stateData.teams;
 
     stateData = Object.assign(
@@ -73,15 +73,20 @@ export default class GameState {
       {
         started: null,
         ended:   null,
-        teams:   new Array(teams.length),
+        teams:   new Array(teamsData.length).fill(null),
         units:   [],
       }
     );
 
     let gameState = new GameState(stateData);
 
-    teams.forEach((team, slot) => {
-      if (team) gameState.join(team, slot);
+    teamsData.forEach((teamData, slot) => {
+      if (teamData)
+        gameState.join(Team.create({
+          ...teamData,
+          slot,
+          joinedAt: new Date(),
+        }));
     });
 
     return gameState;
@@ -203,53 +208,23 @@ export default class GameState {
    *    ],
    *  }
    */
-  join(teamData, slot) {
+  join(team) {
     let teams = this.teams;
 
     if (this.started)
       throw new TypeError('Game already started');
 
-    if (slot === undefined || slot === null) {
-      // find an empty slot
-      slot = teams.findIndex(t => !t);
+    if (!(team instanceof Team))
+      throw new TypeError('Expected Team object');
 
-      // If still not found, can't join!
-      if (slot === -1)
-        throw new TypeError('No slots are available');
-    }
-    if (slot >= teams.length)
-      throw new TypeError('The slot does not exist');
+    team.useRandom = this.randomHitChance;
 
-    // You may join a slot that is already assigned to you.
-    // e.g. to add or modify a set.
-    if (teams[slot]) {
-      if (teams[slot].playerId !== teamData.playerId)
-        throw new TypeError('The slot is taken');
-
-      return Object.assign(teams[slot], teamData);
-    }
-
-    /*
-     * Position teams on the board according to original team order.
-     * Team order is based on the index (id) of the team in the teams array.
-     * Team order is clockwise starting in the North.
-     *  2 Players: 0:North, 1:South
-     *  4 Players: 0:North, 1:East, 2:South, 3:West
-     */
-    let positions = teams.length === 2 ? ['N', 'S'] : ['N', 'E', 'S', 'W'];
-
-    teamData.slot = slot;
-    teamData.position = positions[slot];
-    teamData.useRandom = this.randomHitChance;
-
-    let team = teams[slot] = Team.create(teamData);
+    let slot = team.id ?? team.slot;
+    teams[slot] = team;
 
     this._emit({
       type: 'joined',
-      data: {
-        slot: slot,
-        team: team.getData(),
-      },
+      data: { team:team.getData() },
     });
   }
 
@@ -258,72 +233,75 @@ export default class GameState {
    */
   start() {
     let teams = this.teams;
+    let board = this._board;
 
-    /*
-     * Turn order is always clockwise, but first turn can be random.
-     */
-    if (this.randomFirstTurn) {
-      // Rotate team order 0-3 times.
-      let index = Math.floor(Math.random() * teams.length);
-      teams.unshift(...teams.splice(index, teams.length - index));
-    }
+    // Units are already present for forked games.
+    if (this.units.length === 0) {
+      /*
+       * Turn order is always clockwise, but first turn can be random.
+       */
+      if (this.randomFirstTurn) {
+        // Rotate team order 0-3 times.
+        let index = Math.floor(Math.random() * teams.length);
+        teams.unshift(...teams.splice(index, teams.length - index));
+      }
 
-    if (this.type === 'chaos')
-      teams.unshift(Team.create({
-        slot: 4,
-        name: 'Chaos',
-        colorId: 'White',
-        bot: 'Chaos',
-        set: [{
-          type: 'ChaosSeed',
-          assignment: [5, 5],
-        }],
-        position: 'C',
-      }));
+      /*
+       * Position teams on the board according to original team order.
+       * Team order is based on the index (id) of the team in the teams array.
+       * Team order is clockwise starting in the North.
+       *  2 Players: 0:North, 1:South
+       *  4 Players: 0:North, 1:East, 2:South, 3:West
+       */
+      let positions = teams.length === 2 ? ['N', 'S'] : ['N', 'E', 'S', 'W'];
 
-    teams.forEach((team, teamId) => { team.id = teamId });
-
-    let board  = this._board;
-    let unitId = 1;
-
-    // Place the units according to team position.
-    this.units = teams.map(team => {
-      let dragonPower = unitDataMap.get('DragonTyrant').power;
-      let mageTypes = ['DragonspeakerMage', 'Pyromancer'];
-      let dragons = team.set.filter(u => u.type === 'DragonTyrant');
-      let mages = team.set.filter(u => mageTypes.includes(u.type));
-      let speakers = mages.filter(u => u.type === 'DragonspeakerMage');
-      let dragonDrain = Math.min(dragonPower, Math.round(12 * speakers.length * mages.length));
-      let speakerBonus = Math.round(dragonDrain * dragons.length / mages.length);
-
-      return team.set.map(unitSetData => {
-        let degree   = board.getDegree('N', team.position);
-        let tile     = board.getTileRotation(unitSetData.assignment, degree);
-        let unitData = unitDataMap.get(unitSetData.type);
-
-        let unitState = {
-          id: unitId++,
-          type: unitSetData.type,
-          assignment: [tile.x, tile.y],
-        };
-
-        if (unitData.directional !== false)
-          unitState.direction = board.getRotation('S', degree);
-
-        // Apply a 1-turn wait to units in the team that goes first.
-        if (team.id === 0 && unitData.waitFirstTurn)
-          unitState.mRecovery = 1;
-
-        if (dragons.length && speakers.length) {
-          if (dragons.includes(unitSetData))
-            unitState.mPower = -dragonDrain;
-          else if (mages.includes(unitSetData))
-            unitState.mPower = speakerBonus;
-        }
-
-        return unitState;
+      teams.forEach((team, teamId) => {
+        team.id = teamId;
+        team.position = positions[teamId];
       });
-    });
+
+      if (this.type === 'chaos') {
+        teams.unshift(Team.create({
+          slot: 4,
+          name: 'Chaos',
+          colorId: 'White',
+          bot: 'Chaos',
+          set: {
+            units: [{
+              type: 'ChaosSeed',
+              assignment: [5, 5],
+            }],
+          },
+          position: 'C',
+          joinedAt: new Date(),
+        }));
+
+        teams.forEach((team, teamId) => {
+          team.id = teamId;
+        });
+      }
+
+      let unitId = 1;
+
+      // Place the units according to team position.
+      this.units = teams.map(team => {
+        return team.set.units.map(unitSetData => {
+          let degree = board.getDegree('N', team.position);
+          let tile   = board.getTileRotation(unitSetData.assignment, degree);
+
+          let unitState = {
+            id: unitId++,
+            ...unitSetData,
+            assignment: [tile.x, tile.y],
+          };
+
+          if (unitState.direction)
+            unitState.direction = board.getRotation(unitState.direction, degree);
+
+          return unitState;
+        });
+      });
+    }
 
     board.setState(this.units, teams);
     this.units = board.getState();
@@ -335,9 +313,12 @@ export default class GameState {
     this.started = new Date();
     this.turnStarted = this.started;
 
-    // Pass the first turn if we can't find one playable unit.
-    let pass = !this.currentTeam.units.find(u => u.mRecovery === 0);
-    if (pass) {
+    // First turn must be passed, but at least recovery drops.
+    // The second turn might be passed, too, if all units are in recovery.
+    while (
+      (this.currentTurnId === 0 && this.type !== 'chaos') ||
+      this.currentTeam.units.findIndex(u => u.mRecovery === 0) === -1
+    ) {
       let action = this._getEndTurnAction(true);
       action.created = this.turnStarted;
       action.teamId = action.teamId || this.currentTeamId;
@@ -375,7 +356,7 @@ export default class GameState {
       randomHitChance: this.randomHitChance,
       turnTimeLimit: this.turnTimeLimit,
 
-      teams: this.teams.map(t => t && t.getData()),
+      teams: this.teams.map(t => t?.getData()),
 
       started:       this.started,
 
@@ -414,7 +395,7 @@ export default class GameState {
 
     if (turnId === this.currentTurnId)
       turnActions = this.actions;
-    else if (turnId < this._turns.length)
+    else if (turnId < this.currentTurnId)
       turnActions = this._turns[turnId].actions;
     else
       throw new ServerError(409, 'No such turn ID');
@@ -422,6 +403,13 @@ export default class GameState {
     return turnActions;
   }
 
+  _pushAction(action) {
+    action.created = new Date();
+    action.teamId = action.teamId || this.currentTeamId;
+
+    this._newActions.push(action);
+    this._applyAction(action);
+  }
   submitAction(actions) {
     // Actions may only be submitted between game start and end.
     if (!this.started || this.ended)
@@ -433,14 +421,7 @@ export default class GameState {
     let board = this._board;
     actions = board.decodeAction(actions);
 
-    let newActions = [];
-    let pushAction = action => {
-      action.created = new Date();
-      action.teamId = action.teamId || this.currentTeamId;
-
-      newActions.push(action);
-      this._applyAction(action);
-    };
+    this._newActions = [];
     let endTurn;
     let setEndTurn = forced => {
       endTurn = this._getEndTurnAction(forced);
@@ -455,7 +436,7 @@ export default class GameState {
       if (action.type === 'surrender') {
         let team = this._validateSurrenderAction(action);
 
-        pushAction({
+        this._pushAction({
           type: 'surrender',
           teamId: team.id,
           results: this._getSurrenderResults(team),
@@ -488,7 +469,7 @@ export default class GameState {
       // Taking an action may break certain status effects.
       let breakAction = unit.getBreakAction(action);
       if (breakAction)
-        pushAction(breakAction);
+        this._pushAction(breakAction);
 
       // Apply unit-specific validation and determine results.
       action = unit.validateAction(action);
@@ -518,7 +499,7 @@ export default class GameState {
       if (action.type === 'turn' && action.direction === unit.direction)
         return setEndTurn();
 
-      pushAction(action);
+      this._pushAction(action);
 
       // A turn action immediately ends the turn.
       if (action.type === 'turn')
@@ -559,7 +540,7 @@ export default class GameState {
           let counterAction = unit.getCounterAction(action.unit, result);
           if (!counterAction) return;
 
-          pushAction(counterAction);
+          this._pushAction(counterAction);
 
           if (forceEndTurn())
             return setEndTurn(true);
@@ -572,11 +553,11 @@ export default class GameState {
     // Find teams that has a unit that keeps it alive.
     let winners = this.winningTeams;
     if (winners.length === 0) {
-      pushAction(this._getEndTurnAction(true));
+      this._pushAction(this._getEndTurnAction(true));
       this.ended = new Date();
     }
     else if (winners.length === 1) {
-      pushAction(this._getEndTurnAction(true));
+      this._pushAction(this._getEndTurnAction(true));
       this.ended = new Date();
       this.winnerId = winners[0].id;
     }
@@ -586,96 +567,17 @@ export default class GameState {
       if (currentTeam.name === 'Chaos') {
         let phaseAction = currentTeam.units[0].getPhaseAction();
         if (phaseAction)
-          pushAction(phaseAction);
+          this._pushAction(phaseAction);
       }
 
-      // Keep ending turns until a team is capable of making their turn.
-      let turnEnded = true;
-      while (turnEnded) {
-        pushAction(endTurn);
-
-        // If all teams pass their turns 3 times, draw!
-        let passedTurnLimit = this.teams.length * 3;
-        let passedTurnCount = 0;
-
-        // If no teams attack each other for 15 cycles, draw!
-        let attackTurnLimit = this.teams.length * 15;
-        let attackTurnCount = 0;
-
-        let maxTurnId = this._turns.length - 1;
-        let minTurnId = Math.max(-1, maxTurnId - attackTurnLimit);
-        TURN:for (let i = maxTurnId; i > minTurnId; i--) {
-          let actions = this._turns[i].actions;
-          let teamsUnits = this._turns[i].units;
-
-          // If the only action that took place is ending the turn...
-          if (actions.length === 1) {
-            if (passedTurnCount !== null && ++passedTurnCount === passedTurnLimit)
-              break;
-          }
-          else {
-            passedTurnCount = null;
-
-            for (let j = 0; j < actions.length-1; j++) {
-              let action = actions[j];
-              if (!action.type.startsWith('attack')) continue;
-
-              let attackerTeamId;
-              for (let t = 0; t < teamsUnits.length; t++) {
-                if (teamsUnits[t].find(u => u.id === action.unit)) {
-                  attackerTeamId = t;
-                  break;
-                }
-              }
-
-              for (let k = 0; k < action.results.length; k++) {
-                let result = action.results[k];
-                // This check ignores summoned units, e.g. shrubs
-                if (typeof result.unit !== 'number') continue;
-
-                let defenderTeamId;
-                for (let t = 0; t < teamsUnits.length; t++) {
-                  if (teamsUnits[t].find(u => u.id === result.unit)) {
-                    defenderTeamId = t;
-                    break;
-                  }
-                }
-
-                if (defenderTeamId !== attackerTeamId)
-                  break TURN;
-              }
-            }
-          }
-
-          attackTurnCount++;
-        }
-
-        if (
-          passedTurnCount === passedTurnLimit ||
-          attackTurnCount === attackTurnLimit
-        ) {
-          this.ended = new Date();
-          break;
-        }
-
-        // End the next turn if we can't find one playable unit.
-        turnEnded = !this.currentTeam.units.find(unit => {
-          if (unit.mRecovery) return;
-          if (unit.paralyzed) return;
-          if (unit.type === 'Shrub') return;
-
-          return true;
-        });
-
-        if (turnEnded)
-          endTurn = this._getEndTurnAction(true);
-      }
+      this._pushAction(endTurn);
+      this.autoPass();
     }
 
-    if (newActions.length)
+    if (this._newActions.length)
       this._emit({
         type: 'action',
-        data: board.encodeAction(newActions),
+        data: board.encodeAction(this._newActions),
       });
 
     if (this.ended)
@@ -693,6 +595,91 @@ export default class GameState {
         },
       });
   }
+  /*
+   * Keep ending turns until a team is capable of making their turn.
+   * ...or the game ends due to draw.
+   */
+  autoPass() {
+    // If all teams pass their turns 3 times, draw!
+    let passedTurnLimit = this.teams.length * 3;
+    let passedTurnCount = 0;
+    let stopCountingPassedTurns = false;
+
+    // If no teams attack each other for 15 cycles, draw!
+    let attackTurnLimit = this.teams.length * 15;
+    let attackTurnCount = 0;
+
+    let maxTurnId = this.currentTurnId - 1;
+    let minTurnId = Math.max(-1, maxTurnId - attackTurnLimit);
+    TURN:for (let i = maxTurnId; i > minTurnId; i--) {
+      let actions = this._turns[i].actions;
+      let teamsUnits = this._turns[i].units;
+
+      // If the only action that took place is ending the turn...
+      if (actions.length === 1) {
+        if (!stopCountingPassedTurns && ++passedTurnCount === passedTurnLimit)
+          break;
+      }
+      else {
+        stopCountingPassedTurns = true;
+
+        for (let j = 0; j < actions.length-1; j++) {
+          let action = actions[j];
+          if (!action.type.startsWith('attack')) continue;
+
+          let attackerTeamId;
+          for (let t = 0; t < teamsUnits.length; t++) {
+            if (teamsUnits[t].find(u => u.id === action.unit)) {
+              attackerTeamId = t;
+              break;
+            }
+          }
+
+          for (let k = 0; k < action.results.length; k++) {
+            let result = action.results[k];
+            // This check ignores summoned units, e.g. shrubs
+            if (typeof result.unit !== 'number') continue;
+
+            let defenderTeamId;
+            for (let t = 0; t < teamsUnits.length; t++) {
+              if (teamsUnits[t].find(u => u.id === result.unit)) {
+                defenderTeamId = t;
+                break;
+              }
+            }
+
+            if (defenderTeamId !== attackerTeamId)
+              break TURN;
+          }
+        }
+      }
+
+      attackTurnCount++;
+    }
+
+    let turnEnded = true;
+    while (turnEnded) {
+      if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit) {
+        this.ended = new Date();
+        break;
+      }
+
+      // End the next turn if we can't find one playable unit.
+      turnEnded = !this.currentTeam.units.find(unit => {
+        if (unit.mRecovery) return;
+        if (unit.paralyzed) return;
+        if (unit.type === 'Shrub') return;
+
+        return true;
+      });
+
+      if (turnEnded) {
+        this._pushAction(this._getEndTurnAction(true));
+        passedTurnCount++;
+        attackTurnCount++;
+      }
+    }
+  }
 
   /*
    * Determine if provided team may request an undo.
@@ -705,14 +692,18 @@ export default class GameState {
     let bot = teams.find(t => !!t.bot);
     let opponent = teams.find(t => t.playerId !== team.playerId);
     if (!bot && !opponent)
-      return !!(this.currentTurnId > 0 || this._actions.length > 0);
+      return !!(this.currentTurnId > 1 || this._actions.length > 0);
+
+    // Pretend the first team is the last since it was force-passed.
+    let testTeamId = (team.id === 0 ? teams.length : team.id) - 1;
+    let testTurnId = this.currentTurnId - 1;
 
     // Can't undo if we haven't had a turn yet.
-    if (team.id > this.currentTurnId)
+    if (testTeamId > testTurnId)
       return false;
 
     // Can't undo if we haven't made an action yet.
-    if (team.id === this.currentTurnId && this._actions.length === 0)
+    if (testTeamId === testTurnId && this._actions.length === 0)
       return false;
 
     // Bots will never approve anything that requires approval.
@@ -723,10 +714,6 @@ export default class GameState {
 
     // Determine the turn being undone in whole or in part
     for (turnId = this.currentTurnId; turnId > -1; turnId--) {
-      // Can't undo if team has no actionable turns to undo.
-      if (turnId < 0)
-        return false;
-
       // Bots do not allow undo after the turn has ended.
       if (bot && turnId < this.currentTurnId)
         return false;
@@ -761,6 +748,10 @@ export default class GameState {
 
       break;
     }
+
+    // Can't undo if team has no actionable turns to undo.
+    if (turnId === -1)
+      return false;
 
     if (requireApproval)
       return approve;
@@ -824,11 +815,8 @@ export default class GameState {
       }
     }
     else {
-      for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
-        // Can't undo if team has no actionable turns to undo.
-        if (turnId < 0)
-          return false;
-
+      let turnId;
+      for (turnId = this.currentTurnId; turnId > -1; turnId--) {
         // Bots do not allow undo after the turn has ended.
         if (bot && turnId < this.currentTurnId)
           return false;
@@ -865,11 +853,11 @@ export default class GameState {
         this.revert(turnId, !approved);
         break;
       }
-    }
 
-    // Just in case the game ended right before undo was submitted.
-    this.ended = null;
-    this.winnerId = null;
+      // Can't undo if team has no actionable turns to undo.
+      if (turnId === -1)
+        return false;
+    }
   }
   revert(turnId, keepLuckyActions = false) {
     let board = this._board;
@@ -893,6 +881,10 @@ export default class GameState {
       if (luckyActions.length)
         luckyActions.forEach(action => this._applyAction(action));
     }
+
+    // Forking and reverting an ended game makes it no longer ended.
+    this.ended = null;
+    this.winnerId = null;
 
     this._emit({
       type: 'revert',
@@ -1093,7 +1085,7 @@ export default class GameState {
           changes: {
             focusing: fUnit.focusing.length === 1
               ? false
-              : fUnit.focusing.filter(t => t !== unit),
+              : fUnit.focusing.filter(u => u !== unit),
           }
         })));
 

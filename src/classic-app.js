@@ -7,21 +7,23 @@ var progress;
 var pointer;
 var readySpecial;
 
-var set = [
-  // Back Row
-  {assignment:[5, 0], type:'Cleric'},
-  // Middle Row
-  {assignment:[2, 1], type:'DarkMagicWitch'},
-  {assignment:[3, 1], type:'Pyromancer'},
-  {assignment:[7, 1], type:'Pyromancer'},
-  {assignment:[8, 1], type:'Enchantress'},
-  // Front Row
-  {assignment:[1, 2], type:'Assassin'},
-  {assignment:[4, 2], type:'Knight'},
-  {assignment:[5, 2], type:'Knight'},
-  {assignment:[6, 2], type:'Knight'},
-  {assignment:[9, 2], type:'Scout'},
-];
+var set = {
+  units: [
+    // Back Row
+    { assignment:[5, 0], direction:'S', type:'Cleric' },
+    // Middle Row
+    { assignment:[2, 1], direction:'S', type:'DarkMagicWitch', mRecovery:1 },
+    { assignment:[3, 1], direction:'S', type:'Pyromancer', mRecovery:1 },
+    { assignment:[7, 1], direction:'S', type:'Pyromancer', mRecovery:1 },
+    { assignment:[8, 1], direction:'S', type:'Enchantress' },
+    // Front Row
+    { assignment:[1, 2], direction:'S', type:'Assassin' },
+    { assignment:[4, 2], direction:'S', type:'Knight' },
+    { assignment:[5, 2], direction:'S', type:'Knight' },
+    { assignment:[6, 2], direction:'S', type:'Knight' },
+    { assignment:[9, 2], direction:'S', type:'Scout', mRecovery:1 },
+  ],
+};
 var gameStateData = {
   teams: [
     {

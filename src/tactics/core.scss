@@ -148,7 +148,7 @@
             left: 0;
           }
 
-          .clock, .name {
+          .clock, .name, .fork {
             margin-right: 8px;
           }
 
@@ -180,7 +180,7 @@
             right: 0;
           }
 
-          .clock, .name {
+          .clock, .name, .fork {
             margin-left: 8px;
           }
 
@@ -217,6 +217,14 @@
       .name {
         color: white;
         text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+      }
+      .fork, .forkName {
+        color: black;
+        font-weight: bold;
+      }
+      .fork {
+        display: inline-flex;
+        align-items: center;
       }
 
       .clock {
