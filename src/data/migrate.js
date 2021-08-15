@@ -164,11 +164,11 @@ MIGRATIONS.game = [
     if (data.state.randomFirstTurn)
       // Teams joined in slot order
       teams = data.state.teams.sort((a,b) => {
-        if (!a && !b)
+        if (!a?.set && !b?.set)
           return 0;
-        if (!a)
+        if (!a?.set)
           return 1;
-        if (!b)
+        if (!b?.set)
           return -1;
         return a.slot - b.slot;
       });
@@ -177,11 +177,11 @@ MIGRATIONS.game = [
       // Unfortunately, for practice games, the creation date could be in the wrong order.
       // The joinedAt date now makes it possible to always know who jumped who.
       teams = data.state.teams.sort((a,b) => {
-        if (!a && !b)
+        if (!a?.set && !b?.set)
           return 0;
-        if (!a)
+        if (!a?.set)
           return 1;
-        if (!b)
+        if (!b?.set)
           return -1;
         return a.createdAt - b.createdAt;
       });
