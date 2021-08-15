@@ -3,7 +3,7 @@
  * and game objects to the latest version.
  */
 import unitDataMap from 'tactics/unitData.js';
-import gameType from 'tactics/gameType.js';
+import gameType from 'tactics/GameType.js';
 
 const MIGRATIONS = {};
 
