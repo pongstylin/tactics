@@ -160,10 +160,10 @@ MIGRATIONS.game = [
    */
   data => {
     let gameType = new GameType(data.state.type, {});
-    let teams;
+    let teams = [ ...data.state.teams ];
     if (data.state.randomFirstTurn)
       // Teams joined in slot order
-      teams = data.state.teams.sort((a,b) => {
+      teams.sort((a,b) => {
         if (!a?.set && !b?.set)
           return 0;
         if (!a?.set)
@@ -176,7 +176,7 @@ MIGRATIONS.game = [
       // There is no way to tell which team joined first except by creation date.
       // Unfortunately, for practice games, the creation date could be in the wrong order.
       // The joinedAt date now makes it possible to always know who jumped who.
-      teams = data.state.teams.sort((a,b) => {
+      teams.sort((a,b) => {
         if (!a?.set && !b?.set)
           return 0;
         if (!a?.set)
