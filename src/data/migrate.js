@@ -3,6 +3,7 @@
  * and game objects to the latest version.
  */
 import unitDataMap from 'tactics/unitData.js';
+import gameType from 'tactics/gameType.js';
 
 const MIGRATIONS = {};
 
@@ -145,6 +146,57 @@ MIGRATIONS.game = [
     data.state.turns.forEach(turn => {
       migrateResults(turn.units.flat(), turn.actions);
     });
+
+    return data;
+  },
+  /*
+   * A null set has changed in meaning from "not provided/joined yet" to "no custom set".
+   * An undefined set used to be impossible, but now means "not provided/joined yet".
+   * Convert array sets to object sets (mostly useful for games not started yet)
+   * Add unit state to team sets (ditto)
+   * Add team joinedAt dates.
+   */
+  data => {
+    let teams;
+    if (data.state.randomFirstTurn)
+      // Teams joined in slot order
+      teams = data.state.teams.sort((a,b) => {
+        if (!a && !b)
+          return 0;
+        if (!a)
+          return 1;
+        if (!b)
+          return -1;
+        return a.slot - b.slot;
+      });
+    else
+      // There is no way to tell which team joined first except by creation date.
+      // Unfortunately, for practice games, the creation date could be in the wrong order.
+      // The joinedAt date now makes it possible to always know who jumped who.
+      teams = data.state.teams.sort((a,b) => {
+        if (!a && !b)
+          return 0;
+        if (!a)
+          return 1;
+        if (!b)
+          return -1;
+        return a.createdAt - b.createdAt;
+      });
+
+    for (let team of teams) {
+      // Not having a set used to indicate "not provided/joined yet".
+      if (team.set === null) {
+        team.set = undefined;
+        continue;
+      }
+      if (Array.isArray(team.set))
+        team.set = gameType.applySetUnitState({ units:team.set });
+
+      if (team === teams[teams.length - 1])
+        team.joinedAt = data.state.started;
+      else
+        team.joinedAt = team.createdAt;
+    }
 
     return data;
   },
