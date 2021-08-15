@@ -3,7 +3,7 @@
  * and game objects to the latest version.
  */
 import unitDataMap from 'tactics/unitData.js';
-import gameType from 'tactics/GameType.js';
+import GameType from 'tactics/GameType.js';
 
 const MIGRATIONS = {};
 
@@ -157,6 +157,7 @@ MIGRATIONS.game = [
    * Add team joinedAt dates.
    */
   data => {
+    let gameType = new GameType(data.state.type, {});
     let teams;
     if (data.state.randomFirstTurn)
       // Teams joined in slot order
@@ -184,6 +185,8 @@ MIGRATIONS.game = [
       });
 
     for (let team of teams) {
+      if (team === null) continue;
+
       // Not having a set used to indicate "not provided/joined yet".
       if (team.set === null) {
         team.set = undefined;
