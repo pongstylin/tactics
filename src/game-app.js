@@ -1339,9 +1339,9 @@ async function showJoinIntro(gameData) {
     if (gameData.state.randomFirstTurn)
       person = 'random';
     else if (creatorTeam.slot === 0)
-      person = creatorTeam.name;
-    else
       person = 'you';
+    else
+      person = creatorTeam.name;
 
     let blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
 

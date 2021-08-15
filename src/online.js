@@ -518,9 +518,9 @@ function renderGame(game) {
         (!teams[0] || teams[0].playerId === myPlayerId) &&
         (!teams[1] || teams[1].playerId !== myPlayerId)
       )
-        labels.push('You 1st');
-      else
         labels.push('You 2nd');
+      else
+        labels.push('You 1st');
     }
 
     if (!game.randomHitChance)
