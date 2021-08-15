@@ -122,18 +122,20 @@ MIGRATIONS.game = [
           let newMHealth = result.changes.mHealth;
           if (newMHealth !== undefined) {
             let unit = units.find(u => u.id === result.unit);
-            let oldMHealth = unit.mHealth || 0;
-            let unitData = unitDataMap.get(unit.type);
+            if (unit) {
+              let oldMHealth = unit.mHealth || 0;
+              let unitData = unitDataMap.get(unit.type);
 
-            if (newMHealth < oldMHealth)
-              result.damage = oldMHealth - newMHealth;
-            else if (newMHealth > oldMHealth)
-              result.damage = -12; // assume 12 heal power (cleric)
-            else
-              result.damage = 0;
+              if (newMHealth < oldMHealth)
+                result.damage = oldMHealth - newMHealth;
+              else if (newMHealth > oldMHealth)
+                result.damage = -12; // assume 12 heal power (cleric)
+              else
+                result.damage = 0;
 
-            if (newMHealth < -unitData.health)
-              result.changes.mHealth = -unitData.health;
+              if (newMHealth < -unitData.health)
+                result.changes.mHealth = -unitData.health;
+            }
           }
         }
 
