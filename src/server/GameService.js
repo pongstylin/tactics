@@ -230,8 +230,8 @@ class GameService extends Service {
       throw new ServerError(400, 'Required teams');
     else if (gameOptions.teams.length !== 2 && gameOptions.teams.length !== 4)
       throw new ServerError(400, 'Required 2 or 4 teams');
-    else if (gameOptions.teams.findIndex(t => !!t?.playerId))
-      throw new ServerError(400, 'At least one team must be assigned to a player');
+    else if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
+      throw new ServerError(400, 'You must join games that you create');
 
     gameOptions.createdBy = playerId;
     gameOptions.type = gameTypeId;
