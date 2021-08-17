@@ -266,6 +266,15 @@ class GameService extends Service {
     // Save the game before generating a notification to ensure it is accurate.
     await dataAdapter.createGame(game);
 
+    /*
+     * Notify the player that goes first that it is their turn.
+     * ...unless the player to go first just created the game.
+     */
+    if (game.state.started) {
+      if (game.state.currentTeam.playerId !== playerId)
+        this._notifyYourTurn(game, game.state.currentTeamId);
+    }
+
     return game.id;
   }
 
@@ -333,6 +342,15 @@ class GameService extends Service {
 
     // Save the game before generating a notification to ensure it is accurate.
     await dataAdapter.saveGame(game);
+
+    /*
+     * Notify the player that goes first that it is their turn.
+     * ...unless the player to go first just joined.
+     */
+    if (game.state.started) {
+      if (game.state.currentTeam.playerId !== playerId)
+        this._notifyYourTurn(game, game.state.currentTeamId);
+    }
   }
 
   async onCancelGameRequest(client, gameId) {
@@ -977,12 +995,19 @@ class GameService extends Service {
             ...opponentSet,
           };
         else if (team.set === 'mirror') {
+          if (Object.keys(opponentSet).length !== 1)
+            throw new ServerError(501, 'Unsupported keys in set');
+
           team.set = {
             via: 'mirror',
-            units: opponentSet.map(u => {
+            units: opponentSet.units.map(u => {
               let unit = {...u};
               unit.assignment = [...unit.assignment];
               unit.assignment[0] = 10 - unit.assignment[0];
+              if (unit.direction === 'W')
+                unit.direction = 'E';
+              else if (unit.direction === 'E')
+                unit.direction = 'W';
               return unit;
             }),
           };
@@ -999,18 +1024,9 @@ class GameService extends Service {
      * If no open slots remain, start the game.
      */
     if (teams.findIndex(t => !t?.joinedAt) === -1) {
-      let players = new Map();
-
       await this._resolveTeamsSets(game, gameType, teams);
 
-      teams.forEach(team => {
-        let playerId = team.playerId;
-        if (!playerId || players.has(playerId))
-          return;
-
-        players.set(playerId, team.name);
-      });
-
+      let players = new Map(teams.map(t => [ t.playerId, t.name ]));
       if (players.size > 1)
         await chatService.createRoom(
           [...players].map(([id, name]) => ({ id, name })),
@@ -1019,16 +1035,6 @@ class GameService extends Service {
 
       // Now that the chat room is created, start the game.
       game.state.start();
-
-      /*
-       * Notify the player that goes first that it is their turn.
-       * ...unless the player to go first just joined.
-       */
-      if (game.state.started) {
-        let playerId = game.state.currentTeam.playerId;
-        if (playerId !== team.playerId)
-          this._notifyYourTurn(game, game.state.currentTeamId);
-      }
     }
   }
   _getPlayerStatus(playerId, game) {
