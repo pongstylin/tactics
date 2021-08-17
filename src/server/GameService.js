@@ -254,7 +254,7 @@ class GameService extends Service {
           throw new ServerError(404, 'A team has an unrecognized player ID');
 
         team = Team.createReserve({ slot, playerId:teamData.playerId }, clientPara);
-      } else if (teamData.set === undefined) {
+      } else if (teamData.set === undefined && gameType.isCustomizable) {
         team = Team.createReserve({ slot }, clientPara);
       } else {
         team = Team.createJoin({ slot, ...teamData }, clientPara, game, gameType);
