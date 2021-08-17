@@ -981,9 +981,12 @@ class GameService extends Service {
       else if (team.set === 'mirror')
         opponentSetTeams.push(team);
 
-      // Avoid saving the set name in the game data
-      if (typeof team.set === 'object')
+      // Avoid saving some fields in the game data
+      if (typeof team.set === 'object') {
         delete team.set.name;
+        delete team.set.type;
+        delete team.set.createdAt;
+      }
     }
 
     if (opponentSetTeams.length) {
