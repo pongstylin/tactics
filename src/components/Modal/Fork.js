@@ -105,17 +105,17 @@ export default class Fork extends Modal {
 
     this.els.fork.addEventListener('click', async event => {
       this.els.fork.disabled = true;
-      let fork = window.open();
 
-      const { game, vs, as } = this.data;
       try {
+        const { game, vs, as } = this.data;
+        const target = window.matchMedia('(display-mode:standalone)').matches ? window : window.open();
         const newGameId = await Tactics.gameClient.forkGame(game.id, {
           turnId: game.turnId,
           vs,
           as: vs === 'you' ? undefined : as,
         });
 
-        fork.location.href = `/game.html?${newGameId}`;
+        target.location.href = `/game.html?${newGameId}`;
         this.els.fork.disabled = false;
       } catch (error) {
         fork.close();
