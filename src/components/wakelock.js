@@ -17,7 +17,10 @@ export default {
     if (noSleep.enabled) return this.stayAwake();
 
     timeout = setTimeout(() => this.disable(), KEEP_AWAKE);
-    noSleep.enable();
+    if (document.hidden)
+      throw new Error('Attempt to enable wakelock while hidden.');
+    else
+      noSleep.enable();
   },
 
   disable() {

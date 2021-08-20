@@ -61,7 +61,14 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   if (navigator.serviceWorker)
-    navigator.serviceWorker.ready.then(renderPN);
+    navigator.serviceWorker.ready
+      .catch(error => {
+        // This can happen when 'Delete cookies and site data when Firefox is closed' option is enabled.
+        if (error.name === 'SecurityError' && error.code === 18 && error.message === 'The operation is insecure.')
+          return null;
+        throw error;
+      })
+      .then(renderPN);
   else
     document.querySelector('#pn').innerHTML = 'Your browser does not support push notifications.';
 
@@ -166,6 +173,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function renderPN(reg) {
   let divPN = document.querySelector('#pn');
+
+  if (reg === null) {
+    divPN.innerHTML = 'Your privacy settings prevent push notifications.';
+    return;
+  }
 
   if (!('pushManager' in reg)) {
     divPN.innerHTML = 'Your browser does not support push notifications.';
