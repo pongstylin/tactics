@@ -245,6 +245,9 @@ class GameService extends Service {
     for (let [slot, teamData] of gameOptions.teams.entries()) {
       if (!teamData) continue;
 
+      if (teamData.name !== undefined && teamData.name !== null)
+        Player.validatePlayerName(teamData.name);
+
       delete teamData.slot;
 
       let team;
@@ -292,6 +295,9 @@ class GameService extends Service {
 
   async onJoinGameRequest(client, gameId, teamData = {}) {
     this.debug(`joinGame: gameId=${gameId}`);
+
+    if (teamData.name !== undefined && teamData.name !== null)
+      Player.validatePlayerName(teamData.name);
 
     let clientPara = this.clientPara.get(client.id);
     let playerId = clientPara.playerId;
