@@ -1313,6 +1313,13 @@ export default class Game {
     }
     // Only applicable to Chaos Seed/Dragon
     else if (actionType === 'phase') {
+      // Collect some context for this rare condition
+      if (actor === undefined)
+        reportError(JSON.stringify({
+          action: action,
+          state: this.state._data,
+        }));
+
       // Show the user the egg for 1 second before changing color
       this.drawCard(actor);
       await sleep(1000);
