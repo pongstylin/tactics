@@ -172,9 +172,6 @@ export default class Team {
     });
   }
 
-  /*
-   * Intended for when a player joins a preset team, e.g. on forked or practice games.
-   */
   join(data, clientPara, game = null, gameType = null) {
     if (this.joinedAt)
       throw new ServerError(409, 'This team has already been joined');

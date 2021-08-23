@@ -339,6 +339,9 @@ class GameService extends Service {
         throw new ServerError(403, 'Must join the reserved team');
     }
 
+    /*
+     * A player may join a pre-existing team, e.g. on forked or practice games.
+     */
     if (team)
       team.join(teamData, clientPara, game, gameType);
     else
