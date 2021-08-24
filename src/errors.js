@@ -45,7 +45,7 @@ var unhandledrejectionListener = function (event) {
     if (error instanceof Error) {
       log.name = error.name;
       log.code = error.code;
-      log.message = error.toString();
+      log.message = error.message;
       log.stack = error.stack;
     }
     else if (error !== undefined) {

@@ -17,10 +17,13 @@ export default {
     if (noSleep.enabled) return this.stayAwake();
 
     timeout = setTimeout(() => this.disable(), KEEP_AWAKE);
-    if (document.hidden)
-      throw new Error('Attempt to enable wakelock while hidden.');
-    else
-      noSleep.enable();
+    noSleep.enable().catch(error => {
+      // I can't do anything about this error
+      if (error.name === 'NotAllowedError' && error.message === 'Wake Lock permission request denied')
+        return;
+
+      throw error;
+    });
   },
 
   disable() {
