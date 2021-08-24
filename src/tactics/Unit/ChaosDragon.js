@@ -11,6 +11,9 @@ export default class ChaosDragon extends Unit {
     });
   }
 
+  /*
+   * Dragon Tyrant fire effects should be hidden
+   */
   getStyles() {
     return Object.assign(super.getStyles(), {
       fire: { alpha:0 },
@@ -34,9 +37,6 @@ export default class ChaosDragon extends Unit {
 
     return this.drawFrame(hatchFrame[0], this.direction, hatchFrame[1]);
   }
-  /*
-   * Dragon Tyrant fire effects should be hidden
-   */
   getPhaseAction(attacker, result) {
     let banned = this.banned.slice();
     if (attacker)
@@ -342,7 +342,7 @@ export default class ChaosDragon extends Unit {
    * Implement ability to get angry with attacking allies.
    */
   canCounter() {
-    return true;
+    return this.mHealth !== -this.health;
   }
   getCounterAction(attacker, result) {
     if (attacker !== this && attacker.color === this.color)
