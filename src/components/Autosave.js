@@ -2,28 +2,28 @@ import 'components/Autosave.scss';
 
 window.addEventListener('DOMContentLoaded', () => {
   document.body.addEventListener('focus', event => {
-    let target = event.target;
+    const target = event.target;
     if (target.matches('.inputTextAutosave INPUT[type=text]'))
       target.select();
   }, true);
   document.body.addEventListener('blur', event => {
-    let target = event.target;
+    const target = event.target;
     if (target.matches('.inputTextAutosave INPUT[type=text]'))
       // Clear selection
       target.value = target.value;
   }, true);
   document.body.addEventListener('keydown', event => {
-    let target = event.target;
-    if (target.matches('.inputTextAutosave INPUT[type=text]'))
-      if (event.keyCode === 13) {
+    const target = event.target;
+    if (target.matches('.inputTextAutosave INPUT[type=text]')) {
+      if (event.keyCode === 13)
         event.target.blur();
-        event.stopPropagation();
-      }
+      event.stopPropagation();
+    }
   }, true);
   document.body.addEventListener('input', event => {
-    let target = event.target;
+    const target = event.target;
     if (target.matches('.inputTextAutosave INPUT[type=text]')) {
-      let inputTextAutosave = event.target.parentElement;
+      const inputTextAutosave = event.target.parentElement;
       inputTextAutosave.classList.remove('is-saved');
       inputTextAutosave.classList.remove('is-saving');
     }

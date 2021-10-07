@@ -332,11 +332,11 @@ export default class PlayerInfo extends Modal {
     return this.setPlayerACL({ type:'blocked' });
   }
   setPlayerACL(changes) {
-    const playerACL = Object.assign(this.data.info.isACL ?? {
+    const playerACL = Object.assign({
       createdAt: new Date(),
       type: 'friended',
       name: this.data.team.name,
-    }, changes);
+    }, this.data.info.isACL, changes);
 
     return authClient.setPlayerACL(this.data.team.playerId, {
       type: playerACL.type,
