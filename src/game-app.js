@@ -367,7 +367,7 @@ $(() => {
 
   $('BODY')
     .on('click', '#field .player .link', event => {
-      const $link = $(event.target);
+      const $link = $(event.currentTarget);
       const team = $link.closest('.player').data('team');
 
       if ($link.hasClass('status')) {

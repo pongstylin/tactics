@@ -39,6 +39,6 @@ export default class PlayerSets extends ActiveModel {
   }
 
   toJSON() {
-    return this.sets.toJSON();
+    return this.sets;
   }
 }
