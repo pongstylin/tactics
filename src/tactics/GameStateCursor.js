@@ -46,9 +46,11 @@ export default class GameStateCursor {
       return false;
 
     // At current action create time?
-    const actionId = this.nextActionId;
-    if (actionId && +this.actions[actionId].created !== +cursorData.actions[actionId].created)
-      return false;
+    if (this.nextActionId) {
+      const actionId = this.nextActionId - 1;
+      if (+this.actions[actionId].created !== +cursorData.actions[actionId].created)
+        return false;
+    }
 
     // At game end?
     if (this.atEnd === cursorData.atEnd)
