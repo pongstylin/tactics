@@ -233,6 +233,7 @@ MIGRATIONS.game = [
 
     for (let i = 0; i < data.state.teams.length; i++) {
       const team = data.state.teams[i];
+      if (team === null) continue;
       team.checkoutAt = null;
 
       if (data.state.ended)
