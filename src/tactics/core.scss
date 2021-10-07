@@ -95,8 +95,10 @@
       .player {
         display: none;
       }
-      .player.active {
+      .player.show {
         display: flex;
+        align-items: center;
+
         position: absolute;
         min-width: 200px;
         height: 20px;
@@ -110,30 +112,53 @@
           width: 16px;
           height: 16px;
           border-radius: 50%;
+          text-align: center;
+
+          &.link {
+            cursor: pointer;
+            z-index: 100;
+          }
 
           // offline color
           background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.2) 25%, rgba(0,0,0,0.8));
-        }
-        &.ingame .status {
-          background: radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
-        }
-        &.online .status {
-          background: radial-gradient(circle at 50% 50%, rgba(255, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
-        }
+          &.active {
+            background: radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
 
-        .fa-spinner {
-          display: none;
-          position: absolute;
-          width: 20px;
-          height: 20px;
-          line-height: 20px;
-          border-radius: 50%;
+            .fa-mobile-alt {
+              color: #00DD00;
+            }
+          }
+          &.online {
+            background: radial-gradient(circle at 50% 50%, rgba(255, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
 
-          background-color: black;
-          text-align: center;
-        }
-        &.unavailable .fa-spinner {
-          display: block;
+            .fa-mobile-alt {
+              color: #DDDD00;
+            }
+          }
+
+          .fa {
+            display: none;
+            position: absolute;
+            top: -2px;
+            width: 20px;
+            height: 20px;
+
+            background: black;
+            line-height: 20px;
+            text-align: center;
+          }
+          .fa-mobile-alt {
+            font-size: 1.2em;
+          }
+          .fa-spinner {
+            border-radius: 50%;
+          }
+          &.mobile .fa-mobile-alt {
+            display: block;
+          }
+          &.unavailable .fa-spinner {
+            display: block;
+          }
         }
 
         &.left {
@@ -143,13 +168,14 @@
 
           .status {
             left: 3px;
-          }
-          .fa-spinner {
-            left: 0;
+
+            .fa {
+              left: -3px;
+            }
           }
 
           .clock, .name, .fork {
-            margin-right: 8px;
+            margin-right: 6px;
           }
 
           &:after {
@@ -175,13 +201,14 @@
 
           .status {
             right: 3px;
-          }
-          .fa-spinner {
-            right: 0;
+
+            .fa {
+              right: -3px;
+            }
           }
 
           .clock, .name, .fork {
-            margin-left: 8px;
+            margin-left: 6px;
           }
 
           &:after {
@@ -217,6 +244,11 @@
       .name {
         color: white;
         text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+
+        &.link {
+          cursor: pointer;
+          z-index: 100;
+        }
       }
       .fork, .forkName {
         color: black;
@@ -232,7 +264,8 @@
         color: black;
         font-weight: bold;
         border-radius: 16px;
-        padding: 0 8px;
+        padding: 0 2px 0 4px;
+        line-height: 16px;
       }
       .clock.short, .clock.expired {
         color: red;
@@ -356,6 +389,10 @@
       .message {
         line-height: 18px;
         word-break: break-word;
+
+        &.muted {
+          display: none;
+        }
 
         .player {
           color: #b08d57;
@@ -655,7 +692,7 @@
           top: 126px;
         }
 
-        .player.active {
+        .player.show {
           // Conserve space
           min-width: 180px;
         }

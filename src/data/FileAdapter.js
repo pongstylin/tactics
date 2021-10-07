@@ -1,257 +1,252 @@
 import fs from 'fs';
-import migrate, { getLatestVersionNumber } from 'data/migrate.js';
-import Player from 'models/Player.js';
-import Game from 'models/Game.js';
-import Room from 'models/Room.js';
-import GameSummary from 'models/GameSummary.js';
-import GameType from 'tactics/GameType.js';
-import ServerError from 'server/Error.js';
+import DebugLogger from 'debug';
 
-const filesDir = 'src/data/files';
+import config from 'config/server.js';
+import ServerError from 'server/Error.js';
+import Timeout from 'server/Timeout.js';
+
+export const FILES_DIR = 'src/data/files';
+const ops = new Map([
+  [ 'create', '_createFile' ],
+  [ 'get',    '_getFile' ],
+  [ 'put',    '_putFile' ],
+  [ 'delete', '_deleteFile' ],
+]);
 
 export default class {
-  constructor() {
-    this._locks = new Map();
-  }
+  constructor(props) {
+    Object.assign(this, {
+      debug: DebugLogger(`data:${props.name}`),
+      fileTypes: new Map(),
+      cache: new Map(),
+      buffer: new Map(),
+      queue: new Map(),
+      filesDir: `${FILES_DIR}/${props.name}`,
+    }, props);
 
-  async register(playerData, client) {
-    playerData.version = getLatestVersionNumber('player');
-
-    let player = Player.create(playerData);
-    let device = player.addDevice(client);
-
-    await this._lockAndCreateFile(`player_${player.id}`, player);
-
-    return { player, device };
-  }
-  async savePlayerProfile(playerId, profile) {
-    let name = `player_${playerId}`;
-
-    return this._lock(name, 'write', async () => {
-      let playerData = await this._readFile(name);
-      let player = Player.load(migrate('player', playerData));
-
-      if (player.updateProfile(profile))
-        await this._writeFile(name, player);
-
-      return player;
-    });
-  }
-  async refreshAccessToken(playerId, deviceId) {
-    let name = `player_${playerId}`;
-
-    return this._lock(name, 'write', async () => {
-      let playerData = await this._readFile(name);
-      let player = Player.load(migrate('player', playerData));
-
-      if (player.refreshAccessToken(deviceId))
-        await this._writeFile(name, player);
-
-      return player;
-    });
-  }
-  async createIdentityToken(playerId) {
-    let name = `player_${playerId}`;
-
-    return this._lock(name, 'write', async () => {
-      let playerData = await this._readFile(name);
-      let player = Player.load(migrate('player', playerData));
-
-      player.identityToken = player.createIdentityToken();
-      await this._writeFile(name, player);
-
-      return player;
-    });
-  }
-  async revokeIdentityToken(playerId) {
-    let name = `player_${playerId}`;
-
-    return this._lock(name, 'write', async () => {
-      let playerData = await this._readFile(name);
-      let player = Player.load(migrate('player', playerData));
-
-      player.identityToken = null;
-      await this._writeFile(name, player);
-
-      return player;
-    });
-  }
-  async savePlayer(player) {
-    await this._lockAndWriteFile(`player_${player.id}`, player);
-  }
-  async getPlayer(playerId) {
-    let playerData = await this._lockAndReadFile(`player_${playerId}`);
-    return Player.load(migrate('player', playerData));
-  }
-
-  /*
-   * This is a bit of a hack.  Ideally, each service may only access its own
-   * dedicated data store.  But this method modifies auth data and push data.
-   * The right thing to do is have the auth service ask the push service to
-   * delete its own data.
-   */
-  async removePlayerDevice(player, deviceId) {
-    player.removeDevice(deviceId);
-
-    await this.savePlayer(player);
-    await this.setPushSubscription(player.id, deviceId, null);
-  }
-
-  async createGame(game) {
-    game.version = getLatestVersionNumber('game');
-
-    await this._lockAndCreateFile(`game_${game.id}`, game);
-    await this._saveGameSummary(game);
-  }
-
-  async cancelGame(game) {
-    return this._lock(`game_${game.id}`, 'write', async () => {
-      let gameRefreshed = await this._readFile(`game_${game.id}`, null);
-      if (gameRefreshed === null) {
-        return true;
-      }
-      if (gameRefreshed.state.started) {
-        return false;
-      }
-      let playerIds = new Set(
-        gameRefreshed.state.teams.filter(t => !!t?.playerId).map(t => t.playerId)
+    for (const [ fileType, fileConfig ] of this.fileTypes) {
+      const cache = new Timeout(
+        `${fileType}Cache`,
+        Object.assign({}, config.cache, fileConfig.cache),
+      );
+      const buffer = new Timeout(
+        `${fileType}Buffer`,
+        Object.assign({}, config.buffer, fileConfig.buffer),
       );
 
-      let promises = [...playerIds].map(playerId =>
-        this._lockAndUpdateFile(`player_${playerId}_games`, [], summaryList => {
-          let summaries = new Map(summaryList);
-          summaries.delete(gameRefreshed.id);
-          return summaries;
-        })
-      );
-      await Promise.all(promises);
+      this.cache.set(fileType, cache);
+      this.buffer.set(fileType, buffer);
 
-      await this._lockAndUpdateFile(`open_games`, [], (gamesSummary) => {
-        let summaries = new Map(gamesSummary);
-        summaries.delete(gameRefreshed.id);
-        return summaries;
-      })
-      await this._deleteFile(`game_${game.id}`);
-      return true;
+      cache.on('expire', ({ data:items }) => {
+        for (const [ itemId, item ] of items) {
+          if (!buffer.has(itemId))
+            item.destroy();
+        }
+      });
+      buffer.on('expire', async ({ data:items }) => {
+        await Promise.all([ ...items.values() ].map(i => this[fileConfig.saver](i)));
+        for (const [ itemId, item ] of items) {
+          if (!cache.has(itemId))
+            item.destroy();
+        }
+      });
+    }
+  }
+
+  getStatus() {
+    const status = {};
+    for (const fileType of this.fileTypes.keys()) {
+      status[fileType] = {
+        open: this.cache.get(fileType).openedSize,
+        cached: this.cache.get(fileType).size,
+        buffered: this.buffer.get(fileType).size,
+      };
+    }
+
+    return Object.assign(status, {
+      queued: this.queue.size,
     });
   }
 
-  async saveGame(game) {
-    await this._lockAndWriteFile(`game_${game.id}`, game);
-    await this._saveGameSummary(game);
-  }
-  async getGame(gameId) {
-    let gameData = await this._lockAndReadFile(`game_${gameId}`);
-    return Game.load(migrate('game', gameData));
+  async cleanup() {
+    const promises = [];
+
+    for (const [ fileType, fileConfig ] of this.fileTypes) {
+      for (const item of this.buffer.get(fileType).clear()) {
+        promises.push(this[fileConfig.saver](item));
+      }
+    }
+
+    return Promise.all(promises);
   }
 
-  async hasCustomPlayerSet(playerId, gameTypeId, setName) {
-    let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
-
-    return sets.findIndex(s => s.type === gameTypeId && s.name === setName) > -1;
+  /*
+   * The file must not already exist
+   */
+  async createFile(fileName, ...args) {
+    return this._pushQueue(fileName, { type:'create', args });
   }
   /*
-   * The server may potentially store more than one set, typically one set per
-   * game type.  The default set is simply the first one for a given game type.
+   * Return the initial value (or throw error) if the file does not exist.
+   * Read the file if it does exist.
+   *
+   * Overloaded:
+   *   getFile(fileName)
+   *   getFile(fileName, initialValue)
+   *   getFile(fileName, transform)
+   *   getFile(fileName, initialValue, transform)
    */
-  async getPlayerSet(playerId, gameType, setName) {
-    if (typeof gameType === 'string')
-      gameType = await this.getGameType(gameType);
+  async getFile(fileName, ...args) {
+    if (args.length === 0)
+      args = [ undefined, v => v ];
+    else if (args.length === 1 && typeof args[0] === 'function')
+      args.unshift(undefined);
+    else if (args.length === 1)
+      args.push(v => v);
 
-    let sets = await this._lockAndReadFile(`player_${playerId}_sets`, []);
-    let set = sets.find(s => s.type === gameType.id && s.name === setName);
-    if (set) return gameType.applySetUnitState(set);
-
-    return gameType.getDefaultSet();
+    return this._pushQueue(fileName, { type:'get', args }, queue => {
+      /*
+       * It is possible for two getFile attempts to be made concurrently.
+       * In this case, de-dup by returning the same promise.
+       * This does assume the transform argument is always the same.
+       */
+      const op = queue.find(q => q.type === 'get');
+      if (op)
+        return op.promise;
+    });
   }
   /*
-   * Setting the default set for a game type involves REPLACING the first set
-   * for a given game type.
+   * Create the file if it does not exist.
+   * Overwrite the file if it does exist.
    */
-  async setPlayerSet(playerId, gameType, setName, set) {
-    if (typeof gameType === 'string')
-      gameType = await this.getGameType(gameType);
-
-    gameType.validateSet(set);
-    set.type = gameType.id;
-    set.name = set.name ?? setName;
-    set.createdAt = new Date();
-
-    await this._lockAndUpdateFile(`player_${playerId}_sets`, [], sets => {
-      let index = sets.findIndex(s => s.type === gameType.id && s.name === setName);
-      if (index === -1)
-        sets.push(set);
-      else
-        sets[index] = set;
-    });
+  async putFile(fileName, ...args) {
+    return this._pushQueue(fileName, { type:'put', args });
+  }
+  /*
+   * Pretend the file was deleted if it does not exist.
+   * Remove the file if it does exist.
+   */
+  async deleteFile(fileName) {
+    return this._pushQueue(fileName, { type:'delete', args:[] });
   }
 
-  async hasGameType(gameTypeId) {
-    let gameTypes = new Map(await this._lockAndReadFile('game_types'));
-    return gameTypes.has(gameTypeId);
-  }
-  async getGameType(gameTypeId) {
-    let gameTypes = new Map(await this._lockAndReadFile('game_types'));
-    let gameTypeConfig = gameTypes.get(gameTypeId);
-
-    if (!gameTypeConfig)
-      throw new ServerError(404, 'No such game type');
-
-    return GameType.load(gameTypeId, gameTypeConfig);
-  }
-
-  async createRoom(players, options) {
-    let room = Room.create(players, options);
-    room.version = getLatestVersionNumber('room');
-
-    await this._lockAndCreateFile(`room_${room.id}`, room);
-
-    return room;
-  }
-  async saveRoom(room) {
-    await this._lockAndWriteFile(`room_${room.id}`, room);
-  }
-  async pushRoomMessage(room, message) {
-    room.pushMessage(message);
-
-    return this.saveRoom(room);
-  }
-  async seenRoomEvent(room, playerId, eventId) {
-    room.seenEvent(playerId, eventId);
-
-    return this.saveRoom(room);
-  }
-  async getRoom(roomId) {
-    let roomData = await this._lockAndReadFile(`room_${roomId}`);
-    return Room.load(migrate('room', roomData));
-  }
-
-  async getAllPushSubscriptions(playerId) {
-    let fileName = `player_${playerId}_push`;
-    let pushData = await this._lockAndReadFile(fileName, {
-      subscriptions: [],
+  async _pushQueue(fileName, op, resolveConflict) {
+    op.method = ops.get(op.type);
+    op.args = op.args ?? [];
+    op.promise = new Promise((resolve, reject) => {
+      op.resolve = resolve;
+      op.reject = reject;
     });
 
-    return new Map(pushData.subscriptions);
-  }
-  async getPushSubscription(playerId, deviceId) {
-    let subscriptions = await this.getAllPushSubscriptions(playerId);
+    if (this.queue.has(fileName)) {
+      const queue = this.queue.get(fileName);
 
-    return subscriptions.get(deviceId);
+      if (resolveConflict) {
+        const value = resolveConflict(queue);
+        if (value !== undefined)
+          return value;
+      }
+
+      this.debug(`Warning: calling ${op.method} on queued file '${fileName}'`);
+      this.debug(`Queue: ${queue.map(q => q.type).join(', ')}`);
+      queue.push(op);
+    } else {
+      this.queue.set(fileName, [ op ]);
+      this._processQueue(fileName);
+    }
+
+    return op.promise;
   }
-  async setPushSubscription(playerId, deviceId, subscription) {
-    let fileName = `player_${playerId}_push`;
-    let pushData = await this._lockAndReadFile(fileName, {
-      subscriptions: [],
+  async _processQueue(fileName) {
+    const queue = this.queue.get(fileName);
+
+    while (queue.length) {
+      const op = queue[0];
+
+      await this[op.method](fileName, ...op.args)
+        .then(value => op.resolve(value))
+        .catch(error => op.reject(error));
+
+      queue.shift();
+    }
+
+    this.queue.delete(fileName);
+  }
+
+  /*
+   * Only call these methods while a lock is in place.
+   */
+  _createFile(name, data, transform) {
+    const fqName = `${this.filesDir}/${name}.json`;
+
+    return new Promise((resolve, reject) => {
+      fs.writeFile(fqName, transform(data), { flag:'wx' }, error => {
+        if (error) {
+          console.log('createFile', error);
+          reject(new ServerError(500, 'Create failed'));
+        } else {
+          resolve(data);
+        }
+      });
     });
-    pushData.subscriptions = new Map(pushData.subscriptions);
-    if (subscription)
-      pushData.subscriptions.set(deviceId, subscription);
-    else
-      pushData.subscriptions.delete(deviceId);
-    pushData.subscriptions = [...pushData.subscriptions];
+  }
+  _getFile(name, initialValue, transform) {
+    const fqName = `${this.filesDir}/${name}.json`;
 
-    await this._lockAndWriteFile(fileName, pushData);
+    return new Promise((resolve, reject) => {
+      fs.readFile(fqName, 'utf8', (error, data) => {
+        if (error)
+          reject(error);
+        else
+          resolve(transform(JSON.parse(data)));
+      });
+    }).catch(error => {
+      if (error.code === 'ENOENT')
+        if (initialValue === undefined)
+          error = new ServerError(404, 'Not found');
+        else
+          return transform(initialValue);
+
+      throw error;
+    });
+  }
+  _putFile(name, data, transform) {
+    let fqNameTemp = `${this.filesDir}/.${name}.json`;
+    let fqName = `${this.filesDir}/${name}.json`;
+
+    return new Promise((resolve, reject) => {
+      fs.writeFile(fqNameTemp, transform(data), error => {
+        if (error) {
+          console.log('writeFile', error);
+          reject(new ServerError(500, 'Save failed'));
+        }
+        else
+          resolve();
+      });
+    }).then(() => new Promise((resolve, reject) => {
+      fs.rename(fqNameTemp, fqName, error => {
+        if (error) {
+          console.log('rename', error);
+          reject(new ServerError(500, 'Save failed'));
+        }
+        else
+          resolve();
+      });
+    }));
+  }
+  _deleteFile(name) {
+    let fqName = `${this.filesDir}/${name}.json`;
+
+    return new Promise((resolve, reject) => {
+      fs.unlink(fqName, error => {
+        if (error) {
+          console.log('deleteFile', error);
+          reject(new ServerError(500, 'Delete failed'));
+        } else {
+          resolve();
+        }
+      });
+    });
   }
 
   /*
@@ -281,6 +276,13 @@ export default class {
    *
    *   JSON: [{ "started":null }, { "teams[].playerId":[123,456] }]
    *   SQL : (( started IS null ) OR ( teams[].playerId IN (123,456)))"
+   *
+   *   The "AND" operator can be applied to a group.  If the group is an array,
+   *   all the conditions in the array must be true even though arrays are
+   *   usually processed using "OR" operators.
+   *
+   *   JSON: { "&": [{ "started":null }, { "teams[].playerId":[123,456] }] }
+   *   SQL : (( started IS NULL ) AND ( teams[].playerId IN (123,456) ))
    *
    *   The "NOT" operator can be applied to a group.  These expressions are the
    *   negated versions of the above.  Unlike most object filters, the "!"
@@ -328,18 +330,6 @@ export default class {
    *     "hits": [...],  // list of game summaries
    *   }
    */
-  async searchPlayerGames(playerId, query) {
-    let games = await this._getPlayerGamesSummary(playerId);
-    let data = [...games.values()];
-
-    return this._search(data, query);
-  }
-  async searchOpenGames(query) {
-    let games = await this._getOpenGamesSummary();
-    let data = [...games.values()];
-
-    return this._search(data, query);
-  }
   _search(data, query) {
     query = Object.assign({
       page: 1,
@@ -361,246 +351,6 @@ export default class {
       hits: hits.slice(offset, offset+query.limit),
     });
   }
-
-  async listMyTurnGamesSummary(myPlayerId) {
-    let games = await this._getPlayerGamesSummary(myPlayerId);
-
-    let myTurnGames = [];
-    for (let game of games.values()) {
-      // Only active games, please.
-      if (!game.started || game.ended)
-        continue;
-      // Must be my turn
-      if (game.teams[game.currentTeamId].playerId !== myPlayerId)
-        continue;
-      // Practice games don't count
-      if (!game.teams.find(t => t.playerId !== myPlayerId))
-        continue;
-
-      myTurnGames.push(game);
-    }
-
-    return myTurnGames;
-  }
-  /*
-   * Not intended for use by applications.
-   */
-  listAllPlayerIds() {
-    return new Promise((resolve, reject) => {
-      let playerIds = [];
-      let regex = /^player_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
-
-      fs.readdir(filesDir, (err, fileNames) => {
-        for (let i=0; i<fileNames.length; i++) {
-          let match = regex.exec(fileNames[i]);
-          if (!match) continue;
-
-          playerIds.push(match[1]);
-        }
-
-        resolve(playerIds);
-      });
-    });
-  }
-  listAllGameIds() {
-    return new Promise((resolve, reject) => {
-      let gameIds = [];
-      let regex = /^game_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
-
-      fs.readdir(filesDir, (err, fileNames) => {
-        for (let i=0; i<fileNames.length; i++) {
-          let match = regex.exec(fileNames[i]);
-          if (!match) continue;
-
-          gameIds.push(match[1]);
-        }
-
-        resolve(gameIds);
-      });
-    });
-  }
-
-  async _getOpenGamesSummary() {
-    return new Map(await this._lockAndReadFile(`open_games`, []));
-  }
-  /*
-   * Get all of the games in which the player is participating.
-   */
-  async _getPlayerGamesSummary(playerId) {
-    return new Map(await this._lockAndReadFile(`player_${playerId}_games`, []));
-  }
-  /*
-   * Update the game summary for all participating players.
-   */
-  async _saveGameSummary(game) {
-    let gameType = await this.getGameType(game.state.type);
-    let summary = new GameSummary(gameType, game);
-
-    // Get a unique list of player IDs from the teams.
-    let playerIds = new Set(
-      game.state.teams.filter(t => !!t?.playerId).map(t => t.playerId)
-    );
-
-    // Convert the player IDs to a list of promises.
-    let promises = [...playerIds].map(playerId =>
-      this._getPlayerGamesSummary(playerId).then(summaryList => {
-        summaryList.set(game.id, summary);
-
-        return this._lockAndWriteFile(`player_${playerId}_games`, [...summaryList]);
-      })
-    );
-
-    if (game.isPublic)
-      promises.push(
-        this._getOpenGamesSummary().then(summaryList => {
-          let isDirty = false;
-
-          if (game.state.started) {
-            if (summaryList.has(game.id)) {
-              summaryList.delete(game.id, summary);
-              isDirty = true;
-            }
-          }
-          else {
-            summaryList.set(game.id, summary);
-            isDirty = true;
-          }
-
-          if (isDirty)
-            return this._lockAndWriteFile(`open_games`, [...summaryList])
-        })
-      )
-
-    await Promise.all(promises);
-  }
-
-  /*
-   * Not a true lock.  In a multi-process context, this would suffer.
-   *
-   * Locks ensure all started write operations are done before reading/writing.
-   */
-  async _lock(name, type, transaction) {
-    let lock = this._locks.get(name);
-
-    if (type === 'read')
-      return (lock ? lock.current : Promise.resolve()).then(transaction);
-
-    if (lock) {
-      lock.count++;
-      lock.current = lock.current.then(transaction);
-    }
-    else
-      this._locks.set(name, lock = {
-        count: 1,
-        current: Promise.resolve().then(transaction),
-      });
-
-    // Once all write locks on this file are released, remove from memory.
-    return lock.current = lock.current.finally(() => {
-      if (--lock.count === 0)
-        this._locks.delete(name);
-    });
-  }
-  async _lockAndCreateFile(name, data) {
-    return this._lock(name, 'write', () => this._createFile(name, data));
-  }
-  async _lockAndUpdateFile(name, initialValue, updator) {
-    return this._lock(name, 'write', async () => {
-      let data = await this._readFile(name, initialValue);
-      let returnValue = await updator(data);
-      if (returnValue !== undefined)
-        data = returnValue;
-
-      return this._writeFile(name, data);
-    });
-  }
-  async _lockAndWriteFile(name, data) {
-    return this._lock(name, 'write', () => this._writeFile(name, data));
-  }
-  async _lockAndReadFile(name, initialValue) {
-    return this._lock(name, 'read', () => this._readFile(name, initialValue));
-  }
-  async _lockAndCopyFile(name, newName) {
-    let data = await this._lockAndReadFile(name);
-    return this._lockAndWriteFile(newName, data);
-  }
-
-  /*
-   * Only call these methods while a lock is in place.
-   */
-  async _createFile(name, data) {
-    let fqName = `${filesDir}/${name}.json`;
-
-    return new Promise((resolve, reject) => {
-      fs.writeFile(fqName, JSON.stringify(data), { flag:'wx' }, error => {
-        if (error) {
-          console.log('createFile', error);
-          reject(new ServerError(500, 'Create failed'));
-        }
-        else
-          resolve();
-      });
-    });
-  }
-  async _writeFile(name, data) {
-    let fqNameTemp = `${filesDir}/.${name}.json`;
-    let fqName = `${filesDir}/${name}.json`;
-
-    return new Promise((resolve, reject) => {
-      fs.writeFile(fqNameTemp, JSON.stringify(data), error => {
-        if (error) {
-          console.log('writeFile', error);
-          reject(new ServerError(500, 'Save failed'));
-        }
-        else
-          resolve();
-      });
-    }).then(() => new Promise((resolve, reject) => {
-      fs.rename(fqNameTemp, fqName, error => {
-        if (error) {
-          console.log('rename', error);
-          reject(new ServerError(500, 'Save failed'));
-        }
-        else
-          resolve();
-      });
-    }));
-  }
-  async _readFile(name, initialValue) {
-    let fqName = `${filesDir}/${name}.json`;
-
-    return new Promise((resolve, reject) => {
-      fs.readFile(fqName, 'utf8', (error, data) => {
-        if (error)
-          reject(error);
-        else
-          resolve(JSON.parse(data));
-      });
-    }).catch(error => {
-      if (error.code === 'ENOENT')
-        if (initialValue === undefined)
-          error = new ServerError(404, 'Not found');
-        else
-          return initialValue;
-
-      throw error;
-    });
-  }
-
-  _deleteFile(name) {
-    let fqName = `${filesDir}/${name}.json`;
-    return new Promise((resolve, reject) => {
-      fs.unlink(fqName, error => {
-        if (error) {
-          console.log('deleteFile', error);
-          reject(new ServerError(500, 'Delete failed'));
-        } else {
-          resolve();
-        }
-      });
-    });
-  }
-
   _compileFilter(filter) {
     if (!filter)
       return item => true;
@@ -621,10 +371,22 @@ export default class {
       throw new Error('Malformed filter');
   }
   _matchItemByCondition(item, path, condition) {
+    /*
+     * These are group operators.
+     *   Example: { "!":{ ... } }
+     */
     if (path === '!')
       return !this._matchItem(item, condition);
+    else if (path === '&') {
+      if (!Array.isArray(condition))
+        condition = [ condition ];
 
-    let value = this._extractItemValue(item, path);
+      // AND logic: return false for the first sub-filter that returns false.
+      // Otherwise, return true.
+      return condition.findIndex(c => !this._matchItem(item, c)) === -1;
+    }
+
+    const value = this._extractItemValue(item, path);
 
     /*
      * When the condition is not an object, the value and condition data types
@@ -638,10 +400,13 @@ export default class {
           return value.findIndex(v => condition.includes(v)) > -1;
 
       return condition.includes(value);
-    }
-    else if (typeof condition === 'object' && condition !== null)
+    } else if (typeof condition === 'object' && condition !== null)
       // Find the first condition that does NOT match, if none return TRUE
       return !Object.keys(condition).find(cKey => {
+        /*
+         * These are value operators.
+         *   Example: { "field":{ "!":"value" } }
+         */
         if (cKey === '!')
           return this._matchItemByCondition(value, '', condition[cKey]);
         else

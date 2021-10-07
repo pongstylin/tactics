@@ -29,25 +29,29 @@ export default class GameStateCursor {
     return this.turnId === 0 && this.nextActionId === 0;
   }
   get atCurrent() {
-    let state = this.state;
+    return this.equals(this.state.cursor);
+  }
 
-    if (
-      this.turnId === state.currentTurnId &&
-      this.nextActionId === state.actions.length
-    ) {
-      if (this.nextActionId) {
-        let actionId = this.nextActionId - 1;
-        let cursorAction = this.actions[actionId];
-        let stateAction = state.actions[actionId];
+  equals(cursorData) {
+    // At current turn?
+    if (this.turnId !== cursorData.turnId)
+      return false;
 
-        if (+cursorAction.created !== +stateAction.created)
-          return false;
-      }
+    // At current turn start time?
+    if (+this.started !== +cursorData.started)
+      return false;
 
-      if (state.ended && !this.atEnd)
-        return false;
-    }
-    else
+    // At current action?
+    if (this.nextActionId !== cursorData.nextActionId)
+      return false;
+
+    // At current action create time?
+    const actionId = this.nextActionId;
+    if (actionId && +this.actions[actionId].created !== +cursorData.actions[actionId].created)
+      return false;
+
+    // At game end?
+    if (this.atEnd === cursorData.atEnd)
       return false;
 
     return true;
@@ -66,7 +70,7 @@ export default class GameStateCursor {
    * Append any additional actions to the current turn
    */
   sync() {
-    let current = this.state.cursor;
+    const current = this.state.cursor;
     if (current.turnId !== this.turnId)
       return;
     if (current.nextActionId <= this.nextActionId)
@@ -75,8 +79,8 @@ export default class GameStateCursor {
       return;
 
     for (let i = 0; i < this.nextActionId; i++) {
-      let stateAction = current.actions[i];
-      let thisAction = this.actions[i];
+      const stateAction = current.actions[i];
+      const thisAction = this.actions[i];
 
       if (+stateAction.created !== +thisAction.created)
         return;
@@ -85,29 +89,18 @@ export default class GameStateCursor {
     this.actions = current.actions;
   }
   setToCurrent() {
-    let cursorData = this.state.cursor;
-    let hasChanged =
-      cursorData.turnId !== this.turnId ||
-      cursorData.nextActionId !== this.nextActionId ||
-      cursorData.atEnd !== this.atEnd;
+    if (this.atCurrent) return;
 
-    // Assign even if cursor hasn't changed since actions may have changed.
-    Object.assign(this, cursorData);
-
-    if (hasChanged)
-      this._emit({ type:'change' });
+    Object.assign(this, this.state.cursor);
+    this._emit({ type:'change' });
   }
 
   async set(turnId = this.turnId, nextActionId = 0, skipPassedTurns = false) {
-    let cursorData = await this._getCursorData(turnId, nextActionId, skipPassedTurns);
-    let hasChanged =
-      cursorData.turnId !== this.turnId ||
-      cursorData.nextActionId !== this.nextActionId ||
-      cursorData.atEnd !== this.atEnd;
+    const cursorData = await this._getCursorData(turnId, nextActionId, skipPassedTurns);
+    const hasChanged = !this.equals(cursorData);
 
     // Assign even if cursor hasn't changed since actions may have changed.
     Object.assign(this, cursorData);
-
     if (hasChanged)
       this._emit({ type:'change' });
   }
@@ -126,26 +119,30 @@ export default class GameStateCursor {
    * change in cursor was to a new turn (and possibly game end).
    */
   async setNextAction() {
-    let state = this.state;
+    const current = this.state.cursor;
 
     /*
      * Is the next step forward a step back to a previous turn?
      */
-    if (this.turnId > state.currentTurnId) {
+    if (this.turnId > current.turnId) {
       this.setToCurrent();
       return 'back';
+    } else if (this.turnId === current.turnId && +this.started !== +current.started) {
+      await this.setRelativeToCurrent(-1);
+      return 'back';
     }
+
+    // Getting cursor data also ensures we have all available actions.
+    const cursorData = await this._getCursorData(this.turnId);
 
     /*
      * Is the next step forward a step back to a previous action?
      */
-    // Getting cursor data also ensures we have all available actions.
-    let cursorData = await this._getCursorData(this.turnId);
     let actionId = 0;
 
     for (; actionId < this.nextActionId; actionId++) {
-      let thisAction = this.actions[actionId];
-      let thatAction = cursorData.actions[actionId];
+      const thisAction = this.actions[actionId];
+      const thatAction = cursorData.actions[actionId];
       if (!thatAction || +thatAction.created !== +thisAction.created)
         break;
     }
@@ -172,7 +169,7 @@ export default class GameStateCursor {
     /*
      * Is there another turn to which we can step forward?
      */
-    if (this.turnId < this.state.currentTurnId) {
+    if (this.turnId < current.turnId) {
       // Pass nextActionId=1 to step to the first action in the next turn if any
       await this.set(this.turnId + 1, 1);
 
@@ -188,14 +185,13 @@ export default class GameStateCursor {
    * Pains are taken to request as little data as possible.
    */
   async _getCursorData(turnId, nextActionId, skipPassedTurns = false, skipTurnData) {
-    let state = this.state;
-    let stateTurnId = state.currentTurnId;
+    const state = this.state;
+    const stateTurnId = state.currentTurnId;
     let turnData;
 
     if (turnId < 0) {
       turnId = Math.max(0, this.state.currentTurnId + turnId + 1);
-    }
-    else if (turnId > this.state.currentTurnId) {
+    } else if (turnId > this.state.currentTurnId) {
       turnId = this.state.currentTurnId;
       nextActionId = -1;
     }
@@ -203,10 +199,9 @@ export default class GameStateCursor {
     // Data for the current turn is already available.
     if (turnId === stateTurnId) {
       turnData = state.currentTurnData;
-    }
     // Data for the cursor is already available
     // ... but the actions are refreshed if incomplete.
-    else if (turnId === this.turnId) {
+    } else if (turnId === this.turnId) {
       turnData = {
         id: this.turnId,
         teamId: this.teamId,
@@ -216,7 +211,7 @@ export default class GameStateCursor {
       };
 
       if (turnId < stateTurnId) {
-        let lastAction = turnData.actions.last;
+        const lastAction = turnData.actions.last;
         if (!lastAction || lastAction.type !== 'endTurn')
           // Refresh the actions because the actions aren't complete
           turnData.actions = await state.getTurnActions(turnId);
@@ -224,11 +219,10 @@ export default class GameStateCursor {
           // Refresh the actions because a revert has taken place.
           turnData.actions = await state.getTurnActions(turnId);
       }
-    }
     // Only actions are needed for the next turn.
     // ... unless the current turn actions are incomplete.
-    else if (turnId === (this.turnId + 1)) {
-      let lastAction = this.actions.last;
+    } else if (turnId === (this.turnId + 1)) {
+      const lastAction = this.actions.last;
       if (lastAction && lastAction.type === 'endTurn')
         turnData = {
           id: turnId,
@@ -239,8 +233,7 @@ export default class GameStateCursor {
         };
       else
         turnData = await state.getTurnData(turnId);
-    }
-    else if (skipTurnData) {
+    } else if (skipTurnData) {
       turnData = {
         id: turnId,
         teamId: (skipTurnData.teamId + 1) % state.teams.length,
@@ -248,12 +241,11 @@ export default class GameStateCursor {
         units: state.applyActions(skipTurnData.units, skipTurnData.actions),
         actions: await state.getTurnActions(turnId),
       };
-    }
-    else
+    } else
       turnData = await state.getTurnData(turnId);
 
     if (skipPassedTurns && turnData.actions.length === 1) {
-      let action = turnData.actions[0];
+      const action = turnData.actions[0];
       if (action.type === 'endTurn') {
         if (skipPassedTurns === 'back' && turnData.id > 0)
           return this._getCursorData(turnData.id - 1, nextActionId, skipPassedTurns);
@@ -267,7 +259,7 @@ export default class GameStateCursor {
     else
       nextActionId = Math.min(turnData.actions.length, nextActionId || 0);
 
-    let atEnd = (
+    const atEnd = (
       turnData.id === state.currentTurnId &&
       nextActionId === state.actions.length &&
       state.ended

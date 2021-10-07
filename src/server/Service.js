@@ -1,23 +1,19 @@
-import ws from 'ws';
-import DebugLogger from 'debug';
 import EventEmitter from 'events';
+import DebugLogger from 'debug';
 
 import ServerError from 'server/Error.js';
 
 export default class {
-  constructor(data) {
-    if (data.name === undefined)
-      throw new TypeError('Required service name');
-
-    Object.assign(this, {
-      debug: DebugLogger('service:' + data.name),
+  constructor(props) {
+    Object.assign(this, props, {
+      debug: DebugLogger('service:' + props.name),
 
       // Keys: Clients
       // Values: Action stats maps
       _throttles: new Map(),
 
       _emitter: new EventEmitter(),
-    }, data);
+    });
   }
 
   on() {
@@ -27,9 +23,16 @@ export default class {
     this._emitter.removeListener(...arguments);
   }
 
+  async cleanup() {
+    return this.data.cleanup();
+  }
+
   /*
    * Stubs to be implemented by subclasses
    */
+  async getStatus() {
+    return { data:await this.data.getStatus() };
+  }
   will(client, messageType, bodyType) {
     return true;
   }

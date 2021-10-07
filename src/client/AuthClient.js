@@ -115,10 +115,51 @@ export default class AuthClient extends Client {
     );
   }
   setDeviceName(deviceId, deviceName) {
-    return this._server.requestAuthorized(this.name, 'setDeviceName', [deviceId, deviceName]);
+    return this._server.requestAuthorized(this.name, 'setDeviceName', [deviceId, deviceName])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.setDeviceName(playerId, playerName);
+        throw error;
+      });
   }
   removeDevice(deviceId) {
-    return this._server.requestAuthorized(this.name, 'removeDevice', [deviceId]);
+    return this._server.requestAuthorized(this.name, 'removeDevice', [deviceId])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.removeDevice(playerId, playerName);
+        throw error;
+      });
+  }
+
+  getACL() {
+    return this._server.requestAuthorized(this.name, 'getACL')
+      .then(acl => {
+        return new Map(acl);
+      });
+  }
+  getPlayerACL(playerId) {
+    return this._server.requestAuthorized(this.name, 'getPlayerACL', [ playerId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getPlayerACL(playerId);
+        throw error;
+      });
+  }
+  setPlayerACL(playerId, playerACL) {
+    return this._server.requestAuthorized(this.name, 'setPlayerACL', [ playerId, playerACL ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.setPlayerACL(playerId, playerACL);
+        throw error;
+      });
+  }
+  clearPlayerACL(playerId) {
+    return this._server.requestAuthorized(this.name, 'clearPlayerACL', [ playerId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.clearPlayerACL(playerId);
+        throw error;
+      });
   }
 
   async _onOpen({ data }) {

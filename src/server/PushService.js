@@ -1,17 +1,13 @@
 import webpush from 'web-push';
 
-import config from 'config/server.js';
 import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
-import adapterFactory from 'data/adapterFactory.js';
 
-const dataAdapter = adapterFactory();
-
-class PushService extends Service {
-  constructor() {
+export default class PushService extends Service {
+  constructor(props) {
     super({
-      name: 'push',
+      ...props,
 
       // Session data for each client.
       sessions: new Map(),
@@ -19,7 +15,7 @@ class PushService extends Service {
   }
 
   async pushNotification(playerId, notification) {
-    let subscriptions = await dataAdapter.getAllPushSubscriptions(playerId);
+    let subscriptions = await this.data.getAllPushSubscriptions(playerId);
     if (subscriptions.size === 0) return [];
 
     this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}`);
@@ -27,9 +23,9 @@ class PushService extends Service {
     let payload = JSON.stringify(notification);
 
     webpush.setVapidDetails(
-      config.push.subject,
-      config.push.publicKey,
-      config.push.privateKey,
+      this.config.subject,
+      this.config.publicKey,
+      this.config.privateKey,
     );
 
     return Promise.all([...subscriptions].map(([deviceId, subscription]) =>
@@ -37,11 +33,15 @@ class PushService extends Service {
         // [403] invalid push subscription endpoint.
         // [410] push subscription has unsubscribed or expired.
         if (error.statusCode === 403 || error.statusCode === 410)
-          dataAdapter.setPushSubscription(playerId, deviceId, null);
+          this.data.setPushSubscription(playerId, deviceId, null);
 
         this.debug(`${notification.type}: playerId=${playerId}; deviceId=${deviceId}; error=[${error.statusCode}] ${error.body}`);
       })
     ));
+  }
+
+  clearPushSubscription(playerId, deviceId) {
+    this.data.setPushSubscription(playerId, deviceId, null);
   }
 
   dropClient(client) {
@@ -70,16 +70,13 @@ class PushService extends Service {
 
     let playerId = session.playerId;
     let deviceId = session.deviceId;
-    let oldSubscription = await dataAdapter.getPushSubscription(playerId, deviceId);
+    let oldSubscription = await this.data.getPushSubscription(playerId, deviceId);
 
     if (JSON.stringify(subscription) === JSON.stringify(oldSubscription))
       return;
 
-    dataAdapter.setPushSubscription(playerId, deviceId, subscription);
+    this.data.setPushSubscription(playerId, deviceId, subscription);
 
     this.debug(`setSubscription: playerId=${playerId}; deviceId=${deviceId}; subscription=${JSON.stringify(subscription)}`);
   }
 }
-
-// This class is a singleton
-export default new PushService();

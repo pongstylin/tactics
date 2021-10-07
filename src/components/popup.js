@@ -75,18 +75,20 @@ class Popup {
     divPopup.classList.add('popup');
     if (options.minWidth)
       divPopup.style.minWidth = options.minWidth;
+    if (options.maxWidth)
+      divPopup.style.maxWidth = options.maxWidth;
     divOverlay.appendChild(divPopup);
 
     if (options.title) {
       let divTitle = document.createElement('DIV');
       divTitle.classList.add('title');
-      divTitle.textContent = options.title;
+      divTitle.innerHTML = options.title;
       divPopup.appendChild(divTitle);
     }
 
     let divMessage = document.createElement('DIV');
     divMessage.classList.add('message');
-    divMessage.textContent = options.message;
+    divMessage.innerHTML = options.message;
     divPopup.appendChild(divMessage);
 
     let divButtons = document.createElement('DIV');

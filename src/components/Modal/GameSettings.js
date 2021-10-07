@@ -3,32 +3,57 @@ import Modal from 'components/Modal.js';
 import fullscreen from 'components/fullscreen.js';
 
 export default class GameSettings extends Modal {
-  constructor(options) {
+  constructor(data, options = {}) {
+    const forkOf = data.game.state.forkOf;
+    let fork = '';
+    if (forkOf) {
+      let of = game.ofPracticeGame ? 'practice game' : 'game';
+
+      fork = `
+        <DIV class="fork">
+          This game is a fork of <A href="/game.html?${forkOf.gameId}#c=${forkOf.turnId},0" target="_blank">that ${of}</A>.
+        </DIV>
+      `;
+    }
+
     options.title = 'Game Settings';
     options.content = `
-      <DIV class="row audio">
-        <DIV class="label">Audio</DIV>
-        <LABEL><INPUT type="radio" name="audio" value="on"> On</LABEL>
-        <LABEL><INPUT type="radio" name="audio" value="off"> Off</LABEL>
+      ${fork}
+      <DIV class="info">
+        <DIV>Game Style: ${data.gameType.name}</DIV>
+        <DIV>Blocking System: ${data.game.state.randomHitChance ? 'Random (Luck)' : 'Predictable (No Luck)'}</DIV>
       </DIV>
-      <DIV class="row fullscreen">
-        <DIV class="label">Full Screen</DIV>
-        <LABEL><INPUT type="radio" name="fullscreen" value="on"> On</LABEL>
-        <LABEL><INPUT type="radio" name="fullscreen" value="off"> Off</LABEL>
-      </DIV>
-      <DIV class="row barPosition">
-        <DIV class="label">Bar Position</DIV>
-        <LABEL><INPUT type="radio" name="barPosition" value="left"> Left</LABEL>
-        <LABEL><INPUT type="radio" name="barPosition" value="right"> Right</LABEL>
+      <DIV class="settings">
+        <DIV class="row audio">
+          <DIV class="label">Audio</DIV>
+          <LABEL><INPUT type="radio" name="audio" value="on"> On</LABEL>
+          <LABEL><INPUT type="radio" name="audio" value="off"> Off</LABEL>
+        </DIV>
+        <DIV class="row gameSpeed">
+          <DIV class="label">Game Speed</DIV>
+          <LABEL><INPUT type="radio" name="gameSpeed" value="auto"> Auto</LABEL>
+          <LABEL><INPUT type="radio" name="gameSpeed" value="2"> 2x</LABEL>
+        </DIV>
+        <DIV class="row fullscreen">
+          <DIV class="label">Full Screen</DIV>
+          <LABEL><INPUT type="radio" name="fullscreen" value="on"> On</LABEL>
+          <LABEL><INPUT type="radio" name="fullscreen" value="off"> Off</LABEL>
+        </DIV>
+        <DIV class="row barPosition">
+          <DIV class="label">Bar Position</DIV>
+          <LABEL><INPUT type="radio" name="barPosition" value="left"> Left</LABEL>
+          <LABEL><INPUT type="radio" name="barPosition" value="right"> Right</LABEL>
+        </DIV>
       </DIV>
     `;
 
 
-    super(options);
+    super(options, data);
 
     this.els = {
       modal: this.el.querySelector('.modal'),
       audio: this.el.querySelector('.audio'),
+      gameSpeed: this.el.querySelector('.gameSpeed'),
       fullscreen: this.el.querySelector('.fullscreen'),
       barPosition: this.el.querySelector('.barPosition'),
     };
@@ -38,6 +63,9 @@ export default class GameSettings extends Modal {
       switch (event.target.name) {
         case 'audio':
           this.toggleAudio();
+          break;
+        case 'gameSpeed':
+          this.setGameSpeed(event.target.value);
           break;
         case 'fullscreen':
           this.toggleFullscreen();
@@ -71,6 +99,11 @@ export default class GameSettings extends Modal {
     else
       this.el.querySelector('INPUT[name=audio][value=off]').checked = true;
 
+    if (settings.gameSpeed === 'auto')
+      this.el.querySelector('INPUT[name=gameSpeed][value=auto]').checked = true;
+    else
+      this.el.querySelector('INPUT[name=gameSpeed][value="2"]').checked = true;
+
     if (settings.fullscreen)
       this.el.querySelector('INPUT[name=fullscreen][value=on]').checked = true;
     else
@@ -87,6 +120,16 @@ export default class GameSettings extends Modal {
     this.save();
 
     Howler.mute(!this.settings.audio);
+  }
+
+  setGameSpeed(gameSpeed) {
+    this.settings.gameSpeed = gameSpeed;
+    this.save();
+
+    if (gameSpeed === 'auto')
+      this.data.game.speed = gameSpeed;
+    else
+      this.data.game.speed = parseInt(gameSpeed);
   }
 
   toggleFullscreen() {
@@ -109,6 +152,7 @@ export default class GameSettings extends Modal {
 
     localStorage.setItem('settings', JSON.stringify({
       audio: settings.audio,
+      gameSpeed: settings.gameSpeed,
       barPosition: settings.barPosition,
     }));
   }
@@ -120,19 +164,25 @@ export default class GameSettings extends Modal {
 
       Howler.mute(!settings.audio);
 
+      if (!settings.gameSpeed)
+        settings.gameSpeed = 'auto';
+      if (settings.gameSpeed === 'auto')
+        this.data.game.speed = settings.gameSpeed;
+      else
+        this.data.game.speed = parseInt(settings.gameSpeed);
+
       let app = document.querySelector('#app');
       if (settings.barPosition === 'left') {
         app.classList.remove('left');
         app.classList.add('right');
-      }
-      else {
+      } else {
         app.classList.remove('right');
         app.classList.add('left');
       }
-    }
-    else {
+    } else {
       settings = {
         audio: !Howler._muted,
+        gameSpeed: 'auto',
         barPosition: app.classList.contains('left') ? 'right' : 'left',
       };
     }
@@ -141,6 +191,7 @@ export default class GameSettings extends Modal {
   }
 
   destroy() {
+    super.destroy();
     window.removeEventListener('resize', this._resizeListener);
   }
 }

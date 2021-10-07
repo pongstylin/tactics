@@ -1,7 +1,10 @@
-import dataFactory from 'data/adapterFactory.js';
 import 'plugins/array.js';
+import 'plugins/set.js';
+import 'plugins/map.js';
+import 'plugins/string.js';
+import GameAdapter from 'data/FileAdapter/GameAdapter.js';
 
-const dataAdapter = dataFactory();
+const dataAdapter = new GameAdapter();
 
 dataAdapter.listAllGameIds().then(gameIds => {
   let promise = gameIds.reduce(
@@ -9,14 +12,15 @@ dataAdapter.listAllGameIds().then(gameIds => {
     Promise.resolve(),
   );
 
-  promise.then(() => {
+  promise.then(async () => {
+    console.log('Flushing changes to disk');
+    await dataAdapter.cleanup();
+
     console.log('Sync complete');
   });
 });
 
 async function syncGame(gameId) {
-  console.log(`Syncing game ${gameId}...`);
-
-  let game = await dataAdapter.getGame(gameId);
-  return dataAdapter._saveGameSummary(game);
+  const game = await dataAdapter._getGame(gameId);
+  await dataAdapter._updateGameSummary(game);
 }

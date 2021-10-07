@@ -1,7 +1,7 @@
 import 'components/Modal.scss';
 
 export default class Modal {
-  constructor(options, data = {}) {
+  constructor(options, data) {
     Object.assign(this, {
       el: null,
       options: null,
@@ -11,7 +11,8 @@ export default class Modal {
         this._rejectClosed = reject;
       }),
     });
-    this.setOptions(options);
+    if (options)
+      this.setOptions(options);
 
     if (this.options.autoOpen === true)
       this.open();
@@ -32,15 +33,22 @@ export default class Modal {
       title: null,
       autoOpen: true,
       autoShow: true,
-      closeOnCancel: false,
+      closeOnCancel: true,
       hideOnCancel: false,
     }, options);
   }
 
-  render() {
-    let options = this.options;
+  makeTitle() {
+    const divTitle = document.createElement('DIV');
+    divTitle.classList.add('title');
+    divTitle.innerHTML = this.options.title;
+    return divTitle;
+  }
 
-    let divOverlay = document.createElement('DIV');
+  render() {
+    const options = this.options;
+
+    const divOverlay = document.createElement('DIV');
     divOverlay.classList.add('overlay');
     if (options.zIndex)
       divOverlay.style.zIndex = options.zIndex;
@@ -48,29 +56,41 @@ export default class Modal {
       // Ignore clicks that bubbled from the popup.
       if (event.target !== divOverlay) return;
 
-      if (options.closeOnCancel)
-        this.close();
-      else if (options.hideOnCancel)
+      if (options.hideOnCancel)
         this.hide();
+      else if (options.closeOnCancel)
+        this.close();
     });
 
-    let divModal = document.createElement('DIV');
+    const divModal = document.createElement('DIV');
     divModal.classList.add('modal');
     divOverlay.appendChild(divModal);
 
-    if (options.title) {
-      let divTitle = document.createElement('DIV');
-      divTitle.classList.add('title');
-      divTitle.textContent = options.title;
-      divModal.appendChild(divTitle);
-    }
+    if (options.title)
+      divModal.appendChild(this.makeTitle());
 
-    let divContent = document.createElement('DIV');
+    const divContent = document.createElement('DIV');
     divContent.classList.add('content');
     divContent.innerHTML = options.content;
     divModal.appendChild(divContent);
 
     return divOverlay;
+  }
+  renderTitle(title = null) {
+    if (this.options.title !== null && title !== null) {
+      this.options.title = title;
+      this.el.querySelector('.modal > .title').innerHTML = title;
+    } else if (this.options.title !== null && title === null) {
+      this.options.title = title;
+      this.el.querySelector('.modal > .title').remove();
+    } else if (this.options.title === null && title !== null) {
+      this.options.title = title;
+      this.el.querySelector('.modal').prepend(this.makeTitle());
+    }
+  }
+  renderContent(content) {
+    this.options.content = content;
+    this.el.querySelector('.modal > .content').innerHTML = content;
   }
 
   open() {
@@ -97,6 +117,10 @@ export default class Modal {
       this.options.onClose();
     this._resolveClosed();
 
+    this.destroy();
+  }
+
+  destroy() {
     this.el.remove();
     this.el = null;
   }

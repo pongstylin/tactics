@@ -1,6 +1,6 @@
 import ServerSocket, {
   CLOSE_INACTIVE,
-  CLOSE_SHUTDOWN
+  CLOSE_CLIENT_SHUTDOWN
 } from 'client/ServerSocket.js';
 import AuthClient from 'client/AuthClient.js';
 import GameClient from 'client/GameClient.js';
@@ -75,7 +75,7 @@ window.addEventListener('pagehide', event => {
    * socket if document is already hidden to avoid occasional socket timeouts.
    */
   if (document.hidden)
-    sockets.forEach(s => s.close(CLOSE_SHUTDOWN));
+    sockets.forEach(s => s.close(CLOSE_CLIENT_SHUTDOWN));
 });
 document.addEventListener('visibilitychange', event => {
   if (document.hidden) {

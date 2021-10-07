@@ -1,11 +1,14 @@
 import 'plugins/element.js';
 import clientFactory from 'client/clientFactory.js';
+import Autosave from 'components/Autosave.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 
-let authClient = clientFactory('auth');
+const authClient = clientFactory('auth')
+let accountNameAutosave;
 let identityToken;
 let devices;
+let acl;
 
 window.addEventListener('DOMContentLoaded', () => {
   let notice;
@@ -23,6 +26,15 @@ window.addEventListener('DOMContentLoaded', () => {
       autoOpen: 1000, // open after one second
     });
 
+  accountNameAutosave = new Autosave({
+    defaultValue: false,
+    maxLength: 20,
+    onChange: newAccountName => authClient.setAccountName(newAccountName),
+  });
+  accountNameAutosave.attach(
+    document.querySelector('.accountName .inputTextAutosave'),
+  );
+
   authClient.whenReady.then(() => {
     if (notice)
       notice.close();
@@ -38,69 +50,10 @@ window.addEventListener('DOMContentLoaded', () => {
     else
       renderPage();
   });
-
-  document.body.addEventListener('focus', event => {
-    let target = event.target;
-    if (target.matches('INPUT[type=text]'))
-      target.select();
-  }, true);
-  document.body.addEventListener('blur', event => {
-    let target = event.target;
-    if (target.matches('INPUT[type=text]'))
-      // Clear selection
-      target.value = target.value;
-  }, true);
-  document.body.addEventListener('keydown', event => {
-    let target = event.target;
-    if (target.matches('INPUT[type=text]'))
-      if (event.keyCode === 13)
-        event.target.blur();
-  }, true);
-  document.body.addEventListener('input', event => {
-    let target = event.target;
-    if (target.matches('INPUT[type=text]')) {
-      let inputTextAutosave = event.target.parentElement;
-      inputTextAutosave.classList.remove('is-saved');
-      inputTextAutosave.classList.remove('is-saving');
-    }
-  }, true);
-
-  let divAccountAutoSave = document.querySelector('.accountName .inputTextAutosave');
-  let divAccountError = divAccountAutoSave.nextElementSibling;
-  let txtAccountName = divAccountAutoSave.querySelector('INPUT');
-  txtAccountName.addEventListener('blur', event => {
-    let newAccountName = txtAccountName.value.trim().length
-      ? txtAccountName.value.trim() : null;
-
-    if (newAccountName === null)
-      newAccountName = authClient.playerName;
-
-    // Just in case spaces were trimmed or the name unset.
-    txtAccountName.value = newAccountName;
-
-    divAccountError.textContent = '';
-
-    if (newAccountName === authClient.playerName)
-      divAccountAutoSave.classList.add('is-saved');
-    else {
-      divAccountAutoSave.classList.remove('is-saved');
-      divAccountAutoSave.classList.add('is-saving');
-
-      authClient.setAccountName(newAccountName)
-        .then(() => {
-          divAccountAutoSave.classList.remove('is-saving');
-          divAccountAutoSave.classList.add('is-saved');
-        })
-        .catch(error => {
-          divAccountAutoSave.classList.remove('is-saving');
-          divAccountError.textContent = error.toString();
-        });
-    }
-  });
 });
 
 function renderPage() {
-  document.querySelector('INPUT[name=name]').value = authClient.playerName;
+  accountNameAutosave.value = accountNameAutosave.defaultValue = authClient.playerName;
 
   Promise.all([
     authClient.getIdentityToken().then(data => {
@@ -109,12 +62,146 @@ function renderPage() {
     authClient.getDevices().then(data => {
       devices = data;
     }),
+    authClient.getACL().then(data => {
+      acl = data;
+      for (const playerACL of acl.values()) {
+        delete playerACL.createdAt;
+      }
+    }),
   ]).then(() => {
+    renderACL();
     renderManageLink();
     renderDeviceList();
 
     document.querySelector('.page').style.display = '';
   });
+}
+
+function renderACL() {
+  const content = [];
+  const aclTypes = [ 'muted', 'blocked' ];
+  const sortedACL = [ ...acl ].sort((a,b) =>
+    aclTypes.indexOf(a[1].type) - aclTypes.indexOf(b[1].type) ||
+    a[1].name.localeCompare(b[1].name)
+  );
+  const divACL = document.querySelector('.acl');
+
+  for (const [ playerId, playerACL ] of acl) {
+    const divPlayer = document.createElement('DIV');
+    divPlayer.id = `playerACL-${playerId}`;
+    divPlayer.classList.add('playerACL');
+    divACL.appendChild(divPlayer);
+
+    const divName = document.createElement('DIV');
+    divName.classList.add('name');
+    divPlayer.appendChild(divName);
+
+    const autosave = new Autosave({
+      defaultValue: false,
+      value: playerACL.name,
+      maxLength: 20,
+      icons: new Map([
+        [ 'friended', {
+          name: 'user-friends',
+          title: 'Friend',
+          active: playerACL.type === 'friended',
+          onClick: async friendIcon => {
+            if (friendIcon.active) {
+              await authClient.clearPlayerACL(playerId);
+              friendIcon.active = false;
+            } else {
+              playerACL.type = 'friended';
+              await authClient.setPlayerACL(playerId, playerACL);
+              friendIcon.active = true;
+              autosave.icons.get('muted').active = false;
+              autosave.icons.get('blocked').active = false;
+            }
+          },
+        }],
+        [ 'muted', {
+          name: 'microphone-slash',
+          title: 'Mute',
+          active: playerACL.type === 'muted',
+          onClick: async muteIcon => {
+            if (muteIcon.active) {
+              await authClient.clearPlayerACL(playerId);
+              muteIcon.active = false;
+            } else {
+              popup({
+                title: `Mute <I>${playerACL.name}</I>?`,
+                message: [
+                  `<DIV>If you mute this player, you will:</DIV>`,
+                  `<UL>`,
+                    `<LI>Disable chat in all games against them.</LI>`,
+                    `<LI>Hide chat in all games against them.</LI>`,
+                  `</UL>`,
+                  `<DIV>You can see a list of all muted players on your account page.</DIV>`,
+                ].join('  '),
+                buttons: [
+                  {
+                    label: 'Mute',
+                    onClick: async () => {
+                      playerACL.type = 'muted';
+                      await authClient.setPlayerACL(playerId, playerACL);
+                      muteIcon.active = true;
+                      autosave.icons.get('friended').active = false;
+                      autosave.icons.get('blocked').active = false;
+                    }
+                  },
+                  { label:'Cancel' },
+                ],
+              });
+            }
+          },
+        }],
+        [ 'blocked', {
+          name: 'ban',
+          title: 'Block',
+          active: playerACL.type === 'blocked',
+          onClick: async blockIcon => {
+            if (blockIcon.active) {
+              await authClient.clearPlayerACL(playerId);
+              blockIcon.active = true;
+            } else {
+              popup({
+                title: `Block <I>${playerACL.name}</I>?`,
+                message: [
+                  `<DIV>If you block this player, you will:</DIV>`,
+                  `<UL>`,
+                    `<LI>Disable chat in all games against them.</LI>`,
+                    `<LI>Hide chat in all games against them.</LI>`,
+                    `<LI>Surrender all active games against them.</LI>`,
+                    `<LI>Avoid getting auto matched with them in public games.</LI>`,
+                    `<LI>Prevent them from seeing your waiting games.</LI>`,
+                    `<LI>Prevent them from joining your shared game links.</LI>`,
+                  `</UL>`,
+                  `<DIV>You can see a list of all blocked players on your account page.</DIV>`,
+                ].join(''),
+                buttons: [
+                  {
+                    label: 'Block',
+                    onClick: async () => {
+                      playerACL.type = 'blocked';
+                      await authClient.setPlayerACL(playerId, playerACL);
+                      blockIcon.active = true;
+                      autosave.icons.get('friended').active = false;
+                      autosave.icons.get('muted').active = false;
+                    }
+                  },
+                  { label:'Cancel' },
+                ],
+              });
+            }
+          },
+        }],
+      ]),
+      onChange: async newPlayerName => {
+        playerACL.name = newPlayerName;
+        await authClient.setPlayerACL(playerId, playerACL);
+      },
+    });
+    autosave.appendTo(divName);
+  }
 }
 
 function renderManageLink() {
@@ -223,77 +310,43 @@ function renderDeviceList() {
 
     let divHeader = document.createElement('DIV');
     divHeader.classList.add('header');
-    divHeader.innerHTML = `
-      <DIV class="inputTextAutosave is-saved">
-        <INPUT
-          type="text"
-          name="deviceName"
-          value="${deviceName}"
-          placeholder="${autoDeviceName}"
-          spellcheck="false"
-        />
-        <DIV class="icons">
-          <SPAN class="fa fa-trash" title="Remove"></SPAN>
-          <SPAN class="saved">
-            <SPAN class="fa fa-spinner fa-pulse"></SPAN>
-            <SPAN class="fa fa-check-circle"></SPAN>
-          </SPAN>
-        </DIV>
-      </DIV>
-      <DIV class="error"></DIV>
-    `;
     divDevice.appendChild(divHeader);
 
-    let divDeviceAutoSave = divHeader.querySelector('.inputTextAutosave');
-    let divDeviceError = divDeviceAutoSave.nextElementSibling;
-    let txtDeviceName = divHeader.querySelector('INPUT');
-    txtDeviceName.addEventListener('blur', event => {
-      let newDeviceName = txtDeviceName.value.trim().length
-        ? txtDeviceName.value.trim() : null;
+    const deviceNameAutosave = new Autosave({
+      name: 'deviceName',
+      placeholder: autoDeviceName,
+      value: deviceName,
+      maxLength: 20,
+      icons: new Map([
+        [ 'remove', {
+          name: 'trash',
+          title: 'Remove',
+          onClick: () => {
+            let name = device.name === null ? autoDeviceName : device.name;
+            name = name.replace(/ /g, '\xA0').replace(/-/g, '\u2011');
 
-      // Just in case spaces were trimmed
-      txtDeviceName.value = newDeviceName;
-
-      divDeviceError.textContent = '';
-
-      if (newDeviceName === device.name)
-        divDeviceAutoSave.classList.add('is-saved');
-      else {
-        divDeviceAutoSave.classList.remove('is-saved');
-        divDeviceAutoSave.classList.add('is-saving');
-
-        authClient.setDeviceName(device.id, newDeviceName)
-          .then(() => {
-            divDeviceAutoSave.classList.remove('is-saving');
-            divDeviceAutoSave.classList.add('is-saved');
-
-            device.name = newDeviceName;
-          })
-          .catch(error => {
-            divDeviceAutoSave.classList.remove('is-saving');
-            divDeviceError.textContent = error.toString();
-          });
-      }
-    });
-
-    divHeader.querySelector('.fa-trash').addEventListener('click', event => {
-      let name = device.name === null ? autoDeviceName : device.name;
-      name = name.replace(/ /g, '\xA0').replace(/-/g, '\u2011');
-
-      popup({
-        title: 'Remove Device',
-        message: `Are you sure you want to remove '${name}'?`,
-        buttons: [
-          {
-            label: 'Yes',
-            onClick: () => authClient.removeDevice(device.id).then(() => {
-              divDevice.remove();
-            }),
+            popup({
+              title: 'Remove Device',
+              message: `Are you sure you want to remove '${name}'?`,
+              buttons: [
+                {
+                  label: 'Yes',
+                  onClick: () => authClient.removeDevice(device.id).then(() => {
+                    divDevice.remove();
+                  }),
+                },
+                { label: 'No' },
+              ],
+            });
           },
-          { label: 'No' },
-        ],
-      });
+        }]
+      ]),
+      onChange: async newDeviceName => {
+        await authClient.setDeviceName(device.id, newDeviceName);
+        device.name = newDeviceName;
+      },
     });
+    deviceNameAutosave.appendTo(divHeader);
 
     let divToggle = document.createElement('DIV');
     divToggle.classList.add('toggle');

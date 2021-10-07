@@ -111,7 +111,7 @@ window.addEventListener('DOMContentLoaded', () => {
       copy(`${message} ${link}`);
       popup({
         message:'Copied the game link.  Paste the link to invite using your app of choice.',
-        minWidth: '250px',
+        maxWidth: '250px',
       });
       return;
     }
@@ -132,7 +132,7 @@ window.addEventListener('DOMContentLoaded', () => {
               { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
-            minWidth: '250px',
+            maxWidth: '250px',
           });
         else
           popup({
@@ -141,7 +141,7 @@ window.addEventListener('DOMContentLoaded', () => {
               { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
-            minWidth: '250px',
+            maxWidth: '250px',
           });
       });
       return;
@@ -225,7 +225,7 @@ function renderPN(reg) {
             },
             { label: 'No' },
           ],
-          minWidth: '250px',
+          maxWidth: '250px',
         });
       });
     }
@@ -333,7 +333,7 @@ function clearGameLists() {
 }
 
 function renderActiveGames() {
-  let divTabContent = document.querySelector('.tabContent .active');
+  const divTabContent = document.querySelector('.tabContent .active');
   let now = gameClient.serverNow;
   let activeGames = [...games.active.values()]
     .map(game => {
@@ -348,7 +348,7 @@ function renderActiveGames() {
       else if (!a.turnTimeLimit && b.turnTimeLimit)
         return 1;
       else if (!a.turnTimeLimit && !b.turnTimeLimit)
-        return b.updated - a.updated; // ascending
+        return b.updatedAt - a.updatedAt; // ascending
 
       return a.turnTimeRemaining - b.turnTimeRemaining; // ascending
     });
@@ -413,58 +413,58 @@ function renderActiveGames() {
 }
 
 async function renderWaitingGames() {
-  let divTabContent = document.querySelector('.tabContent .waiting');
+  const divTabContent = document.querySelector('.tabContent .waiting');
 
   if (games.open.size) {
-    let header = document.createElement('HEADER');
+    const header = document.createElement('HEADER');
     header.innerHTML = 'Public Games!';
     divTabContent.appendChild(header);
 
-    let openGames = [...games.open.values()].sort((a, b) =>
-      a.created - b.created // descending
+    const openGames = [...games.open.values()].sort((a, b) =>
+      a.createdAt - b.createdAt // descending
     );
 
-    for (let game of openGames) {
-      let divGame = renderGame(game);
+    for (const game of openGames) {
+      const divGame = renderGame(game);
 
       divTabContent.appendChild(divGame);
     }
   }
 
-  let waitingGames = [...games.waiting.values()].sort((a, b) =>
-    b.updated - a.updated // ascending
+  const waitingGames = [...games.waiting.values()].sort((a, b) =>
+    b.updatedAt - a.updatedAt // ascending
   );
 
-  let privateGames = [];
-  for (let game of waitingGames) {
-    if (game.teams.findIndex(t => !t) === -1)
+  const privateGames = [];
+  for (const game of waitingGames) {
+    if (game.teams.findIndex(t => !t?.joinedAt) === -1)
       continue;
 
-    let divGame = renderGame(game);
+    const divGame = renderGame(game);
 
     privateGames.push(divGame);
   }
 
   if (privateGames.length) {
-    let header = document.createElement('HEADER');
+    const header = document.createElement('HEADER');
     header.innerHTML = 'Private Games!';
 
     divTabContent.appendChild(header);
     privateGames.forEach(div => divTabContent.appendChild(div));
   }
 
-  let practiceGames = [];
-  for (let game of waitingGames) {
+  const practiceGames = [];
+  for (const game of waitingGames) {
     if (game.teams.findIndex(t => t?.playerId !== myPlayerId) > -1)
       continue;
 
-    let divGame = renderGame(game);
+    const divGame = renderGame(game);
 
     practiceGames.push(divGame);
   }
 
   if (practiceGames.length) {
-    let header = document.createElement('HEADER');
+    const header = document.createElement('HEADER');
     header.innerHTML = 'Practice Games!';
 
     divTabContent.appendChild(header);
@@ -473,9 +473,9 @@ async function renderWaitingGames() {
 }
 
 function renderCompleteGames() {
-  let divTabContent = document.querySelector('.tabContent .complete');
+  const divTabContent = document.querySelector('.tabContent .complete');
   let completeGames = [...games.complete.values()].sort((a, b) =>
-    b.updated - a.updated // ascending
+    b.updatedAt - a.updatedAt // ascending
   );
 
   for (let game of completeGames) {
@@ -486,7 +486,7 @@ function renderCompleteGames() {
 }
 
 function renderGame(game) {
-  let teams = game.teams;
+  const teams = game.teams;
 
   let left = `${game.typeName}`;
   // Completed Games
@@ -500,10 +500,9 @@ function renderGame(game) {
 
     if (game.isFork)
       left += ', <SPAN>Fork</SPAN>';
-  }
   // Active Games
-  else if (game.started) {
-    let labels = [];
+  } else if (game.started) {
+    const labels = [];
 
     if (!game.randomHitChance)
       labels.push('No Luck');
@@ -513,10 +512,9 @@ function renderGame(game) {
 
     if (labels.length)
       left += ', <SPAN>' + labels.join(',</SPAN> <SPAN>') + '</SPAN>';
-  }
   // Waiting Games
-  else {
-    let labels = [];
+  } else {
+    const labels = [];
 
     if (game.turnTimeLimit === 86400)
       labels.push('1 Day');
@@ -542,44 +540,41 @@ function renderGame(game) {
       left += ', <SPAN>' + labels.join(',</SPAN> <SPAN>') + '</SPAN>';
   }
 
+  const gameIsEmpty = teams.filter(t => !!t?.joinedAt).length === 0;
+  const gameIsPractice = teams.filter(t => t?.playerId === myPlayerId).length === teams.length;
   let middle;
-  let gameIsEmpty = teams.filter(t => !!t?.joinedAt).length === 0;
-  let gameIsPractice = teams.filter(t => t?.playerId === myPlayerId).length === teams.length;
 
   if (gameIsEmpty) {
     // Not supposed to happen, but bugs do.
     middle = '<I>Empty</I>';
-  }
-  else if (gameIsPractice) {
+  } else if (gameIsPractice) {
     if (game.started)
       middle = '<I>Yourself</I>';
     else
       middle = '<I>Finish Setup</I>';
-  }
-  else if (game.started || game.isPublic) {
+  } else if (game.started || game.isPublic) {
     // Use of 'Set' was to de-dup the names.
     // Only useful for 4-player games where 2 players have the same name.
-    let opponents = [...new Set(
+    const opponents = [...new Set(
       teams.filter(t => t?.joinedAt && t.playerId !== myPlayerId).map(t => t.name)
     )];
     if (opponents.length === 0)
       middle = '<I>Yourself</I>';
     else
       middle = opponents.join(', ');
-  }
-  else {
+  } else {
     if (navigator.share)
       middle = '<SPAN class="share"><SPAN class="fa fa-share"></SPAN><SPAN class="label">Share Invite Link</SPAN></SPAN>';
     else
       middle = '<SPAN class="copy"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Invite Link</SPAN></SPAN>';
   }
 
-  let now = gameClient.serverNow;
+  const now = gameClient.serverNow;
   let addClass = '';
   let elapsed;
 
   if (!game.started || game.ended || !game.turnTimeLimit)
-    elapsed = (now - game.updated) / 1000;
+    elapsed = (now - game.updatedAt) / 1000;
   else {
     elapsed = game.turnTimeRemaining / 1000;
     if (elapsed < (game.turnTimeLimit * 0.2))
@@ -601,7 +596,7 @@ function renderGame(game) {
   else
     elapsed = Math.floor(elapsed / 31557600) + 'y';
 
-  let divGame = document.createElement('DIV');
+  const divGame = document.createElement('DIV');
   divGame.id = game.id;
   divGame.classList.add('game');
   divGame.innerHTML = `
@@ -636,37 +631,38 @@ function getTabNameForElement(el) {
 }
 
 function fetchGames() {
-  return new Promise((res) => {
+  return Promise.all([
     /*
-     * Get 50 of the most recent games.  Once the player creates or plays more
-     * than 50 games, the oldest ones will drop out of view.
+     * Get 50 of the most recent active games.  Once the player creates or plays
+     * more than 50 games, the oldest ones will drop out of view.
      */
-    gameClient
-      .searchMyGames({
-        // Exclude my public, waiting games
-        filter: {
-          "!": {
-            isPublic: true,
-            started: null,
-          },
+    gameClient.searchMyActiveGames({
+      // Exclude my public, waiting games
+      filter: {
+        '!': {
+          isPublic: true,
+          started: null,
         },
-        sort: { field: "updated", order: "desc" },
-        limit: 50,
-      })
-      .then(async (result) => {
-        /*
-         * Due to automated game-matching, there should not be any more than 1
-         * game per public configuration permutation.
-         */
-        let openGames = await gameClient.searchOpenGames({
-          sort: "created",
-          limit: 10,
-        });
-
-        const games = result.hits.concat(openGames.hits);
-        res(games);
-      });
-  });
+      },
+      sort: { field:'updatedAt', order:'desc' },
+      limit: 50,
+    }),
+    /*
+     * Due to automated game-matching, there should not be any more than 1
+     * game per public configuration permutation.
+     */
+    gameClient.searchOpenGames({
+      sort: 'createdAt',
+    }),
+    /*
+     * Get 50 of the most recently completed games.  Once the player creates or
+     * plays more than 50 games, the oldest ones will drop out of view.
+     */
+    gameClient.searchMyCompletedGames({
+      sort: { field:'ended', order:'desc' },
+      limit: 50,
+    }),
+  ]).then(resultSets => [].concat(...resultSets.map(r => r.hits)));
 }
 
 /**

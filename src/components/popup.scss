@@ -14,10 +14,8 @@
   .popup {
     background-color: rgba(0, 0, 0, 0.65);
     box-shadow: 6px 8px 10px #000;
-    min-height: 100px;
-    width: min-content;
-    min-width: 200px;
-    max-width: 90%;
+    max-width: calc(100% - 64px);
+    max-height: calc(100% - 64px);
     border: 1px solid #AA9977;
     border-radius: 4px;
 
@@ -30,7 +28,7 @@
     }
 
     .message {
-      padding: 12px 8px 10%;
+      padding: 12px 8px;
     }
 
     .buttons {
@@ -44,6 +42,9 @@
 
         -webkit-tap-highlight-color: transparent;
       }
+    }
+    .buttons:empty {
+      display: none;
     }
   }
 

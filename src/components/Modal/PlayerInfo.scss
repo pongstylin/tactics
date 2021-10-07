@@ -1,0 +1,77 @@
+.modal.playerInfo {
+  .playerName:not(.bronze) {
+    font-style: italic;
+  }
+
+  .playerACLName {
+    .icons {
+      & > .fa {
+        cursor: pointer;
+      }
+      .friended.active {
+        color: #00FF00;
+      }
+      .muted.active, .blocked.active {
+        color: #FF0000;
+      }
+    }
+  }
+
+  .player.bronze {
+    display: inline-block;
+    background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 94%, black 102%);
+    margin: 6px 8px 0 0;
+    border-radius: 10px 0 0 10px;
+    padding: 1px 16px 1px 2px;
+
+    .count {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.75);
+      color: black;
+      margin-right: 8px;
+      border-radius: 16px;
+      min-width: 12px;
+      padding: 0 4px;
+      line-height: 16px;
+      text-align: center;
+    }
+    .name {
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+  }
+
+  .content BUTTON {
+    &.hide {
+      display: none;
+    }
+
+    &[name=clearStats], &[name=clearStyleStats] {
+      margin-left: 8px;
+      padding: 0 8px;
+      line-height: 16px;
+    }
+  }
+  .content > DIV {
+    &:not(.controls) {
+      margin-bottom: 8px;
+    }
+
+    &.wld > DIV {
+      display: inline-block;
+      margin: 8px 12px 0 0;
+
+      .label {
+        padding-right: 8px;
+        vertical-align: top;
+      }
+    }
+
+    .indent {
+      margin-left: 16px;
+    }
+    &.controls {
+      margin-top: 16px;
+      text-align: right;
+    }
+  }
+}

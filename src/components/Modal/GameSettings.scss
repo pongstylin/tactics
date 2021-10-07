@@ -1,22 +1,27 @@
 .modal.gameSettings {
   .content {
-    display: grid;
-    grid-template-columns: auto auto auto;
-    grid-gap: 8px 12px;
-
-    .row {
-      display: contents;
-
-      .label {
-        margin-right: 16px;
-      }
-      LABEL {
-        white-space: nowrap;
-      }
+    .fork, .info {
+      margin-bottom: 8px;
     }
+    .settings {
+      display: grid;
+      align-items: center;
+      grid-template-columns: auto auto auto;
 
-    .barPosition {
-      display: none;
+      .row {
+        display: contents;
+
+        .label {
+          margin-right: 16px;
+        }
+        LABEL {
+          white-space: nowrap;
+        }
+      }
+
+      .barPosition {
+        display: none;
+      }
     }
   }
 }
@@ -26,7 +31,7 @@
  */
 @media (max-width: 812px) and (min-aspect-ratio: 5/3) {
   // Allow moving the bar to the left/right
-  .modal.gameSettings .content .barPosition {
+  .modal.gameSettings .content .settings .barPosition {
     display: contents;
   }
 }

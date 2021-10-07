@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "0.15.7",
+  "version": "1.0.0",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
@@ -9,7 +9,7 @@
     "url": "git@github.com:pongstylin/tactics.git"
   },
   "scripts": {
-    "start": "NODE_ENV=development webpack --watch --config webpack.config.cjs & node --es-module-specifier-resolution=node --experimental-modules --experimental-loader ./resolver.mjs --require dotenv/config src/server.js || true",
+    "start": "./start.sh",
     "start-beta": "NODE_ENV=beta node --experimental-modules --loader ./resolver.mjs --require dotenv/config src/server.js || true",
     "build": "NODE_ENV=beta webpack --config webpack.config.cjs",
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -65,7 +65,7 @@
     "utf-8-validate": "^5.0.2",
     "uuid": "^3.3.2",
     "web-push": "^3.3.5",
-    "ws": "^6.2.2",
+    "ws": "^8.2.2",
     "xregexp": "^4.2.4"
   }
 }

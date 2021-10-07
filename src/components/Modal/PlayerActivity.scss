@@ -1,0 +1,26 @@
+.modal.playerActivity {
+  .playerName {
+    font-style: italic;
+  }
+
+  .content {
+    .status {
+      font-weight: bold;
+
+      &.active {
+        color: #00FF00;
+      }
+      &.inactive {
+        color: #FFFF00;
+      }
+      &.offline, &.closed {
+        color: #FF0000;
+      }
+    }
+
+    .controls {
+      margin-top: 16px;
+      text-align: right;
+    }
+  }
+}

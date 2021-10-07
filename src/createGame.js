@@ -194,13 +194,13 @@ window.addEventListener('DOMContentLoaded', () => {
       let excludedPlayerIds = new Set();
 
       if (authClient.playerId) {
-        // Do not join my own open games.
+        // Do not join my own waiting games.
         excludedPlayerIds.add(authClient.playerId);
 
         try {
-          // Do not join open games against players we are already playing.
-          let games = await gameClient.searchMyGames({
-            filter:{
+          // Do not join waiting games against players we are already playing.
+          let games = await gameClient.searchMyActiveGames({
+            filter: {
               // Game type must match player preference.
               type: gameTypeId,
               started: { '!':null },
@@ -283,14 +283,14 @@ window.addEventListener('DOMContentLoaded', () => {
         if (gameId) return gameId;
 
         if (vs === 'you') {
-          let themSlot = (youSlot + 1) % 2;
+          const themSlot = (youSlot + 1) % 2;
 
           // The set will be selected on the game page
           // ...unless the set is not customizable.
           gameOptions.teams[themSlot] = { playerId:authClient.playerId };
         }
 
-        return await gameClient.createGame(gameTypeId, gameOptions);
+        return gameClient.createGame(gameTypeId, gameOptions);
       })
       .then(gameId => {
         location.href = '/game.html?' + gameId;
@@ -329,11 +329,13 @@ async function joinOpenGame(query) {
   if (!query) return;
 
   try {
-    let result = await gameClient.searchOpenGames(query);
+    const result = await gameClient.searchOpenGames(query);
     if (!result.count) return;
 
-    let gameSummary = result.hits[0];
+    const hits = result.hits.filter(h => h.creatorACL?.type !== 'blocked');
+    if (!hits.length) return;
 
+    const gameSummary = hits[0];
     return gameClient.joinGame(gameSummary.id, { set:{ name:'default' }})
       .then(() => gameSummary.id);
   }

@@ -53,6 +53,9 @@ export default class Team {
       // The date the player joined the team
       joinedAt: null,
 
+      // The date the player last viewed the game.
+      checkoutAt: null,
+
       // The account ID associated with the team, if any
       playerId: undefined,
 
@@ -155,6 +158,8 @@ export default class Team {
       data.createdAt = new Date(data.createdAt);
     if (typeof data.joinedAt === 'string')
       data.joinedAt = new Date(data.joinedAt);
+    if (typeof data.checkoutAt === 'string')
+      data.checkoutAt = new Date(data.checkoutAt);
     if (data.randomState)
       data.randomState.current = seedrandom("", { state:data.randomState.current });
 
@@ -216,6 +221,7 @@ export default class Team {
     // Only indicate presence or absence of a set, not the set itself
     json.set = !!json.set;
 
+    delete json.checkoutAt;
     delete json.randomState;
     delete json.units;
 

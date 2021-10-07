@@ -5,38 +5,18 @@ import ws from 'ws';
 import Ajv from 'ajv';
 
 import config from 'config/server.js';
+import Timeout from 'server/Timeout.js';
+import services, { servicesReady } from 'server/services.js';
 import ServerError from 'server/Error.js';
-
-/*
- * Import service classes based on server configuration.
- */
-let services = new Map();
-
-export default Promise.all(
-  [...config.endpoints]
-    .filter(([serviceName, endpoint]) => endpoint === 'local')
-    .map(([serviceName, endpoint]) => {
-      let serviceModuleName = serviceName.toUpperCase('first');
-
-      return import(`server/${serviceModuleName}Service.js`).then(module => {
-        let service = module.default;
-        service.on('joinGroup', event => joinGroup(service.name, event));
-        service.on('leaveGroup', event => leaveGroup(service.name, event));
-        service.on('closeGroup', event => closeGroup(service.name, event));
-        service.on('event', event => sendEvent(service.name, event));
-
-        services.set(serviceName, service);
-      });
-    })
-).then(() => route);
 
 const CLOSE_GOING_AWAY     = 1001;
 const CLOSE_NO_STATUS      = 1005;
 const CLOSE_ABNORMAL       = 1006;
 
 // Proprietary codes used by server
-const CLOSE_CLIENT_TIMEOUT = 4000;
-const CLOSE_REPLACED       = 4001;
+const CLOSE_CLIENT_TIMEOUT  = 4000;
+const CLOSE_SERVER_SHUTDOWN = 4001;
+const CLOSE_REPLACED        = 4002;
 
 // Proprietary codes used by client
 const CLOSE_SERVER_TIMEOUT = 4100;
@@ -67,6 +47,7 @@ let schema = {
           additionalProperties: false,
         },
         ack: { type:'number', minimum:0 },
+        idle: { type:'number', minimum:0 },
       },
       required: ['id','type','body','ack'],
       additionalProperties: false,
@@ -86,6 +67,7 @@ let schema = {
           additionalProperties: false,
         },
         ack: { type:'number', minimum:0 },
+        idle: { type:'number', minimum:0 },
       },
       required: ['id','type','body','ack'],
       additionalProperties: false,
@@ -105,6 +87,7 @@ let schema = {
           additionalProperties: false,
         },
         ack: { type:'number', minimum:0 },
+        idle: { type:'number', minimum:0 },
       },
       required: ['id','type','body','ack'],
       additionalProperties: false,
@@ -113,6 +96,7 @@ let schema = {
       properties: {
         type: { type:'string', const:'sync' },
         ack: { type:'number', minimum:0 },
+        idle: { type:'number', minimum:0 },
       },
       // 'ack' is only required when a session is open
       required: ['type'],
@@ -132,6 +116,7 @@ let schema = {
           additionalProperties: false,
         },
         ack: { type:'number', minimum:0 },
+        idle: { type:'number', minimum:0 },
       },
       required: ['id','type','body','ack'],
       additionalProperties: false,
@@ -163,6 +148,7 @@ let schema = {
           additionalProperties: false,
         },
         ack: { type:'number', minimum:0 },
+        idle: { type:'number', minimum:0 },
       },
       required: ['type','body','ack'],
       additionalProperties: false,
@@ -192,36 +178,50 @@ schema.oneOf.forEach((schema, i) => {
     throw new Error('Unsupported sub-schema');
 });
 
-let sessions = new Map();
-let closedSessions = new Set();
+const sessions = new Map();
 
 /*
  * This function is called to route a new connection.
  */
-function route(client, request) {
+export function onConnect(client, request) {
   Object.assign(client, {
-    id: null,
+    id: uuid(),
     session: null,
     request: request,
     address: request.headers['x-forwarded-for']
       || request.connection.remoteAddress,
     agent: request.headers['user-agent'] || null,
   });
-  client.id = client.address;
 
-  debug(`connect: client=${client.id}; agent=${client.agent}`);
+  debug(`connect: client=${client.address}; agent=${client.agent}`);
 
   // Enforce an idle timeout for this connection
-  client.lastReceivedAt = new Date().getTime();
-  inboundClients.add(client);
+  inboundClientTimeout.add(client.id, client);
 
   client.on('message', onMessage);
   client.on('close', onClose);
 }
 
+export function onShutdown() {
+  debug(`shutdown: clients=${inboundClientTimeout.size}`);
+
+  for (const client of inboundClientTimeout.values()) {
+    closeClient(client, CLOSE_SERVER_SHUTDOWN);
+  }
+}
+
 /*******************************************************************************
  * Group Management
  ******************************************************************************/
+servicesReady.then(() => {
+  for (let service of services.values()) {
+    service.on('joinGroup', event => joinGroup(service.name, event));
+    service.on('leaveGroup', event => leaveGroup(service.name, event));
+    service.on('closeGroup', event => closeGroup(service.name, event));
+    service.on('event', event => sendEvent(service.name, event));
+  }
+});
+
 let groups = new Map();
 
 function joinGroup(serviceName, { client:clientId, body }) {
@@ -410,9 +410,8 @@ function send(client, message) {
 
     debugMessage(client, message, 'out');
 
-    client.lastSentAt = new Date();
-    outboundClients.delete(client);
-    outboundClients.add(client);
+    // Reset the outbound client timeout for this client.
+    outboundClientTimeout.add(client.id, client);
 
     if (session && message.id)
       session.lastSentMessageId = message.id;
@@ -488,32 +487,25 @@ function closeClient(client, code, reason) {
     client.terminate();
 
   // Stop monitoring the connection.
-  inboundClients.delete(client);
-  outboundClients.delete(client);
+  inboundClientTimeout.delete(client.id);
+  outboundClientTimeout.delete(client.id);
 
   let session = client.session;
   if (session)
-    if (code === CLOSE_GOING_AWAY || code > CLOSE_SERVER_TIMEOUT)
-      deleteSession(session);
+    if (code === CLOSE_GOING_AWAY || code === CLOSE_SERVER_SHUTDOWN || code > CLOSE_SERVER_TIMEOUT)
+      deleteSession(session, code);
     else if (code !== CLOSE_REPLACED)
-      closeSession(session);
+      closedSessionTimeout.add(session.id, session);
 }
 
-function closeSession(session) {
-  // Maintain the session in case the client comes back.
-  // The session will be deleted once it times out.
-  session.closedAt = new Date();
-  closedSessions.add(session);
-}
-
-function deleteSession(session) {
+function deleteSession(session, code) {
   let client = session.client;
-  if (session.timeout)
+  if (code === CLOSE_CLIENT_TIMEOUT)
     debug(`gone: client=${client.id}; [${client.closed.code}] session timeout`);
   else
     debug(`gone: client=${client.id}; [${client.closed.code}] client exit`);
 
-  closedSessions.delete(session);
+  closedSessionTimeout.delete(session.id);
 
   // Delete the session immediately since the client won't come back.
   // This code is used when the websocket webpage is refreshed or closed.
@@ -521,7 +513,8 @@ function deleteSession(session) {
 
   groups.forEach(group => group.delete(session.id));
 
-  services.forEach(service => service.dropClient(client));
+  for (let service of services.values())
+    service.dropClient(client);
 }
 
 /*******************************************************************************
@@ -534,16 +527,13 @@ function onMessage(data) {
   if (client.closed)
     return;
 
-  // Move the client to the back of the list, keeping idle clients forward.
-  client.lastReceivedAt = new Date().getTime();
-  inboundClients.delete(client);
-  inboundClients.add(client);
+  // Reset inbound client timeout for this client
+  inboundClientTimeout.add(client.id, client);
 
   let message;
   try {
     message = JSON.parse(data);
-  }
-  catch (error) {
+  } catch (error) {
     debug(`message-in: client=${client.id}; bytes=${data.length}`);
 
     return sendError(client, new ServerError({
@@ -620,6 +610,19 @@ function onMessage(data) {
           code: 405,
           message: 'A session is already open',
         });
+
+      /*
+       * Process idle change after processing the message since processing the
+       * idle change can enqueue a new outbound message.  This can cause the
+       * outbound message to be sent twice if it is in response to a 'sync'.
+       */
+      if (message.idle !== undefined) {
+        let oldIdle = session.idle;
+        session.idle = message.idle;
+
+        if (session.onIdleChange)
+          session.onIdleChange(session, oldIdle);
+      }
     }
     else {
       if (message.type === 'open')
@@ -681,7 +684,7 @@ function onEventMessage(client, message) {
   let groupId = [body.service, body.group].join(':');
   let group = groups.get(groupId);
   if (!group || !group.has(client.id))
-    throw new ServerError(409, 'Must first join the group');
+    throw new ServerError(412, 'Must first join the group');
 
   service.will(client, message.type, body.type);
 
@@ -744,6 +747,8 @@ function onJoinMessage(client, message) {
     service.will(client, 'join', body.group);
 
     let response = service[method](client, body.group, body.params);
+    if (client.closed)
+      return;
 
     if (response instanceof Promise)
       response
@@ -792,15 +797,16 @@ function onOpenMessage(client, message) {
     throw new ServerError(400, 'Session already established');
 
   let session = {
-    id: uuid(),
+    id: client.id,
     clientMessageId: 0,
     serverMessageId: 0,
     lastSentMessageId: 0,
     outbox: [],
     client: client,
+    idle: null,
+    onIdleChange: null,
   };
 
-  client.id = session.id;
   client.version = message.body.version;
   client.session = session;
 
@@ -834,20 +840,23 @@ function onResumeMessage(client, message) {
   if (message.ack < minExpectedAck || message.ack > maxExpectedAck)
     throw new ServerError(401, 'Not authorized');
 
-  if (session.closedAt) {
-    // Reopen the session
-    delete session.closedAt;
-    closedSessions.delete(session);
-  }
+  if (closedSessionTimeout.has(session.id))
+    closedSessionTimeout.delete(session.id);
   else
     // Close the previous client, but not the session
     closeClient(session.client, CLOSE_REPLACED);
+
+  // Move timeouts to the new client ID.
+  inboundClientTimeout.delete(client.id);
+  outboundClientTimeout.delete(client.id);
 
   client.id = session.id;
   client.version = session.client.version;
   client.session = session;
 
   session.client = client;
+
+  inboundClientTimeout.add(client.id, client);
 
   purgeAcknowledgedMessages(session, message);
   onSyncMessage(client, message);
@@ -862,7 +871,7 @@ function onResumeMessage(client, message) {
 }
 
 function onClose(code, reason) {
-  let client = this;
+  const client = this;
 
   closeClient(client, code, reason);
 }
@@ -870,47 +879,24 @@ function onClose(code, reason) {
 /*******************************************************************************
  * Connection and Session Monitoring
  *
- * Send sync messages every 5 seconds on otherwise outbound-idle connections.
  * Close connections after inbound-idle connection timeout has been reached.
+ * Send sync messages every 5 seconds on otherwise outbound-idle connections.
+ * Remove closed sessions after 30 seconds.
  ******************************************************************************/
-/*
- * These sets are ordered by clients that are idle longest to shortest.
- */
-let inboundClients = new Set();
-let outboundClients = new Set();
+const inboundClientTimeout = new Timeout('inboundClient', {
+  verbose: [ 'add', 'delete' ],
+  expireIn: process.env.CONNECTION_TIMEOUT,
+});
+inboundClientTimeout.on('expire', ({ data:clients }) => clients.forEach((c,i) => closeClient(c, CLOSE_CLIENT_TIMEOUT)));
 
-setInterval(() => {
-  try {
-    let inboundTimeout = new Date() - process.env.CONNECTION_TIMEOUT;
-    for (let client of inboundClients) {
-      if (client.lastReceivedAt > inboundTimeout)
-        break;
+const outboundClientTimeout = new Timeout('outboundClient', {
+  verbose: true,
+  expireIn: 5000,
+});
+outboundClientTimeout.on('expire', ({ data:clients }) => clients.forEach((c,i) => sendSync(c)));
 
-      closeClient(client, CLOSE_CLIENT_TIMEOUT);
-    }
+const closedSessionTimeout = new Timeout('closedSession', { expireIn:30000 });
 
-    let outboundTimeout = new Date(new Date() - 5000); // 5 seconds ago
-    for (let client of outboundClients) {
-      if (client.lastSentAt > outboundTimeout)
-        break;
+closedSessionTimeout.on('expire', ({ data:sessions }) => sessions.forEach((c,i) => deleteSession(s, CLOSE_CLIENT_TIMEOUT)));
 
-      sendSync(client);
-    }
-
-    // When a connection is lost, the session will timeout after 30 seconds.
-    // A token is refreshed 60 seconds before it expires.  Make sure this buffer
-    // always exceeds the session timeout.
-    let sessionTimeout = new Date(new Date() - 30000); // 30 seconds ago
-    for (let session of closedSessions) {
-      if (session.closedAt > sessionTimeout)
-        break;
-
-      session.timeout = true;
-
-      deleteSession(session);
-    }
-  }
-  catch (error) {
-    console.error(error);
-  }
-}, 1000);
+setInterval(Timeout.tick, 1000);

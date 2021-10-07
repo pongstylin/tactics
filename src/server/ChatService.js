@@ -1,19 +1,19 @@
 import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
-import adapterFactory from 'data/adapterFactory.js';
 import Room from 'models/Room.js';
 
-const dataAdapter = adapterFactory();
-
-class ChatService extends Service {
-  constructor() {
+export default class ChatService extends Service {
+  constructor(props) {
     super({
-      name: 'chat',
+      ...props,
 
       clientPara: new Map(),
       roomPara: new Map(),
+      playerPara: new Map(),
     });
+
+    this._onPlayerACLChangeListener = this._onPlayerACLChange.bind(this);
   }
 
   /*
@@ -21,7 +21,7 @@ class ChatService extends Service {
    */
   will(client, messageType, bodyType) {
     // Authorization required
-    let clientPara = this.clientPara.get(client.id);
+    const clientPara = this.clientPara.get(client.id);
     if (!clientPara)
       throw new ServerError(401, 'Authorization is required');
     if (clientPara.token.isExpired)
@@ -29,17 +29,18 @@ class ChatService extends Service {
   }
 
   createRoom(players, options) {
-    return dataAdapter.createRoom(players, options);
+    const room = Room.create(players, options);
+
+    return this.data.createRoom(room);
   }
 
   dropClient(client) {
-    let clientPara = this.clientPara.get(client.id);
+    const clientPara = this.clientPara.get(client.id);
     if (!clientPara) return;
 
-    if (clientPara.joinedGroups)
-      clientPara.joinedGroups.forEach(room =>
-        this.onLeaveRoomGroup(client, `/rooms/${room.id}`, room.id)
-      );
+    for (const roomId of clientPara.roomIds) {
+      this.onLeaveRoomGroup(client, `/rooms/${roomId}`, roomId);
+    }
 
     this.clientPara.delete(client.id);
   }
@@ -51,13 +52,25 @@ class ChatService extends Service {
     if (!tokenValue)
       throw new ServerError(422, 'Required authorization token');
 
-    let clientPara = this.clientPara.get(client.id) || {};
-    let token = AccessToken.verify(tokenValue);
-    
-    let playerId = clientPara.playerId = token.playerId;
-    clientPara.name = token.playerName;
-    clientPara.token = token;
-    this.clientPara.set(client.id, clientPara);
+    const token = AccessToken.verify(tokenValue);
+
+    if (this.clientPara.has(client.id)) {
+      const clientPara = this.clientPara.get(client.id);
+      if (clientPara.playerId !== token.playerId)
+        throw new ServerError(501, 'Unsupported change of player');
+
+      clientPara.name = token.playerName;
+      clientPara.token = token;
+    } else {
+      const clientPara = {
+        roomIds: new Set(),
+      };
+
+      const playerId = clientPara.playerId = token.playerId;
+      clientPara.name = token.playerName;
+      clientPara.token = token;
+      this.clientPara.set(client.id, clientPara);
+    }
   }
 
   async onJoinGroup(client, groupPath, params) {
@@ -74,28 +87,63 @@ class ChatService extends Service {
    * a room is created with the game participants.
    */
   async onJoinRoomGroup(client, groupPath, roomId, resume) {
-    let clientPara = this.clientPara.get(client.id);
-    let playerId = clientPara.playerId;
-    let room = await this._getRoom(roomId);
+    const room = await this.data.openRoom(roomId);
+    // Abort if the client is no longer connected.
+    if (client.closed) {
+      this.data.closeRoom(room);
+      return;
+    }
 
-    let player = room.players.find(p => p.id === playerId);
-    if (!player)
+    const clientPara = this.clientPara.get(client.id);
+    const memberIds = room.players.map(p => p.id);
+    const member = room.players.find(p => p.id === clientPara.playerId);
+    if (!member)
       throw new ServerError(403, 'You are not a participant of this room');
 
-    // Check roomPara after awaiting _getRoom() to avoid race condition.
-    let roomPara = this.roomPara.get(roomId);
-    if (roomPara)
-      roomPara.clients.add(clientPara);
-    else
-      this.roomPara.set(roomId, roomPara = {
-        room:    room,
-        clients: new Set([clientPara]),
-      });
+    /*
+     * Get the players now to avoid 'firstJoined' triggering more than once.
+     */
+    const players = await Promise.all(memberIds.map(id => this.auth.openPlayer(id)));
+    const firstJoined = !this.roomPara.has(roomId);
+    if (firstJoined) {
+      const emit = async event => {
+        // Forward muted events to clients.
+        this._emit({
+          type: 'event',
+          body: {
+            group: groupPath,
+            type: event.type,
+            data: event.data,
+          },
+        });
+      };
 
-    if (clientPara.joinedGroups)
-      clientPara.joinedGroups.set(room.id, room);
-    else
-      clientPara.joinedGroups = new Map([[room.id, room]]);
+      const roomPara = {
+        memberIds,
+        muted: new Map(
+          players.map(p => [ p.id, p.hasMutedOrBlocked(memberIds) ]),
+        ),
+        clientIds: new Set(),
+        emit,
+      };
+      this.roomPara.set(roomId, roomPara);
+
+      for (const player of players) {
+        if (this.playerPara.has(player.id))
+          this.playerPara.get(player.id).roomIds.add(roomId);
+        else {
+          player.on('acl', this._onPlayerACLChangeListener);
+          this.playerPara.set(player.id, {
+            roomIds: new Set([ roomId ]),
+          });
+        }
+      }
+    }
+
+    clientPara.roomIds.add(roomId);
+
+    const roomPara = this.roomPara.get(roomId);
+    roomPara.clientIds.add(client.id);
 
     this._emit({
       type: 'joinGroup',
@@ -103,8 +151,8 @@ class ChatService extends Service {
       body: {
         group: groupPath,
         user: {
-          id:   player.id,
-          name: player.name,
+          id:   member.id,
+          name: member.name,
         },
       },
     });
@@ -116,7 +164,8 @@ class ChatService extends Service {
     return {
       players: room.players
         .map(({id, name, lastSeenEventId}) => ({id, name, lastSeenEventId})),
-      events: events,
+      muted: roomPara.muted,
+      events,
     };
   }
 
@@ -124,54 +173,49 @@ class ChatService extends Service {
    * No longer send message events to the client about this room.
    */
   async onLeaveRoomGroup(client, groupPath, roomId) {
-    let clientPara = this.clientPara.get(client.id);
-    let playerId = clientPara.playerId;
-    let room = roomId instanceof Room ? roomId : await this._getRoom(roomId);
-    let player = room.players.find(p => p.id === playerId);
+    const room = this.data.closeRoom(roomId);
 
-    // Already not watching?
-    if (!clientPara.joinedGroups)
-      return;
-    if (!clientPara.joinedGroups.has(room.id))
-      return;
+    const clientPara = this.clientPara.get(client.id);
+    clientPara.roomIds.delete(roomId);
 
-    let roomPara = this.roomPara.get(room.id);
-    if (!roomPara || !roomPara.clients.has(clientPara))
-      throw new Error(`Expected client (${client.id}) to be in group (${groupPath})`);
-
-    if (roomPara.clients.size > 1)
-      roomPara.clients.delete(clientPara);
+    const roomPara = this.roomPara.get(roomId);
+    const players = roomPara.memberIds.map(id => this.auth.closePlayer(id));
+    if (roomPara.clientIds.size > 1)
+      roomPara.clientIds.delete(client.id);
     else {
-      this.roomPara.delete(room.id);
+      for (const player of players) {
+        const playerPara = this.playerPara.get(player.id);
+        if (playerPara.roomIds.size > 1)
+          playerPara.roomIds.delete(roomId);
+        else {
+          player.off('acl', this._onPlayerACLChangeListener);
+          this.playerPara.delete(player.id);
+        }
+      }
 
-      // Save the room before it is wiped from memory.
-      dataAdapter.saveRoom(roomPara.room);
+      this.roomPara.delete(roomId);
     }
 
-    if (clientPara.joinedGroups.size === 1)
-      delete clientPara.joinedGroups;
-    else
-      clientPara.joinedGroups.delete(room.id);
+    const member = room.players.find(p => p.id === clientPara.playerId);
 
     this._emit({
-      type:   'leaveGroup',
+      type: 'leaveGroup',
       client: client.id,
       body: {
         group: groupPath,
         user: {
-          id:   player.id,
-          name: player.name,
+          id: member.id,
+          name: member.name,
         },
       },
     });
   }
 
-  onMessageEvent(client, groupPath, messageContent) {
-    let roomId = groupPath.replace('/rooms/', '');
-    let roomPara = this.roomPara.get(roomId);
-    let room = roomPara.room;
-    let playerId = this.clientPara.get(client.id).playerId;
-    let player = room.players.find(p => p.id === playerId);
+  async onMessageEvent(client, groupPath, messageContent) {
+    const roomId = groupPath.replace('/rooms/', '');
+    const room = await this.data.getRoom(roomId);
+    const playerId = this.clientPara.get(client.id).playerId;
+    const player = room.players.find(p => p.id === playerId);
 
     messageContent = messageContent.trim();
 
@@ -186,59 +230,52 @@ class ChatService extends Service {
       .replace('<', '&lt;')
       .replace('>', '&gt;');
 
-    let message = {
+    const message = {
       player: player,
       content: messageContent,
     };
 
-    dataAdapter.pushRoomMessage(room, message).then(() => {
-      this._emit({
-        type: 'event',
-        body: {
-          group: groupPath,
-          type: 'message',
-          data: message,
-        },
-      });
+    room.pushMessage(message);
+
+    const roomPara = this.roomPara.get(roomId);
+    roomPara.emit({
+      type: 'message',
+      data: message,
     });
   }
-  onSeenEvent(client, groupPath, eventId) {
-    let roomId = groupPath.replace('/rooms/', '');
-    let roomPara = this.roomPara.get(roomId);
-    let room = roomPara.room;
-    let playerId = this.clientPara.get(client.id).playerId;
-    let player = room.players.find(p => p.id === playerId);
+  async onSeenEvent(client, groupPath, eventId) {
+    const roomId = groupPath.replace('/rooms/', '');
+    const room = await this.data.getRoom(roomId);
+    const playerId = this.clientPara.get(client.id).playerId;
+    const player = room.players.find(p => p.id === playerId);
 
-    if (eventId > room.events.last.id)
-      eventId = room.events.last.id;
-    if (eventId === player.lastSeenEventId)
-      return;
+    room.seenEvent(playerId, eventId);
 
-    dataAdapter.seenRoomEvent(room, playerId, eventId).then(() => {
-      this._emit({
-        type: 'event',
-        body: {
-          group: groupPath,
-          type: 'seen',
-          data: { player, eventId },
-        },
-      });
+    const roomPara = this.roomPara.get(roomId);
+    roomPara.emit({
+      type: 'seen',
+      data: { player, eventId },
     });
   }
 
-  /*******************************************************************************
-   * Helpers
-   ******************************************************************************/
-  async _getRoom(roomId) {
-    let room;
-    if (this.roomPara.has(roomId))
-      room = this.roomPara.get(roomId).room;
-    else
-      room = await dataAdapter.getRoom(roomId);
+  _onPlayerACLChange({ target:player }) {
+    const playerPara = this.playerPara.get(player.id);
 
-    return room;
+    for (const roomId of playerPara.roomIds) {
+      const roomPara = this.roomPara.get(roomId);
+      const oldMuted = roomPara.muted.get(player.id);
+      const newMuted = player.hasMutedOrBlocked(roomPara.memberIds);
+      if (oldMuted.join(',') === newMuted.join(','))
+        continue;
+
+      roomPara.muted.set(player.id, newMuted);
+      roomPara.emit({
+        type: 'muted',
+        data: {
+          playerId: player.id,
+          muted: newMuted,
+        },
+      });
+    }
   }
 }
-
-// This class is a singleton
-export default new ChatService();

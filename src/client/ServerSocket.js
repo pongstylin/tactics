@@ -3,14 +3,15 @@ import Version from 'client/Version.js';
 import { getUpdate } from 'client/Update.js';
 import EventEmitter from 'events';
 import ServerError from 'server/Error.js';
+import getIdle from 'components/getIdle.js';
 
 const CLOSE_CLIENT_TIMEOUT = 4000;
 
 // Proprietary codes used by client
-const CLOSE_SERVER_TIMEOUT   = 4100;
-export const CLOSE_SHUTDOWN  = 4101;
-export const CLOSE_INACTIVE  = 4102;
-const CLOSE_CLIENT_ERROR     = 4103;
+const CLOSE_SERVER_TIMEOUT         = 4100;
+export const CLOSE_CLIENT_SHUTDOWN = 4101;
+export const CLOSE_INACTIVE        = 4102;
+const CLOSE_CLIENT_ERROR           = 4103;
 
 const SOCKET_CONNECTING = 0;
 const SOCKET_OPEN       = 1;
@@ -18,6 +19,7 @@ const SOCKET_CLOSING    = 2;
 const SOCKET_CLOSED     = 3;
 
 let sockets = new Map();
+
 
 export default class ServerSocket {
   constructor(endpoint) {
@@ -32,13 +34,16 @@ export default class ServerSocket {
       _socket: null,
       // Send a sync message after 5 seconds of idle sends.
       _syncTimeout: null,
-      // Close connection after 10 seconds of idle receives.
+      // Close connection after CONNECTION_TIMEOUT seconds of idle receives.
       _closeTimeout: null,
 
       _whenAuthorized: new Map(),
       _authorizeRoutes: new Map(),
       _whenJoined: new Map(),
       _joinRoutes: new Map(),
+
+      // The close code when the socket was closed.
+      closed: false,
 
       // Track a session across connections
       _session: {
@@ -56,8 +61,6 @@ export default class ServerSocket {
         responseRoutes: new Map(),
         // Is the socket connected and the session opened?
         isOpen: false,
-        // The close code when the session was closed.
-        closed: false,
       },
 
       // Used to detect successful connection to the server.
@@ -98,9 +101,6 @@ export default class ServerSocket {
   }
   get version() {
     return this._session.version;
-  }
-  get closed() {
-    return this._session.closed;
   }
 
   /*
@@ -144,51 +144,77 @@ export default class ServerSocket {
     if (this.isActive) return;
     this.isActive = true;
 
+    if (this._socket)
+      this._destroySocket(this._socket, CLOSE_CLIENT_ERROR, 'Socket conflict in open');
+
     try {
-      let socket = new WebSocket(this.endpoint);
+      const socket = this._socket = new WebSocket(this.endpoint);
       socket.addEventListener('open', this._openListener);
       socket.addEventListener('close', this._failListener);
-    }
-    catch (e) {
+    } catch (e) {
       // Prevent websocket errors from stopping code execution.
-      // But rethrow the error so that it can be logged.
-      setTimeout(() => { throw e; });
+      // But log the error.
+      report(e);
     }
   }
   close(code, reason) {
-    if (!code) throw new Error('Required close code');
-
-    let socket = this._socket;
-    if (!socket) return;
-
-    this._socket = null;
-    this._session.isOpen = false;
-    this._session.closed = code;
-
-    let reopen = code < CLOSE_SHUTDOWN;
-
-    if (reopen)
-      console.warn(`Connection closed: [${code}] ${reason}`);
-
-    socket.removeEventListener('message', this._messageListener);
-    socket.removeEventListener('close', this._closeListener);
-
-    clearTimeout(this._syncTimeout);
-    clearTimeout(this._closeTimeout);
-
-    // Close the socket if closing was initiated by the client.
-    if (socket.readyState === SOCKET_OPEN)
-      socket.close(code, reason);
-
+    if (!this.isActive) return;
     this.isActive = false;
 
-    // Notify clients that messages are being queued.
-    this._emit({ type:'close' });
+    if (!code) throw new Error('Required close code');
 
-    if (reopen)
+    /*
+     * A socket won't exist if the connection was lost and we are between retry
+     * attempts.  But we might still close() to stop retrying.
+     *
+     * A socket can be in any of these states at time of closing:
+     *   1) CONNECTING: (client initiated by client)
+     *      Remove socket event listeners and close and discard the socket.
+     *   2) CONNECTED: (close intiated by client)
+     *      Remove socket event listeners and close and discard the socket.
+     *      Clear timeouts.
+     *      A session may or may not be open.
+     *   3) CLOSED: (close initiated by server)
+     *      Remove socket event listeners and discard the socket.
+     *      Clear timeouts.
+     *      A session may or may not be open.
+     */
+    const socket = this._socket;
+    if (socket) {
+      // Close the socket if closing was initiated by the client.
+      // If closing was initiated by the server, this does nothing.
+      this._destroySocket(socket, code, reason);
+      this._socket = null;
+      this.closed = code;
+
+      clearTimeout(this._syncTimeout);
+      clearTimeout(this._closeTimeout);
+
+      /*
+       * A session won't be open if the socket was never fully connected or if a
+       * session hasn't been negotiated with the server yet.
+       */
+      if (this._session.isOpen) {
+        this._session.isOpen = false;
+
+        // Notify clients that we are offline.
+        this._emit({ type:'close' });
+      }
+    }
+
+    /*
+     * Don't reopen if the socket was closed due to inactivity or a shutdown.
+     * Do reopen if the socket was closed due to connection loss or timeout.
+     */
+    let reopen = code < CLOSE_CLIENT_SHUTDOWN;
+    if (reopen) {
+      console.warn(`Connection closed: [${code}] ${reason}`);
+
+      // Try to reconnect and resume the session without major interruption.
       this.open();
-    else
+    } else {
       this._resetSession();
+    }
   }
 
   /*****************************************************************************
@@ -254,7 +280,10 @@ export default class ServerSocket {
     });
   }
 
-  request(serviceName, methodName, args = []) {
+  request(serviceName, methodName, args = [], rejectIfNotOpen = false) {
+    if (rejectIfNotOpen === true && this._session.isOpen === false)
+      return Promise.reject('Connection reset');
+
     if (!Array.isArray(args))
       throw new TypeError('Arguments must be an array');
 
@@ -284,35 +313,73 @@ export default class ServerSocket {
   }
   requestAuthorized(serviceName, methodName, args) {
     return this._authorizeThen(serviceName, () =>
-      this.request(serviceName, methodName, args)
+      this.request(serviceName, methodName, args, true)
+    );
+  }
+
+  /*
+   * These methods delay sending messages until a group is joined.
+   */
+  requestJoined(serviceName, groupPath, methodName, args = []) {
+    return this._joinThen(serviceName, groupPath, () =>
+      this.request(serviceName, methodName, [ groupPath, ...args ], true)
     );
   }
 
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
+  _destroySocket(socket, code, reason) {
+    if (code === CLOSE_CLIENT_ERROR)
+      report({
+        type: 'CLOSE_CLIENT_ERROR',
+        error: 'Unexpected shutdown of socket',
+        reason,
+        socketState: socket.readyState,
+      });
+
+    socket.removeEventListener('open', this._openListener);
+    socket.removeEventListener('close', this._failListener);
+    socket.removeEventListener('message', this._messageListener);
+    socket.removeEventListener('close', this._closeListener);
+    if (socket.readyState < SOCKET_CLOSING)
+      socket.close(code, reason);
+  }
+
   _authorizeThen(serviceName, fn) {
     let promise = this.whenAuthorized(serviceName);
 
     return promise.then(fn)
       .catch(error => {
-        if (error.code === 401) {
-          /*
-           * If there was an authorization failure, then authorization is
-           * assumed to have expired.  In that case, reset the authorization
-           * status (if it wasn't already reset by a prior attempt) and requeue
-           * the function for when authorization is reestablished.
-           */
+        // Clear the authorized promise if it wasn't already cleared.
+        if (error === 'Connection reset' || error.code === 401)
           if (this._whenAuthorized.get(serviceName) === promise)
             this._whenAuthorized.delete(serviceName);
 
+        if (error.code === 401)
           return this._authorizeThen(serviceName, fn);
-        }
 
         throw error;
       });
   }
-  _enqueue(messageType, body) {
+  _joinThen(serviceName, groupPath, fn) {
+    let promise = this.whenJoined(serviceName, groupPath);
+    let groupKey = `${serviceName}:${groupPath}`;
+
+    return promise.then(fn)
+      .catch(error => {
+        // Clear the joined promise if it wasn't already cleared.
+        if (error === 'Connection reset' || error.code === 412)
+          if (this._whenJoined.get(groupKey) === promise)
+            this._whenJoined.delete(groupKey);
+
+        if (error.code === 412)
+          return this._joinThen(serviceName, groupPath, fn);
+
+        throw error;
+      });
+  }
+  _enqueue(messageType, body, dropIfNotConnected = false) {
     let session = this._session;
     let message = {
       id: ++session.clientMessageId,
@@ -351,8 +418,10 @@ export default class ServerSocket {
     if (!session.isOpen && message.id)
       return;
 
-    if (session.id && message.type !== 'open')
+    if (session.id && message.type !== 'open') {
       message.ack = session.serverMessageId;
+      message.idle = getIdle();
+    }
 
     clearTimeout(this._syncTimeout);
     this._syncTimeout = setTimeout(() => this._sendSync(), 5000);
@@ -402,16 +471,14 @@ export default class ServerSocket {
    * Socket Event Handlers
    ****************************************************************************/
   _onOpen({ target:socket }) {
-    // This should never happen.
-    if (this._socket)
-      return socket.close(CLOSE_CLIENT_ERROR, 'Existing connection');
+    if (socket !== this._socket)
+      return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onOpen');
 
     socket.removeEventListener('open', this._openListener);
     socket.removeEventListener('close', this._failListener);
 
     socket.addEventListener('message', this._messageListener);
     socket.addEventListener('close', this._closeListener);
-    this._socket = socket;
 
     this._syncTimeout = setTimeout(() => this._sendSync(), 5000);
 
@@ -422,8 +489,12 @@ export default class ServerSocket {
   }
 
   _onFail({ target:socket, code, reason }) {
+    if (socket !== this._socket)
+      return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onFail');
+
     socket.removeEventListener('open', this._openListener);
     socket.removeEventListener('close', this._failListener);
+    this._socket = null;
 
     console.warn(`Connection failed: [${code}] ${reason}`);
 
@@ -431,7 +502,10 @@ export default class ServerSocket {
     this.open();
   }
 
-  _onMessage({data}) {
+  _onMessage({ target:socket, data }) {
+    if (socket !== this._socket)
+      return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onMessage');
+
     let now = Date.now();
     let message = JSON.parse(data);
     let session = this._session;
@@ -586,11 +660,13 @@ export default class ServerSocket {
     }
   }
   _onClose({ target:socket, code, reason }) {
-    if (socket === this._socket)
-      return this.close(code, reason);
+    if (socket !== this._socket)
+      return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onClose');
+
+    return this.close(code, reason);
   }
 
-  destroy(code = CLOSE_SHUTDOWN) {
+  destroy(code = CLOSE_CLIENT_SHUTDOWN) {
     this.close(code);
     this._emitter.removeAllListeners();
   }

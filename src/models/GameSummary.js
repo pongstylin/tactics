@@ -9,30 +9,31 @@ export default class GameSummary {
   }
 
   toJSON() {
-    let game    = this.game;
-    let created = game.created;
-    let started = game.state.started;
-    let ended   = game.state.ended;
-    let teams   = game.state.teams;
-    let actions = game.state.actions;
-    let turns   = game.state._turns;
+    const game    = this.game;
+    const created = game.created;
+    const started = game.state.started;
+    const ended   = game.state.ended;
+    const teams   = game.state.teams;
+    const actions = game.state.actions;
+    const turns   = game.state.turns;
 
-    let updated;
+    let updatedAt;
     if (ended)
-      updated = ended;
+      updatedAt = ended;
     else if (actions.length)
-      updated = actions.last.created;
+      updatedAt = actions.last.created;
     else if (turns.length)
-      updated = turns.last.actions.last.created;
+      updatedAt = turns.last.actions.last.created;
     else
-      updated = started || created;
+      updatedAt = started || created;
 
-    let summary = {
+    const summary = {
       id: game.id,
       type: this.type.id,
       typeName: this.type.name,
-      created: created,
-      updated: updated,
+      createdBy: game.createdBy,
+      createdAt: game.created,
+      updatedAt,
       started: started,
       ended: ended,
       randomFirstTurn: game.state.randomFirstTurn,
@@ -46,6 +47,7 @@ export default class GameSummary {
         joinedAt: t.joinedAt,
         playerId: t.playerId,
         name: t.name,
+        withUndo: t.withUndo,
       }),
     };
 

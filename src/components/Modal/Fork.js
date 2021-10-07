@@ -3,10 +3,11 @@ import Modal from 'components/Modal.js';
 import popup from 'components/popup.js';
 
 export default class Fork extends Modal {
-  constructor(options, data) {
+  constructor(data = {}, options = {}) {
     let game = data.game;
     let turnNumber = game.turnId + 1;
     let teamOptions = [];
+    let inApp = window.matchMedia('(display-mode:standalone)').matches;
 
     data.vs = 'you';
     data.as = 0;
@@ -57,7 +58,7 @@ export default class Fork extends Modal {
       ${fork}
       <DIV>
         You are about to create a game playable from the beginning of turn ${turnNumber}.
-        It will be opened in a new tab or window.
+        ${ inApp ? '' : 'It will be opened in a new tab or window.' }
       </DIV>
       <DIV>
         <DIV>Who would you like to play?</DIV>
@@ -108,7 +109,7 @@ export default class Fork extends Modal {
 
       try {
         const { game, vs, as } = this.data;
-        const target = window.matchMedia('(display-mode:standalone)').matches ? window : window.open();
+        const target = inApp ? window : window.open();
         const newGameId = await Tactics.gameClient.forkGame(game.id, {
           turnId: game.turnId,
           vs,

@@ -63,67 +63,24 @@
       text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     }
 
-    .inputTextAutosave {
-      display: inline-flex;
-      flex-direction: row;
-      align-items: center;
-
-      border-bottom: 1px solid #888888;
-    }
-    .inputTextAutosave INPUT[type=text] {
-      flex: 1 1 auto;
-
-      box-sizing: border-box;
-      background-color: black;
-      color: inherit;
-      border: 0 none;
-      padding: 4px;
-      width: 100%;
-    }
-    .inputTextAutosave INPUT[type=text]:focus {
-      outline: #b08d57 auto 1px;
-    }
-    .inputTextAutosave INPUT[type=text]::placeholder {
-      font-style: italic;
-      color: inherit;
-    }
-    .inputTextAutosave INPUT[type=text]:focus::placeholder {
-      opacity: 0;
-    }
-    .inputTextAutosave .icons {
-      flex: 0 0 auto;
-
-      padding: 4px;
-    }
-    .inputTextAutosave .icons > * {
-      margin-left: 4px;
-    }
-    .inputTextAutosave .icons .saved {
-      position: relative;
-    }
-    .inputTextAutosave .icons .saved .fa-spinner {
-      position: absolute;
-      top: 1px;
-      left: 0;
-    }
-    .inputTextAutosave .icons .saved .fa-spinner {
-      display: none;
-    }
-    .inputTextAutosave .icons .saved .fa-check-circle {
-      color: #444444;
-    }
-    .inputTextAutosave.is-saved .icons .saved .fa-check-circle {
-      color: #00CC00;
-    }
-    .inputTextAutosave.is-saving .icons .saved .fa-spinner {
-      display: block;
-    }
-    .inputTextAutosave.is-saving .icons .saved .fa-check-circle {
-      visibility: hidden;
-    }
-
     .accountName {
       text-align: center;
+    }
+    .acl {
+      text-align: center;
+    }
+    .acl:empty::before {
+      font-style: italic;
+      content: 'You can friend, mute, or block a player after tapping their name in a game.';
+    }
+    .acl .icons > .fa {
+      cursor: pointer;
+    }
+    .acl .friended.active {
+      color: #00FF00;
+    }
+    .acl .muted.active, .acl .blocked.active {
+      color: #FF0000;
     }
 
     .manageLink .manage {
@@ -280,7 +237,7 @@
       <A href="/online.html">Back to Game List</A>
     </DIV>
     <DIV class="section">
-      Account Name
+      Profile
     </DIV>
     <DIV class="row accountName">
       <DIV class="intro">
@@ -302,6 +259,12 @@
         </DIV>
       </DIV>
       <DIV class="error"></DIV>
+    </DIV>
+    <DIV class="row">
+      <DIV class="intro">
+        Manage friend, muted, and blocked players.
+      </DIV>
+      <DIV class="acl"></DIV>
     </DIV>
     <DIV class="section">
       Account Security

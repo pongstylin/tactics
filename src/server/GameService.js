@@ -1,20 +1,28 @@
+import uaparser from 'ua-parser-js';
+
 import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
-import adapterFactory from 'data/adapterFactory.js';
-import serviceFactory from 'server/serviceFactory.js';
 import Game from 'models/Game.js';
 import Team from 'models/Team.js';
 import Player from 'models/Player.js';
 
-const dataAdapter = adapterFactory();
-const chatService = serviceFactory('chat');
-const pushService = serviceFactory('push');
+const ACTIVE_LIMIT = 120;
+const idleWatcher = function (session, oldIdle) {
+  const newInactive = session.idle > ACTIVE_LIMIT;
+  const oldInactive = oldIdle > ACTIVE_LIMIT;
 
-class GameService extends Service {
-  constructor() {
+  if (newInactive !== oldInactive) {
+    for (const gameId of session.watchers) {
+      this._setGamePlayersStatus(gameId);
+    }
+  }
+};
+
+export default class GameService extends Service {
+  constructor(props) {
     super({
-      name: 'game',
+      ...props,
 
       /*
        * Entity: Any identifiable thing that exists apart from any other thing.
@@ -33,6 +41,8 @@ class GameService extends Service {
       // Paradata about each online player by player ID.
       playerPara: new Map(),
     });
+
+    this.idleWatcher = idleWatcher.bind(this);
   }
 
   /*
@@ -46,35 +56,34 @@ class GameService extends Service {
     if (bodyType === 'getGameTypeConfig') return true;
 
     // Authorization required
-    let clientPara = this.clientPara.get(client.id);
+    const clientPara = this.clientPara.get(client.id);
     if (!clientPara)
       throw new ServerError(401, 'Authorization is required');
     if (clientPara.token.isExpired)
       throw new ServerError(401, 'Token is expired');
   }
 
-  async dropClient(client) {
-    let clientPara = this.clientPara.get(client.id);
+  dropClient(client) {
+    const clientPara = this.clientPara.get(client.id);
     if (!clientPara) return;
 
-    if (clientPara.joinedGroups)
-      await Promise.all(
-        [...clientPara.joinedGroups].map(gameId =>
-          this.onLeaveGameGroup(client, `/games/${gameId}`, gameId)
-        )
-      );
-
-    let playerPara = this.playerPara.get(clientPara.playerId);
-    if (playerPara.clients.size > 1)
-      playerPara.clients.delete(client.id);
-    else {
-      this.playerPara.delete(clientPara.playerId);
-
-      // Let people who needs to know that this player went offline.
-      this.onPlayerOffline(clientPara.playerId);
+    for (const gameId of clientPara.joinedGroups) {
+      this.onLeaveGameGroup(client, `/games/${gameId}`, gameId)
     }
 
+    const playerId = clientPara.playerId;
+    this.data.closePlayer(playerId);
+
+    const playerPara = this.playerPara.get(playerId);
+    if (playerPara.clients.size > 1)
+      playerPara.clients.delete(client.id);
+    else
+      this.playerPara.delete(playerId);
+
     this.clientPara.delete(client.id);
+
+    // Let people who needs to know about a potential status change.
+    this._setPlayerGamesStatus(playerId);
   }
 
   /*
@@ -84,17 +93,17 @@ class GameService extends Service {
    * the number of games and may link to the active games page.
    */
   async getYourTurnNotification(playerId) {
-    let gamesSummary = await dataAdapter.listMyTurnGamesSummary(playerId);
+    let gamesSummary = await this.data.listMyTurnGamesSummary(playerId);
 
     /*
      * Exclude games the player is actively playing.
      */
-    let playerPara = this.playerPara.get(playerId);
+    const playerPara = this.playerPara.get(playerId);
     if (playerPara)
       gamesSummary = gamesSummary
         .filter(gs => !playerPara.joinedGroups.has(gs.id));
 
-    let notification = {
+    const notification = {
       type: 'yourTurn',
       createdAt: new Date(),
       gameCount: gamesSummary.length,
@@ -104,20 +113,20 @@ class GameService extends Service {
       return notification;
     else if (gamesSummary.length > 1) {
       notification.turnStartedAt = new Date(
-        Math.max(...gamesSummary.map(gs => new Date(gs.updated)))
+        Math.max(...gamesSummary.map(gs => new Date(gs.updatedAt)))
       );
       return notification;
     }
     else
-      notification.turnStartedAt = new Date(gamesSummary[0].updated);
+      notification.turnStartedAt = new Date(gamesSummary[0].updatedAt);
 
     // Search for the next opponent team after this team.
     // Useful for 4-team games.
-    let teams = gamesSummary[0].teams;
-    let teamId = gamesSummary[0].currentTeamId;
+    const teams = gamesSummary[0].teams;
+    const teamId = gamesSummary[0].currentTeamId;
     let opponentTeam;
     for (let i=1; i<teams.length; i++) {
-      let nextTeam = teams[(teamId + i) % teams.length];
+      const nextTeam = teams[(teamId + i) % teams.length];
       if (nextTeam.playerId === playerId) continue;
 
       opponentTeam = nextTeam;
@@ -130,33 +139,54 @@ class GameService extends Service {
     });
   }
 
+  blockPlayer(clientPlayerId, playerId) {
+    this.data.surrenderPendingGames(clientPlayerId, playerId);
+  }
+
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
-  onAuthorize(client, { token:tokenValue }) {
+  async onAuthorize(client, { token:tokenValue }) {
     if (!tokenValue)
       throw new ServerError(422, 'Required authorization token');
+    const token = AccessToken.verify(tokenValue);
 
-    let clientPara = this.clientPara.get(client.id) || {};
-    let token = AccessToken.verify(tokenValue);
+    if (this.clientPara.has(client.id)) {
+      const clientPara = this.clientPara.get(client.id);
+      if (clientPara.playerId !== token.playerId)
+        throw new ServerError(501, 'Unsupported change of player');
 
-    let playerId = clientPara.playerId = token.playerId;
-    clientPara.name = token.playerName;
-    clientPara.token = token;
-    this.clientPara.set(client.id, clientPara);
+      clientPara.client = client;
+      clientPara.token = token;
+      clientPara.name = token.playerName;
+    } else {
+      const clientPara = {
+        joinedGroups: new Set(),
+      };
 
-    let playerPara = this.playerPara.get(playerId);
-    if (playerPara)
-      // This operation would be redundant if client authorizes more than once.
-      playerPara.clients.add(client.id);
-    else {
-      this.playerPara.set(playerId, {
-        clients: new Set([client.id]),
-        joinedGroups: new Map(),
-      });
+      const playerId = clientPara.playerId = token.playerId;
+      clientPara.client = client;
+      clientPara.token = token;
+      clientPara.name = token.playerName;
+      clientPara.deviceType = uaparser(client.agent).device.type;
+      this.clientPara.set(client.id, clientPara);
 
-      // Let people who needs to know that this player is online.
-      this.onPlayerOnline(playerId);
+      // Keep this player open for the duration of the session.
+      await this.data.openPlayer(playerId);
+
+      const playerPara = this.playerPara.get(playerId);
+      if (playerPara)
+        // This operation would be redundant if client authorizes more than once.
+        playerPara.clients.add(client.id);
+      else {
+        this.playerPara.set(playerId, {
+          clients: new Set([client.id]),
+          joinedGroups: new Map(),
+        });
+
+        // Let people who needs to know that this player is online.
+        this._setPlayerGamesStatus(playerId);
+      }
     }
   }
 
@@ -169,12 +199,12 @@ class GameService extends Service {
  *
  *  2) Player status.  The players may continue to chat after game end, but wish
  *  to know if their opponent is still present.  For active game groups, we want
- *  to track the player's online or ingame status.  But for chat groups, we only
+ *  to track the player's online or active status.  But for chat groups, we only
  *  want to track whether the player is inchat or not.  This should be managed
  *  separately from game groups.
  *
   onGameEnd(gameId) {
-    let gamePara = this.gamePara.get(gameId);
+    const gamePara = this.gamePara.get(gameId);
     gamePara.clients.forEach(clientPara =>
       clientPara.joinedGroups.delete(gameId)
     );
@@ -186,44 +216,15 @@ class GameService extends Service {
         group: `/games/${gameId}`,
       },
     });
-
-    // Save the game before it is wiped from memory.
-    dataAdapter.saveGame(gamePara.game);
   }
 */
-  onPlayerOnline(playerId) {
-    this.gamePara.forEach(gamePara => {
-      let game = gamePara.game;
-      if (game instanceof Promise)
-        return;
-      if (game.state.ended)
-        return;
-      if (!game.state.teams.find(t => t?.playerId === playerId))
-        return;
-
-      this._emitPlayerStatus(`/games/${game.id}`, playerId, 'online');
-    });
-  }
-  onPlayerOffline(playerId) {
-    this.gamePara.forEach(gamePara => {
-      let game = gamePara.game;
-      if (game instanceof Promise)
-        return;
-      if (game.state.ended)
-        return;
-      if (!game.state.teams.find(t => t?.playerId === playerId))
-        return;
-
-      this._emitPlayerStatus(`/games/${game.id}`, playerId, 'offline');
-    });
-  }
 
   /*
    * Create a new game and save it to persistent storage.
    */
   async onCreateGameRequest(client, gameTypeId, gameOptions) {
-    let clientPara = this.clientPara.get(client.id);
-    let playerId = clientPara.playerId;
+    const clientPara = this.clientPara.get(client.id);
+    const playerId = clientPara.playerId;
     this.throttle(playerId, 'createGame');
 
     if (!gameOptions || !gameOptions.teams)
@@ -236,13 +237,13 @@ class GameService extends Service {
     gameOptions.createdBy = playerId;
     gameOptions.type = gameTypeId;
 
-    let game = Game.create({
+    const game = Game.create({
       ...gameOptions,
       teams: new Array(gameOptions.teams.length).fill(null),
     });
-    let gameType = await dataAdapter.getGameType(gameTypeId);
+    const gameType = await this.data.getGameType(gameTypeId);
 
-    for (let [slot, teamData] of gameOptions.teams.entries()) {
+    for (const [slot, teamData] of gameOptions.teams.entries()) {
       if (!teamData) continue;
 
       if (teamData.name !== undefined && teamData.name !== null)
@@ -252,7 +253,7 @@ class GameService extends Service {
 
       let team;
       if (teamData.playerId && teamData.playerId !== playerId) {
-        let player = await dataAdpter.getPlayer(teamData.playerId);
+        const player = await this.auth.getPlayer(teamData.playerId);
         if (!player)
           throw new ServerError(404, 'A team has an unrecognized player ID');
 
@@ -266,8 +267,8 @@ class GameService extends Service {
       await this._joinGame(game, gameType, team);
     }
 
-    // Save the game before generating a notification to ensure it is accurate.
-    await dataAdapter.createGame(game);
+    // Create the game before generating a notification to ensure it is accurate.
+    await this.data.createGame(game);
 
     /*
      * Notify the player that goes first that it is their turn.
@@ -275,7 +276,7 @@ class GameService extends Service {
      */
     if (game.state.started) {
       if (game.state.currentTeam.playerId !== playerId)
-        this._notifyYourTurn(game, game.state.currentTeamId);
+        this._notifyYourTurn(game);
     }
 
     return game.id;
@@ -284,11 +285,11 @@ class GameService extends Service {
   async onForkGameRequest(client, gameId, options) {
     this.debug(`forkGame: gameId=${gameId}; turnId=${options.turnId}, vs=${options.vs}, as=${options.as}`);
 
-    let clientPara = this.clientPara.get(client.id);
-    let game = await this._getGame(gameId);
-    let newGame = game.fork(clientPara, options);
+    const clientPara = this.clientPara.get(client.id);
+    const game = await this.data.getGame(gameId);
+    const newGame = game.fork(clientPara, options);
 
-    await dataAdapter.createGame(newGame);
+    await this.data.createGame(newGame);
 
     return newGame.id;
   }
@@ -299,15 +300,28 @@ class GameService extends Service {
     if (teamData.name !== undefined && teamData.name !== null)
       Player.validatePlayerName(teamData.name);
 
-    let clientPara = this.clientPara.get(client.id);
-    let playerId = clientPara.playerId;
-    let game = await this._getGame(gameId);
+    const clientPara = this.clientPara.get(client.id);
+    const playerId = clientPara.playerId;
+    const game = await this.data.getGame(gameId);
     if (game.state.started)
       throw new ServerError(409, 'The game has already started.');
 
-    let gameType = await dataAdapter.getGameType(game.state.type);
-    let teams = game.state.teams;
-    let team;
+    const creator = await this.auth.getPlayer(game.createdBy);
+    if (creator.hasBlocked(playerId))
+      throw new ServerError(403, 'You are blocked from joining this game.');
+
+    /*
+     * You can't play a blocked player.  But you can downgrade them to muted first.
+     */
+    if (creator.isBlockedBy(playerId)) {
+      const joiner = await this.auth.getPlayer(playerId);
+      const playerACL = joiner.getPlayerACL(creator.id);
+      if (playerACL && playerACL.type === 'blocked')
+        joiner.mute(creator, playerACL.name);
+    }
+
+    const gameType = await this.data.getGameType(game.state.type);
+    const teams = game.state.teams;
 
     let openSlot = teams.findIndex(t => !t?.playerId);
     if (openSlot === -1) openSlot = null;
@@ -320,6 +334,7 @@ class GameService extends Service {
     if (!reservedSlot && teams.findIndex(t => t?.joinedAt && t.playerId === playerId) !== -1)
       throw new ServerError(409, 'Already joined this game');
 
+    let team;
     if (teamData.slot === undefined || teamData.slot === null) {
       teamData.slot = reservedSlot ?? openSlot;
 
@@ -349,8 +364,8 @@ class GameService extends Service {
 
     await this._joinGame(game, gameType, team);
 
-    // Save the game before generating a notification to ensure it is accurate.
-    await dataAdapter.saveGame(game);
+    if (this.gamePara.has(game.id))
+      this._setGamePlayersStatus(game.id);
 
     /*
      * Notify the player that goes first that it is their turn.
@@ -358,53 +373,44 @@ class GameService extends Service {
      */
     if (game.state.started) {
       if (game.state.currentTeam.playerId !== playerId)
-        this._notifyYourTurn(game, game.state.currentTeamId);
+        this._notifyYourTurn(game);
     }
   }
 
   async onCancelGameRequest(client, gameId) {
-    let clientPara = this.clientPara.get(client.id);
-    this.debug(`cancel game ${gameId}`);
-    let game = await dataAdapter.getGame(gameId);
-    if (clientPara.playerId !== game.createdBy) {
+    this.debug(`cancelGame: gameId=${gameId}`);
+
+    const clientPara = this.clientPara.get(client.id);
+    const game = await this.data.getGame(gameId);
+    if (clientPara.playerId !== game.createdBy)
       throw new ServerError(403, 'You cannot cancel other users\' game');
-    } else if (game.started) {
-      throw new ServerError(400, 'You cannot cancel a game which has already started');
+
+    const gamePara = this.gamePara.get(gameId);
+    if (gamePara) {
+      for (const clientId of gamePara.clients) {
+        this.onLeaveGameGroup(this.clientPara.get(clientId).client, `/games/${gameId}`, gameId);
+      }
     }
 
-    let fileDeleted = await dataAdapter.cancelGame(game);
-    if (!fileDeleted) {
-      throw new ServerError(400, 'Game cannot be cancelled');
-    }
-    if (this.gamePara.get(gameId)) {
-      for (let clientId of this.gamePara.get(gameId).clients) {
-        let clientToKick = this.clientPara.get(clientId);
-        if (clientToKick.joinedGroups.size === 1) {
-          delete clientToKick.joinedGroups;
-        } else {
-          clientToKick.joinedGroups.delete(game.id);
-        }
-      }
-      this.gamePara.delete(gameId);
-    }
+    await this.data.cancelGame(game);
   }
 
   async onGetGameTypeConfigRequest(client, gameTypeId) {
-    return dataAdapter.getGameType(gameTypeId);
+    return this.data.getGameType(gameTypeId);
   }
 
   async onHasCustomPlayerSetRequest(client, gameTypeId, setName) {
-    let clientPara = this.clientPara.get(client.id);
+    const clientPara = this.clientPara.get(client.id);
 
-    return dataAdapter.hasCustomPlayerSet(clientPara.playerId, gameTypeId, setName);
+    return this.data.hasCustomPlayerSet(clientPara.playerId, gameTypeId, setName);
   }
   async onGetPlayerSetRequest(client, gameTypeId, setName) {
-    let clientPara = this.clientPara.get(client.id);
+    const clientPara = this.clientPara.get(client.id);
 
-    return dataAdapter.getPlayerSet(clientPara.playerId, gameTypeId, setName);
+    return this.data.getPlayerSet(clientPara.playerId, gameTypeId, setName);
   }
   async onSavePlayerSetRequest(client, gameTypeId, setName, set) {
-    let clientPara = this.clientPara.get(client.id);
+    const clientPara = this.clientPara.get(client.id);
 
     if (!set)
       throw new ServerError(400, 'Required set');
@@ -415,7 +421,7 @@ class GameService extends Service {
     if (!Array.isArray(set.units))
       throw new ServerError(400, 'Invalid set units');
 
-    return dataAdapter.setPlayerSet(clientPara.playerId, gameTypeId, setName, set);
+    return this.data.setPlayerSet(clientPara.playerId, gameTypeId, setName, set);
   }
 
   async onGetGameRequest(client, gameId) {
@@ -424,8 +430,8 @@ class GameService extends Service {
     /*
      * When getting a game, leave out the turn history as an efficiency measure.
      */
-    let game = await this._getGame(gameId);
-    let gameData = game.toJSON();
+    const game = await this.data.getGame(gameId);
+    const gameData = game.toJSON();
     gameData.state = gameData.state.getData();
 
     return gameData;
@@ -433,42 +439,132 @@ class GameService extends Service {
   async onGetTurnDataRequest(client, gameId, ...args) {
     this.throttle(client.address, 'getTurnData', 300, 300);
 
-    let game = await this._getGame(gameId);
+    const game = await this.data.getGame(gameId);
 
     return game.state.getTurnData(...args);
   }
   async onGetTurnActionsRequest(client, gameId, ...args) {
     this.throttle(client.address, 'getTurnData', 300, 300);
 
-    let game = await this._getGame(gameId);
+    const game = await this.data.getGame(gameId);
 
     return game.state.getTurnActions(...args);
   }
 
-  async onGetPlayerStatusRequest(client, gameId) {
-    let game = gameId instanceof Game ? gameId : await this._getGame(gameId);
-    let playerStatus = new Map();
+  async onGetPlayerStatusRequest(client, groupPath) {
+    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
+    if (gameId === undefined)
+      throw new ServerError(400, 'Required game group');
 
-    game.state.teams.forEach(team => {
-      if (!team) return;
+    const clientPara = this.clientPara.get(client.id);
+    if (!clientPara.joinedGroups.has(gameId))
+      throw new ServerError(412, 'To get player status for this game, you must first join it');
 
-      let playerId = team.playerId;
-      if (playerStatus.has(playerId)) return;
+    const gamePara = this.gamePara.get(gameId);
+    return [ ...gamePara.playerStatus ]
+      .map(([playerId, playerStatus]) => ({ playerId, ...playerStatus }));
+  }
+  async onGetPlayerActivityRequest(client, groupPath, forPlayerId) {
+    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
+    if (gameId === undefined)
+      throw new ServerError(400, 'Required game group');
 
-      playerStatus.set(playerId, {
-        playerId: playerId,
-        status: this._getPlayerStatus(playerId, game),
-      });
-    });
+    const clientPara = this.clientPara.get(client.id);
+    if (!clientPara.joinedGroups.has(gameId))
+      throw new ServerError(412, 'To get player activity for this game, you must first join it');
 
-    return [...playerStatus.values()];
+    const game = this.data.getOpenGame(gameId);
+    if (!game.state.started)
+      throw new ServerError(403, 'To get player activity for this game, the game must first start.');
+    if (game.state.ended)
+      throw new ServerError(403, 'May not get player activity for an ended game.');
+
+    const inPlayerId = this.clientPara.get(client.id).playerId;
+    if (inPlayerId === forPlayerId)
+      throw new ServerError(403, 'May not get player activity for yourself.');
+    if (!game.state.teams.find(t => t.playerId === inPlayerId))
+      throw new ServerError(403, 'To get player activity for this game, you must be a participant.');
+    if (!game.state.teams.find(t => t.playerId === forPlayerId))
+      throw new ServerError(403, 'To get player activity for this game, they must be a participant.');
+
+    const playerPara = this.playerPara.get(forPlayerId);
+    const playerActivity = {
+      generalStatus: 'offline',
+      gameStatus: 'closed',
+      idle: await this._getPlayerIdle(forPlayerId),
+      gameIdle: this._getPlayerGameIdle(forPlayerId, game),
+    };
+
+    if (playerPara) {
+      playerActivity.generalStatus = playerActivity.idle > ACTIVE_LIMIT ? 'inactive' : 'active';
+      playerActivity.gameStatus = playerPara.joinedGroups.has(gameId)
+        ? playerActivity.gameIdle > ACTIVE_LIMIT ? 'inactive' : 'active'
+        : 'closed';
+      playerActivity.activity = await this._getPlayerActivity(forPlayerId, gameId, inPlayerId);
+    }
+
+    return playerActivity;
+  }
+  async onGetPlayerInfoRequest(client, groupPath, forPlayerId) {
+    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
+    if (gameId === undefined)
+      throw new ServerError(400, 'Required game group');
+
+    const clientPara = this.clientPara.get(client.id);
+    if (!clientPara.joinedGroups.has(gameId))
+      throw new ServerError(412, 'To get player activity for this game, you must first join it');
+
+    const game = this.data.getOpenGame(gameId);
+    if (!game.state.started)
+      throw new ServerError(403, 'To get player info for this game, the game must first start.');
+
+    const inPlayerId = this.clientPara.get(client.id).playerId;
+    if (inPlayerId === forPlayerId)
+      throw new ServerError(403, 'May not get player info for yourself.');
+    if (!game.state.teams.find(t => t.playerId === inPlayerId))
+      throw new ServerError(403, 'To get player info for this game, you must be a participant.');
+
+    const team = game.state.teams.find(t => t.playerId === forPlayerId);
+    if (!team)
+      throw new ServerError(403, 'To get player info for this game, they must be a participant.');
+
+    const me = await this.auth.getPlayer(inPlayerId);
+    const player = await this.auth.getPlayer(forPlayerId);
+    const globalStats = await this.data.getPlayerStats(forPlayerId, forPlayerId);
+    const localStats = await this.data.getPlayerStats(inPlayerId, forPlayerId);
+
+    return {
+      createdAt: player.createdAt,
+      completed: globalStats.completed,
+      isACL: me.getPlayerACL(forPlayerId),
+      hasACL: player.getPlayerACL(inPlayerId),
+      stats: {
+        aliases: [ ...localStats.aliases.values() ]
+          .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
+          .sort((a,b) =>
+            b.count - a.count || b.lastSeenAt - a.lastSeenAt
+          )
+          .slice(0, 10),
+        all: localStats.all,
+        style: localStats.style.get(game.state.type),
+      },
+    };
   }
 
-  onSearchPlayerGamesRequest(client, playerId, query) {
-    return dataAdapter.searchPlayerGames(playerId, query);
+  async onSearchMyActiveGamesRequest(client, query) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    const player = await this.auth.getPlayer(playerId);
+    return this.data.searchPlayerActiveGames(player, query);
   }
-  onSearchOpenGamesRequest(client, query) {
-    return dataAdapter.searchOpenGames(query);
+  async onSearchOpenGamesRequest(client, query) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    const player = await this.auth.getPlayer(playerId);
+    return this.data.searchOpenGames(player, query);
+  }
+  async onSearchMyCompletedGamesRequest(client, query) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    const player = await this.auth.getPlayer(playerId);
+    return this.data.searchPlayerCompletedGames(player, query);
   }
 
   /*
@@ -483,92 +579,54 @@ class GameService extends Service {
   }
 
   async onJoinGameGroup(client, groupPath, gameId, params) {
-    let gamePara = this.gamePara.get(gameId);
+    const game = await this.data.openGame(gameId);
+    // Abort if the client is no longer connected.
+    if (client.closed) {
+      this.data.closeGame(game);
+      return;
+    }
 
-    if (gamePara) {
-      gamePara.clients.add(client.id);
-    } else {
-      let listener = async event => {
-        let game = gamePara.game;
-
+    const firstJoined = !this.gamePara.has(gameId);
+    if (firstJoined) {
+      const emit = async event => {
+        // Forward game state and undo events to clients.
         this._emit({
           type: 'event',
           body: {
             group: groupPath,
-            type:  event.type,
-            data:  event.data,
+            type: event.type.replace(/^(?:undo|chat):/, ''),
+            data: event.data,
           },
         });
 
-        if (event.type === 'startTurn') {
-          await dataAdapter.saveGame(game);
-
-          /*
-           * Skip sending a notification if this is the first playable turn
-           * AND the first team is the one who just joined to start the game.
-           */
-          let firstTurnId = 0;
-          for (; firstTurnId < game.state.currentTurnId; firstTurnId++) {
-            let actions = game.state.getTurnActions(firstTurnId);
-            if (actions.length === 1 && actions[0].type === 'endTurn' && actions[0].forced)
-              continue;
-            break;
-          }
-
-          if (game.state.currentTurnId === firstTurnId) {
-            let firstTeam = game.state.currentTeam;
-            let mostRecentTeam = game.state.teams.slice().sort((a, b) => b.createdAt - a.createdAt)[0];
-            if (firstTeam === mostRecentTeam)
-              return;
-          }
-
-          this._notifyYourTurn(game, event.data.teamId);
-        }
-        else if (
-          event.type === 'joined' ||
-          event.type === 'action' ||
-          event.type === 'revert' ||
-          event.type === 'endGame'
-        )
-          // Since games are saved before they are removed from memory this only
-          // serves as a precaution against a server crash.  It would also be
-          // useful in a multi-server context, but that requires more thinking.
-          dataAdapter.saveGame(game);
+        // Only send a notification after the first playable turn
+        // This is because notifications are already sent elsewhere on game start.
+        if (event.type === 'startTurn' && event.data.started > game.state.started)
+          this._notifyYourTurn(game);
       };
+      game.state.on('event', emit);
+      game.on('undo', emit);
+      game.on('chat', emit);
 
-      this.gamePara.set(gameId, gamePara = {
-        game:     dataAdapter.getGame(gameId),
-        clients:  new Set([client.id]),
-        listener: listener,
+      this.gamePara.set(gameId, {
+        playerStatus: new Map(),
+        clients: new Set(),
+        emit,
       });
     }
 
-    /*
-     * This might seem weird, but solves a race condition.  Two clients may join
-     * the game at the same time.  So, a gamePara object must be created before
-     * we await getting the game from the data adapter.  This solution forces
-     * both clients to await the same promise and will redundantly set the event
-     * listener.
-     */
-    if (gamePara.game instanceof Promise) {
-      gamePara.game = await gamePara.game;
-      gamePara.game.state.on('event', gamePara.listener);
-    }
+    const clientPara = this.clientPara.get(client.id);
+    clientPara.joinedGroups.add(gameId);
 
-    let clientPara = this.clientPara.get(client.id);
-    if (clientPara.joinedGroups)
-      clientPara.joinedGroups.add(gameId);
-    else
-      clientPara.joinedGroups = new Set([ gameId ]);
-
-    let playerId = clientPara.playerId;
-    let playerPara = this.playerPara.get(playerId);
+    const playerId = clientPara.playerId;
+    const playerPara = this.playerPara.get(playerId);
     if (playerPara.joinedGroups.has(gameId))
       playerPara.joinedGroups.get(gameId).add(client.id);
-    else {
-      playerPara.joinedGroups.set(gameId, new Set([client.id]));
-      this._emitPlayerStatus(groupPath, playerId, 'ingame');
-    }
+    else
+      playerPara.joinedGroups.set(gameId, new Set([ client.id ]));
+
+    const gamePara = this.gamePara.get(gameId);
+    gamePara.clients.add(client.id);
 
     this._emit({
       type: 'joinGroup',
@@ -582,12 +640,19 @@ class GameService extends Service {
       },
     });
 
-    let game = gamePara.game;
-    let gameData = game.toJSON();
-    let state = gameData.state = game.state.getData();
+    const gameData = game.toJSON();
+    const state = gameData.state = game.state.getData();
 
-    let response = {
-      playerStatus: await this.onGetPlayerStatusRequest(client, game),
+    const isPlayer = state.teams.findIndex(t => t.playerId === playerId) > -1;
+    if (isPlayer) {
+      this._setGamePlayersStatus(gameId);
+      this._watchClientIdleForGame(gameId, client);
+    } else if (firstJoined)
+      this._setGamePlayersStatus(gameId);
+
+    const response = {
+      playerStatus: [ ...gamePara.playerStatus ]
+        .map(([playerId, playerStatus]) => ({ playerId, ...playerStatus })),
       gameData,
     };
 
@@ -618,7 +683,7 @@ class GameService extends Service {
         delete state.teams;
 
         params.since = new Date(params.since);
-        let since = state.actions.length ? state.actions.last.created : state.turnStarted;
+        const since = state.actions.length ? state.actions.last.created : state.turnStarted;
 
         if (+params.since === +since)
           // Nothing has changed
@@ -635,10 +700,10 @@ class GameService extends Service {
           }
 
           // What actions has the client not seen yet?
-          let newActions = state.actions.filter(a => a.created > params.since);
+          const newActions = state.actions.filter(a => a.created > params.since);
 
           // Are all client actions still valid?  (not reverted)
-          let actionsAreValid = params.nextActionId === state.actions.length - newActions.length;
+          const actionsAreValid = params.nextActionId === state.actions.length - newActions.length;
 
           if (actionsAreValid) {
             // Existing actions haven't changed
@@ -661,7 +726,7 @@ class GameService extends Service {
         delete gameData.state;
     }
     else {
-      let gameData = game.toJSON();
+      const gameData = game.toJSON();
       gameData.state = game.state.getData();
 
       response.gameData = gameData;
@@ -674,317 +739,125 @@ class GameService extends Service {
    * No longer send change events to the client about this game.
    * Only called internally since the client does not yet leave intentionally.
    */
-  async onLeaveGameGroup(client, groupPath, gameId) {
-    let gamePara = this.gamePara.get(gameId);
-    if (!gamePara || !gamePara.clients.has(client.id))
-      throw new Error(`Expected client (${client.id}) to be in group (${groupPath})`);
+  onLeaveGameGroup(client, groupPath, gameId) {
+    const game = this.data.closeGame(gameId);
 
-    let game = gamePara.game;
+    const clientPara = this.clientPara.get(client.id);
+    clientPara.joinedGroups.delete(gameId);
 
-    if (gamePara.clients.size > 1)
-      gamePara.clients.delete(client.id);
-    else {
+    const gamePara = this.gamePara.get(gameId);
+    gamePara.clients.delete(client.id);
+    if (gamePara.clients.size === 0) {
       // TODO: Don't shut down the game state until all bots have made their turns.
-      let listener = gamePara.listener;
+      game.state.off('event', gamePara.emit);
+      game.off('undo', gamePara.emit);
+      game.off('chat', gamePara.emit);
 
-      game.state.off('event', listener);
-
-      this.gamePara.delete(game.id);
-
-      // Save the game before it is wiped from memory.
-      dataAdapter.saveGame(game);
+      this.gamePara.delete(gameId);
     }
 
-    let clientPara = this.clientPara.get(client.id);
-    if (clientPara.joinedGroups.size === 1)
-      delete clientPara.joinedGroups;
-    else
-      clientPara.joinedGroups.delete(game.id);
+    const playerId = clientPara.playerId;
+    const playerPara = this.playerPara.get(playerId);
+    const watchingClientIds = playerPara.joinedGroups.get(gameId);
 
-    let playerId = clientPara.playerId;
-    let playerPara = this.playerPara.get(playerId);
-    let watchingClientIds = playerPara.joinedGroups.get(game.id);
-
-    // Only say the player is online if another client isn't ingame.
-    if (watchingClientIds.size === 1) {
-      playerPara.joinedGroups.delete(game.id);
-
-      // Don't say the player is online if the player is going offline.
-      if (playerPara.clients.size > 1 || !client.closing)
-        this._emitPlayerStatus(
-          groupPath,
-          playerId,
-          game.state.ended ? 'offline' : 'online',
-        );
-    }
+    if (watchingClientIds.size === 1)
+      playerPara.joinedGroups.delete(gameId);
     else
       watchingClientIds.delete(client.id);
 
+    const isPlayer = game.state.teams.findIndex(t => t.playerId === playerId) > -1;
+    if (isPlayer) {
+      // If the client is closed, hold off on updating status.
+      if (!client.closed && gamePara.clients.size > 0)
+        this._setGamePlayersStatus(gameId);
+
+      const checkoutAt = new Date(Date.now() - client.session.idle * 1000);
+      game.checkout(playerId, checkoutAt);
+
+      this._unwatchClientIdleForGame(gameId, client);
+    }
+
     this._emit({
-      type:   'leaveGroup',
+      type: 'leaveGroup',
       client: client.id,
       body: {
         group: groupPath,
         user: {
-          id:   playerId,
+          id: playerId,
           name: clientPara.name,
         },
       },
     });
   }
 
-  /*
-   * Make sure the connected client is authorized to post this event.
-   *
-   * The GameState class is responsible for making sure the authorized client
-   * may make the provided action.
-   */
-  onActionRequest(client, gameId, action) {
-    let gamePara = this.gamePara.get(gameId);
-    if (!gamePara)
-      throw new ServerError(403, 'You must first join the game group');
-    if (!gamePara.clients.has(client.id))
-      throw new ServerError(403, 'You must first join the game group');
+  onActionRequest(client, groupPath, action) {
+    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
+    if (gameId === undefined)
+      throw new ServerError(400, 'Required game group');
 
-    let game = gamePara.game;
-    let playerId = this.clientPara.get(client.id).playerId;
+    const clientPara = this.clientPara.get(client.id);
+    if (!clientPara.joinedGroups.has(gameId))
+      throw new ServerError(412, 'You must first join the game group');
 
-    if (game.state.ended)
-      throw new ServerError(409, 'The game has ended');
+    const playerId = clientPara.playerId;
+    const game = this.data.getOpenGame(gameId);
 
-    let undoRequest = game.undoRequest || {};
-    if (undoRequest.status === 'pending')
-      throw new ServerError(409, 'An undo request is still pending');
-
-    let myTeams = game.state.teams.filter(t => t.playerId === playerId);
-    if (myTeams.length === 0)
-      throw new ServerError(403, 'You are not a player in this game.');
-
-    if (!Array.isArray(action))
-      action = [action];
-
-    if (action[0].type === 'surrender') {
-      action[0].declaredBy = playerId;
-
-      if (!action[0].teamId) {
-        if (myTeams.length === game.state.teams.length)
-          action[0].teamId = game.state.currentTeamId;
-        else
-          // FIXME: Multiple surrender actions are not handled correctly.
-          // Basically, the submitAction() method will stop processing
-          // events if the current turn ends.
-          action.splice(0, 1, ...myTeams.map(t => Object.assign({
-            teamId: t.id,
-          }, action[0])));
-      }
-    }
-    else if (myTeams.includes(game.state.currentTeam))
-      action.forEach(a => a.teamId = game.state.currentTeamId);
-    else
-      throw new ServerError(409, 'Not your turn!');
-
-    game.state.submitAction(action);
-    // Clear a rejected undo request after an action is performed.
-    game.undoRequest = null;
-
-    dataAdapter.saveGame(game);
+    game.submitAction(playerId, action);
   }
-  onUndoRequest(client, gameId) {
-    let gamePara = this.gamePara.get(gameId);
-    if (!gamePara)
-      throw new ServerError(401, 'You must first join the game group');
-    if (!gamePara.clients.has(client.id))
-      throw new ServerError(401, 'You must first join the game group');
+  onUndoRequest(client, groupPath) {
+    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
+    if (gameId === undefined)
+      throw new ServerError(400, 'Required game group');
 
-    let game = gamePara.game;
-    let teams = game.state.teams;
-    let playerId = this.clientPara.get(client.id).playerId;
+    const clientPara = this.clientPara.get(client.id);
+    if (!clientPara.joinedGroups.has(gameId))
+      throw new ServerError(412, 'You must first join the game group');
 
-    // Determine the team that is requesting the undo.
-    let team = game.state.currentTeam;
-    let prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
-    let prevTeam = teams[prevTeamId];
-    if (team.playerId === playerId) {
-      if (prevTeam.playerId === playerId && game.state._actions.length === 0)
-        team = prevTeam;
-    } else {
-      while (team.playerId !== playerId) {
-        prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
-        team = teams[prevTeamId];
-      }
-    }
+    const playerId = clientPara.playerId;
+    const game = this.data.getOpenGame(gameId);
 
-    // In case a player controls multiple teams...
-    let myTeams = teams.filter(t => t.playerId === playerId);
-    if (myTeams.length === 0)
-      throw new ServerError(401, 'You are not a player in this game.');
-
-    if (game.state.ended)
-      throw new ServerError(403, 'The game has ended');
-
-    let undoRequest = game.undoRequest;
-    if (undoRequest) {
-      if (undoRequest.status === 'pending')
-        throw new ServerError(409, 'An undo request is still pending');
-      else if (undoRequest.status === 'rejected')
-        if (undoRequest.teamId === team.id)
-          throw new ServerError(403, 'Your undo request was rejected');
-    }
-
-    let canUndo = game.state.canUndo(team);
-    if (canUndo === false)
-      // The undo is rejected.
-      throw new ServerError(403, 'You can not undo right now');
-    else if (canUndo === true)
-      // The undo is auto-approved.
-      game.state.undo(team);
-    else {
-      // The undo request requires approval from the other player(s).
-      game.undoRequest = {
-        createdAt: new Date(),
-        status: 'pending',
-        teamId: team.id,
-        accepts: new Set(myTeams.map(t => t.id)),
-      };
-
-      // The request is sent to all players.  The initiator may cancel.
-      this._emit({
-        type: 'event',
-        body: {
-          group: `/games/${gameId}`,
-          type:  'undoRequest',
-          data:  Object.assign({}, game.undoRequest, {
-            accepts: [...game.undoRequest.accepts],
-          }),
-        },
-      });
-    }
-
-    dataAdapter.saveGame(game);
+    game.requestUndo(playerId);
   }
 
-  async onUndoAcceptEvent(client, groupPath) {
-    let gameId = groupPath.replace(/^\/games\//, '');
-    let game = await this._getGame(gameId);
-    let undoRequest = game.undoRequest;
-    if (!undoRequest)
-      throw new ServerError(400, 'No undo request');
-    else if (undoRequest.status !== 'pending')
-      throw new ServerError(400, 'Undo request is not pending');
+  onUndoAcceptEvent(client, groupPath) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    const gameId = groupPath.replace(/^\/games\//, '');
+    const game = this.data.getOpenGame(gameId);
 
-    let playerId = this.clientPara.get(client.id).playerId;
-    let teams = game.state.teams;
-    let myTeams = teams.filter(t => t.playerId === playerId);
-
-    myTeams.forEach(t => undoRequest.accepts.add(t.id));
-
-    this._emit({
-      type: 'event',
-      body: {
-        group: groupPath,
-        type:  'undoAccept',
-        data: {
-          playerId: playerId,
-        },
-      },
-    });
-
-    if (undoRequest.accepts.size === teams.length) {
-      undoRequest.status = 'completed';
-
-      this._emit({
-        type: 'event',
-        body: {
-          group: groupPath,
-          type:  'undoComplete',
-        },
-      });
-
-      game.state.undo(teams[undoRequest.teamId], true);
-    }
-
-    dataAdapter.saveGame(game);
+    game.acceptUndo(playerId);
   }
-  async onUndoRejectEvent(client, groupPath) {
-    let gameId = groupPath.replace(/^\/games\//, '');
-    let game = await this._getGame(gameId);
-    let undoRequest = game.undoRequest;
-    if (!undoRequest)
-      throw new ServerError(400, 'No undo request');
-    else if (undoRequest.status !== 'pending')
-      throw new ServerError(400, 'Undo request is not pending');
+  onUndoRejectEvent(client, groupPath) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    const gameId = groupPath.replace(/^\/games\//, '');
+    const game = this.data.getOpenGame(gameId);
 
-    let playerId = this.clientPara.get(client.id).playerId;
-
-    this._emit({
-      type: 'event',
-      body: {
-        group: groupPath,
-        type:  'undoReject',
-        data: {
-          playerId: playerId,
-        },
-      },
-    });
-
-    undoRequest.status = 'rejected';
-    undoRequest.rejectedBy = playerId;
-
-    dataAdapter.saveGame(game);
+    game.rejectUndo(playerId);
   }
-  async onUndoCancelEvent(client, groupPath) {
-    let gameId = groupPath.replace(/^\/games\//, '');
-    let game = await this._getGame(gameId);
-    let undoRequest = game.undoRequest;
-    if (!undoRequest)
-      throw new ServerError(400, 'No undo request');
-    else if (undoRequest.status !== 'pending')
-      throw new ServerError(400, 'Undo request is not pending');
+  onUndoCancelEvent(client, groupPath) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    const gameId = groupPath.replace(/^\/games\//, '');
+    const game = this.data.getOpenGame(gameId);
 
-    let playerId = this.clientPara.get(client.id).playerId;
-    let requestorId = game.state.teams[undoRequest.teamId].playerId;
-    if (playerId !== requestorId)
-      throw new ServerError(403, 'Only requesting player may cancel undo');
-
-    this._emit({
-      type: 'event',
-      body: {
-        group: groupPath,
-        type:  'undoCancel',
-      },
-    });
-
-    undoRequest.status = 'cancelled';
-
-    dataAdapter.saveGame(game);
+    game.cancelUndo(playerId);
   }
 
   /*******************************************************************************
    * Helpers
    ******************************************************************************/
-  async _getGame(gameId) {
-    let game;
-    if (this.gamePara.has(gameId))
-      game = this.gamePara.get(gameId).game;
-    else
-      game = await dataAdapter.getGame(gameId);
-
-    return game;
-  }
   async _resolveTeamsSets(game, gameType, teams) {
     /*
      * Resolve default sets before resolving opponent sets
      */
-    let opponentSetTeams = [];
+    const opponentSetTeams = [];
 
-    for (let team of teams) {
+    for (const team of teams) {
       if (!team)
         continue;
 
       if (!gameType.isCustomizable || team.set === null)
         team.set = gameType.getDefaultSet();
       else if (typeof team.set === 'object' && !team.set.units)
-        team.set = await dataAdapter.getPlayerSet(team.playerId, gameType, team.set.name);
+        team.set = await this.data.getPlayerSet(team.playerId, gameType, team.set.name);
       else if (team.set === 'same')
         opponentSetTeams.push(team);
       else if (team.set === 'mirror')
@@ -999,8 +872,8 @@ class GameService extends Service {
     }
 
     if (opponentSetTeams.length) {
-      let opponentSet = teams.find(t => typeof t?.set !== 'string').set;
-      for (let team of opponentSetTeams) {
+      const opponentSet = teams.find(t => typeof t?.set !== 'string').set;
+      for (const team of opponentSetTeams) {
         if (team.set === 'same')
           team.set = {
             via: 'same',
@@ -1013,7 +886,7 @@ class GameService extends Service {
           team.set = {
             via: 'mirror',
             units: opponentSet.units.map(u => {
-              let unit = {...u};
+              const unit = {...u};
               unit.assignment = [...unit.assignment];
               unit.assignment[0] = 10 - unit.assignment[0];
               if (unit.direction === 'W')
@@ -1028,7 +901,7 @@ class GameService extends Service {
     }
   }
   async _joinGame(game, gameType, team) {
-    let teams = game.state.teams;
+    const teams = game.state.teams;
 
     game.state.join(team);
 
@@ -1038,9 +911,9 @@ class GameService extends Service {
     if (teams.findIndex(t => !t?.joinedAt) === -1) {
       await this._resolveTeamsSets(game, gameType, teams);
 
-      let players = new Map(teams.map(t => [ t.playerId, t.name ]));
+      const players = new Map(teams.map(t => [ t.playerId, t.name ]));
       if (players.size > 1)
-        await chatService.createRoom(
+        await this.chat.createRoom(
           [...players].map(([id, name]) => ({ id, name })),
           { id:game.id }
         );
@@ -1049,63 +922,219 @@ class GameService extends Service {
       game.state.start();
     }
   }
-  _getPlayerStatus(playerId, game) {
-    let playerPara = this.playerPara.get(playerId);
 
-    let status;
-    if (!playerPara)
-      status = 'offline';
-    else if (!playerPara.joinedGroups.has(game.id))
-      status = game.state.ended ? 'offline' : 'online';
-    else
-      status = 'ingame';
+  _setGamePlayersStatus(gameId) {
+    const game = this.data.getOpenGame(gameId);
+    const { playerStatus, emit } = this.gamePara.get(gameId);
+    const teamPlayerIds = new Set(game.state.teams.filter(t => t?.joinedAt).map(t => t.playerId));
 
-    return status;
+    /*
+     * Prune player IDs that have left the game.
+     * Possible for 4-player games that haven't started yet.
+     */
+    for (const playerId of playerStatus.keys()) {
+      if (!teamPlayerIds.has(playerId))
+        playerStatus.delete(playerId);
+    }
+
+    for (const playerId of teamPlayerIds) {
+      const oldPlayerStatus = playerStatus.get(playerId);
+      const newPlayerStatus = this._getPlayerGameStatus(playerId, game);
+      if (
+        newPlayerStatus.status     !== oldPlayerStatus?.status ||
+        newPlayerStatus.deviceType !== oldPlayerStatus?.deviceType
+      ) {
+        playerStatus.set(playerId, newPlayerStatus);
+        if (oldPlayerStatus !== undefined)
+          emit({
+            type: 'playerStatus',
+            data: { playerId, ...newPlayerStatus },
+          });
+      }
+    }
   }
+  _setPlayerGamesStatus(playerId) {
+    for (const game of this.data.getOpenGames()) {
+      if (!game.state.teams.find(t => t?.playerId === playerId))
+        return;
 
-  async _notifyYourTurn(game, teamId) {
-    let teams = game.state.teams;
-    let playerId = teams[teamId].playerId;
+      this._setGamePlayersStatus(game.id);
+    }
+  }
+  _watchClientIdleForGame(gameId, client) {
+    const session = client.session;
 
-    // Only notify if the next player is not already in-game.
-    let status = this._getPlayerStatus(playerId, game);
-    if (status === 'ingame')
-      return;
+    if (session.watchers)
+      session.watchers.add(gameId);
+    else {
+      session.watchers = new Set([ gameId ]);
+      session.onIdleChange = this.idleWatcher;
+    }
+  }
+  _unwatchClientIdleForGame(gameId, client) {
+    const session = client.session;
 
-    // Search for the next opponent team after this team.
-    // Useful for 4-team games.
-    let opponentTeam;
-    for (let i=1; i<teams.length; i++) {
-      let nextTeam = teams[(teamId + i) % teams.length];
-      if (nextTeam.playerId === playerId) continue;
+    if (session.watchers.size > 1)
+      session.watchers.delete(gameId);
+    else {
+      delete session.watchers;
+      delete session.onIdleChange;
+    }
+  }
+  _getPlayerGameStatus(playerId, game) {
+    const playerPara = this.playerPara.get(playerId);
+    if (!playerPara || (game.state.ended && !playerPara.joinedGroups.has(game.id)))
+      return { status:'offline' };
 
-      opponentTeam = nextTeam;
+    let deviceType;
+    for (const clientId of playerPara.clients) {
+      const clientPara = this.clientPara.get(clientId);
+      if (clientPara.deviceType !== 'mobile')
+        continue;
+
+      deviceType = 'mobile';
       break;
     }
 
-    // Only notify if this is a multiplayer game.
-    if (!opponentTeam)
+    if (!playerPara.joinedGroups.has(game.id))
+      return { status:'online', deviceType };
+
+    /*
+     * Determine active status with the minimum idle of all clients this player
+     * has connected to this game.
+     */
+    const clientIds = [...playerPara.joinedGroups.get(game.id)];
+    const idle = Math.min(
+      ...clientIds.map(cId => this.clientPara.get(cId).client.session.idle)
+    );
+
+    return {
+      status: idle > ACTIVE_LIMIT ? 'online' : 'active',
+      deviceType,
+    };
+  }
+  /*
+   * There is a tricky thing here.  It is possible that a player checked in with
+   * multiple clients, but the most recently active client checked out first.
+   * In that case, show the idle time based on the checked out client rather
+   * than the longer idle times of client(s) still checked in.
+   */
+  async _getPlayerIdle(playerId) {
+    const player = await this.auth.getPlayer(playerId);
+    const idle = Math.floor((new Date() - player.checkoutAt) / 1000);
+
+    const playerPara = this.playerPara.get(playerId);
+    if (playerPara) {
+      const clientIds = [...playerPara.clients];
+      return Math.min(
+        ...clientIds.map(cId => this.clientPara.get(cId).client.session.idle),
+        idle,
+      );
+    }
+
+    return idle;
+  }
+  _getPlayerGameIdle(playerId, game) {
+    const team = game.state.teams.find(t => t.playerId === playerId);
+    const gameIdle = Math.floor((new Date() - (team.checkoutAt ?? game.state.started)) / 1000);
+
+    const playerPara = this.playerPara.get(playerId);
+    if (playerPara && playerPara.joinedGroups.has(game.id)) {
+      const clientIds = [...playerPara.joinedGroups.get(game.id)];
+      return Math.min(
+        ...clientIds.map(cId => this.clientPara.get(cId).client.session.idle),
+        gameIdle,
+      );
+    }
+
+    return gameIdle;
+  }
+  async _getPlayerActivity(playerId, fromGameId, inPlayerId) {
+    // The player must be online
+    const playerPara = this.playerPara.get(playerId);
+    if (!playerPara)
       return;
 
-    let notification = await this.getYourTurnNotification(playerId);
+    // Get a list of games in which the player is participating and has opened.
+    // Sort the games from most active to least.
+    const openGamesInfo = [...playerPara.joinedGroups.keys()]
+      .map(gameId => this.data.getOpenGame(gameId))
+      .filter(game =>
+        game.state.started && !game.state.ended &&
+        game.state.teams.findIndex(t => t.playerId === playerId) > -1
+      )
+      .map(game => ({ game, idle:this._getPlayerGameIdle(playerId, game) }))
+      .sort((a,b) => a.idle - b.idle);
+
+    // Get a filtered list of the games that are active.
+    const activeGamesInfo = openGamesInfo
+      .filter(agi => agi.idle <= ACTIVE_LIMIT)
+
+    const activity = {
+      activeGamesCount: activeGamesInfo.length,
+      inactiveGamesCount: openGamesInfo.length - activeGamesInfo.length,
+    };
+
+    for (const { game } of openGamesInfo) {
+      const isPracticeGame = new Set(game.state.teams.map(t => t.playerId)).size === 1;
+      if (!isPracticeGame) continue;
+      if (game.forkOf?.gameId !== game.id) continue;
+
+      activity.forkGameId = game.id;
+      break;
+    }
+
+    // Only interested in games that where all participants are actively playing.
+    const activeGamesOfInterest = [];
+    for (const { game } of activeGamesInfo) {
+      if (game.id === fromGameId) continue;
+
+      const playerIds = new Set(game.state.teams.map(t => t.playerId));
+      const isPracticeGame = playerIds.size === 1;
+      if (isPracticeGame) continue;
+
+      const inactivePlayerId = [...playerIds].find(pId =>
+        pId !== inPlayerId &&
+        this._getPlayerGameIdle(pId, game) > ACTIVE_LIMIT
+      );
+      if (inactivePlayerId) continue;
+
+      if (playerIds.has(inPlayerId)) {
+        activity.yourGameId = game.id;
+        activeGamesOfInterest.length = 0;
+        break;
+      }
+
+      activeGamesOfInterest.push(game);
+    }
+
+    // Only allow access to an active game if they are using a name you have seen before.
+    if (activeGamesOfInterest.length === 1) {
+      const activeGame = activeGamesOfInterest[0];
+      const playerTeamName = activeGame.state.teams.find(t => t.playerId === playerId).name;
+      const aliases = this.data.listPlayerAliases(inPlayerId, playerId);
+      if (aliases.has(playerTeamName.toLowerCase()))
+        activity.activeGameId = activeGame.id;
+    }
+
+    return activity;
+  }
+
+  async _notifyYourTurn(game) {
+    const teams = game.state.teams;
+    const playerId = game.state.currentTeam.playerId;
+
+    // Only notify if the current player is not already in-game.
+    // Still notify if the current player is in-game, but inactive?
+    const playerPara = this.playerPara.get(playerId);
+    if (playerPara && playerPara.joinedGroups.has(game.id))
+      return;
+
+    const notification = await this.getYourTurnNotification(playerId);
     // Game count should always be >= 1, but just in case...
     if (notification.gameCount === 0)
       return;
 
-    pushService.pushNotification(playerId, notification);
-  }
-
-  _emitPlayerStatus(groupPath, playerId, status) {
-    this._emit({
-      type: 'event',
-      body: {
-        group: groupPath,
-        type: 'playerStatus',
-        data: { playerId, status },
-      },
-    });
+    this.push.pushNotification(playerId, notification);
   }
 }
-
-// This class is a singleton
-export default new GameService();

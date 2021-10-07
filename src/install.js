@@ -21,7 +21,7 @@ if ('serviceWorker' in navigator) {
               So you will not be able to complete games-in-progress if you close Firefox.
               Consider disabling this setting.
             `,
-            minWidth: '300px',
+            maxWidth: '300px',
           });
           sessionStorage.setItem('isWarnedInsecure', true);
         }

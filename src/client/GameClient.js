@@ -51,6 +51,11 @@ export default class GameClient extends Client {
 
   cancelGame(gameId) {
     return this._server.requestAuthorized(this.name, 'cancelGame', [gameId])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.cancelGame(gameId);
+        throw error;
+      });
   }
 
   joinGame(gameId, options) {
@@ -122,10 +127,37 @@ export default class GameClient extends Client {
   }
 
   getPlayerStatus(gameId) {
-    return this._server.requestAuthorized(this.name, 'getPlayerStatus', [gameId])
+    return this._server.requestJoined(this.name, 'getPlayerStatus')
       .catch(error => {
         if (error === 'Connection reset')
           return this.getPlayerStatus(gameId);
+        throw error;
+      });
+  }
+  getPlayerActivity(gameId, playerId) {
+    return this._server.requestJoined(this.name, `/games/${gameId}`, 'getPlayerActivity', [ playerId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getPlayerActivity(gameId, playerId);
+        throw error;
+      });
+  }
+  getPlayerInfo(gameId, playerId) {
+    return this._server.requestJoined(this.name, `/games/${gameId}`, 'getPlayerInfo', [ playerId ])
+      .then(data => {
+        data.createdAt = new Date(data.createdAt);
+
+        for (const alias of data.stats.aliases) {
+          alias.lastSeenAt = new Date(alias.lastSeenAt);
+        }
+        data.stats.all.startedAt = new Date(data.stats.all.startedAt);
+        data.stats.style.startedAt = new Date(data.stats.style.startedAt);
+
+        return data;
+      })
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getPlayerInfo(gameId, playerId);
         throw error;
       });
   }
@@ -155,14 +187,12 @@ export default class GameClient extends Client {
       });
   }
 
-  searchMyGames(query) {
-    let playerId = this._authClient.playerId;
-
-    return this._server.requestAuthorized(this.name, 'searchPlayerGames', [playerId, query])
+  searchMyActiveGames(query) {
+    return this._server.requestAuthorized(this.name, 'searchMyActiveGames', [ query ])
       .then(result => {
         result.hits.forEach(hit => {
-          hit.created = new Date(hit.created);
-          hit.updated = new Date(hit.updated);
+          hit.createdAt = new Date(hit.createdAt);
+          hit.updatedAt = new Date(hit.updatedAt);
           hit.started = hit.started && new Date(hit.started);
           hit.turnStarted = hit.turnStarted && new Date(hit.turnStarted);
           hit.ended = hit.ended && new Date(hit.ended);
@@ -172,7 +202,7 @@ export default class GameClient extends Client {
       })
       .catch(error => {
         if (error === 'Connection reset')
-          return this.searchMyGames(query);
+          return this.searchMyActiveGames(query);
         throw error;
       });
   }
@@ -180,8 +210,8 @@ export default class GameClient extends Client {
     return this._server.requestAuthorized(this.name, 'searchOpenGames', [query])
       .then(result => {
         result.hits.forEach(hit => {
-          hit.created = new Date(hit.created);
-          hit.updated = new Date(hit.updated);
+          hit.createdAt = new Date(hit.createdAt);
+          hit.updatedAt = new Date(hit.updatedAt);
           hit.started = hit.started && new Date(hit.started);
           hit.turnStarted = hit.turnStarted && new Date(hit.turnStarted);
           hit.ended = hit.ended && new Date(hit.ended);
@@ -192,6 +222,25 @@ export default class GameClient extends Client {
       .catch(error => {
         if (error === 'Connection reset')
           return this.searchOpenGames(query);
+        throw error;
+      });
+  }
+  searchMyCompletedGames(query) {
+    return this._server.requestAuthorized(this.name, 'searchMyCompletedGames', [ query ])
+      .then(result => {
+        result.hits.forEach(hit => {
+          hit.createdAt = new Date(hit.createdAt);
+          hit.updatedAt = new Date(hit.updatedAt);
+          hit.started = hit.started && new Date(hit.started);
+          hit.turnStarted = hit.turnStarted && new Date(hit.turnStarted);
+          hit.ended = hit.ended && new Date(hit.ended);
+        });
+
+        return result;
+      })
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.searchMyCompletedGames(query);
         throw error;
       });
   }
@@ -232,7 +281,6 @@ export default class GameClient extends Client {
       });
   }
   async submitAction(gameId, action) {
-    let server = this._server;
     let beforeUnloadListener = event => {
       event.preventDefault();
       return event.returnValue = 'Your move hasn\'t been saved yet!';
@@ -241,8 +289,7 @@ export default class GameClient extends Client {
     window.addEventListener('beforeunload', beforeUnloadListener, { capture:true });
 
     try {
-      await server.whenJoined(this.name, `/games/${gameId}`);
-      await server.requestAuthorized(this.name, 'action', [ gameId, action ]);
+      await this._server.requestJoined(this.name, `/games/${gameId}`, 'action', [ action ]);
     }
     catch (error) {
       window.removeEventListener('beforeunload', beforeUnloadListener, { capture:true });
@@ -256,11 +303,8 @@ export default class GameClient extends Client {
     window.removeEventListener('beforeunload', beforeUnloadListener, { capture:true });
   }
   async undo(gameId) {
-    let server = this._server;
-
     try {
-      await server.whenJoined(this.name, `/games/${gameId}`);
-      return await server.requestAuthorized(this.name, 'undo', [ gameId ]);
+      return await this._server.requestJoined(this.name, `/games/${gameId}`, 'undo');
     }
     catch (error) {
       if (error === 'Connection reset')
@@ -270,14 +314,35 @@ export default class GameClient extends Client {
     }
   }
 
-  acceptUndo(gameId) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept');
+  async acceptUndo(gameId) {
+    try {
+      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept');
+    } catch (error) {
+      if (error === 'Connection reset')
+        return this.acceptUndo(gameId);
+
+      throw error;
+    }
   }
-  rejectUndo(gameId) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoReject');
+  async rejectUndo(gameId) {
+    try {
+      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoReject');
+    } catch (error) {
+      if (error === 'Connection reset')
+        return this.rejectUndo(gameId);
+
+      throw error;
+    }
   }
-  cancelUndo(gameId) {
-    this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoCancel');
+  async cancelUndo(gameId) {
+    try {
+      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoCancel');
+    } catch (error) {
+      if (error === 'Connection reset')
+        return this.cancelUndo(gameId);
+
+      throw error;
+    }
   }
 
   _onOpen({ data }) {

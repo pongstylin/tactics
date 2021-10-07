@@ -1,40 +1,37 @@
 import config from 'config/client.js';
 
 if (window.sessionStorage) {
-  var data = window.sessionStorage.getItem('log');
+  var data = window.sessionStorage.getItem('reportData');
   if (data)
-    reportError(data);
+    sendReport(data);
 }
 
 var errorListener = function (event) {
-  console.log('error', event);
   try {
-    reportError(JSON.stringify({
-      createdAt: new Date(),
-      page:    location.href,
-      name:    event.error ? event.error.name : null,
-      code:    event.error ? event.error.code : null,
+    var now = new Date();
+
+    report({
+      type: event.type,
       message: event.message,
-      source:  event.filename,
-      lineno:  event.lineno === undefined ? null : event.lineno,
-      colno:   event.colno  === undefined ? null : event.colno,
-      stack:   event.error ? event.error.stack : null
-    }));
+      filename: event.filename,
+      lineno: event.lineno === undefined ? null : event.lineno,
+      colno: event.colno  === undefined ? null : event.colno,
+      error: event.error ? getErrorData(event.error) : null,
+    }, now);
   }
   catch (e) {
     var error = 'Log error failed: ' + e;
     error = error.replace(/"/g, '\\"');
 
-    reportError('{"error":"' + error + '"}');
+    sendReport('{"error":"' + error + '"}');
   }
 };
 
 var unhandledrejectionListener = function (event) {
   try {
-    var log = {
-      createdAt: new Date(),
-      page: location.href,
-      promise: true,
+    var now = new Date();
+    var reportData = {
+      type: event.type,
     };
     var promise = event.promise;
     var error = event.reason;
@@ -42,23 +39,17 @@ var unhandledrejectionListener = function (event) {
     if (promise.ignoreConnectionReset && error === 'Connection reset')
       return event.preventDefault();
 
-    if (error instanceof Error) {
-      log.name = error.name;
-      log.code = error.code;
-      log.message = error.message;
-      log.stack = error.stack;
-    }
-    else if (error !== undefined) {
-      log.message = error + '';
-    }
+    if (error instanceof Error)
+      reportData.error = getErrorData(error);
+    else if (error !== undefined)
+      reportData.error = error + '';
 
-    reportError(JSON.stringify(log));
-  }
-  catch (e) {
+    report(reportData, now);
+  } catch (e) {
     var error = 'Log reject failed: ' + e;
     error = error.replace(/"/g, '\\"');
 
-    reportError('{"error":"' + error + '"}');
+    sendReport('{"error":"' + error + '"}');
   }
 };
 
@@ -76,6 +67,7 @@ try {
 catch (e) {
   window.onerror = function (message, source, lineno, colno, error) {
     errorListener({
+      type: 'error',
       message: message,
       filename: source,
       lineno: lineno,
@@ -86,21 +78,69 @@ catch (e) {
   window.onunhandledrejection = unhandledrejectionListener;
 }
 
-function reportError(logData) {
+function getErrorData(error) {
+  const stack = error.stack.split('\n');
+  if (stack[0] === `${error.name}: ${error.message}`)
+    stack.shift();
+
+  return {
+    name: error.name,
+    code: error.code,
+    message: error.message,
+    fileName: error.fileName,
+    lineNumber: error.lineNumber,
+    columnNumber: error.columnNumber,
+    stack,
+  };
+}
+
+function reportError(error) {
+  var now = new Date();
+
+  if (error instanceof Error)
+    report({ error:getErrorData(error) }, now);
+  else
+    report({ error }, now);
+}
+
+function report(data, now) {
+  if (now === undefined)
+    now = new Date();
+  if (data === undefined || data === null)
+    return;
+
+  if (typeof data !== 'object')
+    data = { report:data };
+
+  data.createdAt = now;
+  data.page = location.href;
+
+  try {
+    sendReport(JSON.stringify(data));
+  } catch (e) {
+    var error = 'Stringify report failed: ' + e;
+    error = error.replace(/"/g, '\\"');
+
+    sendReport('{"error":"' + error + '"}');
+  }
+}
+
+function sendReport(data) {
   if (window.sessionstorage)
-    window.sessionstorage.setitem('log', logData);
+    window.sessionstorage.setItem('reportData', data);
 
   $.ajax({
     method: 'POST',
-    url: `${config.apiPrefix || ''}/errors`,
+    url: (config.apiPrefix || '') + '/report',
     contentType: 'application/json',
-    data: logData
+    data: data
   }).done(function () {
     if (window.sessionStorage)
-      window.sessionStorage.removeItem('log');
+      window.sessionStorage.removeItem('reportData');
   }).fail(function () {
-    setTimeout(function () { reportError(logData) }, 5000);
+    setTimeout(function () { sendReport(data) }, 5000);
   });
 }
 
+window.report = report;
 window.reportError = reportError;

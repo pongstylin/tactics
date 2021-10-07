@@ -48,6 +48,28 @@ MIGRATIONS.player = [
 
     return data;
   },
+  data => {
+    data.createdAt = data.created;
+    delete data.created;
+
+    data.acl = new Map();
+    data.reverseACL = new Map();
+
+    /*
+     * Approximate the checkout date based on the most recent checkin date.
+     */
+    data.checkoutAt = data.createdAt;
+    for (let device of data.devices) {
+      for (let [agent, addresses] of device.agents) {
+        for (let [address, checkinAt] of addresses) {
+          if (checkinAt > data.checkoutAt)
+            data.checkoutAt = checkinAt;
+        }
+      }
+    }
+
+    return data;
+  },
 ];
 
 MIGRATIONS.game = [
@@ -205,6 +227,33 @@ MIGRATIONS.game = [
 
     return data;
   },
+  data => {
+    // Approximate team checkoutAt dates.
+    let currentTeamId = data.state.turns.length & data.state.teams.length;
+
+    for (let i = 0; i < data.state.teams.length; i++) {
+      const team = data.state.teams[i];
+      team.checkoutAt = null;
+
+      if (data.state.ended)
+        team.checkoutAt = data.state.ended;
+      else if (data.state.actions.length && currentTeamId === i)
+        team.checkoutAt = data.state.actions.last.createdAt;
+      else
+        SKIP:for (let j = data.state.turns.length - 1; j > -1; j--) {
+          let actions = data.state.turns[j].actions;
+          for (let k = actions.length - 1; k > -1; k--) {
+            let action = actions[k];
+            if (action.forced) continue;
+
+            team.checkoutAt = action.createdAt;
+            break SKIP;
+          }
+        }
+    }
+
+    return data;
+  }
 ];
 
 /*

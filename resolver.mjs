@@ -47,7 +47,7 @@ export function resolve(specifier, context, defaultResolve) {
   }
   // Matches path specifiers called from node modules
   else if (parentURL.startsWith(`${baseURL}node_modules`)) {
-    let parentModulePath = parentURL.replace(/^file:\/\/\//, '');
+    let parentModulePath = path.dirname(parentURL).replace(/^file:\/\/\//, '');
     return moduleResolve(parentModulePath, specifier, defaultResolve);
   }
   else

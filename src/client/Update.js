@@ -88,7 +88,7 @@ export const getUpdate = async version => {
             },
           },
         ],
-        minWidth: '310px',
+        maxWidth: '310px',
         zIndex: 999,
       });
       throw error;

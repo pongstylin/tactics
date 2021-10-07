@@ -13,25 +13,22 @@ export default class GameState {
    * The default constructor is intended for internal use only.
    */
   constructor(stateData) {
-    let board = new Board();
+    const board = new Board();
 
     // Clone the stateData since we'll be modifying it.
     stateData = Object.assign({}, stateData);
 
-    let turns = stateData.turns || [];
-    delete stateData.turns;
-
-    let actions = stateData.actions || [];
+    const actions = stateData.actions || [];
     delete stateData.actions;
 
     Object.assign(this,
       {
+        turns: [],
         winnerId: null,
       },
       stateData,
       {
         _bots:       [],
-        _turns:      turns,
         _board:      board,
         _newActions: [],
         _actions:    [],
@@ -130,7 +127,7 @@ export default class GameState {
     return this._board;
   }
   get currentTurnId() {
-    return this._turns.length;
+    return this.turns.length;
   }
   get currentTeamId() {
     return this.currentTurnId % this.teams.length;
@@ -310,21 +307,17 @@ export default class GameState {
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
 
+    // The game and first turn starts at the same time.  This guarantee enables
+    // use to determine if a given turn is the first playable turn by comparing
+    // the turn start date with the game start date.  This is currently used for
+    // triggering "Your Turn" notifications at the right times.
     this.started = new Date();
     this.turnStarted = this.started;
 
     // First turn must be passed, but at least recovery drops.
     // The second turn might be passed, too, if all units are in recovery.
-    while (
-      (this.currentTurnId === 0 && this.type !== 'chaos') ||
-      this.currentTeam.units.findIndex(u => u.mRecovery === 0) === -1
-    ) {
-      let action = this._getEndTurnAction(true);
-      action.created = this.turnStarted;
-      action.teamId = action.teamId || this.currentTeamId;
-
-      this._applyAction(action);
-    }
+    // Even after auto passing, the game and next turn starts at the same time.
+    this.autoPass();
 
     this._emit({
       type: 'startGame',
@@ -380,10 +373,10 @@ export default class GameState {
         units:   this.units,
         actions: this.actions,
       };
-    else if (!this._turns[turnId])
+    else if (!this.turns[turnId])
       return null;
     else
-      turnData = {...this._turns[turnId]};
+      turnData = {...this.turns[turnId]};
 
     turnData.id = turnId;
     turnData.teamId = turnId % this.teams.length;
@@ -396,7 +389,7 @@ export default class GameState {
     if (turnId === this.currentTurnId)
       turnActions = this.actions;
     else if (turnId < this.currentTurnId)
-      turnActions = this._turns[turnId].actions;
+      turnActions = this.turns[turnId].actions;
     else
       throw new ServerError(409, 'No such turn ID');
 
@@ -404,7 +397,14 @@ export default class GameState {
   }
 
   _pushAction(action) {
-    action.created = new Date();
+    // Auto passed turns start and end at the same time.  This guarantee enables
+    // use to determine if a given turn is the first playable turn by comparing
+    // the turn start date with the game start date.  This is currently used for
+    // triggering "Your Turn" notifications at the right times.
+    if (this._actions.length === 0 && action.type === 'endTurn' && action.forced)
+      action.created = this.turnStarted;
+    else
+      action.created = new Date();
     action.teamId = action.teamId || this.currentTeamId;
 
     this._newActions.push(action);
@@ -601,30 +601,33 @@ export default class GameState {
    */
   autoPass() {
     // If all teams pass their turns 3 times, draw!
-    let passedTurnLimit = this.teams.length * 3;
+    const passedTurnLimit = this.teams.length * 3;
     let passedTurnCount = 0;
     let stopCountingPassedTurns = false;
 
     // If no teams attack each other for 15 cycles, draw!
-    let attackTurnLimit = this.teams.length * 15;
+    const attackTurnLimit = this.teams.length * 15;
     let attackTurnCount = 0;
 
-    let maxTurnId = this.currentTurnId - 1;
-    let minTurnId = Math.max(-1, maxTurnId - attackTurnLimit);
+    /*
+     * Determine current draw counts from the game history.
+     * The min turnId is 0 not -1.  The always passed 1st turn doesn't count.
+     */
+    const maxTurnId = this.currentTurnId - 1;
+    const minTurnId = Math.max(0, maxTurnId - attackTurnLimit);
     TURN:for (let i = maxTurnId; i > minTurnId; i--) {
-      let actions = this._turns[i].actions;
-      let teamsUnits = this._turns[i].units;
+      const actions = this.turns[i].actions;
+      const teamsUnits = this.turns[i].units;
 
       // If the only action that took place is ending the turn...
       if (actions.length === 1) {
         if (!stopCountingPassedTurns && ++passedTurnCount === passedTurnLimit)
           break;
-      }
-      else {
+      } else {
         stopCountingPassedTurns = true;
 
         for (let j = 0; j < actions.length-1; j++) {
-          let action = actions[j];
+          const action = actions[j];
           if (!action.type.startsWith('attack')) continue;
 
           let attackerTeamId;
@@ -636,7 +639,7 @@ export default class GameState {
           }
 
           for (let k = 0; k < action.results.length; k++) {
-            let result = action.results[k];
+            const result = action.results[k];
             // This check ignores summoned units, e.g. shrubs
             if (typeof result.unit !== 'number') continue;
 
@@ -656,6 +659,13 @@ export default class GameState {
 
       attackTurnCount++;
     }
+
+    /*
+     * With draw counts in place, let's start auto passing turns.
+     * First turn is always auto passed (unless it is the Chaos challenge)
+     */
+    if (this.currentTurnId === 0 && this.type !== 'chaos')
+      this._pushAction(this._getEndTurnAction(true));
 
     let turnEnded = true;
     while (turnEnded) {
@@ -711,6 +721,9 @@ export default class GameState {
     let requireApproval = false;
     let turnId;
     let actions;
+
+    if (this.ended)
+      return approve;
 
     // Determine the turn being undone in whole or in part
     for (turnId = this.currentTurnId; turnId > -1; turnId--) {
@@ -790,10 +803,10 @@ export default class GameState {
     if (team.id === this.currentTurnId && this._actions.length === 0)
       return false;
 
-    // Practice games don't impose restrictions.
     let bot      = teams.find(t => !!t.bot);
     let opponent = teams.find(t => t.playerId !== team.playerId);
 
+    // Practice games don't impose restrictions.
     if (!bot && !opponent) {
       for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
         let turnData = this.getTurnData(turnId);
@@ -813,8 +826,10 @@ export default class GameState {
         this.revert(turnId);
         break;
       }
-    }
-    else {
+    } else {
+      if (!approved && this.ended)
+        return false;
+
       let turnId;
       for (turnId = this.currentTurnId; turnId > -1; turnId--) {
         // Bots do not allow undo after the turn has ended.
@@ -902,6 +917,14 @@ export default class GameState {
     this._emitter.addListener(...arguments);
     return this;
   }
+  once(eventType, fn) {
+    const listener = () => {
+      this.off(eventType, listener);
+      fn();
+    };
+
+    this.on(eventType, listener);
+  }
   off() {
     this._emitter.removeListener(...arguments);
     return this;
@@ -922,7 +945,7 @@ export default class GameState {
       started: this.started,
 
       turnStarted: this.turnStarted,
-      turns: this._turns,
+      turns: this.turns,
       units: this.units,
       actions: this.actions,
 
@@ -1035,7 +1058,19 @@ export default class GameState {
     return action;
   }
   _validateSurrenderAction(action) {
-    let team = this.teams[action.teamId];
+    const teams = this.teams;
+    if (!action.teamId && action.declaredBy) {
+      for (let i = 0; i < teams.length; i++) {
+        const teamId = (this.currentTeamId + i) % teams.length;
+        if (teams[teamId].playerId !== action.declaredBy)
+          continue;
+
+        action.teamId = teamId;
+        break;
+      }
+    }
+
+    const team = teams[action.teamId];
     if (!team || !team.units.length)
       throw new ServerError(400, 'No such team ID');
 
@@ -1045,12 +1080,12 @@ export default class GameState {
       if (team !== this.currentTeam)
         throw new ServerError(403, "It is not the team's turn");
 
-      let now = new Date();
-      let lastAction = this._actions.last;
-      let lastActionAt = lastAction ? lastAction.created.getTime() : 0;
-      let actionTimeout = (lastActionAt + 10000) - now;
-      let turnTimeout = (this.turnStarted.getTime() + this.turnTimeLimit*1000) - now;
-      let timeout = Math.max(actionTimeout, turnTimeout);
+      const now = Date.now();
+      const lastAction = this._actions.last;
+      const lastActionAt = lastAction ? lastAction.created.getTime() : 0;
+      const actionTimeout = (lastActionAt + 10000) - now;
+      const turnTimeout = (this.turnStarted.getTime() + this.turnTimeLimit*1000) - now;
+      const timeout = Math.max(actionTimeout, turnTimeout);
 
       // The team's timeout must be exceeded.
       if (timeout > 0)
@@ -1136,7 +1171,7 @@ export default class GameState {
   _pushHistory() {
     let board = this._board;
 
-    this._turns.push({
+    this.turns.push({
       started: this.turnStarted,
       units:   this.units,
       actions: this.actions,
@@ -1153,7 +1188,7 @@ export default class GameState {
    * 'turnId' can be used to revert to any previous turn by ID.
    */
   _popHistory(turnId) {
-    let turns = this._turns;
+    let turns = this.turns;
     if (turns.length === 0) return;
 
     if (turnId === undefined)

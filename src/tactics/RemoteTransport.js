@@ -46,8 +46,8 @@ export default class RemoteTransport {
           this._reset(data.outbox);
       })
       .on('close', () => {
-        let myPlayerId = authClient.playerId;
-        let playerStatus = [...this.playerStatus].map(([playerId]) => {
+        const myPlayerId = authClient.playerId;
+        const playerStatus = [...this.playerStatus].map(([playerId]) => {
           if (playerId === myPlayerId)
             return { playerId, status:'offline' };
           else
@@ -113,6 +113,9 @@ export default class RemoteTransport {
   }
   get teams() {
     return this._getStateData('teams');
+  }
+  get randomHitChance() {
+    return this._getStateData('randomHitChance');
   }
   get turnTimeLimit() {
     return this._getStateData('turnTimeLimit');
@@ -182,6 +185,9 @@ export default class RemoteTransport {
 
   get undoRequest() {
     return this._getData('undoRequest');
+  }
+  get chatDisabled() {
+    return this._getData('chatDisabled');
   }
 
   /*
@@ -319,6 +325,11 @@ export default class RemoteTransport {
         if (event.type === 'action')
           gameClient.submitAction(gameId, event.data);
       });
+    }).catch(error => {
+      // Ignore a connection reset since a new connection will trigger a retry.
+      if (error === 'Connection reset')
+        return;
+      throw error;
     });
   }
 
@@ -328,7 +339,7 @@ export default class RemoteTransport {
         if (!Array.isArray(data))
           data = [data];
 
-        data.forEach(ps => this.playerStatus.set(ps.playerId, ps.status));
+        data.forEach(ps => this.playerStatus.set(ps.playerId, ps));
       })
       .on('startGame', ({ data }) => {
         data.started = new Date(data.started);

@@ -2,6 +2,8 @@ import uuid from 'uuid/v4.js';
 import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
 
+import ActiveModel from 'models/ActiveModel.js';
+
 import IdentityToken from 'server/IdentityToken.js';
 import AccessToken from 'server/AccessToken.js';
 import config from 'config/server.js';
@@ -14,13 +16,17 @@ import ServerError from 'server/Error.js';
  * Other restrictions are imposed by the validatePlayerName() method.
  */
 XRegExp.install('astral');
-let rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
+const rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 
-export default class Player {
-  constructor(data) {
-    Object.assign(this, {
+export default class Player extends ActiveModel {
+  constructor(props) {
+    super({
       identityToken: null,
-    }, data);
+      acl: new Map(),
+      reverseACL: new Map(),
+
+      ...props,
+    });
   }
 
   static create(data) {
@@ -30,15 +36,18 @@ export default class Player {
     Player.validatePlayerName(data.name);
 
     data.id = uuid();
-    data.created = new Date();
+    data.createdAt = new Date();
+    data.checkoutAt = data.createdAt;
     data.devices = new Map();
 
     return new Player(data);
   }
 
   static load(data) {
-    if (typeof data.created === 'string')
-      data.created = new Date(data.created);
+    if (typeof data.createdAt === 'string')
+      data.createdAt = new Date(data.createdAt);
+    if (typeof data.checkoutAt === 'string')
+      data.checkoutAt = new Date(data.checkoutAt);
     if (data.identityToken)
       data.identityToken = new IdentityToken(data.identityToken);
     if (Array.isArray(data.devices))
@@ -55,6 +64,8 @@ export default class Player {
           ])),
         }),
       ]));
+    data.acl = new Map(data.acl);
+    data.reverseACL = new Map(data.reverseACL);
 
     return new Player(data);
   }
@@ -65,7 +76,7 @@ export default class Player {
     if (name.length > 20)
       throw new ServerError(403, 'Player name length limit is 20 characters');
 
-    let width = getTextWidth(name, { font: 'Arial', size: 12 });
+    const width = getTextWidth(name, { font: 'Arial', size: 12 });
     if (width > 110)
       throw new ServerError(403, 'Player name visual length is too long');
 
@@ -84,33 +95,37 @@ export default class Player {
   }
 
   updateProfile(profile) {
-    let changed = false;
+    let hasChanged = false;
 
     Object.keys(profile).forEach(property => {
-      if (property === 'name') {
-        if (profile.name === this.name)
-          return;
+      const oldValue = this[property];
+      const newValue = profile[property];
+      if (oldValue === newValue) return;
 
+      if (property === 'name') {
         Player.validatePlayerName(profile.name);
         this.name = profile.name;
 
         // Create new access token(s) with the new name
-        for (let [deviceId, device] of this.devices) {
+        for (let [deviceId, device] of this.devices)
           device.nextToken = this.createAccessToken(deviceId);
-        }
 
-        changed = true;
-      }
-      else
+        hasChanged = true;
+      } else
         throw new Error('Invalid profile');
     });
 
-    return changed;
+    if (hasChanged) {
+      this.emit('change:profile');
+      return true;
+    }
+
+    return false;
   }
   refreshAccessToken(deviceId) {
-    let device = this.devices.get(deviceId);
-    let token = device.token;
-    let nextToken = device.nextToken;
+    const device = this.devices.get(deviceId);
+    const token = device.token;
+    const nextToken = device.nextToken;
 
     if (nextToken)
       if (nextToken.age < (nextToken.ttl * 0.1))
@@ -123,13 +138,44 @@ export default class Player {
       else
         device.nextToken = this.createAccessToken(device.id);
 
+    this.emit('change:refreshAccessToken');
+
     return true;
   }
+  activateAccessToken(client, token) {
+    const now = new Date();
+    const device = this.getDevice(token.deviceId);
+    if (device.agents.has(client.agent))
+      device.agents.get(client.agent).set(client.address, now);
+    else
+      device.agents.set(client.agent, new Map([[client.address, now]]));
 
-  addDevice(client) {
-    let now = new Date();
-    let deviceId = uuid();
-    let device = {
+    device.token = token;
+    device.nextToken = null;
+
+    this.emit('change:activateAccessToken');
+
+    return true;
+  }
+  checkout(client) {
+    const checkoutAt = new Date(Date.now() - client.session.idle * 1000);
+    if (checkoutAt > this.checkoutAt) {
+      this.checkoutAt = checkoutAt;
+      this.emit('change:checkout');
+    }
+  }
+
+  addDevice(client, token = null) {
+    if (token) {
+      if (!token.equals(this.identityToken))
+        throw new ServerError(403, 'Identity token was revoked');
+
+      this.clearIdentityToken();
+    }
+
+    const now = new Date();
+    const deviceId = uuid();
+    const device = {
       id: deviceId,
       name: null,
       token: this.createAccessToken(deviceId),
@@ -141,14 +187,135 @@ export default class Player {
     };
 
     this.devices.set(deviceId, device);
+    this.emit('change:addDevice');
 
     return device;
   }
   getDevice(deviceId) {
     return this.devices.get(deviceId);
   }
+  setDeviceName(deviceId, name) {
+    if (name !== null) {
+      if (typeof name !== 'string')
+        throw new ServerError(400, 'Expected device name');
+      if (name.length > 20)
+        throw new ServerError(400, 'Device name may not exceed 20 characters');
+    }
+
+    const device = this.getDevice(deviceId);
+    if (!device)
+      throw new ServerError(404, 'No such device');
+
+    device.name = name;
+    this.emit('change:setDeviceName');
+
+    return true;
+  }
   removeDevice(deviceId) {
+    if (!this.devices.has(deviceId))
+      return false;
+
     this.devices.delete(deviceId);
+    this.emit('change:removeDevice');
+
+    return true;
+  }
+
+  getPlayerACL(playerId) {
+    const playerACL = this.acl.get(playerId);
+    const reverseType = this.reverseACL.get(playerId);
+    if (!playerACL && !reverseType)
+      return;
+
+    return Object.assign({}, this.acl.get(playerId), { reverseType });
+  }
+  setPlayerACL(player, playerACL) {
+    if (!playerACL.type)
+      throw new ServerError(400, 'Required player ACL type');
+    if (!playerACL.name)
+      throw new ServerError(400, 'Required player ACL name');
+    if (!/^(?:friended|muted|blocked)$/.test(playerACL.type))
+      throw new ServerError(400, 'Unrecognized player ACL type');
+    if (Object.keys(playerACL).length > 2)
+      throw new ServerError(400, 'Too many player ACL properties');
+
+    Player.validatePlayerName(playerACL.name);
+
+    const acl = this.acl.get(player.id);
+    if (acl?.type === playerACL.type && acl.name === playerACL.name)
+      return false;
+
+    playerACL.createdAt = new Date();
+
+    this.acl.set(player.id, playerACL);
+    this.emit({
+      type: 'acl:set',
+      target: this,
+      data: { playerId:player.id, playerACL },
+    });
+    this.emit('change:setPlayerACL');
+
+    player.setReversePlayerACL(this.id, playerACL.type);
+
+    return true;
+  }
+  mute(player, playerName) {
+    return this.setPlayerACL(player, {
+      type: 'muted',
+      name: playerName,
+    });
+  }
+  clearPlayerACL(player) {
+    if (!this.acl.has(player.id))
+      return false;
+
+    this.acl.delete(player.id);
+    this.emit({
+      type: 'acl:clear',
+      target: this,
+      data: { playerId:player.id },
+    });
+    this.emit('change:clearPlayerACL');
+
+    player.clearReversePlayerACL(this.id);
+
+    return true;
+  }
+  hasBlocked(playerId) {
+    return this.acl.get(playerId)?.type === 'blocked';
+  }
+  hasMutedOrBlocked(playerIds) {
+    const isMutedOrBlocked = /^(?:muted|blocked)$/;
+
+    return playerIds.filter(pId => isMutedOrBlocked.test(this.acl.get(pId)?.type));
+  }
+
+  setReversePlayerACL(playerId, aclType) {
+    this.reverseACL.set(playerId, aclType);
+    this.emit({
+      type: 'acl:setReverse',
+      target: this,
+      data: { playerId },
+    });
+  }
+  clearReversePlayerACL(playerId) {
+    this.reverseACL.delete(playerId);
+    this.emit({
+      type: 'acl:clearReverse',
+      target: this,
+      data: { playerId },
+    });
+  }
+  listBlockedBy() {
+    const playerIds = new Set();
+    for (const [ playerId, aclType ] of this.reverseACL) {
+      if (aclType === 'blocked')
+        playerIds.add(playerId);
+    }
+    return playerIds;
+  }
+  isBlockedBy(playerId) {
+    return this.reverseACL.get(playerId) === 'blocked';
   }
 
   /*
@@ -163,7 +330,7 @@ export default class Player {
     });
   }
   getAccessToken(deviceId) {
-    let device = this.devices.get(deviceId);
+    const device = this.devices.get(deviceId);
 
     return device.nextToken || device.token;
   }
@@ -177,9 +344,26 @@ export default class Player {
       name: this.name,
     });
   }
+  setIdentityToken(token = this.createIdentityToken()) {
+    this.identityToken = token;
+    this.emit('change:setIdentityToken');
+  }
+  getIdentityToken() {
+    if (this.identityToken && this.identityToken.isExpired) {
+      this.identityToken = null;
+      this.emit('change:expireIdentityToken');
+    }
+
+    return this.identityToken;
+  }
+  clearIdentityToken() {
+    this.identityToken = null;
+    this.emit('change:clearIdentityToken');
+  }
 
   toJSON() {
-    let json = {...this};
+    const json = super.toJSON();
+
     json.devices = [...json.devices.values()].map(device =>
       Object.assign({}, device, {
         agents: [...device.agents].map(

@@ -14,6 +14,9 @@ export default class ChatClient extends Client {
     let listener = event => {
       if (event.body.service !== this.name) return;
 
+      if (event.body.type === 'muted')
+        event.body.data.muted = new Set(event.body.data.muted);
+
       this._emit(event);
     };
 
@@ -31,7 +34,12 @@ export default class ChatClient extends Client {
   }
 
   joinChat(roomId, resume) {
-    return this._server.joinAuthorized(this.name, `/rooms/${roomId}`, resume);
+    return this._server.joinAuthorized(this.name, `/rooms/${roomId}`, resume).then(data => {
+      data.muted = new Map(
+        data.muted.map(([ id, muted ]) => [ id, new Set(muted) ]),
+      );
+      return data;
+    });
   }
   postMessage(roomId, message) {
     return this._server.emitAuthorized(this.name, `/rooms/${roomId}`, 'message', message);

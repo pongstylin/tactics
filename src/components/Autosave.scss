@@ -1,0 +1,79 @@
+.inputTextAutosave {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+
+  border-bottom: 1px solid #888888;
+}
+.inputTextAutosave INPUT[type=text] {
+  flex: 1 1 auto;
+
+  box-sizing: border-box;
+  background-color: black;
+  color: inherit;
+  border: 0 none;
+  padding: 4px;
+  width: 100%;
+}
+.inputTextAutosave INPUT[type=text]:focus {
+  outline: #b08d57 auto 1px;
+}
+.inputTextAutosave INPUT[type=text]::placeholder {
+  font-style: italic;
+  color: inherit;
+}
+.inputTextAutosave INPUT[type=text]:focus::placeholder {
+  opacity: 0;
+}
+.inputTextAutosave .icons {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+
+  & > * {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    margin-left: 4px;
+
+    &.fa {
+      font-size: 1.2em;
+    }
+  }
+  .fa {
+    line-height: 26px;
+    text-align: center;
+  }
+  .saved {
+    position: relative;
+
+    .fa-spinner {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    .fa-check-circle {
+      color: #444444;
+    }
+  }
+}
+.inputTextAutosave.is-saving .icons {
+  .saved {
+    .fa-spinner {
+      display: block;
+    }
+    .fa-check-circle {
+      display: none;
+    }
+  }
+}
+.inputTextAutosave.is-saved .icons {
+  .saved {
+    .fa-check-circle {
+      color: #00CC00;
+    }
+  }
+}

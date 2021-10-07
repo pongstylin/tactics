@@ -10,29 +10,67 @@ export default {
   publicKey: process.env.PUBLIC_KEY,
   privateKey: process.env.PRIVATE_KEY,
 
-  // Service endpoints required for inter-service communication.
-  // This server only accepts messages directed to 'local' services.
-  endpoints: new Map([
-    ['auth', 'local'],
-    ['game', 'local'],
-    ['chat', 'local'],
-    ['push', 'local'],
-  ]),
+  /*
+   * When using the FileAdapter, configure how long files are cached.
+   */
+  cache: {
+    expireIn: 60 * 60000,
+  },
 
   /*
-   * Push Service Configuration.
+   * When using the FileAdapter, configure how often buffered file changes are
+   * flushed to disk.
    */
-  push: {
-    /*
-     * The `subject` should be 'mailto:' link with your email address or the URL
-     * of the site generating push notifications.  For development purposes, it
-     * can be set to the localhost URL, which should indicate the notifications
-     * are sent for testing purposes.  This information is included when pushing
-     * a notification to the push service.  If possible, they might contact you
-     * if you are accidentally flooding their service with pushed notifications.
-     */
-    subject: process.env.PN_SUBJECT,
-    publicKey: process.env.PN_PUBLIC_KEY,
-    privateKey: process.env.PN_PRIVATE_KEY,
+  buffer: {
+    // Flush files at a maximum rate of every 5 seconds
+    interval: 5000,
+    // Buffer file changes for at least 2 minutes.
+    expireIn: 2 * 60000,
+    // The number of files to flush at one time (per file type).
+    expireLimit: size => Math.ceil(size / 15),
   },
+
+  services: new Map([
+    [
+      'auth',
+      {
+        module: 'server/AuthService.js',
+        dataAdapterModule: 'data/FileAdapter/AuthAdapter.js',
+      },
+    ],
+    [
+      'game',
+      {
+        module: 'server/GameService.js',
+        dataAdapterModule: 'data/FileAdapter/GameAdapter.js',
+      },
+    ],
+    [
+      'chat',
+      {
+        module: 'server/ChatService.js',
+        dataAdapterModule: 'data/FileAdapter/ChatAdapter.js',
+      },
+    ],
+    [
+      'push',
+      {
+        module: 'server/PushService.js',
+        dataAdapterModule: 'data/FileAdapter/PushAdapter.js',
+        config: {
+          /*
+           * The `subject` should be 'mailto:' link with your email address or the URL
+           * of the site generating push notifications.  For development purposes, it
+           * can be set to the localhost URL, which should indicate the notifications
+           * are sent for testing purposes.  This information is included when pushing
+           * a notification to the push service.  If possible, they might contact you
+           * if you are accidentally flooding their service with pushed notifications.
+           */
+          subject: process.env.PN_SUBJECT,
+          publicKey: process.env.PN_PUBLIC_KEY,
+          privateKey: process.env.PN_PRIVATE_KEY,
+        },
+      },
+    ],
+  ]),
 };

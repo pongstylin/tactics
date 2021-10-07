@@ -5,41 +5,74 @@ import IdentityToken from 'server/IdentityToken.js';
 import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
-import adapterFactory from 'data/adapterFactory.js';
 import Player from 'models/Player.js';
 
-const dataAdapter = adapterFactory();
-
-class AuthService extends Service {
-  constructor() {
+export default class AuthService extends Service {
+  constructor(props) {
     super({
-      name: 'auth',
+      ...props,
 
-      // Session data for each client.
-      sessions: new Map(),
+      clientPara: new Map(),
     });
   }
 
+  openPlayer(playerId) {
+    return this.data.openPlayer(playerId);
+  }
+  closePlayer(playerId) {
+    return this.data.closePlayer(playerId);
+  }
+  getPlayer(playerId) {
+    return this.data.getPlayer(playerId);
+  }
+
   dropClient(client) {
-    this.sessions.delete(client.id);
+    const clientPara = this.clientPara.get(client.id);
+    if (!clientPara) return;
+
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+    player.checkout(client);
+    this.data.closePlayer(player.id);
+
+    this.clientPara.delete(client.id);
   }
 
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
   async onAuthorize(client, { token:tokenValue }) {
-    let session = await this._validateAccessToken(client, tokenValue);
-    if (session.token.isExpired)
+    const { token, player, device } = await this._validateAccessToken(client, tokenValue);
+    if (token.isExpired)
       throw new ServerError(401, 'Token expired');
 
-    this.sessions.set(client.id, session);
+    if (this.clientPara.has(client.id)) {
+      const clientPara = this.clientPara.get(client.id);
+      clientPara.token = token;
+
+      if (clientPara.playerId !== token.playerId) {
+        this.data.closePlayer(clientPara.playerId);
+        clientPara.playerId = player.id;
+        clientPara.device = device;
+
+        await this.data.openPlayer(token.playerId);
+      } else if (clientPara.device.id !== device.id)
+        throw new ServerError(501, 'Unsupported change of device');
+    } else {
+      const clientPara = {};
+
+      clientPara.token = token;
+      clientPara.playerId = player.id;
+      clientPara.device = device;
+      this.clientPara.set(client.id, clientPara);
+
+      // Keep this player open for the duration of the session.
+      await this.data.openPlayer(player.id);
+    }
   }
 
   async onRegisterRequest(client, playerData) {
-    let session = this.sessions.get(client.id) || {};
-
     // An authorized player cannot register an account.
-    if (session.token)
+    if (this.clientPara.has(client.id))
       throw new ServerError(403, 'Already registered');
 
     /*
@@ -49,56 +82,54 @@ class AuthService extends Service {
      */
     this.throttle(client.address, 'register', 1, 30);
 
-    let { player, device } = await dataAdapter.register(playerData, client);
+    const player = Player.create(playerData);
+    const device = player.addDevice(client);
+    await this.data.createPlayer(player);
 
     return player.getAccessToken(device.id);
   }
 
   async onCreateIdentityTokenRequest(client) {
-    let session = this.sessions.get(client.id) || {};
-    if (!session.token)
+    if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    session.player = await dataAdapter.createIdentityToken(session.player.id);
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+    player.setIdentityToken();
 
-    return session.player.identityToken;
+    return player.identityToken;
   }
   async onRevokeIdentityTokenRequest(client) {
-    let session = this.sessions.get(client.id) || {};
-    if (!session.token)
+    if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    session.player = await dataAdapter.revokeIdentityToken(session.player.id);
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+    player.clearIdentityToken();
   }
 
   async onGetIdentityTokenRequest(client) {
-    let session = this.sessions.get(client.id) || {};
-    if (!session.token)
+    if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    let player = session.player;
-    let token = player.identityToken;
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
 
-    if (token && token.isExpired) {
-      session.player = await dataAdapter.revokeIdentityToken(session.player.id);
-      token = null;
-    }
-
-    return token;
+    return player.getIdentityToken();
   }
 
   onGetDevicesRequest(client) {
-    let session = this.sessions.get(client.id) || {};
-    if (!session.token)
+    if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    let player = session.player;
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
 
     return [...player.devices].map(([deviceId, device]) => ({
       id: deviceId,
       name: device.name,
       agents: [...device.agents].map(([agent, addresses]) => {
-        let digest = uaparser(agent);
+        const digest = uaparser(agent);
 
         if (digest.os.name === undefined)
           digest.os = null;
@@ -120,52 +151,42 @@ class AuthService extends Service {
       }),
     }));
   }
+  onGetACLRequest(client) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+
+    return player.acl;
+  }
   /*
    * Add device to account using the identity token.  Return access token.
    * (Authorization not required)
    */
   async onAddDeviceRequest(client, identityTokenValue) {
-    let now = new Date();
-    let token = IdentityToken.verify(identityTokenValue);
+    const token = IdentityToken.verify(identityTokenValue);
+    const player = await this.data.getPlayer(token.playerId);
 
-    let player = await dataAdapter.getPlayer(token.playerId);
-    if (!token.equals(player.identityToken))
-      throw new ServerError(403, 'Identity token was revoked');
-
-    player.identityToken = null;
-    let device = player.addDevice(client);
-
-    await dataAdapter.savePlayer(player);
-
-    return device.token;
+    return player.addDevice(client, token).token;
   }
-  onSetDeviceNameRequest(client, deviceId, deviceName) {
-    let session = this.sessions.get(client.id) || {};
-    if (!session.token)
+  async onSetDeviceNameRequest(client, deviceId, deviceName) {
+    if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    if (deviceName !== null) {
-      if (typeof deviceName !== 'string')
-        throw new ServerError(400, 'Expected device name');
-      if (deviceName.length > 20)
-        throw new ServerError(400, 'Device name may not exceed 20 characters');
-    }
-
-    let player = session.player;
-    let device = player.getDevice(deviceId);
-    if (!device)
-      throw new ServerError(404, 'No such device');
-
-    device.name = deviceName;
-
-    dataAdapter.savePlayer(player);
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+    player.setDeviceName(deviceId, deviceName);
   }
-  onRemoveDeviceRequest(client, deviceId) {
-    let session = this.sessions.get(client.id) || {};
-    if (!session.token)
+  async onRemoveDeviceRequest(client, deviceId) {
+    if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    dataAdapter.removePlayerDevice(session.player, deviceId);
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+    player.removeDevice(deviceId);
+
+    this.push.clearPushSubscription(player.id, deviceId);
   }
 
   /*
@@ -193,26 +214,20 @@ class AuthService extends Service {
    *           if it is still fresh.
    *        b) When refreshing the next token, activating it, return it if it is
    *           still fresh.
-   *        c) Use the data adapter to atomically/serially refresh tokens.
    */
   async onRefreshTokenRequest(client, tokenValue) {
-    let session = this.sessions.get(client.id) || {};
-
     // An authorized player does not have to provide the token.
-    if (!tokenValue)
-      tokenValue = session.token.value;
+    if (!tokenValue && this.clientPara.has(client.id))
+      tokenValue = this.clientPara.get(client.id).token.value;
 
-    let { player, device } = await this._validateAccessToken(client, tokenValue);
-    let oldToken = player.getAccessToken(device.id);
+    const { player, device } = await this._validateAccessToken(client, tokenValue);
 
-    session.player = await dataAdapter.refreshAccessToken(player.id, device.id);
-    session.device = session.player.getDevice(device.id);
-
-    let newToken = session.player.getAccessToken(device.id);
-    if (!newToken.equals(oldToken))
+    if (player.refreshAccessToken(device.id)) {
+      const newToken = player.getAccessToken(device.id);
       this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${newToken.signature}`);
+    }
 
-    return newToken;
+    return player.getAccessToken(device.id);
   }
 
   /*
@@ -221,48 +236,65 @@ class AuthService extends Service {
    * Right now, the client must first register or refresh token first.
    */
   async onSaveProfileRequest(client, profile) {
-    let session = this.sessions.get(client.id) || {};
-    if (!session.token)
+    if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    let { player, device } = session;
-    let oldToken = player.getAccessToken(device.id);
+    const { playerId, device } = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(playerId);
 
-    session.player = await dataAdapter.savePlayerProfile(player.id, profile);
-    session.device = session.player.getDevice(device.id);
-
-    let newToken = session.player.getAccessToken(device.id);
-    if (!newToken.equals(oldToken))
+    if (player.updateProfile(profile)) {
+      const newToken = player.getAccessToken(device.id);
       this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${newToken.signature}`);
+    }
 
-    return newToken;
+    return player.getAccessToken(device.id);
+  }
+
+  async onGetPlayerACLRequest(client, playerId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+
+    return player.getPlayerACL(playerId);
+  }
+  async onSetPlayerACLRequest(client, playerId, playerACL) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+    const playerA = this.data.getOpenPlayer(clientPara.playerId);
+    const playerB = await this.data.getPlayer(playerId);
+    playerA.setPlayerACL(playerB, playerACL);
+
+    if (playerACL.type === 'blocked')
+      this.game.blockPlayer(playerA.id, playerId);
+  }
+  async onClearPlayerACLRequest(client, playerId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+    const playerA = this.data.getOpenPlayer(clientPara.playerId);
+    const playerB = await this.data.getPlayer(playerId);
+    playerA.clearPlayerACL(playerB);
   }
 
   async _validateAccessToken(client, tokenValue) {
-    let now = new Date();
-    let token = AccessToken.verify(tokenValue, { ignoreExpiration:true });
-    let player = await dataAdapter.getPlayer(token.playerId);
-    let device = player.getDevice(token.deviceId);
+    const token = AccessToken.verify(tokenValue, { ignoreExpiration:true });
+    const player = await this.data.getPlayer(token.playerId);
+    const device = player.getDevice(token.deviceId);
 
     if (!device)
       throw new ServerError(401, 'Device deleted');
 
     if (token.equals(device.token)) {
       this.debug(`Accepted token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
-    }
-    else if (token.equals(device.nextToken)) {
+    } else if (token.equals(device.nextToken)) {
+      player.activateAccessToken(client, token);
       this.debug(`Activate token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
-
-      if (device.agents.has(client.agent))
-        device.agents.get(client.agent).set(client.address, now);
-      else
-        device.agents.set(client.agent, new Map([[client.address, now]]));
-
-      device.token = token;
-      device.nextToken = null;
-      await dataAdapter.savePlayer(player);
-    }
-    else {
+    } else {
       // This should never happen unless tokens are leaked and used without permission.
       this.debug(`Revoked token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
       throw new ServerError(409, 'Token revoked');
@@ -271,6 +303,3 @@ class AuthService extends Service {
     return { token, player, device };
   }
 }
-
-// This class is a singleton
-export default new AuthService();

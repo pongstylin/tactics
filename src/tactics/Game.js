@@ -115,6 +115,7 @@ export default class Game {
 
       _teams: [],
       _turnTimeout: null,
+      _speed: 'auto',
 
       // The currently displayed turn and action
       cursor: null,
@@ -159,20 +160,32 @@ export default class Game {
     return this.state.whenStarted;
   }
   get turnTimeRemaining() {
-    let state = this.state;
+    const state = this.state;
     if (!state.turnTimeLimit)
       return;
     if (state.ended)
       return;
 
-    let now = state.now;
-    let lastAction = state.actions.last;
-    let lastActionAt = lastAction ? +lastAction.created : 0;
-    let actionTimeout = (lastActionAt + 10000) - now;
-    let turnStartedAt = +state.turnStarted;
-    let turnTimeout = (turnStartedAt + state.turnTimeLimit*1000) - now;
+    const now = state.now;
+    const lastAction = state.actions.last;
+    const lastActionAt = lastAction ? +lastAction.created : 0;
+    const actionTimeout = (lastActionAt + 10000) - now;
+    const turnStartedAt = +state.turnStarted;
+    const turnTimeout = (turnStartedAt + state.turnTimeLimit*1000) - now;
 
     return Math.max(0, actionTimeout, turnTimeout);
+  }
+  set speed(speed) {
+    if (typeof speed === 'number')
+      this._speed = speed;
+    else
+      this._speed = 'auto';
+  }
+  get speed() {
+    if (this._speed === 'auto')
+      return this.state.turnTimeLimit === 30 ? 2 : 1;
+    else
+      return this._speed;
   }
   get isSynced() {
     return this._isSynced;
@@ -444,11 +457,6 @@ export default class Game {
   }
   get isMyTurn() {
     return !this.state.ended && this.isMyTeam(this.currentTeam);
-  }
-  get isPracticeGame() {
-    let playerIds = new Set(this.state.teams.map(t => t.playerId));
-
-    return playerIds.size === 1;
   }
   get ofPracticeGame() {
     if (!this.state.forkOf) return false;
@@ -1201,9 +1209,9 @@ export default class Game {
       });
   }
   async _performAction(action) {
-    let board = this._board;
+    const board = this._board;
     let selected = this.selected;
-    let actionType = action.type;
+    const actionType = action.type;
 
     action = board.decodeAction(action);
 
@@ -1224,8 +1232,8 @@ export default class Game {
     else if (actionType === 'surrender')
       return this._playSurrender(action);
 
-    let actor = action.unit;
-    let speed = this.state.turnTimeLimit === 30 ? 2 : 1;
+    const actor = action.unit;
+    const speed = this.speed;
 
     // Show the player the unit that is about to act.
     if (!selected) {
@@ -1235,7 +1243,7 @@ export default class Game {
       this.drawCard();
     }
 
-    let quick = (
+    const quick = (
       (!selected || selected === actor) &&
       this.isMyTeam(action.teamId) &&
       !this._inReplay

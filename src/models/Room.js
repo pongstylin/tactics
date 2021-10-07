@@ -1,10 +1,8 @@
 import uuid from 'uuid/v4';
 
-export default class Room {
-  constructor(data) {
-    Object.assign(this, data);
-  }
+import ActiveModel from 'models/ActiveModel.js';
 
+export default class Room extends ActiveModel {
   static create(players, options) {
     if (players.length < 0)
       throw new Error('Requires at least one player');
@@ -13,7 +11,7 @@ export default class Room {
       id: uuid(),
     }, options);
 
-    let data = {
+    const data = {
       id:        options.id,
       players:   players,
       events:    [],
@@ -55,7 +53,7 @@ export default class Room {
     if (!message.content)
       throw new Error('Required content');
 
-    let events = this.events;
+    const events = this.events;
 
     events.push(Object.assign(message, {
       id: events.last.id + 1,
@@ -63,17 +61,22 @@ export default class Room {
       createdAt: new Date(),
     }));
 
+    this.emit('change:pushMessage');
+
     this.seenEvent(message.player.id, events.last.id);
   }
   seenEvent(playerId, eventId) {
-    let player = this.players.find(p => p.id === playerId);
+    const player = this.players.find(p => p.id === playerId);
     if (!player)
       throw new Error('The player ID does not exist in this room');
 
-    player.lastSeenEventId = eventId;
-  }
+    if (eventId > this.events.last.id)
+      eventId = this.events.last.id;
+    if (eventId === player.lastSeenEventId)
+      return;
 
-  toJSON() {
-    return {...this};
+    player.lastSeenEventId = eventId;
+
+    this.emit('change:seenEvent');
   }
 }

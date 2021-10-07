@@ -1,8 +1,11 @@
+import Autosave from 'components/Autosave.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
 import wakelock from 'components/wakelock.js';
-import GameSettings from 'components/Modal/GameSettings.js';
+import GameSettingsModal from 'components/Modal/GameSettings.js';
+import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
+import PlayerInfoModal from 'components/Modal/PlayerInfo.js';
 import ForkModal from 'components/Modal/Fork.js';
 
 const ServerError = Tactics.ServerError;
@@ -11,10 +14,12 @@ const gameClient = Tactics.gameClient;
 const chatClient = Tactics.chatClient;
 
 var settings;
+var playerInfo;
 var progress;
 var gameId = location.search.slice(1).replace(/[&=].*$/, '');
 var gameType;
 var game;
+var muted;
 var lastSeenEventId;
 var chatMessages = [];
 var undoPopup;
@@ -31,20 +36,20 @@ var buttons = {
     settings.show();
   },
   replay: async () => {
-    let $app = $('#app');
+    const $app = $('#app');
     if ($app.hasClass('chat-open'))
       buttons.chat();
 
     let turnId = 0;
     let nextActionId = 0;
-
-    let hash = location.hash;
     let skipPassedTurns = 'back';
+
+    const hash = location.hash;
     if (hash) {
-      let params = new URLSearchParams(hash.slice(1));
+      const params = new URLSearchParams(hash.slice(1));
 
       if (params.has('c')) {
-        let cursor = params.get('c').split(',');
+        const cursor = params.get('c').split(',');
 
         turnId = (parseInt(cursor[0]) || 1) - 1;
         nextActionId = parseInt(cursor[1]) || 0;
@@ -70,27 +75,23 @@ var buttons = {
 
       if (players.size === 1) {
         message = `${gameType.name} Practice Game ${turnPart}.`;
-      }
-      else {
+      } else {
         let opponents = game.teams
           .map(t => t.name)
           .join(' vs ');
 
         message = `${opponents} @ ${gameType.name}, ${turnPart}`;
       }
-    }
-    else {
+    } else {
       if (players.size === 1) {
         if (myTeam) {
           message = `Watch my ${gameType.name} practice game.`;
-        }
-        else {
+        } else {
           myTeam = game.teams[0];
 
           message = `Watch ${gameType.name} practice game by ${myTeam.name}.`;
         }
-      }
-      else {
+      } else {
         if (myTeam) {
           let opponents = game.teams
             .filter(t => t.playerId !== myTeam.playerId)
@@ -98,8 +99,7 @@ var buttons = {
             .join(' and ');
 
           message = `Watch my ${gameType.name} game against ${opponents}.`;
-        }
-        else {
+        } else {
           let opponents = game.teams
             .map(t => t.name)
             .join(' vs ');
@@ -124,7 +124,7 @@ var buttons = {
               { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
-            minWidth: '250px',
+            maxWidth: '250px',
           });
         else
           popup({
@@ -133,7 +133,7 @@ var buttons = {
               { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
-            minWidth: '250px',
+            maxWidth: '250px',
           });
       });
     else {
@@ -143,7 +143,6 @@ var buttons = {
   },
   rotate: $button => {
     let classesToToggle;
-
     if ($button.hasClass('fa-rotate-90'))
       classesToToggle = 'fa-rotate-90 fa-rotate-180';
     else if ($button.hasClass('fa-rotate-180'))
@@ -159,7 +158,7 @@ var buttons = {
     resetPlayerBanners();
   },
   undo: () => {
-    let sendingPopup = popup({
+    const sendingPopup = popup({
       message: 'Waiting for server to respond...',
       buttons: [],
       closeOnCancel: false,
@@ -185,11 +184,11 @@ var buttons = {
       });
   },
   select: $button => {
-    let $app = $('#app');
+    const $app = $('#app');
     if ($app.hasClass('chat-open'))
       buttons.chat();
 
-    let mode = $button.val();
+    const mode = $button.val();
 
     if (mode == 'turn' && $button.hasClass('ready')) {
       $('BUTTON[name=select][value=turn]').removeClass('ready');
@@ -342,7 +341,7 @@ var buttons = {
     return false;
   },
   fork: async () => {
-    new ForkModal({ closeOnCancel:true, }, { game });
+    new ForkModal({ game });
   },
   resume: async () => {
     wakelock.toggle(!game.state.ended);
@@ -361,22 +360,24 @@ $(() => {
   progress.message = 'Loading game...';
   progress.show();
 
-  settings = new GameSettings({
-    autoShow: false,
-    hideOnCancel: true,
-  });
-
   if ('ontouchstart' in window)
     $('body').addClass(pointer = 'touch');
   else
     $('body').addClass(pointer = 'mouse');
 
-  if (pointer === 'touch')
-    $('.new-message').attr('placeholder', 'Touch to chat!');
-  else
-    $('.new-message').attr('placeholder', 'Type to chat!');
-
   $('BODY')
+    .on('click', '#field .player .link', event => {
+      const $link = $(event.target);
+      const team = $link.closest('.player').data('team');
+
+      if ($link.hasClass('status')) {
+        new PlayerActivityModal({ game, team });
+      } else if ($link.hasClass('name'))
+        playerInfo = new PlayerInfoModal(
+          { game, gameType, team },
+          { onClose:() => playerInfo = null }
+        );
+    })
     /*
      * Under these conditions a special attack can be triggered:
      *   1) The unit is enraged and selected in attack mode. (selector)
@@ -391,8 +392,8 @@ $(() => {
         return;
       readySpecial = game.readySpecial();
 
-      let button = event.target;
-      let eventType = event.type === 'touchstart' ? 'touchend' : 'mouseup';
+      const button = event.target;
+      const eventType = event.type === 'touchstart' ? 'touchend' : 'mouseup';
 
       $(document).one(eventType, event => {
         if (event.target === button)
@@ -404,7 +405,7 @@ $(() => {
       });
     })
     .on('mouseover', '#app BUTTON:enabled', event => {
-      let $button = $(event.target);
+      const $button = $(event.target);
 
       // Ignore disabled buttons
       if (window.getComputedStyle(event.target).cursor !== 'pointer')
@@ -413,16 +414,16 @@ $(() => {
       Tactics.playSound('focus');
     })
     .on('click', '#app #alert', async event => {
-      let $alert = $(event.target).closest('#alert');
-      let handler = $alert.data('handler');
+      const $alert = $(event.target).closest('#alert');
+      const handler = $alert.data('handler');
       if (!handler)
         return;
 
       handler();
     })
     .on('click', '#app BUTTON:enabled', async event => {
-      let $button = $(event.target);
-      let handler = $button.data('handler') || buttons[$button.attr('name')];
+      const $button = $(event.target);
+      const handler = $button.data('handler') || buttons[$button.attr('name')];
       if (!handler) return;
 
       // Ignore disabled buttons
@@ -490,7 +491,7 @@ $(() => {
         if (!$newMessage.is(':focus'))
           return $newMessage[0].focus({ preventScroll:true });
 
-        let message = $newMessage.val().trim();
+        const message = $newMessage.val().trim();
         if (!message.length)
           if ($newMessage.is(':focus'))
             return $newMessage.blur();
@@ -506,14 +507,12 @@ $(() => {
 
           setTimeout(() => $newMessage.trigger('input'));
         }
-      }
-      else if (keyChar === 'Escape') {
+      } else if (keyChar === 'Escape') {
         if ($app.hasClass('chat-open')) {
           $newMessage.blur();
           buttons.chat();
         }
-      }
-      else if (keyChar.length === 1 && !$newMessage.is(':focus')) {
+      } else if (keyChar.length === 1 && !$newMessage.is(':focus')) {
         $newMessage[0].focus({ preventScroll:true });
       }
     })
@@ -525,7 +524,7 @@ $(() => {
     });
 
   $('#chat').on('transitionend', ({ originalEvent:event }) => {
-    let $messages = $('#messages');
+    const $messages = $('#messages');
 
     if (event.propertyName === 'height')
       $messages.scrollTop($messages.prop('scrollHeight'));
@@ -534,9 +533,9 @@ $(() => {
   // It takes some JS-work to base a TEXTAREA's height on its content.
   $('TEXTAREA')
     .on('input', async event => {
-      let $chat = $('#chat');
-      let $messages = $chat.find('#messages');
-      let $newMessage = $chat.find('.new-message');
+      const $chat = $('#chat');
+      const $messages = $chat.find('#messages');
+      const $newMessage = $chat.find('.new-message');
 
       if ($newMessage.data('submit')) {
         $newMessage.removeData('submit');
@@ -545,10 +544,10 @@ $(() => {
         $newMessage.val('');
       }
 
-      let newMessage = $newMessage.get(0);
+      const newMessage = $newMessage.get(0);
       newMessage.style.height = 'auto';
-      let style = window.getComputedStyle(newMessage);
-      let paddingHeight = parseInt(style.paddingTop) + parseInt(style.paddingBottom);
+      const style = window.getComputedStyle(newMessage);
+      const paddingHeight = parseInt(style.paddingTop) + parseInt(style.paddingBottom);
 
       let height = newMessage.scrollHeight;
       if (style.boxSizing === 'content-box') {
@@ -580,13 +579,13 @@ $(window).on('resize', () => {
 
   // Temporarily remove chat-open and inlineChat so that the game can
   // calculate the biggest board size it can.
-  let chatMode = $('#app').hasClass('chat-open');
+  const chatMode = $('#app').hasClass('chat-open');
   $('#app').removeClass('chat-open with-inlineChat');
 
   game.resize();
 
-  let bodyHeight = $('BODY').prop('clientHeight');
-  let appHeight = $('#board').prop('clientHeight') + 106;
+  const bodyHeight = $('BODY').prop('clientHeight');
+  const appHeight = $('#board').prop('clientHeight') + 106;
   $('#app').toggleClass('with-inlineChat', appHeight <= bodyHeight);
   $('#app').toggleClass('with-popupChat', appHeight > bodyHeight);
   if (chatMode) $('#app').addClass('chat-open');
@@ -615,8 +614,9 @@ async function initGame() {
       if (gameData.state.started)
         return loadTransportAndGame(gameId, gameData);
 
-      let teams = gameData.state.teams;
-      let hasJoined = teams.filter(t => t?.playerId === authClient.playerId);
+      const teams = gameData.state.teams;
+      const hasJoined = teams.filter(t => t?.playerId === authClient.playerId);
+      const hasOpenSlot = teams.filter(t => !t?.playerId);
       if (hasJoined.length === teams.length)
         return showPracticeIntro(gameData);
       else if (hasJoined.length)
@@ -635,6 +635,14 @@ async function initGame() {
       game.id = gameId;
       game.state.on('playerStatus', resetPlayerBanners);
 
+      settings = new GameSettingsModal(
+        { game, gameType },
+        {
+          autoShow: false,
+          hideOnCancel: true,
+        },
+      );
+
       if (game.isViewOnly)
         $('#app').addClass('for-viewing');
       else if (game.hasOneLocalTeam()) {
@@ -643,7 +651,7 @@ async function initGame() {
         let players, events;
         while (!players) {
           try {
-            ({ players, events } = await chatClient.joinChat(gameId));
+            ({ players, events, muted } = await chatClient.joinChat(gameId));
           } catch (error) {
             // Retry after a connection reset
             if (error !== 'Connection reset')
@@ -681,14 +689,26 @@ async function initGame() {
           })
           .on('event', event => {
             if (event.body.group !== groupId) return;
-            if (event.body.type !== 'message') return;
 
-            let message = event.body.data;
-            appendMessages(message);
+            if (event.body.type === 'message') {
+              const message = event.body.data;
+              appendMessages(message);
+            } else if (event.body.type === 'muted') {
+              const playerId = event.body.data.playerId;
+              const playerMuted = event.body.data.muted;
+
+              muted.set(playerId, playerMuted);
+              // If the player info dialog is open and someone else has changed
+              // their mute/block preferences, then refresh the dialog content.
+              if (playerInfo && playerId !== authClient.playerId)
+                playerInfo.getPlayerInfo();
+              resetChatStatus(playerId);
+            }
           });
 
         lastSeenEventId = players.find(p => p.id === playerId).lastSeenEventId;
 
+        resetChatStatus();
         initMessages(events.filter(e => e.type === 'message'));
       }
       else {
@@ -722,9 +742,7 @@ async function initGame() {
 async function getGameData(gameId) {
   return gameClient.getGameData(gameId);
 }
-async function joinGame(playerName, gameId, set) {
-  await authClient.setAccountName(playerName);
-
+async function joinGame(gameId, set) {
   return gameClient.joinGame(gameId, { set }).catch(error => {
     if (error.code !== 409) throw error;
 
@@ -735,7 +753,7 @@ async function joinGame(playerName, gameId, set) {
           { label:'Back', closeOnClick:false, onClick:() => history.back() },
           { label:'Watch', onClick:resolve },
         ],
-        minWidth: '250px',
+        maxWidth: '250px',
         closeOnCancel: false,
       });
     });
@@ -810,13 +828,48 @@ async function loadResources(gameState) {
   });
 }
 
-function initMessages(messages) {
-  $('#messages').empty();
+function resetChatStatus(playerId) {
+  /*
+   * Chat is disabled if:
+   *   I muted all other participants in the chat and/or...
+   *   All other participants in the chat muted me.
+   */
+  const myPlayerId = authClient.playerId;
+  const myMuted = muted.get(myPlayerId);
+  let disabled = true;
+  for (const [ playerId, playerMuted ] of muted) {
+    if (playerId === myPlayerId) continue;
+    if (myMuted.has(playerId)) continue;
+    if (playerMuted.has(myPlayerId)) continue;
 
+    disabled = false;
+    break;
+  }
+
+  const $newMessage = $('#chat .new-message').prop('disabled', disabled);
+  if (disabled) {
+    $newMessage.attr('placeholder', 'Chat disabled!');
+  } else {
+    if (pointer === 'touch')
+      $('.new-message').attr('placeholder', 'Touch to chat!');
+    else
+      $('.new-message').attr('placeholder', 'Type to chat!');
+  }
+
+  if (playerId === myPlayerId) {
+    for (const playerId of muted.keys()) {
+      if (playerId === myPlayerId)
+        $(`.message.player-${playerId}`).toggleClass('muted', myMuted.size === muted.size - 1);
+      else
+        $(`.message.player-${playerId}`).toggleClass('muted', myMuted.has(playerId));
+    }
+  }
+}
+function initMessages(messages) {
   chatMessages = messages;
   messages.forEach(m => renderMessage(m));
 
-  let $messages = $('#messages');
+  const $messages = $('#messages');
   $messages.scrollTop($messages.prop('scrollHeight'));
 }
 function appendMessages(messages) {
@@ -826,22 +879,24 @@ function appendMessages(messages) {
   chatMessages.push(...messages);
   messages.forEach(m => renderMessage(m));
 
-  let $messages = $('#messages');
+  const $messages = $('#messages');
   $messages.scrollTop($messages.prop('scrollHeight'));
 
   updateChatButton();
 }
 function renderMessage(message) {
-  let playerId = message.player.id;
+  const myMuted = muted.get(authClient.playerId);
+  const playerId = message.player.id;
+  const isMuted = myMuted.has(playerId) || myMuted.size === muted.size - 1 ? 'muted' : '';
   let playerName = message.player.name;
   if (game.teams.filter(t => t.name === playerName).length > 1) {
-    let team = game.teams.find(t => t.playerId === playerId);
+    const team = game.teams.find(t => t.playerId === playerId);
     if (game.isMyTeam(team))
       playerName = '<I>You</I> ';
   }
 
   $('#messages').append(`
-    <DIV class="message">
+    <DIV class="message player-${playerId} ${isMuted}">
       <SPAN class="player">${playerName}</SPAN>
       <SPAN class="content">${message.content}</SPAN>
     </DIV>
@@ -906,7 +961,7 @@ function renderCancelButton(gameId, container) {
           label: 'No'
         },
       ],
-      minWidth: '250px',
+      maxWidth: '250px',
       zIndex: 10,
     });
   })
@@ -945,7 +1000,7 @@ function renderShareLink(gameData, container) {
               { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
-            minWidth: '250px',
+            maxWidth: '250px',
           });
         else
           popup({
@@ -954,7 +1009,7 @@ function renderShareLink(gameData, container) {
               { label:'Copy', onClick:() => copy(`${message} ${link}`) },
               { label:'Cancel' },
             ],
-            minWidth: '250px',
+            maxWidth: '250px',
           });
       });
     else {
@@ -967,35 +1022,21 @@ function renderShareLink(gameData, container) {
 async function showPracticeIntro(gameData) {
   renderCancelButton(gameData.id, document.querySelector('#practice .cancelButton'));
 
-  let root = document.body.querySelector('#practice');
+  const root = document.body.querySelector('#practice');
+  const details = root.querySelector('.details');
+  const challenge = root.querySelector('.challenge');
+  const btnStart = root.querySelector('BUTTON[name=start]');
 
-  root.addEventListener('focus', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      target.select();
-  }, true);
-  root.addEventListener('blur', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      // Clear selection
-      target.value = target.value;
-  }, true);
-  root.addEventListener('keydown', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      if (event.keyCode === 13)
-        event.target.blur();
-  }, true);
+  let teamName = authClient.playerName;
+  const playerName = new Autosave({
+    defaultValue: false,
+    value: authClient.playerName,
+    maxLength: 20,
+    onChange: newTeamName => teamName = newTeamName,
+  });
+  playerName.appendTo(root.querySelector('.playerName'));
 
-  let divPlayerAutoSave = root.querySelector('.playerName');
-  let txtPlayerName = divPlayerAutoSave.querySelector('INPUT[name=playerName]');
-  txtPlayerName.value = authClient.playerName;
-
-  let details = root.querySelector('.details');
-  let challenge = root.querySelector('.challenge');
-  let btnStart = root.querySelector('BUTTON[name=start]');
-
-  let creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
+  const creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
 
   challenge.innerHTML = `Configure your opponent in the practice game.`;
 
@@ -1007,7 +1048,7 @@ async function showPracticeIntro(gameData) {
   else
     person = 'this one';
 
-  let blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
+  const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
 
   details.innerHTML = `
     <DIV>This is a <I>${gameType.name}</I> game.</DIV>
@@ -1018,7 +1059,7 @@ async function showPracticeIntro(gameData) {
   $('#practice .set').show();
   $('#practice .mirror').toggle(!gameType.hasFixedPositions);
 
-  let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id, 'practice');
+  const hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id, 'practice');
   if (hasCustomSet)
     $('#practice INPUT[name=set][value=practice]').prop('checked', true);
   else
@@ -1026,14 +1067,6 @@ async function showPracticeIntro(gameData) {
 
   $('#practice .set A').on('click', async () => {
     $('#practice').hide();
-
-    if (!authClient.token)
-      await authClient.register({ name:'Noob' })
-        .catch(error => popup({
-          message: 'There was an error while loading your set.',
-          buttons: [],
-          closeOnCancel: false,
-        }));
 
     if (await Tactics.setup(gameType, 'practice'))
       $('#practice INPUT[name=set][value=practice]').prop('checked', true);
@@ -1052,7 +1085,7 @@ async function showPracticeIntro(gameData) {
 
       try {
         await gameClient.joinGame(gameData.id, {
-          name: txtPlayerName.value,
+          name: teamName,
           set,
         });
         progress.message = 'Loading game...';
@@ -1072,86 +1105,29 @@ async function showPracticeIntro(gameData) {
   });
 }
 async function showJoinFork(gameData) {
-  let root = document.body.querySelector('#fork');
+  const root = document.body.querySelector('#fork');
+  const details = root.querySelector('.details');
+  const challenge = root.querySelector('.challenge');
+  const btnJoin = root.querySelector('BUTTON[name=join]');
 
-  root.addEventListener('focus', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      target.select();
-  }, true);
-  root.addEventListener('blur', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      // Clear selection
-      target.value = target.value;
-  }, true);
-  root.addEventListener('keydown', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      if (event.keyCode === 13)
-        event.target.blur();
-  }, true);
-  root.addEventListener('input', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]')) {
-      let inputTextAutosave = event.target.parentElement;
-      inputTextAutosave.classList.remove('is-saved');
-      inputTextAutosave.classList.remove('is-saving');
-    }
-  }, true);
-
-  let divPlayerAutoSave = root.querySelector('.playerName');
-  let divPlayerError = divPlayerAutoSave.nextElementSibling;
-  let txtPlayerName = divPlayerAutoSave.querySelector('INPUT[name=playerName]');
-  txtPlayerName.addEventListener('blur', event => {
-    let newPlayerName = txtPlayerName.value.trim().length
-      ? txtPlayerName.value.trim() : null;
-
-    if (newPlayerName === null)
-      newPlayerName = authClient.playerName;
-
-    // Just in case spaces were trimmed or the name unset.
-    txtPlayerName.value = newPlayerName;
-
-    divPlayerError.textContent = '';
-
-    if (newPlayerName === authClient.playerName)
-      divPlayerAutoSave.classList.add('is-saved');
-    else {
-      divPlayerAutoSave.classList.remove('is-saved');
-      divPlayerAutoSave.classList.add('is-saving');
-
-      authClient.setAccountName(newPlayerName)
-        .then(() => {
-          divPlayerAutoSave.classList.remove('is-saving');
-          divPlayerAutoSave.classList.add('is-saved');
-        })
-        .catch(error => {
-          divPlayerAutoSave.classList.remove('is-saving');
-          divPlayerError.textContent = error.toString();
-        });
-    }
+  const playerName = new Autosave({
+    defaultValue: false,
+    value: authClient.token ? authClient.playerName : 'Noob',
+    maxLength: 20,
+    onChange: newPlayerName => authClient.setAccountName(newPlayerName),
   });
+  playerName.appendTo(root.querySelector('.playerName'));
 
-  let details = root.querySelector('.details');
-  let challenge = root.querySelector('.challenge');
-  let btnJoin = root.querySelector('BUTTON[name=join]');
-
-  if (authClient.token)
-    txtPlayerName.value = authClient.playerName;
-  else
-    txtPlayerName.value = 'Noob';
-
-  let creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
-  let opponentTeam = gameData.state.teams.find(t => !t.joinedAt);
-  let forkPlayerIds = new Set(gameData.state.teams.map(t => t.forkOf.playerId));
+  const creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
+  const opponentTeam = gameData.state.teams.find(t => !t.joinedAt);
+  const forkPlayerIds = new Set(gameData.state.teams.map(t => t.forkOf.playerId));
+  const who = forkPlayerIds.has(creatorTeam.playerId) ? 'their' : `another's`;
   let as1;
   let as2;
-  let who = forkPlayerIds.has(creatorTeam.playerId) ? 'their' : `another's`;
   let of;
 
   if (forkPlayerIds.size === 1) {
-    let practicePlayerId = [ ...forkPlayerIds ][0];
+    const practicePlayerId = [ ...forkPlayerIds ][0];
 
     as1 = `<I>${creatorTeam.forkOf.name}</I>`;
     as2 = `<I>${opponentTeam.forkOf.name}</I>`;
@@ -1187,8 +1163,8 @@ async function showJoinFork(gameData) {
   else
     person = 'you';
 
-  let blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
-  let forkOfURL = `/game.html?${gameData.forkOf.gameId}#c=${gameData.forkOf.turnId + 1},0`;
+  const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
+  const forkOfURL = `/game.html?${gameData.forkOf.gameId}#c=${gameData.forkOf.turnId + 1},0`;
 
   details.innerHTML = `
     <DIV>This is a fork of <A href="${forkOfURL}" target="_blank">this ${of} and turn</A>.</DIV>
@@ -1205,13 +1181,13 @@ async function showJoinFork(gameData) {
       progress.show();
 
       try {
-        await joinGame(txtPlayerName.value, gameData.id);
+        await playerName.whenSaved;
+        await joinGame(gameData.id);
         progress.message = 'Loading game...';
         resolve(
           await loadTransportAndGame(gameData.id, gameData)
         );
-      }
-      catch (error) {
+      } catch (error) {
         reject(error);
       }
     });
@@ -1221,75 +1197,18 @@ async function showJoinFork(gameData) {
   });
 }
 async function showJoinIntro(gameData) {
-  let root = document.body.querySelector('#join');
+  const root = document.body.querySelector('#join');
+  const details = root.querySelector('.details');
+  const challenge = root.querySelector('.challenge');
+  const btnJoin = root.querySelector('BUTTON[name=join]');
 
-  root.addEventListener('focus', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      target.select();
-  }, true);
-  root.addEventListener('blur', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      // Clear selection
-      target.value = target.value;
-  }, true);
-  root.addEventListener('keydown', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]'))
-      if (event.keyCode === 13)
-        event.target.blur();
-  }, true);
-  root.addEventListener('input', event => {
-    let target = event.target;
-    if (target.matches('INPUT[name=playerName]')) {
-      let inputTextAutosave = event.target.parentElement;
-      inputTextAutosave.classList.remove('is-saved');
-      inputTextAutosave.classList.remove('is-saving');
-    }
-  }, true);
-
-  let divPlayerAutoSave = root.querySelector('.playerName');
-  let divPlayerError = divPlayerAutoSave.nextElementSibling;
-  let txtPlayerName = divPlayerAutoSave.querySelector('INPUT[name=playerName]');
-  txtPlayerName.addEventListener('blur', event => {
-    let newPlayerName = txtPlayerName.value.trim().length
-      ? txtPlayerName.value.trim() : null;
-
-    if (newPlayerName === null)
-      newPlayerName = authClient.playerName;
-
-    // Just in case spaces were trimmed or the name unset.
-    txtPlayerName.value = newPlayerName;
-
-    divPlayerError.textContent = '';
-
-    if (newPlayerName === authClient.playerName)
-      divPlayerAutoSave.classList.add('is-saved');
-    else {
-      divPlayerAutoSave.classList.remove('is-saved');
-      divPlayerAutoSave.classList.add('is-saving');
-
-      authClient.setAccountName(newPlayerName)
-        .then(() => {
-          divPlayerAutoSave.classList.remove('is-saving');
-          divPlayerAutoSave.classList.add('is-saved');
-        })
-        .catch(error => {
-          divPlayerAutoSave.classList.remove('is-saving');
-          divPlayerError.textContent = error.toString();
-        });
-    }
+  const playerName = new Autosave({
+    defaultValue: false,
+    value: authClient.token ? authClient.playerName : 'Noob',
+    maxLength: 20,
+    onChange: newPlayerName => authClient.setAccountName(newPlayerName),
   });
-
-  let details = root.querySelector('.details');
-  let challenge = root.querySelector('.challenge');
-  let btnJoin = root.querySelector('BUTTON[name=join]');
-
-  if (authClient.token)
-    txtPlayerName.value = authClient.playerName;
-  else
-    txtPlayerName.value = 'Noob';
+  playerName.appendTo(root.querySelector('.playerName'));
 
   if (gameData.state.started) {
     btnJoin.textContent = 'Watch Game';
@@ -1314,11 +1233,64 @@ async function showJoinIntro(gameData) {
       progress.hide();
       $('#join').show();
     });
-  }
-  else {
-    let creatorTeam = gameData.state.teams.find(t => !!t?.joinedAt);
+  } else {
+    const openSlot = gameData.state.teams.findIndex(t => {
+      if (!t?.playerId)
+        return true;
+      return !!authClient.token && authClient.playerId === t.playerId;
+    });
+    if (openSlot === -1) {
+      popup({
+        message: 'Sorry!  This game is reserved for someone else.',
+        buttons: [
+          { label:'Back', closeOnClick:false, onClick:() => history.back() },
+        ],
+        maxWidth: '250px',
+        closeOnCancel: false,
+      });
+      return new Promise(() => {});
+    }
 
-    challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`;
+    const creatorTeam = gameData.state.teams.find(t => !!t?.joinedAt);
+    const playerACL = authClient.token && await authClient.getPlayerACL(creatorTeam.playerId);
+
+    if (playerACL?.reverseType === 'blocked') {
+      challenge.innerHTML = `Sorry!  <I>${creatorTeam.name}</I> blocked you from joining their games.`;
+      root.querySelector('.playerSetup').remove();
+      details.remove();
+      root.querySelector('.set').remove();
+      root.querySelector('.buttons').remove();
+
+      progress.hide();
+      $('#join').show();
+      return new Promise(() => {});
+    }
+
+    const message = [];
+    if (!playerACL)
+      message.push(`<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`);
+    else if (playerACL.type === 'friended') {
+      if (playerACL.name.toLowerCase() === creatorTeam.name.toLowerCase())
+        message.push(`<I>${creatorTeam.name}</I> is your friend.`);
+      else
+        message.push(`<I>${creatorTeam.name}</I> is your friend better known as <I>${playerACL.name}</I>.`);
+      message.push(`Want to play?`);
+    } else if (playerACL.type === 'muted') {
+      if (playerACL.name.toLowerCase() === creatorTeam.name.toLowerCase())
+        message.push(`You muted <I>${creatorTeam.name}</I>.`);
+      else
+        message.push(`You muted <I>${creatorTeam.name}</I> under the name <I>${playerACL.name}</I>.`);
+      message.push(`But, you can still play!`);
+    } else if (playerACL.type === 'blocked') {
+      if (playerACL.name.toLowerCase() === creatorTeam.name.toLowerCase())
+        message.push(`You blocked <I>${creatorTeam.name}</I>.`);
+      else
+        message.push(`You blocked <I>${creatorTeam.name}</I> under the name <I>${playerACL.name}</I>.`);
+      message.push(`But, you can play if you mute them instead.`);
+
+      btnJoin.textContent = 'Mute and Join Game';
+    }
+    challenge.innerHTML = message.join('  ');
 
     let turnLimit;
     switch (gameData.state.turnTimeLimit) {
@@ -1343,7 +1315,7 @@ async function showJoinIntro(gameData) {
     else
       person = creatorTeam.name;
 
-    let blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
+    const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
 
     details.innerHTML = `
       <DIV>This is a <I>${gameType.name}</I> game.</DIV>
@@ -1356,7 +1328,7 @@ async function showJoinIntro(gameData) {
       $('#join .set').show();
       $('#join .mirror').toggle(!gameType.hasFixedPositions);
 
-      let hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id, 'default');
+      const hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id, 'default');
       if (hasCustomSet)
         $('#join INPUT[name=set][value=default]').prop('checked', true);
       else
@@ -1390,7 +1362,8 @@ async function showJoinIntro(gameData) {
         progress.show();
 
         try {
-          await joinGame(txtPlayerName.value, gameData.id, set);
+          await playerName.whenSaved;
+          await joinGame(gameData.id, set);
           progress.message = 'Loading game...';
           resolve(
             await loadTransportAndGame(gameData.id, gameData)
@@ -1410,8 +1383,8 @@ async function showJoinIntro(gameData) {
 function updateChatButton() {
   if (!chatMessages.length) return;
 
-  let playerId = authClient.playerId;
-  let $button = $('BUTTON[name=chat]');
+  const playerId = authClient.playerId;
+  const $button = $('BUTTON[name=chat]');
 
   if ($('#app').is('.show.with-inlineChat, .chat-open')) {
     $button.removeClass('ready').attr('badge', '');
@@ -1432,29 +1405,38 @@ function updateChatButton() {
   }
 }
 function resetPlayerBanners() {
-  let board = game.board;
-  let degree = board.getDegree('N', board.rotation);
+  const board = game.board;
+  const degree = board.getDegree('N', board.rotation);
 
-  $('.player').removeClass('active bronze');
+  $('#field .player').removeClass('show bronze');
 
   game.state.teams.forEach(team => {
-    let position = board.getRotation(team.position, degree);
-    let ePlayerId = 'player-'+position.toLowerCase();
-    let $player = $('#'+ePlayerId);
+    const isMyTeam = game.isMyTeam(team);
+    const position = board.getRotation(team.position, degree);
+    const ePlayerId = 'player-'+position.toLowerCase();
+    const $player = $('#'+ePlayerId);
 
     $player
-      .addClass('active bronze')
-      .removeClass('offline online ingame unavailable')
-      .addClass(game.state.playerStatus.get(team.playerId));
+      .addClass('show bronze')
+      .data('team', team);
 
-    let $name = $player.find('.name').text(team.name);
+    const playerStatus = game.state.playerStatus.get(team.playerId);
+    const showLink = playerStatus !== 'unavailable' && !game.isViewOnly && !isMyTeam;
+    const $status = $player.find('.status')
+      .removeClass('offline online active unavailable')
+      .addClass(playerStatus.status)
+      .toggleClass('mobile', playerStatus.deviceType === 'mobile')
+      .toggleClass('link', showLink && !game.state.ended);
+    const $name = $player.find('.name')
+      .toggleClass('link', showLink)
+      .text(team.name);
 
     if (team.forkOf) {
       let $fork = $player.find('.fork');
       if (!$fork.length)
         $fork = $('<SPAN>').insertAfter($name).addClass('fork fa fa-code-branch');
 
-      if (!game.isPracticeGame && !game.ofPracticeGame) {
+      if (!game.ofPracticeGame) {
         let $forkName = $player.find('.forkName');
         if (!$forkName.length)
           $forkName = $('<SPAN>').insertAfter($fork).addClass('forkName');
@@ -1547,14 +1529,14 @@ function setTurnTimeoutClock() {
 }
 
 async function startGame() {
-  let $card = $(game.card.canvas)
+  const $card = $(game.card.canvas)
     .attr('id', 'card')
     .on('transitionend', event => {
       // An invisible overlapping card should not intercept the pointer.
-      let opacity = $card.css('opacity');
-      let pointerEvents = opacity === '0' ? 'none' : '';
+      const opacity = $card.css('opacity');
+      const pointerEvents = opacity === '0' ? 'none' : '';
 
-      $card.css({ pointerEvents:pointerEvents });
+      $card.css({ pointerEvents });
     })
     .appendTo('#field');
 
@@ -1574,13 +1556,13 @@ async function startGame() {
       toggleReplayButtons();
     })
     .on('selectMode-change', event => {
-      let panzoom     = game.panzoom;
-      let old_mode    = event.ovalue;
-      let new_mode    = event.nvalue;
-      let can_move    = game.canSelectMove();
-      let can_attack  = game.canSelectAttack();
-      let can_turn    = game.canSelectTurn();
-      let can_special = game.canSelectSpecial();
+      const panzoom     = game.panzoom;
+      const old_mode    = event.ovalue;
+      const new_mode    = event.nvalue;
+      const can_move    = game.canSelectMove();
+      const can_attack  = game.canSelectAttack();
+      const can_turn    = game.canSelectTurn();
+      const can_special = game.canSelectSpecial();
 
       $('BUTTON[name=select]').removeClass('selected');
       $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
@@ -1626,8 +1608,10 @@ async function startGame() {
         $card.removeClass('show');
     })
     .on('lock-change', event => {
-      if (event.nvalue === 'gameover')
+      if (event.nvalue === 'gameover') {
         $('BUTTON[name=undo]').hide();
+        resetPlayerBanners();
+      }
 
       $('#app').removeClass('readonly gameover');
       if (event.nvalue === 'readonly' || event.nvalue === 'gameover')
@@ -1650,7 +1634,7 @@ async function startGame() {
           onClose: () => {
             timeoutPopup = null;
           },
-          minWidth: '250px',
+          maxWidth: '250px',
           zIndex: 10,
         });
     })
@@ -1731,15 +1715,15 @@ function updateUndoDialog(createIfNeeded = false) {
     return;
   }
 
-  let undoRequest = game.state.undoRequest;
+  const undoRequest = game.state.undoRequest;
   // Was undo cancelled before we got an update?
   if (!undoRequest)
     return hideUndoDialog();
 
-  let teams = game.teams;
-  let myTeam = game.myTeam;
-  let requestor = teams[undoRequest.teamId];
-  let popupData = {
+  const teams = game.teams;
+  const myTeam = game.myTeam;
+  const requestor = teams[undoRequest.teamId];
+  const popupData = {
     buttons: [],
     onClose: () => {
       // When a request is rejected, the undo button becomes disabled.
@@ -1758,7 +1742,7 @@ function updateUndoDialog(createIfNeeded = false) {
 
   if (undoRequest.status !== 'pending') {
     if (undoRequest.status === 'rejected') {
-      let rejector = teams.find(t => t.playerId === undoRequest.rejectedBy);
+      const rejector = teams.find(t => t.playerId === undoRequest.rejectedBy);
 
       popupData.message = `Request rejected by ${rejector.name}.`;
     }
@@ -1824,11 +1808,11 @@ function setHistoryState() {
 }
 
 function toggleReplayButtons() {
-  let cursor = game.cursor;
-  let isSynced = game.isSynced;
-  let atStart = isSynced || cursor.atStart;
-  let atCurrent = isSynced || cursor.atCurrent;
-  let atEnd = isSynced || cursor.atEnd;
+  const cursor = game.cursor;
+  const isSynced = game.isSynced;
+  const atStart = isSynced || cursor.atStart;
+  const atCurrent = isSynced || cursor.atCurrent;
+  const atEnd = isSynced || cursor.atEnd;
 
   $('BUTTON[name=start]').prop('disabled', atStart);
   $('BUTTON[name=back]').prop('disabled', atStart);
@@ -1839,7 +1823,7 @@ function toggleReplayButtons() {
 }
 
 function setCursorAlert() {
-  let $alert = $('#alert');
+  const $alert = $('#alert');
   if (!game.inReplay)
     return $alert.empty().removeClass().removeData();
 
@@ -1853,7 +1837,7 @@ function setCursorAlert() {
       `);
   }
 
-  let label = `Turn ${game.turnId + 1} • ${game.nextActionId}`;
+  const label = `Turn ${game.turnId + 1} • ${game.nextActionId}`;
 
   $alert.find('.label').text(label);
 }

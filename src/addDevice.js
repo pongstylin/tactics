@@ -14,7 +14,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       message: `Sorry!  This link has expired.`,
       buttons: [],
       closeOnCancel: false,
-      minWidth: '300px',
+      maxWidth: '300px',
     });
 
   await authClient.whenReady;
@@ -24,7 +24,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       message: `This device is already associated with the ${authClient.playerName} account.`,
       buttons: [],
       closeOnCancel: false,
-      minWidth: '300px',
+      maxWidth: '300px',
     });
   else if (authClient.playerId)
     popup({
@@ -45,7 +45,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
       ],
       closeOnCancel: false,
-      minWidth: '300px',
+      maxWidth: '300px',
     });
   else
     addDevice(identityToken);
