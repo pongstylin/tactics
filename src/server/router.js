@@ -897,6 +897,6 @@ outboundClientTimeout.on('expire', ({ data:clients }) => clients.forEach((c,i) =
 
 const closedSessionTimeout = new Timeout('closedSession', { expireIn:30000 });
 
-closedSessionTimeout.on('expire', ({ data:sessions }) => sessions.forEach((c,i) => deleteSession(s, CLOSE_CLIENT_TIMEOUT)));
+closedSessionTimeout.on('expire', ({ data:sessions }) => sessions.forEach((s,i) => deleteSession(s, CLOSE_CLIENT_TIMEOUT)));
 
 setInterval(Timeout.tick, 1000);
