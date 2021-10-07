@@ -1059,7 +1059,7 @@ export default class GameState {
   }
   _validateSurrenderAction(action) {
     const teams = this.teams;
-    if (!action.teamId && action.declaredBy) {
+    if (action.teamId === undefined && action.declaredBy) {
       for (let i = 0; i < teams.length; i++) {
         const teamId = (this.currentTeamId + i) % teams.length;
         if (teams[teamId].playerId !== action.declaredBy)
