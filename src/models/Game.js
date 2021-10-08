@@ -258,6 +258,7 @@ export default class Game extends ActiveModel {
       teams.forEach(t => t.join({}, clientPara));
 
       forkGame.state.turnTimeLimit = null;
+      forkGame.state.start();
     } else if (vs === 'private') {
       if (as === undefined)
         throw new ServerError(400, "Required 'as' option");

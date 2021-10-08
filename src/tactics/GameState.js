@@ -229,8 +229,8 @@ export default class GameState {
    * Start the game.
    */
   start() {
-    let teams = this.teams;
-    let board = this._board;
+    const teams = this.teams;
+    const board = this._board;
 
     // Units are already present for forked games.
     if (this.units.length === 0) {
@@ -239,7 +239,7 @@ export default class GameState {
        */
       if (this.randomFirstTurn) {
         // Rotate team order 0-3 times.
-        let index = Math.floor(Math.random() * teams.length);
+        const index = Math.floor(Math.random() * teams.length);
         teams.unshift(...teams.splice(index, teams.length - index));
       }
 
@@ -250,7 +250,7 @@ export default class GameState {
        *  2 Players: 0:North, 1:South
        *  4 Players: 0:North, 1:East, 2:South, 3:West
        */
-      let positions = teams.length === 2 ? ['N', 'S'] : ['N', 'E', 'S', 'W'];
+      const positions = teams.length === 2 ? ['N', 'S'] : ['N', 'E', 'S', 'W'];
 
       teams.forEach((team, teamId) => {
         team.id = teamId;
@@ -307,35 +307,37 @@ export default class GameState {
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
 
-    // The game and first turn starts at the same time.  This guarantee enables
-    // use to determine if a given turn is the first playable turn by comparing
-    // the turn start date with the game start date.  This is currently used for
-    // triggering "Your Turn" notifications at the right times.
-    this.started = new Date();
-    this.turnStarted = this.started;
+    if (!this.started) {
+      // The game and first turn starts at the same time.  This guarantee enables
+      // use to determine if a given turn is the first playable turn by comparing
+      // the turn start date with the game start date.  This is currently used for
+      // triggering "Your Turn" notifications at the right times.
+      this.started = new Date();
+      this.turnStarted = this.started;
 
-    // First turn must be passed, but at least recovery drops.
-    // The second turn might be passed, too, if all units are in recovery.
-    // Even after auto passing, the game and next turn starts at the same time.
-    this.autoPass();
+      // First turn must be passed, but at least recovery drops.
+      // The second turn might be passed, too, if all units are in recovery.
+      // Even after auto passing, the game and next turn starts at the same time.
+      this.autoPass();
 
-    this._emit({
-      type: 'startGame',
-      data: {
-        started: this.started,
-        teams: this.teams.map(t => t.getData()),
-        units: this.units,
-      },
-    });
+      this._emit({
+        type: 'startGame',
+        data: {
+          started: this.started,
+          teams: this.teams.map(t => t.getData()),
+          units: this.units,
+        },
+      });
 
-    this._emit({
-      type: 'startTurn',
-      data: {
-        started: this.turnStarted,
-        turnId: this.currentTurnId,
-        teamId: this.currentTeamId,
-      },
-    });
+      this._emit({
+        type: 'startTurn',
+        data: {
+          started: this.turnStarted,
+          turnId: this.currentTurnId,
+          teamId: this.currentTeamId,
+        },
+      });
+    }
   }
 
   /*
