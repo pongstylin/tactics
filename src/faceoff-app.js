@@ -1,5 +1,5 @@
 import popup from 'components/popup.js';
-import GameSettings from 'components/Modal/GameSettings.js';
+import GameSettingsModal from 'components/Modal/GameSettings.js';
 
 var game;
 var settings;
@@ -116,11 +116,6 @@ $(() => {
   progress.message = 'Loading game...';
   progress.show();
 
-  settings = new GameSettings({
-    autoShow: false,
-    hideOnCancel: true,
-  });
-
   if ('ontouchstart' in window) {
     $('body').addClass(pointer = 'touch');
   }
@@ -179,6 +174,13 @@ $(() => {
 
   loadResources().then(async () => {
     game = await Tactics.createLocalGame(gameStateData);
+    settings = new GameSettingsModal(
+      { game, gameType:{ name:'Faceoff' } },
+      {
+        autoShow: false,
+        hideOnCancel: true,
+      },
+    );
     startGame();
   });
 });

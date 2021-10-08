@@ -333,7 +333,6 @@ export default class PlayerInfo extends Modal {
   }
   setPlayerACL(changes) {
     const playerACL = Object.assign({
-      createdAt: new Date(),
       type: 'friended',
       name: this.data.team.name,
     }, this.data.info.isACL, changes);
