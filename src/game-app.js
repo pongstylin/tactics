@@ -1220,7 +1220,7 @@ async function showJoinIntro(gameData) {
         progress.show();
 
         try {
-          await authClient.setAccountName(txtPlayerName.value);
+          await playerName.whenSaved;
           resolve(
             await loadTransportAndGame(gameData.id, gameData)
           );
