@@ -65,6 +65,7 @@ app.get(API_PREFIX + '/status', (req, res, next) => {
         status[serviceName] = serviceStatus;
       }
 
+      res.header('Cache-Control', 'no-store, max-age=0');
       res.send(status);
     })
     .catch(error => next(error));
