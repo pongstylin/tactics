@@ -331,7 +331,7 @@ export default class GameService extends Service {
 
     // You may not join a game under more than one team
     // ...unless a slot was reserved for you, e.g. practice game.
-    if (!reservedSlot && teams.findIndex(t => t?.joinedAt && t.playerId === playerId) !== -1)
+    if (reservedSlot === null && teams.findIndex(t => t?.joinedAt && t.playerId === playerId) !== -1)
       throw new ServerError(409, 'Already joined this game');
 
     let team;
@@ -350,7 +350,7 @@ export default class GameService extends Service {
       team = teams[teamData.slot];
       if (team === undefined)
         throw new ServerError(400, 'The slot does not exist');
-      if (reservedSlot && reservedSlot !== teamData.slot)
+      if (reservedSlot !== null && reservedSlot !== teamData.slot)
         throw new ServerError(403, 'Must join the reserved team');
     }
 
