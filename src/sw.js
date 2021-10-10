@@ -125,9 +125,11 @@ function getCache(url) {
  * This is the only way to share data between the browser and PWA on iOS.
  */
 const LOCAL_ENDPOINT = self.registration.scope + 'local.json';
+const API_ENDPOINT = self.registration.scope + config.apiPrefix;
+const TEST_NO_STORE = /\bno-store\b/;
 
 async function routeLocalRequest(request) {
-  let responseMeta = {
+  const responseMeta = {
     status: 200,
     statusText: 'OK',
     headers: {
@@ -135,10 +137,10 @@ async function routeLocalRequest(request) {
     },
   };
 
-  let cache = await caches.open(LOCAL_CACHE_NAME);
+  const cache = await caches.open(LOCAL_CACHE_NAME);
 
   if (request.method === 'POST') {
-    let data = await request.json();
+    const data = await request.json();
 
     await cache.put(LOCAL_ENDPOINT, new Response(JSON.stringify(data), responseMeta));
 
@@ -146,26 +148,24 @@ async function routeLocalRequest(request) {
       status: 201,
       statusText: 'Created',
     });
-  }
-  else if (request.method === 'DELETE') {
+  } else if (request.method === 'DELETE') {
     await cache.delete(LOCAL_ENDPOINT);
 
     return new Response(null, {
       status: 200,
       statusText: 'Deleted',
     });
-  }
-  else /* GET */ {
-    let response = await cache.match(LOCAL_ENDPOINT);
+  } else /* GET */ {
+    const response = await cache.match(LOCAL_ENDPOINT);
 
     return response || new Response('{}', responseMeta);
   }
 }
 
 self.addEventListener('fetch', event => {
-  let request = event.request;
+  const request = event.request;
   // Ignore the query string since it does not affect the response.
-  let url = request.url.replace(/\?.+$/, '');
+  const url = request.url.replace(/\?.+$/, '');
 
   if (url === LOCAL_ENDPOINT)
     return event.respondWith(routeLocalRequest(request));
@@ -191,6 +191,16 @@ self.addEventListener('fetch', event => {
           // Only cache successful responses.
           if (!response || response.status !== 200)
             return response;
+
+          /*
+           * Do not cache GET API requests that request no-store.
+           */
+          const headers = response.headers;
+          if (url.startsWith(API_ENDPOINT) && headers.has('Cache-Control')) {
+            const cacheControl = headers.get('Cache-Control');
+            if (TEST_NO_STORE.test(cacheControl))
+              return response;
+          }
 
           // Clone the response before the body is consumed.
           cache.put(url, response.clone());
@@ -256,7 +266,7 @@ async function showNotification(event) {
   let diff = new Date() - new Date(data.createdAt);
   if (diff > 120000) { // 2min
     try {
-      let endpoint = `${config.apiPrefix || ''}/notifications/${data.type}`;
+      let endpoint = `${API_ENDPOINT}/notifications/${data.type}`;
       let localRsp = await routeLocalRequest({method:'GET'});
       let localData = await localRsp.json();
       let token = localData.token;

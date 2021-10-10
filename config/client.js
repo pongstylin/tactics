@@ -2,7 +2,7 @@ import Version from 'client/Version.js';
 
 export default {
   version: new Version(VERSION),
-  apiPrefix: process.env.API_PREFIX,
+  apiPrefix: process.env.API_PREFIX ?? '',
   publicKey: process.env.PUBLIC_KEY,
   authEndpoint: process.env.AUTH_ENDPOINT,
   gameEndpoint: process.env.GAME_ENDPOINT,

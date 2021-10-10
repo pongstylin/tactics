@@ -47,7 +47,7 @@ app.use(morgan('[:id] status=:status; delay=:response-time ms', {
 
 app.use(express.json());
 
-const API_PREFIX = config.apiPrefix || '';
+const API_PREFIX = config.apiPrefix;
 
 app.get(API_PREFIX + '/status', (req, res, next) => {
   Promise.all([ ...services ].map(([ n, s ]) => s.getStatus().then(st => [ n, st ])))
