@@ -536,6 +536,7 @@ export default class GameService extends Service {
     return {
       createdAt: player.createdAt,
       completed: globalStats.completed,
+      canNotify: await this.push.hasPushSubscription(forPlayerId),
       isACL: me.getPlayerACL(forPlayerId),
       hasACL: player.getPlayerACL(inPlayerId),
       stats: {

@@ -111,6 +111,7 @@ export default class PlayerInfo extends Modal {
         `<DIV>Account created ${this.getElapsed(createdDiff)} ago.</DIV>`,
         `<DIV>This player has completed ${info.completed[0]} game(s).</DIV>`,
         info.completed[1] ? `<DIV>This player has abandoned ${info.completed[1]} game(s).</DIV>` : '',
+        info.canNotify ? `<DIV>This player can be notified when it is their turn.</DIV>` : '',
         info.hasACL ? `<DIV>You were ${info.hasACL.type} by this player.</DIV>` : '',
       `</DIV>`,
       `<DIV class="wld">`,

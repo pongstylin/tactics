@@ -14,13 +14,16 @@ export default class PushService extends Service {
     });
   }
 
+  hasPushSubscription(playerId) {
+    return this.data.hasPushSubscription(playerId);
+  }
   async pushNotification(playerId, notification) {
-    let subscriptions = await this.data.getAllPushSubscriptions(playerId);
-    if (subscriptions.size === 0) return [];
+    const subscriptions = await this.data.getAllPushSubscriptions(playerId);
+    if (subscriptions.size === 0) return;
 
     this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}`);
 
-    let payload = JSON.stringify(notification);
+    const payload = JSON.stringify(notification);
 
     webpush.setVapidDetails(
       this.config.subject,

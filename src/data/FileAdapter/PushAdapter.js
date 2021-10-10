@@ -13,6 +13,11 @@ export default class extends FileAdapter {
       subscriptions: [],
     }, pushData => new Map(pushData.subscriptions));
   }
+  async hasPushSubscription(playerId) {
+    const subscriptions = await this.getAllPushSubscriptions(playerId);
+
+    return subscriptions.size > 0;
+  }
   async getPushSubscription(playerId, deviceId) {
     const subscriptions = await this.getAllPushSubscriptions(playerId);
 
