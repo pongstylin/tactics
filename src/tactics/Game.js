@@ -446,12 +446,12 @@ export default class Game {
     return !!this.state.teams.find(t => !!t.bot);
   }
   get isLocalGame() {
-    let myTeams = this.state.teams.filter(t => this.isMyTeam(t));
+    const myTeams = this.state.teams.filter(t => this.isMyTeam(t));
 
     return myTeams.length === this.state.teams.length;
   }
   get isViewOnly() {
-    let myTeams = this.state.teams.filter(t => this.isMyTeam(t));
+    const myTeams = this.state.teams.filter(t => this.isMyTeam(t));
 
     return myTeams.length === 0;
   }
@@ -717,8 +717,7 @@ export default class Game {
         await this.pause();
 
       this._endGame();
-    }
-    else if (!this._inReplay)
+    } else if (!this._inReplay)
       if (!cursor.actions.length)
         this._startTurn();
       else if (cursor.actions.last.type !== 'endTurn')
@@ -1023,33 +1022,35 @@ export default class Game {
    * Even if you can undo, the request may be rejected.
    */
   canUndo() {
-    let state = this.state;
-    if (state.ended || this.isViewOnly)
+    if (this.isViewOnly)
       return false;
 
-    let actions = state.actions;
+    const state = this.state;
+    const actions = state.actions;
 
     // Local games can always undo if there is something to undo
     if (this.isLocalGame)
       return !!(state.currentTurnId > 1 || actions.length > 0);
+    if (state.ended && !state.forkOf)
+      return false;
 
     // Determine the team that is requesting the undo.
-    let teams  = this.teams;
+    const teams = this.teams;
     let myTeam = this.currentTeam;
     while (!this.isMyTeam(myTeam)) {
-      let prevTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
+      const prevTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
       myTeam = teams[prevTeamId];
     }
 
-    let undoRequest = state.undoRequest;
+    const undoRequest = state.undoRequest;
     if (undoRequest)
       if (undoRequest.status === 'rejected')
         if (undoRequest.teamId === myTeam.id)
           return false;
 
     // Pretend the first team is the last since it was force-passed.
-    let testTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
-    let testTurnId = state.currentTurnId - 1;
+    const testTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
+    const testTurnId = state.currentTurnId - 1;
 
     // Can't undo if we haven't had a turn yet.
     if (testTeamId > testTurnId)
@@ -1068,15 +1069,15 @@ export default class Game {
       if (actions.length === 0)
         return false;
 
-      let lastAction = actions.last;
+      const lastAction = actions.last;
 
       // Bot rejects undo if the last action was a counter-attack
-      let selectedUnitId = actions[0].unit;
+      const selectedUnitId = actions[0].unit;
       if (selectedUnitId !== lastAction.unit)
         return false;
 
       // Bot rejects undo if the last action required luck
-      let isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
+      const isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
       if (isLucky)
         return false;
     }

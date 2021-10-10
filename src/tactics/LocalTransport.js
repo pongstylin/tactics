@@ -75,6 +75,8 @@ export default class LocalTransport {
           currentTeamId: data.teamId,
           units: data.units,
           actions: data.actions,
+          ended: null,
+          winnerId: null,
         });
         this._emit({ type:'change' });
       })

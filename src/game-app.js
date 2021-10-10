@@ -1549,10 +1549,9 @@ async function startGame() {
   game
     .on('state-change', event => {
       $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
-      if (game.state.ended)
+      $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+      if (game.state.ended && !game.isLocalGame && !game.state.forkOf)
         $('BUTTON[name=undo]').hide();
-      else
-        $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
       toggleReplayButtons();
     })
     .on('selectMode-change', event => {
@@ -1608,10 +1607,8 @@ async function startGame() {
         $card.removeClass('show');
     })
     .on('lock-change', event => {
-      if (event.nvalue === 'gameover') {
-        $('BUTTON[name=undo]').hide();
+      if (event.nvalue === 'gameover')
         resetPlayerBanners();
-      }
 
       $('#app').removeClass('readonly gameover');
       if (event.nvalue === 'readonly' || event.nvalue === 'gameover')

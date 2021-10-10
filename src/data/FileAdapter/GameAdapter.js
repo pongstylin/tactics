@@ -347,13 +347,19 @@ export default class extends FileAdapter {
           // to add the other player's games to the cache.
           this.cache.get('playerActiveGames').add(playerGames.playerId, playerGames);
 
-          if (game.state.ended) {
+          if (game.state.ended)
             playerGames.delete(game.id);
-            return this._getPlayerCompletedGames(playerId);
-          } else {
+          else
             return playerGames;
-          }
-        })
+        }),
+        this._getPlayerCompletedGames(playerId).then(playerGames => {
+          this.cache.get('playerCompletedGames').add(playerGames.playerId, playerGames);
+
+          if (!game.state.ended)
+            playerGames.delete(game.id);
+          else
+            return playerGames;
+        }),
       );
     }
 

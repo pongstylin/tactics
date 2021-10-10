@@ -127,8 +127,12 @@ export default class Game extends ActiveModel {
     if (myTeams.length === 0)
       throw new ServerError(401, 'You are not a player in this game.');
 
-    if (state.ended)
-      throw new ServerError(403, 'The game has ended');
+    if (state.ended) {
+      const isPracticeGame = myTeams.length === teams.length;
+      const isForkGame = !!this.forkOf;
+      if (!isPracticeGame && !isForkGame)
+        throw new ServerError(403, 'You may not undo right now');
+    }
 
     const undoRequest = this.undoRequest;
     if (undoRequest) {
@@ -142,7 +146,7 @@ export default class Game extends ActiveModel {
     const canUndo = state.canUndo(team);
     if (canUndo === false)
       // The undo is rejected.
-      throw new ServerError(403, 'You can not undo right now');
+      throw new ServerError(403, 'You may not undo right now');
     else if (canUndo === true)
       // The undo is auto-approved.
       state.undo(team);
