@@ -67,6 +67,10 @@ export default class RemoteTransport {
         turnStarted: new Date(gameData.state.turnStarted),
         ended:       new Date(gameData.state.ended),
       });
+
+      const playerIds = new Set(gameData.state.teams.map(t => t.playerId));
+      const playerStatus = [ ...playerIds ].map(playerId => ({ playerId, status:'offline' }));
+      this._emit({ type:'playerStatus', data:playerStatus });
       this._resolveReady();
       this._resolveStarted();
       this._resolveTurnStarted();
