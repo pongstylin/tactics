@@ -79,9 +79,12 @@ catch (e) {
 }
 
 function getErrorData(error) {
-  const stack = error.stack.split('\n');
-  if (stack[0] === `${error.name}: ${error.message}`)
-    stack.shift();
+  let stack = error.stack;
+  if (typeof stack === 'string') {
+    stack = stack.split('\n');
+    if (stack[0] === `${error.name}: ${error.message}`)
+      stack.shift();
+  }
 
   return {
     name: error.name,
