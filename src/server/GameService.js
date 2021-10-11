@@ -864,11 +864,8 @@ export default class GameService extends Service {
         opponentSetTeams.push(team);
 
       // Avoid saving some fields in the game data
-      if (typeof team.set === 'object') {
-        delete team.set.name;
-        delete team.set.type;
-        delete team.set.createdAt;
-      }
+      if (typeof team.set === 'object')
+        team.set = { units:team.set.units };
     }
 
     if (opponentSetTeams.length) {
