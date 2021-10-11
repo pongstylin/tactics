@@ -24,7 +24,7 @@ export default class PlayerInfo extends Modal {
       const target = event.target;
       if (target.tagName !== 'BUTTON') return;
 
-      const playerName = this.data.info.isACL?.name ?? team.name;
+      const playerName = this.data.info.acl?.name ?? team.name;
 
       if (target.name === 'clearStats')
         popup({
@@ -112,7 +112,7 @@ export default class PlayerInfo extends Modal {
         `<DIV>This player has completed ${info.completed[0]} game(s).</DIV>`,
         info.completed[1] ? `<DIV>This player has abandoned ${info.completed[1]} game(s).</DIV>` : '',
         info.canNotify ? `<DIV>This player can be notified when it is their turn.</DIV>` : '',
-        info.hasACL ? `<DIV>You were ${info.hasACL.type} by this player.</DIV>` : '',
+        info.acl?.reverseType ? `<DIV>You were ${info.acl?.reverseType} by this player.</DIV>` : '',
       `</DIV>`,
       `<DIV class="wld">`,
         `<DIV>`,
@@ -190,7 +190,7 @@ export default class PlayerInfo extends Modal {
       `</DIV>`,
     ];
 
-    if (stats.aliases.length && !info.isACL)
+    if (stats.aliases.length && !info.acl?.type)
       content.push(
         `<DIV>`,
           `<DIV>You have played these aliases:</DIV>`,
@@ -213,7 +213,7 @@ export default class PlayerInfo extends Modal {
 
     this.renderContent(content.join(''));
 
-    const playerName = info.isACL?.name ?? data.team.name;
+    const playerName = info.acl?.name ?? data.team.name;
     const playerACLName = new Autosave({
       defaultValue: false,
       value: playerName,
@@ -222,7 +222,7 @@ export default class PlayerInfo extends Modal {
         [ 'friended', {
           name: 'user-friends',
           title: 'Friend',
-          active: info.isACL?.type === 'friended',
+          active: info.acl?.type === 'friended',
           onClick: async friendIcon => {
             if (friendIcon.active) {
               await this.clearPlayerACL();
@@ -238,7 +238,7 @@ export default class PlayerInfo extends Modal {
         [ 'muted', {
           name: 'microphone-slash',
           title: 'Mute',
-          active: info.isACL?.type === 'muted',
+          active: info.acl?.type === 'muted',
           onClick: async muteIcon => {
             if (muteIcon.active) {
               await this.clearPlayerACL();
@@ -273,7 +273,7 @@ export default class PlayerInfo extends Modal {
         [ 'blocked', {
           name: 'ban',
           title: 'Block',
-          active: info.isACL?.type === 'blocked',
+          active: info.acl?.type === 'blocked',
           onClick: async blockIcon => {
             if (blockIcon.active) {
               await this.clearPlayerACL();
@@ -313,7 +313,7 @@ export default class PlayerInfo extends Modal {
       onChange: async newName => {
         await this.rename(newName);
         for (const [ iconName, icon ] of playerACLName.icons) {
-          icon.active = iconName === info.isACL.type;
+          icon.active = iconName === info.acl.type;
         }
       },
     });
@@ -336,16 +336,19 @@ export default class PlayerInfo extends Modal {
     const playerACL = Object.assign({
       type: 'friended',
       name: this.data.team.name,
-    }, this.data.info.isACL, changes);
+    }, this.data.info.acl, changes);
 
     return authClient.setPlayerACL(this.data.team.playerId, {
       type: playerACL.type,
       name: playerACL.name,
-    }).then(() => this.data.info.isACL = playerACL);
+    }).then(() => this.data.info.acl = playerACL);
   }
   clearPlayerACL() {
     return authClient.clearPlayerACL(this.data.team.playerId)
-      .then(() => delete this.data.info.isACL);
+      .then(() => {
+        delete this.data.info.acl.type;
+        delete this.data.info.acl.name;
+      });
   }
   clearStats() {
     return gameClient.clearWLDStats(this.data.team.playerId)

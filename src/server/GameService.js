@@ -537,8 +537,7 @@ export default class GameService extends Service {
       createdAt: player.createdAt,
       completed: globalStats.completed,
       canNotify: await this.push.hasPushSubscription(forPlayerId),
-      isACL: me.getPlayerACL(forPlayerId),
-      hasACL: player.getPlayerACL(inPlayerId),
+      acl: me.getPlayerACL(forPlayerId),
       stats: {
         aliases: [ ...localStats.aliases.values() ]
           .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
