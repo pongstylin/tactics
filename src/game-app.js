@@ -437,10 +437,10 @@ $(() => {
         $button.prop('disabled', false);
     })
     .on('keydown', event => {
-      let $app = $('#app');
-      let $chat = $('#chat');
-      let $messages = $chat.find('#messages');
-      let $newMessage = $chat.find('.new-message');
+      const $app = $('#app');
+      const $chat = $('#chat');
+      const $messages = $chat.find('#messages');
+      const $newMessage = $chat.find('.new-message');
       let keyChar = event.key;
 
       if (keyChar === undefined) {
@@ -469,16 +469,13 @@ $(() => {
         if (keyChar === 'ArrowUp') {
           event.preventDefault();
           $messages.scrollTop($messages.scrollTop() - 18);
-        }
-        else if (keyChar === 'ArrowDown') {
+        } else if (keyChar === 'ArrowDown') {
           event.preventDefault();
           $messages.scrollTop($messages.scrollTop() + 18);
-        }
-        else if (keyChar === 'PageUp') {
+        } else if (keyChar === 'PageUp') {
           event.preventDefault();
           $messages.scrollTop($messages.scrollTop() - 90);
-        }
-        else if (keyChar === 'PageDown') {
+        } else if (keyChar === 'PageDown') {
           event.preventDefault();
           $messages.scrollTop($messages.scrollTop() + 90);
         }
@@ -512,7 +509,13 @@ $(() => {
           $newMessage.blur();
           buttons.chat();
         }
-      } else if (keyChar.length === 1 && !$newMessage.is(':focus')) {
+      } else if (
+        // Any normal character
+        keyChar.length === 1 &&
+        // Ignore control sequences (e.g. Ctrl+C)
+        !event.ctrlKey &&
+        !$newMessage.is(':focus')
+      ) {
         $newMessage[0].focus({ preventScroll:true });
       }
     })
