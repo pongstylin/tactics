@@ -644,7 +644,7 @@ export default class GameService extends Service {
     const gameData = game.toJSON();
     const state = gameData.state = game.state.getData();
 
-    const isPlayer = state.teams.findIndex(t => t.playerId === playerId) > -1;
+    const isPlayer = state.teams.findIndex(t => t?.playerId === playerId) > -1;
     if (isPlayer) {
       this._setGamePlayersStatus(gameId);
       this._watchClientIdleForGame(gameId, client);
@@ -766,7 +766,7 @@ export default class GameService extends Service {
     else
       watchingClientIds.delete(client.id);
 
-    const isPlayer = game.state.teams.findIndex(t => t.playerId === playerId) > -1;
+    const isPlayer = game.state.teams.findIndex(t => t?.playerId === playerId) > -1;
     if (isPlayer) {
       // If the client is closed, hold off on updating status.
       if (!client.closed && gamePara.clients.size > 0)
