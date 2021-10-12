@@ -374,7 +374,7 @@ export default class extends FileAdapter {
       );
 
     const promise = Promise.all(promises).then(([ gameType, ...gameSummaryLists ]) => {
-      const summary = (new GameSummary(gameType, game)).toJSON();
+      const summary = GameSummary.create(gameType, game);
       dirtyGames.delete(game.id);
 
       for (const gameSummaryList of gameSummaryLists) {
@@ -459,7 +459,7 @@ export default class extends FileAdapter {
       return this.buffer.get('playerActiveGames').get(playerId);
 
     return this.getFile(`player_${playerId}_activeGames`, [], data => {
-      const playerGames = new GameSummaryList(playerId, new Map(data));
+      const playerGames = GameSummaryList.load(playerId, data);
       playerGames.once('change', () => this.buffer.get('playerActiveGames').add(playerId, playerGames));
       return playerGames;
     });
@@ -481,7 +481,7 @@ export default class extends FileAdapter {
       return this.buffer.get('playerCompletedGames').get(playerId);
 
     return this.getFile(`player_${playerId}_completedGames`, [], data => {
-      const playerGames = new GameSummaryList(playerId, new Map(data));
+      const playerGames = GameSummaryList.load(playerId, data);
       playerGames.once('change', () => this.buffer.get('playerCompletedGames').add(playerId, playerGames));
       return playerGames;
     });
@@ -530,7 +530,7 @@ export default class extends FileAdapter {
       return cache.get(null);
 
     const openGames = this.getFile(`open_games`, [], data => {
-      const openGames = new GameSummaryList(null, new Map(data));
+      const openGames = GameSummaryList.load(null, data);
       openGames.once('change', () => this.buffer.get('openGames').add(null, openGames));
       return openGames;
     });

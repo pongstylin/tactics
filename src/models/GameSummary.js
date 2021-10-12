@@ -3,13 +3,11 @@
  * The summary can be used to render a game in a list.
  */
 export default class GameSummary {
-  constructor(gameType, game) {
-    this.type = gameType;
-    this.game = game;
+  constructor(props) {
+    Object.assign(this, props);
   }
 
-  toJSON() {
-    const game    = this.game;
+  static create(gameType, game) {
     const created = game.created;
     const started = game.state.started;
     const ended   = game.state.ended;
@@ -27,12 +25,12 @@ export default class GameSummary {
     else
       updatedAt = started || created;
 
-    const summary = {
+    const props = {
       id: game.id,
-      type: this.type.id,
-      typeName: this.type.name,
+      type: gameType.id,
+      typeName: gameType.name,
       createdBy: game.createdBy,
-      createdAt: game.created,
+      createdAt: created,
       updatedAt,
       started: started,
       ended: ended,
@@ -52,10 +50,29 @@ export default class GameSummary {
     };
 
     if (ended)
-      summary.winnerId = game.state.winnerId;
+      props.winnerId = game.state.winnerId;
     else if (started)
-      summary.currentTeamId = game.state.currentTeamId;
+      props.currentTeamId = game.state.currentTeamId;
 
-    return summary;
+    return new GameSummary(props);
+  }
+  static load(props) {
+    props.createdAt = new Date(props.createdAt);
+    props.updatedAt = new Date(props.updatedAt);
+    props.started = props.started && new Date(props.started);
+    props.ended = props.ended && new Date(props.ended);
+
+    for (const team of props.teams) {
+      if (!team) continue;
+
+      team.createdAt = new Date(team.createdAt);
+      team.joinedAt = team.joinedAt && new Date(team.joinedAt);
+    }
+
+    return new GameSummary(props);
+  }
+
+  toJSON() {
+    return { ...this };
   }
 }
