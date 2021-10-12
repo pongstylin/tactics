@@ -138,7 +138,7 @@ export default class PlayerInfo extends Modal {
               `<TD>`,
                 stats.all.lose[1] === 0
                   ? `${stats.all.lose[0]} game(s)`
-                  : `<DIV>${stats.all.lose[1]} game(s)</DIV><DIV>+${stats.all.lose[1]} with disadvantage</DIV>`,
+                  : `<DIV>${stats.all.lose[0]} game(s)</DIV><DIV>+${stats.all.lose[1]} with disadvantage</DIV>`,
               `</TD>`,
             `<TR>`,
               `<TD class="label">Draw:</TD>`,
@@ -174,7 +174,7 @@ export default class PlayerInfo extends Modal {
               `<TD>`,
                 stats.style.lose[1] === 0
                   ? `${stats.style.lose[0]} game(s)`
-                  : `<DIV>${stats.style.lose[1]} game(s)</DIV><DIV>+${stats.style.lose[1]} with disadvantage</DIV>`,
+                  : `<DIV>${stats.style.lose[0]} game(s)</DIV><DIV>+${stats.style.lose[1]} with disadvantage</DIV>`,
               `</TD>`,
             `<TR>`,
               `<TD class="label">Draw:</TD>`,

@@ -344,12 +344,12 @@ export default class {
       .filter(this._compileFilter(query.filter))
       .sort(this._compileSort(query.sort));
 
-    return Promise.resolve({
+    return {
       page: query.page,
       limit: query.limit,
       count: hits.length,
       hits: hits.slice(offset, offset+query.limit),
-    });
+    };
   }
   _compileFilter(filter) {
     if (!filter)
