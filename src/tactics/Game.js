@@ -1189,6 +1189,13 @@ export default class Game {
 
     this.lock();
     return this.state.submitAction(this._board.encodeAction(action))
+      .then(() => {
+        if (this._inReplay) {
+          // Prevent or clear the 'Sending order' notice
+          this.notice = null;
+          this.lock(this.state.ended ? 'gameover' : 'readonly');
+        }
+      })
       .catch(error => {
         // Re-select the unit if still selected.  It won't be if a revert has
         // already taken place.
