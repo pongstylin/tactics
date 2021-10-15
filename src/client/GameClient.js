@@ -127,7 +127,7 @@ export default class GameClient extends Client {
   }
 
   getPlayerStatus(gameId) {
-    return this._server.requestJoined(this.name, 'getPlayerStatus')
+    return this._server.requestJoined(this.name, `/games/${gameId}`, 'getPlayerStatus')
       .catch(error => {
         if (error === 'Connection reset')
           return this.getPlayerStatus(gameId);
