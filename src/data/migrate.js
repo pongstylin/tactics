@@ -239,7 +239,7 @@ MIGRATIONS.game = [
       if (data.state.ended)
         team.checkoutAt = data.state.ended;
       else if (data.state.actions.length && currentTeamId === i)
-        team.checkoutAt = data.state.actions.last.createdAt;
+        team.checkoutAt = data.state.actions.last.created;
       else
         SKIP:for (let j = data.state.turns.length - 1; j > -1; j--) {
           let actions = data.state.turns[j].actions;
@@ -247,7 +247,7 @@ MIGRATIONS.game = [
             let action = actions[k];
             if (action.forced) continue;
 
-            team.checkoutAt = action.createdAt;
+            team.checkoutAt = action.created;
             break SKIP;
           }
         }
