@@ -22,14 +22,33 @@ export default class Game extends ActiveModel {
   constructor(props) {
     super(props);
 
-    props.state.on('event', () => this.emit('change:state'));
+    props.state.on('*', event => {
+      // Clear a player's rejected requests when their turn starts.
+      if (this.playerRequest) {
+        if (event.type === 'startTurn') {
+          const playerId = props.state.teams[event.data.teamId].playerId;
+          const oldRejected = this.playerRequest.rejected;
+          const newRejected = [ ...oldRejected ].filter(([k,v]) => !k.startsWith(`${playerId}:`));
+
+          if (newRejected.length !== oldRejected.size) {
+            if (newRejected.length)
+              this.playerRequest.rejected = new Map(newRejected);
+            else
+              this.playerRequest = null;
+          }
+        } else if (event.type === 'endGame')
+          this.playerRequest = null;
+      }
+
+      this.emit('change:state');
+    });
   }
 
   static create(gameOptions) {
     const gameData = {
-      id:          uuid(),
-      created:     new Date(),
-      undoRequest: null,
+      id: uuid(),
+      createdAt: new Date(),
+      playerRequest: null,
     };
 
     const stateData = {};
@@ -50,10 +69,13 @@ export default class Game extends ActiveModel {
   static load(data) {
     data.state = GameState.load(data.state);
 
-    if (typeof data.created === 'string')
-      data.created = new Date(data.created);
-    if (data.undoRequest)
-      data.undoRequest.accepts = new Set(data.undoRequest.accepts);
+    if (typeof data.createdAt === 'string')
+      data.createdAt = new Date(data.createdAt);
+    if (data.playerRequest) {
+      data.playerRequest.createdAt = new Date(data.playerRequest.createdAt);
+      data.playerRequest.accepted = new Set(data.playerRequest.accepted);
+      data.playerRequest.rejected = new Map(data.playerRequest.rejected);
+    }
 
     return new Game(data);
   }
@@ -74,19 +96,19 @@ export default class Game extends ActiveModel {
   }
 
   submitAction(playerId, action) {
-    if (this.state.ended)
+    if (this.state.endedAt)
       throw new ServerError(409, 'The game has ended');
 
-    const undoRequest = this.undoRequest || {};
-    if (undoRequest.status === 'pending')
-      throw new ServerError(409, 'An undo request is still pending');
+    const playerRequest = this.playerRequest;
+    if (playerRequest?.status === 'pending')
+      throw new ServerError(409, `A '${playerRequest.type}' request is still pending`);
 
     const myTeams = this.state.teams.filter(t => t.playerId === playerId);
     if (myTeams.length === 0)
       throw new ServerError(403, 'You are not a player in this game.');
 
     if (!Array.isArray(action))
-      action = [action];
+      action = [ action ];
 
     if (action[0].type === 'surrender')
       action[0].declaredBy = playerId;
@@ -96,52 +118,68 @@ export default class Game extends ActiveModel {
       throw new ServerError(409, 'Not your turn!');
 
     this.state.submitAction(action);
-
-    // Clear a rejected undo request after an action is performed.
-    if (this.undoRequest) {
-      this.undoRequest = null;
-      this.emit('change:clearUndo');
-    }
   }
 
-  requestUndo(playerId) {
+  submitPlayerRequest(playerId, requestType) {
+    const oldRequest = this.playerRequest;
+    if (oldRequest?.status === 'pending')
+      throw new ServerError(409, `A '${requestType}' request is still pending`);
+
+    if (this.state.teams.findIndex(t => t.playerId === playerId) === -1)
+      throw new ServerError(401, 'You are not a player in this game.');
+
+    const newRequest = {
+      createdAt: new Date(),
+      createdBy: playerId,
+      status: 'pending',
+      type: requestType,
+      accepted: new Set([ playerId ]),
+      rejected: oldRequest?.rejected || new Map(),
+    };
+
+    let saveRequest = false;
+    if (requestType === 'undo')
+      saveRequest = this.submitUndoRequest(newRequest);
+    else if (requestType === 'truce')
+      saveRequest = this.submitTruceRequest(newRequest);
+
+    if (saveRequest) {
+      this.playerRequest = newRequest;
+
+      // The request is sent to all players.  The initiator may cancel.
+      this.emit({
+        type: `playerRequest`,
+        data: newRequest,
+      });
+      this.emit('change:submitPlayerRequest');
+    }
+  }
+  submitUndoRequest(request) {
     const state = this.state;
     const teams = state.teams;
+    if (state.endedAt) {
+      const myTeams = teams.filter(t => t.playerId === request.createdBy);
+      const isPracticeGame = myTeams.length === teams.length;
+      const isForkGame = !!this.forkOf;
+      if (!isPracticeGame && !isForkGame)
+        throw new ServerError(409, 'Game already ended');
+    }
 
-    // Determine the team that is requesting the undo.
+    // Determine the team that is making the request.
     let team = state.currentTeam;
     let prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
-    if (team.playerId === playerId) {
+    if (team.playerId === request.createdBy) {
       const prevTeam = teams[prevTeamId];
-      if (prevTeam.playerId === playerId && state._actions.length === 0)
+      if (prevTeam.playerId === request.createdBy && state._actions.length === 0)
         team = prevTeam;
     } else {
-      while (team.playerId !== playerId) {
+      while (team.playerId !== request.createdBy) {
         prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
         team = teams[prevTeamId];
       }
     }
 
-    // In case a player controls multiple teams...
-    const myTeams = teams.filter(t => t.playerId === playerId);
-    if (myTeams.length === 0)
-      throw new ServerError(401, 'You are not a player in this game.');
-
-    if (state.ended) {
-      const isPracticeGame = myTeams.length === teams.length;
-      const isForkGame = !!this.forkOf;
-      if (!isPracticeGame && !isForkGame)
-        throw new ServerError(403, 'You may not undo right now');
-    }
-
-    const undoRequest = this.undoRequest;
-    if (undoRequest) {
-      if (undoRequest.status === 'pending')
-        throw new ServerError(409, 'An undo request is still pending');
-      else if (undoRequest.status === 'rejected')
-        if (undoRequest.teamId === team.id)
-          throw new ServerError(403, 'Your undo request was rejected');
-    }
+    request.teamId = team.id;
 
     const canUndo = state.canUndo(team);
     if (canUndo === false)
@@ -150,84 +188,91 @@ export default class Game extends ActiveModel {
     else if (canUndo === true)
       // The undo is auto-approved.
       state.undo(team);
-    else {
-      // The undo request requires approval from the other player(s).
-      this.undoRequest = {
-        createdAt: new Date(),
-        status: 'pending',
-        teamId: team.id,
-        accepts: new Set(myTeams.map(t => t.id)),
-      };
-
-      // The request is sent to all players.  The initiator may cancel.
-      this.emit({
-        type: 'undo:undoRequest',
-        data: Object.assign({}, this.undoRequest, {
-          accepts: [ ...this.undoRequest.accepts ],
-        }),
-      });
-      this.emit('change:requestUndo');
-    }
+    else if (request.rejected.has(`${request.createdBy}:${request.type}`))
+      throw new ServerError(403, `Your '${request.type}' request was already rejected`);
+    else
+      return true;
   }
-  acceptUndo(playerId) {
-    const undoRequest = this.undoRequest;
-    if (!undoRequest)
-      throw new ServerError(400, 'No undo request');
-    else if (undoRequest.status !== 'pending')
-      throw new ServerError(400, 'Undo request is not pending');
+  submitTruceRequest(request) {
+    if (request.rejected.has(`${request.createdBy}:${request.type}`))
+      throw new ServerError(403, `Your '${request.type}' request was already rejected`);
+
+    const state = this.state;
+    if (state.endedAt)
+      throw new ServerError(409, 'Game already ended');
+    else {
+      const teams = state.teams;
+      const myTeams = teams.filter(t => t.playerId === request.createdBy);
+      const isPracticeGame = myTeams.length === teams.length;
+      const isForkGame = !!this.forkOf;
+      if (isPracticeGame || isForkGame)
+        throw new ServerError(403, 'Truce not required for this game');
+    }
+
+    return true;
+  }
+  acceptPlayerRequest(playerId, createdAt) {
+    const request = this.playerRequest;
+    if (request?.status !== 'pending')
+      throw new ServerError(409, 'No request');
+    if (+createdAt !== +request.createdAt)
+      throw new ServerError(409, 'No matching request');
+    if (request.accepted.has(playerId))
+      throw new ServerError(409, 'Already accepted request');
+
+    request.accepted.add(playerId);
 
     const teams = this.state.teams;
-    const myTeams = teams.filter(t => t.playerId === playerId);
-
-    myTeams.forEach(t => undoRequest.accepts.add(t.id));
+    const acceptedTeams = teams.filter(t => request.accepted.has(t.playerId));
 
     this.emit({
-      type: 'undo:undoAccept',
+      type: `playerRequest:accept`,
       data: { playerId },
     });
 
-    if (undoRequest.accepts.size === teams.length) {
-      undoRequest.status = 'completed';
-      teams[undoRequest.teamId].usedUndo = true;
+    if (acceptedTeams.length === teams.length) {
+      request.status = 'completed';
+      this.emit(`playerRequest:complete`);
 
-      this.emit('undo:undoComplete');
+      if (request.type === 'undo') {
+        teams[request.teamId].usedUndo = true;
 
-      this.state.undo(teams[undoRequest.teamId], true);
+        this.state.undo(teams[request.teamId], true);
+      } else if (request.type === 'truce')
+        this.state.end('truce');
     }
 
-    this.emit('change:acceptUndo');
+    this.emit('change:acceptPlayerRequest');
   }
-  rejectUndo(playerId) {
-    const undoRequest = game.undoRequest;
-    if (!undoRequest)
-      throw new ServerError(400, 'No undo request');
-    else if (undoRequest.status !== 'pending')
-      throw new ServerError(400, 'Undo request is not pending');
+  rejectPlayerRequest(playerId, createdAt) {
+    const request = this.playerRequest;
+    if (request?.status !== 'pending')
+      throw new ServerError(409, 'No request');
+    if (+createdAt !== +request.createdAt)
+      throw new ServerError(409, 'No matching request');
 
-    undoRequest.status = 'rejected';
-    undoRequest.rejectedBy = playerId;
+    request.status = 'rejected';
+    request.rejected.set(`${request.createdBy}:${request.type}`, playerId);
 
     this.emit({
-      type: 'undo:undoReject',
+      type: `playerRequest:reject`,
       data: { playerId },
     });
-    this.emit('change:rejectUndo');
+    this.emit('change:rejectPlayerRequest');
   }
-  cancelUndo(playerId) {
-    const undoRequest = this.undoRequest;
-    if (!undoRequest)
-      throw new ServerError(400, 'No undo request');
-    else if (undoRequest.status !== 'pending')
-      throw new ServerError(400, 'Undo request is not pending');
+  cancelPlayerRequest(playerId, createdAt) {
+    const request = this.playerRequest;
+    if (request?.status !== 'pending')
+      throw new ServerError(409, 'No request');
+    if (+createdAt !== +request.createdAt)
+      throw new ServerError(409, 'No matching request');
+    if (playerId !== request.createdBy)
+      throw new ServerError(403, 'Not your request');
 
-    const requestorId = this.state.teams[undoRequest.teamId].playerId;
-    if (playerId !== requestorId)
-      throw new ServerError(403, 'Only requesting player may cancel undo');
+    request.status = 'cancelled';
 
-    undoRequest.status = 'cancelled';
-
-    this.emit('undo:undoCancel');
-    this.emit('change:cancelUndo');
+    this.emit(`playerRequest:cancel`);
+    this.emit('change:cancelPlayerRequest');
   }
 
   fork(clientPara, { turnId, vs, as }) {
@@ -241,17 +286,17 @@ export default class Game extends ActiveModel {
     if (turnId > forkGame.state.currentTurnId)
       turnId = forkGame.state.currentTurnId;
     // Don't include the winning turn, otherwise there's just one team left
-    if (forkGame.state.ended && turnId === forkGame.state.currentTurnId)
+    if (forkGame.state.endedAt && turnId === forkGame.state.currentTurnId)
       turnId--;
     if (vs === undefined)
       vs = 'you';
 
     forkGame.state.revert(turnId);
     forkGame.state.autoPass();
-    if (forkGame.state.ended)
+    if (forkGame.state.endedAt)
       throw new ServerError(403, 'Cowardly refusing to fork a game that immediately ends in a draw.');
 
-    forkGame.created = new Date();
+    forkGame.createdAt = new Date();
     forkGame.id = uuid();
     forkGame.forkOf = { gameId:this.id, turnId:forkGame.state.currentTurnId };
     forkGame.isPublic = false;
@@ -273,8 +318,8 @@ export default class Game extends ActiveModel {
 
       teams[as].join({}, clientPara);
 
-      forkGame.state.started = null;
-      forkGame.state.turnStarted = null;
+      forkGame.state.startedAt = null;
+      forkGame.state.turnStartedAt = null;
       forkGame.state.turnTimeLimit = 86400;
     } else {
       throw new ServerError(400, "Invalid 'vs' option value");

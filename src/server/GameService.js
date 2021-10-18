@@ -274,7 +274,7 @@ export default class GameService extends Service {
      * Notify the player that goes first that it is their turn.
      * ...unless the player to go first just created the game.
      */
-    if (game.state.started) {
+    if (game.state.startedAt) {
       if (game.state.currentTeam.playerId !== playerId)
         this._notifyYourTurn(game);
     }
@@ -303,7 +303,7 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     const playerId = clientPara.playerId;
     const game = await this.data.getGame(gameId);
-    if (game.state.started)
+    if (game.state.startedAt)
       throw new ServerError(409, 'The game has already started.');
 
     const creator = await this.auth.getPlayer(game.createdBy);
@@ -371,7 +371,7 @@ export default class GameService extends Service {
      * Notify the player that goes first that it is their turn.
      * ...unless the player to go first just joined.
      */
-    if (game.state.started) {
+    if (game.state.startedAt) {
       if (game.state.currentTeam.playerId !== playerId)
         this._notifyYourTurn(game);
     }
@@ -474,9 +474,9 @@ export default class GameService extends Service {
       throw new ServerError(412, 'To get player activity for this game, you must first join it');
 
     const game = this.data.getOpenGame(gameId);
-    if (!game.state.started)
+    if (!game.state.startedAt)
       throw new ServerError(403, 'To get player activity for this game, the game must first start.');
-    if (game.state.ended)
+    if (game.state.endedAt)
       throw new ServerError(403, 'May not get player activity for an ended game.');
 
     const inPlayerId = this.clientPara.get(client.id).playerId;
@@ -515,7 +515,7 @@ export default class GameService extends Service {
       throw new ServerError(412, 'To get player activity for this game, you must first join it');
 
     const game = this.data.getOpenGame(gameId);
-    if (!game.state.started)
+    if (!game.state.startedAt)
       throw new ServerError(403, 'To get player info for this game, the game must first start.');
 
     const inPlayerId = this.clientPara.get(client.id).playerId;
@@ -589,24 +589,23 @@ export default class GameService extends Service {
     const firstJoined = !this.gamePara.has(gameId);
     if (firstJoined) {
       const emit = async event => {
-        // Forward game state and undo events to clients.
+        // Forward game state and playerRequest events to clients.
         this._emit({
           type: 'event',
           body: {
             group: groupPath,
-            type: event.type.replace(/^(?:undo|chat):/, ''),
+            type: event.type,
             data: event.data,
           },
         });
 
         // Only send a notification after the first playable turn
         // This is because notifications are already sent elsewhere on game start.
-        if (event.type === 'startTurn' && event.data.started > game.state.started)
+        if (event.type === 'startTurn' && event.data.startedAt > game.state.startedAt)
           this._notifyYourTurn(game);
       };
-      game.state.on('event', emit);
-      game.on('undo', emit);
-      game.on('chat', emit);
+      game.state.on('*', emit);
+      game.on('playerRequest', emit);
 
       this.gamePara.set(gameId, {
         playerStatus: new Map(),
@@ -662,7 +661,7 @@ export default class GameService extends Service {
       // These values are set when a game is created and cannot be changed.
       // So, when resuming a game, these values need not be sent.
       delete gameData.type;
-      delete gameData.created;
+      delete gameData.createdAt;
       delete gameData.createdBy;
       delete gameData.isPublic;
       delete gameData.randomFirstTurn;
@@ -671,7 +670,7 @@ export default class GameService extends Service {
 
       if (params.since === 'start') {
         // Nothing has changed if the game hasn't started yet... for now.
-        if (!state.started)
+        if (!state.startedAt)
           delete gameData.state;
       }
       else if (params.since === 'end')
@@ -679,11 +678,11 @@ export default class GameService extends Service {
         delete gameData.state;
       else {
         // Once the game starts, the teams do not change... for now.
-        delete state.started;
+        delete state.startedAt;
         delete state.teams;
 
         params.since = new Date(params.since);
-        const since = state.actions.length ? state.actions.last.created : state.turnStarted;
+        const since = state.actions.length ? state.actions.last.createdAt : state.turnStartedAt;
 
         if (+params.since === +since)
           // Nothing has changed
@@ -694,13 +693,13 @@ export default class GameService extends Service {
           delete state.currentTeamId;
 
           // Don't need the units at start of turn if they were already seen
-          if (params.since >= state.turnStarted) {
-            delete state.turnStarted;
+          if (params.since >= state.turnStartedAt) {
+            delete state.turnStartedAt;
             delete state.units;
           }
 
           // What actions has the client not seen yet?
-          const newActions = state.actions.filter(a => a.created > params.since);
+          const newActions = state.actions.filter(a => a.createdAt > params.since);
 
           // Are all client actions still valid?  (not reverted)
           const actionsAreValid = params.nextActionId === state.actions.length - newActions.length;
@@ -717,8 +716,8 @@ export default class GameService extends Service {
         }
       }
 
-      if (!state.ended) {
-        delete state.ended;
+      if (!state.endedAt) {
+        delete state.endedAt;
         delete state.winnerId;
       }
 
@@ -749,9 +748,8 @@ export default class GameService extends Service {
     gamePara.clients.delete(client.id);
     if (gamePara.clients.size === 0) {
       // TODO: Don't shut down the game state until all bots have made their turns.
-      game.state.off('event', gamePara.emit);
-      game.off('undo', gamePara.emit);
-      game.off('chat', gamePara.emit);
+      game.state.off('*', gamePara.emit);
+      game.off('playerRequest', gamePara.emit);
 
       this.gamePara.delete(gameId);
     }
@@ -804,7 +802,7 @@ export default class GameService extends Service {
 
     game.submitAction(playerId, action);
   }
-  onUndoRequest(client, groupPath) {
+  onPlayerRequestRequest(client, groupPath, requestType) {
     const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
     if (gameId === undefined)
       throw new ServerError(400, 'Required game group');
@@ -816,29 +814,29 @@ export default class GameService extends Service {
     const playerId = clientPara.playerId;
     const game = this.data.getOpenGame(gameId);
 
-    game.requestUndo(playerId);
+    game.submitPlayerRequest(playerId, requestType);
   }
 
-  onUndoAcceptEvent(client, groupPath) {
+  onPlayerRequestAcceptEvent(client, groupPath, createdAt) {
     const playerId = this.clientPara.get(client.id).playerId;
     const gameId = groupPath.replace(/^\/games\//, '');
     const game = this.data.getOpenGame(gameId);
 
-    game.acceptUndo(playerId);
+    game.acceptPlayerRequest(playerId, new Date(createdAt));
   }
-  onUndoRejectEvent(client, groupPath) {
+  onPlayerRequestRejectEvent(client, groupPath, createdAt) {
     const playerId = this.clientPara.get(client.id).playerId;
     const gameId = groupPath.replace(/^\/games\//, '');
     const game = this.data.getOpenGame(gameId);
 
-    game.rejectUndo(playerId);
+    game.rejectPlayerRequest(playerId, new Date(createdAt));
   }
-  onUndoCancelEvent(client, groupPath) {
+  onPlayerRequestCancelEvent(client, groupPath, createdAt) {
     const playerId = this.clientPara.get(client.id).playerId;
     const gameId = groupPath.replace(/^\/games\//, '');
     const game = this.data.getOpenGame(gameId);
 
-    game.cancelUndo(playerId);
+    game.cancelPlayerRequest(playerId, new Date(createdAt));
   }
 
   /*******************************************************************************
@@ -980,7 +978,7 @@ export default class GameService extends Service {
   }
   _getPlayerGameStatus(playerId, game) {
     const playerPara = this.playerPara.get(playerId);
-    if (!playerPara || (game.state.ended && !playerPara.joinedGroups.has(game.id)))
+    if (!playerPara || (game.state.endedAt && !playerPara.joinedGroups.has(game.id)))
       return { status:'offline' };
 
     let deviceType;
@@ -1033,7 +1031,7 @@ export default class GameService extends Service {
   }
   _getPlayerGameIdle(playerId, game) {
     const team = game.state.teams.find(t => t.playerId === playerId);
-    const gameIdle = Math.floor((new Date() - (team.checkoutAt ?? game.state.started)) / 1000);
+    const gameIdle = Math.floor((new Date() - (team.checkoutAt ?? game.state.startedAt)) / 1000);
 
     const playerPara = this.playerPara.get(playerId);
     if (playerPara && playerPara.joinedGroups.has(game.id)) {
@@ -1057,7 +1055,7 @@ export default class GameService extends Service {
     const openGamesInfo = [...playerPara.joinedGroups.keys()]
       .map(gameId => this.data.getOpenGame(gameId))
       .filter(game =>
-        game.state.started && !game.state.ended &&
+        game.state.startedAt && !game.state.endedAt &&
         game.state.teams.findIndex(t => t.playerId === playerId) > -1
       )
       .map(game => ({ game, idle:this._getPlayerGameIdle(playerId, game) }))

@@ -34,9 +34,9 @@ export default class PlayerStats extends ActiveModel {
   }
 
   recordGameStart(game) {
-    if (!game.state.started)
+    if (!game.state.startedAt)
       throw new Error('Game has not started yet');
-    if (game.state.ended)
+    if (game.state.endedAt)
       throw new Error('Game already ended');
     // No stats for fork games.
     if (game.forkOf)
@@ -105,9 +105,9 @@ export default class PlayerStats extends ActiveModel {
     this.emit('change:recordGameStart');
   }
   recordGameEnd(game) {
-    if (!game.state.started)
+    if (!game.state.startedAt)
       throw new Error('Game has not started yet');
-    if (!game.state.ended)
+    if (!game.state.endedAt)
       throw new Error('Game has not ended');
     // No stats for fork games.
     if (game.forkOf)
@@ -118,7 +118,8 @@ export default class PlayerStats extends ActiveModel {
       throw new Error(`Game was not played by ${this.playerId}`);
 
     // No stats for practice games.
-    if (myTeams.length === game.state.teams.length)
+    const numTeams = game.state.teams.length;
+    if (myTeams.length === numTeams)
       return;
 
     /*
@@ -126,23 +127,16 @@ export default class PlayerStats extends ActiveModel {
      */
     const playedBy = new Set();
     for (const team of game.state.teams) {
-      if (team.id === game.state.winnerId) {
+      if (game.state.winnerId === 'truce' || game.state.winnerId === team.id) {
         playedBy.add(team.playerId);
         continue;
       }
 
-      for (let turnId = team.id; turnId < game.state.turns.length; turnId += game.state.teams.length) {
-        const actions = game.state.turns[turnId].actions;
-        // Auto passed turns don't count
-        if (actions.length === 1 && actions.last.forced)
-          continue;
-        // If this team surrendered (forced or not), this turn wasn't played.
-        if (actions.find(a => a.type === 'surrender')?.teamId === team.id)
-          continue;
-
+      const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
+      const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
+      const firstTurn = team.id + (numTeams * Math.max(waitTurns, skipTurns));
+      if (game.state.currentTurnId > firstTurn)
         playedBy.add(team.playerId);
-        break;
-      }
     }
 
     for (const [ teamId, team ] of game.state.teams.entries()) {
@@ -181,7 +175,7 @@ export default class PlayerStats extends ActiveModel {
           const wldIndex = team.usedUndo && !myTeams[0].usedUndo ? 1 : 0;
           stats.all.lose[wldIndex]++;
           stats.style.get(game.state.type).lose[wldIndex]++;
-        } else {
+        } else if (game.state.winnerId === 'draw') {
           // If I drew with undo, but they didn't use undo, draw is with advantage.
           // Note: If we both lost in a 4-player game, we drew with each other.
           const wldIndex = myTeams[0].usedUndo && !team.usedUndo ? 1 : 0;

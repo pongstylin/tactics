@@ -1,6 +1,6 @@
 import { Renderer } from '@pixi/core';
 import { Container } from '@pixi/display';
-import EventEmitter from 'events';
+import emitter from 'utils/emitter.js';
 
 import Cursor from 'tactics/GameStateCursor.js';
 import PanZoom from 'utils/panzoom.js';
@@ -108,7 +108,6 @@ export default class Game {
 
       playerId,
       state,
-      undoAccepts: new Set(),
 
       _onStateEventListener: this._onStateEvent.bind(this),
       _onCursorChangeListener: () => this._emit({ type:'cursor-change' }),
@@ -144,8 +143,6 @@ export default class Game {
       _board: board,
 
       _panzoom: panzoom,
-
-      _emitter: new EventEmitter(),
     });
 
     this._stage.addChild(board.pixi);
@@ -163,14 +160,14 @@ export default class Game {
     const state = this.state;
     if (!state.turnTimeLimit)
       return;
-    if (state.ended)
+    if (state.endedAt)
       return;
 
     const now = state.now;
     const lastAction = state.actions.last;
-    const lastActionAt = lastAction ? +lastAction.created : 0;
+    const lastActionAt = lastAction ? +lastAction.createdAt : 0;
     const actionTimeout = (lastActionAt + 10000) - now;
-    const turnStartedAt = +state.turnStarted;
+    const turnStartedAt = +state.turnStartedAt;
     const turnTimeout = (turnStartedAt + state.turnTimeLimit*1000) - now;
 
     return Math.max(0, actionTimeout, turnTimeout);
@@ -431,7 +428,7 @@ export default class Game {
    * Find first team in play order starting with current team that is my team.
    */
   get myTeam() {
-    let currentTeamId = this.state.currentTeamId;
+    const currentTeamId = this.state.currentTeamId;
     let teams = this.teams;
     teams = teams
       .slice(this.state.currentTeamId)
@@ -456,12 +453,15 @@ export default class Game {
     return myTeams.length === 0;
   }
   get isMyTurn() {
-    return !this.state.ended && this.isMyTeam(this.currentTeam);
+    return !this.state.endedAt && this.isMyTeam(this.currentTeam);
+  }
+  get isFork() {
+    return !!this.state.forkOf;
   }
   get ofPracticeGame() {
     if (!this.state.forkOf) return false;
 
-    let playerIds = new Set(this.state.teams.map(t => t.forkOf.playerId));
+    const playerIds = new Set(this.state.teams.map(t => t.forkOf.playerId));
 
     return playerIds.size === 1;
   }
@@ -510,29 +510,43 @@ export default class Game {
 
     return this.teams.filter(t => this.isMyTeam(t)).length === 1;
   }
+  /*
+   * Determine team's first playable turn and whether that turn has been made.
+   */
+  teamHasPlayed(team) {
+    if (this.state.winnerId === 'truce' || this.state.winnerId === team.id)
+      return true;
+
+    const numTeams = this.state.teams.length;
+    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
+    const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
+    const firstTurn = team.id + (numTeams * Math.max(waitTurns, skipTurns));
+
+    return this.state.currentTurnId > firstTurn;
+  }
 
   /*
    * Used to start playing the game... even if it is from the middle of it.
    */
   async start() {
-    let state = this.state;
-    let board = this._board;
+    const state = this.state;
+    const board = this._board;
 
     this.lock();
 
     await state.whenStarted;
 
     // Clone teams since board.setState() applies a units property to each.
-    let teams = this._teams = state.teams.map(team => ({...team}));
+    const teams = this._teams = state.teams.map(team => ({...team}));
 
     // Rotate the board such that my first local team is south/red.
-    let myTeams = this.teams.filter(t => this.isMyTeam(t));
+    const myTeams = this.teams.filter(t => this.isMyTeam(t));
     let myTeam;
     if (myTeams.length === 1)
       myTeam = myTeams[0];
     else if (myTeams.length > 1) {
       if (state.forkOf) {
-        let myOldTeams = myTeams.filter(t => t.forkOf.playerId === this.playerId);
+        const myOldTeams = myTeams.filter(t => t.forkOf.playerId === this.playerId);
         if (myOldTeams.length === 0)
           myTeam = myTeams.sort((a,b) => a.slot - b.slot)[0];
         else if (myOldTeams.length === 1)
@@ -552,7 +566,7 @@ export default class Game {
     /*
      * Apply team colors based on the team's (rotated?) position.
      */
-    let colorIds = new Map([
+    const colorIds = new Map([
       ['N', 'Blue'  ],
       ['E', 'Yellow'],
       ['S', 'Red'   ],
@@ -561,7 +575,7 @@ export default class Game {
     ]);
 
     teams.forEach(team => {
-      let position = board.getRotation(team.position, degree);
+      const position = board.getRotation(team.position, degree);
 
       team.colorId = colorIds.get(position);
     });
@@ -575,11 +589,11 @@ export default class Game {
     this._setTurnTimeout();
     this._emit({ type:'state-change' });
 
-    let undoRequest = state.undoRequest;
-    if (undoRequest && undoRequest.status === 'pending')
-      this._emit({ type:'undoRequest', data:undoRequest });
+    const playerRequest = state.playerRequest;
+    if (playerRequest?.status === 'pending')
+      this._emit({ type:`playerRequest`, data:playerRequest });
 
-    state.on('event', this._onStateEventListener);
+    state.on('*', this._onStateEventListener);
   }
   /*
    * This is used when surrendering serverless games.
@@ -592,7 +606,7 @@ export default class Game {
     this.cursor.off('change', this._onCursorChangeListener);
     this.cursor = null;
 
-    state.off('event', this._onStateEventListener);
+    state.off('*', this._onStateEventListener);
 
     this._board.rotation = 'N';
     this.notice = null;
@@ -632,7 +646,7 @@ export default class Game {
     this._inReplay = false;
     this._emit({ type:'endReplay' });
 
-    if (this.state.ended) {
+    if (this.state.endedAt) {
       this.cursor.setToCurrent();
       this.setState();
       this.notice = null;
@@ -643,13 +657,13 @@ export default class Game {
       this._emit({ type:'startSync' });
     }
     else {
-      let turnId = this.isMyTurn && !this.isLocalGame ? -this._teams.length : -1;
+      const turnId = this.isMyTurn && !this.isLocalGame ? -this._teams.length : -1;
 
       this.play(turnId, 0, 'back');
     }
   }
   async play(turnId, actionId, skipPassedTurns = false) {
-    let cursor = this.cursor;
+    const cursor = this.cursor;
 
     if (turnId === undefined && actionId === undefined) {
       if (this._whilePlaying.state !== 'stopped')
@@ -662,14 +676,14 @@ export default class Game {
     await this._whilePlaying;
 
     let stopPlaying;
-    let whilePlaying = this._whilePlaying = new Promise(resolve => {
+    const whilePlaying = this._whilePlaying = new Promise(resolve => {
       stopPlaying = () => {
         whilePlaying.state = 'stopped';
         this.lock('readonly');
         resolve();
       };
     });
-    let board = this._board;
+    const board = this._board;
 
     // Clear a 'Sending order' notice, if present
     // Or, clear 'Your Turn' notice so that it may be redisplayed after.
@@ -695,7 +709,7 @@ export default class Game {
     }
 
     while (!cursor.atCurrent) {
-      let movement = await cursor.setNextAction();
+      const movement = await cursor.setNextAction();
       if (!movement) break;
 
       if (movement === 'back')
@@ -711,8 +725,8 @@ export default class Game {
     stopPlaying();
 
     // The game might have ended while playing
-    let state = this.state;
-    if (state.ended) {
+    const state = this.state;
+    if (state.endedAt) {
       if (this._inReplay)
         await this.pause();
 
@@ -730,7 +744,7 @@ export default class Game {
     }
 
     this.notice = null;
-    this.lock(this.state.ended ? 'gameover' : 'readonly');
+    this.lock(this.state.endedAt ? 'gameover' : 'readonly');
 
     if (showActions && !this.actions.length)
       this._showActions(true);
@@ -1031,7 +1045,7 @@ export default class Game {
     // Local games can always undo if there is something to undo
     if (this.isLocalGame)
       return !!(state.currentTurnId > 1 || actions.length > 0);
-    if (state.ended && !state.forkOf)
+    if (state.endedAt && !state.forkOf)
       return false;
 
     // Determine the team that is requesting the undo.
@@ -1041,12 +1055,6 @@ export default class Game {
       const prevTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
       myTeam = teams[prevTeamId];
     }
-
-    const undoRequest = state.undoRequest;
-    if (undoRequest)
-      if (undoRequest.status === 'rejected')
-        if (undoRequest.teamId === myTeam.id)
-          return false;
 
     // Pretend the first team is the last since it was force-passed.
     const testTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
@@ -1061,6 +1069,9 @@ export default class Game {
       return false;
 
     if (this.isBotGame) {
+      if (this.state.endedAt)
+        return false;
+
       // Bot rejects undo if it is not your turn.
       if (myTeam !== this.currentTeam)
         return false;
@@ -1080,6 +1091,31 @@ export default class Game {
       const isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
       if (isLucky)
         return false;
+    } else if (state.playerRequest?.rejected.has(`${this.playerId}:undo`)) {
+      if (this.state.endedAt)
+        return false;
+
+      // We are either requesting an undo for the current turn or the previous.
+      // There is no easy way to know if the previous turn as time remaining.
+      // But if the current turn has no time remaining, then same for previous.
+      if (this.turnTimeRemaining === 0)
+        return false;
+
+      if (myTeam === this.currentTeam) {
+        // You may not ask for an undo of a previous turn.
+        if (actions.length === 0)
+          return false;
+
+        // You may not ask for an undo of a lucky attack
+        const lastAction = actions.last;
+        const isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
+        if (isLucky)
+          return false;
+      } else {
+        // You may not ask for an undo after actions have been made by your opponent.
+        if (actions.length > 0)
+          return false;
+      }
     }
 
     return true;
@@ -1087,18 +1123,28 @@ export default class Game {
   undo() {
     return this.state.undo();
   }
-  acceptUndo() {
-    this.state.acceptUndo();
+  canTruce() {
+    const playerRequest = this.state.playerRequest;
+    if (playerRequest?.rejected.has(`${this.playerId}:truce`))
+      return false;
+
+    return true;
   }
-  rejectUndo() {
-    this.state.rejectUndo();
+  truce() {
+    this.state.truce();
   }
-  cancelUndo() {
-    this.state.cancelUndo();
+  acceptPlayerRequest() {
+    this.state.acceptPlayerRequest();
+  }
+  rejectPlayerRequest() {
+    this.state.rejectPlayerRequest();
+  }
+  cancelPlayerRequest() {
+    this.state.cancelPlayerRequest();
   }
 
   rotateBoard(rotation) {
-    let board = this._board;
+    const board = this._board;
 
     board.rotate(rotation);
 
@@ -1113,15 +1159,15 @@ export default class Game {
   }
 
   zoomToTurnOptions() {
-    let selected = this.selected;
+    const selected = this.selected;
     if (!selected) return;
 
-    let panzoom = this._panzoom;
+    const panzoom = this._panzoom;
 
     this.transformToRestore = panzoom.transform;
 
     // Get the absolute position of the turn options.
-    let point = selected.assignment.getTop().clone();
+    const point = selected.assignment.getTop().clone();
     point.y -= 14;
 
     // Convert coordinates to percentages.
@@ -1134,7 +1180,7 @@ export default class Game {
   }
 
   delayNotice(notice) {
-    let delay = 200;
+    const delay = 200;
 
     this.notice = null;
     this._noticeTimeout = setTimeout(() => {
@@ -1155,15 +1201,6 @@ export default class Game {
     return this;
   }
 
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
-  }
-
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
@@ -1174,15 +1211,15 @@ export default class Game {
     if (!action.unit && action.type !== 'endTurn' && action.type !== 'surrender')
       action.unit = this.selected;
 
-    let board = this._board;
-    let selected = this.selected;
+    const board = this._board;
+    const selected = this.selected;
 
     if (selected) {
       board.clearMode();
       selected.deactivate();
     }
 
-    let locked = this.locked;
+    const locked = this.locked;
 
     this.notice = null;
     this.delayNotice('Sending order...');
@@ -1193,7 +1230,7 @@ export default class Game {
         if (this._inReplay) {
           // Prevent or clear the 'Sending order' notice
           this.notice = null;
-          this.lock(this.state.ended ? 'gameover' : 'readonly');
+          this.lock(this.state.endedAt ? 'gameover' : 'readonly');
         }
       })
       .catch(error => {
@@ -1281,9 +1318,9 @@ export default class Game {
     }
     else if (actionType === 'attack') {
       // Show the player the units that will be attacked.
-      let target = action.target;
-      let target_tiles = actor.getTargetTiles(target);
-      let targetUnits = actor.getTargetUnits(target);
+      const target = action.target;
+      const targetTiles = actor.getTargetTiles(target);
+      const targetUnits = actor.getTargetUnits(target);
 
       // For counter-attacks, the actor may differ from selected.
       if (selected !== actor) {
@@ -1291,7 +1328,7 @@ export default class Game {
         actor.activate();
       }
 
-      target_tiles.forEach(tile => {
+      targetTiles.forEach(tile => {
         board.setHighlight(tile, {
           action: 'attack',
           color: ATTACK_TILE_COLOR,
@@ -1339,7 +1376,7 @@ export default class Game {
     // Only applicable to Chaos Seed counter-attack
     else if (actionType === 'heal') {
       // Show the player the unit that will be healed.
-      let targetUnit = action.target.assigned;
+      const targetUnit = action.target.assigned;
 
       if (selected !== actor) {
         selected.deactivate();
@@ -1749,17 +1786,21 @@ export default class Game {
     return this;
   }
   _endGame(silent = false) {
-    let winnerId = this.state.winnerId;
+    const winnerId = this.state.winnerId;
 
-    if (winnerId === null) {
+    if (winnerId === 'truce') {
+      this.notice = 'Truce!';
+
+      if (!silent)
+        Tactics.playSound('victory');
+    } else if (winnerId === 'draw') {
       this.notice = 'Draw!';
 
       if (!silent)
         Tactics.playSound('defeat');
-    }
-    else {
-      let teams = this.teams;
-      let winner = teams[winnerId];
+    } else {
+      const teams = this.teams;
+      const winner = teams[winnerId];
       let winnerMoniker;
 
       if (winner.name && teams.filter(t => t.name === winner.name).length === 1)
@@ -1835,7 +1876,7 @@ export default class Game {
 
     this._emit({ type:'resetTimeout' });
 
-    if (state.ended) {
+    if (state.endedAt) {
       clearTimeout(this._turnTimeout);
       this._turnTimeout = null;
       return;
@@ -1863,7 +1904,7 @@ export default class Game {
       // Value must be less than a 32-bit signed integer.
       if (timeout < 0x80000000)
         this._turnTimeout = setTimeout(() => {
-          if (state.ended) return;
+          if (state.endedAt) return;
 
           this._turnTimeout = true;
           this._emit({ type:'timeout' });
@@ -1964,8 +2005,8 @@ export default class Game {
   }
 
   _onStateEvent({ type, data }) {
-    switch (type) {
-      case 'change':
+    switch (true) {
+      case type === 'change':
         this._setTurnTimeout();
 
         // Immediately save the new action(s), if any, before they are cleared
@@ -1976,17 +2017,11 @@ export default class Game {
         if (this._isSynced)
           this.play();
         break;
-      case 'undoRequest':
-      case 'undoAccept':
-      case 'undoReject':
-      case 'undoCancel':
-      case 'undoComplete':
+      case /^playerRequest\b/.test(type):
         this._emit({ type, data });
         break;
     }
   }
-
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
 }
+
+emitter(Game);

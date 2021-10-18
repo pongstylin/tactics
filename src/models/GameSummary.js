@@ -8,35 +8,35 @@ export default class GameSummary {
   }
 
   static create(gameType, game) {
-    const created = game.created;
-    const started = game.state.started;
-    const ended   = game.state.ended;
+    const createdAt = game.createdAt;
+    const startedAt = game.state.startedAt;
+    const endedAt   = game.state.endedAt;
     const teams   = game.state.teams;
     const actions = game.state.actions;
     const turns   = game.state.turns;
 
     let updatedAt;
-    if (ended)
-      updatedAt = ended;
+    if (endedAt)
+      updatedAt = endedAt;
     else if (actions.length)
-      updatedAt = actions.last.created;
+      updatedAt = actions.last.createdAt;
     else if (turns.length)
-      updatedAt = turns.last.actions.last.created;
+      updatedAt = turns.last.actions.last.createdAt;
     else
-      updatedAt = started || created;
+      updatedAt = startedAt || createdAt;
 
     const props = {
       id: game.id,
       type: gameType.id,
       typeName: gameType.name,
       createdBy: game.createdBy,
-      createdAt: created,
+      createdAt,
       updatedAt,
-      started: started,
-      ended: ended,
+      startedAt,
+      endedAt,
       randomFirstTurn: game.state.randomFirstTurn,
       randomHitChance: game.state.randomHitChance,
-      turnStarted: game.state.turnStarted,
+      turnStartedAt: game.state.turnStartedAt,
       turnTimeLimit: game.state.turnTimeLimit,
       isPublic: game.isPublic,
       isFork: !!game.forkOf,
@@ -49,9 +49,9 @@ export default class GameSummary {
       }),
     };
 
-    if (ended)
+    if (endedAt)
       props.winnerId = game.state.winnerId;
-    else if (started)
+    else if (startedAt)
       props.currentTeamId = game.state.currentTeamId;
 
     return new GameSummary(props);
@@ -59,8 +59,8 @@ export default class GameSummary {
   static load(props) {
     props.createdAt = new Date(props.createdAt);
     props.updatedAt = new Date(props.updatedAt);
-    props.started = props.started && new Date(props.started);
-    props.ended = props.ended && new Date(props.ended);
+    props.startedAt = props.startedAt && new Date(props.startedAt);
+    props.endedAt = props.endedAt && new Date(props.endedAt);
 
     for (const team of props.teams) {
       if (!team) continue;

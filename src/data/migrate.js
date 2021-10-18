@@ -254,7 +254,56 @@ MIGRATIONS.game = [
     }
 
     return data;
-  }
+  },
+  data => {
+    data.createdAt = data.created;
+    delete data.created;
+
+    data.state.startedAt = data.state.started;
+    delete data.state.started;
+
+    data.state.turnStartedAt = data.state.turnStarted;
+    delete data.state.turnStarted;
+
+    data.state.endedAt = data.state.ended;
+    delete data.state.ended;
+
+    if (data.state.endedAt && data.state.winnerId === null)
+      data.state.winnerId = 'draw';
+
+    for (const turn of data.state.turns) {
+      turn.startedAt = turn.started;
+      delete turn.started;
+
+      for (const action of turn.actions) {
+        action.createdAt = action.created;
+        delete action.created;
+      }
+    }
+
+    for (const action of data.state.actions) {
+      action.createdAt = action.created;
+    }
+
+    if (data.undoRequest) {
+      const teams = data.state.teams;
+      const createdBy = teams[data.undoRequest.teamId].playerId;
+      const status = data.undoRequest.status;
+
+      data.playerRequest = {
+        createdAt: data.undoRequest.createdAt,
+        createdBy,
+        status,
+        type: 'undo',
+        accepted: data.undoRequest.accepts.map(tId => teams[tId].playerId),
+        rejected: status === 'rejected' ? [[ `${createdBy}:undo`, data.undoRequest.rejectedBy ]] : [],
+        teamId: data.undoRequest.teamId,
+      };
+      delete data.undoRequest;
+    }
+
+    return data;
+  },
 ];
 
 /*

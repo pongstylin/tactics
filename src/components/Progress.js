@@ -1,5 +1,4 @@
-import EventEmitter from 'events';
-
+import emitter from 'utils/emitter.js';
 import './Progress.scss';
 
 const template = `
@@ -9,7 +8,7 @@ const template = `
   </DIV>
 `;
 
-export default class {
+export default class Progress {
   constructor() {
     let root = document.getElementById('progress');
     if (!root) {
@@ -24,18 +23,7 @@ export default class {
     Object.assign(this, {
       root:     root,
       whenComplete: new Promise(resolve => this._resolveComplete = resolve),
-
-      _emitter: new EventEmitter(),
     });
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
   }
 
   enableButtonMode(cb) {
@@ -74,8 +62,6 @@ export default class {
     this.root.classList.remove('show');
     return this;
   }
+};
 
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
-}
+emitter(Progress);

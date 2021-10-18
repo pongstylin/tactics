@@ -1,6 +1,5 @@
-import EventEmitter from 'events';
-
 import unitDataMap from 'tactics/unitData.js';
+import emitter from 'utils/emitter.js';
 
 var counter = 0;
 
@@ -22,32 +21,31 @@ export default class LocalTransport {
 
       _worker:    worker,
       _resolvers: new Map(),
-      _emitter:   new EventEmitter(),
     });
 
     this
       .on('startGame', ({ data }) => {
-        data.started = new Date(data.started);
+        data.startedAt = new Date(data.startedAt);
 
         Object.assign(this._data.state, {
-          started: data.started,
+          startedAt: data.startedAt,
           teams: data.teams,
           units: data.units,
 
           // Useful when restarting an offline game
-          ended: null,
+          endedAt: null,
           winnerId: null,
         });
         this._resolveStarted();
         this._emit({ type:'change' });
       })
       .on('startTurn', ({ data }) => {
-        data.started = new Date(data.started);
+        data.startedAt = new Date(data.startedAt);
 
         this.applyActions();
 
         Object.assign(this._data.state, {
-          turnStarted: data.started,
+          turnStartedAt: data.startedAt,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions: [],
@@ -57,25 +55,25 @@ export default class LocalTransport {
       })
       .on('action', ({ data:actions }) => {
         actions.forEach(action => {
-          action.created = new Date(action.created);
+          action.createdAt = new Date(action.createdAt);
         });
 
         this._data.state.actions.push(...actions);
         this._emit({ type:'change' });
       })
       .on('revert', ({ data }) => {
-        data.started = new Date(data.started);
+        data.startedAt = new Date(data.startedAt);
         data.actions.forEach(action => {
-          action.created = new Date(action.created);
+          action.createdAt = new Date(action.createdAt);
         });
 
         Object.assign(this._data.state, {
-          turnStarted: data.started,
+          turnStartedAt: data.startedAt,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           units: data.units,
           actions: data.actions,
-          ended: null,
+          endedAt: null,
           winnerId: null,
         });
         this._emit({ type:'change' });
@@ -83,7 +81,7 @@ export default class LocalTransport {
       .on('endGame', ({ data }) => {
         Object.assign(this._data.state, {
           winnerId: data.winnerId,
-          ended:    new Date(),
+          endedAt: new Date(),
         });
         this._emit({ type:'change' });
       });
@@ -160,27 +158,8 @@ export default class LocalTransport {
   }
 
   /*
-   * Public Methods
+   * Public Properties
    */
-  on(eventType, fn) {
-    this._emitter.addListener(...arguments);
-
-    return this;
-  }
-  once(eventType, fn) {
-    let listener = () => {
-      this.off(eventType, listener);
-      fn();
-    };
-
-    this.on(eventType, listener);
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-
-    return this;
-  }
-
   get now() {
     return Date.now();
   }
@@ -195,8 +174,8 @@ export default class LocalTransport {
   get teams() {
     return this._getStateData('teams');
   }
-  get started() {
-    return this._getStateData('started');
+  get startedAt() {
+    return this._getStateData('startedAt');
   }
 
   get cursor() {
@@ -208,11 +187,11 @@ export default class LocalTransport {
     return Object.clone({
       turnId: state.currentTurnId,
       teamId: state.currentTeamId,
-      started: state.turnStarted,
+      startedAt: state.turnStartedAt,
       units: state.units,
       actions: state.actions,
       nextActionId: state.actions.length,
-      atEnd: !!this.ended,
+      atEnd: !!this.endedAt,
     });
   }
   get currentTurnData() {
@@ -224,7 +203,7 @@ export default class LocalTransport {
     return Object.clone({
       id: state.currentTurnId,
       teamId: state.currentTeamId,
-      started: state.turnStarted,
+      startedAt: state.turnStartedAt,
       units: state.units,
       actions: state.actions,
     });
@@ -235,8 +214,8 @@ export default class LocalTransport {
   get currentTeamId() {
     return this._getStateData('currentTeamId');
   }
-  get turnStarted() {
-    return this._getStateData('turnStarted');
+  get turnStartedAt() {
+    return this._getStateData('turnStartedAt');
   }
   get units() {
     return this._getStateData('units');
@@ -248,8 +227,8 @@ export default class LocalTransport {
   get winnerId() {
     return this._getStateData('winnerId');
   }
-  get ended() {
-    return this._getStateData('ended');
+  get endedAt() {
+    return this._getStateData('endedAt');
   }
 
   /*
@@ -324,9 +303,9 @@ export default class LocalTransport {
       this._data = { state:data };
       this._resolveReady();
 
-      if (data.started)
+      if (data.startedAt)
         this._resolveStarted();
-      if (data.turnStarted)
+      if (data.turnStartedAt)
         this._resolveTurnStarted();
     }
     else if (type === 'event')
@@ -344,9 +323,6 @@ export default class LocalTransport {
     else
       console.warn('Unhandled message', message);
   }
-
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-    this._emitter.emit('event', event);
-  }
 }
+
+emitter(LocalTransport);

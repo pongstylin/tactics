@@ -14,8 +14,7 @@
   .popup {
     background-color: rgba(0, 0, 0, 0.65);
     box-shadow: 6px 8px 10px #000;
-    max-width: calc(100% - 64px);
-    max-height: calc(100% - 64px);
+    margin: 32px;
     border: 1px solid #AA9977;
     border-radius: 4px;
 
@@ -32,11 +31,11 @@
     }
 
     .buttons {
-      padding: 12px 8px;
+      padding: 4px 8px 12px;
       text-align: center;
 
       BUTTON {
-        margin: 0 8px;
+        margin: 8px 4px 0;
         width: max-content;
         min-width: 5em;
 

@@ -1,8 +1,8 @@
-import EventEmitter from 'events';
 import Tile from 'tactics/Tile.js';
 import Unit from 'tactics/Unit.js';
 import unitFactory from 'tactics/unitFactory.js';
 import colorMap from 'tactics/colorMap.js';
+import emitter from 'utils/emitter.js';
 
 export const TILE_WIDTH        = 88;
 export const TILE_HEIGHT       = 56;
@@ -13,7 +13,7 @@ export const MOVE_TILE_COLOR   = 0x0088FF;
 export const ATTACK_TILE_COLOR = 0xFF8800;
 export const TARGET_TILE_COLOR = 0xFF3300;
 
-export default class {
+export default class Board {
   constructor() {
     let tiles = new Array(11*11);
     var sx = 7 - TILE_WIDTH;        // padding-left, 1 tile  wide
@@ -74,9 +74,8 @@ export default class {
       /*
        * Private properties
        */
-      _trophy:         null,
-      _highlighted:    new Map(),
-      _emitter:        new EventEmitter(),
+      _trophy: null,
+      _highlighted: new Map(),
     });
   }
 
@@ -234,16 +233,8 @@ export default class {
     return this.card = card;
   }
 
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
-  }
   trigger(event) {
-    this._emitter.emit(event.type, event);
+    this._emit(event);
     return this;
   }
 
@@ -2016,8 +2007,6 @@ export default class {
       }
     });
   }
+};
 
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
-}
+emitter(Board);

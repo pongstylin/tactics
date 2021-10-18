@@ -3,10 +3,10 @@
     A tile should have no awareness of the overall board.
 */
 
-import EventEmitter from 'events';
+import emitter from 'utils/emitter.js';
 
-export const TILE_WIDTH        = 88;
-export const TILE_HEIGHT       = 56;
+export const TILE_WIDTH  = 88;
+export const TILE_HEIGHT = 56;
 const points = [
   42,0,  // top-left
   45,0,  // top-right
@@ -19,7 +19,7 @@ const points = [
   42,0   // close
 ];
 
-export default class {
+export default class Tile {
   constructor(x, y) {
     Object.assign(this, {
       id: x+'x'+y,
@@ -35,8 +35,6 @@ export default class {
 
       isDragging: false,
       isDropTarget: false,
-
-      _emitter: new EventEmitter(),
     });
   }
 
@@ -276,20 +274,9 @@ export default class {
     });
   }
 
-  on(eventType, fn) {
-    eventType.split(/ +/).forEach(et => this._emitter.addListener(et, fn));
-    return this;
-  }
-  off(eventType, fn) {
-    eventType.split(/ +/).forEach(et => this._emitter.removeListener(et, fn));
-    return this;
-  }
-
   toJSON() {
     return [this.x, this.y];
   }
+};
 
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
-}
+emitter(Tile);

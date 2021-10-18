@@ -215,11 +215,12 @@ export default class Team {
   /*
    * This method is used to send data from the server to the client.
    */
-  getData() {
+  getData(withSet = false) {
     let json = {...this};
 
     // Only indicate presence or absence of a set, not the set itself
-    json.set = !!json.set;
+    if (!withSet)
+      json.set = !!json.set;
 
     delete json.checkoutAt;
     delete json.randomState;

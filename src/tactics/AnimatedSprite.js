@@ -1,9 +1,10 @@
-import EventEmitter from 'events';
 import { Texture } from '@pixi/core';
 import { Rectangle } from '@pixi/math';
 import { Container } from '@pixi/display';
 import { Sprite } from '@pixi/sprite';
 import { ColorMatrixFilter } from '@pixi/filter-color-matrix';
+
+import emitter from 'utils/emitter.js';
 
 function shrinkDataURI(dataURI) {
   let parts = dataURI.slice(5).split(';base64,');
@@ -28,8 +29,6 @@ function shrinkDataURI(dataURI) {
  */
 export default class AnimatedSprite {
   constructor(data, params) {
-    this._emitter = new EventEmitter();
-
     this._renders = new Map();
 
     this._normalize(data);
@@ -195,15 +194,6 @@ export default class AnimatedSprite {
     else {
       return this.spriteMap.get(path);
     }
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
   }
 
   get name() {
@@ -1173,11 +1163,9 @@ export default class AnimatedSprite {
 
     return { container, scripts };
   }
+};
 
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
-}
+emitter(AnimatedSprite);
 
 /*
  * A number of properties can describe transform components.

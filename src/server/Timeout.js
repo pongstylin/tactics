@@ -1,9 +1,10 @@
 import DebugLogger from 'debug';
-import EventEmitter from 'events';
+
+import emitter from 'utils/emitter.js';
 
 const timeouts = new Map();
 
-class Timeout {
+export default class Timeout {
   constructor(name, config = {}) {
     if (timeouts.has(name))
       throw new Error(`Timeout name conflict: ${name}`);
@@ -17,8 +18,6 @@ class Timeout {
       interval: 0,
       expireIn: 60 * 60 * 1000,
       expireLimit: Infinity,
-
-      _emitter: new EventEmitter(),
     }, config, {
       _opened: new Map(),
       _closed: new Map(),
@@ -69,7 +68,7 @@ class Timeout {
         closed.delete(itemId);
 
       this.log('expire', `expire=${expiredItems.size}/${totalExpiredItems}; closed=${closed.size}; opened=${this._opened.size}`);
-      this.emit({ type:'expire', data:expiredItems });
+      this._emit({ type:'expire', data:expiredItems });
     }
 
     this._checkAt = now + this.interval;
@@ -208,21 +207,7 @@ class Timeout {
     this.log('clear', `clear=${values.length}`);
     return values;
   }
-
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
-  }
-  emit(event) {
-    this._emitter.emit('event', event);
-    this._emitter.emit(event.type, event);
-  }
 }
 
 Timeout.timeouts = timeouts;
-
-export default Timeout;
+emitter(Timeout);

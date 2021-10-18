@@ -126,7 +126,7 @@ export default class extends FileAdapter {
     if (this._dirtyGames.has(game.id))
       await this._dirtyGames.get(game.id);
 
-    if (game.state.started)
+    if (game.state.startedAt)
       throw new ServerError(409, 'Game already started');
 
     this.cache.get('game').delete(game.id);
@@ -200,7 +200,7 @@ export default class extends FileAdapter {
     const myTurnGames = [];
     for (const game of games.values()) {
       // Only active games, please.
-      if (!game.started || game.ended)
+      if (!game.startedAt || game.endedAt)
         continue;
       // Must be my turn
       if (game.teams[game.currentTeamId].playerId !== myPlayerId)
@@ -219,7 +219,7 @@ export default class extends FileAdapter {
     const gamesSummary = await this._getPlayerActiveGames(myPlayerId);
 
     for (const gameSummary of gamesSummary.values()) {
-      if (!gameSummary.started || gameSummary.ended)
+      if (!gameSummary.startedAt || gameSummary.endedAt)
         continue;
       if (gameSummary.teams.findIndex(t => t.playerId === vsPlayerId) === -1)
         continue;
@@ -275,22 +275,22 @@ export default class extends FileAdapter {
       this._updateGameSummary(game);
     });
     if (!game.forkOf) {
-      if (!game.state.started)
+      if (!game.state.startedAt)
         game.state.once('startGame', event => this._recordGameStats(game));
-      if (!game.state.ended)
+      if (!game.state.endedAt)
         game.state.once('endGame', event => this._recordGameStats(game));
     }
   }
   async _recordGameStats(game) {
     if (game.forkOf) return;
-    if (!game.state.started) return;
+    if (!game.state.startedAt) return;
 
     const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
     if (playerIds.size === 1) return;
 
     for (const playerId of playerIds) {
       const playerStats = await this._getPlayerStats(playerId);
-      if (game.state.ended)
+      if (game.state.endedAt)
         playerStats.recordGameEnd(game);
       else
         playerStats.recordGameStart(game);
@@ -347,7 +347,7 @@ export default class extends FileAdapter {
           // to add the other player's games to the cache.
           this.cache.get('playerActiveGames').add(playerGames.playerId, playerGames);
 
-          if (game.state.ended)
+          if (game.state.endedAt)
             playerGames.delete(game.id);
           else
             return playerGames;
@@ -355,7 +355,7 @@ export default class extends FileAdapter {
         this._getPlayerCompletedGames(playerId).then(playerGames => {
           this.cache.get('playerCompletedGames').add(playerGames.playerId, playerGames);
 
-          if (!game.state.ended)
+          if (!game.state.endedAt)
             playerGames.delete(game.id);
           else
             return playerGames;
@@ -366,7 +366,7 @@ export default class extends FileAdapter {
     if (game.isPublic)
       promises.push(
         this._getOpenGames().then(openGames => {
-          if (game.state.started)
+          if (game.state.startedAt)
             openGames.delete(game.id);
           else
             return openGames;

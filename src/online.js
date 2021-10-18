@@ -289,9 +289,9 @@ function renderGames(gms) {
   clearGameLists();
 
   gms.forEach(g => {
-    if (g.ended)
+    if (g.endedAt)
       games.complete.set(g.id, g);
-    else if (g.started)
+    else if (g.startedAt)
       games.active.set(g.id, g);
     else if (g.isPublic)
       games.open.set(g.id, g);
@@ -338,7 +338,7 @@ function renderActiveGames() {
   let activeGames = [...games.active.values()]
     .map(game => {
       if (game.turnTimeLimit)
-        game.turnTimeRemaining = game.turnTimeLimit*1000 - (now - game.turnStarted.getTime());
+        game.turnTimeRemaining = game.turnTimeLimit*1000 - (now - game.turnStartedAt.getTime());
 
       return game;
     })
@@ -490,8 +490,10 @@ function renderGame(game) {
 
   let left = `${game.typeName}`;
   // Completed Games
-  if (game.ended) {
-    if (game.winnerId === null)
+  if (game.endedAt) {
+    if (game.winnerId === 'truce')
+      left += ', <SPAN>Truce!</SPAN>';
+    else if (game.winnerId === 'draw')
       left += ', <SPAN>Draw!</SPAN>';
     else if (teams[game.winnerId].playerId === myPlayerId)
       left += ', <SPAN>You Win!</SPAN>';
@@ -501,7 +503,7 @@ function renderGame(game) {
     if (game.isFork)
       left += ', <SPAN>Fork</SPAN>';
   // Active Games
-  } else if (game.started) {
+  } else if (game.startedAt) {
     const labels = [];
 
     if (!game.randomHitChance)
@@ -548,11 +550,11 @@ function renderGame(game) {
     // Not supposed to happen, but bugs do.
     middle = '<I>Empty</I>';
   } else if (gameIsPractice) {
-    if (game.started)
+    if (game.startedAt)
       middle = '<I>Yourself</I>';
     else
       middle = '<I>Finish Setup</I>';
-  } else if (game.started || game.isPublic) {
+  } else if (game.startedAt || game.isPublic) {
     // Use of 'Set' was to de-dup the names.
     // Only useful for 4-player games where 2 players have the same name.
     const opponents = [...new Set(
@@ -573,7 +575,7 @@ function renderGame(game) {
   let addClass = '';
   let elapsed;
 
-  if (!game.started || game.ended || !game.turnTimeLimit)
+  if (!game.startedAt || game.endedAt || !game.turnTimeLimit)
     elapsed = (now - game.updatedAt) / 1000;
   else {
     elapsed = game.turnTimeRemaining / 1000;
@@ -641,7 +643,7 @@ function fetchGames() {
       filter: {
         '!': {
           isPublic: true,
-          started: null,
+          startedAt: null,
         },
       },
       sort: { field:'updatedAt', order:'desc' },
@@ -659,7 +661,7 @@ function fetchGames() {
      * plays more than 50 games, the oldest ones will drop out of view.
      */
     gameClient.searchMyCompletedGames({
-      sort: { field:'ended', order:'desc' },
+      sort: { field:'endedAt', order:'desc' },
       limit: 50,
     }),
   ]).then(resultSets => [].concat(...resultSets.map(r => r.hits)));

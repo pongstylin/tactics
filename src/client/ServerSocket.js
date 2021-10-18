@@ -107,10 +107,10 @@ export default class ServerSocket {
    * Get a promise that resolves once the service becomes authorized.
    */
   whenAuthorized(serviceName) {
-    let whenAuthorized = this._whenAuthorized;
+    const whenAuthorized = this._whenAuthorized;
 
     if (!whenAuthorized.has(serviceName)) {
-      let promise = new Promise((resolve, reject) => {
+      const promise = new Promise((resolve, reject) => {
         this._authorizeRoutes.set(serviceName, { resolve, reject });
       });
       promise.isResolved = false;
@@ -123,11 +123,11 @@ export default class ServerSocket {
     return whenAuthorized.get(serviceName);
   }
   whenJoined(serviceName, groupPath) {
-    let whenJoined = this._whenJoined;
-    let groupKey = `${serviceName}:${groupPath}`;
+    const whenJoined = this._whenJoined;
+    const groupKey = `${serviceName}:${groupPath}`;
 
     if (!whenJoined.has(groupKey)) {
-      let promise = new Promise((resolve, reject) => {
+      const promise = new Promise((resolve, reject) => {
         this._joinRoutes.set(groupKey, { resolve, reject });
       });
       promise.isResolved = false;
@@ -206,7 +206,7 @@ export default class ServerSocket {
      * Don't reopen if the socket was closed due to inactivity or a shutdown.
      * Do reopen if the socket was closed due to connection loss or timeout.
      */
-    let reopen = code < CLOSE_CLIENT_SHUTDOWN;
+    const reopen = code < CLOSE_CLIENT_SHUTDOWN;
     if (reopen) {
       console.warn(`Connection closed: [${code}] ${reason}`);
 
@@ -225,8 +225,8 @@ export default class ServerSocket {
     if (!this.isOpen)
       return;
 
-    let session = this._session;
-    let requestId = this._enqueue('authorize', {
+    const session = this._session;
+    const requestId = this._enqueue('authorize', {
       service: serviceName,
       data: data,
     });
@@ -234,7 +234,7 @@ export default class ServerSocket {
     return new Promise((resolve, reject) => {
       session.responseRoutes.set(requestId, {resolve, reject});
     }).then(() => {
-      let promise = this.whenAuthorized(serviceName);
+      const promise = this.whenAuthorized(serviceName);
       promise.isResolved = true;
       this._authorizeRoutes.get(serviceName).resolve();
     }).catch(error => {
@@ -248,7 +248,7 @@ export default class ServerSocket {
   }
 
   join(serviceName, groupPath, params) {
-    let messageBody = {
+    const messageBody = {
       service: serviceName,
       group: groupPath,
     };
@@ -256,13 +256,13 @@ export default class ServerSocket {
     if (params)
       messageBody.params = params;
 
-    let requestId = this._enqueue('join', messageBody);
+    const requestId = this._enqueue('join', messageBody);
 
     return new Promise((resolve, reject) => {
       this._session.responseRoutes.set(requestId, {resolve, reject});
     }).then(data => {
-      let groupKey = `${serviceName}:${groupPath}`;
-      let promise = this.whenJoined(serviceName, groupPath);
+      const groupKey = `${serviceName}:${groupPath}`;
+      const promise = this.whenJoined(serviceName, groupPath);
       promise.isResolved = true;
       this._joinRoutes.get(groupKey).resolve();
 
@@ -287,7 +287,7 @@ export default class ServerSocket {
     if (!Array.isArray(args))
       throw new TypeError('Arguments must be an array');
 
-    let requestId = this._enqueue('request', {
+    const requestId = this._enqueue('request', {
       service: serviceName,
       method: methodName,
       args: args,
@@ -347,7 +347,7 @@ export default class ServerSocket {
   }
 
   _authorizeThen(serviceName, fn) {
-    let promise = this.whenAuthorized(serviceName);
+    const promise = this.whenAuthorized(serviceName);
 
     return promise.then(fn)
       .catch(error => {
@@ -363,8 +363,8 @@ export default class ServerSocket {
       });
   }
   _joinThen(serviceName, groupPath, fn) {
-    let promise = this.whenJoined(serviceName, groupPath);
-    let groupKey = `${serviceName}:${groupPath}`;
+    const promise = this.whenJoined(serviceName, groupPath);
+    const groupKey = `${serviceName}:${groupPath}`;
 
     return promise.then(fn)
       .catch(error => {
@@ -380,8 +380,8 @@ export default class ServerSocket {
       });
   }
   _enqueue(messageType, body, dropIfNotConnected = false) {
-    let session = this._session;
-    let message = {
+    const session = this._session;
+    const message = {
       id: ++session.clientMessageId,
       type: messageType,
       body: body,
@@ -408,8 +408,8 @@ export default class ServerSocket {
     });
   }
   _send(message) {
-    let socket = this._socket;
-    let session = this._session;
+    const socket = this._socket;
+    const session = this._session;
 
     // Can't send messages until the connection is established.
     if (!this.isConnected)
@@ -429,12 +429,12 @@ export default class ServerSocket {
     socket.send(JSON.stringify(message));
   }
   _purgeAcknowledgedMessages(messageId) {
-    let session = this._session;
+    const session = this._session;
 
     /*
      * Purge acknowledged messages from the outgoing queue.
      */
-    let outbox = session.outbox;
+    const outbox = session.outbox;
     while (outbox.length) {
       if (messageId < outbox[0].id)
         break;
@@ -556,8 +556,8 @@ export default class ServerSocket {
       this._onErrorMessage(message);
   }
   _onResponseMessage(response) {
-    let session = this._session;
-    let route = session.responseRoutes.get(response.requestId);
+    const session = this._session;
+    const route = session.responseRoutes.get(response.requestId);
     if (!route) {
       console.error('Unable to route response', response);
       return;
@@ -571,13 +571,13 @@ export default class ServerSocket {
     session.responseRoutes.delete(response.requestId);
   }
   _onSyncMessage(message) {
-    let session = this._session;
+    const session = this._session;
 
     /*
      * The message.ack id was already used to remove all acknowledged messages
      * from the outbox.  So, all remaining messages need to be sent.
      */
-    let outbox = session.outbox;
+    const outbox = session.outbox;
     for (let i = 0; i < outbox.length; i++) {
       this._send(outbox[i]);
     }

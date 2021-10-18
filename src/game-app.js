@@ -22,7 +22,7 @@ var game;
 var muted;
 var lastSeenEventId;
 var chatMessages = [];
-var undoPopup;
+var playerRequestPopup;
 var timeoutPopup;
 var pointer;
 var readySpecial;
@@ -175,9 +175,9 @@ var buttons = {
 
         if (error instanceof ServerError) {
           if (error.code === 403)
-            message += ` Reason: ${error.message}`;
+            message += `<DIV>Reason: ${error.message}</DIV>`;
           else if (error.code === 500)
-            message += ` Reason: ${error.message}`;
+            message += `<DIV>Reason: ${error.message}</DIV>`;
         }
 
         popup(message);
@@ -213,10 +213,11 @@ var buttons = {
             label: 'No',
           },
         ],
+        margin: '16px',
       });
-    else
+    else if (game.isLocalGame)
       popup({
-        message: 'Do you surrender?',
+        message: `End your practice game?`,
         buttons: [
           {
             label: 'Yes',
@@ -226,7 +227,101 @@ var buttons = {
             label: 'No',
           },
         ],
+        margin: '16px',
       });
+    else if (game.isFork)
+      popup({
+        message: `Do you surrender?  Since this is a fork game, it won't affect your Win/Lose/Draw stats.`,
+        buttons: [
+          {
+            label: 'Yes',
+            onClick: () => game.surrender(),
+          },
+          {
+            label: 'No',
+          },
+        ],
+        maxWidth: '320px',
+        margin: '16px',
+      });
+    else if (game.canTruce()) {
+      if (!game.teamHasPlayed(game.myTeam))
+        popup({
+          message: [
+            `Since you haven't played a turn, you can abandon the game.  `,
+            `Abandoned games do not affect player's Win/Lose/Draw stats.  `,
+            `However, your opponents can see how many times you have abandoned games.  `,
+            `You may, however, offer a truce to avoid abandoning the game.`,
+          ].join(''),
+          buttons: [
+            {
+              label: 'Offer Truce',
+              onClick: () => game.truce(),
+            },
+            {
+              label: 'Abandon',
+              onClick: () => game.surrender(),
+            },
+            {
+              label: 'Cancel',
+            },
+          ],
+          maxWidth: '400px',
+          margin: '16px',
+        });
+      else
+        popup({
+          message: [
+            `If you and your opponent agree to a truce, then this game won't affect your Win/Lose/Draw stats.  `,
+            `Otherwise, you can surrender.`,
+          ].join(''),
+          buttons: [
+            {
+              label: 'Offer Truce',
+              onClick: () => game.truce(),
+            },
+            {
+              label: 'Surrender',
+              onClick: () => game.surrender(),
+            },
+            {
+              label: 'Cancel',
+            },
+          ],
+          maxWidth: '320px',
+          margin: '16px',
+        });
+    } else
+      if (!game.teamHasPlayed(game.myTeam))
+        popup({
+          message: `A truce has been rejected.  So, will you abandon the game?`,
+          buttons: [
+            {
+              label: 'Abandon',
+              onClick: () => game.surrender(),
+            },
+            {
+              label: 'Cancel',
+            },
+          ],
+          maxWidth: '250px',
+          margin: '16px',
+        });
+      else
+        popup({
+          message: `A truce has been rejected.  So, do you surrender?`,
+          buttons: [
+            {
+              label: 'Surrender',
+              onClick: () => game.surrender(),
+            },
+            {
+              label: 'Cancel',
+            },
+          ],
+          maxWidth: '250px',
+          margin: '16px',
+        });
   },
   chat: () => {
     let $app = $('#app');
@@ -344,7 +439,7 @@ var buttons = {
     new ForkModal({ game });
   },
   resume: async () => {
-    wakelock.toggle(!game.state.ended);
+    wakelock.toggle(!game.state.endedAt);
 
     $('#game').toggleClass('is-busy');
     await game.resume();
@@ -606,7 +701,7 @@ async function initGame() {
       gameType = await gameClient.getGameType(gameData.state.type);
 
       // An account is not required to view an ended game.
-      if (gameData.state.ended)
+      if (gameData.state.endedAt)
         return loadTransportAndGame(gameId, gameData);
 
       // No account?  Provide a name before joining/watching!
@@ -614,7 +709,7 @@ async function initGame() {
         return showJoinIntro(gameData);
 
       // Account exists and game started?  Immediately start watching!
-      if (gameData.state.started)
+      if (gameData.state.startedAt)
         return loadTransportAndGame(gameId, gameData);
 
       const teams = gameData.state.teams;
@@ -628,7 +723,7 @@ async function initGame() {
         else
           return showPrivateIntro(gameData);
       else
-        if (!gameData.state.started && gameData.forkOf)
+        if (!gameData.state.startedAt && gameData.forkOf)
           return showJoinFork(gameData);
         else
           return showJoinIntro(gameData);
@@ -782,7 +877,7 @@ async function loadResources(gameState) {
 
   // If the user will see the game immediately after the resources are loaded,
   // then require a tap to make sure sound effects work.
-  let requireTap = gameState.ended || authClient.token && gameState.started;
+  let requireTap = gameState.endedAt || authClient.token && gameState.startedAt;
 
   return new Promise(resolve => {
     progress
@@ -803,7 +898,7 @@ async function loadResources(gameState) {
         if (!requireTap) return resolve();
 
         let tapHandler = () => {
-          wakelock.toggle(!gameState.ended && !location.hash);
+          wakelock.toggle(!gameState.endedAt && !location.hash);
 
           progress.disableButtonMode(tapHandler);
           progress.message = 'One moment...';
@@ -812,7 +907,7 @@ async function loadResources(gameState) {
         progress.enableButtonMode(tapHandler);
 
         let action = pointer === 'mouse' ? 'Click' : 'Tap';
-        if (gameState.ended)
+        if (gameState.endedAt)
           progress.message = `${action} here to view!`;
         else if (gameState.teams.find(t => t.playerId === authClient.playerId))
           progress.message = `${action} here to play!`;
@@ -1213,7 +1308,7 @@ async function showJoinIntro(gameData) {
   });
   playerName.appendTo(root.querySelector('.playerName'));
 
-  if (gameData.state.started) {
+  if (gameData.state.startedAt) {
     btnJoin.textContent = 'Watch Game';
 
     return new Promise((resolve, reject) => {
@@ -1429,7 +1524,7 @@ function resetPlayerBanners() {
       .removeClass('offline online active unavailable')
       .addClass(playerStatus.status)
       .toggleClass('mobile', playerStatus.deviceType === 'mobile')
-      .toggleClass('link', showLink && !game.state.ended);
+      .toggleClass('link', showLink && !game.state.endedAt);
     const $name = $player.find('.name')
       .toggleClass('link', showLink)
       .text(team.name);
@@ -1553,7 +1648,7 @@ async function startGame() {
     .on('state-change', event => {
       $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
       $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
-      if (game.state.ended && !game.isLocalGame && !game.state.forkOf)
+      if (game.state.endedAt && !game.isLocalGame && !game.state.forkOf)
         $('BUTTON[name=undo]').hide();
       toggleReplayButtons();
     })
@@ -1643,11 +1738,11 @@ async function startGame() {
         timeoutPopup.close();
     })
     .on('resetTimeout', () => setTurnTimeoutClock())
-    .on('undoRequest', ({ data:request }) => updateUndoDialog(request.status === 'pending'))
-    .on('undoAccept', () => updateUndoDialog())
-    .on('undoReject', () => updateUndoDialog())
-    .on('undoCancel', () => updateUndoDialog())
-    .on('undoComplete', hideUndoDialog)
+    .on('playerRequest', ({ data:request }) => updatePlayerRequestPopup(request.status === 'pending'))
+    .on('playerRequest:accept', () => updatePlayerRequestPopup())
+    .on('playerRequest:reject', () => updatePlayerRequestPopup())
+    .on('playerRequest:cancel', () => updatePlayerRequestPopup())
+    .on('playerRequest:complete', hidePlayerRequestPopup)
     .on('startSync', () => {
       $('BUTTON[name=play]').hide();
       $('BUTTON[name=pause]').show();
@@ -1705,93 +1800,110 @@ async function startGame() {
     game.play(-1);
 }
 
-function updateUndoDialog(createIfNeeded = false) {
+function updatePlayerRequestPopup(createIfNeeded = false) {
   if (game.isViewOnly)
     return;
 
-  if (!undoPopup && !createIfNeeded) {
+  if (!playerRequestPopup && !createIfNeeded) {
     // When a request is rejected, the undo button becomes disabled.
     $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
     return;
   }
 
-  const undoRequest = game.state.undoRequest;
+  const playerRequest = game.state.playerRequest;
   // Was undo cancelled before we got an update?
-  if (!undoRequest)
-    return hideUndoDialog();
+  if (!playerRequest)
+    return hidePlayerRequestPopup();
 
   const teams = game.teams;
   const myTeam = game.myTeam;
-  const requestor = teams[undoRequest.teamId];
+  const requestor = 'teamId' in playerRequest
+    ? teams[playerRequest.teamId]
+    : teams.find(t => t.playerId === playerRequest.createdBy);
   const popupData = {
     buttons: [],
     onClose: () => {
       // When a request is rejected, the undo button becomes disabled.
-      $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+      if (playerRequest.type === 'undo')
+        $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
 
-      undoPopup = null;
+      playerRequestPopup = null;
+      $('#app').removeClass('with-playerRequest');
     },
+    container: document.getElementById('field'),
   };
 
-  if (game.hasOneLocalTeam(undoRequest.teamId))
-    popupData.title = `Your Undo Request`;
+  const playerRequestTypeName = (
+    playerRequest.type.toUpperCase('first') + ' ' +
+    (playerRequest.type === 'undo' ? 'Request' : 'Offer')
+  );
+  if (game.hasOneLocalTeam(requestor))
+    popupData.title = `Your ${playerRequestTypeName}`;
   else if (teams.filter(t => t.name === requestor.name).length > 1)
-    popupData.title = `Undo Request By ${requestor.color}`;
+    popupData.title = `${playerRequestTypeName} By ${requestor.color}`;
   else
-    popupData.title = `Undo Request By ${requestor.name}`;
+    popupData.title = `${playerRequestTypeName} By ${requestor.name}`;
 
-  if (undoRequest.status !== 'pending') {
-    if (undoRequest.status === 'rejected') {
-      const rejector = teams.find(t => t.playerId === undoRequest.rejectedBy);
+  if (playerRequest.status !== 'pending') {
+    if (playerRequest.status === 'rejected') {
+      if (playerRequest.type === 'truce') {
+        hidePlayerRequestPopup();
+        return buttons.surrender();
+      }
+
+      const rejectorId = playerRequest.rejected.get(`${playerRequest.createdBy}:${playerRequest.type}`);
+      const rejector = teams.find(t => t.playerId === rejectorId);
 
       popupData.message = `Request rejected by ${rejector.name}.`;
-    }
-    else if (undoRequest.status === 'cancelled')
+    } else if (playerRequest.status === 'cancelled')
       popupData.message = `The request was cancelled.`;
 
     popupData.buttons.push({ label:'Ok' });
-  }
-  else {
+  } else {
     popupData.closeOnCancel = false;
 
-    if (game.isMyTeam(undoRequest.teamId)) {
+    if (game.isMyTeam(requestor)) {
       popupData.message = `Waiting for approval.`;
       popupData.buttons.push({
         label: 'Cancel',
-        onClick: () => game.cancelUndo(),
+        onClick: () => {
+          game.cancelPlayerRequest();
+          if (playerRequest.type === 'truce')
+            buttons.surrender();
+        },
       });
-    }
-    else if (undoRequest.accepts.has(myTeam.id)) {
+    } else if (playerRequest.accepted.has(myTeam.id)) {
       popupData.message = `Approval sent.  Waiting for others.`;
       popupData.buttons.push({
         label: 'Withdraw Approval',
-        onClick: () => game.rejectUndo(),
+        onClick: () => game.rejectPlayerRequest(),
       });
-    }
-    else {
+    } else {
       popupData.message = `Do you approve?`;
       popupData.buttons.push({
         label: 'Yes',
-        onClick: () => game.acceptUndo(),
+        onClick: () => game.acceptPlayerRequest(),
       });
       popupData.buttons.push({
         label: 'No',
-        onClick: () => game.rejectUndo(),
+        onClick: () => game.rejectPlayerRequest(),
       });
     }
   }
 
   popupData.zIndex = 20;
 
-  if (undoPopup)
-    undoPopup.update(popupData);
-  else
-    undoPopup = popup(popupData);
+  if (playerRequestPopup)
+    playerRequestPopup.update(popupData);
+  else {
+    playerRequestPopup = popup(popupData);
+    $('#app').addClass('with-playerRequest');
+  }
 }
 
-function hideUndoDialog() {
-  if (undoPopup)
-    undoPopup.close();
+function hidePlayerRequestPopup() {
+  if (playerRequestPopup)
+    playerRequestPopup.close();
 }
 
 function setHistoryState() {

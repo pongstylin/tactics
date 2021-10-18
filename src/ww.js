@@ -12,37 +12,34 @@ const post = (type, data) => {
 self.state = null;
 self.data = null;
 
-self.addEventListener('message', ({data:message}) => {
-  let {type, data} = message;
+self.addEventListener('message', ({ data:message }) => {
+  const { type, data } = message;
 
   if (type === 'create') {
     self.data = data;
     self.state = GameState.create(data.clone())
-      .on('event', event => post('event', event));
+      .on('*', event => post('event', event));
 
     post('init', self.state.getData());
 
     if (self.state.teams.findIndex(t => !t?.joinedAt) === -1)
       self.state.start();
-  }
-  else if (type === 'restart') {
+  } else if (type === 'restart') {
     self.state = GameState.create(self.data.clone())
-      .on('event', event => post('event', event));
+      .on('*', event => post('event', event));
 
     post('init', self.state.getData());
 
     if (self.state.teams.findIndex(t => !t?.joinedAt) === -1)
       self.state.start();
-  }
-  else if (type === 'load') {
+  } else if (type === 'load') {
     self.state = GameState.load(data)
-      .on('event', event => post('event', event));
+      .on('*', event => post('event', event));
     post('init', self.state.getData());
-  }
-  else if (type === 'call') {
-    let value = self.state[data.method](...data.args);
+  } else if (type === 'call') {
+    const value = self.state[data.method](...data.args);
     // The method in the reply is only useful for debugging.
-    let message = { id:data.id, method:data.method };
+    const message = { id:data.id, method:data.method };
 
     if (value instanceof Promise)
       value.then(v => post('reply', { ...message, value:v }));

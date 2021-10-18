@@ -203,10 +203,10 @@ window.addEventListener('DOMContentLoaded', () => {
             filter: {
               // Game type must match player preference.
               type: gameTypeId,
-              started: { '!':null },
-              ended: null,
+              startedAt: { '!':null },
+              endedAt: null,
             },
-            sort: { field:'created', order:'desc' },
+            sort: { field:'createdAt', order:'desc' },
             limit: 50,
           });
 
@@ -233,7 +233,7 @@ window.addEventListener('DOMContentLoaded', () => {
             // Blocking system must match player preference.
             randomHitChance: gameOptions.randomHitChance,
           },
-          sort: 'created',
+          sort: 'createdAt',
           limit: 1,
         };
 
@@ -244,7 +244,7 @@ window.addEventListener('DOMContentLoaded', () => {
             // Look for an open game with this player as a participant
             'teams[].playerId': authClient.playerId,
           },
-          sort: 'created',
+          sort: 'createdAt',
           limit: 1,
         };
       }
@@ -262,7 +262,7 @@ window.addEventListener('DOMContentLoaded', () => {
           // Blocking system must match player preference.
           randomHitChance: gameOptions.randomHitChance,
         },
-        sort: 'created',
+        sort: 'createdAt',
         limit: 1,
       };
 

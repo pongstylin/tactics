@@ -1,9 +1,8 @@
-import EventEmitter from 'events';
-
 import Team from 'models/Team.js';
 import ServerError from 'server/Error.js';
 import Board from 'tactics/Board.js';
 import botFactory from 'tactics/botFactory.js';
+import emitter from 'utils/emitter.js';
 
 export default class GameState {
   /*****************************************************************************
@@ -32,11 +31,10 @@ export default class GameState {
         _board:      board,
         _newActions: [],
         _actions:    [],
-        _emitter:    new EventEmitter(),
       }
     );
 
-    if (stateData.started) {
+    if (stateData.startedAt) {
       board.setState(this.units, this.teams);
       board.decodeAction(actions).forEach(a => this._applyAction(a));
     }
@@ -68,10 +66,10 @@ export default class GameState {
       },
       stateData,
       {
-        started: null,
-        ended:   null,
-        teams:   new Array(teamsData.length).fill(null),
-        units:   [],
+        startedAt: null,
+        endedAt: null,
+        teams: new Array(teamsData.length).fill(null),
+        units: [],
       }
     );
 
@@ -95,23 +93,23 @@ export default class GameState {
    * The existing game may or may not have been started yet.
    */
   static load(stateData) {
-    if (typeof stateData.started === 'string')
-      stateData.started = new Date(stateData.started);
-    if (typeof stateData.turnStarted === 'string')
-      stateData.turnStarted = new Date(stateData.turnStarted);
-    if (typeof stateData.ended === 'string')
-      stateData.ended = new Date(stateData.ended);
+    if (typeof stateData.startedAt === 'string')
+      stateData.startedAt = new Date(stateData.startedAt);
+    if (typeof stateData.turnStartedAt === 'string')
+      stateData.turnStartedAt = new Date(stateData.turnStartedAt);
+    if (typeof stateData.endedAt === 'string')
+      stateData.endedAt = new Date(stateData.endedAt);
 
     stateData.actions.forEach(action => {
-      if (typeof action.created === 'string')
-        action.created = new Date(action.created);
+      if (typeof action.createdAt === 'string')
+        action.createdAt = new Date(action.createdAt);
     });
 
     stateData.turns.forEach(turn => {
-      turn.started = new Date(turn.started);
+      turn.startedAt = new Date(turn.startedAt);
       turn.actions.forEach(action => {
-        if (typeof action.created === 'string')
-          action.created = new Date(action.created);
+        if (typeof action.createdAt === 'string')
+          action.createdAt = new Date(action.createdAt);
       });
     });
 
@@ -208,7 +206,7 @@ export default class GameState {
   join(team) {
     let teams = this.teams;
 
-    if (this.started)
+    if (this.startedAt)
       throw new TypeError('Game already started');
 
     if (!(team instanceof Team))
@@ -307,13 +305,13 @@ export default class GameState {
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
 
-    if (!this.started) {
+    if (!this.startedAt) {
       // The game and first turn starts at the same time.  This guarantee enables
       // use to determine if a given turn is the first playable turn by comparing
       // the turn start date with the game start date.  This is currently used for
       // triggering "Your Turn" notifications at the right times.
-      this.started = new Date();
-      this.turnStarted = this.started;
+      this.startedAt = new Date();
+      this.turnStartedAt = this.startedAt;
 
       // First turn must be passed, but at least recovery drops.
       // The second turn might be passed, too, if all units are in recovery.
@@ -323,8 +321,8 @@ export default class GameState {
       this._emit({
         type: 'startGame',
         data: {
-          started: this.started,
-          teams: this.teams.map(t => t.getData()),
+          startedAt: this.startedAt,
+          teams: this.teams.map(t => t.getData(true)),
           units: this.units,
         },
       });
@@ -332,7 +330,7 @@ export default class GameState {
       this._emit({
         type: 'startTurn',
         data: {
-          started: this.turnStarted,
+          startedAt: this.turnStartedAt,
           turnId: this.currentTurnId,
           teamId: this.currentTeamId,
         },
@@ -351,19 +349,19 @@ export default class GameState {
       randomHitChance: this.randomHitChance,
       turnTimeLimit: this.turnTimeLimit,
 
-      teams: this.teams.map(t => t?.getData()),
+      teams: this.teams.map(t => t?.getData(!!this.startedAt)),
 
-      started:       this.started,
+      startedAt: this.startedAt,
 
       // Data about the current turn
-      turnStarted:   this.turnStarted,
+      turnStartedAt: this.turnStartedAt,
       currentTurnId: this.currentTurnId,
       currentTeamId: this.currentTeamId,
       units:         this.units,
       actions:       this.actions,
 
-      ended:         this.ended,
-      winnerId:      this.winnerId,
+      endedAt: this.endedAt,
+      winnerId: this.winnerId,
     };
   }
   getTurnData(turnId) {
@@ -371,8 +369,8 @@ export default class GameState {
 
     if (turnId === this.currentTurnId)
       turnData = {
-        started: this.turnStarted,
-        units:   this.units,
+        startedAt: this.turnStartedAt,
+        units: this.units,
         actions: this.actions,
       };
     else if (!this.turns[turnId])
@@ -404,9 +402,9 @@ export default class GameState {
     // the turn start date with the game start date.  This is currently used for
     // triggering "Your Turn" notifications at the right times.
     if (this._actions.length === 0 && action.type === 'endTurn' && action.forced)
-      action.created = this.turnStarted;
+      action.createdAt = this.turnStartedAt;
     else
-      action.created = new Date();
+      action.createdAt = new Date();
     action.teamId = action.teamId || this.currentTeamId;
 
     this._newActions.push(action);
@@ -414,7 +412,7 @@ export default class GameState {
   }
   submitAction(actions) {
     // Actions may only be submitted between game start and end.
-    if (!this.started || this.ended)
+    if (!this.startedAt || this.endedAt)
       return;
 
     if (!Array.isArray(actions))
@@ -550,20 +548,16 @@ export default class GameState {
       }
     });
 
-    let endGame;
-
     // Find teams that has a unit that keeps it alive.
     let winners = this.winningTeams;
+    let endGame;
     if (winners.length === 0) {
       this._pushAction(this._getEndTurnAction(true));
-      this.ended = new Date();
-    }
-    else if (winners.length === 1) {
+      endGame = 'draw';
+    } else if (winners.length === 1) {
       this._pushAction(this._getEndTurnAction(true));
-      this.ended = new Date();
-      this.winnerId = winners[0].id;
-    }
-    else if (endTurn) {
+      endGame = winners[0].id;
+    } else if (endTurn) {
       // Team Chaos needs a chance to phase before ending their turn.
       let currentTeam = this.currentTeam;
       if (currentTeam.name === 'Chaos') {
@@ -573,7 +567,7 @@ export default class GameState {
       }
 
       this._pushAction(endTurn);
-      this.autoPass();
+      endGame = this.autoPass();
     }
 
     if (this._newActions.length)
@@ -582,16 +576,13 @@ export default class GameState {
         data: board.encodeAction(this._newActions),
       });
 
-    if (this.ended)
-      this._emit({
-        type: 'endGame',
-        data: { winnerId:this.winnerId },
-      });
+    if (endGame !== undefined)
+      this.end(endGame);
     else if (endTurn)
       this._emit({
         type: 'startTurn',
         data: {
-          started: this.turnStarted,
+          startedAt: this.turnStartedAt,
           turnId: this.currentTurnId,
           teamId: this.currentTeamId,
         },
@@ -671,10 +662,8 @@ export default class GameState {
 
     let turnEnded = true;
     while (turnEnded) {
-      if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit) {
-        this.ended = new Date();
-        break;
-      }
+      if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit)
+        return 'draw';
 
       // End the next turn if we can't find one playable unit.
       turnEnded = !this.currentTeam.units.find(unit => {
@@ -724,7 +713,7 @@ export default class GameState {
     let turnId;
     let actions;
 
-    if (this.ended)
+    if (this.endedAt)
       return approve;
 
     // Determine the turn being undone in whole or in part
@@ -756,7 +745,7 @@ export default class GameState {
 
       // Require approval if the turn time limit was reached.
       if (this.turnTimeLimit) {
-        let turnTimeout = turnData.started.getTime() + this.turnTimeLimit*1000;
+        let turnTimeout = turnData.startedAt.getTime() + this.turnTimeLimit*1000;
         if (Date.now() > turnTimeout)
           return approve;
       }
@@ -829,7 +818,7 @@ export default class GameState {
         break;
       }
     } else {
-      if (!approved && this.ended)
+      if (!approved && this.endedAt)
         return false;
 
       let turnId;
@@ -861,7 +850,7 @@ export default class GameState {
 
         // Require approval if the turn time limit was reached.
         if (!approved && this.turnTimeLimit) {
-          let turnTimeout = turnData.started.getTime() + this.turnTimeLimit*1000;
+          let turnTimeout = turnData.startedAt.getTime() + this.turnTimeLimit*1000;
           if (Date.now() > turnTimeout)
             return false;
         }
@@ -875,6 +864,15 @@ export default class GameState {
       if (turnId === -1)
         return false;
     }
+  }
+  end(winnerId) {
+    this.endedAt = new Date();
+    this.winnerId = winnerId;
+
+    this._emit({
+      type: 'endGame',
+      data: { winnerId },
+    });
   }
   revert(turnId, keepLuckyActions = false) {
     let board = this._board;
@@ -900,36 +898,19 @@ export default class GameState {
     }
 
     // Forking and reverting an ended game makes it no longer ended.
-    this.ended = null;
+    this.endedAt = null;
     this.winnerId = null;
 
     this._emit({
       type: 'revert',
       data: {
-        started: this.turnStarted,
-        turnId:  this.currentTurnId,
-        teamId:  this.currentTeamId,
+        startedAt: this.turnStartedAt,
+        turnId: this.currentTurnId,
+        teamId: this.currentTeamId,
         actions: this.actions,
-        units:   this.units,
+        units: this.units,
       },
     });
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  once(eventType, fn) {
-    const listener = () => {
-      this.off(eventType, listener);
-      fn();
-    };
-
-    this.on(eventType, listener);
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
   }
 
   /*
@@ -944,14 +925,14 @@ export default class GameState {
 
       teams: this.teams,
 
-      started: this.started,
+      startedAt: this.startedAt,
 
-      turnStarted: this.turnStarted,
+      turnStartedAt: this.turnStartedAt,
       turns: this.turns,
       units: this.units,
       actions: this.actions,
 
-      ended: this.ended,
+      endedAt: this.endedAt,
       winnerId: this.winnerId,
     };
   }
@@ -1084,9 +1065,9 @@ export default class GameState {
 
       const now = Date.now();
       const lastAction = this._actions.last;
-      const lastActionAt = lastAction ? lastAction.created.getTime() : 0;
+      const lastActionAt = lastAction ? lastAction.createdAt.getTime() : 0;
       const actionTimeout = (lastActionAt + 10000) - now;
-      const turnTimeout = (this.turnStarted.getTime() + this.turnTimeLimit*1000) - now;
+      const turnTimeout = (this.turnStartedAt.getTime() + this.turnTimeLimit*1000) - now;
       const timeout = Math.max(actionTimeout, turnTimeout);
 
       // The team's timeout must be exceeded.
@@ -1174,12 +1155,12 @@ export default class GameState {
     let board = this._board;
 
     this.turns.push({
-      started: this.turnStarted,
-      units:   this.units,
+      startedAt: this.turnStartedAt,
+      units: this.units,
       actions: this.actions,
     });
 
-    this.turnStarted = this.actions.last.created;
+    this.turnStartedAt = this.actions.last.createdAt;
     this.units = board.getState();
     this._actions.length = 0;
 
@@ -1204,18 +1185,15 @@ export default class GameState {
     Object.assign(this, {
       // Preserve the original turn start so that a client may successfully
       // resume the game after their opponent reverted to a previous turn.
-      turnStarted: turnData.started,
-      units:       turnData.units,
-      _actions:    [],
+      turnStartedAt: turnData.startedAt,
+      units: turnData.units,
+      _actions: [],
     });
 
     this._board.setState(this.units, this.teams);
 
     return turnData;
   }
-
-  _emit(event) {
-    this._emitter.emit('event', event);
-    this._emitter.emit(event.type, event);
-  }
 }
+
+emitter(GameState);

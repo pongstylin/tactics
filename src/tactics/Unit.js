@@ -1,5 +1,5 @@
-import EventEmitter from 'events';
 import Polygon from 'utils/Polygon.js';
+import emitter from 'utils/emitter.js';
 import { reverseColorMap } from 'tactics/colorMap.js';
 
 const HALF_TILE_WIDTH  = 44;
@@ -44,7 +44,6 @@ export default class Unit {
 
       _sprite: null,
       _pulse: null,
-      _emitter: new EventEmitter(),
     });
   }
 
@@ -1829,15 +1828,6 @@ export default class Unit {
     );
   }
 
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
-  }
-
   clone() {
     return this.board.makeUnit(this.toJSON());
   }
@@ -1985,8 +1975,6 @@ export default class Unit {
       () => letter.position.y += 2,
     ]});
   }
+};
 
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
-}
+emitter(Unit);

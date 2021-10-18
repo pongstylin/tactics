@@ -116,7 +116,7 @@
 
           &.link {
             cursor: pointer;
-            z-index: 100;
+            z-index: 1;
           }
 
           // offline color
@@ -247,7 +247,7 @@
 
         &.link {
           cursor: pointer;
-          z-index: 100;
+          z-index: 1;
         }
       }
       .fork, .forkName {
@@ -276,9 +276,10 @@
       }
     }
 
-    .buttons {
+    & > .buttons {
       display: none;
       flex-direction: row;
+      z-index: 30;
 
       position: absolute;
       right: 0;
@@ -560,6 +561,7 @@
   }
 }
 
+#app.with-playerRequest,
 #app.locked:not(.gameover):not(.readonly) {
   #game-play.buttons BUTTON:not([name=chat]):not([name=swapbar]),
   #game-settings.buttons BUTTON[name=rotate],
@@ -569,9 +571,19 @@
     cursor: default;
 
     // Override use of borders for .selected and hovered buttons
-    margin: 3px;
-    border-width: 0;
+    margin: 3px !important;
+    border-width: 0 !important;
   }
+}
+
+#app.with-playerRequest #game-settings.buttons BUTTON[name=replay] {
+  // Make the button appear disabled.
+  opacity: 0.4;
+  cursor: default;
+
+  // Override use of borders for .selected and hovered buttons
+  margin: 3px !important;
+  border-width: 0 !important;
 }
 
 #app.locked.readonly {
@@ -715,7 +727,7 @@
 
       // No longer place the buttons in the top-right corner of #app.
       // Rather, it will be placed under the #field.
-      .buttons {
+      & > .buttons {
         // Don't show chat behind the buttons.
         background-color: black;
         z-index: 30;
@@ -872,7 +884,7 @@
         }
       }
 
-      .buttons {
+      & > .buttons {
         position: fixed;
         top: 0 !important;
         width: 52px;
@@ -929,7 +941,7 @@
       border: 0 none !important;
     }
     &.chat-input-mode {
-      #game .buttons { display:none }
+      #game > .buttons { display:none }
       #chat { width:100% }
     }
   }
@@ -968,7 +980,7 @@
         left: 0;
       }
 
-      > .buttons {
+      & > .buttons {
         right: 0;
       }
     }
@@ -984,7 +996,7 @@
         right: 0;
       }
 
-      > .buttons {
+      & > .buttons {
         left: 0;
       }
     }

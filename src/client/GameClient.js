@@ -94,9 +94,9 @@ export default class GameClient extends Client {
     return this._server.request(this.name, 'getTurnData', [ gameId, turnId ])
       .then(turnData => {
         if (turnData) {
-          turnData.started = new Date(turnData.started);
+          turnData.startedAt = new Date(turnData.startedAt);
           turnData.actions.forEach(action => {
-            action.created = new Date(action.created);
+            action.createdAt = new Date(action.createdAt);
           });
         }
 
@@ -113,7 +113,7 @@ export default class GameClient extends Client {
       .then(actions => {
         if (actions) {
           actions.forEach(action => {
-            action.created = new Date(action.created);
+            action.createdAt = new Date(action.createdAt);
           });
         }
 
@@ -193,9 +193,9 @@ export default class GameClient extends Client {
         result.hits.forEach(hit => {
           hit.createdAt = new Date(hit.createdAt);
           hit.updatedAt = new Date(hit.updatedAt);
-          hit.started = hit.started && new Date(hit.started);
-          hit.turnStarted = hit.turnStarted && new Date(hit.turnStarted);
-          hit.ended = hit.ended && new Date(hit.ended);
+          hit.startedAt = hit.startedAt && new Date(hit.startedAt);
+          hit.turnStartedAt = hit.turnStartedAt && new Date(hit.turnStartedAt);
+          hit.endedAt = hit.endedAt && new Date(hit.endedAt);
         });
 
         return result;
@@ -212,9 +212,9 @@ export default class GameClient extends Client {
         result.hits.forEach(hit => {
           hit.createdAt = new Date(hit.createdAt);
           hit.updatedAt = new Date(hit.updatedAt);
-          hit.started = hit.started && new Date(hit.started);
-          hit.turnStarted = hit.turnStarted && new Date(hit.turnStarted);
-          hit.ended = hit.ended && new Date(hit.ended);
+          hit.startedAt = hit.startedAt && new Date(hit.startedAt);
+          hit.turnStartedAt = hit.turnStartedAt && new Date(hit.turnStartedAt);
+          hit.endedAt = hit.endedAt && new Date(hit.endedAt);
         });
 
         return result;
@@ -231,9 +231,9 @@ export default class GameClient extends Client {
         result.hits.forEach(hit => {
           hit.createdAt = new Date(hit.createdAt);
           hit.updatedAt = new Date(hit.updatedAt);
-          hit.started = hit.started && new Date(hit.started);
-          hit.turnStarted = hit.turnStarted && new Date(hit.turnStarted);
-          hit.ended = hit.ended && new Date(hit.ended);
+          hit.startedAt = hit.startedAt && new Date(hit.startedAt);
+          hit.turnStartedAt = hit.turnStartedAt && new Date(hit.turnStartedAt);
+          hit.endedAt = hit.endedAt && new Date(hit.endedAt);
         });
 
         return result;
@@ -251,10 +251,10 @@ export default class GameClient extends Client {
         let gameData = data.gameData;
         let state = gameData.state;
         if (state) {
-          if (state.started)
-            state.started = new Date(state.started);
-          if (state.turnStarted)
-            state.turnStarted = new Date(state.turnStarted);
+          if (state.startedAt)
+            state.startedAt = new Date(state.startedAt);
+          if (state.turnStartedAt)
+            state.turnStartedAt = new Date(state.turnStartedAt);
           if (state.teams)
             state.teams.forEach(team => {
               if (!team) return;
@@ -262,19 +262,20 @@ export default class GameClient extends Client {
             });
           if (state.actions)
             state.actions.forEach(action => {
-              action.created = new Date(action.created);
+              action.createdAt = new Date(action.createdAt);
             });
         }
 
         if (data.newActions)
           data.newActions.forEach(action => {
-            action.created = new Date(action.created);
+            action.createdAt = new Date(action.createdAt);
           });
 
-        if (gameData.undoRequest)
-          Object.assign(gameData.undoRequest, {
-            createdAt: new Date(gameData.undoRequest.createdAt),
-            accepts: new Set(gameData.undoRequest.accepts),
+        if (gameData.playerRequest)
+          Object.assign(gameData.playerRequest, {
+            createdAt: new Date(gameData.playerRequest.createdAt),
+            accepted: new Set(gameData.playerRequest.accepted),
+            rejected: new Map(gameData.playerRequest.rejected),
           });
 
         return data;
@@ -304,7 +305,7 @@ export default class GameClient extends Client {
   }
   async undo(gameId) {
     try {
-      return await this._server.requestJoined(this.name, `/games/${gameId}`, 'undo');
+      return await this._server.requestJoined(this.name, `/games/${gameId}`, 'playerRequest', [ 'undo' ]);
     }
     catch (error) {
       if (error === 'Connection reset')
@@ -313,33 +314,44 @@ export default class GameClient extends Client {
       throw error;
     }
   }
-
-  async acceptUndo(gameId) {
+  async truce(gameId) {
     try {
-      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoAccept');
-    } catch (error) {
+      return await this._server.requestJoined(this.name, `/games/${gameId}`, 'playerRequest', [ 'truce' ]);
+    }
+    catch (error) {
       if (error === 'Connection reset')
-        return this.acceptUndo(gameId);
+        return this.truce(gameId);
 
       throw error;
     }
   }
-  async rejectUndo(gameId) {
+
+  async acceptPlayerRequest(gameId, createdAt) {
     try {
-      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoReject');
+      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'playerRequest:accept', createdAt);
     } catch (error) {
       if (error === 'Connection reset')
-        return this.rejectUndo(gameId);
+        return this.acceptPlayerRequest(gameId, createdAt);
 
       throw error;
     }
   }
-  async cancelUndo(gameId) {
+  async rejectPlayerRequest(gameId, createdAt) {
     try {
-      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'undoCancel');
+      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'playerRequest:reject', createdAt);
     } catch (error) {
       if (error === 'Connection reset')
-        return this.cancelUndo(gameId);
+        return this.rejectPlayerRequest(gameId, createdAt);
+
+      throw error;
+    }
+  }
+  async cancelPlayerRequest(gameId, createdAt) {
+    try {
+      this._server.emitAuthorized(this.name, `/games/${gameId}`, 'playerRequest:cancel', createdAt);
+    } catch (error) {
+      if (error === 'Connection reset')
+        return this.cancelPlayerRequest(gameId, createdAt);
 
       throw error;
     }

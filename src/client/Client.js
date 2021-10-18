@@ -1,5 +1,5 @@
 import config from 'config/client.js';
-import EventEmitter from 'events';
+import emitter from 'utils/emitter.js';
 
 export default class Client {
   constructor(serviceName, server) {
@@ -7,8 +7,6 @@ export default class Client {
       name: serviceName,
 
       _server: server,
-
-      _emitter: new EventEmitter(),
     });
 
     this.on('open', this._onOpen.bind(this));
@@ -32,15 +30,6 @@ export default class Client {
     return this.whenAuthorized.isResolved;
   }
 
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
-  }
-
   _onOpen(event) {
     // stub
   }
@@ -55,8 +44,6 @@ export default class Client {
     // promise will be resolved.
     return this.whenAuthorized;
   }
+};
 
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
-}
+emitter(Client);

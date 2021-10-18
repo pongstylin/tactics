@@ -1,10 +1,9 @@
-import EventEmitter from 'events';
-
 import clientFactory from 'client/clientFactory.js';
 import unitDataMap from 'tactics/unitData.js';
+import emitter from 'utils/emitter.js';
 
-let authClient = clientFactory('auth');
-let gameClient = clientFactory('game');
+const authClient = clientFactory('auth');
+const gameClient = clientFactory('game');
 
 export default class RemoteTransport {
   /*
@@ -24,8 +23,7 @@ export default class RemoteTransport {
       whenStarted: new Promise(resolve => this._resolveStarted = resolve),
       whenTurnStarted: new Promise(resolve => this._resolveTurnStarted = resolve),
 
-      _data:    null,
-      _emitter: new EventEmitter(),
+      _data: null,
     });
 
     gameClient
@@ -60,12 +58,12 @@ export default class RemoteTransport {
     this._watchForDataChanges();
 
     // For now, joining ended games is ok... unless not authorized.
-    if (gameData && gameData.state.ended && !authClient.token) {
+    if (gameData && gameData.state.endedAt && !authClient.token) {
       this._data = gameData;
       Object.assign(this._data.state, {
-        started:     new Date(gameData.state.started),
-        turnStarted: new Date(gameData.state.turnStarted),
-        ended:       new Date(gameData.state.ended),
+        startedAt: new Date(gameData.state.startedAt),
+        turnStartedAt: new Date(gameData.state.turnStartedAt),
+        endedAt: new Date(gameData.state.endedAt),
       });
 
       const playerIds = new Set(gameData.state.teams.map(t => t.playerId));
@@ -80,27 +78,8 @@ export default class RemoteTransport {
   }
 
   /*
-   * Public Methods
+   * Public Properties
    */
-  on(eventType, fn) {
-    this._emitter.addListener(...arguments);
-
-    return this;
-  }
-  once(eventType, fn) {
-    let listener = () => {
-      this.off(eventType, listener);
-      fn();
-    };
-
-    this.on(eventType, listener);
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-
-    return this;
-  }
-
   get now() {
     return gameClient.serverNow;
   }
@@ -124,42 +103,42 @@ export default class RemoteTransport {
   get turnTimeLimit() {
     return this._getStateData('turnTimeLimit');
   }
-  get created() {
-    return this._getData('created');
+  get createdAt() {
+    return this._getData('createdAt');
   }
   get createdBy() {
     return this._getData('createdBy');
   }
-  get started() {
-    return this._getStateData('started');
+  get startedAt() {
+    return this._getStateData('startedAt');
   }
 
   get cursor() {
     if (!this._data)
       throw new Error('Not ready');
 
-    let state = this._data.state;
+    const state = this._data.state;
 
     return Object.clone({
       turnId: state.currentTurnId,
       teamId: state.currentTeamId,
-      started: state.turnStarted,
+      startedAt: state.turnStartedAt,
       units: state.units,
       actions: state.actions,
       nextActionId: state.actions.length,
-      atEnd: !!state.ended,
+      atEnd: !!state.endedAt,
     });
   }
   get currentTurnData() {
     if (!this._data)
       throw new Error('Not ready');
 
-    let state = this._data.state;
+    const state = this._data.state;
 
     return Object.clone({
       id: state.currentTurnId,
       teamId: state.currentTeamId,
-      started: state.turnStarted,
+      startedAt: state.turnStartedAt,
       units: state.units,
       actions: state.actions,
     });
@@ -170,8 +149,8 @@ export default class RemoteTransport {
   get currentTeamId() {
     return this._getStateData('currentTeamId');
   }
-  get turnStarted() {
-    return this._getStateData('turnStarted');
+  get turnStartedAt() {
+    return this._getStateData('turnStartedAt');
   }
   get units() {
     return this._getStateData('units');
@@ -183,12 +162,12 @@ export default class RemoteTransport {
   get winnerId() {
     return this._getStateData('winnerId');
   }
-  get ended() {
-    return this._getStateData('ended');
+  get endedAt() {
+    return this._getStateData('endedAt');
   }
 
-  get undoRequest() {
-    return this._getData('undoRequest');
+  get playerRequest() {
+    return this._getData('playerRequest');
   }
   get chatDisabled() {
     return this._getData('chatDisabled');
@@ -204,20 +183,23 @@ export default class RemoteTransport {
   getTurnActions() {
     return gameClient.getTurnActions(this._data.id, ...arguments);
   }
-  undo() {
-    return gameClient.undo(this._data.id);
-  }
   submitAction(action) {
     return gameClient.submitAction(this._data.id, action);
   }
-  acceptUndo() {
-    gameClient.acceptUndo(this._data.id);
+  undo() {
+    return gameClient.undo(this._data.id);
   }
-  rejectUndo() {
-    gameClient.rejectUndo(this._data.id);
+  truce() {
+    return gameClient.truce(this._data.id);
   }
-  cancelUndo() {
-    gameClient.cancelUndo(this._data.id);
+  acceptPlayerRequest() {
+    gameClient.acceptPlayerRequest(this._data.id, this.playerRequest.createdAt);
+  }
+  rejectPlayerRequest() {
+    gameClient.rejectPlayerRequest(this._data.id, this.playerRequest.createdAt);
+  }
+  cancelPlayerRequest() {
+    gameClient.cancelPlayerRequest(this._data.id, this.playerRequest.createdAt);
   }
 
   /*
@@ -231,9 +213,9 @@ export default class RemoteTransport {
       this._data = gameData;
       this._resolveReady();
 
-      if (gameData.state.started)
+      if (gameData.state.startedAt)
         this._resolveStarted();
-      if (gameData.state.turnStarted)
+      if (gameData.state.turnStartedAt)
         this._resolveTurnStarted();
     }).catch(error => {
       if (error === 'Connection reset')
@@ -244,13 +226,10 @@ export default class RemoteTransport {
     });
   }
   _resume() {
-    // For now, joining ended games is ok.
-    //if (this._data.state.ended) return;
-
-    let gameId = this._data.id;
+    const gameId = this._data.id;
 
     gameClient.whenAuthorized.then(() => {
-      let myPlayerId = authClient.playerId;
+      const myPlayerId = authClient.playerId;
 
       this._emit({
         type: 'playerStatus',
@@ -263,56 +242,52 @@ export default class RemoteTransport {
     });
   }
   _reset(outbox) {
-    // For now, joining ended games is ok.
-    //if (this._data.state.ended) return;
-
-    let gameId = this._data.id;
-    let state = this._data.state;
-    let actions = state.actions;
+    const gameId = this._data.id;
+    const state = this._data.state;
+    const actions = state.actions;
     let resume;
 
-    if (state.ended)
+    if (state.endedAt)
       resume = { since:'end' };
-    else if (state.started)
+    else if (state.startedAt)
       resume = {
         turnId: state.currentTurnId,
         nextActionId: actions.length,
-        since: actions.length ? actions.last.created : state.turnStarted,
+        since: actions.length ? actions.last.createdAt : state.turnStartedAt,
       };
     else
       resume = { since:'start' };
 
     // Instead of watching the game from its current point, resume watching
     // the game from the point we lost connection.
-    gameClient.watchGame(gameId, resume).then(({playerStatus, gameData, newActions}) => {
+    gameClient.watchGame(gameId, resume).then(({ playerStatus, gameData, newActions }) => {
       this._emit({ type:'playerStatus', data:playerStatus });
 
-      let oldUndoRequest = this._data.undoRequest;
-      let newUndoRequest = gameData.undoRequest;
-      if (newUndoRequest)
-        // Inform the game of a change in undo status, if any.
-        this._emit({ type:'undoRequest', data:newUndoRequest });
-      else if (oldUndoRequest && oldUndoRequest.status === 'pending')
+      const oldRequest = this._data.playerRequest;
+      const newRequest = gameData.playerRequest;
+      if (newRequest)
+        // Inform the game of a change in player request status, if any.
+        this._emit({ type:`playerRequest`, data:newRequest });
+      else if (oldRequest && oldRequest.status === 'pending')
         // Not sure if the request was rejected or accepted.
         // But 'complete' will result in hiding the dialog, if any.
-        this._emit({ type:'undoComplete' });
+        this._emit({ type:`playerRequest:complete` });
 
       if (gameData.state) {
-        let oldStarted = this._data.state.started;
-        let oldTurnStarted = this._data.state.turnStarted;
+        const oldStarted = this._data.state.startedAt;
+        const oldTurnStarted = this._data.state.turnStartedAt;
 
         this._data.state.merge(gameData.state);
         if (newActions)
           this._data.state.actions.push(...newActions);
 
-        if (!oldStarted && this._data.state.started)
+        if (!oldStarted && this._data.state.startedAt)
           this._resolveStarted();
-        if (!oldTurnStarted && this._data.state.turnStarted)
+        if (!oldTurnStarted && this._data.state.turnStartedAt)
           this._resolveTurnStarted();
 
         this._emit({ type:'change' });
-      }
-      else if (newActions) {
+      } else if (newActions) {
         this._data.state.actions.push(...newActions);
         this._emit({ type:'change' });
       }
@@ -322,7 +297,7 @@ export default class RemoteTransport {
       // Resend specific lost messages
       outbox.forEach(message => {
         if (message.type !== 'event') return;
-        let event = message.body;
+        const event = message.body;
         if (event.service !== 'game') return;
         if (event.group !== `/games/${gameId}`) return;
 
@@ -346,10 +321,10 @@ export default class RemoteTransport {
         data.forEach(ps => this.playerStatus.set(ps.playerId, ps));
       })
       .on('startGame', ({ data }) => {
-        data.started = new Date(data.started);
+        data.startedAt = new Date(data.startedAt);
 
         Object.assign(this._data.state, {
-          started: data.started,
+          startedAt: data.startedAt,
           teams: data.teams,
           units: data.units,
         });
@@ -357,12 +332,26 @@ export default class RemoteTransport {
         this._emit({ type:'change' });
       })
       .on('startTurn', ({ data }) => {
-        data.started = new Date(data.started);
+        data.startedAt = new Date(data.startedAt);
+
+        // Clear a player's rejected requests when their turn starts.
+        if (this._data.playerRequest) {
+          const playerId = this._data.state.teams[data.teamId].playerId;
+          const oldRejected = this._data.playerRequest.rejected;
+          const newRejected = [ ...oldRejected ].filter(([k,v]) => !k.startsWith(`${playerId}:`))
+
+          if (newRejected.length !== oldRejected.size) {
+            if (newRejected.length)
+              this._data.playerRequest.rejected = new Map(newRejected);
+            else
+              this._data.playerRequest = null;
+          }
+        }
 
         this.applyActions();
 
         Object.assign(this._data.state, {
-          turnStarted: data.started,
+          turnStartedAt: data.startedAt,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           actions: [],
@@ -374,12 +363,10 @@ export default class RemoteTransport {
         let state = this._data.state;
 
         actions.forEach(action => {
-          action.created = new Date(action.created);
+          action.createdAt = new Date(action.createdAt);
         });
 
         state.actions.push(...actions);
-        // Clear the undo request to permit a new request.
-        this._data.undoRequest = null;
 
         // Emit a change so that the game state cursor can pick up on the new
         // action before it is potentially cleared in the next step.
@@ -395,7 +382,7 @@ export default class RemoteTransport {
           this.applyActions();
 
           Object.assign(state, {
-            turnStarted: actions.last.created,
+            turnStartedAt: actions.last.createdAt,
             currentTurnId: state.currentTurnId + 1,
             currentTeamId: (state.currentTeamId + 1) % state.teams.length,
             actions: [],
@@ -405,55 +392,51 @@ export default class RemoteTransport {
         }
       })
       .on('revert', ({ data }) => {
-        data.started = new Date(data.started);
+        data.startedAt = new Date(data.startedAt);
         data.actions.forEach(action => {
-          action.created = new Date(action.created);
+          action.createdAt = new Date(action.createdAt);
         });
 
         Object.assign(this._data.state, {
-          turnStarted: data.started,
+          turnStartedAt: data.startedAt,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
           units: data.units,
           actions: data.actions,
-          ended: null,
+          endedAt: null,
           winnerId: null,
         });
         this._emit({ type:'change' });
       })
       .on('endGame', ({ data }) => {
+        this._data.playerRequest = null;
         Object.assign(this._data.state, {
           winnerId: data.winnerId,
-          ended: new Date(),
+          endedAt: new Date(),
         });
         this._emit({ type:'change' });
       })
-      .on('undoRequest', ({ data }) => {
-        data.createdAt = new Date(data.createdAt);
-        data.accepts = new Set(data.accepts);
+      .on('playerRequest', ({ data:request }) => {
+        request.createdAt = new Date(request.createdAt);
+        request.accepted = new Set(request.accepted);
+        request.rejected = new Map(request.rejected);
 
-        this._data.undoRequest = data;
+        this._data.playerRequest = request;
       })
-      .on('undoAccept', ({ data }) => {
-        let undoRequest = this._data.undoRequest;
-        let teams = this._data.state.teams;
+      .on('playerRequest:accept', ({ data }) => {
+        this._data.playerRequest.accepted.add(data.playerId);
+      })
+      .on('playerRequest:reject', ({ data }) => {
+        const playerRequest = this._data.playerRequest;
 
-        teams.forEach(team => {
-          if (team.playerId === data.playerId)
-            undoRequest.accepts.add(team.id);
-        });
+        playerRequest.status = 'rejected';
+        playerRequest.rejected.set(`${playerRequest.createdBy}:${playerRequest.type}`, data.playerId);
       })
-      .on('undoReject', ({ data }) => {
-        let undoRequest = this._data.undoRequest;
-
-        undoRequest.status = 'rejected';
-        undoRequest.rejectedBy = data.playerId;
+      .on('playerRequest:cancel', () => {
+        this._data.playerRequest.status = 'cancelled';
       })
-      .on('undoCancel', () => {
-        this._data.undoRequest.status = 'cancelled';
-      })
-      .on('undoComplete', () => {
-        this._data.undoRequest.status = 'completed';
+      .on('playerRequest:complete', () => {
+        this._data.playerRequest.status = 'completed';
       });
   }
 
@@ -494,14 +477,13 @@ export default class RemoteTransport {
   _applyActionResults(teamsUnits, results) {
     if (!results) return;
 
-    let units = teamsUnits.flat();
+    const units = teamsUnits.flat();
 
-    for (let result of results) {
+    for (const result of results) {
       if (result.type === 'summon') {
         teamsUnits[result.teamId].push(result.unit);
-      }
-      else {
-        let unit = units.find(u => u.id === result.unit);
+      } else {
+        const unit = units.find(u => u.id === result.unit);
 
         Object.assign(unit, result.changes);
       }
@@ -523,9 +505,6 @@ export default class RemoteTransport {
 
     return Object.clone(this._data.state[name]);
   }
-
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-    this._emitter.emit('event', event);
-  }
 }
+
+emitter(RemoteTransport);

@@ -1,7 +1,7 @@
 import { Renderer } from '@pixi/core';
 import { Container } from '@pixi/display';
-import EventEmitter from 'events';
 import ServerError from 'server/Error.js';
+import emitter from 'utils/emitter.js';
 
 import './Setup.scss';
 import popup from 'components/popup.js';
@@ -24,7 +24,7 @@ const template = `
   </DIV>
 `;
 
-export default class {
+export default class Setup {
   constructor(team, gameType) {
     let root = document.createElement('DIV');
     root.className = 'view setup';
@@ -208,7 +208,6 @@ export default class {
       _board: board,
 
       _resizeListener: null,
-      _emitter: new EventEmitter(),
     });
 
     board.card.canvas.classList.add('card');
@@ -564,15 +563,6 @@ export default class {
       unit = board.focused;
 
     board.drawCard(unit);
-    return this;
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
     return this;
   }
 
@@ -1144,8 +1134,6 @@ export default class {
     renderer.render(this._stage);
     this._rendering = false;
   }
+};
 
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
-}
+emitter(Setup);

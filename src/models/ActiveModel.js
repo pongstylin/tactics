@@ -45,7 +45,6 @@ export default class ActiveModel {
 
     const parts = event.type.split(':');
 
-    this._emitter.emit('event', event);
     for (let i = 1; i <= parts.length; i++) {
       this._emitter.emit(parts.slice(0, i).join(':'), event);
     }

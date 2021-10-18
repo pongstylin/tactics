@@ -1,9 +1,9 @@
-import EventEmitter from 'events';
 import DebugLogger from 'debug';
 
 import ServerError from 'server/Error.js';
+import emitter from 'utils/emitter.js';
 
-export default class {
+export default class Service {
   constructor(props) {
     Object.assign(this, props, {
       debug: DebugLogger('service:' + props.name),
@@ -11,16 +11,7 @@ export default class {
       // Keys: Clients
       // Values: Action stats maps
       _throttles: new Map(),
-
-      _emitter: new EventEmitter(),
     });
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
   }
 
   async cleanup() {
@@ -102,8 +93,6 @@ export default class {
 
     actionHits.push(new Date());
   }
-
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
 };
+
+emitter(Service);

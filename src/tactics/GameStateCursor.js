@@ -1,4 +1,4 @@
-import EventEmitter from 'events';
+import emitter from 'utils/emitter.js';
 
 /*
  * A game state cursor points to a specific turn and action.
@@ -8,8 +8,6 @@ export default class GameStateCursor {
   constructor(state) {
     Object.assign(this, {
       state,
-
-      _emitter: new EventEmitter(),
     });
 
     this.setToCurrent();
@@ -38,7 +36,7 @@ export default class GameStateCursor {
       return false;
 
     // At current turn start time?
-    if (+this.started !== +cursorData.started)
+    if (+this.startedAt !== +cursorData.startedAt)
       return false;
 
     // At current action?
@@ -48,7 +46,7 @@ export default class GameStateCursor {
     // At current action create time?
     if (this.nextActionId) {
       const actionId = this.nextActionId - 1;
-      if (+this.actions[actionId].created !== +cursorData.actions[actionId].created)
+      if (+this.actions[actionId].createdAt !== +cursorData.actions[actionId].createdAt)
         return false;
     }
 
@@ -57,15 +55,6 @@ export default class GameStateCursor {
       return false;
 
     return true;
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
   }
 
   /*
@@ -77,14 +66,14 @@ export default class GameStateCursor {
       return;
     if (current.nextActionId <= this.nextActionId)
       return;
-    if (+current.started !== +this.started)
+    if (+current.startedAt !== +this.startedAt)
       return;
 
     for (let i = 0; i < this.nextActionId; i++) {
       const stateAction = current.actions[i];
       const thisAction = this.actions[i];
 
-      if (+stateAction.created !== +thisAction.created)
+      if (+stateAction.createdAt !== +thisAction.createdAt)
         return;
     }
 
@@ -129,7 +118,7 @@ export default class GameStateCursor {
     if (this.turnId > current.turnId) {
       this.setToCurrent();
       return 'back';
-    } else if (this.turnId === current.turnId && +this.started !== +current.started) {
+    } else if (this.turnId === current.turnId && +this.startedAt !== +current.startedAt) {
       await this.setRelativeToCurrent(-1);
       return 'back';
     }
@@ -145,7 +134,7 @@ export default class GameStateCursor {
     for (; actionId < this.nextActionId; actionId++) {
       const thisAction = this.actions[actionId];
       const thatAction = cursorData.actions[actionId];
-      if (!thatAction || +thatAction.created !== +thisAction.created)
+      if (!thatAction || +thatAction.createdAt !== +thisAction.createdAt)
         break;
     }
 
@@ -207,7 +196,7 @@ export default class GameStateCursor {
       turnData = {
         id: this.turnId,
         teamId: this.teamId,
-        started: this.started,
+        startedAt: this.startedAt,
         units: this.units,
         actions: this.actions,
       };
@@ -217,7 +206,7 @@ export default class GameStateCursor {
         if (!lastAction || lastAction.type !== 'endTurn')
           // Refresh the actions because the actions aren't complete
           turnData.actions = await state.getTurnActions(turnId);
-        else if (turnId === (stateTurnId - 1) && +lastAction.created !== +state.turnStarted)
+        else if (turnId === (stateTurnId - 1) && +lastAction.createdAt !== +state.turnStartedAt)
           // Refresh the actions because a revert has taken place.
           turnData.actions = await state.getTurnActions(turnId);
       }
@@ -229,7 +218,7 @@ export default class GameStateCursor {
         turnData = {
           id: turnId,
           teamId: (state.currentTeamId + 1) % state.teams.length,
-          started: lastAction.created,
+          startedAt: lastAction.createdAt,
           units: state.applyActions(this.units, this.actions),
           actions: await state.getTurnActions(turnId),
         };
@@ -239,7 +228,7 @@ export default class GameStateCursor {
       turnData = {
         id: turnId,
         teamId: (skipTurnData.teamId + 1) % state.teams.length,
-        started: skipTurnData.actions.last.created,
+        startedAt: skipTurnData.actions.last.createdAt,
         units: state.applyActions(skipTurnData.units, skipTurnData.actions),
         actions: await state.getTurnActions(turnId),
       };
@@ -264,21 +253,19 @@ export default class GameStateCursor {
     const atEnd = (
       turnData.id === state.currentTurnId &&
       nextActionId === state.actions.length &&
-      state.ended
+      state.endedAt
     );
 
     return {
       turnId: turnData.id,
       teamId: turnData.teamId,
-      started: turnData.started,
+      startedAt: turnData.startedAt,
       units: turnData.units,
       actions: turnData.actions,
       nextActionId,
       atEnd,
     };
   }
+};
 
-  _emit(event) {
-    this._emitter.emit(event.type, event);
-  }
-}
+emitter(GameStateCursor);

@@ -672,23 +672,23 @@ function onAuthorizeMessage(client, message) {
 }
 
 function onEventMessage(client, message) {
-  let body = message.body;
-  let service = services.get(body.service);
-  let method = 'on' + body.type.toUpperCase('first') + 'Event';
+  const body = message.body;
+  const service = services.get(body.service);
+  const method = 'on' + body.type.split(':').map(p => p.toUpperCase('first')).join('') + 'Event';
 
   if (!service)
     throw new ServerError(404, 'No such service');
   if (!(method in service))
     throw new ServerError(404, 'No such event type');
 
-  let groupId = [body.service, body.group].join(':');
-  let group = groups.get(groupId);
+  const groupId = [body.service, body.group].join(':');
+  const group = groups.get(groupId);
   if (!group || !group.has(client.id))
     throw new ServerError(412, 'Must first join the group');
 
   service.will(client, message.type, body.type);
 
-  let response = service[method](client, body.group, body.data);
+  const response = service[method](client, body.group, body.data);
   if (response instanceof Promise)
     response.catch(error => sendError(client, error, message));
 }

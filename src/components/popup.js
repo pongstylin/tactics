@@ -77,6 +77,8 @@ class Popup {
       divPopup.style.minWidth = options.minWidth;
     if (options.maxWidth)
       divPopup.style.maxWidth = options.maxWidth;
+    if (options.margin)
+      divPopup.style.margin = options.margin;
     divOverlay.appendChild(divPopup);
 
     if (options.title) {
