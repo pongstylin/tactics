@@ -53,7 +53,7 @@ export default class GameStateCursor {
     }
 
     // At game end?
-    if (this.atEnd === cursorData.atEnd)
+    if (this.atEnd !== cursorData.atEnd)
       return false;
 
     return true;
