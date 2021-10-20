@@ -1,9 +1,9 @@
 import config from 'config/client.js';
 import Version from 'client/Version.js';
-import { getUpdate } from 'client/Update.js';
-import EventEmitter from 'events';
+import { installUpdate } from 'client/Update.js';
 import ServerError from 'server/Error.js';
 import getIdle from 'components/getIdle.js';
+import emitter from 'utils/emitter.js';
 
 const CLOSE_CLIENT_TIMEOUT = 4000;
 
@@ -18,15 +18,11 @@ const SOCKET_OPEN       = 1;
 const SOCKET_CLOSING    = 2;
 const SOCKET_CLOSED     = 3;
 
-let sockets = new Map();
-
-
 export default class ServerSocket {
   constructor(endpoint) {
     Object.assign(this, {
       endpoint: endpoint,
       isActive: false,
-      ignoreUpdate: false,
 
       // The difference in ms between the server and client time
       _serverTimeDiff: null,
@@ -71,21 +67,10 @@ export default class ServerSocket {
       _messageListener: event => this._onMessage(event),
       // Used to detect dropped connections to the server.
       _closeListener: event => this._onClose(event),
-
-      _emitter: new EventEmitter(),
     });
 
     if (window.AUTO_CONNECT)
       this.open();
-  }
-
-  on() {
-    this._emitter.addListener(...arguments);
-    return this;
-  }
-  off() {
-    this._emitter.removeListener(...arguments);
-    return this;
   }
 
   get now() {
@@ -583,7 +568,7 @@ export default class ServerSocket {
     }
   }
   async _onSessionMessage(message) {
-    let session = this._session;
+    const session = this._session;
     session.isOpen = true;
     session.closed = false;
 
@@ -593,10 +578,9 @@ export default class ServerSocket {
       // Resume the session
       this._purgeAcknowledgedMessages(message.ack);
       this._onSyncMessage(message);
-    }
-    else {
-      let outbox = session.outbox.slice();
-      let isNew = !session.id;
+    } else {
+      const outbox = session.outbox.slice();
+      const isNew = !session.id;
 
       if (!isNew)
         this._resetSession(session);
@@ -605,16 +589,9 @@ export default class ServerSocket {
       session.version = new Version(message.body.version);
 
       let updateError;
-      if (!this.ignoreUpdate && !config.version.isCompatibleWith(session.version)) {
-        // Only continue if the update fails or is ignored.
-        try {
-          await getUpdate(session.version);
-        }
-        catch (error) {
-          updateError = error;
-        }
-
-        this.ignoreUpdate = true;
+      if (!config.version.isCompatibleWith(session.version)) {
+        installUpdate(session.version);
+        return this.destroy('Version mismatch');
       }
 
       /*
@@ -629,13 +606,8 @@ export default class ServerSocket {
         this._onSyncMessage(message);
 
         this._emit({ type:'open', data:{ reason:'new' } });
-      }
-      else
+      } else
         this._emit({ type:'open', data:{ reason:'reset', outbox } });
-
-      // Log the error
-      if (updateError)
-        throw updateError;
     }
   }
   _onErrorMessage(message) {
@@ -666,8 +638,9 @@ export default class ServerSocket {
     return this.close(code, reason);
   }
 
-  destroy(code = CLOSE_CLIENT_SHUTDOWN) {
-    this.close(code);
-    this._emitter.removeAllListeners();
+  destroy(reason) {
+    this.close(CLOSE_CLIENT_SHUTDOWN, reason);
   }
-}
+};
+
+emitter(ServerSocket);

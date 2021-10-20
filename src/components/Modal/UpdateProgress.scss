@@ -1,0 +1,28 @@
+.modal.updateProgress {
+  max-width: 300px;
+
+  .progress {
+    margin: 16px 0;
+    text-align: center;
+
+    .step {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      margin: 0 4px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.2) 25%, rgba(0,0,0,0.8));
+
+      &.lit {
+        background: radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.8) 25%, rgba(0,0,0,0.8));
+      }
+    }
+    .indicator.error .step {
+      background: radial-gradient(circle at 50% 50%, rgba(255, 0, 0, 0.8) 25%, rgba(0,0,0,0.8));
+    }
+  }
+
+  .buttons {
+    text-align: center;
+  }
+}

@@ -18,7 +18,6 @@ fi
 # winpty doesn't convert LF to CRLF automatically.  So, we insert CR manually.
 CR=$(printf '\r')
 NODE_ENV=development $WEBPACK --watch --config webpack.config.cjs | sed "s/\$/$CR/" &
-WEBPACK_PID=$!
 
 # Wait for the node server to terminate
 $NODE --es-module-specifier-resolution=node --experimental-modules --experimental-loader ./resolver.mjs --require dotenv/config src/server.js

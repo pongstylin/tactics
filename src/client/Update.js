@@ -1,13 +1,14 @@
 import Version from 'client/Version.js';
 import whenDOMReady from 'components/whenDOMReady.js';
+import UpdateProgress from 'components/Modal/UpdateProgress.js';
 import popup from 'components/popup.js';
 
 export const getWorkerVersion = async (worker = navigator.serviceWorker.controller) => {
   if (!worker) return null;
-  let sw = navigator.serviceWorker;
+  const sw = navigator.serviceWorker;
 
   return new Promise(resolve => {
-    let listener = ({ data:message }) => {
+    const listener = ({ data:message }) => {
       if (message.type !== 'version') return;
 
       sw.removeEventListener('message', listener);
@@ -17,113 +18,45 @@ export const getWorkerVersion = async (worker = navigator.serviceWorker.controll
     sw.addEventListener('message', listener);
     worker.postMessage({ type:'version' });
   });
-}
+};
+export const skipWaiting = async (worker) => {
+  if (!worker) return null;
 
-export const getUpdate = async version => {
-  let sw = navigator.serviceWorker;
-  if (!sw)
-    return popup({
-      message: 'A new update is available.  Ignore or activate it.  You may experience issues until the update is activated.',
-      buttons: [
-        { label:'Ignore' },
-        {
-          label: 'Activate',
-          onClick: () => {
-            // Use 'true' to refresh cache.
-            setTimeout(() => location.reload(true));
-            return new Promise(() => {});
-          },
-        },
-      ],
-      closeOnCancel: false,
-      zIndex: 999,
-    }).whenClosed;
-
-  let reg = await sw.getRegistration();
-  let worker = reg.active;
-  let newWorker = reg.installing;
-
-  await whenDOMReady;
-
-  if (
-    newWorker ||
-    !worker ||
-    worker.state === 'redundant' ||
-    !version.isCompatibleWith(await getWorkerVersion(worker))
-  ) {
-    let updatePopup = popup({
-      message: 'Downloading update...',
-      buttons: [],
-      closeOnCancel: false,
-    });
-
-    try {
-      if (!newWorker) {
-        await reg.update();
-
-        newWorker = reg.installing;
-        if (!newWorker) {
-          if (reg.waiting)
-            throw new Error('Update stuck in waiting');
-          else
-            throw new Error('No update was found');
-        }
-      }
-
-      await untilWorkerReady(newWorker);
-      updatePopup.close();
-    }
-    catch (error) {
-      updatePopup.close();
-      popup({
-        message: 'Downloading a new update failed.  Ignore it or try reloading to resolve the issue.  You may experience issues until the update is activated.',
-        buttons: [
-          { label:'Ignore' },
-          {
-            label: 'Reload',
-            onClick: () => {
-              // Do not use 'true' to avoid bypassing service worker
-              setTimeout(() => location.reload());
-              return new Promise(() => {});
-            },
-          },
-        ],
-        maxWidth: '310px',
-        zIndex: 999,
-      });
-      throw error;
-    }
-  }
-
-  return popup({
-    message: 'Downloaded new update.  Ignore or activate it.  You may experience issues until the update is activated.',
-    buttons: [
-      { label:'Ignore' },
-      {
-        label: 'Activate',
-        onClick: () => {
-          // Do not use 'true' to avoid bypassing service worker
-          setTimeout(() => location.reload());
-          return new Promise(() => {});
-        },
-      },
-    ],
-    closeOnCancel: false,
-    zIndex: 999,
-  }).whenClosed;
+  worker.postMessage({ type:'skipWaiting' });
 };
 
-const untilWorkerReady = worker => new Promise((resolve, reject) => {
-  if (worker.state !== 'installing')
-    return resolve(worker.state);
+export const installUpdate = async version => {
+  try {
+    await whenDOMReady;
 
-  let listener = event => {
-    worker.removeEventListener('statechange', listener);
-    if (worker.state === 'redundant')
-      reject(new Error(worker.state));
-    else
-      resolve(new Error(worker.state));
-  };
+    const sw = navigator.serviceWorker;
+    if (!sw)
+      return refresh();
 
-  worker.addEventListener('statechange', listener);
+    const reg = await sw.getRegistration();
+
+    new UpdateProgress({ reg, version });
+  } catch (error) {
+    fail();
+    reportError(error);
+  }
+};
+
+/*
+ * Poor man's update activation for clients that do not support service workers.
+ */
+const refresh = () => popup({
+  message: 'A new update is available.',
+  buttons: [
+    {
+      label: 'Activate',
+      onClick: () => {
+        // Use 'true' to refresh cache.
+        setTimeout(() => location.reload(true));
+        return new Promise(() => {});
+      },
+    },
+  ],
+  closeOnCancel: false,
+  zIndex: 999,
 });

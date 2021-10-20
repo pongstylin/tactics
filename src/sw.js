@@ -90,8 +90,10 @@ self.addEventListener('install', event => {
         Promise.all(
           APP_FILES.map(url =>
             fetch(url, OPTIONS).then(response => {
-              if (response && response.status === 200)
-                return cache.put(url, response);
+              if (!response.ok)
+                throw new Error(`Response is not ok: [${response.status}] ${url}`);
+
+              return cache.put(url, response);
             })
           )
         )
@@ -125,7 +127,9 @@ function getCache(url) {
  * This is the only way to share data between the browser and PWA on iOS.
  */
 const LOCAL_ENDPOINT = self.registration.scope + 'local.json';
-const API_ENDPOINT = self.registration.scope + config.apiPrefix;
+const API_ENDPOINT = config.apiPrefix
+  ? self.registration.scope + config.apiPrefix
+  : self.registration.scope.slice(0, -1);
 const TEST_NO_STORE = /\bno-store\b/;
 
 async function routeLocalRequest(request) {
@@ -189,7 +193,7 @@ self.addEventListener('fetch', event => {
       return fetchPromise
         .then(response => {
           // Only cache successful responses.
-          if (!response || response.status !== 200)
+          if (!response.ok)
             return response;
 
           /*
@@ -217,7 +221,7 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Delete the dynamic cache and previous version caches.
+// Delete previous version caches.
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
@@ -363,15 +367,59 @@ self.addEventListener('notificationclick', event => {
   event.notification.close();
 });
 
-self.addEventListener('message', event => {
-  let client  = event.source;
-  let message = event.data;
+self.addEventListener('message', async event => {
+  const client  = event.source;
+  const message = event.data;
 
   if (message.type === 'version')
     client.postMessage({
       type: 'version',
       data: { version:config.version.toString() },
     });
+  else if (message.type === 'skipWaiting')
+    self.skipWaiting();
+});
+
+self.addEventListener('error', event => {
+  try {
+    const now = new Date();
+
+    report({
+      type: event.type,
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno === undefined ? null : event.lineno,
+      colno: event.colno  === undefined ? null : event.colno,
+      error: event.error ? getErrorData(event.error) : null,
+    }, now);
+  }
+  catch (e) {
+    let error = 'Log error failed: ' + e;
+    error = error.replace(/"/g, '\\"');
+
+    report({ error });
+  }
+});
+self.addEventListener('unhandledrejection', event => {
+  try {
+    const now = new Date();
+    const reportData = {
+      type: event.type,
+    };
+    const error = event.reason;
+
+    if (error instanceof Error)
+      reportData.error = getErrorData(error);
+    else if (error !== undefined)
+      reportData.error = error + '';
+
+    report(reportData, now);
+  } catch (e) {
+    let error = 'Log reject failed: ' + e;
+    error = error.replace(/"/g, '\\"');
+
+    report({ error });
+  }
 });
 
 function getClientByURL(url) {
@@ -381,4 +429,52 @@ function getClientByURL(url) {
         return client;
     }
   });
+}
+
+function getErrorData(error) {
+  let stack = error.stack;
+  if (typeof stack === 'string') {
+    stack = stack.split('\n');
+    if (stack[0] === `${error.name}: ${error.message}`)
+      stack.shift();
+  }
+
+  return {
+    name: error.name,
+    code: error.code,
+    message: error.message,
+    fileName: error.fileName,
+    lineNumber: error.lineNumber,
+    columnNumber: error.columnNumber,
+    stack,
+  };
+}
+
+function report(data, now) {
+  if (now === undefined)
+    now = new Date();
+  if (data === undefined || data === null)
+    return;
+
+  if (typeof data !== 'object')
+    data = { report:data };
+
+  data.createdAt = now;
+  data.page = self.registration.scope + 'sw.js';
+
+  sendReport(data);
+}
+
+async function sendReport(data) {
+  try {
+    await fetch(`${API_ENDPOINT}/report`, Object.assign({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    }, OPTIONS));
+  } catch(error) {
+    setTimeout(() => sendReport(data), 5000);
+  }
 }
