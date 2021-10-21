@@ -514,15 +514,24 @@ export default class Game {
    * Determine team's first playable turn and whether that turn has been made.
    */
   teamHasPlayed(team) {
-    if (this.state.winnerId === 'truce' || this.state.winnerId === team.id)
-      return true;
+    if (
+      this.state.winnerId === 'truce' ||
+      this.state.winnerId === 'draw' ||
+      this.state.winnerId === team.id
+    ) return true;
 
     const numTeams = this.state.teams.length;
     const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
     const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
-    const firstTurn = team.id + (numTeams * Math.max(waitTurns, skipTurns));
+    const firstTurnId = team.id + (numTeams * Math.max(waitTurns, skipTurns));
 
-    return this.state.currentTurnId > firstTurn;
+    if (this.state.currentTurnId < firstTurnId)
+      return false;
+    // Might not be completely accurate for ended games where this team lost.
+    if (this.state.currentTurnId > firstTurnId)
+      return true;
+
+    return !!this.actions.find(a => a.type !== 'surrender' && !a.forced);
   }
 
   /*

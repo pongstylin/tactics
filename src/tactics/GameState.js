@@ -405,7 +405,11 @@ export default class GameState {
       action.createdAt = this.turnStartedAt;
     else
       action.createdAt = new Date();
-    action.teamId = action.teamId || this.currentTeamId;
+
+    action.teamId = action.teamId ?? this.currentTeamId;
+
+    if (action.forced === false)
+      delete action.forced;
 
     this._newActions.push(action);
     this._applyAction(action);
@@ -441,10 +445,11 @@ export default class GameState {
           teamId: team.id,
           results: this._getSurrenderResults(team),
           declaredBy: action.declaredBy,
+          forced: team.playerId !== action.declaredBy,
         });
 
         if (team === this.currentTeam)
-          return setEndTurn(team.playerId !== action.declaredBy);
+          return setEndTurn(true);
         return;
       }
 
@@ -552,10 +557,12 @@ export default class GameState {
     let winners = this.winningTeams;
     let endGame;
     if (winners.length === 0) {
-      this._pushAction(this._getEndTurnAction(true));
+      if (endTurn)
+        this._pushAction(endTurn);
       endGame = 'draw';
     } else if (winners.length === 1) {
-      this._pushAction(this._getEndTurnAction(true));
+      if (endTurn)
+        this._pushAction(endTurn);
       endGame = winners[0].id;
     } else if (endTurn) {
       // Team Chaos needs a chance to phase before ending their turn.
