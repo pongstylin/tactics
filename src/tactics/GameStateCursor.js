@@ -253,7 +253,7 @@ export default class GameStateCursor {
     const atEnd = (
       turnData.id === state.currentTurnId &&
       nextActionId === state.actions.length &&
-      state.endedAt
+      !!state.endedAt
     );
 
     return {
