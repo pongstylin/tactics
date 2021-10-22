@@ -18,7 +18,7 @@ const gameAdapter = new GameAdapter();
     const activeGames = await gameAdapter._getPlayerActiveGames(playerId);
     for (const gameSummary of activeGames.values()) {
       if (gameSummary.isFork) continue;
-      if (!gameSummary.started) continue;
+      if (!gameSummary.startedAt) continue;
 
       // To make this run faster, fake the game model.
       const fakeGame = {
@@ -26,8 +26,8 @@ const gameAdapter = new GameAdapter();
         state: {
           type: gameSummary.type,
           teams: gameSummary.teams,
-          started: gameSummary.started,
-          ended: gameSummary.ended,
+          startedAt: gameSummary.startedAt,
+          endedAt: gameSummary.endedAt,
         },
       };
 
@@ -44,11 +44,11 @@ const gameAdapter = new GameAdapter();
         continue;
 
       const game = await gameAdapter._getGame(gameSummary.id);
-      const ended = game.state.ended;
+      const endedAt = game.state.endedAt;
 
-      game.state.ended = null;
+      game.state.endedAt = null;
       playerStats.recordGameStart(game);
-      game.state.ended = ended;
+      game.state.endedAt = endedAt;
       playerStats.recordGameEnd(game);
     }
   }
