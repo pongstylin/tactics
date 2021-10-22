@@ -168,6 +168,11 @@ async function routeLocalRequest(request) {
 
 self.addEventListener('fetch', event => {
   const request = event.request;
+  // Do the default thing for non HTTP(S) requests.
+  // Example: chrome-extension://...
+  if (!request.url.startsWith('http'))
+    return;
+
   // Ignore the query string since it does not affect the response.
   const url = request.url.replace(/\?.+$/, '');
 
