@@ -184,20 +184,23 @@ export default class PlayerStats extends ActiveModel {
         if (!playedBy.has(this.playerId) || !playedBy.has(team.playerId))
           continue;
 
+        const myAdvantage = myTeams[0].usedUndo || myTeams[0].usedSim;
+        const vsAdvantage = team.usedUndo || team.usedSim;
+
         if (game.state.winnerId === myTeams[0].id) {
-          // If I won with undo, but they didn't use undo, win is with advantage.
-          const wldIndex = myTeams[0].usedUndo && !team.usedUndo ? 1 : 0;
+          // If I won with advantage, but they didn't use advantage, win is with advantage.
+          const wldIndex = myAdvantage && !vsAdvantage ? 1 : 0;
           stats.all.win[wldIndex]++;
           stats.style.get(game.state.type).win[wldIndex]++;
         } else if (game.state.winnerId === teamId) {
-          // If I lost without undo, but they used undo, the loss is at disadvantage.
-          const wldIndex = team.usedUndo && !myTeams[0].usedUndo ? 1 : 0;
+          // If I lost without advantage, but they used advantage, the loss is at disadvantage.
+          const wldIndex = vsAdvantage && !myAdvantage ? 1 : 0;
           stats.all.lose[wldIndex]++;
           stats.style.get(game.state.type).lose[wldIndex]++;
         } else if (game.state.winnerId === 'draw') {
-          // If I drew with undo, but they didn't use undo, draw is with advantage.
+          // If I drew with advantage, but they didn't use advantage, draw is with advantage.
           // Note: If we both lost in a 4-player game, we drew with each other.
-          const wldIndex = myTeams[0].usedUndo && !team.usedUndo ? 1 : 0;
+          const wldIndex = myAdvantage && !vsAdvantage ? 1 : 0;
           stats.all.draw[wldIndex]++;
           stats.style.get(game.state.type).draw[wldIndex]++;
         }

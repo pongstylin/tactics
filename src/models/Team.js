@@ -83,6 +83,10 @@ export default class Team {
 
       // The bot, if any, controlling the team
       bot: undefined,
+
+      // Flags for determining if the team had an advantage
+      usedUndo: undefined,
+      usedSim: undefined,
     }, data);
 
     if (this.useRandom && !this.randomState)

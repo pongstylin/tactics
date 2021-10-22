@@ -285,16 +285,27 @@ export default class Game extends ActiveModel {
       turnId = 0;
     if (turnId > forkGame.state.currentTurnId)
       turnId = forkGame.state.currentTurnId;
-    // Don't include the winning turn, otherwise there's just one team left
-    if (forkGame.state.endedAt && turnId === forkGame.state.currentTurnId)
-      turnId--;
     if (vs === undefined)
       vs = 'you';
 
+    /*
+     * If necessary, roll back to the previous playable turn.
+     */
     forkGame.state.revert(turnId);
-    forkGame.state.autoPass();
-    if (forkGame.state.endedAt)
-      throw new ServerError(403, 'Cowardly refusing to fork a game that immediately ends in a draw.');
+    while (turnId > 0) {
+      if (forkGame.state.winningTeams.length < 2) {
+        forkGame.state.revert(--turnId);
+        continue;
+      }
+
+      const draw = forkGame.state.autoPass();
+      if (draw) {
+        forkGame.state.revert(--turnId);
+        continue;
+      }
+
+      break;
+    }
 
     forkGame.createdAt = new Date();
     forkGame.id = uuid();
@@ -304,6 +315,18 @@ export default class Game extends ActiveModel {
     const teams = forkGame.state.teams = forkGame.state.teams.map(t => t.fork());
 
     if (vs === 'you') {
+      if (
+        !this.state.endedAt &&
+        !this.forkOf &&
+        new Set(this.state.teams.map(t => t.playerId)).size > 1
+      ) {
+        const myTeam = this.state.teams.find(t => t.playerId === clientPara.playerId);
+        if (myTeam) {
+          myTeam.usedSim = true;
+          this.emit('change:fork');
+        }
+      }
+
       teams.forEach(t => t.join({}, clientPara));
 
       forkGame.state.turnTimeLimit = null;

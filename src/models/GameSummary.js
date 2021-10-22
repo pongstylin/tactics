@@ -45,7 +45,6 @@ export default class GameSummary {
         joinedAt: t.joinedAt,
         playerId: t.playerId,
         name: t.name,
-        withUndo: t.withUndo,
       }),
     };
 
