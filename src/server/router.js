@@ -424,10 +424,13 @@ function debugMessage(client, message, inOrOut) {
 
   let suffix;
   let suffixV;
-  if (message.type === 'sync')
-    suffix = `[${'ack' in message ? message.ack : '-'}]`;
+  if (message.type === 'sync') {
+    suffix = `[${message.ack ?? '-'}]`;
+    if (message.idle !== undefined)
+      suffix += ` idle=${message.idle}`;
+  }
   else if (message.type === 'event') {
-    suffix  = `[${message.id}] ${body.service}:${body.type}`;
+    suffix  = `[${message.id}] ${body.service}:${body.group}:${body.type}`;
     suffixV = `[${message.id}] data=${JSON.stringify(body.data)}`;
   }
   else if (message.type === 'request') {
@@ -437,8 +440,24 @@ function debugMessage(client, message, inOrOut) {
   else if (message.type === 'response')
     if (body.error)
       suffix = `[${message.id}] requestId=${body.requestId}; error=[${body.error.code}] ${body.error.message}`;
-    else
+    else {
       suffix = `[${message.id}] requestId=${body.requestId}`;
+
+      // Truncate a few cases where response data can be big.
+      if (body.data?.hits) {
+        const logData = Object.assign({}, body.data, { hits:body.data.hits.length });
+        suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
+      } else if (body.data?.state) {
+        const logData = Object.assign({}, body.data, { state:true });
+        suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
+      } else if (body.data?.gameData) {
+        const logData = Object.assign({}, body.data, {
+          gameData: Object.assign({}, body.data.gameData, { state:true }),
+        });
+        suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
+      } else
+        suffixV = `[${message.id}] data=${JSON.stringify(body.data)}`;
+    }
   else if (message.type === 'join' && inOrOut === 'in')
     suffix = `[${message.id}] ${body.service}:${body.group}; params=${JSON.stringify(body.params)}`;
   else if (
@@ -726,38 +745,32 @@ function onRequestMessage(client, message) {
   }
 }
 
-function onJoinMessage(client, message) {
-  let session = client.session;
-  let requestId = message.id;
-  let body = message.body;
-  let service = services.get(body.service);
-  let method = 'onJoinGroup';
+async function onJoinMessage(client, message) {
+  const session = client.session;
+  const requestId = message.id;
+  const body = message.body;
+  const service = services.get(body.service);
+  const method = 'onJoinGroup';
 
   if (!service)
     throw new ServerError(404, 'No such service');
   if (!(method in service))
     throw new ServerError(501, 'Service does not support joining groups');
 
-  let groupId = [body.service, body.group].join(':');
-  let group = groups.get(groupId);
+  const groupId = [body.service, body.group].join(':');
+  const group = groups.get(groupId);
   if (group && group.has(client.id))
     throw new ServerError(409, 'Already joined group');
 
   try {
     service.will(client, 'join', body.group);
 
-    let response = service[method](client, body.group, body.params);
+    const data = await service[method](client, body.group, body.params);
     if (client.closed)
       return;
 
-    if (response instanceof Promise)
-      response
-        .then(data => enqueue(session, 'response', { requestId, data }))
-        .catch(error => sendErrorResponse(client, requestId, error));
-    else
-      enqueue(session, 'response', { requestId, data:response });
-  }
-  catch (error) {
+    enqueue(session, 'response', { requestId, data });
+  } catch (error) {
     sendErrorResponse(client, requestId, error);
   }
 }
