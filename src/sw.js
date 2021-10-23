@@ -220,6 +220,9 @@ self.addEventListener('fetch', event => {
           // If a potentially stale locally hosted resource is cached, return it.
           if (cachedResponse)
             return cachedResponse;
+
+          // Hijack the fileName field to report the URL that failed to fetch.
+          error.fileName = url;
           throw error;
         });
     })
@@ -341,7 +344,7 @@ self.addEventListener('push', event => {
 });
 
 self.addEventListener('notificationclick', event => {
-  let data = event.notification.data || {
+  const data = event.notification.data || {
     type: event.notification.tag,
   };
   let url;
