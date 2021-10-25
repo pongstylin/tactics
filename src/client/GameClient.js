@@ -161,6 +161,14 @@ export default class GameClient extends Client {
         throw error;
       });
   }
+  clearWLDStats(playerId, gameTypeId) {
+    return this._server.requestAuthorized(this.name, 'clearWLDStats', [ playerId, gameTypeId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.clearWLDStats(playerId, gameTypeId);
+        throw error;
+      });
+  }
 
   hasCustomPlayerSet(gameTypeId, setName) {
     return this._server.requestAuthorized(this.name, 'hasCustomPlayerSet', [gameTypeId, setName])

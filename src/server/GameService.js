@@ -550,6 +550,10 @@ export default class GameService extends Service {
       },
     };
   }
+  async onClearWLDStatsRequest(client, vsPlayerId, gameTypeId) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    await this.data.clearPlayerWLDStats(playerId, vsPlayerId, gameTypeId);
+  }
 
   async onSearchMyActiveGamesRequest(client, query) {
     const playerId = this.clientPara.get(client.id).playerId;

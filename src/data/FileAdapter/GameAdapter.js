@@ -105,7 +105,14 @@ export default class extends FileAdapter {
   async listPlayerAliases(inPlayerId, forPlayerId) {
     const playerStats = await this._getPlayerStats(inPlayerId);
 
+    this.cache.get('playerStats').add(myPlayerId, playerStats);
     return playerStats.get(forPlayerId).aliases;
+  }
+  async clearPlayerWLDStats(myPlayerId, vsPlayerId, gameTypeId) {
+    const playerStats = await this._getPlayerStats(myPlayerId);
+
+    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    return playerStats.clearWLDStats(vsPlayerId, gameTypeId);
   }
 
   async createGame(game) {
