@@ -1079,7 +1079,7 @@ export default class GameService extends Service {
       break;
     }
 
-    // Only interested in games that where all participants are actively playing.
+    // Only interested in games where all participants are actively playing.
     const activeGamesOfInterest = [];
     for (const { game } of activeGamesInfo) {
       if (game.id === fromGameId) continue;
@@ -1107,7 +1107,7 @@ export default class GameService extends Service {
     if (activeGamesOfInterest.length === 1) {
       const activeGame = activeGamesOfInterest[0];
       const playerTeamName = activeGame.state.teams.find(t => t.playerId === playerId).name;
-      const aliases = this.data.listPlayerAliases(inPlayerId, playerId);
+      const aliases = await this.data.listPlayerAliases(inPlayerId, playerId);
       if (aliases.has(playerTeamName.toLowerCase()))
         activity.activeGameId = activeGame.id;
     }
