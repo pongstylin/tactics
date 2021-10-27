@@ -172,14 +172,16 @@ self.addEventListener('fetch', event => {
   // Example: chrome-extension://...
   if (!request.url.startsWith('http'))
     return;
+  if (request.url.startsWith('https://translate.google.com/'))
+    return;
+  if (request.method !== 'GET')
+    return;
 
   // Ignore the query string since it does not affect the response.
   const url = request.url.replace(/\?.+$/, '');
 
   if (url === LOCAL_ENDPOINT)
     return event.respondWith(routeLocalRequest(request));
-  if (request.method !== 'GET')
-    return event.respondWith(fetch(request));
 
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {

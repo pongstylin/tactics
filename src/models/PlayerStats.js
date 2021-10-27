@@ -38,9 +38,6 @@ export default class PlayerStats extends ActiveModel {
       throw new Error('Game has not started yet');
     if (game.state.endedAt)
       throw new Error('Game already ended');
-    // No stats for fork games.
-    if (game.forkOf)
-      return;
 
     const myTeams = game.state.teams.filter(t => t.playerId === this.playerId);
     if (myTeams.length === 0)
@@ -109,7 +106,7 @@ export default class PlayerStats extends ActiveModel {
       throw new Error('Game has not started yet');
     if (!game.state.endedAt)
       throw new Error('Game has not ended');
-    // No stats for fork games.
+    // No WLD stats for fork games.
     if (game.forkOf)
       return;
 

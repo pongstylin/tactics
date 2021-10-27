@@ -1321,7 +1321,10 @@ async function showJoinIntro(gameData) {
         progress.show();
 
         try {
-          await playerName.whenSaved;
+          if (authClient.token)
+            await playerName.whenSaved;
+          else
+            await authClient.register({ name:'Noob' });
           resolve(
             await loadTransportAndGame(gameData.id, gameData)
           );
