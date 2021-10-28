@@ -68,7 +68,7 @@ export default class GameService extends Service {
     if (!clientPara) return;
 
     for (const gameId of clientPara.joinedGroups) {
-      this.onLeaveGameGroup(client, `/games/${gameId}`, gameId)
+      this.onLeaveGameGroup(client, `/games/${gameId}`, gameId);
     }
 
     const playerId = clientPara.playerId;
@@ -955,7 +955,7 @@ export default class GameService extends Service {
   _setPlayerGamesStatus(playerId) {
     for (const game of this.data.getOpenGames()) {
       if (!game.state.teams.find(t => t?.playerId === playerId))
-        return;
+        continue;
 
       this._setGamePlayersStatus(game.id);
     }

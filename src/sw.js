@@ -172,8 +172,17 @@ self.addEventListener('fetch', event => {
   // Example: chrome-extension://...
   if (!request.url.startsWith('http'))
     return;
+  /*
+   * Do not handle requests to domains relating to google translation
+   * TODO: Use a whitelist, instead.
+   */
   if (request.url.startsWith('https://translate.google.com/'))
     return;
+  if (request.url.startsWith('https://www.gstatic.com/'))
+    return;
+  /*
+   * Do not handle non-GET requests.
+   */
   if (request.method !== 'GET')
     return;
 
