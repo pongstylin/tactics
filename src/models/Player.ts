@@ -1,4 +1,4 @@
-import uuid from 'uuid/v4.js';
+import uuid from 'uuid/v4';
 import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
 
