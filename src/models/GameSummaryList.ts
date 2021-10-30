@@ -1,5 +1,5 @@
-import ActiveModel from './ActiveModel';
-import GameSummary from './GameSummary';
+import ActiveModel from 'models/ActiveModel';
+import GameSummary from 'models/GameSummary';
 
 export default class GameSummaryList extends ActiveModel {
   gamesSummary: Map<any, any>
@@ -62,6 +62,7 @@ export default class GameSummaryList extends ActiveModel {
   }
 
   toJSON() {
+    // @ts-ignore
     return this.gamesSummary.toJSON();
   }
 }

@@ -1,9 +1,9 @@
 import uuid from 'uuid/v4';
 
-import ActiveModel from './ActiveModel';
+import ActiveModel from 'models/ActiveModel';
 
-import GameState from '../tactics/GameState.js';
-import ServerError from '../server/Error.js';
+import GameState from 'tactics/GameState.js';
+import ServerError from 'server/Error.js';
 
 const gameKeys = new Set([
   'createdBy',

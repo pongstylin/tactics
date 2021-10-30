@@ -2,7 +2,7 @@ import uuid from 'uuid/v4.js';
 import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
 
-import ActiveModel from 'models/ActiveModel.js';
+import ActiveModel from 'models/ActiveModel';
 
 import IdentityToken from 'server/IdentityToken.js';
 import AccessToken from 'server/AccessToken.js';
@@ -19,6 +19,14 @@ XRegExp.install('astral');
 const rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 
 export default class Player extends ActiveModel {
+  name: string
+  devices: Map<any, any>
+  checkoutAt: Date
+  identityToken: IdentityToken
+  acl: Map<any, any>
+  reverseACL: Map<any, any>
+  id: string
+
   constructor(props) {
     super({
       identityToken: null,

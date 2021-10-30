@@ -3,6 +3,10 @@ import uuid from 'uuid/v4';
 import ActiveModel from 'models/ActiveModel.js';
 
 export default class Room extends ActiveModel {
+  events: any
+  createdAt: Date
+  players: Array<any>
+
   static create(players, options) {
     if (players.length < 0)
       throw new Error('Requires at least one player');
