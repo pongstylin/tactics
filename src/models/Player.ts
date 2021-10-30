@@ -2,7 +2,7 @@ import uuid from 'uuid/v4';
 import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
 
-import ActiveModel from 'models/ActiveModel';
+import ActiveModel from 'models/ActiveModel.js';
 
 import IdentityToken from 'server/IdentityToken.js';
 import AccessToken from 'server/AccessToken.js';

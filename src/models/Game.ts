@@ -1,6 +1,6 @@
 import uuid from 'uuid/v4';
 
-import ActiveModel from 'models/ActiveModel';
+import ActiveModel from 'models/ActiveModel.js';
 
 import GameState from 'tactics/GameState.js';
 import ServerError from 'server/Error.js';

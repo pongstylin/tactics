@@ -1,5 +1,5 @@
-import ActiveModel from 'models/ActiveModel';
-import GameSummary from 'models/GameSummary';
+import ActiveModel from 'models/ActiveModel.js';
+import GameSummary from 'models/GameSummary.js';
 
 export default class GameSummaryList extends ActiveModel {
   gamesSummary: Map<any, any>

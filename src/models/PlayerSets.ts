@@ -1,4 +1,4 @@
-import ActiveModel from 'models/ActiveModel';
+import ActiveModel from 'models/ActiveModel.js';
 
 export default class PlayerSets extends ActiveModel {
   sets: any
