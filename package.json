@@ -9,7 +9,7 @@
     "url": "git@github.com:pongstylin/tactics.git"
   },
   "scripts": {
-    "start": "./start.sh",
+    "start": "npm run compile && ./start.sh",
     "start-beta": "NODE_ENV=beta node --experimental-modules --loader ./resolver.mjs --require dotenv/config src/server.js || true",
     "compile": "tsc",
     "lint": "tslint",

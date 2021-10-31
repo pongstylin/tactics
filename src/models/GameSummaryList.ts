@@ -4,7 +4,6 @@ import GameSummary from 'models/GameSummary.js';
 export default class GameSummaryList extends ActiveModel {
   gamesSummary: Map<any, any>
   constructor(playerId, gamesSummary) {
-    console.log("Games Summary:", gamesSummary)
     super({
       playerId,
       gamesSummary,
