@@ -68,7 +68,7 @@ export default class GameService extends Service {
     if (!clientPara) return;
 
     for (const gameId of clientPara.joinedGroups) {
-      this.onLeaveGameGroup(client, `/games/${gameId}`, gameId)
+      this.onLeaveGameGroup(client, `/games/${gameId}`, gameId);
     }
 
     const playerId = clientPara.playerId;
@@ -550,6 +550,10 @@ export default class GameService extends Service {
       },
     };
   }
+  async onClearWLDStatsRequest(client, vsPlayerId, gameTypeId) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    await this.data.clearPlayerWLDStats(playerId, vsPlayerId, gameTypeId);
+  }
 
   async onSearchMyActiveGamesRequest(client, query) {
     const playerId = this.clientPara.get(client.id).playerId;
@@ -951,7 +955,7 @@ export default class GameService extends Service {
   _setPlayerGamesStatus(playerId) {
     for (const game of this.data.getOpenGames()) {
       if (!game.state.teams.find(t => t?.playerId === playerId))
-        return;
+        continue;
 
       this._setGamePlayersStatus(game.id);
     }
@@ -1079,7 +1083,7 @@ export default class GameService extends Service {
       break;
     }
 
-    // Only interested in games that where all participants are actively playing.
+    // Only interested in games where all participants are actively playing.
     const activeGamesOfInterest = [];
     for (const { game } of activeGamesInfo) {
       if (game.id === fromGameId) continue;
@@ -1107,7 +1111,7 @@ export default class GameService extends Service {
     if (activeGamesOfInterest.length === 1) {
       const activeGame = activeGamesOfInterest[0];
       const playerTeamName = activeGame.state.teams.find(t => t.playerId === playerId).name;
-      const aliases = this.data.listPlayerAliases(inPlayerId, playerId);
+      const aliases = await this.data.listPlayerAliases(inPlayerId, playerId);
       if (aliases.has(playerTeamName.toLowerCase()))
         activity.activeGameId = activeGame.id;
     }

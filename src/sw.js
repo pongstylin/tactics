@@ -172,14 +172,25 @@ self.addEventListener('fetch', event => {
   // Example: chrome-extension://...
   if (!request.url.startsWith('http'))
     return;
+  /*
+   * Do not handle requests to domains relating to google translation
+   * TODO: Use a whitelist, instead.
+   */
+  if (request.url.startsWith('https://translate.google.com/'))
+    return;
+  if (request.url.startsWith('https://www.gstatic.com/'))
+    return;
+  /*
+   * Do not handle non-GET requests.
+   */
+  if (request.method !== 'GET')
+    return;
 
   // Ignore the query string since it does not affect the response.
   const url = request.url.replace(/\?.+$/, '');
 
   if (url === LOCAL_ENDPOINT)
     return event.respondWith(routeLocalRequest(request));
-  if (request.method !== 'GET')
-    return event.respondWith(fetch(request));
 
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {
@@ -260,8 +271,8 @@ self.addEventListener('activate', event => {
  */
 async function showNotification(event) {
   let data = event.data.json();
-  let notifications = await self.registration.getNotifications();
-  let currentNotification = notifications.find(n => n.tag === data.type);
+  const notifications = await self.registration.getNotifications();
+  const currentNotification = notifications.find(n => n.tag === data.type);
 
   /*
    * If the current notification is newer, repost it.
@@ -275,14 +286,15 @@ async function showNotification(event) {
   /*
    * If notification data is significantly old or delayed, refresh it.
    */
-  let diff = new Date() - new Date(data.createdAt);
+  const diff = new Date() - new Date(data.createdAt);
   if (diff > 120000) { // 2min
+    const endpoint = `${API_ENDPOINT}/notifications/${data.type}`;
+
     try {
-      let endpoint = `${API_ENDPOINT}/notifications/${data.type}`;
-      let localRsp = await routeLocalRequest({method:'GET'});
-      let localData = await localRsp.json();
-      let token = localData.token;
-      let rsp = await fetch(endpoint, Object.assign({
+      const localRsp = await routeLocalRequest({method:'GET'});
+      const localData = await localRsp.json();
+      const token = localData.token;
+      const rsp = await fetch(endpoint, Object.assign({
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -292,7 +304,10 @@ async function showNotification(event) {
         data = await rsp.json();
     }
     catch (error) {
-      console.error(error);
+      report({
+        endpoint,
+        error: getErrorData(error),
+      });
     }
   }
 
@@ -332,8 +347,8 @@ async function showNotification(event) {
     if (!autoClose) return;
 
     setTimeout(async () => {
-      let notifications = await self.registration.getNotifications();
-      let newNotification = notifications.find(n => n.tag === data.type);
+      const notifications = await self.registration.getNotifications();
+      const newNotification = notifications.find(n => n.tag === data.type);
       if (newNotification)
         newNotification.close();
     }, 100);

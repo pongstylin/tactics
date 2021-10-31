@@ -841,6 +841,9 @@ async function getGameData(gameId) {
   return gameClient.getGameData(gameId);
 }
 async function joinGame(gameId, set) {
+  if (!authClient.token)
+    await authClient.register({ name:'Noob' });
+
   return gameClient.joinGame(gameId, { set }).catch(error => {
     if (error.code !== 409) throw error;
 
@@ -1318,7 +1321,10 @@ async function showJoinIntro(gameData) {
         progress.show();
 
         try {
-          await playerName.whenSaved;
+          if (authClient.token)
+            await playerName.whenSaved;
+          else
+            await authClient.register({ name:'Noob' });
           resolve(
             await loadTransportAndGame(gameData.id, gameData)
           );
