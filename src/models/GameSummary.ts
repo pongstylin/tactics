@@ -3,6 +3,8 @@
  * The summary can be used to render a game in a list.
  */
 export default class GameSummary {
+  // TODO: Add all properties
+  size: number
   constructor(props) {
     Object.assign(this, props);
   }
@@ -11,19 +13,23 @@ export default class GameSummary {
     const createdAt = game.createdAt;
     const startedAt = game.state.startedAt;
     const endedAt   = game.state.endedAt;
-    const teams   = game.state.teams;
-    const actions = game.state.actions;
-    const turns   = game.state.turns;
+    const teams     = game.state.teams;
+    const actions   = game.state.actions;
+    const turns     = game.state.turns;
 
     let updatedAt;
-    if (endedAt)
+    if (endedAt) {
       updatedAt = endedAt;
-    else if (actions.length)
+    }
+    else if (actions.length) {
       updatedAt = actions.last.createdAt;
-    else if (turns.length)
+    }
+    else if (turns.length) {
       updatedAt = turns.last.actions.last.createdAt;
-    else
+    }
+    else {
       updatedAt = startedAt || createdAt;
+    }
 
     const props = {
       id: game.id,
@@ -46,6 +52,9 @@ export default class GameSummary {
         playerId: t.playerId,
         name: t.name,
       }),
+      // TODO: Fix hack
+      winnerId: undefined,
+      currentTeamId: undefined,
     };
 
     if (endedAt)

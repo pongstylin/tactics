@@ -39,6 +39,24 @@ function createRandom() {
 };
 
 export default class Team {
+  id: any
+  slot: any
+  createdAt: any
+  joinedAt: any
+  checkoutAt: any
+  playerId: string
+  name: any
+  colorId: any
+  position: any
+  useRandom: any
+  randomState: any
+  set: any
+  units: any
+  bots: any
+  usedUndo: any
+  usedSim: any
+  forkOf: any
+
   constructor(data) {
     Object.assign(this, {
       // The position of the team in the teams array post game start

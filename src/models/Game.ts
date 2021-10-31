@@ -18,7 +18,30 @@ const stateKeys = new Set([
   'teams',
 ]);
 
+interface GameData {
+  id: string,
+  createdAt: Date,
+  playerRequest: PReq,
+  state: GameState | null,
+}
+
+type PReq = {
+  rejected: Map<any, any>,
+  status: string,
+  type: any
+  accepted: any,
+  teamId?: any,
+  createdAt: Date
+  createdBy
+}
+
 export default class Game extends ActiveModel {
+  id: string
+  createdAt: Date
+  playerRequest: PReq
+  state: GameState
+  forkOf: any
+  isPublic: boolean
   constructor(props) {
     super(props);
 
@@ -45,10 +68,11 @@ export default class Game extends ActiveModel {
   }
 
   static create(gameOptions) {
-    const gameData = {
+    const gameData: GameData = {
       id: uuid(),
       createdAt: new Date(),
       playerRequest: null,
+      state: null
     };
 
     const stateData = {};

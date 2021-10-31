@@ -1,6 +1,8 @@
 import ActiveModel from 'models/ActiveModel.js';
 
 export default class PlayerStats extends ActiveModel {
+  data: Map<any, any>
+  playerId: string
   constructor(playerId, data) {
     super({
       playerId,
@@ -238,6 +240,7 @@ export default class PlayerStats extends ActiveModel {
   }
 
   toJSON() {
+    // @ts-ignore
     return this.data.toJSON();
   }
 }

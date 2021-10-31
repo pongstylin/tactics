@@ -7,21 +7,26 @@ import EventEmitter from 'events';
  * Data adapters listen for changes on active model instances.
  * When an active model is no longer needed, it must be destroyed.
  */
+
+type EventType = string | symbol
+type EventCB = (...args: any[]) => void
+type RegEvtArgs = [EventType, EventCB]
+
 export default class ActiveModel {
-  constructor(props) {
-    Object.assign(this, {
-      _emitter: new EventEmitter(),
-    }, props);
+  _emitter?: EventEmitter
+  constructor(props: any) {
+    this._emitter = new EventEmitter()
+    Object.assign(this, props);
   }
 
-  on() {
+  on(...args: RegEvtArgs) {
     if (!this._emitter)
       throw new Error('Active model is destroyed');
 
-    this._emitter.addListener(...arguments);
+    this._emitter.addListener(...args);
     return this;
   }
-  once(eventType, fn) {
+  once(eventType: EventType, fn: EventCB) {
     const listener = () => {
       this.off(eventType, listener);
       fn();
@@ -29,14 +34,15 @@ export default class ActiveModel {
 
     this.on(eventType, listener);
   }
-  off() {
+  off(...args: RegEvtArgs) {
     if (!this._emitter)
       throw new Error('Active model is destroyed');
 
-    this._emitter.removeListener(...arguments);
+    this._emitter.removeListener(...args);
     return this;
   }
-  emit(event) {
+
+  emit(event: any) {
     if (!this._emitter)
       throw new Error('Active model is destroyed');
 
@@ -54,7 +60,8 @@ export default class ActiveModel {
     if (!this._emitter)
       throw new Error('Active model is destroyed');
 
-    const json = {};
+    // Is there a better way to do this?
+    const json: any = {};
 
     for (const [ key, value ] of Object.entries(this)) {
       if (key[0] === '_') continue;

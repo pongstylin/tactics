@@ -1,6 +1,7 @@
 import ActiveModel from 'models/ActiveModel.js';
 
 export default class PlayerSets extends ActiveModel {
+  sets: any
   constructor(playerId, sets) {
     super({
       playerId,
