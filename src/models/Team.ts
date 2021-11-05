@@ -23,6 +23,45 @@
 import seedrandom from 'seedrandom';
 import ServerError from 'server/Error.js';
 
+const schema = {
+  $schema: 'http://json-schema.org/draft-07/schema',
+  $id: 'Team',
+  type: 'object',
+  properties: {
+    id: { type:'number' },
+    slot: { type:'number' },
+    playerId: { type:'string', format:'uuid' },
+    name: { type:[ 'string', 'null' ] },
+    set: {
+      type:'object',
+      properties: {
+        units: {
+          oneOf: [
+            // Server-side
+            { type:'object' },
+            // Client-side, sometimes
+            { type:'boolean' },
+          ],
+        },
+      },
+      required: [ 'units' ],
+      additionalProperties: false,
+    },
+    bot: { type:'boolean' },
+    colorId: { type:'number' },
+    position: { type:[ 'string', 'null' ], enum:['N','S','E','W','C'] },
+    useRandom: { type:'boolean' },
+    randomState: { $ref:'Random' },
+    usedUndo: { type:'boolean', const:true },
+    usedSim: { type:'boolean', const:true },
+    joinedAt: { type:[ 'string', 'null' ], constructor:'Date' },
+    checkoutAt: { type:[ 'string', 'null' ], constructor:'Date' },
+    createdAt: { type:'string', constructor:'Date' },
+  },
+  required: [ 'id', 'slot', 'name', 'position', 'useRandom', 'joinedAt', 'checkoutAt', 'createdAt' ],
+  additionalProperties: false,
+};
+
 function createRandom() {
   let rng = seedrandom(null, { state:true });
   let rngState = rng.state();

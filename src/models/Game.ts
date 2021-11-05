@@ -5,6 +5,67 @@ import ActiveModel from 'models/ActiveModel.js';
 import GameState from 'tactics/GameState.js';
 import ServerError from 'server/Error.js';
 
+const schema = {
+  $schema: 'http://json-schema.org/draft-07/schema',
+  $id: 'Game',
+  type: 'object',
+  properties: {
+    id: { type:'string', format:'uuid' },
+    isPublic: { type:'boolean' },
+    playerRequest: {
+      type: [ 'object', 'null' ],
+      properties: {
+        type: {
+          type: 'string',
+          enum: [ 'undo', 'truce' ],
+        },
+        status: {
+          type: 'string',
+          enum: [ 'pending', 'completed', 'rejected', 'cancelled' ],
+        },
+        accepted: {
+          type: 'array',
+          constructor: 'Set',
+          items: {
+            type: 'string',
+            format: 'uuid',
+          },
+        },
+        rejected: {
+          type: 'array',
+          constructor: 'Map',
+          items: {
+            type: 'array',
+            items: [
+              { type:'string' },
+              { type:'string' },
+            ],
+            additionalItems: false,
+          },
+        },
+        createdBy: { type:'string', format:'uuid' },
+        createdAt: { type:'string', constructor:'Date' },
+      },
+      required: [ 'type', 'status', 'accepted', 'rejected', 'createdBy', 'createdAt' ],
+      additionalProperties: false,
+    },
+    forkOf: {
+      type: 'object',
+      properties: {
+        gameId: { type:'string', format:'uuid' },
+        turnId: { type:'number', minimum:0 },
+      },
+      required: [ 'gameId', 'turnId' ],
+      additionalProperties: false,
+    },
+    state: { $ref:'GameState' },
+    createdBy: { type:'string', format:'uuid' },
+    createdAt: { type:'string', constructor:'Date' },
+  },
+  required: [ 'id', 'isPublic', 'playerRequest', 'state', 'createdBy', 'createdAt' ],
+  additionalProperties: false,
+};
+
 const gameKeys = new Set([
   'createdBy',
   'isPublic',
