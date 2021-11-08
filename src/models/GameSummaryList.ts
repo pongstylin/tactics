@@ -1,23 +1,20 @@
 import ActiveModel from 'models/ActiveModel.js';
 import GameSummary from 'models/GameSummary.js';
+import serializer from 'utils/serializer.js';
 
 export default class GameSummaryList extends ActiveModel {
-  gamesSummary: Map<any, any>
-  constructor(playerId, gamesSummary) {
-    super({
-      playerId,
-      gamesSummary,
-    });
+  playerId: string
+  gamesSummary: Map<string, GameSummary>
+
+  constructor(data) {
+    super(data);
   }
 
-  static load(playerId, data) {
-    const gamesSummary = new Map();
-
-    for (const [ gameId, gameSummaryData ] of data) {
-      gamesSummary.set(gameId, GameSummary.load(gameSummaryData));
-    }
-
-    return new GameSummaryList(playerId, gamesSummary);
+  static create(playerId) {
+    return new GameSummaryList({
+      playerId,
+      gamesSummary: new Map(),
+    });
   }
 
   get size() {
@@ -59,9 +56,31 @@ export default class GameSummaryList extends ActiveModel {
 
     return true;
   }
+};
 
-  toJSON() {
-    // @ts-ignore
-    return this.gamesSummary.toJSON();
-  }
-}
+serializer.addType({
+  name: 'GameSummaryList',
+  constructor: GameSummaryList,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'GameSummaryList',
+    type: 'object',
+    required: [ 'playerId', 'gamesSummary' ],
+    properties: {
+      playerId: { type:[ 'string', 'null' ], format:'uuid' },
+      gamesSummary: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [
+            { type:'string', format:'uuid' },
+            { $ref:'GameSummary' },
+          ],
+          additionalItems: false,
+        },
+      },
+    },
+    additionalProperties: false,
+  },
+});

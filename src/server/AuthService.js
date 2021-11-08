@@ -297,7 +297,7 @@ export default class AuthService extends Service {
     } else {
       // This should never happen unless tokens are leaked and used without permission.
       this.debug(`Revoked token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
-      throw new ServerError(409, 'Token revoked');
+      //throw new ServerError(409, 'Token revoked');
     }
 
     return { token, player, device };

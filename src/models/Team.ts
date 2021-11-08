@@ -21,79 +21,66 @@
  * A tournament game may be created with 2 RESERVED teams.
  */
 import seedrandom from 'seedrandom';
+
 import ServerError from 'server/Error.js';
+import serializer from 'utils/serializer.js';
 
-const schema = {
-  $schema: 'http://json-schema.org/draft-07/schema',
-  $id: 'Team',
-  type: 'object',
-  properties: {
-    id: { type:'number' },
-    slot: { type:'number' },
-    playerId: { type:'string', format:'uuid' },
-    name: { type:[ 'string', 'null' ] },
-    set: {
-      type:'object',
-      properties: {
-        units: {
-          oneOf: [
-            // Server-side
-            { type:'object' },
-            // Client-side, sometimes
-            { type:'boolean' },
-          ],
-        },
-      },
-      required: [ 'units' ],
-      additionalProperties: false,
-    },
-    bot: { type:'boolean' },
-    colorId: { type:'number' },
-    position: { type:[ 'string', 'null' ], enum:['N','S','E','W','C'] },
-    useRandom: { type:'boolean' },
-    randomState: { $ref:'Random' },
-    usedUndo: { type:'boolean', const:true },
-    usedSim: { type:'boolean', const:true },
-    joinedAt: { type:[ 'string', 'null' ], constructor:'Date' },
-    checkoutAt: { type:[ 'string', 'null' ], constructor:'Date' },
-    createdAt: { type:'string', constructor:'Date' },
-  },
-  required: [ 'id', 'slot', 'name', 'position', 'useRandom', 'joinedAt', 'checkoutAt', 'createdAt' ],
-  additionalProperties: false,
-};
+class Random {
+  count: number
+  initial: any
+  current: any
 
-function createRandom() {
-  let rng = seedrandom(null, { state:true });
-  let rngState = rng.state();
+  constructor(data) {
+    Object.assign(this, data);
+  }
 
-  return {
-    // Number of times random() has been called.
-    count: 0,
+  static create() {
+    const rng = seedrandom(null, { state:true });
 
-    // The initial rng state used for manual validation purposes.
-    initial: rngState,
+    return new Random({
+      count: 0,
+      initial: rng.state(),
+      current: rng,
+    });
+  }
+  static fromJSON(data) {
+    return new Random(Object.assign(data, {
+      current: seedrandom("", { state:data.current }),
+    }));
+  }
 
-    current: seedrandom("", { state:rngState }),
-  };
+  generate() {
+    return {
+      id: ++this.count,
+      number: this.current() * 100,
+    };
+  }
+
+  toJSON() {
+    const json = { ...this };
+    json.current = json.current.state();
+
+    return json;
+  }
 };
 
 export default class Team {
-  id: any
-  slot: any
-  createdAt: any
-  joinedAt: any
-  checkoutAt: any
+  id: number
+  slot: number
+  createdAt: Date
+  joinedAt: Date | null
+  checkoutAt: Date | null
   playerId: string
-  name: any
+  name: string
   colorId: any
-  position: any
-  useRandom: any
-  randomState: any
-  set: any
-  units: any
-  bots: any
-  usedUndo: any
-  usedSim: any
+  position: string
+  useRandom: boolean
+  randomState: Random
+  set: any[] | boolean
+  units: any[][]
+  bot: any
+  usedUndo: boolean
+  usedSim: boolean
   forkOf: any
 
   constructor(data) {
@@ -147,7 +134,7 @@ export default class Team {
     }, data);
 
     if (this.useRandom && !this.randomState)
-      this.randomState = createRandom();
+      this.randomState = Random.create();
   }
 
   static validateSet(data, game, gameType) {
@@ -214,19 +201,6 @@ export default class Team {
     return Team.create({ slot:data.slot }).join(data, clientPara, game, gameType);
   }
 
-  static load(data) {
-    if (typeof data.createdAt === 'string')
-      data.createdAt = new Date(data.createdAt);
-    if (typeof data.joinedAt === 'string')
-      data.joinedAt = new Date(data.joinedAt);
-    if (typeof data.checkoutAt === 'string')
-      data.checkoutAt = new Date(data.checkoutAt);
-    if (data.randomState)
-      data.randomState.current = seedrandom("", { state:data.randomState.current });
-
-    return new Team(data);
-  }
-
   fork() {
     return new Team({
       createdAt: new Date(),
@@ -267,17 +241,14 @@ export default class Team {
     if (!this.randomState)
       return { number:Math.random() * 100 };
 
-    return {
-      id: ++this.randomState.count,
-      number: this.randomState.current() * 100,
-    };
+    return this.randomState.generate();
   }
 
   /*
    * This method is used to send data from the server to the client.
    */
   getData(withSet = false) {
-    let json = {...this};
+    const json = {...this};
 
     // Only indicate presence or absence of a set, not the set itself
     if (!withSet)
@@ -294,15 +265,71 @@ export default class Team {
    * This method is used to persist the team for storage.
    */
   toJSON() {
-    let json = {...this};
-
-    if (json.randomState) {
-      json.randomState = {...json.randomState};
-      json.randomState.current = json.randomState.current.state();
-    }
+    const json = {...this};
 
     delete json.units;
 
     return json;
   }
 }
+
+serializer.addType({
+  name: 'Random',
+  constructor: Random,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'Random',
+    type: 'object',
+    properties: {
+      count: { type:'number', minimum:0 },
+      initial: { $ref:'#/definitions/randomState' },
+      current: { $ref:'#/definitions/randomState' },
+    },
+    required: [ 'count', 'initial', 'current' ],
+    definitions: {
+      randomState: { type:'object' },
+    },
+  },
+});
+serializer.addType({
+  name: 'Team',
+  constructor: Team,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'Team',
+    type: 'object',
+    required: [ 'id', 'slot', 'name', 'position', 'useRandom', 'joinedAt', 'checkoutAt', 'createdAt' ],
+    properties: {
+      id: { type:'number' },
+      slot: { type:'number' },
+      playerId: { type:'string', format:'uuid' },
+      name: { type:[ 'string', 'null' ] },
+      set: {
+        type:'object',
+        properties: {
+          units: {
+            oneOf: [
+              // Server-side
+              { type:'object' },
+              // Client-side, sometimes
+              { type:'boolean' },
+            ],
+          },
+        },
+        required: [ 'units' ],
+        additionalProperties: false,
+      },
+      bot: { type:'boolean' },
+      colorId: { type:'number' },
+      position: { type:[ 'string', 'null' ], enum:['N','S','E','W','C'] },
+      useRandom: { type:'boolean' },
+      randomState: { $ref:'Random' },
+      usedUndo: { type:'boolean', const:true },
+      usedSim: { type:'boolean', const:true },
+      joinedAt: { type:[ 'string', 'null' ], subType:'Date' },
+      checkoutAt: { type:[ 'string', 'null' ], subType:'Date' },
+      createdAt: { type:'string', subType:'Date' },
+    },
+    additionalProperties: false,
+  },
+});

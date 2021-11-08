@@ -43,9 +43,8 @@ export default class extends FileAdapter {
     room.version = getLatestVersionNumber('room');
 
     await this.createFile(`room_${room.id}`, room, () => {
-      const data = JSON.stringify(room);
       room.once('change', () => this.buffer.get('room').add(room.id, room));
-      return data;
+      return room;
     });
   }
   async _getRoom(roomId) {
@@ -62,9 +61,8 @@ export default class extends FileAdapter {
   }
   async _saveRoom(room) {
     await this.putFile(`room_${room.id}`, room, () => {
-      const data = JSON.stringify(room);
       room.once('change', () => this.buffer.get('room').add(room.id, room));
-      return data;
+      return room;
     });
   }
 };

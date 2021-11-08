@@ -52,10 +52,9 @@ export default class extends FileAdapter {
 
     player.version = getLatestVersionNumber('player');
 
-    await this.createFile(`player_${player.id}`, player, () => {
-      const data = JSON.stringify(player);
+    await this.createFile(`player_${player.id}`, () => {
       player.once('change', () => buffer.add(player.id, player));
-      return data;
+      return player;
     });
   }
   async _getPlayer(playerId) {
@@ -76,10 +75,9 @@ export default class extends FileAdapter {
   async _savePlayer(player) {
     const buffer = this.buffer.get('player');
 
-    await this.putFile(`player_${player.id}`, player, () => {
-      const data = JSON.stringify(player);
+    await this.putFile(`player_${player.id}`, () => {
       player.once('change', () => buffer.add(player.id, player));
-      return data;
+      return player;
     });
   }
 

@@ -84,6 +84,11 @@ export default class {
    * The file must not already exist
    */
   async createFile(fileName, ...args) {
+    if (args.length === 1 && typeof args[0] === 'function')
+      args.unshift(undefined);
+    else if (args.length === 1)
+      args.push(v => v);
+
     return this._pushQueue(fileName, { type:'create', args });
   }
   /*
@@ -120,6 +125,11 @@ export default class {
    * Overwrite the file if it does exist.
    */
   async putFile(fileName, ...args) {
+    if (args.length === 1 && typeof args[0] === 'function')
+      args.unshift(undefined);
+    else if (args.length === 1)
+      args.push(v => v);
+
     return this._pushQueue(fileName, { type:'put', args });
   }
   /*
@@ -180,7 +190,7 @@ export default class {
     const fqName = `${this.filesDir}/${name}.json`;
 
     return new Promise((resolve, reject) => {
-      fs.writeFile(fqName, transform(data), { flag:'wx' }, error => {
+      fs.writeFile(fqName, JSON.stringify(transform(data)), { flag:'wx' }, error => {
         if (error) {
           console.log('createFile', error);
           reject(new ServerError(500, 'Create failed'));
@@ -202,7 +212,7 @@ export default class {
       });
     }).catch(error => {
       if (error.code === 'ENOENT')
-        if (initialValue === undefined)
+        if (transform(initialValue) === undefined)
           error = new ServerError(404, 'Not found');
         else
           return transform(initialValue);
@@ -215,7 +225,7 @@ export default class {
     let fqName = `${this.filesDir}/${name}.json`;
 
     return new Promise((resolve, reject) => {
-      fs.writeFile(fqNameTemp, transform(data), error => {
+      fs.writeFile(fqNameTemp, JSON.stringify(transform(data)), error => {
         if (error) {
           console.log('writeFile', error);
           reject(new ServerError(500, 'Save failed'));

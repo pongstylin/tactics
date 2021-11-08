@@ -1,70 +1,10 @@
 import uuid from 'uuid/v4';
 
 import ActiveModel from 'models/ActiveModel.js';
+import serializer from 'utils/serializer.js';
 
 import GameState from 'tactics/GameState.js';
 import ServerError from 'server/Error.js';
-
-const schema = {
-  $schema: 'http://json-schema.org/draft-07/schema',
-  $id: 'Game',
-  type: 'object',
-  properties: {
-    id: { type:'string', format:'uuid' },
-    isPublic: { type:'boolean' },
-    playerRequest: {
-      type: [ 'object', 'null' ],
-      properties: {
-        type: {
-          type: 'string',
-          enum: [ 'undo', 'truce' ],
-        },
-        status: {
-          type: 'string',
-          enum: [ 'pending', 'completed', 'rejected', 'cancelled' ],
-        },
-        accepted: {
-          type: 'array',
-          constructor: 'Set',
-          items: {
-            type: 'string',
-            format: 'uuid',
-          },
-        },
-        rejected: {
-          type: 'array',
-          constructor: 'Map',
-          items: {
-            type: 'array',
-            items: [
-              { type:'string' },
-              { type:'string' },
-            ],
-            additionalItems: false,
-          },
-        },
-        createdBy: { type:'string', format:'uuid' },
-        createdAt: { type:'string', constructor:'Date' },
-      },
-      required: [ 'type', 'status', 'accepted', 'rejected', 'createdBy', 'createdAt' ],
-      additionalProperties: false,
-    },
-    forkOf: {
-      type: 'object',
-      properties: {
-        gameId: { type:'string', format:'uuid' },
-        turnId: { type:'number', minimum:0 },
-      },
-      required: [ 'gameId', 'turnId' ],
-      additionalProperties: false,
-    },
-    state: { $ref:'GameState' },
-    createdBy: { type:'string', format:'uuid' },
-    createdAt: { type:'string', constructor:'Date' },
-  },
-  required: [ 'id', 'isPublic', 'playerRequest', 'state', 'createdBy', 'createdAt' ],
-  additionalProperties: false,
-};
 
 const gameKeys = new Set([
   'createdBy',
@@ -79,30 +19,14 @@ const stateKeys = new Set([
   'teams',
 ]);
 
-interface GameData {
-  id: string,
-  createdAt: Date,
-  playerRequest: PReq,
-  state: GameState | null,
-}
-
-type PReq = {
-  rejected: Map<any, any>,
-  status: string,
-  type: any
-  accepted: any,
-  teamId?: any,
-  createdAt: Date
-  createdBy
-}
-
 export default class Game extends ActiveModel {
   id: string
   createdAt: Date
-  playerRequest: PReq
-  state: GameState
+  playerRequest: any
+  state: any
   forkOf: any
   isPublic: boolean
+
   constructor(props) {
     super(props);
 
@@ -129,11 +53,10 @@ export default class Game extends ActiveModel {
   }
 
   static create(gameOptions) {
-    const gameData: GameData = {
+    const gameData:any = {
       id: uuid(),
       createdAt: new Date(),
       playerRequest: null,
-      state: null
     };
 
     const stateData = {};
@@ -149,20 +72,6 @@ export default class Game extends ActiveModel {
     gameData.state = GameState.create(stateData);
 
     return new Game(gameData);
-  }
-
-  static load(data) {
-    data.state = GameState.load(data.state);
-
-    if (typeof data.createdAt === 'string')
-      data.createdAt = new Date(data.createdAt);
-    if (data.playerRequest) {
-      data.playerRequest.createdAt = new Date(data.playerRequest.createdAt);
-      data.playerRequest.accepted = new Set(data.playerRequest.accepted);
-      data.playerRequest.rejected = new Map(data.playerRequest.rejected);
-    }
-
-    return new Game(data);
   }
 
   checkout(playerId, checkoutAt) {
@@ -361,8 +270,7 @@ export default class Game extends ActiveModel {
   }
 
   fork(clientPara, { turnId, vs, as }) {
-    // Effectively clone this game before converting the clone to a fork
-    const forkGame = Game.load(JSON.parse(JSON.stringify(this)));
+    const forkGame = serializer.clone(this);
 
     if (turnId === undefined)
       turnId = forkGame.state.currentTurnId;
@@ -436,3 +344,68 @@ export default class Game extends ActiveModel {
     return forkGame;
   }
 }
+
+serializer.addType({
+  name: 'Game',
+  constructor: Game,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'Game',
+    type: 'object',
+    required: [ 'id', 'isPublic', 'playerRequest', 'state', 'createdBy', 'createdAt' ],
+    properties: {
+      id: { type:'string', format:'uuid' },
+      isPublic: { type:'boolean' },
+      playerRequest: {
+        type: [ 'object', 'null' ],
+        required: [ 'type', 'status', 'accepted', 'rejected', 'createdBy', 'createdAt' ],
+        properties: {
+          type: {
+            type: 'string',
+            enum: [ 'undo', 'truce' ],
+          },
+          status: {
+            type: 'string',
+            enum: [ 'pending', 'completed', 'rejected', 'cancelled' ],
+          },
+          accepted: {
+            type: 'array',
+            subType: 'Set',
+            items: {
+              type: 'string',
+              format: 'uuid',
+            },
+          },
+          rejected: {
+            type: 'array',
+            subType: 'Map',
+            items: {
+              type: 'array',
+              items: [
+                { type:'string' },
+                { type:'string' },
+              ],
+              additionalItems: false,
+            },
+          },
+          createdBy: { type:'string', format:'uuid' },
+          createdAt: { type:'string', subType:'Date' },
+        },
+        additionalProperties: false,
+      },
+      forkOf: {
+        type: 'object',
+        required: [ 'gameId', 'turnId' ],
+        properties: {
+          gameId: { type:'string', format:'uuid' },
+          turnId: { type:'number', minimum:0 },
+        },
+        additionalProperties: false,
+      },
+      state: { $ref:'GameState' },
+      createdBy: { type:'string', format:'uuid' },
+      createdAt: { type:'string', subType:'Date' },
+    },
+    additionalProperties: false,
+  },
+});

@@ -3,91 +3,7 @@ import ServerError from 'server/Error.js';
 import Board from 'tactics/Board.js';
 import botFactory from 'tactics/botFactory.js';
 import emitter from 'utils/emitter.js';
-
-const schema = {
-  $schema: 'http://json-schema.org/draft-07/schema',
-  $id: 'GameState',
-  type: 'object',
-  properties: {
-    type: { type:'string' },
-    randomFirstTurn: { type:'boolean' },
-    randomHitChance: { type:'boolean' },
-    turnTimeLimit: { type:[ 'number', 'null' ] },
-    teams: {
-      type: 'array',
-      minItems: 2,
-      items: {
-        oneOf: [
-          { type:'null' },
-          { $ref:'Team' },
-        ],
-      },
-    },
-    startedAt: { type:[ 'string', 'null' ], constructor:'Date' },
-    endedAt: { type:[ 'string', 'null' ], constructor:'Date' },
-    turns: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          startedAt: { type:'string', constructor:'Date' },
-          units: { $ref:'#/definitions/units' },
-          actions: {
-            type: 'array',
-            items: { $ref:'#/definitions/action' },
-            minItems: 1,
-          },
-        },
-        required: [ 'startedAt', 'units', 'actions' ],
-      },
-    },
-    turnStartedAt: { type:[ 'string', 'null' ], constructor:'Date' },
-    units: { $ref:'#/definitions/units' },
-    actions: {
-      type: 'array',
-      items: { $ref:'#/definitions/action' },
-      minItems: 1,
-    },
-    winnerId: {
-      type: 'string',
-      oneOf: [
-        { format:'uuid' },
-        { enum:[ 'draw', 'truce' ] },
-      ],
-    },
-  },
-  required: [
-    'type', 'randomFirstTurn', 'randomHitChance', 'turnTimeLimit', 'teams',
-    'startedAt', 'endedAt', 'turns', 'turnStartedAt', 'units', 'actions',
-  ],
-  additionalProperties: false,
-  definitions: {
-    units: {
-      type: 'array',
-      minItems: 2,
-      items: {
-        type: 'array',
-        items: { type:'object' },
-      },
-    },
-    action: {
-      type: 'object',
-      properties: {
-        type: { type:'string' },
-        unit: { type:'number' },
-        results: {
-          type: 'array',
-          items: { type:'object' },
-        },
-        teamId: { type:'number' },
-        forced: { type:'boolean', const:true },
-        createdAt: { type:'string', constructor:'Date' },
-      },
-      required: [ 'type' ],
-      additionalProperties: true,
-    },
-  },
-};
+import serializer from 'utils/serializer.js';
 
 export default class GameState {
   /*****************************************************************************
@@ -1289,3 +1205,92 @@ export default class GameState {
 }
 
 emitter(GameState);
+
+serializer.addType({
+  name: 'GameState',
+  constructor: GameState,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'GameState',
+    type: 'object',
+    required: [
+      'type', 'randomFirstTurn', 'randomHitChance', 'turnTimeLimit', 'teams',
+      'startedAt', 'endedAt', 'turns', 'turnStartedAt', 'units', 'actions',
+    ],
+    properties: {
+      type: { type:'string' },
+      randomFirstTurn: { type:'boolean' },
+      randomHitChance: { type:'boolean' },
+      turnTimeLimit: { type:[ 'number', 'null' ] },
+      teams: {
+        type: 'array',
+        minItems: 2,
+        items: {
+          oneOf: [
+            { type:'null' },
+            { $ref:'Team' },
+          ],
+        },
+      },
+      startedAt: { type:[ 'string', 'null' ], subType:'Date' },
+      endedAt: { type:[ 'string', 'null' ], subType:'Date' },
+      turns: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: [ 'startedAt', 'units', 'actions' ],
+          properties: {
+            startedAt: { type:'string', subType:'Date' },
+            units: { $ref:'#/definitions/units' },
+            actions: {
+              type: 'array',
+              items: { $ref:'#/definitions/action' },
+              minItems: 1,
+            },
+          },
+        },
+      },
+      turnStartedAt: { type:[ 'string', 'null' ], subType:'Date' },
+      units: { $ref:'#/definitions/units' },
+      actions: {
+        type: 'array',
+        items: { $ref:'#/definitions/action' },
+        minItems: 1,
+      },
+      winnerId: {
+        type: 'string',
+        oneOf: [
+          { format:'uuid' },
+          { enum:[ 'draw', 'truce' ] },
+        ],
+      },
+    },
+    additionalProperties: false,
+    definitions: {
+      units: {
+        type: 'array',
+        minItems: 2,
+        items: {
+          type: 'array',
+          items: { type:'object' },
+        },
+      },
+      action: {
+        type: 'object',
+        required: [ 'type' ],
+        properties: {
+          type: { type:'string' },
+          unit: { type:'number' },
+          results: {
+            type: 'array',
+            items: { type:'object' },
+          },
+          teamId: { type:'number' },
+          forced: { type:'boolean', const:true },
+          createdAt: { type:'string', subType:'Date' },
+        },
+        additionalProperties: true,
+      },
+    },
+  },
+});

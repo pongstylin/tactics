@@ -1,5 +1,7 @@
 import fs from 'fs';
+import util from 'util';
 
+import serializer from 'utils/serializer.js';
 import FileAdapter from 'data/FileAdapter.js';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 
@@ -253,10 +255,10 @@ export default class extends FileAdapter {
    * Game Management
    */
   async _createGame(game) {
-    game.version = getLatestVersionNumber('game');
+    await this.createFile(`game_${game.id}`, () => {
+      const data = serializer.transform(game);
+      game.version = getLatestVersionNumber('game');
 
-    await this.createFile(`game_${game.id}`, game, () => {
-      const data = JSON.stringify(game);
       this._attachGame(game);
       return data;
     });
@@ -270,7 +272,8 @@ export default class extends FileAdapter {
       return this.buffer.get('game').get(gameId);
 
     return this.getFile(`game_${gameId}`, data => {
-      const game = Game.load(migrate('game', data));
+      const game = serializer.normalize(migrate('game', data));
+
       this._attachGame(game);
       return game;
     });
@@ -304,8 +307,11 @@ export default class extends FileAdapter {
     }
   }
   async _saveGame(game) {
-    await this.putFile(`game_${game.id}`, game, () => {
-      return JSON.stringify(game);
+    await this.putFile(`game_${game.id}`, () => {
+      const data = serializer.transform(game);
+      data.version = getLatestVersionNumber('game');
+
+      return data;
     });
   }
   async _deleteGame(game) {
@@ -434,8 +440,11 @@ export default class extends FileAdapter {
     else if (this.buffer.get('playerStats').has(playerId))
       return this.buffer.get('playerStats').get(playerId);
 
-    return this.getFile(`player_${playerId}_stats`, [], data => {
-      const playerStats = PlayerStats.load(playerId, data);
+    return this.getFile(`player_${playerId}_stats`, data => {
+      const playerStats = data === undefined
+        ? PlayerStats.create(playerId)
+        : serializer.normalize(migrate('stats', data, { playerId }));
+
       playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
       return playerStats;
     });
@@ -443,8 +452,10 @@ export default class extends FileAdapter {
   async _savePlayerStats(playerStats) {
     const playerId = playerStats.playerId;
 
-    await this.putFile(`player_${playerId}_stats`, playerStats, () => {
-      const data = JSON.stringify(playerStats);
+    await this.putFile(`player_${playerId}_stats`, () => {
+      const data = serializer.transform(playerStats);
+      data.version = getLatestVersionNumber('stats');
+
       playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
       return data;
     });
@@ -465,8 +476,11 @@ export default class extends FileAdapter {
     else if (this.buffer.get('playerActiveGames').has(playerId))
       return this.buffer.get('playerActiveGames').get(playerId);
 
-    return this.getFile(`player_${playerId}_activeGames`, [], data => {
-      const playerGames = GameSummaryList.load(playerId, data);
+    return this.getFile(`player_${playerId}_activeGames`, data => {
+      const playerGames = data === undefined
+        ? GameSummaryList.create(playerId)
+        : serializer.normalize(data);
+
       playerGames.once('change', () => this.buffer.get('playerActiveGames').add(playerId, playerGames));
       return playerGames;
     });
@@ -474,8 +488,9 @@ export default class extends FileAdapter {
   async _savePlayerActiveGames(playerGames) {
     const playerId = playerGames.playerId;
 
-    await this.putFile(`player_${playerId}_activeGames`, playerGames, () => {
-      const data = JSON.stringify(playerGames);
+    await this.putFile(`player_${playerId}_activeGames`, () => {
+      const data = serializer.transform(playerGames);
+
       playerGames.once('change', () => this.buffer.get('playerActiveGames').add(playerId, playerGames));
       return data;
     });
@@ -487,8 +502,11 @@ export default class extends FileAdapter {
     else if (this.buffer.get('playerCompletedGames').has(playerId))
       return this.buffer.get('playerCompletedGames').get(playerId);
 
-    return this.getFile(`player_${playerId}_completedGames`, [], data => {
-      const playerGames = GameSummaryList.load(playerId, data);
+    return this.getFile(`player_${playerId}_completedGames`, data => {
+      const playerGames = data === undefined
+        ? GameSummaryList.create(playerId)
+        : serializer.normalize(data);
+
       playerGames.once('change', () => this.buffer.get('playerCompletedGames').add(playerId, playerGames));
       return playerGames;
     });
@@ -496,8 +514,9 @@ export default class extends FileAdapter {
   async _savePlayerCompletedGames(playerGames) {
     const playerId = playerGames.playerId;
 
-    await this.putFile(`player_${playerId}_completedGames`, playerGames, () => {
-      const data = JSON.stringify(playerGames);
+    await this.putFile(`player_${playerId}_completedGames`, () => {
+      const data = serializer.transform(playerGames);
+
       playerGames.once('change', () => this.buffer.get('playerCompletedGames').add(playerId, playerGames));
       return data;
     });
@@ -512,8 +531,11 @@ export default class extends FileAdapter {
     else if (this.buffer.get('playerSets').has(playerId))
       return this.buffer.get('playerSets').get(playerId);
 
-    return this.getFile(`player_${playerId}_sets`, [], data => {
-      const playerSets = new PlayerSets(playerId, data);
+    return this.getFile(`player_${playerId}_sets`, data => {
+      const playerSets = data === undefined
+        ? PlayerSets.create(playerId)
+        : serializer.normalize(migrate('sets', data, { playerId }));
+
       playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
       return playerSets;
     });
@@ -521,8 +543,10 @@ export default class extends FileAdapter {
   async _savePlayerSets(playerSets) {
     const playerId = playerSets.playerId;
 
-    await this.putFile(`player_${playerId}_sets`, playerSets, () => {
-      const data = JSON.stringify(playerSets);
+    await this.putFile(`player_${playerId}_sets`, () => {
+      const data = serializer.transform(playerSets);
+      data.version = getLatestVersionNumber('sets');
+
       playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
       return data;
     });
@@ -536,8 +560,11 @@ export default class extends FileAdapter {
     if (cache.has(null))
       return cache.get(null);
 
-    const openGames = this.getFile(`open_games`, [], data => {
-      const openGames = GameSummaryList.load(null, data);
+    const openGames = this.getFile(`open_games`, data => {
+      const openGames = data === undefined
+        ? GameSummaryList.create(null)
+        : serializer.normalize(data);
+
       openGames.once('change', () => this.buffer.get('openGames').add(null, openGames));
       return openGames;
     });
@@ -545,8 +572,9 @@ export default class extends FileAdapter {
     return cache.open(null, openGames);
   }
   async _saveOpenGames(openGames) {
-    await this.putFile(`open_games`, openGames, () => {
-      const data = JSON.stringify(openGames);
+    await this.putFile(`open_games`, () => {
+      const data = serializer.transform(openGames);
+
       openGames.once('change', () => this.buffer.get('openGames').add(null, openGames));
       return data;
     });

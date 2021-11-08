@@ -1,38 +1,23 @@
 import ActiveModel from 'models/ActiveModel.js';
+import serializer from 'utils/serializer.js';
 
 export default class PlayerStats extends ActiveModel {
-  data: Map<any, any>
   playerId: string
-  constructor(playerId, data) {
-    super({
+  stats: Map<string, any>
+
+  constructor(data) {
+    super(data);
+  }
+
+  static create(playerId) {
+    return new PlayerStats({
       playerId,
-      data,
+      stats: new Map(),
     });
   }
 
-  static load(playerId, data) {
-    data = new Map(data);
-
-    for (const [ pId, stats ] of data) {
-      if (pId === playerId) continue;
-
-      stats.aliases = new Map(stats.aliases);
-      for (const alias of stats.aliases.values()) {
-        alias.lastSeenAt = new Date(alias.lastSeenAt);
-      }
-
-      stats.all.startedAt = new Date(stats.all.startedAt);
-      stats.style = new Map(stats.style);
-      for (const style of stats.style.values()) {
-        style.startedAt = new Date(style.startedAt);
-      }
-    }
-
-    return new PlayerStats(playerId, data);
-  }
-
   get(playerId) {
-    return this.data.get(playerId);
+    return this.stats.get(playerId);
   }
 
   recordGameStart(game) {
@@ -52,16 +37,16 @@ export default class PlayerStats extends ActiveModel {
     const now = Date.now();
 
     for (const team of game.state.teams) {
-      if (!this.data.has(team.playerId)) {
+      if (!this.stats.has(team.playerId)) {
         if (team.playerId === this.playerId)
           // Global stats
-          this.data.set(team.playerId, {
+          this.stats.set(team.playerId, {
             // Played X games and abandoned Y games.
             completed: [0, 0],
           });
         else
           // Individual stats
-          this.data.set(team.playerId, {
+          this.stats.set(team.playerId, {
             name: team.name,
             aliases: new Map(),
             all: {
@@ -75,7 +60,7 @@ export default class PlayerStats extends ActiveModel {
       }
 
       if (team.playerId !== this.playerId) {
-        const stats = this.data.get(team.playerId);
+        const stats = this.stats.get(team.playerId);
 
         if (stats.aliases.has(team.name.toLowerCase())) {
           const alias = stats.aliases.get(team.name.toLowerCase());
@@ -158,10 +143,10 @@ export default class PlayerStats extends ActiveModel {
     }
 
     for (const [ teamId, team ] of game.state.teams.entries()) {
-      if (!this.data.has(team.playerId))
+      if (!this.stats.has(team.playerId))
         throw new Error('Game start not recorded');
 
-      const stats = this.data.get(team.playerId);
+      const stats = this.stats.get(team.playerId);
       /*
        * Collect completed/abandoned game counts for the current player.
        */
@@ -210,7 +195,7 @@ export default class PlayerStats extends ActiveModel {
   }
 
   clearWLDStats(playerId, gameTypeId = null) {
-    const stats = this.data.get(playerId);
+    const stats = this.stats.get(playerId);
 
     let wldStats;
     if (gameTypeId) {
@@ -238,9 +223,99 @@ export default class PlayerStats extends ActiveModel {
 
     this.emit('change:clearWLDStats');
   }
+};
 
-  toJSON() {
-    // @ts-ignore
-    return this.data.toJSON();
-  }
-}
+serializer.addType({
+  name: 'PlayerStats',
+  constructor: PlayerStats,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'PlayerStats',
+    type: 'object',
+    required: [ 'playerId', 'stats' ],
+    properties: {
+      playerId: { type:'string', format:'uuid' },
+      stats: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [
+            { type:'string', format:'uuid' },
+            {
+              type: 'object',
+              oneOf: [
+                {
+                  required: [ 'completed' ],
+                  properties: {
+                    completed: { $ref:'#/definitions/statTuple' },
+                  },
+                },
+                {
+                  required: [ 'name', 'aliases', 'all', 'style' ],
+                  properties: {
+                    name: { type:'string' },
+                    aliases: {
+                      type: 'array',
+                      subType: 'Map',
+                      items: {
+                        type: 'array',
+                        items: [
+                          { type:'string', },
+                          {
+                            type: 'object',
+                            required: [ 'name', 'count', 'lastSeenAt' ],
+                            properties: {
+                              name: { type:'string' },
+                              count: { type:'number' },
+                              lastSeenAt: { type:'string', subType:'Date' },
+                            },
+                            additionalProperties: false,
+                          },
+                        ],
+                        additionalItems: false,
+                      },
+                    },
+                    all: { $ref:'#/definitions/wld' },
+                    style: {
+                      type: 'array',
+                      subType: 'Map',
+                      items: {
+                        type: 'array',
+                        items: [
+                          { type:'string' },
+                          { $ref:'#/definitions/wld' },
+                        ],
+                        additionalItems: false,
+                      },
+                    },
+                  },
+                },
+              ],
+              additionalProperties: false,
+            },
+          ],
+        },
+      },
+    },
+    additionalProperties: false,
+    definitions: {
+      wld: {
+        type: 'object',
+        required: [ 'startedAt', 'win', 'lose', 'draw' ],
+        properties: {
+          startedAt: { type:'string', subType:'Date' },
+          win: { $ref:'#/definitions/statTuple' },
+          lose: { $ref:'#/definitions/statTuple' },
+          draw: { $ref:'#/definitions/statTuple' },
+        },
+        additionalProperties: false,
+      },
+      statTuple: {
+        type: 'array',
+        items: [ { type:'number' }, { type:'number' } ],
+        additionalItems: false,
+      },
+    },
+  },
+});

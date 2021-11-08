@@ -5,9 +5,9 @@
 import unitDataMap from 'tactics/unitData.js';
 import GameType from 'tactics/GameType.js';
 
-const MIGRATIONS = {};
+const migrationMap = new Map();
 
-MIGRATIONS.player = [
+migrationMap.set('player', [
   /*
    * Addresses are now nested under agents instead of siblings.  Agent/address
    * associations cannot be perfectly restored, but close enough.
@@ -70,9 +70,9 @@ MIGRATIONS.player = [
 
     return data;
   },
-];
+]);
 
-MIGRATIONS.game = [
+migrationMap.set('game', [
   /*
    * Added turnTimeLimit to game state.  When blank, should be null.
    *
@@ -304,24 +304,50 @@ MIGRATIONS.game = [
 
     return data;
   },
-];
+  data => {
+    delete data.version;
+    if (data.undoRequest === null) {
+      if (data.playerRequest === undefined)
+        data.playerRequest = null;
+      delete data.undoRequest;
+    }
+
+    return { type:'Game', data };
+  },
+]);
+
+migrationMap.set('sets', [
+  (data, { playerId }) => {
+    return {
+      type: 'PlayerSets',
+      data: { playerId, sets:data },
+    };
+  },
+]);
+
+migrationMap.set('stats', [
+  (data, { playerId }) => {
+    return {
+      type: 'PlayerStats',
+      data: { playerId, stats:data },
+    };
+  },
+]);
 
 /*
  * The base version for an object is version 1.
  * The first migration (index === 0) migrates version 1 to 2.
  */
-export default (dataType, data) => {
-  if (data.version === undefined)
-    data.version = 1;
-
-  let migrations = MIGRATIONS[dataType];
+export default (dataType, data, params) => {
+  const migrations = migrationMap.get(dataType);
   if (!migrations)
     return data;
 
-  let startIndex = data.version - 1;
+  const version = data.version ?? 1;
+  const startIndex = version - 1;
 
   for (let i = startIndex; i < migrations.length; i++)
-    data = migrations[i](data);
+    data = migrations[i](data, params);
 
   data.version = migrations.length + 1;
 
@@ -329,7 +355,7 @@ export default (dataType, data) => {
 };
 
 export function getLatestVersionNumber(dataType) {
-  let migrations = MIGRATIONS[dataType];
+  const migrations = migrationMap.get(dataType);
   if (!migrations)
     return 1;
 

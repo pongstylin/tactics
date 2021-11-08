@@ -1,11 +1,18 @@
 import ActiveModel from 'models/ActiveModel.js';
+import serializer from 'utils/serializer.js';
 
 export default class PlayerSets extends ActiveModel {
-  sets: any
-  constructor(playerId, sets) {
-    super({
+  playerId: string
+  sets: any[]
+
+  constructor(data) {
+    super(data);
+  }
+
+  static create(playerId) {
+    return new PlayerSets({
       playerId,
-      sets,
+      sets: [],
     });
   }
 
@@ -38,8 +45,36 @@ export default class PlayerSets extends ActiveModel {
     this.emit('change:setDefault');
     return set;
   }
+};
 
-  toJSON() {
-    return this.sets;
-  }
-}
+serializer.addType({
+  name: 'PlayerSets',
+  constructor: PlayerSets,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'PlayerSets',
+    type: 'object',
+    required: [ 'playerId', 'sets' ],
+    properties: {
+      playerId: { type:'string', format:'uuid' },
+      sets: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: [ 'type', 'name', 'units', 'createdAt' ],
+          properties: {
+            type: { type:'string' },
+            name: { type:'string' },
+            units: {
+              type:'array',
+              items: { type:'object' },
+            },
+            createdAt: { type:'string', subType:'Date' },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    additionalProperties: false,
+  },
+});
