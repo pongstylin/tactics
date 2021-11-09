@@ -1,9 +1,13 @@
 /*
  * This is useful for testing or recovering a player's account.
  */
-import dataFactory from 'data/adapterFactory.js';
+import 'plugins/array.js';
+import 'plugins/set.js';
+import 'plugins/map.js';
+import 'plugins/string.js';
+import AuthAdapter from 'data/FileAdapter/AuthAdapter.js';
 
-const dataAdapter = dataFactory();
+const dataAdapter = new AuthAdapter();
 
 let playerId = process.argv[2];
 let tokenValue = process.argv[3];
@@ -17,9 +21,8 @@ let tokenValue = process.argv[3];
       process.exit(1);
     }
 
-    player.identityToken = tokenValue;
-
-    await dataAdapter.savePlayer(player);
+    player.setIdentityToken(tokenValue);
+    await dataAdapter.cleanup();
 
     console.log('Token restored');
   }
@@ -28,13 +31,12 @@ let tokenValue = process.argv[3];
       console.log('Using an existing identity token.');
       console.log(`  To restore: npm run script bin/createIdentityToken.js ${playerId} ${player.identityToken}`);
       console.log('');
-
-      tokenValue = player.identityToken.value;
     }
     else {
-      tokenValue = (await dataAdapter.createIdentityToken(playerId)).identityToken.value;
+      player.setIdentityToken();
+      await dataAdapter.cleanup();
     }
 
-    console.log(`/addDevice.html?${tokenValue}`);
+    console.log(`/addDevice.html?${player.identityToken.value}`);
   }
 })();
