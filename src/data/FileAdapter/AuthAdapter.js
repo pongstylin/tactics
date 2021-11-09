@@ -1,5 +1,6 @@
 import fs from 'fs';
 
+import serializer from 'utils/serializer.js';
 import FileAdapter from 'data/FileAdapter.js';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import Player from 'models/Player.js';
@@ -50,11 +51,12 @@ export default class extends FileAdapter {
   async _createPlayer(player) {
     const buffer = this.buffer.get('player');
 
-    player.version = getLatestVersionNumber('player');
-
     await this.createFile(`player_${player.id}`, () => {
+      const data = serializer.transform(player);
+      data.version = getLatestVersionNumber('player');
+
       player.once('change', () => buffer.add(player.id, player));
-      return player;
+      return data;
     });
   }
   async _getPlayer(playerId) {
@@ -67,8 +69,9 @@ export default class extends FileAdapter {
       return buffer.get(playerId);
 
     return this.getFile(`player_${playerId}`, data => {
-      const player = Player.load(migrate('player', data));
+      const player = serializer.normalize(migrate('player', data));
       player.once('change', () => buffer.add(playerId, player));
+
       return player;
     });
   }
@@ -76,8 +79,11 @@ export default class extends FileAdapter {
     const buffer = this.buffer.get('player');
 
     await this.putFile(`player_${player.id}`, () => {
+      const data = serializer.transform(player);
+      data.version = getLatestVersionNumber('player');
+
       player.once('change', () => buffer.add(player.id, player));
-      return player;
+      return data;
     });
   }
 

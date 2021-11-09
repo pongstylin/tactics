@@ -3,6 +3,7 @@ import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
 
 import ActiveModel from 'models/ActiveModel.js';
+import serializer from 'utils/serializer.js';
 
 import IdentityToken from 'server/IdentityToken.js';
 import AccessToken from 'server/AccessToken.js';
@@ -20,11 +21,11 @@ const rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 
 export default class Player extends ActiveModel {
   name: string
-  devices: Map<any, any>
+  devices: Map<string, any>
   checkoutAt: Date
-  identityToken: IdentityToken
-  acl: Map<any, any>
-  reverseACL: Map<any, any>
+  identityToken: IdentityToken | null
+  acl: Map<string, any>
+  reverseACL: Map<string, any>
   id: string
 
   constructor(props) {
@@ -50,30 +51,9 @@ export default class Player extends ActiveModel {
 
     return new Player(data);
   }
-
-  static load(data) {
-    if (typeof data.createdAt === 'string')
-      data.createdAt = new Date(data.createdAt);
-    if (typeof data.checkoutAt === 'string')
-      data.checkoutAt = new Date(data.checkoutAt);
-    if (data.identityToken)
-      data.identityToken = new IdentityToken(data.identityToken);
-    if (Array.isArray(data.devices))
-      data.devices = new Map(data.devices.map(device => [
-        device.id,
-        Object.assign(device, {
-          token: new AccessToken(device.token),
-          nextToken: device.nextToken && new AccessToken(device.nextToken),
-          agents: new Map(device.agents.map(([agent, addresses]) => [
-            agent,
-            new Map(addresses.map(
-              ([address, lastSeenAt]) => [address, new Date(lastSeenAt)]
-            )),
-          ])),
-        }),
-      ]));
-    data.acl = new Map(data.acl);
-    data.reverseACL = new Map(data.reverseACL);
+  static fromJSON(data) {
+    // Map the devices array to a map.
+    data.devices = new Map(data.devices.map(d => [ d.id, d ]));
 
     return new Player(data);
   }
@@ -372,14 +352,106 @@ export default class Player extends ActiveModel {
   toJSON() {
     const json = super.toJSON();
 
-    json.devices = [...json.devices.values()].map(device =>
-      Object.assign({}, device, {
-        agents: [...device.agents].map(
-          ([agent, addresses]) => [agent, [...addresses]]
-        ),
-      }),
-    );
+    // Convert the devices map to an array.
+    json.devices = [ ...json.devices.values() ];
 
     return json;
   }
-}
+};
+
+serializer.addType({
+  name: 'Player',
+  constructor: Player,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'Player',
+    type: 'object',
+    required: [ 'id', 'name', 'devices', 'acl', 'reverseACL', 'identityToken', 'createdAt', 'checkoutAt' ],
+    properties: {
+      id: { type:'string', format:'uuid' },
+      name: { type:'string' },
+      devices: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: [ 'id', 'name', 'token', 'nextToken', 'agents' ],
+          properties: {
+            id: { type:'string', format:'uuid' },
+            name: { type:[ 'string', 'null' ] },
+            token: { $ref:'AccessToken' },
+            nextToken: {
+              oneOf: [
+                { type:'null' },
+                { $ref:'AccessToken' },
+              ],
+            },
+            agents: {
+              type: 'array',
+              subType: 'Map',
+              items: {
+                type: 'array',
+                items: [
+                  { type:'string', format:'uuid' },
+                  {
+                    type: 'array',
+                    subType: 'Map',
+                    items: {
+                      type: 'array',
+                      items: [
+                        { type:'string' },
+                        { type:'string', subType:'Date' },
+                      ],
+                      additionalItems: false,
+                    },
+                  },
+                ],
+                additionalItems: false,
+              },
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      acl: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [
+            { type:'string', format:'uuid' },
+            {
+              type: 'object',
+              required: [ 'type', 'name', 'createdAt' ],
+              properties: {
+                type: { $ref:'#/definitions/aclType' },
+                name: { type:'string' },
+                createdAt: { type:'string', subType:'Date' },
+              },
+              additionalProperties: false,
+            },
+          ],
+          additionalItems: false,
+        },
+      },
+      reverseACL: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [
+            { type:'string', format:'uuid' },
+            { $ref:'#/definitions/aclType' },
+          ],
+          additionalItems: false,
+        },
+      },
+      identityToken: { type:[ 'string', 'null' ], subType:'IdentityToken' },
+      createdAt: { type:'string', subType:'Date' },
+      checkoutAt: { type:'string', subType:'Date' },
+    },
+    additionalProperties: false,
+    definitions: {
+      aclType: { type:'string', enum:[ 'friended', 'muted', 'blocked' ] },
+    },
+  },
+});

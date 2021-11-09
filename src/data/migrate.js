@@ -70,6 +70,11 @@ migrationMap.set('player', [
 
     return data;
   },
+  data => {
+    delete data.version;
+
+    return { type:'Player', data };
+  },
 ]);
 
 migrationMap.set('game', [

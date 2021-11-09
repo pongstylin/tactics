@@ -520,8 +520,9 @@ const compileTransform = (type, transform, suffix = '') => {
     : `new constructors.${transform.type}(${varAlias})`;
   let varNew = '';
 
-  return [
-    jsonType.codify(varName, varAlias, transform, () => {
+  const code = [];
+  if (jsonType)
+    code.push(jsonType.codify(varName, varAlias, transform, () => {
       if (varNew === '')
         varNew = 'a';
       else if (varNew.slice(-1) === 'z')
@@ -532,9 +533,11 @@ const compileTransform = (type, transform, suffix = '') => {
         varNew = varNew.slice(0, -1) + String.fromCharCode(varNew.charCodeAt(varNew.length - 1) + 1);
 
       return varNew + suffix;
-    }),
-    `${varName} = ${construction};`,
-  ].join('');
+    }));
+
+  code.push(`${varName} = ${construction};`);
+
+  return code.join('');
 };
 const compileNormalize = code => {
   const normalize = new Function('data', 'constructors', [
@@ -606,10 +609,9 @@ const serializer = {
     if (typeof type.constructor.prototype.toJSON !== 'function')
       throw new Error('A toJSON() method is required.');
 
-    if (!type.jsonType)
-      type.jsonType = 'Object';
-
     if (type.schema) {
+      type.jsonType = type.schema.type.toUpperCase('first');
+
       const transform = compileSchema(type.schema);
       if (pruneTransform(transform)) {
         type.serialize = null;
@@ -621,6 +623,8 @@ const serializer = {
         type.normalize = compileNormalize(type.code);
       }
     } else {
+      if (!type.jsonType)
+        type.jsonType = 'Object';
       type.codify = codifyDefault;
       type.serialize = serializeDefault;
       type.normalize = normalizeDefault;

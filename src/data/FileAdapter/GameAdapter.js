@@ -257,7 +257,7 @@ export default class extends FileAdapter {
   async _createGame(game) {
     await this.createFile(`game_${game.id}`, () => {
       const data = serializer.transform(game);
-      game.version = getLatestVersionNumber('game');
+      data.version = getLatestVersionNumber('game');
 
       this._attachGame(game);
       return data;
@@ -273,8 +273,8 @@ export default class extends FileAdapter {
 
     return this.getFile(`game_${gameId}`, data => {
       const game = serializer.normalize(migrate('game', data));
-
       this._attachGame(game);
+
       return game;
     });
   }

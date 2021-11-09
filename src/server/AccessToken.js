@@ -1,4 +1,5 @@
 import IdentityToken from 'server/IdentityToken.js';
+import serializer from 'utils/serializer.js';
 import ServerError from 'server/Error.js';
 
 export default class AccessToken extends IdentityToken {
@@ -13,4 +14,14 @@ export default class AccessToken extends IdentityToken {
 
     return token;
   }
-}
+};
+
+serializer.addType({
+  name: 'AccessToken',
+  constructor: AccessToken,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'AccessToken',
+    type: 'string',
+  },
+});
