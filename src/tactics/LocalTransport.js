@@ -150,13 +150,6 @@ export default class LocalTransport {
     return transport;
   }
 
-  static loadGame(gameStateData) {
-    let transport = new LocalTransport();
-    transport._post({ type:'load', data:gameStateData });
-
-    return transport;
-  }
-
   /*
    * Public Properties
    */

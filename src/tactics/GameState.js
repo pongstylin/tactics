@@ -88,37 +88,6 @@ export default class GameState {
     return gameState;
   }
 
-  /*
-   * This constructor must be used to load EXISTING games.
-   *
-   * The existing game may or may not have been started yet.
-   */
-  static load(stateData) {
-    if (typeof stateData.startedAt === 'string')
-      stateData.startedAt = new Date(stateData.startedAt);
-    if (typeof stateData.turnStartedAt === 'string')
-      stateData.turnStartedAt = new Date(stateData.turnStartedAt);
-    if (typeof stateData.endedAt === 'string')
-      stateData.endedAt = new Date(stateData.endedAt);
-
-    stateData.actions.forEach(action => {
-      if (typeof action.createdAt === 'string')
-        action.createdAt = new Date(action.createdAt);
-    });
-
-    stateData.turns.forEach(turn => {
-      turn.startedAt = new Date(turn.startedAt);
-      turn.actions.forEach(action => {
-        if (typeof action.createdAt === 'string')
-          action.createdAt = new Date(action.createdAt);
-      });
-    });
-
-    stateData.teams = stateData.teams.map(t => t && Team.load(t));
-
-    return new GameState(stateData);
-  }
-
   /*****************************************************************************
    * Public Property Accessors
    ****************************************************************************/

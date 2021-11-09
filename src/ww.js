@@ -32,10 +32,6 @@ self.addEventListener('message', ({ data:message }) => {
 
     if (self.state.teams.findIndex(t => !t?.joinedAt) === -1)
       self.state.start();
-  } else if (type === 'load') {
-    self.state = GameState.load(data)
-      .on('*', event => post('event', event));
-    post('init', self.state.getData());
   } else if (type === 'call') {
     const value = self.state[data.method](...data.args);
     // The method in the reply is only useful for debugging.
