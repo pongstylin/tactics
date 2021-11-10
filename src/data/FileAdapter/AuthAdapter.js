@@ -70,8 +70,8 @@ export default class extends FileAdapter {
 
     return this.getFile(`player_${playerId}`, data => {
       const player = serializer.normalize(migrate('player', data));
-      player.once('change', () => buffer.add(playerId, player));
 
+      player.once('change', () => buffer.add(playerId, player));
       return player;
     });
   }

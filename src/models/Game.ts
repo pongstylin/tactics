@@ -343,7 +343,7 @@ export default class Game extends ActiveModel {
 
     return forkGame;
   }
-}
+};
 
 serializer.addType({
   name: 'Game',

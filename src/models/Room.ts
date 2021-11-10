@@ -1,11 +1,13 @@
 import uuid from 'uuid/v4';
 
 import ActiveModel from 'models/ActiveModel.js';
+import serializer from 'utils/serializer.js';
 
 export default class Room extends ActiveModel {
+  id: string
+  players: any[]
   events: any
   createdAt: Date
-  players: Array<any>
 
   static create(players, options) {
     if (players.length < 0)
@@ -34,18 +36,6 @@ export default class Room extends ActiveModel {
         player: player,
         createdAt: data.createdAt,
       });
-    });
-
-    return new Room(data);
-  }
-
-  static load(data) {
-    if (typeof data.createdAt === 'string')
-      data.createdAt = new Date(data.createdAt);
-
-    data.events.forEach(evt => {
-      if (typeof evt.createdAt === 'string')
-        evt.createdAt = new Date(evt.createdAt);
     });
 
     return new Room(data);
@@ -83,4 +73,51 @@ export default class Room extends ActiveModel {
 
     this.emit('change:seenEvent');
   }
-}
+};
+
+serializer.addType({
+  name: 'Room',
+  constructor: Room,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'Room',
+    type: 'object',
+    required: [ 'id', 'players', 'events', 'createdAt' ],
+    properties: {
+      id: { type:'string', format:'uuid' },
+      players: {
+        type: 'array',
+        items: { $ref:'#/definitions/player' },
+      },
+      events: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: [ 'id', 'type', 'player', 'createdAt' ],
+          properties: {
+            id: { type:'number', minimum:0 },
+            type: { type:'string', enum:[ 'join', 'message' ] },
+            player: { $ref:'#/definitions/player' },
+            createdAt: { type:'string', subType:'Date' },
+          },
+          additionalProperties: false,
+        },
+      },
+      createdAt: { type:'string', subType:'Date' },
+    },
+    additionalProperties: false,
+    definitions: {
+      player: {
+        type: 'object',
+        required: [ 'id', 'name', 'joinedAt', 'lastSeenEventId' ],
+        properties: {
+          id: { type:'string' },
+          name: { type:'string' },
+          joinedAt: { type:'string', subType:'Date' },
+          lastSeenEventId: { type:'number', minimum:0 },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+});

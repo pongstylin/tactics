@@ -339,6 +339,14 @@ migrationMap.set('stats', [
   },
 ]);
 
+migrationMap.set('room', [
+  data => {
+    delete data.version;
+
+    return { type:'Room', data };
+  },
+]);
+
 /*
  * The base version for an object is version 1.
  * The first migration (index === 0) migrates version 1 to 2.

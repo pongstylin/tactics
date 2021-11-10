@@ -1,5 +1,6 @@
 import FileAdapter from 'data/FileAdapter.js';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
+import serializer from 'utils/serializer.js';
 
 import Room from 'models/Room.js';
 
@@ -40,11 +41,12 @@ export default class extends FileAdapter {
    * Private Interface
    ****************************************************************************/
   async _createRoom(room) {
-    room.version = getLatestVersionNumber('room');
+    await this.createFile(`room_${room.id}`, () => {
+      const data = serializer.transform(room);
+      data.version = getLatestVersionNumber('room');
 
-    await this.createFile(`room_${room.id}`, room, () => {
       room.once('change', () => this.buffer.get('room').add(room.id, room));
-      return room;
+      return data;
     });
   }
   async _getRoom(roomId) {
@@ -54,15 +56,19 @@ export default class extends FileAdapter {
       return this.buffer.get('room').get(roomId);
 
     return this.getFile(`room_${roomId}`, data => {
-      const room = Room.load(migrate('room', data));
+      const room = serializer.normalize(migrate('room', data));
+
       room.once('change', () => this.buffer.get('room').add(roomId, room));
       return room;
     });
   }
   async _saveRoom(room) {
     await this.putFile(`room_${room.id}`, room, () => {
+      const data = serializer.transform(room);
+      data.version = getLatestVersionNumber('room');
+
       room.once('change', () => this.buffer.get('room').add(room.id, room));
-      return room;
+      return data;
     });
   }
 };
