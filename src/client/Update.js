@@ -1,4 +1,4 @@
-import Version from 'client/Version.js';
+import Version from 'models/Version.js';
 import whenDOMReady from 'components/whenDOMReady.js';
 import UpdateProgress from 'components/Modal/UpdateProgress.js';
 import popup from 'components/popup.js';

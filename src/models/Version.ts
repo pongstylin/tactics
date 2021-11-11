@@ -1,6 +1,13 @@
+import serializer from 'utils/serializer.js';
+
 export default class Version {
+  major: number
+  minor: number
+  revision: number
+  value: string
+
   constructor(version) {
-    let parts = version.split('.').map(n => parseInt(n));
+    const parts = version.split('.').map(n => parseInt(n));
 
     this.major = parts[0];
     this.minor = parts[1];
@@ -29,4 +36,14 @@ export default class Version {
   toJSON() {
     return this.value;
   }
-}
+};
+
+serializer.addType({
+  name: 'Version',
+  constructor: Version,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'Version',
+    type: 'string',
+  },
+});

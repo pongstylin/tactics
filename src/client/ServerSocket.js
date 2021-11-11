@@ -1,5 +1,5 @@
 import config from 'config/client.js';
-import Version from 'client/Version.js';
+import Version from 'models/Version.js';
 import { installUpdate } from 'client/Update.js';
 import ServerError from 'server/Error.js';
 import getIdle from 'components/getIdle.js';
@@ -491,9 +491,9 @@ export default class ServerSocket {
     if (socket !== this._socket)
       return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onMessage');
 
-    let now = Date.now();
-    let message = JSON.parse(data);
-    let session = this._session;
+    const now = Date.now();
+    const message = serializer.parse(data);
+    const session = this._session;
 
     // Reset the close timeout
     clearTimeout(this._closeTimeout);
@@ -502,7 +502,7 @@ export default class ServerSocket {
       process.env.CONNECTION_TIMEOUT,
     );
 
-    let serverTimeDiff = message.now - now;
+    const serverTimeDiff = message.now - now;
     if (this._serverTimeDiff === null)
       this._serverTimeDiff = serverTimeDiff;
     else
@@ -516,7 +516,7 @@ export default class ServerSocket {
         this._purgeAcknowledgedMessages(message.ack);
 
       if (message.id) {
-        let expectedMessageId = session.serverMessageId + 1;
+        const expectedMessageId = session.serverMessageId + 1;
         if (message.id < expectedMessageId)
           return;
         if (message.id > expectedMessageId)

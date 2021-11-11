@@ -1,4 +1,4 @@
-import Version from 'client/Version.js';
+import Version from 'models/Version.js';
 
 export default {
   version: new Version(VERSION),

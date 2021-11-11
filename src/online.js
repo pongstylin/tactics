@@ -1,3 +1,4 @@
+import 'plugins/string.js';
 import 'plugins/element.js';
 import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
@@ -211,7 +212,7 @@ function renderPN(reg) {
 
   reg.pushManager.getSubscription().then(subscription => {
     if (subscription) {
-      pushClient.setSubscription(subscription);
+      pushClient.setSubscription(subscription.toJSON());
 
       divPN.innerHTML = 'Push notifications are currently <SPAN class="toggle is-on">ON</SPAN>.';
       divPN.querySelector('.toggle').addEventListener('click', () => {

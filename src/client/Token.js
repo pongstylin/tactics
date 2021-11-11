@@ -64,10 +64,10 @@ export default class Token {
   }
 };
 
-class IdentityToken extends Token {
+export class IdentityToken extends Token {
 };
 
-class AccessToken extends IdentityToken {
+export class AccessToken extends IdentityToken {
 };
 
 /*
