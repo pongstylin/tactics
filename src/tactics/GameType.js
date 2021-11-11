@@ -2,18 +2,11 @@ import Board from 'tactics/Board.js';
 import ServerError from 'server/Error.js';
 import unitDataMap from 'tactics/unitData.js';
 import { calcPowerModifiers } from 'tactics/Unit/DragonspeakerMage.js';
+import serializer from 'utils/serializer.js';
 
 export default class GameType {
-  constructor(id, config) {
-    this.id = id;
-    this.config = config;
-  }
-
-  static load(id, config) {
-    if (config.limits)
-      config.limits.units.types = new Map(config.limits.units.types);
-
-    return new GameType(id, config);
+  constructor(data) {
+    Object.assign(this, data);
   }
 
   get name() {
@@ -27,7 +20,7 @@ export default class GameType {
   }
 
   getUnitTypes() {
-    let config = this.config;
+    const config = this.config;
 
     if (config.limits)
       return [...config.limits.units.types.keys()];
@@ -235,7 +228,7 @@ export default class GameType {
   }
 
   toJSON() {
-    return this.config;
+    return { id:this.id, config:this.config };
   }
 
   _getTileLimit(board, tileLimit) {
@@ -291,4 +284,137 @@ export default class GameType {
 
     return tiles;
   }
-}
+};
+
+serializer.addType({
+  name: 'GameType',
+  constructor: GameType,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'GameType',
+    type: 'object',
+    required: [ 'id', 'config' ],
+    properties: {
+      id: { type:'string', format:'uuid' },
+      config: {
+        type: 'object',
+        required: [ 'name', 'customizable', 'sets' ],
+        properties: {
+          name: { type:'string' },
+          customizable: { type:'boolean' },
+          sets: {
+            type: 'array',
+            items: {
+              type: 'object',
+            },
+          },
+          limits: {
+            type: 'object',
+            required: [ 'tiles', 'units' ],
+            properties: {
+              tiles: { $ref:'#/definitions/tileRange' },
+              units: {
+                type: 'object',
+                required: [ 'max', 'types' ],
+                properties: {
+                  max: { type:'number', minimum:1 },
+                  types: {
+                    type: 'array',
+                    subType: 'Map',
+                    items: {
+                      type: 'array',
+                      items: [
+                        { type:'string' },
+                        {
+                          type: 'object',
+                          required: [ 'max' ],
+                          properties: {
+                            max: { type:'number' },
+                            size: { type:'number', minimum:1, default:1 },
+                            rules: {
+                              type: 'object',
+                              properties: {
+                                maxStone: { type:'boolean' },
+                              },
+                              additionalProperties: false,
+                            },
+                            tiles: {
+                              type: 'array',
+                              items: { $ref:'#/definitions/tiles' },
+                            },
+                          },
+                        },
+                      ],
+                      additionalItems: false,
+                    },
+                  },
+                },
+                additionalProperties: false,
+              },
+              rules: {
+                type: 'object',
+                properties: {
+                  oneSide: { type:'number' },
+                },
+                additionalProperties: false,
+              },
+              fixedPositions: { type:'boolean' },
+            },
+            additionalProperties: false,
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+    additionalProperties: false,
+    definitions: {
+      coords: {
+        type: 'array',
+        items: [
+          { type:'number', minimum:0, maximum:10 },
+          { type:'number', minimum:0, maximum:10 },
+        ],
+        additionalItems: false,
+      },
+      tileRange: {
+        type: 'object',
+        required: [ 'start', 'end' ],
+        properties: {
+          start: { $ref:'#/definitions/coords' },
+          end: { $ref:'#/definitions/coords' },
+        },
+        additionalProperties: false,
+      },
+      tiles: {
+        oneOf: [
+          { $ref:'#/definitions/tileRange' },
+          {
+            type: 'object',
+            required: [ 'adjacentTo' ],
+            properties: {
+              adjacentTo: {
+                type: 'object',
+                required: [ 'type', 'tiles' ],
+                properties: {
+                  type: { type:'string' },
+                  tiles: {
+                    type: 'array',
+                    items: {
+                      oneOf: [
+                        { $ref:'#/definitions/tileRange' },
+                        { $ref:'#/definitions/coords' },
+                      ],
+                    },
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+            additionalProperties: false,
+          },
+          { $ref:'#/definitions/coords' },
+        ],
+      },
+    },
+  },
+});

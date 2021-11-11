@@ -2,6 +2,8 @@
  * Most classes in the 'server' directory are only used on the server.
  * But this class is the exception.
  */
+import serializer from 'utils/serializer.js';
+
 export default class ServerError extends Error {
   constructor() {
     let data;
@@ -17,9 +19,25 @@ export default class ServerError extends Error {
   }
 
   toJSON() {
-    let json = { message:this.message };
+    const json = { message:this.message };
     Object.keys(this).forEach(k => json[k] = this[k]);
 
     return json;
   }
-}
+};
+
+serializer.addType({
+  name: 'ServerError',
+  constructor: ServerError,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'ServerError',
+    type: 'object',
+    required: [ 'code', 'message' ],
+    properties: {
+      code: { type:'number' },
+      message: { type:'string' },
+    },
+    additionalProperties: true,
+  },
+});

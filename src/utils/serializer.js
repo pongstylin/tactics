@@ -39,8 +39,13 @@ const types = [
 
         if (typeof value === 'object')
           serialized[key] = serialize(value, keyTransform);
-        else
+        else {
           serialized[key] = value;
+          if (keyTransform.type === undefined)
+            keyTransform.type = 'primitive';
+          else if (keyTransform.type !== 'primitive')
+            throw new TypeError('Type mismatch');
+        }
       }
 
       return serialized;
@@ -56,6 +61,8 @@ const types = [
 
         const keyTransform = transform.keys[i][1];
         const keyType = typeMap.get(keyTransform.type);
+        if (keyType === undefined)
+          throw new TypeError(`The '${keyTransform.type}' type has not been added`);
         data[key] = keyType.normalize(value, keyTransform);
       }
 
@@ -93,8 +100,13 @@ const types = [
           serialized[i] = null;
         else if (typeof value === 'object')
           serialized[i] = serialize(value, transform.items);
-        else
+        else {
           serialized[i] = value;
+          if (transform.items.type === undefined)
+            transform.items.type = 'primitive';
+          else if (transform.items.type !== 'primitive')
+            throw new TypeError('Type mismatch');
+        }
       }
 
       return serialized;
@@ -102,6 +114,8 @@ const types = [
     normalize: (data, transform) => {
       const len = data.length;
       const itemType = typeMap.get(transform.items.type);
+      if (itemType === undefined)
+        throw new TypeError(`The '${transform.items.type}' type has not been added`);
 
       for (let i = 0; i < len; i++) {
         const value = data[i];
@@ -148,8 +162,13 @@ const types = [
           serialized[i][1] = null;
         else if (typeof value === 'object')
           serialized[i][1] = serialize(value, transform.items);
-        else
+        else {
           serialized[i][1] = value;
+          if (transform.items.type === undefined)
+            transform.items.type = 'primitive';
+          else if (transform.items.type !== 'primitive')
+            throw new TypeError('Type mismatch');
+        }
       }
 
       return serialized;
@@ -246,6 +265,8 @@ for (const type of types) {
  * data must be typeof 'object'
  */
 const serialize = (data, transform) => {
+  if (!typeMap.has(data.constructor))
+    throw new TypeError(`The '${data.constructor.name}' type has not been added`);
   const type = typeMap.get(data.constructor);
 
   if (transform.type === undefined)
@@ -260,6 +281,9 @@ const serialize = (data, transform) => {
   return data;
 };
 const codify = (varName, transform, newVar) => {
+  if (transform.type.constructor === Array)
+    return codifyUnion(varName, transform, newVar);
+
   const type = typeMap.get(transform.type);
   const varAlias = newVar();
   const varPlaceholder = `__${varAlias}__`;
@@ -278,6 +302,48 @@ const codify = (varName, transform, newVar) => {
     `const ${varAlias} = ${varName};`,
     code.replace(varMatch, varAlias),
   ].join('');
+};
+/*
+ * Right now, only builtin types may be unioned.
+ */
+const codifyUnion = (varName, transform, newVar) => {
+  const varAlias = newVar();
+  const code = [
+    `const ${varAlias} = ${varName};`,
+  ];
+
+  const typeNames = new Set(transform.type);
+  typeNames.delete('primitive');
+
+  if (typeNames.size > 1)
+    code.push(`switch (${varAlias}.constructor) {`);
+
+  for (const typeName of typeNames) {
+    const type = typeMap.get(typeName);
+    const typeCode = type.codify(varName, varAlias, transform, newVar);
+
+    if (typeNames.size > 1)
+      code.push(
+        `case ${typeName}:`,
+          typeCode,
+          `break;`,
+      );
+    else
+      code.push(
+        `if (${varAlias}.constructor === ${typeName}) {`,
+          typeCode,
+        `}`,
+      );
+  }
+
+  if (typeNames.size > 1)
+    code.push('}');
+
+  return codifyOptional(
+    code.join(''),
+    varAlias,
+    transform,
+  );
 };
 
 /*
@@ -421,33 +487,18 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
   if (subSchema.oneOf) {
     const mergeSchema = JSON.parse(JSON.stringify(subSchema));
 
-    for (const one of subSchema.oneOf) {
+    for (let one of subSchema.oneOf) {
       if (one.$ref) {
         const ref = one.$ref;
-        let refSchema;
         if (ref.startsWith('#/definitions/')) {
-          refSchema = schema.definitions[ref.replace(/^#\/definitions\//, '')];
+          one = schema.definitions[ref.replace(/^#\/definitions\//, '')];
         } else {
           const type = typeMap.get(ref);
           if (!type)
             throw new Error(`The ${ref} type needs to be added before ${schema.$id}`);
           if (!type.schema)
             throw new Error(`The ${ref} type has no schema`);
-          refSchema = type.schema;
-
-          if (type.name !== mergeSchema.subType) {
-            if (mergeSchema.subType)
-              throw new Error('Unsupported union of subTypes');
-            mergeSchema.subType = type.name;
-          }
-        }
-
-        mergeSchema.type = mergeSchemaTypes(mergeSchema.type, refSchema.type);
-
-        if (refSchema.subType && refSchema.type !== mergeSchema.subType) {
-          if (mergeSchema.subType)
-            throw new Error('Unsupported union of subTypes');
-          mergeSchema.subType = refSchema.subType;
+          one = Object.assign({}, type.schema, { subType:type.name });
         }
       }
 
@@ -458,6 +509,7 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
         if (mergeSchema.items)
           throw new Error('Unable to merge items in oneOf');
         mergeSchema.items = one.items;
+        mergeSchema.additionalItems = one.additionalItems;
       }
     }
 
@@ -465,11 +517,11 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
   }
 
   const types = new Set(subSchema.type.constructor === Array ? subSchema.type : [ subSchema.type ]);
-  if (types.has('object') && types.has('array'))
-    throw new Error('Unsupported union of object and array');
 
   let schemaType;
-  if (types.has('object'))
+  if (types.has('object') && types.has('array'))
+    schemaType = [ 'Object', 'Array' ];
+  else if (types.has('object'))
     schemaType = 'Object';
   else if (types.has('array'))
     schemaType = 'Array';
@@ -482,7 +534,7 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
     nullable: types.has('null'),
   };
 
-  if (schemaType === 'Object') {
+  if (types.has('object')) {
     const required = new Set(subSchema.required ?? []);
 
     if (subSchema.properties) {
@@ -491,7 +543,9 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
         transform.keys.set(key, compileSchema(schema, keySchema, required.has(key)));
       }
     }
-  } else if (schemaType === 'Array') {
+  }
+
+  if (types.has('array')) {
     if (subSchema.items) {
       if (subSchema.items.constructor === Array) {
         if (subSchema.additionalItems !== false)
@@ -551,30 +605,43 @@ const compileNormalize = code => {
  * Remove transforms that are empty of type transformations.
  * Return true if the transform is empty.
  */
-const pruneTransform = transform => {
-  if (transform.type === 'primitive')
-    return true;
+const pruneTransform = (transform, forCode = false) => {
+  const typeNames = new Set(
+    transform.type.constructor === Array ? transform.type : [ transform.type ]
+  );
+  typeNames.delete('primitive');
+
+  /*
+   * 'required' and 'nullable' are only useful for code generation.
+   */
+  if (forCode === false) {
+    delete transform.required;
+    delete transform.nullable;
+  }
 
   if (transform.items) {
     if (transform.items.constructor === Array) {
-      if (transform.items.filter(i => !pruneTransform(i)).length === 0)
+      if (transform.items.filter(i => !pruneTransform(i, forCode)).length === 0)
         delete transform.items;
-    } else if (pruneTransform(transform.items))
+    } else if (pruneTransform(transform.items, forCode))
       delete transform.items;
   }
-  if (transform.type === 'Array' && transform.items === undefined)
-    return true;
+  if (transform.items === undefined)
+    typeNames.delete('Array');
 
   if (transform.keys) {
     for (const [ key, keyTransform ] of transform.keys) {
-      if (pruneTransform(keyTransform))
+      if (pruneTransform(keyTransform, forCode))
         transform.keys.delete(key);
     }
 
     if (transform.keys.size === 0)
       delete transform.keys;
   }
-  if (transform.type === 'Object' && transform.keys === undefined)
+  if (transform.keys === undefined)
+    typeNames.delete('Object');
+
+  if (typeNames.size === 0)
     return true;
 
   return Object.keys(transform).length === 0;
@@ -613,7 +680,7 @@ const serializer = {
       type.jsonType = type.schema.type.toUpperCase('first');
 
       const transform = compileSchema(type.schema);
-      if (pruneTransform(transform)) {
+      if (pruneTransform(transform, true)) {
         type.serialize = null;
         type.normalize = normalizeNOOP;
       } else {
