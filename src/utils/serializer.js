@@ -90,6 +90,8 @@ const types = [
     serialize: (data, transform) => {
       const len = data.length;
       const serialized = [];
+      if (len === 0)
+        return serialized;
 
       if (!transform.items)
         transform.items = { required:true, nullable:true };
@@ -152,6 +154,8 @@ const types = [
     serialize: (data, transform) => {
       const len = data.size;
       const serialized = [ ...data ];
+      if (len === 0)
+        return serialized;
 
       if (!transform.items)
         transform.items = { required:true, nullable:true };

@@ -1,3 +1,5 @@
+import serializer from 'utils/serializer.js';
+
 export default class Token {
   constructor(value) {
     if (typeof value !== 'string')
@@ -60,4 +62,34 @@ export default class Token {
   toJSON() {
     return this.value;
   }
-}
+};
+
+class IdentityToken extends Token {
+};
+
+class AccessToken extends IdentityToken {
+};
+
+/*
+ * The IdentityToken and AccessToken classes are currently only imported server-
+ * side since they import the 'jsonwebtoken' package and I don't want to bloat
+ * the client-side JS bundles.  So, map those classes to these.
+ */
+serializer.addType({
+  name: 'IdentityToken',
+  constructor: IdentityToken,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'AccessToken',
+    type: 'string',
+  },
+});
+serializer.addType({
+  name: 'AccessToken',
+  constructor: AccessToken,
+  schema: {
+    $schema: 'http://json-schema.org/draft-07/schema',
+    $id: 'AccessToken',
+    type: 'string',
+  },
+});
