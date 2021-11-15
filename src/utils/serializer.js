@@ -179,12 +179,15 @@ const types = [
     },
     normalize: (data, transform) => {
       const len = data.length;
-      const itemType = typeMap.get(transform.items.type);
 
-      for (let i = 0; i < len; i++) {
-        const value = data[i][1];
-        if (value !== null)
-          data[i][1] = itemType.normalize(value, transform.items);
+      if (transform.items) {
+        const itemType = typeMap.get(transform.items.type);
+
+        for (let i = 0; i < len; i++) {
+          const value = data[i][1];
+          if (value !== null)
+            data[i][1] = itemType.normalize(value, transform.items);
+        }
       }
 
       return new Map(data);
@@ -220,9 +223,19 @@ const types = [
       return type.serialize([ ...data ], transform);
     },
     normalize: (data, transform) => {
-      const type = typeMap.get(Array);
+      const len = data.length;
 
-      return new Set(type.normalize([ ...data ], transform));
+      if (transform.items) {
+        const itemType = typeMap.get(transform.items.type);
+
+        for (let i = 0; i < len; i++) {
+          const value = data[i];
+          if (value !== null)
+            data[i] = itemType.normalize(value, transform.items);
+        }
+      }
+
+      return new Set(data);
     },
     codify: (varName, varAlias, transform, newVar) => {
       const code = [];

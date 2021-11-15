@@ -71,12 +71,10 @@ export default class extends FileAdapter {
   }
   async getGameType(gameTypeId) {
     const gameTypes = await this._getGameTypes();
-    const gameTypeConfig = gameTypes.get(gameTypeId);
-
-    if (!gameTypeConfig)
+    if (!gameTypes.has(gameTypeId))
       throw new ServerError(404, 'No such game type');
 
-    return gameTypes.get(gameTypeConfig);
+    return gameTypes.get(gameTypeId);
   }
 
   /*
