@@ -507,6 +507,13 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
       }
 
       mergeSchema.type = mergeSchemaTypes(mergeSchema.type, one.type);
+
+      if (one.subType && one.subType !== mergeSchema.subType) {
+        if (mergeSchema.subType)
+          throw new Error('Unable to merge subType in oneOf');
+        mergeSchema.subType = one.subType;
+      }
+
       mergeSchema.properties = mergeSchemaProperties(mergeSchema.properties, one.properties);
 
       if (one.items) {
