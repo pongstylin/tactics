@@ -76,7 +76,7 @@ export default class extends FileAdapter {
     if (!gameTypeConfig)
       throw new ServerError(404, 'No such game type');
 
-    return GameType.load(gameTypeId, gameTypeConfig);
+    return gameTypes.get(gameTypeConfig);
   }
 
   /*
@@ -246,7 +246,17 @@ export default class extends FileAdapter {
    ****************************************************************************/
   async _getGameTypes() {
     if (!this._gameTypes)
-      this._gameTypes = await this.getFile('game_types', data => new Map(data));
+      this._gameTypes = await this.getFile('game_types', data => {
+        const gameTypes = new Map();
+        for (const [ id, config ] of data) {
+          gameTypes.set(id, serializer.normalize({
+            type: 'GameType',
+            data: { id, config },
+          }));
+        }
+
+        return gameTypes;
+      });
 
     return this._gameTypes;
   }
