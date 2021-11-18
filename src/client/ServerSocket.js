@@ -492,7 +492,7 @@ export default class ServerSocket {
       return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onMessage');
 
     const now = Date.now();
-    const message = serializer.parse(data);
+    const message = JSON.parse(data);
     const session = this._session;
 
     // Reset the close timeout
