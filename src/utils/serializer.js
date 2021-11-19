@@ -89,7 +89,7 @@ const types = [
     constructor: Array,
     serialize: (data, transform) => {
       const len = data.length;
-      const serialized = [];
+      const serialized = new Array(len);
       if (len === 0)
         return serialized;
 
@@ -131,16 +131,31 @@ const types = [
       if (transform.items === undefined)
         return '';
 
-      const numName = newVar();
-      const incName = newVar();
-      const subVarName = `${varAlias}[${incName}]`;
+      const code = [];
 
-      return [
-        `const ${numName} = ${varAlias}.length;`,
-        `for (let ${incName} = 0; ${incName} < ${numName}; ${incName}++) {`,
-          codify(subVarName, transform.items, newVar),
-        `}`,
-      ].join('');
+      if (transform.items.constructor === Array) {
+        for (let i = 0; i < transform.items.length; i++) {
+          if (transform.items[i].type === undefined)
+            continue;
+
+          const subVarName = `${varAlias}[${i}]`;
+
+          code.push(codify(subVarName, transform.items[i], newVar));
+        }
+      } else {
+        const numName = newVar();
+        const incName = newVar();
+        const subVarName = `${varAlias}[${incName}]`;
+
+        code.push(
+          `const ${numName} = ${varAlias}.length;`,
+          `for (let ${incName} = 0; ${incName} < ${numName}; ${incName}++) {`,
+            codify(subVarName, transform.items, newVar),
+          `}`,
+        );
+      }
+
+      return code.join('');
     },
   },
   {
@@ -218,9 +233,30 @@ const types = [
     jsonType: 'Array',
     constructor: Set,
     serialize: (data, transform) => {
-      const type = typeMap.get(Array);
+      const len = data.size;
+      const serialized = [ ...data ];
+      if (len === 0)
+        return serialized;
 
-      return type.serialize([ ...data ], transform);
+      if (!transform.items)
+        transform.items = { required:true, nullable:true };
+
+      for (let i = 0; i < len; i++) {
+        const value = serialized[i];
+        if (value === null || value === undefined)
+          serialized[i] = null;
+        else if (typeof value === 'object')
+          serialized[i] = serialize(value, transform.items);
+        else {
+          serialized[i] = value;
+          if (transform.items.type === undefined)
+            transform.items.type = 'primitive';
+          else if (transform.items.type !== 'primitive')
+            throw new TypeError('Type mismatch');
+        }
+      }
+
+      return serialized;
     },
     normalize: (data, transform) => {
       const len = data.length;
@@ -276,6 +312,8 @@ for (const type of types) {
   typeMap.set(type.constructor, type);
 }
 
+const schemas = new Map();
+
 /*
  * Determine if the data is a transformable type and serialize it.
  *
@@ -289,7 +327,7 @@ const serialize = (data, transform) => {
   if (transform.type === undefined)
     transform.type = type.name;
   else if (transform.type !== type.name)
-    throw new TypeError('Type mismatch');
+    throw new TypeError(`Type conflict: ${transform.type} & ${type.name}`);
 
   // Only serialize if serialization is required before JSON.stringify()
   if (!type.schema)
@@ -575,7 +613,8 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
         if (subSchema.additionalItems !== false)
           throw new Error('Unsupported additionalItems');
 
-        transform.items = subSchema.items.map(i => compileSchema(schema, i));
+        const minItems = subSchema.minItems ?? 0;
+        transform.items = subSchema.items.map((item, i) => compileSchema(schema, item, i < minItems));
       } else {
         if (transform.type === 'Map')
           transform.items = compileSchema(schema, subSchema.items.items[1]);
@@ -589,7 +628,7 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
     return transform;
   return transform;
 };
-const compileTransform = (type, transform, suffix = '') => {
+const compileTypeTransform = (type, transform, suffix = '') => {
   const varName = '__name__';
   const varAlias = '__alias__';
   const jsonType = typeMap.get(type.jsonType);
@@ -616,6 +655,28 @@ const compileTransform = (type, transform, suffix = '') => {
   code.push(`${varName} = ${construction};`);
 
   return code.join('');
+};
+const compileTransform = transform => {
+  if (pruneTransform(transform, true))
+    return '';
+
+  const varName = '__name__';
+  const varAlias = '__alias__';
+  const type = typeMap.get(transform.type);
+  let varNew = '';
+
+  return type.codify(varName, varAlias, transform, () => {
+    if (varNew === '')
+      varNew = 'a';
+    else if (varNew.slice(-1) === 'z')
+      varNew = varNew.slice(0, -1) + 'A';
+    else if (varNew.slice(-1) === 'Z')
+      varNew = varNew + 'a';
+    else
+      varNew = varNew.slice(0, -1) + String.fromCharCode(varNew.charCodeAt(varNew.length - 1) + 1);
+
+    return varNew;
+  });
 };
 const compileNormalize = code => {
   const normalize = new Function('data', 'constructors', [
@@ -690,7 +751,7 @@ const codifyOptional = (code, varName, transform) => {
 };
 
 const serializer = {
-  addType: type => {
+  addType(type) {
     if (typeMap.has(type.name))
       throw new TypeError('Type name conflict');
     if (typeMap.has(type.constructor))
@@ -703,12 +764,16 @@ const serializer = {
     if (type.schema) {
       type.jsonType = type.schema.type.toUpperCase('first');
 
+      // Add validation and resolution of type schemas.
+      if (this.ajv)
+        this.ajv.addSchema(type.schema);
+
       const transform = compileSchema(type.schema);
       if (pruneTransform(transform, true)) {
         type.serialize = null;
         type.normalize = normalizeNOOP;
       } else {
-        type.code = compileTransform(type, transform, types.length.toString());
+        type.code = compileTypeTransform(type, transform, types.length.toString());
         type.codify = codifyCompiled;
         type.serialize = null;
         type.normalize = compileNormalize(type.code);
@@ -726,7 +791,7 @@ const serializer = {
     typeMap.set(type.name, type);
     typeMap.set(type.constructor, type);
   },
-  transform: data => {
+  transform(data) {
     if (data === null || typeof data !== 'object')
       throw new TypeError('Unable to transform');
 
@@ -742,10 +807,10 @@ const serializer = {
 
     return { transform, data:serialized };
   },
-  stringify: data => {
+  stringify(data) {
     return JSON.stringify(serializer.transform(data));
   },
-  normalize: serialized => {
+  normalize(serialized) {
     if (serialized.type) {
       const type = typeMap.get(serialized.type);
       return type.normalize(serialized.data);
@@ -757,10 +822,49 @@ const serializer = {
 
     throw new TypeError('Unable to normalize');
   },
-  parse: json => {
+  parse(json) {
     return serializer.normalize(JSON.parse(json));
   },
-  clone: data => {
+  setValidator(Ajv, addFormats) {
+    const ajv = this.ajv = new Ajv({
+      strictTuples: false,
+    });
+    addFormats(ajv);
+
+    ajv.addKeyword({
+      keyword: 'subType',
+      schemaType: 'string',
+      implements: [ 'validate' ],
+      validate: (subType, data, parentSchema) => {
+        const type = typeMap.get(subType);
+
+        if (typeof type.constructor.validate === 'function')
+          type.constructor.validate(data, parentSchema.validate);
+
+        return true;
+      },
+    });
+  },
+  validate(data, schema) {
+    const schemaId = JSON.stringify(schema);
+
+    let cache;
+    if (schemas.has(schemaId))
+      cache = schemas.get(schemaId);
+    else
+      schemas.set(schemaId, cache = {
+        normalize: compileNormalize(compileTransform(compileSchema(schema))),
+        validate: this.ajv.compile(schema),
+      });
+
+    if (!cache.validate(data)) {
+      console.error('validation errors', cache.validate.errors);
+      throw new TypeError('Validation failed');
+    }
+
+    return cache.normalize(data);
+  },
+  clone(data) {
     return this.parse(this.stringify(data));
   },
 };

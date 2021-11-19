@@ -1,4 +1,4 @@
-import 'plugins/element.js';
+import 'plugins/index.js';
 import clientFactory from 'client/clientFactory.js';
 import Autosave from 'components/Autosave.js';
 import popup from 'components/popup.js';

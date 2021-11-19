@@ -1,3 +1,5 @@
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
 import uuid from 'uuid/v4';
 import http from 'http';
 import express from 'express';
@@ -6,11 +8,11 @@ import { WebSocketServer } from 'ws';
 import util from 'util';
 import DebugLogger from 'debug';
 
-// Object extensions/polyfills
-import 'plugins/array.js';
-import 'plugins/set.js';
-import 'plugins/map.js';
-import 'plugins/string.js';
+import 'plugins/index.js';
+
+import serializer from 'utils/serializer.js';
+// This must be set before other classes are imported.
+serializer.setValidator(Ajv, addFormats);
 
 import config from 'config/server.js';
 import { onConnect, onShutdown } from 'server/router.js';

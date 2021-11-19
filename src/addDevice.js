@@ -1,3 +1,4 @@
+import 'plugins/index.js';
 import 'tactics/core.scss';
 import clientFactory from 'client/clientFactory.js';
 import Token from 'client/Token.js';

@@ -3,6 +3,7 @@ import uuid from 'uuid/v4';
 import DebugLogger from 'debug';
 import ws from 'ws';
 import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
 
 import config from 'config/server.js';
 import Timeout from 'server/Timeout.js';
@@ -26,6 +27,8 @@ let debug = DebugLogger('service:router');
 let debugV = DebugLogger('service-v:router');
 
 let ajv = new Ajv();
+addFormats(ajv);
+
 let schema = {
   '$schema': 'http://json-schema.org/draft-07/schema#',
   '$id': 'client_message',
@@ -419,8 +422,8 @@ function send(client, message) {
 }
 
 function debugMessage(client, message, inOrOut) {
-  let prefix = `${message.type}-${inOrOut}: client=${client.id}`;
-  let body = message.body;
+  const prefix = `${message.type}-${inOrOut}: client=${client.id}`;
+  const body = message.body;
 
   let suffix;
   let suffixV;
@@ -428,16 +431,13 @@ function debugMessage(client, message, inOrOut) {
     suffix = `[${message.ack ?? '-'}]`;
     if (message.idle !== undefined)
       suffix += ` idle=${message.idle}`;
-  }
-  else if (message.type === 'event') {
+  } else if (message.type === 'event') {
     suffix  = `[${message.id}] ${body.service}:${body.group}:${body.type}`;
     suffixV = `[${message.id}] data=${JSON.stringify(body.data)}`;
-  }
-  else if (message.type === 'request') {
+  } else if (message.type === 'request') {
     suffix  = `[${message.id}] ${body.service}:${body.method}`;
     suffixV = `[${message.id}] args=${JSON.stringify(body.args)}`;
-  }
-  else if (message.type === 'response')
+  } else if (message.type === 'response')
     if (body.error)
       suffix = `[${message.id}] requestId=${body.requestId}; error=[${body.error.code}] ${body.error.message}`;
     else {
@@ -479,17 +479,14 @@ function debugMessage(client, message, inOrOut) {
       debugV(`${prefix}; ${suffix}`);
       if (suffixV)
         debugV(`${prefix}; ${suffixV}`);
-    }
-    else
+    } else
       debugV(prefix);
-  }
-  else
+  } else
     if (suffix || suffixV) {
       debug(`${prefix}; ${suffix}`);
       if (suffixV)
         debugV(`${prefix}; ${suffixV}`);
-    }
-    else
+    } else
       debug(prefix);
 }
 
@@ -566,11 +563,11 @@ function onMessage(data) {
 
   try {
     if (!validate(message)) {
-      debug(`message-in: client=${client.id}; bytes=${data.length}`);
+      debug(`message-in: client=${client.id}; type=${message.type}; bytes=${data.length}`);
 
-      let schemaPath = messageTypeErrorPath.get(message.type);
-      let matcher = new RegExp('^' + schemaPath);
-      let details = validate.errors.filter(detail => matcher.test(detail.schemaPath));
+      const schemaPath = messageTypeErrorPath.get(message.type);
+      const matcher = new RegExp('^' + schemaPath);
+      const details = validate.errors.filter(detail => matcher.test(detail.schemaPath));
 
       console.error('Validation failed:', details);
 
@@ -589,7 +586,7 @@ function onMessage(data) {
 
     debugMessage(client, message, 'in');
 
-    let session = client.session;
+    const session = client.session;
 
     if (session) {
       // It is possible for a 'sync' message to be sent without an 'ack' if the
@@ -602,7 +599,7 @@ function onMessage(data) {
         /*
          * Discard repeat messages.  Resync if a message was skipped.
          */
-        let expectedMessageId = session.clientMessageId + 1;
+        const expectedMessageId = session.clientMessageId + 1;
         if (message.id < expectedMessageId)
           return;
         if (message.id > expectedMessageId)
@@ -636,7 +633,7 @@ function onMessage(data) {
        * outbound message to be sent twice if it is in response to a 'sync'.
        */
       if (message.idle !== undefined) {
-        let oldIdle = session.idle;
+        const oldIdle = session.idle;
         session.idle = message.idle;
 
         if (session.onIdleChange)
@@ -712,12 +709,12 @@ function onEventMessage(client, message) {
     response.catch(error => sendError(client, error, message));
 }
 
-function onRequestMessage(client, message) {
-  let session = client.session;
-  let requestId = message.id;
-  let body = message.body;
-  let service = services.get(body.service);
-  let method = 'on' + body.method.toUpperCase('first') + 'Request';
+async function onRequestMessage(client, message) {
+  const session = client.session;
+  const requestId = message.id;
+  const body = message.body;
+  const service = services.get(body.service);
+  const method = 'on' + body.method.toUpperCase('first') + 'Request';
 
   if (!service)
     throw new ServerError(404, 'No such service');
@@ -731,16 +728,12 @@ function onRequestMessage(client, message) {
   try {
     service.will(client, message.type, body.method);
 
-    let response = service[method](client, ...body.args);
+    const data = await service[method](client, ...body.args);
+    if (client.closed)
+      return;
 
-    if (response instanceof Promise)
-      response
-        .then(data => enqueue(session, 'response', { requestId, data }))
-        .catch(error => sendErrorResponse(client, requestId, error));
-    else
-      enqueue(session, 'response', { requestId, data:response });
-  }
-  catch (error) {
+    enqueue(session, 'response', { requestId, data });
+  } catch (error) {
     sendErrorResponse(client, requestId, error);
   }
 }
@@ -809,7 +802,7 @@ function onOpenMessage(client, message) {
   if (client.session)
     throw new ServerError(400, 'Session already established');
 
-  let session = {
+  const session = {
     id: client.id,
     clientMessageId: 0,
     serverMessageId: 0,

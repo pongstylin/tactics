@@ -1,5 +1,4 @@
-import 'plugins/string.js';
-import 'plugins/element.js';
+import 'plugins/index.js';
 import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
 import popup from 'components/popup.js';
