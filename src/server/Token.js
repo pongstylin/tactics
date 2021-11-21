@@ -5,17 +5,11 @@ import ServerError from 'server/Error.js';
 
 export default class Token {
   constructor(tokenValue) {
-    if (typeof tokenValue !== 'string')
-      throw new TypeError('Expected JWT token string');
-
-    let [header, payload, signature] = tokenValue.split('.');
+    const { claims, signature } = Token._parse(tokenValue);
 
     Object.assign(this, {
       value: tokenValue,
-      claims: JSON.parse(
-        Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
-          .toString('utf8')
-      ),
+      claims,
       signature,
     });
   }
@@ -34,19 +28,31 @@ export default class Token {
       subject: claims.subject,
     }));
   }
-  static verify(tokenValue, options) {
-    if (!tokenValue) return null;
 
+  static validate(data, options) {
     try {
-      jwt.verify(tokenValue, config.publicKey, options);
-    }
-    catch (error) {
+      jwt.verify(data, config.publicKey, options);
+    } catch (error) {
       throw new ServerError(401, error.message);
     }
-
-    return new this(tokenValue);
   }
 
+  static _parse(tokenValue) {
+    const [ header, payload, signature ] = tokenValue.split('.');
+    const claims = JSON.parse(
+      Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+        .toString('utf8')
+    );
+
+    return { header, payload, claims, signature };
+  }
+
+  get playerId() {
+    return this.claims.sub;
+  }
+  get playerName() {
+    return this.claims.name;
+  }
   get createdAt() {
     if (this._createdAt !== undefined)
       return this._createdAt;

@@ -1,18 +1,19 @@
-import IdentityToken from 'server/IdentityToken.js';
+import Token from 'server/Token.js';
 import serializer from 'utils/serializer.js';
 import ServerError from 'server/Error.js';
 
-export default class AccessToken extends IdentityToken {
-  get deviceId() {
-    return this.claims.deviceId;
+export default class AccessToken extends Token {
+  static validate(tokenValue, options) {
+    super.validate(tokenValue, options);
+
+    const { claims } = this._parse(tokenValue);
+
+    if (!claims.deviceId)
+      throw new ServerError(422, 'Expected access token');
   }
 
-  static verify(tokenValue, options) {
-    let token = super.verify(tokenValue, options);
-    if (!token.deviceId)
-      throw new ServerError(401, 'Expected access token');
-
-    return token;
+  get deviceId() {
+    return this.claims.deviceId;
   }
 };
 

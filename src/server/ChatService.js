@@ -13,6 +13,10 @@ export default class ChatService extends Service {
       playerPara: new Map(),
     });
 
+    this.setValidation({
+      authorize: { token:AccessToken },
+    });
+
     this._onPlayerACLChangeListener = this._onPlayerACLChange.bind(this);
   }
 
@@ -52,12 +56,7 @@ export default class ChatService extends Service {
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
-  onAuthorize(client, { token:tokenValue }) {
-    if (!tokenValue)
-      throw new ServerError(422, 'Required authorization token');
-
-    const token = AccessToken.verify(tokenValue);
-
+  onAuthorize(client, { token }) {
     if (this.clientPara.has(client.id)) {
       const clientPara = this.clientPara.get(client.id);
       if (clientPara.playerId !== token.playerId)

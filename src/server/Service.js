@@ -2,6 +2,7 @@ import DebugLogger from 'debug';
 
 import ServerError from 'server/Error.js';
 import emitter from 'utils/emitter.js';
+import serializer from 'utils/serializer.js';
 
 export default class Service {
   constructor(props) {
@@ -11,7 +12,61 @@ export default class Service {
       // Keys: Clients
       // Values: Action stats maps
       _throttles: new Map(),
+
+      _validators: new Map(),
     });
+  }
+
+  /*
+   * Client-facing service methods may have their inputs validated & normalized.
+   * The input validation is a proprietary shorthand for defining tuple schemas.
+   * The shorthand is converted to JSON Schemas for validation purposes.
+   * The JSON Schemas are converted to code for normalization purposes.
+   */
+  setValidation(validation) {
+    const validators = new Map();
+
+    for (const messageType of Object.keys(validation)) {
+      switch (messageType) {
+        case 'authorize':
+          const key = messageType;
+          validators.set(key, serializer.makeValidator(validation.authorize));
+          break;
+        case 'request':
+          for (const [ method, definition ] of Object.entries(validation.request)) {
+            const key = `${messageType}:${method}`;
+            validators.set(key, serializer.makeValidator(definition));
+          }
+          break;
+        default:
+          throw new Error('Unsupported message type');
+      }
+    }
+
+    this._validators = validators;
+  }
+  validate(messageType, body) {
+    const validators = this._validators;
+    let validate;
+
+    switch (messageType) {
+      case 'authorize':
+        validate = validators.get('authorize');
+        if (validate)
+          body.data = validate(body.data);
+        break;
+      case 'request':
+        validate = validators.get(`request:${body.method}`);
+        if (validate)
+          body.args = validate(body.args);
+        break;
+    }
+  }
+
+  will(client, messageType, body) {
+    this.validate(messageType, body);
+
+    return true;
   }
 
   async cleanup() {
@@ -23,9 +78,6 @@ export default class Service {
    */
   async getStatus() {
     return { data:await this.data.getStatus() };
-  }
-  will(client, messageType, bodyType) {
-    return true;
   }
   dropClient() {
   }

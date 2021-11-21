@@ -12,6 +12,10 @@ export default class PushService extends Service {
       // Session data for each client.
       sessions: new Map(),
     });
+
+    this.setValidation({
+      authorize: { token:AccessToken },
+    });
   }
 
   hasPushSubscription(playerId) {
@@ -54,12 +58,7 @@ export default class PushService extends Service {
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
-  onAuthorize(client, { token:tokenValue }) {
-    if (!tokenValue)
-      throw new ServerError(422, 'Required authorization token');
-
-    let token = AccessToken.verify(tokenValue);
-
+  onAuthorize(client, { token }) {
     this.sessions.set(client.id, {
       playerId: token.playerId,
       deviceId: token.deviceId,

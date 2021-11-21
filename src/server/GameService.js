@@ -42,6 +42,10 @@ export default class GameService extends Service {
       playerPara: new Map(),
     });
 
+    this.setValidation({
+      authorize: { token:AccessToken },
+    });
+
     this.idleWatcher = idleWatcher.bind(this);
   }
 
@@ -150,11 +154,7 @@ export default class GameService extends Service {
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
-  async onAuthorize(client, { token:tokenValue }) {
-    if (!tokenValue)
-      throw new ServerError(422, 'Required authorization token');
-    const token = AccessToken.verify(tokenValue);
-
+  async onAuthorize(client, { token }) {
     if (this.clientPara.has(client.id)) {
       const clientPara = this.clientPara.get(client.id);
       if (clientPara.playerId !== token.playerId)

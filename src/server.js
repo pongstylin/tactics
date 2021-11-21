@@ -82,7 +82,9 @@ async function getYourTurnNotification(req, res) {
 
   const gameService = services.get('game');
   const tokenValue = req.headers.authorization.replace(/^Bearer /, '');
-  const token = AccessToken.verify(tokenValue, { ignoreExpiration:true });
+  AccessToken.validate(tokenValue, { ignoreExpiration:true });
+
+  const token = new AccessToken(tokenValue);
   const playerId = token.playerId;
   const notification = await gameService.getYourTurnNotification(playerId);
 

@@ -1,12 +1,15 @@
 import Token from 'server/Token.js';
 import serializer from 'utils/serializer.js';
+import ServerError from 'server/Error.js';
 
 export default class IdentityToken extends Token {
-  get playerId() {
-    return this.claims.sub;
-  }
-  get playerName() {
-    return this.claims.name;
+  static validate(tokenValue, options) {
+    super.validate(tokenValue, options);
+
+    const { claims } = this._parse(tokenValue);
+
+    if (claims.deviceId)
+      throw new ServerError(422, 'Expected identity token');
   }
 };
 

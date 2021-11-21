@@ -543,7 +543,7 @@ const makeSubSchema = definition => {
       if (definition.$validation)
         return { $ref:type.name, subType:type.name, validation:definition.$validation };
 
-      return { $ref:type.name };
+      return { $ref:type.name, subType:type.name };
     }
   } else
     subSchema.type = definition.$type;

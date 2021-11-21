@@ -14,6 +14,18 @@ export default class AuthService extends Service {
 
       clientPara: new Map(),
     });
+
+    this.setValidation({
+      authorize: { token:AccessToken },
+      request: {
+        addDevice: [ IdentityToken ],
+        refreshToken: [{
+          $type: AccessToken,
+          $validation: { ignoreExpiration:true },
+          $required: false,
+        }],
+      },
+    });
   }
 
   openPlayer(playerId) {
@@ -40,10 +52,8 @@ export default class AuthService extends Service {
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
-  async onAuthorize(client, { token:tokenValue }) {
-    const { token, player, device } = await this._validateAccessToken(client, tokenValue);
-    if (token.isExpired)
-      throw new ServerError(401, 'Token expired');
+  async onAuthorize(client, { token }) {
+    const { player, device } = await this._validateAccessToken(client, token);
 
     if (this.clientPara.has(client.id)) {
       const clientPara = this.clientPara.get(client.id);
@@ -164,8 +174,7 @@ export default class AuthService extends Service {
    * Add device to account using the identity token.  Return access token.
    * (Authorization not required)
    */
-  async onAddDeviceRequest(client, identityTokenValue) {
-    const token = IdentityToken.verify(identityTokenValue);
+  async onAddDeviceRequest(client, token) {
     const player = await this.data.getPlayer(token.playerId);
 
     return player.addDevice(client, token).token;
@@ -215,12 +224,15 @@ export default class AuthService extends Service {
    *        b) When refreshing the next token, activating it, return it if it is
    *           still fresh.
    */
-  async onRefreshTokenRequest(client, tokenValue) {
+  async onRefreshTokenRequest(client, token) {
     // An authorized player does not have to provide the token.
-    if (!tokenValue && this.clientPara.has(client.id))
-      tokenValue = this.clientPara.get(client.id).token.value;
+    if (!token)
+      if (this.clientPara.has(client.id))
+        token = this.clientPara.get(client.id).token;
+      else
+        throw new ServerError(401, 'Required access token');
 
-    const { player, device } = await this._validateAccessToken(client, tokenValue);
+    const { player, device } = await this._validateAccessToken(client, token);
 
     if (player.refreshAccessToken(device.id)) {
       const newToken = player.getAccessToken(device.id);
@@ -281,8 +293,7 @@ export default class AuthService extends Service {
     playerA.clearPlayerACL(playerB);
   }
 
-  async _validateAccessToken(client, tokenValue) {
-    const token = AccessToken.verify(tokenValue, { ignoreExpiration:true });
+  async _validateAccessToken(client, token) {
     const player = await this.data.getPlayer(token.playerId);
     const device = player.getDevice(token.deviceId);
 
@@ -300,6 +311,6 @@ export default class AuthService extends Service {
       //throw new ServerError(409, 'Token revoked');
     }
 
-    return { token, player, device };
+    return { player, device };
   }
 }
