@@ -1,5 +1,3 @@
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
 import uuid from 'uuid/v4';
 import http from 'http';
 import express from 'express';
@@ -9,10 +7,6 @@ import util from 'util';
 import DebugLogger from 'debug';
 
 import 'plugins/index.js';
-
-import serializer from 'utils/serializer.js';
-// This must be set before other classes are imported.
-serializer.setValidator(Ajv, addFormats);
 
 import config from 'config/server.js';
 import { onConnect, onShutdown } from 'server/router.js';

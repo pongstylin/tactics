@@ -312,8 +312,6 @@ for (const type of types) {
   typeMap.set(type.constructor, type);
 }
 
-const schemas = new Map();
-
 /*
  * Determine if the data is a transformable type and serialize it.
  *
@@ -523,6 +521,131 @@ const mergeSchemaProperties = (...propertySets) => {
   }
 
   return mergedProperties;
+};
+const makeSchema = definition => {
+  return Object.assign({
+    $schema: 'http://json-schema.org/draft-07/schema',
+  }, makeSubSchema(normalizeDefinition(definition)));
+};
+const makeSubSchema = definition => {
+  const subSchema = {};
+
+  if (typeMap.has(definition.$type)) {
+    const type = typeMap.get(definition.$type);
+
+    if (type.builtin) {
+      if (definition.$validation)
+        throw new TypeError('May not use $validation with built-in types');
+
+      subSchema.type = type.jsonType.toLowerCase();
+      subSchema.subType = type.name;
+    } else {
+      if (definition.$validation)
+        return { $ref:type.name, subType:type.name, validation:definition.$validation };
+
+      return { $ref:type.name };
+    }
+  } else
+    subSchema.type = definition.$type;
+
+  switch (subSchema.type) {
+    case 'object':
+      if (definition.$properties) {
+        subSchema.required = [];
+        subSchema.properties = {};
+        subSchema.additionalProperties = false;
+
+        const keys = Object.keys(definition.$properties);
+        for (const key of keys) {
+          const propertyName = key.replace(/\?$/, '');
+          const keyDefinition = normalizeDefinition(definition.$properties[key]);
+
+          if (propertyName === key && keyDefinition.$required !== false)
+            subSchema.required.push(propertyName);
+          subSchema.properties[propertyName] = makeSubSchema(keyDefinition);
+        }
+      }
+      break;
+    case 'array':
+      if (definition.$items) {
+        if (definition.$items.constructor === Array) {
+          subSchema.minItems = definition.$minItems;
+          subSchema.items = [];
+          subSchema.additionalItems = false;
+
+          for (let i = 0; i < definition.$items.length; i++) {
+            const itemDefinition = normalizeDefinition(definition.$items[i]);
+
+            if (itemDefinition.$required === false) {
+              if (subSchema.minItems === undefined)
+                subSchema.minItems = i;
+            } else {
+              if (subSchema.minItems > i)
+                throw new TypeError('Unsupported non-right-aligned optional items in tuple');
+            }
+
+            subSchema.items.push(makeSubSchema(itemDefinition));
+          }
+
+          if (subSchema.minItems === undefined)
+            subSchema.minItems = subSchema.items.length;
+        } else
+          subSchema.items = makeSubSchema(normalizeDefinition(definition.$items));
+      }
+      break;
+    case 'string':
+    case 'number':
+    case 'integer':
+      break;
+    default:
+      throw new TypeError(`Unsupported type: ${subSchema.type}`);
+  }
+
+  return subSchema;
+};
+const normalizeDefinition = definition => {
+  if (typeof definition === 'string') {
+    if (definition.endsWith('[]?'))
+      return {
+        $type: 'array',
+        $items: { $type:definition.slice(0, -3) },
+        $required: false,
+      };
+    else if (definition.endsWith('[]'))
+      return {
+        $type: 'array',
+        $items: { $type:definition.slice(0, -2) },
+      };
+    else if (definition.endsWith('?'))
+      return {
+        $type: definition.slice(0, -1),
+        $required: false,
+      };
+
+    return { $type:definition };
+  } else if (typeof definition === 'object') {
+    if (definition.constructor === Object) {
+      if (definition.$type)
+        return definition;
+      else
+        return {
+          $type: 'object',
+          $properties: definition,
+        };
+    } else if (definition.constructor === Array)
+      return {
+        $type: 'array',
+        $items: definition,
+      };
+  } else if (typeof definition === 'function') {
+    const type = typeMap.get(definition);
+    if (!type)
+      throw new TypeError(`Unrecognized type: ${definition.name}`);
+
+    return { $type:type.name };
+  }
+
+  throw new TypeError(`Invalid type: ${typeof definition}`);
 };
 const compileSchema = (schema, subSchema = schema, isRequired = true) => {
   if (subSchema.$ref) {
@@ -834,35 +957,37 @@ const serializer = {
     ajv.addKeyword({
       keyword: 'subType',
       schemaType: 'string',
-      implements: [ 'validate' ],
+      implements: [ 'validation' ],
       validate: (subType, data, parentSchema) => {
         const type = typeMap.get(subType);
 
         if (typeof type.constructor.validate === 'function')
-          type.constructor.validate(data, parentSchema.validate);
+          type.constructor.validate(data, parentSchema.validation);
 
         return true;
       },
     });
-  },
-  validate(data, schema) {
-    const schemaId = JSON.stringify(schema);
 
-    let cache;
-    if (schemas.has(schemaId))
-      cache = schemas.get(schemaId);
-    else
-      schemas.set(schemaId, cache = {
-        normalize: compileNormalize(compileTransform(compileSchema(schema))),
-        validate: this.ajv.compile(schema),
-      });
-
-    if (!cache.validate(data)) {
-      console.error('validation errors', cache.validate.errors);
-      throw new TypeError('Validation failed');
+    for (const type of types) {
+      if (type.schema)
+        ajv.addSchema(type.schema);
     }
+  },
+  makeValidator(schema) {
+    if (!schema.constructor === Object || !schema.$schema)
+      schema = makeSchema(schema);
 
-    return cache.normalize(data);
+    const normalize = compileNormalize(compileTransform(compileSchema(schema)));
+    const validate = this.ajv.compile(schema);
+
+    return data => {
+      if (!validate(data)) {
+        console.error('validation errors', validate.errors);
+        throw new TypeError('Validation failed');
+      }
+
+      return normalize(data);
+    };
   },
   clone(data) {
     return this.parse(this.stringify(data));

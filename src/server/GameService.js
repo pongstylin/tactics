@@ -48,12 +48,16 @@ export default class GameService extends Service {
   /*
    * Test if the service will handle the message from client
    */
-  will(client, messageType, bodyType) {
+  will(client, messageType, body) {
+    super.will(client, messageType, body);
+    if (messageType === 'authorize')
+      return;
+
     // No authorization required
-    if (bodyType === 'getGame') return true;
-    if (bodyType === 'getTurnData') return true;
-    if (bodyType === 'getTurnActions') return true;
-    if (bodyType === 'getGameTypeConfig') return true;
+    if (body.method === 'getGame') return true;
+    if (body.method === 'getTurnData') return true;
+    if (body.method === 'getTurnActions') return true;
+    if (body.method === 'getGameTypeConfig') return true;
 
     // Authorization required
     const clientPara = this.clientPara.get(client.id);

@@ -19,7 +19,11 @@ export default class ChatService extends Service {
   /*
    * Test if the service will handle the message from client
    */
-  will(client, messageType, bodyType) {
+  will(client, messageType, body) {
+    super.will(client, messageType, body);
+    if (messageType === 'authorize')
+      return;
+
     // Authorization required
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara)
@@ -121,7 +125,7 @@ export default class ChatService extends Service {
       const roomPara = {
         memberIds,
         muted: new Map(
-          players.map(p => [ p.id, p.hasMutedOrBlocked(memberIds) ]),
+          players.map(p => [ p.id, new Set(p.hasMutedOrBlocked(memberIds)) ]),
         ),
         clientIds: new Set(),
         emit,

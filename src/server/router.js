@@ -9,6 +9,7 @@ import config from 'config/server.js';
 import Timeout from 'server/Timeout.js';
 import services, { servicesReady } from 'server/services.js';
 import ServerError from 'server/Error.js';
+import serializer from 'utils/serializer.js';
 
 const CLOSE_GOING_AWAY     = 1001;
 const CLOSE_NO_STATUS      = 1005;
@@ -22,14 +23,16 @@ const CLOSE_REPLACED        = 4002;
 // Proprietary codes used by client
 const CLOSE_SERVER_TIMEOUT = 4100;
 
-let debug = DebugLogger('service:router');
+const debug = DebugLogger('service:router');
 // Verbose debug logger
-let debugV = DebugLogger('service-v:router');
+const debugV = DebugLogger('service-v:router');
 
-let ajv = new Ajv();
+const ajv = new Ajv();
 addFormats(ajv);
 
-let schema = {
+serializer.setValidator(Ajv, addFormats);
+
+const schema = {
   '$schema': 'http://json-schema.org/draft-07/schema#',
   '$id': 'client_message',
   type: 'object',
@@ -158,7 +161,7 @@ let schema = {
     },
   ],
 };
-let validate = ajv.compile(schema);
+const validate = ajv.compile(schema);
 
 /*
  * Schema validation errors include why a given JSON payload does not match
@@ -167,7 +170,7 @@ let validate = ajv.compile(schema);
  * we only return error details for the schema that matches the message type of
  * the JSON payload.
  */
-let messageTypeErrorPath = new Map();
+const messageTypeErrorPath = new Map();
 
 schema.oneOf.forEach((schema, i) => {
   let path = '#/oneOf/' + i;
@@ -217,7 +220,7 @@ export function onShutdown() {
  * Group Management
  ******************************************************************************/
 servicesReady.then(() => {
-  for (let service of services.values()) {
+  for (const service of services.values()) {
     service.on('joinGroup', event => joinGroup(service.name, event));
     service.on('leaveGroup', event => leaveGroup(service.name, event));
     service.on('closeGroup', event => closeGroup(service.name, event));
@@ -225,7 +228,7 @@ servicesReady.then(() => {
   }
 });
 
-let groups = new Map();
+const groups = new Map();
 
 function joinGroup(serviceName, { client:clientId, body }) {
   let groupId = [serviceName, body.group].join(':');
@@ -660,34 +663,30 @@ function onMessage(data) {
   }
 }
 
-function onAuthorizeMessage(client, message) {
-  let session = client.session;
-  let requestId = message.id;
-  let body = message.body;
-  let service = services.get(body.service);
-  let method = 'onAuthorize';
+async function onAuthorizeMessage(client, message) {
+  const session = client.session;
+  const requestId = message.id;
+  const body = message.body;
+  const service = services.get(body.service);
+  const method = 'onAuthorize';
 
   if (!service)
     throw new ServerError(404, 'No such service');
-  if (!(method in service))
-    throw new ServerError(501, 'Service does not support authorization');
 
   try {
-    let response = service[method](client, body.data);
+    service.will(client, message.type, body);
 
-    if (response instanceof Promise)
-      response
-        .then(data => enqueue(session, 'response', { requestId, data }))
-        .catch(error => sendErrorResponse(client, requestId, error));
-    else
-      enqueue(session, 'response', { requestId, data:response });
-  }
-  catch (error) {
+    const data = await service[method](client, body.data);
+    if (client.closed)
+      return;
+
+    enqueue(session, 'response', { requestId, data });
+  } catch (error) {
     sendErrorResponse(client, requestId, error);
   }
 }
 
-function onEventMessage(client, message) {
+async function onEventMessage(client, message) {
   const body = message.body;
   const service = services.get(body.service);
   const method = 'on' + body.type.split(':').map(p => p.toUpperCase('first')).join('') + 'Event';
@@ -702,11 +701,13 @@ function onEventMessage(client, message) {
   if (!group || !group.has(client.id))
     throw new ServerError(412, 'Must first join the group');
 
-  service.will(client, message.type, body.type);
+  service.will(client, message.type, body);
 
-  const response = service[method](client, body.group, body.data);
-  if (response instanceof Promise)
-    response.catch(error => sendError(client, error, message));
+  try {
+    await service[method](client, body.group, body.data);
+  } catch (error) {
+    sendError(client, error, message);
+  }
 }
 
 async function onRequestMessage(client, message) {
@@ -726,7 +727,7 @@ async function onRequestMessage(client, message) {
     });
 
   try {
-    service.will(client, message.type, body.method);
+    service.will(client, message.type, body);
 
     const data = await service[method](client, ...body.args);
     if (client.closed)
@@ -756,7 +757,7 @@ async function onJoinMessage(client, message) {
     throw new ServerError(409, 'Already joined group');
 
   try {
-    service.will(client, 'join', body.group);
+    service.will(client, message.type, body);
 
     const data = await service[method](client, body.group, body.params);
     if (client.closed)
@@ -782,7 +783,7 @@ function onLeaveMessage(client, message) {
   if (!group || !group.has(client.id))
     throw new ServerError(409, 'Already left group');
 
-  service.will(client, 'leave', body.group);
+  service.will(client, 'leave', body);
 
   service.onLeaveGroup(client, body.group);
 }
