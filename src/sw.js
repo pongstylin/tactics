@@ -397,7 +397,7 @@ self.addEventListener('message', async event => {
   if (message.type === 'version')
     client.postMessage({
       type: 'version',
-      data: { version:config.version.toString() },
+      data: { version:config.version },
     });
   else if (message.type === 'skipWaiting')
     self.skipWaiting();

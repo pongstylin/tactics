@@ -589,7 +589,7 @@ export default class ServerSocket {
       session.version = new Version(message.body.version);
 
       let updateError;
-      if (!config.version.isCompatibleWith(session.version)) {
+      if (!session.version.isCompatibleWith(config.version)) {
         installUpdate(session.version);
         return this.destroy('Version mismatch');
       }
