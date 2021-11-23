@@ -37,6 +37,6 @@ export default class extends FileAdapter {
     else
       pushData.subscriptions.delete(deviceId);
 
-    await this.putFile(fileName, pushData, () => JSON.stringify(pushData));
+    await this.putFile(fileName, pushData);
   }
 };
