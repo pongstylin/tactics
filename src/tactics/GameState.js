@@ -1180,7 +1180,6 @@ serializer.addType({
   constructor: GameState,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'GameState',
     type: 'object',
     required: [
       'type', 'randomFirstTurn', 'randomHitChance', 'turnTimeLimit', 'teams',

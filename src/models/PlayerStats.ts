@@ -230,7 +230,6 @@ serializer.addType({
   constructor: PlayerStats,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'PlayerStats',
     type: 'object',
     required: [ 'playerId', 'stats' ],
     properties: {

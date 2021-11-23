@@ -43,7 +43,6 @@ serializer.addType({
   constructor: Version,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'Version',
     type: 'string',
   },
 });

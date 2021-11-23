@@ -364,7 +364,6 @@ serializer.addType({
   constructor: Player,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'Player',
     type: 'object',
     required: [ 'id', 'name', 'devices', 'acl', 'reverseACL', 'identityToken', 'createdAt', 'checkoutAt' ],
     properties: {
@@ -445,7 +444,12 @@ serializer.addType({
           additionalItems: false,
         },
       },
-      identityToken: { type:[ 'string', 'null' ], subType:'IdentityToken' },
+      identityToken: {
+        oneOf: [
+          { type:'null' },
+          { $ref:'IdentityToken' },
+        ],
+      },
       createdAt: { type:'string', subType:'Date' },
       checkoutAt: { type:'string', subType:'Date' },
     },

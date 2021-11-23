@@ -4,6 +4,7 @@ import DebugLogger from 'debug';
 import ws from 'ws';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import addKeywords from 'ajv-keywords';
 
 import config from 'config/server.js';
 import Timeout from 'server/Timeout.js';
@@ -27,10 +28,13 @@ const debug = DebugLogger('service:router');
 // Verbose debug logger
 const debugV = DebugLogger('service-v:router');
 
-const ajv = new Ajv();
+const ajv = new Ajv({
+  strictTuples: false,
+});
 addFormats(ajv);
+addKeywords(ajv);
 
-serializer.setValidator(Ajv, addFormats);
+serializer.enableValidation(ajv);
 
 const schema = {
   '$schema': 'http://json-schema.org/draft-07/schema#',

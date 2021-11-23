@@ -31,7 +31,6 @@ serializer.addType({
   constructor: ServerError,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'ServerError',
     type: 'object',
     required: [ 'code', 'message' ],
     properties: {

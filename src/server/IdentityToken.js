@@ -18,7 +18,6 @@ serializer.addType({
   constructor: IdentityToken,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'IdentityToken',
     type: 'string',
   },
 });

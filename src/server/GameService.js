@@ -44,6 +44,46 @@ export default class GameService extends Service {
 
     this.setValidation({
       authorize: { token:AccessToken },
+      request: {
+        action: [ 'game:group', 'game:action | game:action[]' ],
+        playerRequest: [ 'game:group', `enum(['undo','truce'])` ],
+      },
+      definitions: {
+        group: 'string(/^\\/games\\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)',
+        coords: [ 'integer(0,10)', 'integer(0,10)' ],
+        direction: `enum(['N','S','E','W'])`,
+        action: {
+          $type: [
+            {
+              type: `const('move')`,
+              unit: 'integer(0)',
+              assignment: 'game:coords',
+            },
+            {
+              type: `const('attack')`,
+              unit: 'integer(0)',
+              'target?': 'game:coords',
+              'direction?': 'game:direction',
+            },
+            {
+              type: `const('attackSpecial')`,
+              unit: 'integer(0)',
+            },
+            {
+              type: `const('turn')`,
+              unit: 'integer(0)',
+              direction: 'game:direction',
+            },
+            {
+              type: `const('endTurn')`,
+            },
+            {
+              type: `const('surrender')`,
+              'teamId?': 'integer(0,3)',
+            },
+          ],
+        },
+      },
     });
 
     this.idleWatcher = idleWatcher.bind(this);
@@ -797,9 +837,7 @@ export default class GameService extends Service {
   }
 
   onActionRequest(client, groupPath, action) {
-    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
-    if (gameId === undefined)
-      throw new ServerError(400, 'Required game group');
+    const gameId = groupPath.match(/^\/games\/(.+)$/)[1];
 
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara.joinedGroups.has(gameId))
@@ -811,9 +849,7 @@ export default class GameService extends Service {
     game.submitAction(playerId, action);
   }
   onPlayerRequestRequest(client, groupPath, requestType) {
-    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
-    if (gameId === undefined)
-      throw new ServerError(400, 'Required game group');
+    const gameId = groupPath.match(/^\/games\/(.+)$/)[1];
 
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara.joinedGroups.has(gameId))

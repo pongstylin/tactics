@@ -303,6 +303,8 @@ const types = [
     codify: (varName, varAlias) => `${varName} = new Date(${varAlias});`,
   },
 ];
+const schemas = new Map();
+
 const typeMap = new Map();
 const constructors = {};
 for (const type of types) {
@@ -540,12 +542,18 @@ const makeSubSchema = definition => {
       subSchema.type = type.jsonType.toLowerCase();
       subSchema.subType = type.name;
     } else {
+      subSchema.$ref = type.schema.$id;
+      subSchema.subType = type.name;
       if (definition.$validation)
-        return { $ref:type.name, subType:type.name, validation:definition.$validation };
+        subSchema.validation = definition.$validation;
 
-      return { $ref:type.name, subType:type.name };
+      return subSchema;
     }
-  } else
+  } else if (schemas.has(definition.$type))
+    return { $ref:definition.$type };
+  else if (definition.$type.constructor === Array)
+    return { oneOf:definition.$type.map(t => makeSubSchema(normalizeDefinition(t))) };
+  else
     subSchema.type = definition.$type;
 
   switch (subSchema.type) {
@@ -594,8 +602,23 @@ const makeSubSchema = definition => {
       }
       break;
     case 'string':
+      if (definition.$const)
+        subSchema.const = definition.$const;
+      if (definition.$enum)
+        subSchema.enum = definition.$enum;
+      if (definition.$regexp)
+        subSchema.regexp = definition.$regexp;
+      if (definition.$minLength)
+        subSchema.minLength = definition.$minLength;
+      if (definition.$maxLength)
+        subSchema.maxLength = definition.$maxLength;
+      break;
     case 'number':
     case 'integer':
+      if (definition.$minimum !== undefined)
+        subSchema.minimum = definition.$minimum;
+      if (definition.$maximum !== undefined)
+        subSchema.maximum = definition.$maximum;
       break;
     default:
       throw new TypeError(`Unsupported type: ${subSchema.type}`);
@@ -603,26 +626,115 @@ const makeSubSchema = definition => {
 
   return subSchema;
 };
+const getPrimitiveTypeOfValue = value => {
+  if (value === null)
+    return 'null';
+  else if (typeof value === 'object')
+    throw new Error(`Unexpected object or array`);
+  else
+    return typeof value;
+};
 const normalizeDefinition = definition => {
   if (typeof definition === 'string') {
-    if (definition.endsWith('[]?'))
-      return {
-        $type: 'array',
-        $items: { $type:definition.slice(0, -3) },
-        $required: false,
-      };
-    else if (definition.endsWith('[]'))
-      return {
-        $type: 'array',
-        $items: { $type:definition.slice(0, -2) },
-      };
-    else if (definition.endsWith('?'))
-      return {
-        $type: definition.slice(0, -1),
-        $required: false,
-      };
+    const types = definition.split(/\s*\|\s*/);
 
-    return { $type:definition };
+    for (let i = 0; i < types.length; i++) {
+      const def = { $type:types[i] };
+
+      if (def.$type.endsWith('?')) {
+        def.$type = def.$type.slice(0, -1);
+        def.$required = false;
+      }
+      if (def.$type.endsWith('[]')) {
+        def.$type = def.$type.slice(0, -2);
+        types[i] = {
+          $type: 'array',
+          $items: def,
+        };
+        if (def.$required !== undefined) {
+          types[i].$required = def.$required;
+          delete def.$required;
+        }
+      } else {
+        types[i] = def;
+      }
+
+      const matchParams = def.$type.match(/^(.+?)\((.*)\)$/);
+      if (matchParams) {
+        const type = matchParams[1];
+        const args = [];
+
+        try {
+          args.push(...new Function(`'use strict';return [${matchParams[2]}]`)());
+        } catch(e) {
+          throw new Error(`Invalid syntax: ${matchParams[2]}`);
+        }
+
+        switch (type) {
+          case 'number':
+          case 'integer':
+            def.$type = type;
+            if (args.length === 2) {
+              def.$minimum = args[0];
+              def.$maximum = args[1];
+            } else if (args.length === 1)
+              def.$minimum = args[0];
+            break;
+          case 'string':
+            def.$type = type;
+            if (args.length === 1) {
+              if (typeof args[0] === 'number')
+                def.$minLength = args[0];
+              else if (args[0] instanceof RegExp)
+                def.$regexp = args[0].toString();
+            } else if (args.length === 2) {
+              def.$minLength = args[0];
+              def.$maxLength = args[1];
+            }
+            break;
+          case 'const':
+            def.$type = getPrimitiveTypeOfValue(args[0]);
+            def.$const = args[0];
+            break;
+          case 'enum':
+            if (args[0]?.constructor !== Array)
+              throw new Error(`'enum' expects an array of values`);
+            if (args[0].length === 0)
+              throw new Error(`'enum' requires at least one value`);
+            if (new Set(args[0]).size < args[0].length)
+              throw new Error(`'enum' values must be unique`);
+
+            const types = [ ...new Set(args[0].map(v => getPrimitiveTypeOfValue(v))) ];
+            def.$type = types.length === 1 ? types[0] : types;
+            def.$enum = args[0];
+            break;
+          default:
+            throw new Error(`Parameters are not supported for '${type}'`);
+        }
+      }
+    }
+
+    if (types.length > 1) {
+      let isRequired;
+      for (let i = 0; i < types.length; i++) {
+        if (types[i].$required === false) {
+          if (isRequired === true)
+            throw new TypeError('All types in a union must be optional or not');
+          isRequired = false;
+          delete types[i].$required;
+        } else {
+          if (isRequired === false)
+            throw new TypeError('All types in a union must be optional or not');
+          isRequired = true;
+        }
+      }
+
+      if (isRequired === false)
+        return { $type:types, $required:false };
+      return { $type:types };
+    }
+
+    return types[0];
   } else if (typeof definition === 'object') {
     if (definition.constructor === Object) {
       if (definition.$type)
@@ -652,15 +764,19 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
     const ref = subSchema.$ref;
     if (ref.startsWith('#/definitions/')) {
       subSchema = schema.definitions[ref.replace(/^#\/definitions\//, '')];
-    } else {
+    } else if (schemas.has(ref)) {
+      subSchema = schemas.get(ref);
+    } else if (typeMap.has(ref)) {
       const type = typeMap.get(ref);
-      if (!type)
-        throw new Error(`The ${ref} type needs to be added before ${schema.$id}`);
       if (!type.schema)
         throw new Error(`The ${ref} type has no schema`);
       return { type:type.name, required:isRequired, nullable:false };
-    }
+    } else
+      throw new Error(`The ${ref} schema needs to be added before ${schema.$id}`);
   }
+
+  if (typeof subSchema.$id === 'string' && subSchema.$id.startsWith('type:'))
+    subSchema = Object.assign({}, subSchema, { subType:subSchema.$id.replace(/^type:/, '') });
 
   if (subSchema.oneOf) {
     const mergeSchema = JSON.parse(JSON.stringify(subSchema));
@@ -670,14 +786,15 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
         const ref = one.$ref;
         if (ref.startsWith('#/definitions/')) {
           one = schema.definitions[ref.replace(/^#\/definitions\//, '')];
-        } else {
+        } else if (schemas.has(ref)) {
+          one = schemas.get(ref);
+        } else if (typeMap.has(ref)) {
           const type = typeMap.get(ref);
-          if (!type)
-            throw new Error(`The ${ref} type needs to be added before ${schema.$id}`);
           if (!type.schema)
             throw new Error(`The ${ref} type has no schema`);
           one = Object.assign({}, type.schema, { subType:type.name });
-        }
+        } else
+          throw new Error(`The ${ref} schema needs to be added before ${schema.$id}`);
       }
 
       mergeSchema.type = mergeSchemaTypes(mergeSchema.type, one.type);
@@ -714,7 +831,7 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
     schemaType = 'primitive';
 
   const transform = {
-    type: subSchema.$id ?? subSchema.subType ?? schemaType,
+    type: subSchema.subType ?? schemaType,
     required: isRequired,
     nullable: types.has('null'),
   };
@@ -803,6 +920,7 @@ const compileTransform = transform => {
 };
 const compileNormalize = code => {
   const normalize = new Function('data', 'constructors', [
+    `'use strict';`,
     code.replace(/__name__/g, 'data').replace(/__alias__/g, 'data'),
     `return data;`,
   ].join(''));
@@ -874,6 +992,8 @@ const codifyOptional = (code, varName, transform) => {
 };
 
 const serializer = {
+  ajv: null,
+
   addType(type) {
     if (typeMap.has(type.name))
       throw new TypeError('Type name conflict');
@@ -885,6 +1005,7 @@ const serializer = {
       throw new Error('A toJSON() method is required.');
 
     if (type.schema) {
+      type.schema.$id = `type:${type.name}`;
       type.jsonType = type.schema.type.toUpperCase('first');
 
       // Add validation and resolution of type schemas.
@@ -913,6 +1034,8 @@ const serializer = {
     constructors[type.name] = type.constructor;
     typeMap.set(type.name, type);
     typeMap.set(type.constructor, type);
+    if (type.schema)
+      typeMap.set(type.schema.$id, type);
   },
   transform(data) {
     if (data === null || typeof data !== 'object')
@@ -948,11 +1071,25 @@ const serializer = {
   parse(json) {
     return serializer.normalize(JSON.parse(json));
   },
-  setValidator(Ajv, addFormats) {
-    const ajv = this.ajv = new Ajv({
-      strictTuples: false,
-    });
-    addFormats(ajv);
+  addSchema(id, schema) {
+    if (!/^[a-z]/.test(id))
+      throw new Error('Schema $id must start with a lowercase letter');
+    if (id.startsWith('type:'))
+      throw new Error(`Schema $id must not start with 'type:'`);
+    if (schemas.has(id))
+      throw new Error(`Schema $id conflict: ${schema.$id}`);
+
+    if (!schema.constructor === Object || !schema.$schema)
+      schema = makeSchema(schema);
+
+    schema.$id = id;
+    schemas.set(id, schema);
+
+    if (this.ajv)
+      this.ajv.addSchema(schema);
+  },
+  enableValidation(newAjv) {
+    const ajv = this.ajv = newAjv;
 
     ajv.addKeyword({
       keyword: 'subType',
@@ -960,7 +1097,6 @@ const serializer = {
       implements: [ 'validation' ],
       validate: (subType, data, parentSchema) => {
         const type = typeMap.get(subType);
-
         if (typeof type.constructor.validate === 'function')
           type.constructor.validate(data, parentSchema.validation);
 
@@ -972,19 +1108,23 @@ const serializer = {
       if (type.schema)
         ajv.addSchema(type.schema);
     }
+
+    for (const schema of schemas.values()) {
+      ajv.addSchema(schema);
+    }
   },
-  makeValidator(schema) {
+  makeValidator(id, schema) {
     if (!schema.constructor === Object || !schema.$schema)
       schema = makeSchema(schema);
+
+    schema.$id = id;
 
     const normalize = compileNormalize(compileTransform(compileSchema(schema)));
     const validate = this.ajv.compile(schema);
 
     return data => {
-      if (!validate(data)) {
-        console.error('validation errors', validate.errors);
-        throw new TypeError('Validation failed');
-      }
+      if (!validate(data))
+        throw validate.errors;
 
       return normalize(data);
     };

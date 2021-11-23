@@ -291,7 +291,6 @@ serializer.addType({
   constructor: GameType,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'GameType',
     type: 'object',
     required: [ 'id', 'config' ],
     properties: {
@@ -370,6 +369,7 @@ serializer.addType({
     definitions: {
       coords: {
         type: 'array',
+        minItems: 2,
         items: [
           { type:'number', minimum:0, maximum:10 },
           { type:'number', minimum:0, maximum:10 },

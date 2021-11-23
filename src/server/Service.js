@@ -26,16 +26,23 @@ export default class Service {
   setValidation(validation) {
     const validators = new Map();
 
+    if (validation.definitions) {
+      for (const [ name, definition ] of Object.entries(validation.definitions)) {
+        serializer.addSchema(`${this.name}:${name}`, definition);
+      }
+      delete validation.definitions;
+    }
+
     for (const messageType of Object.keys(validation)) {
       switch (messageType) {
         case 'authorize':
           const key = messageType;
-          validators.set(key, serializer.makeValidator(validation.authorize));
+          validators.set(key, serializer.makeValidator(`${this.name}:/authorize`, validation.authorize));
           break;
         case 'request':
           for (const [ method, definition ] of Object.entries(validation.request)) {
             const key = `${messageType}:${method}`;
-            validators.set(key, serializer.makeValidator(definition));
+            validators.set(key, serializer.makeValidator(`${this.name}:/request/${method}`, definition));
           }
           break;
         default:
@@ -47,19 +54,31 @@ export default class Service {
   }
   validate(messageType, body) {
     const validators = this._validators;
-    let validate;
 
-    switch (messageType) {
-      case 'authorize':
-        validate = validators.get('authorize');
-        if (validate)
-          body.data = validate(body.data);
-        break;
-      case 'request':
-        validate = validators.get(`request:${body.method}`);
-        if (validate)
-          body.args = validate(body.args);
-        break;
+    try {
+      let validate;
+      switch (messageType) {
+        case 'authorize':
+          validate = validators.get('authorize');
+          if (validate)
+            body.data = validate(body.data);
+          break;
+        case 'request':
+          validate = validators.get(`request:${body.method}`);
+          if (validate)
+            body.args = validate(body.args);
+          break;
+      }
+    } catch(e) {
+      if (e.constructor === Array) {
+        // User-facing validation errors are treated manually with specific messages.
+        // So, be verbose since failures indicate a problem with the schema or client.
+        console.error('data', { type:messageType, body });
+        console.error('errors', e);
+        e = new ServerError(422, 'Validation error');
+      }
+
+      throw e;
     }
   }
 
