@@ -59,15 +59,26 @@ export default class Game extends ActiveModel {
       playerRequest: null,
     };
 
-    const stateData = {};
+    const stateData:any = {};
     Object.keys(gameOptions).forEach(option => {
       if (stateKeys.has(option))
         stateData[option] = gameOptions[option];
       else if (gameKeys.has(option))
         gameData[option] = gameOptions[option];
-      else
-        throw new Error(`No such game option: ${option}`);
     });
+
+    /*
+     * Use the default turn time limit if this is a multiplayer game
+     */
+    if (stateData.turnTimeLimit === undefined) {
+      for (const team of stateData.teams) {
+        if (team && team.playerId === stateData.teams[0].playerId)
+          continue;
+
+        stateData.turnTimeLimit = 604800;
+        break;
+      }
+    }
 
     gameData.state = GameState.create(stateData);
 

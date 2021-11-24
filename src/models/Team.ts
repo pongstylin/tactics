@@ -190,7 +190,7 @@ export default class Team {
     if (!data.playerId)
       data.playerId = clientPara.playerId;
 
-    if (data.name !== undefined && data.name !== null)
+    if (data.name !== undefined)
       throw new ServerError(403, 'May not assign a name to a reserved team');
     if (data.set)
       throw new ServerError(403, 'May not assign a set to a reserved team');
@@ -222,8 +222,7 @@ export default class Team {
       if (this.forkOf)
         throw new ServerError(403, 'May not assign a set to a forked team');
       data.set = Team.validateSet(data, game, gameType);
-    }
-    else
+    } else
       data.set = null;
 
     this.joinedAt = new Date();

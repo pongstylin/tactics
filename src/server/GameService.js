@@ -45,14 +45,41 @@ export default class GameService extends Service {
     this.setValidation({
       authorize: { token:AccessToken },
       request: {
-        action: [ 'game:group', 'game:action | game:action[]' ],
+        createGame: [ 'string', 'game:options' ],
+        action: [ 'game:group', 'game:newAction | game:newAction[]' ],
         playerRequest: [ 'game:group', `enum(['undo','truce'])` ],
       },
       definitions: {
         group: 'string(/^\\/games\\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)',
         coords: [ 'integer(0,10)', 'integer(0,10)' ],
         direction: `enum(['N','S','E','W'])`,
-        action: {
+        newUnit: {
+          type: 'string',
+          assignment: 'game:coords',
+          'direction?': 'game:direction',
+        },
+        set: {
+          $type: [
+            { units: 'game:newUnit[]' },
+            { name: 'string' },
+            `enum([ 'same', 'mirror' ])`,
+          ],
+        },
+        newTeam: {
+          $type: [ 'null', {
+            'playerId?': 'uuid',
+            'name?': 'string',
+            'set?': 'game:set',
+          }],
+        },
+        options: {
+          teams: 'game:newTeam[2] | game:newTeam[4]',
+          'isPublic?': 'boolean',
+          'randomFirstTurn?': 'boolean',
+          'randomHitChance?': 'boolean',
+          'turnTimeLimit?': 'enum([ 30, 120, 86400, 604800 ])',
+        },
+        newAction: {
           $type: [
             {
               type: `const('move')`,
@@ -271,11 +298,7 @@ export default class GameService extends Service {
     const playerId = clientPara.playerId;
     this.throttle(playerId, 'createGame');
 
-    if (!gameOptions || !gameOptions.teams)
-      throw new ServerError(400, 'Required teams');
-    else if (gameOptions.teams.length !== 2 && gameOptions.teams.length !== 4)
-      throw new ServerError(400, 'Required 2 or 4 teams');
-    else if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
+    if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
       throw new ServerError(400, 'You must join games that you create');
 
     gameOptions.createdBy = playerId;
@@ -290,10 +313,7 @@ export default class GameService extends Service {
     for (const [slot, teamData] of gameOptions.teams.entries()) {
       if (!teamData) continue;
 
-      if (teamData.name !== undefined && teamData.name !== null)
-        Player.validatePlayerName(teamData.name);
-
-      delete teamData.slot;
+      teamData.slot = slot;
 
       let team;
       if (teamData.playerId && teamData.playerId !== playerId) {
@@ -301,11 +321,14 @@ export default class GameService extends Service {
         if (!player)
           throw new ServerError(404, 'A team has an unrecognized player ID');
 
-        team = Team.createReserve({ slot, playerId:teamData.playerId }, clientPara);
+        team = Team.createReserve(teamData, clientPara);
       } else if (teamData.set === undefined && gameType.isCustomizable) {
-        team = Team.createReserve({ slot }, clientPara);
+        team = Team.createReserve(teamData, clientPara);
       } else {
-        team = Team.createJoin({ slot, ...teamData }, clientPara, game, gameType);
+        if (teamData.name !== undefined)
+          Player.validatePlayerName(teamData.name);
+
+        team = Team.createJoin(teamData, clientPara, game, gameType);
       }
 
       await this._joinGame(game, gameType, team);

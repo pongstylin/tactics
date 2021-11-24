@@ -10,6 +10,8 @@
  * transform tree for more efficient deserialization.  For more efficient
  * serialization, a transform tree may be provided.
  */
+let ajv;
+
 const types = [
   {
     name: 'Object',
@@ -314,6 +316,32 @@ for (const type of types) {
   typeMap.set(type.constructor, type);
 }
 
+export const enableValidation = newAjv => {
+  ajv = newAjv;
+
+  ajv.addKeyword({
+    keyword: 'subType',
+    schemaType: 'string',
+    implements: [ 'validation' ],
+    validate: (subType, data, parentSchema) => {
+      const type = typeMap.get(subType);
+      if (typeof type.constructor.validate === 'function')
+        type.constructor.validate(data, parentSchema.validation);
+
+      return true;
+    },
+  });
+
+  for (const type of types) {
+    if (type.schema)
+      ajv.addSchema(type.schema);
+  }
+
+  for (const schema of schemas.values()) {
+    ajv.addSchema(schema);
+  }
+};
+
 /*
  * Determine if the data is a transformable type and serialize it.
  *
@@ -556,6 +584,12 @@ const makeSubSchema = definition => {
   else
     subSchema.type = definition.$type;
 
+  // These apply to multiple types.
+  if (definition.$const !== undefined)
+    subSchema.const = definition.$const;
+  if (definition.$enum !== undefined)
+    subSchema.enum = definition.$enum;
+
   switch (subSchema.type) {
     case 'object':
       if (definition.$properties) {
@@ -576,8 +610,12 @@ const makeSubSchema = definition => {
       break;
     case 'array':
       if (definition.$items) {
-        if (definition.$items.constructor === Array) {
+        if (definition.$minItems !== undefined)
           subSchema.minItems = definition.$minItems;
+        if (definition.$maxItems !== undefined)
+          subSchema.maxItems = definition.$maxItems;
+
+        if (definition.$items.constructor === Array) {
           subSchema.items = [];
           subSchema.additionalItems = false;
 
@@ -602,15 +640,13 @@ const makeSubSchema = definition => {
       }
       break;
     case 'string':
-      if (definition.$const)
-        subSchema.const = definition.$const;
-      if (definition.$enum)
-        subSchema.enum = definition.$enum;
-      if (definition.$regexp)
+      if (definition.$format !== undefined)
+        subSchema.format = definition.$format;
+      if (definition.$regexp !== undefined)
         subSchema.regexp = definition.$regexp;
-      if (definition.$minLength)
+      if (definition.$minLength !== undefined)
         subSchema.minLength = definition.$minLength;
-      if (definition.$maxLength)
+      if (definition.$maxLength !== undefined)
         subSchema.maxLength = definition.$maxLength;
       break;
     case 'number':
@@ -619,6 +655,9 @@ const makeSubSchema = definition => {
         subSchema.minimum = definition.$minimum;
       if (definition.$maximum !== undefined)
         subSchema.maximum = definition.$maximum;
+      break;
+    case 'null':
+    case 'boolean':
       break;
     default:
       throw new TypeError(`Unsupported type: ${subSchema.type}`);
@@ -645,8 +684,19 @@ const normalizeDefinition = definition => {
         def.$type = def.$type.slice(0, -1);
         def.$required = false;
       }
-      if (def.$type.endsWith('[]')) {
-        def.$type = def.$type.slice(0, -2);
+
+      const matchArray = def.$type.match(/^(.+?)\[(.*)\]$/);
+      if (matchArray) {
+        const type = matchArray[1];
+        const args = [];
+
+        try {
+          args.push(...new Function(`'use strict';return [${matchArray[2]}]`)());
+        } catch(e) {
+          throw new Error(`Invalid syntax: ${matchArray[2]}`);
+        }
+
+        def.$type = type;
         types[i] = {
           $type: 'array',
           $items: def,
@@ -654,6 +704,16 @@ const normalizeDefinition = definition => {
         if (def.$required !== undefined) {
           types[i].$required = def.$required;
           delete def.$required;
+        }
+
+        if (args.length === 1) {
+          types[i].$minItems = args[0];
+          types[i].$maxItems = args[0];
+          types[i].$additionalItems = false;
+        } else if (args.length === 2) {
+          types[i].$minItems = args[0];
+          types[i].$maxItems = args[1];
+          types[i].$additionalItems = false;
         }
       } else {
         types[i] = def;
@@ -683,9 +743,10 @@ const normalizeDefinition = definition => {
           case 'string':
             def.$type = type;
             if (args.length === 1) {
-              if (typeof args[0] === 'number')
+              if (typeof args[0] === 'number') {
                 def.$minLength = args[0];
-              else if (args[0] instanceof RegExp)
+                def.$maxLength = args[0];
+              } else if (args[0] instanceof RegExp)
                 def.$regexp = args[0].toString();
             } else if (args.length === 2) {
               def.$minLength = args[0];
@@ -711,6 +772,11 @@ const normalizeDefinition = definition => {
           default:
             throw new Error(`Parameters are not supported for '${type}'`);
         }
+      }
+
+      if (def.$type in ajv.formats) {
+        def.$format = def.$type;
+        def.$type = 'string';
       }
     }
 
@@ -808,10 +874,31 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
       mergeSchema.properties = mergeSchemaProperties(mergeSchema.properties, one.properties);
 
       if (one.items) {
-        if (mergeSchema.items)
-          throw new Error('Unable to merge items in oneOf');
-        mergeSchema.items = one.items;
-        mergeSchema.additionalItems = one.additionalItems;
+        if (mergeSchema.minItems === undefined)
+          mergeSchema.minItems = one.minItems ?? 0;
+        else
+          mergeSchema.minItems = Math.min(mergeSchema.minItems, one.minItems ?? 0);
+
+        if (mergeSchema.items) {
+          if (one.items.constructor === Array || mergeSchema.items.constructor === Array)
+            throw new Error(`Unable to merge tuple 'items' in oneOf`);
+
+          if (
+            one.items.$ref !== undefined &&
+            mergeSchema.items.$ref !== undefined &&
+            one.items.$ref === mergeSchema.items.$ref
+          ) {
+            // merge not required
+          } else
+            throw new Error(`Unable to merge array 'items' in oneOf`);
+        } else
+          mergeSchema.items = one.items;
+
+        if (one.items.constructor === Array) {
+          if (one.additionalItems !== false)
+            throw new Error(`Unable to merge 'additionalItems' in oneOf`);
+          mergeSchema.additionalItems = false;
+        }
       }
     }
 
@@ -992,8 +1079,6 @@ const codifyOptional = (code, varName, transform) => {
 };
 
 const serializer = {
-  ajv: null,
-
   addType(type) {
     if (typeMap.has(type.name))
       throw new TypeError('Type name conflict');
@@ -1009,8 +1094,8 @@ const serializer = {
       type.jsonType = type.schema.type.toUpperCase('first');
 
       // Add validation and resolution of type schemas.
-      if (this.ajv)
-        this.ajv.addSchema(type.schema);
+      if (ajv)
+        ajv.addSchema(type.schema);
 
       const transform = compileSchema(type.schema);
       if (pruneTransform(transform, true)) {
@@ -1085,42 +1170,17 @@ const serializer = {
     schema.$id = id;
     schemas.set(id, schema);
 
-    if (this.ajv)
-      this.ajv.addSchema(schema);
-  },
-  enableValidation(newAjv) {
-    const ajv = this.ajv = newAjv;
-
-    ajv.addKeyword({
-      keyword: 'subType',
-      schemaType: 'string',
-      implements: [ 'validation' ],
-      validate: (subType, data, parentSchema) => {
-        const type = typeMap.get(subType);
-        if (typeof type.constructor.validate === 'function')
-          type.constructor.validate(data, parentSchema.validation);
-
-        return true;
-      },
-    });
-
-    for (const type of types) {
-      if (type.schema)
-        ajv.addSchema(type.schema);
-    }
-
-    for (const schema of schemas.values()) {
+    if (ajv)
       ajv.addSchema(schema);
-    }
+
+    return schema;
   },
   makeValidator(id, schema) {
-    if (!schema.constructor === Object || !schema.$schema)
-      schema = makeSchema(schema);
-
-    schema.$id = id;
+    if (!schemas.has(id))
+      schema = this.addSchema(id, schema);
 
     const normalize = compileNormalize(compileTransform(compileSchema(schema)));
-    const validate = this.ajv.compile(schema);
+    const validate = ajv.compile(schema);
 
     return data => {
       if (!validate(data))

@@ -10,7 +10,7 @@ import config from 'config/server.js';
 import Timeout from 'server/Timeout.js';
 import services, { servicesReady } from 'server/services.js';
 import ServerError from 'server/Error.js';
-import serializer from 'utils/serializer.js';
+import serializer, { enableValidation } from 'utils/serializer.js';
 
 const CLOSE_GOING_AWAY     = 1001;
 const CLOSE_NO_STATUS      = 1005;
@@ -34,7 +34,7 @@ const ajv = new Ajv({
 addFormats(ajv);
 addKeywords(ajv);
 
-serializer.enableValidation(ajv);
+enableValidation(ajv);
 
 const schema = {
   '$schema': 'http://json-schema.org/draft-07/schema#',
