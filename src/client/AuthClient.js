@@ -1,6 +1,5 @@
-import config from 'config/client.js';
 import Client from 'client/Client.js';
-import Token from 'client/Token.js';
+import { AccessToken } from 'client/Token.js';
 
 const LOCAL_ENDPOINT = '/local.json';
 
@@ -77,30 +76,17 @@ export default class AuthClient extends Client {
   }
 
   getIdentityToken() {
-    return this._server.requestAuthorized(this.name, 'getIdentityToken')
-      .then(token => token ? new Token(token) : null);
+    return this._server.requestAuthorized(this.name, 'getIdentityToken');
   }
   createIdentityToken() {
-    return this._server.requestAuthorized(this.name, 'createIdentityToken')
-      .then(token => new Token(token));
+    return this._server.requestAuthorized(this.name, 'createIdentityToken');
   }
   revokeIdentityToken() {
     return this._server.requestAuthorized(this.name, 'revokeIdentityToken');
   }
 
   getDevices() {
-    return this._server.requestAuthorized(this.name, 'getDevices')
-      .then(devices => {
-        devices.forEach(device => {
-          device.agents.forEach(agent => {
-            agent.addresses.forEach(address => {
-              address.lastSeenAt = new Date(address.lastSeenAt);
-            });
-          });
-        });
-
-        return devices;
-      });
+    return this._server.requestAuthorized(this.name, 'getDevices');
   }
   addDevice(identityToken) {
     let promise;
@@ -132,10 +118,7 @@ export default class AuthClient extends Client {
   }
 
   getACL() {
-    return this._server.requestAuthorized(this.name, 'getACL')
-      .then(acl => {
-        return new Map(acl);
-      });
+    return this._server.requestAuthorized(this.name, 'getACL');
   }
   getPlayerACL(playerId) {
     return this._server.requestAuthorized(this.name, 'getPlayerACL', [ playerId ])
@@ -222,9 +205,9 @@ export default class AuthClient extends Client {
       });
   }
   _fetchToken() {
-    let tokenValue = localStorage.getItem('token');
+    const tokenValue = localStorage.getItem('token');
 
-    return tokenValue ? new Token(tokenValue) : null;
+    return tokenValue ? new AccessToken(tokenValue) : null;
   }
   _storeToken(token) {
     localStorage.setItem('token', token.value);
@@ -247,7 +230,7 @@ export default class AuthClient extends Client {
 
     let json = await response.json();
 
-    return json.token ? new Token(json.token) : null;
+    return json.token ? new AccessToken(json.token) : null;
   }
   async _storeCachedToken(token) {
     // The local endpoint is handled by the service worker.
@@ -274,7 +257,7 @@ export default class AuthClient extends Client {
     }
     else {
       if (typeof token === 'string')
-        token = new Token(token);
+        token = new AccessToken(token);
 
       if (!token.equals(storedToken)) {
         this._storeToken(token);

@@ -4,6 +4,7 @@ import { installUpdate } from 'client/Update.js';
 import ServerError from 'server/Error.js';
 import getIdle from 'components/getIdle.js';
 import emitter from 'utils/emitter.js';
+import serializer from 'utils/serializer.js';
 
 const CLOSE_CLIENT_TIMEOUT = 4000;
 
@@ -494,6 +495,9 @@ export default class ServerSocket {
     const now = Date.now();
     const message = JSON.parse(data);
     const session = this._session;
+
+    if (message.body)
+      message.body = serializer.normalize(message.body);
 
     // Reset the close timeout
     clearTimeout(this._closeTimeout);

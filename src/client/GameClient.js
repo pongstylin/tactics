@@ -1,6 +1,6 @@
-import config from 'config/client.js';
 import Client from 'client/Client.js';
-import GameType from 'tactics/GameType.js';
+import 'tactics/GameType.js';
+import 'models/GameSummary.js';
 
 export default class GameClient extends Client {
   constructor(server, authClient) {
@@ -75,7 +75,6 @@ export default class GameClient extends Client {
    */
   getGameType(gameTypeId) {
     return this._server.request(this.name, 'getGameTypeConfig', [gameTypeId])
-      .then(gameTypeConfig => GameType.load(gameTypeId, gameTypeConfig))
       .catch(error => {
         if (error === 'Connection reset')
           return this.getGameType(gameTypeId);
@@ -92,16 +91,6 @@ export default class GameClient extends Client {
   }
   getTurnData(gameId, turnId) {
     return this._server.request(this.name, 'getTurnData', [ gameId, turnId ])
-      .then(turnData => {
-        if (turnData) {
-          turnData.startedAt = new Date(turnData.startedAt);
-          turnData.actions.forEach(action => {
-            action.createdAt = new Date(action.createdAt);
-          });
-        }
-
-        return turnData;
-      })
       .catch(error => {
         if (error === 'Connection reset')
           return this.getTurnData(gameId, turnId);
@@ -110,15 +99,6 @@ export default class GameClient extends Client {
   }
   getTurnActions(gameId, turnId) {
     return this._server.request(this.name, 'getTurnActions', [ gameId, turnId ])
-      .then(actions => {
-        if (actions) {
-          actions.forEach(action => {
-            action.createdAt = new Date(action.createdAt);
-          });
-        }
-
-        return actions;
-      })
       .catch(error => {
         if (error === 'Connection reset')
           return this.getTurnActions(gameId, turnId);
@@ -144,17 +124,6 @@ export default class GameClient extends Client {
   }
   getPlayerInfo(gameId, playerId) {
     return this._server.requestJoined(this.name, `/games/${gameId}`, 'getPlayerInfo', [ playerId ])
-      .then(data => {
-        data.createdAt = new Date(data.createdAt);
-
-        for (const alias of data.stats.aliases) {
-          alias.lastSeenAt = new Date(alias.lastSeenAt);
-        }
-        data.stats.all.startedAt = new Date(data.stats.all.startedAt);
-        data.stats.style.startedAt = new Date(data.stats.style.startedAt);
-
-        return data;
-      })
       .catch(error => {
         if (error === 'Connection reset')
           return this.getPlayerInfo(gameId, playerId);
@@ -197,17 +166,6 @@ export default class GameClient extends Client {
 
   searchMyActiveGames(query) {
     return this._server.requestAuthorized(this.name, 'searchMyActiveGames', [ query ])
-      .then(result => {
-        result.hits.forEach(hit => {
-          hit.createdAt = new Date(hit.createdAt);
-          hit.updatedAt = new Date(hit.updatedAt);
-          hit.startedAt = hit.startedAt && new Date(hit.startedAt);
-          hit.turnStartedAt = hit.turnStartedAt && new Date(hit.turnStartedAt);
-          hit.endedAt = hit.endedAt && new Date(hit.endedAt);
-        });
-
-        return result;
-      })
       .catch(error => {
         if (error === 'Connection reset')
           return this.searchMyActiveGames(query);
@@ -216,17 +174,6 @@ export default class GameClient extends Client {
   }
   searchOpenGames(query) {
     return this._server.requestAuthorized(this.name, 'searchOpenGames', [query])
-      .then(result => {
-        result.hits.forEach(hit => {
-          hit.createdAt = new Date(hit.createdAt);
-          hit.updatedAt = new Date(hit.updatedAt);
-          hit.startedAt = hit.startedAt && new Date(hit.startedAt);
-          hit.turnStartedAt = hit.turnStartedAt && new Date(hit.turnStartedAt);
-          hit.endedAt = hit.endedAt && new Date(hit.endedAt);
-        });
-
-        return result;
-      })
       .catch(error => {
         if (error === 'Connection reset')
           return this.searchOpenGames(query);
@@ -235,17 +182,6 @@ export default class GameClient extends Client {
   }
   searchMyCompletedGames(query) {
     return this._server.requestAuthorized(this.name, 'searchMyCompletedGames', [ query ])
-      .then(result => {
-        result.hits.forEach(hit => {
-          hit.createdAt = new Date(hit.createdAt);
-          hit.updatedAt = new Date(hit.updatedAt);
-          hit.startedAt = hit.startedAt && new Date(hit.startedAt);
-          hit.turnStartedAt = hit.turnStartedAt && new Date(hit.turnStartedAt);
-          hit.endedAt = hit.endedAt && new Date(hit.endedAt);
-        });
-
-        return result;
-      })
       .catch(error => {
         if (error === 'Connection reset')
           return this.searchMyCompletedGames(query);
@@ -254,43 +190,10 @@ export default class GameClient extends Client {
   }
 
   watchGame(gameId, resume) {
-    return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume)
-      .then(data => {
-        let gameData = data.gameData;
-        let state = gameData.state;
-        if (state) {
-          if (state.startedAt)
-            state.startedAt = new Date(state.startedAt);
-          if (state.turnStartedAt)
-            state.turnStartedAt = new Date(state.turnStartedAt);
-          if (state.teams)
-            state.teams.forEach(team => {
-              if (!team) return;
-              team.createdAt = new Date(team.createdAt);
-            });
-          if (state.actions)
-            state.actions.forEach(action => {
-              action.createdAt = new Date(action.createdAt);
-            });
-        }
-
-        if (data.newActions)
-          data.newActions.forEach(action => {
-            action.createdAt = new Date(action.createdAt);
-          });
-
-        if (gameData.playerRequest)
-          Object.assign(gameData.playerRequest, {
-            createdAt: new Date(gameData.playerRequest.createdAt),
-            accepted: new Set(gameData.playerRequest.accepted),
-            rejected: new Map(gameData.playerRequest.rejected),
-          });
-
-        return data;
-      });
+    return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume);
   }
   async submitAction(gameId, action) {
-    let beforeUnloadListener = event => {
+    const beforeUnloadListener = event => {
       event.preventDefault();
       return event.returnValue = 'Your move hasn\'t been saved yet!';
     };
@@ -373,7 +276,7 @@ export default class GameClient extends Client {
     // sent once the connection resumes without needing to handle it here.
     if (data.reason === 'resume') return;
 
-    let authClient = this._authClient;
+    const authClient = this._authClient;
 
     // When the auth and game services share a server/connection, there is no
     // need to get authorization from the auth client here.  This is because the

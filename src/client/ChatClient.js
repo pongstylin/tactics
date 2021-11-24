@@ -1,4 +1,3 @@
-import config from 'config/client.js';
 import Client from 'client/Client.js';
 
 export default class ChatClient extends Client {
@@ -34,12 +33,7 @@ export default class ChatClient extends Client {
   }
 
   joinChat(roomId, resume) {
-    return this._server.joinAuthorized(this.name, `/rooms/${roomId}`, resume).then(data => {
-      data.muted = new Map(
-        data.muted.map(([ id, muted ]) => [ id, new Set(muted) ]),
-      );
-      return data;
-    });
+    return this._server.joinAuthorized(this.name, `/rooms/${roomId}`, resume);
   }
   postMessage(roomId, message) {
     return this._server.emitAuthorized(this.name, `/rooms/${roomId}`, 'message', message);

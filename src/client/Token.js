@@ -67,7 +67,7 @@ export default class Token {
 export class IdentityToken extends Token {
 };
 
-export class AccessToken extends IdentityToken {
+export class AccessToken extends Token {
 };
 
 /*
@@ -80,7 +80,6 @@ serializer.addType({
   constructor: IdentityToken,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'AccessToken',
     type: 'string',
   },
 });
@@ -89,7 +88,6 @@ serializer.addType({
   constructor: AccessToken,
   schema: {
     $schema: 'http://json-schema.org/draft-07/schema',
-    $id: 'AccessToken',
     type: 'string',
   },
 });

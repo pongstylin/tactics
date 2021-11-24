@@ -1,4 +1,3 @@
-import config from 'config/client.js';
 import Client from 'client/Client.js';
 
 export default class PushClient extends Client {

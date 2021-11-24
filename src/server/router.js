@@ -406,11 +406,14 @@ function sendError(client, error, source) {
 function send(client, message) {
   if (client.readyState !== ws.OPEN) return;
 
-  let session = client.session;
+  const session = client.session;
+  const body = message.body;
   if (session)
     message.ack = session.clientMessageId;
 
   message.now = Date.now();
+  if (body)
+    message.body = serializer.transform(body);
 
   client.send(JSON.stringify(message), error => {
     if (error) {
@@ -418,6 +421,7 @@ function send(client, message) {
       return;
     }
 
+    message.body = body;
     debugMessage(client, message, 'out');
 
     // Reset the outbound client timeout for this client.
