@@ -292,15 +292,12 @@ export default class extends FileAdapter {
         this.buffer.get('game').add(game.id, game);
       this._updateGameSummary(game);
     });
-    if (!game.forkOf) {
-      if (!game.state.startedAt)
-        game.state.once('startGame', event => this._recordGameStats(game));
-      if (!game.state.endedAt)
-        game.state.once('endGame', event => this._recordGameStats(game));
-    }
+    if (!game.state.startedAt)
+      game.state.once('startGame', event => this._recordGameStats(game));
+    if (!game.state.endedAt)
+      game.state.once('endGame', event => this._recordGameStats(game));
   }
   async _recordGameStats(game) {
-    if (game.forkOf) return;
     if (!game.state.startedAt) return;
 
     const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
