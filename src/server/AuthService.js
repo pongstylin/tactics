@@ -17,7 +17,7 @@ export default class AuthService extends Service {
 
     this.setValidation({
       authorize: { token:AccessToken },
-      request: {
+      requests: {
         addDevice: [ IdentityToken ],
         refreshToken: [{
           $type: AccessToken,

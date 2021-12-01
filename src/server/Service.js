@@ -26,6 +26,9 @@ export default class Service {
   setValidation(validation) {
     const validators = new Map();
 
+    /*
+     * Add schema definitions first since they are required by validators.
+     */
     if (validation.definitions) {
       for (const [ name, definition ] of Object.entries(validation.definitions)) {
         serializer.addSchema(`${this.name}:${name}`, definition);
@@ -33,20 +36,26 @@ export default class Service {
       delete validation.definitions;
     }
 
-    for (const messageType of Object.keys(validation)) {
-      switch (messageType) {
+    for (const validationKey of Object.keys(validation)) {
+      switch (validationKey) {
         case 'authorize':
-          const key = messageType;
+          const key = validationKey;
           validators.set(key, serializer.makeValidator(`${this.name}:/authorize`, validation.authorize));
           break;
-        case 'request':
-          for (const [ method, definition ] of Object.entries(validation.request)) {
-            const key = `${messageType}:${method}`;
-            validators.set(key, serializer.makeValidator(`${this.name}:/request/${method}`, definition));
+        case 'requests':
+          for (const [ method, definition ] of Object.entries(validation.requests)) {
+            const key = `request:${method}`;
+            validators.set(key, serializer.makeValidator(`${this.name}:/requests/${method}`, definition));
+          }
+          break;
+        case 'events':
+          for (const [ eventType, definition ] of Object.entries(validation.events)) {
+            const key = `event:${eventType}`;
+            validators.set(key, serializer.makeValidator(`${this.name}:/events/${eventType}`, definition));
           }
           break;
         default:
-          throw new Error('Unsupported message type');
+          throw new Error('Unsupported validation key');
       }
     }
 
@@ -68,12 +77,19 @@ export default class Service {
           if (validate)
             body.args = validate(body.args);
           break;
+        case 'event':
+          validate = validators.get(`event:${body.type}`);
+          if (validate) {
+            const args = validate([ body.group, body.data ]);
+            body.data = args[1];
+          }
+          break;
       }
     } catch(e) {
       if (e.constructor === Array) {
         // User-facing validation errors are treated manually with specific messages.
         // So, be verbose since failures indicate a problem with the schema or client.
-        console.error('data', { type:messageType, body });
+        console.error('data', JSON.stringify({ type:messageType, body }, null, 2));
         console.error('errors', e);
         e = new ServerError(422, 'Validation error');
       }

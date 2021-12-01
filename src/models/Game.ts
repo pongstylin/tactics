@@ -285,8 +285,6 @@ export default class Game extends ActiveModel {
 
     if (turnId === undefined)
       turnId = forkGame.state.currentTurnId;
-    if (turnId < 0)
-      turnId = 0;
     if (turnId > forkGame.state.currentTurnId)
       turnId = forkGame.state.currentTurnId;
     if (vs === undefined)
@@ -336,10 +334,6 @@ export default class Game extends ActiveModel {
       forkGame.state.turnTimeLimit = null;
       forkGame.state.start();
     } else if (vs === 'private') {
-      if (as === undefined)
-        throw new ServerError(400, "Required 'as' option");
-      if (typeof as !== 'number')
-        throw new ServerError(400, "Invalid 'as' option value");
       if (teams[as] === undefined)
         throw new ServerError(400, "Invalid 'as' option value");
 
@@ -348,8 +342,6 @@ export default class Game extends ActiveModel {
       forkGame.state.startedAt = null;
       forkGame.state.turnStartedAt = null;
       forkGame.state.turnTimeLimit = 86400;
-    } else {
-      throw new ServerError(400, "Invalid 'vs' option value");
     }
 
     return forkGame;

@@ -6,6 +6,7 @@ import ServerError from 'server/Error.js';
 import Game from 'models/Game.js';
 import Team from 'models/Team.js';
 import Player from 'models/Player.js';
+import { unionType } from 'utils/serializer.js';
 
 const ACTIVE_LIMIT = 120;
 const idleWatcher = function (session, oldIdle) {
@@ -44,10 +45,36 @@ export default class GameService extends Service {
 
     this.setValidation({
       authorize: { token:AccessToken },
-      request: {
+      requests: {
         createGame: [ 'string', 'game:options' ],
+        forkGame: [ 'uuid', 'game:forkOptions' ],
+        cancelGame: [ 'uuid' ],
+        joinGame: `tuple([ 'uuid', 'game:joinTeam' ], 1)`,
+
+        getGameTypeConfig: [ 'string' ],
+        getGame: [ 'uuid' ],
+        getTurnData: [ 'uuid', 'integer(0)' ],
+        getTurnActions: [ 'uuid', 'integer(0)' ],
+
         action: [ 'game:group', 'game:newAction | game:newAction[]' ],
         playerRequest: [ 'game:group', `enum(['undo','truce'])` ],
+        getPlayerStatus: [ 'game:group' ],
+        getPlayerActivity: [ 'game:group', 'uuid' ],
+        getPlayerInfo: [ 'game:group', 'uuid' ],
+        clearWLDStatsRequest: `tuple([ 'uuid', 'string | null' ], 1)`,
+
+        searchOpenGames: [ 'any' ],
+        searchMyActiveGames: [ 'any' ],
+        searchMyCompletedGames: [ 'any' ],
+
+        hasCustomPlayerSet: [ 'string', 'string' ],
+        getPlayerSet: [ 'string', 'string' ],
+        savePlayerSet: [ 'string', 'string', 'game:set' ],
+      },
+      events: {
+        'playerRequest:accept': [ 'game:group', 'Date' ],
+        'playerRequest:reject': [ 'game:group', 'Date' ],
+        'playerRequest:cancel': [ 'game:group', 'Date' ],
       },
       definitions: {
         group: 'string(/^\\/games\\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)',
@@ -59,18 +86,26 @@ export default class GameService extends Service {
           'direction?': 'game:direction',
         },
         set: {
-          $type: [
-            { units: 'game:newUnit[]' },
-            { name: 'string' },
-            `enum([ 'same', 'mirror' ])`,
-          ],
+          units: 'game:newUnit[]',
         },
-        newTeam: {
-          $type: [ 'null', {
+        setOption: unionType(
+          'game:set',
+          { name:'string' },
+          `enum([ 'same', 'mirror' ])`,
+        ),
+        newTeam: unionType(
+          'null',
+          {
             'playerId?': 'uuid',
             'name?': 'string',
-            'set?': 'game:set',
-          }],
+            'set?': 'game:setOption',
+          },
+        ),
+        joinTeam: {
+          'playerId?': 'uuid',
+          'name?': 'string',
+          'set?': 'game:setOption',
+          'slot?': 'integer(0,4)',
         },
         options: {
           teams: 'game:newTeam[2] | game:newTeam[4]',
@@ -79,37 +114,46 @@ export default class GameService extends Service {
           'randomHitChance?': 'boolean',
           'turnTimeLimit?': 'enum([ 30, 120, 86400, 604800 ])',
         },
-        newAction: {
-          $type: [
-            {
-              type: `const('move')`,
-              unit: 'integer(0)',
-              assignment: 'game:coords',
-            },
-            {
-              type: `const('attack')`,
-              unit: 'integer(0)',
-              'target?': 'game:coords',
-              'direction?': 'game:direction',
-            },
-            {
-              type: `const('attackSpecial')`,
-              unit: 'integer(0)',
-            },
-            {
-              type: `const('turn')`,
-              unit: 'integer(0)',
-              direction: 'game:direction',
-            },
-            {
-              type: `const('endTurn')`,
-            },
-            {
-              type: `const('surrender')`,
-              'teamId?': 'integer(0,3)',
-            },
-          ],
-        },
+        forkOptions: unionType(
+          {
+            'vs?': `const('you')`,
+            'turnId?': 'integer(0)',
+          },
+          {
+            vs: `const('private')`,
+            as: `integer(0,4)`,
+            'turnId?': 'integer(0)',
+          },
+        ),
+        newAction: unionType(
+          {
+            type: `const('move')`,
+            unit: 'integer(0)',
+            assignment: 'game:coords',
+          },
+          {
+            type: `const('attack')`,
+            unit: 'integer(0)',
+            'target?': 'game:coords',
+            'direction?': 'game:direction',
+          },
+          {
+            type: `const('attackSpecial')`,
+            unit: 'integer(0)',
+          },
+          {
+            type: `const('turn')`,
+            unit: 'integer(0)',
+            direction: 'game:direction',
+          },
+          {
+            type: `const('endTurn')`,
+          },
+          {
+            type: `const('surrender')`,
+            'teamId?': 'integer(0,3)',
+          },
+        ),
       },
     });
 
@@ -188,12 +232,12 @@ export default class GameService extends Service {
       return notification;
     else if (gamesSummary.length > 1) {
       notification.turnStartedAt = new Date(
-        Math.max(...gamesSummary.map(gs => new Date(gs.updatedAt)))
+        Math.max(...gamesSummary.map(gs => gs.updatedAt))
       );
       return notification;
     }
     else
-      notification.turnStartedAt = new Date(gamesSummary[0].updatedAt);
+      notification.turnStartedAt = gamesSummary[0].updatedAt;
 
     // Search for the next opponent team after this team.
     // Useful for 4-team games.
@@ -479,15 +523,6 @@ export default class GameService extends Service {
   async onSavePlayerSetRequest(client, gameTypeId, setName, set) {
     const clientPara = this.clientPara.get(client.id);
 
-    if (!set)
-      throw new ServerError(400, 'Required set');
-    if (typeof set !== 'object')
-      throw new ServerError(400, 'Invalid set');
-    if (!set.units)
-      throw new ServerError(400, 'Required set units');
-    if (!Array.isArray(set.units))
-      throw new ServerError(400, 'Invalid set units');
-
     return this.data.setPlayerSet(clientPara.playerId, gameTypeId, setName, set);
   }
 
@@ -519,9 +554,7 @@ export default class GameService extends Service {
   }
 
   async onGetPlayerStatusRequest(client, groupPath) {
-    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
-    if (gameId === undefined)
-      throw new ServerError(400, 'Required game group');
+    const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara.joinedGroups.has(gameId))
@@ -532,9 +565,7 @@ export default class GameService extends Service {
       .map(([playerId, playerStatus]) => ({ playerId, ...playerStatus }));
   }
   async onGetPlayerActivityRequest(client, groupPath, forPlayerId) {
-    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
-    if (gameId === undefined)
-      throw new ServerError(400, 'Required game group');
+    const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara.joinedGroups.has(gameId))
@@ -573,9 +604,7 @@ export default class GameService extends Service {
     return playerActivity;
   }
   async onGetPlayerInfoRequest(client, groupPath, forPlayerId) {
-    const gameId = groupPath.match(/^\/games\/(.+)$/)?.[1];
-    if (gameId === undefined)
-      throw new ServerError(400, 'Required game group');
+    const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara.joinedGroups.has(gameId))
@@ -860,7 +889,7 @@ export default class GameService extends Service {
   }
 
   onActionRequest(client, groupPath, action) {
-    const gameId = groupPath.match(/^\/games\/(.+)$/)[1];
+    const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara.joinedGroups.has(gameId))
@@ -872,7 +901,7 @@ export default class GameService extends Service {
     game.submitAction(playerId, action);
   }
   onPlayerRequestRequest(client, groupPath, requestType) {
-    const gameId = groupPath.match(/^\/games\/(.+)$/)[1];
+    const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara.joinedGroups.has(gameId))
@@ -889,21 +918,21 @@ export default class GameService extends Service {
     const gameId = groupPath.replace(/^\/games\//, '');
     const game = this.data.getOpenGame(gameId);
 
-    game.acceptPlayerRequest(playerId, new Date(createdAt));
+    game.acceptPlayerRequest(playerId, createdAt);
   }
   onPlayerRequestRejectEvent(client, groupPath, createdAt) {
     const playerId = this.clientPara.get(client.id).playerId;
     const gameId = groupPath.replace(/^\/games\//, '');
     const game = this.data.getOpenGame(gameId);
 
-    game.rejectPlayerRequest(playerId, new Date(createdAt));
+    game.rejectPlayerRequest(playerId, createdAt);
   }
   onPlayerRequestCancelEvent(client, groupPath, createdAt) {
     const playerId = this.clientPara.get(client.id).playerId;
     const gameId = groupPath.replace(/^\/games\//, '');
     const game = this.data.getOpenGame(gameId);
 
-    game.cancelPlayerRequest(playerId, new Date(createdAt));
+    game.cancelPlayerRequest(playerId, createdAt);
   }
 
   /*******************************************************************************

@@ -10,6 +10,8 @@
  * transform tree for more efficient deserialization.  For more efficient
  * serialization, a transform tree may be provided.
  */
+import parseType from 'utils/typeParser.js';
+
 let ajv;
 
 const types = [
@@ -44,9 +46,9 @@ const types = [
         else {
           serialized[key] = value;
           if (keyTransform.type === undefined)
-            keyTransform.type = 'primitive';
-          else if (keyTransform.type !== 'primitive')
-            throw new TypeError('Type mismatch');
+            keyTransform.type = new Set([ 'primitive' ]);
+          else
+            keyTransform.type.add('primitive');
         }
       }
 
@@ -107,9 +109,9 @@ const types = [
         else {
           serialized[i] = value;
           if (transform.items.type === undefined)
-            transform.items.type = 'primitive';
-          else if (transform.items.type !== 'primitive')
-            throw new TypeError('Type mismatch');
+            transform.items.type = new Set([ 'primitive' ]);
+          else
+            transform.items.type.add('primitive');
         }
       }
 
@@ -186,9 +188,9 @@ const types = [
         else {
           serialized[i][1] = value;
           if (transform.items.type === undefined)
-            transform.items.type = 'primitive';
-          else if (transform.items.type !== 'primitive')
-            throw new TypeError('Type mismatch');
+            transform.items.type = new Set([ 'primitive' ]);
+          else
+            transform.items.type.add('primitive');
         }
       }
 
@@ -252,9 +254,9 @@ const types = [
         else {
           serialized[i] = value;
           if (transform.items.type === undefined)
-            transform.items.type = 'primitive';
-          else if (transform.items.type !== 'primitive')
-            throw new TypeError('Type mismatch');
+            transform.items.type = new Set([ 'primitive' ]);
+          else
+            transform.items.type.add('primitive');
         }
       }
 
@@ -342,6 +344,10 @@ export const enableValidation = newAjv => {
   }
 };
 
+export const unionType = (...types) => {
+  return { $type:types };
+};
+
 /*
  * Determine if the data is a transformable type and serialize it.
  *
@@ -353,9 +359,9 @@ const serialize = (data, transform) => {
   const type = typeMap.get(data.constructor);
 
   if (transform.type === undefined)
-    transform.type = type.name;
-  else if (transform.type !== type.name)
-    throw new TypeError(`Type conflict: ${transform.type} & ${type.name}`);
+    transform.type = new Set([ type.name ]);
+  else
+    transform.type.add(type.name);
 
   // Only serialize if serialization is required before JSON.stringify()
   if (!type.schema)
@@ -602,7 +608,7 @@ const makeSubSchema = definition => {
           const propertyName = key.replace(/\?$/, '');
           const keyDefinition = normalizeDefinition(definition.$properties[key]);
 
-          if (propertyName === key && keyDefinition.$required !== false)
+          if (propertyName === key)
             subSchema.required.push(propertyName);
           subSchema.properties[propertyName] = makeSubSchema(keyDefinition);
         }
@@ -616,25 +622,16 @@ const makeSubSchema = definition => {
           subSchema.maxItems = definition.$maxItems;
 
         if (definition.$items.constructor === Array) {
+          if (subSchema.minItems === undefined)
+            subSchema.minItems = definition.$items.length;
           subSchema.items = [];
           subSchema.additionalItems = false;
 
-          for (let i = 0; i < definition.$items.length; i++) {
-            const itemDefinition = normalizeDefinition(definition.$items[i]);
-
-            if (itemDefinition.$required === false) {
-              if (subSchema.minItems === undefined)
-                subSchema.minItems = i;
-            } else {
-              if (subSchema.minItems > i)
-                throw new TypeError('Unsupported non-right-aligned optional items in tuple');
-            }
+          for (const item of definition.$items) {
+            const itemDefinition = normalizeDefinition(item);
 
             subSchema.items.push(makeSubSchema(itemDefinition));
           }
-
-          if (subSchema.minItems === undefined)
-            subSchema.minItems = subSchema.items.length;
         } else
           subSchema.items = makeSubSchema(normalizeDefinition(definition.$items));
       }
@@ -659,6 +656,11 @@ const makeSubSchema = definition => {
     case 'null':
     case 'boolean':
       break;
+    case 'any':
+      // JSON Schema doesn't have any 'any' type.
+      // Rather, type should just be omitted.
+      delete subSchema.type;
+      break;
     default:
       throw new TypeError(`Unsupported type: ${subSchema.type}`);
   }
@@ -673,134 +675,113 @@ const getPrimitiveTypeOfValue = value => {
   else
     return typeof value;
 };
+const normalizeTypeString = typeString => {
+  const typesData = parseType(typeString);
+  const types = [];
+
+  for (let i = 0; i < typesData.length; i++) {
+    const typeData = typesData[i];
+    const type = {};
+
+    if ('arrayParams' in typeData) {
+      const args = [];
+
+      if (typeData.arrayParams !== '') {
+        try {
+          args.push(...new Function(`'use strict';return [${typeData.arrayParams}]`)());
+        } catch(e) {
+          throw new Error(`Invalid syntax: ${typeData.arrayParams}`);
+        }
+      }
+
+      types[i] = {
+        $type: 'array',
+        $items: type,
+      };
+
+      if (args.length === 1) {
+        types[i].$minItems = args[0];
+        types[i].$maxItems = args[0];
+      } else if (args.length === 2) {
+        types[i].$minItems = args[0];
+        types[i].$maxItems = args[1];
+      }
+    } else {
+      types[i] = type;
+    }
+
+    if ('params' in typeData) {
+      const args = [];
+
+      if (typeData.params !== '') {
+        try {
+          args.push(...new Function(`'use strict';return [${typeData.params}]`)());
+        } catch(e) {
+          throw new Error(`Invalid syntax: ${typeData.params}`);
+        }
+      }
+
+      switch (typeData.name) {
+        case 'number':
+        case 'integer':
+          type.$type = typeData.name;
+          if (args.length === 2) {
+            type.$minimum = args[0];
+            type.$maximum = args[1];
+          } else if (args.length === 1)
+            type.$minimum = args[0];
+          break;
+        case 'string':
+          type.$type = typeData.name;
+          if (args.length === 1) {
+            if (typeof args[0] === 'number') {
+              type.$minLength = args[0];
+              type.$maxLength = args[0];
+            } else if (args[0] instanceof RegExp)
+              type.$regexp = args[0].toString();
+          } else if (args.length === 2) {
+            type.$minLength = args[0];
+            type.$maxLength = args[1];
+          }
+          break;
+        case 'const':
+          type.$type = getPrimitiveTypeOfValue(args[0]);
+          type.$const = args[0];
+          break;
+        case 'enum':
+          if (args[0]?.constructor !== Array)
+            throw new Error(`'enum' expects an array of values`);
+          if (args[0].length === 0)
+            throw new Error(`'enum' requires at least one value`);
+          if (new Set(args[0]).size < args[0].length)
+            throw new Error(`'enum' values must be unique`);
+
+          const types = [ ...new Set(args[0].map(v => getPrimitiveTypeOfValue(v))) ];
+          type.$type = types.length === 1 ? types[0] : types;
+          type.$enum = args[0];
+          break;
+        case 'tuple':
+          type.$type = 'array';
+          type.$minItems = args[1] ?? args[0].length;
+          type.$items = args[0];
+          break;
+        default:
+          throw new Error(`Parameters are not supported for '${type}'`);
+      }
+    } else if (typeData.name in ajv.formats) {
+      type.$type = 'string';
+      type.$format = typeData.name;
+    } else
+      type.$type = typeData.name;
+  }
+
+  if (types.length === 1)
+    return types[0];
+  return { $type:types };
+};
 const normalizeDefinition = definition => {
   if (typeof definition === 'string') {
-    const types = definition.split(/\s*\|\s*/);
-
-    for (let i = 0; i < types.length; i++) {
-      const def = { $type:types[i] };
-
-      if (def.$type.endsWith('?')) {
-        def.$type = def.$type.slice(0, -1);
-        def.$required = false;
-      }
-
-      const matchArray = def.$type.match(/^(.+?)\[(.*)\]$/);
-      if (matchArray) {
-        const type = matchArray[1];
-        const args = [];
-
-        try {
-          args.push(...new Function(`'use strict';return [${matchArray[2]}]`)());
-        } catch(e) {
-          throw new Error(`Invalid syntax: ${matchArray[2]}`);
-        }
-
-        def.$type = type;
-        types[i] = {
-          $type: 'array',
-          $items: def,
-        };
-        if (def.$required !== undefined) {
-          types[i].$required = def.$required;
-          delete def.$required;
-        }
-
-        if (args.length === 1) {
-          types[i].$minItems = args[0];
-          types[i].$maxItems = args[0];
-          types[i].$additionalItems = false;
-        } else if (args.length === 2) {
-          types[i].$minItems = args[0];
-          types[i].$maxItems = args[1];
-          types[i].$additionalItems = false;
-        }
-      } else {
-        types[i] = def;
-      }
-
-      const matchParams = def.$type.match(/^(.+?)\((.*)\)$/);
-      if (matchParams) {
-        const type = matchParams[1];
-        const args = [];
-
-        try {
-          args.push(...new Function(`'use strict';return [${matchParams[2]}]`)());
-        } catch(e) {
-          throw new Error(`Invalid syntax: ${matchParams[2]}`);
-        }
-
-        switch (type) {
-          case 'number':
-          case 'integer':
-            def.$type = type;
-            if (args.length === 2) {
-              def.$minimum = args[0];
-              def.$maximum = args[1];
-            } else if (args.length === 1)
-              def.$minimum = args[0];
-            break;
-          case 'string':
-            def.$type = type;
-            if (args.length === 1) {
-              if (typeof args[0] === 'number') {
-                def.$minLength = args[0];
-                def.$maxLength = args[0];
-              } else if (args[0] instanceof RegExp)
-                def.$regexp = args[0].toString();
-            } else if (args.length === 2) {
-              def.$minLength = args[0];
-              def.$maxLength = args[1];
-            }
-            break;
-          case 'const':
-            def.$type = getPrimitiveTypeOfValue(args[0]);
-            def.$const = args[0];
-            break;
-          case 'enum':
-            if (args[0]?.constructor !== Array)
-              throw new Error(`'enum' expects an array of values`);
-            if (args[0].length === 0)
-              throw new Error(`'enum' requires at least one value`);
-            if (new Set(args[0]).size < args[0].length)
-              throw new Error(`'enum' values must be unique`);
-
-            const types = [ ...new Set(args[0].map(v => getPrimitiveTypeOfValue(v))) ];
-            def.$type = types.length === 1 ? types[0] : types;
-            def.$enum = args[0];
-            break;
-          default:
-            throw new Error(`Parameters are not supported for '${type}'`);
-        }
-      }
-
-      if (def.$type in ajv.formats) {
-        def.$format = def.$type;
-        def.$type = 'string';
-      }
-    }
-
-    if (types.length > 1) {
-      let isRequired;
-      for (let i = 0; i < types.length; i++) {
-        if (types[i].$required === false) {
-          if (isRequired === true)
-            throw new TypeError('All types in a union must be optional or not');
-          isRequired = false;
-          delete types[i].$required;
-        } else {
-          if (isRequired === false)
-            throw new TypeError('All types in a union must be optional or not');
-          isRequired = true;
-        }
-      }
-
-      if (isRequired === false)
-        return { $type:types, $required:false };
-      return { $type:types };
-    }
-
-    return types[0];
+    return normalizeTypeString(definition);
   } else if (typeof definition === 'object') {
     if (definition.constructor === Object) {
       if (definition.$type)
@@ -826,6 +807,9 @@ const normalizeDefinition = definition => {
   throw new TypeError(`Invalid type: ${typeof definition}`);
 };
 const compileSchema = (schema, subSchema = schema, isRequired = true) => {
+  if (Object.keys(subSchema).length === 0)
+    return { type:'any' };
+
   if (subSchema.$ref) {
     const ref = subSchema.$ref;
     if (ref.startsWith('#/definitions/')) {
@@ -1019,18 +1003,12 @@ const compileNormalize = code => {
  * Return true if the transform is empty.
  */
 const pruneTransform = (transform, forCode = false) => {
-  const typeNames = new Set(
-    transform.type.constructor === Array ? transform.type : [ transform.type ]
-  );
+  const typeNames =
+    transform.type.constructor === Set ? transform.type :
+    transform.type.constructor === Array ? new Set(transform.type) :
+    new Set([ transform.type ]);
+  typeNames.delete('any');
   typeNames.delete('primitive');
-
-  /*
-   * 'required' and 'nullable' are only useful for code generation.
-   */
-  if (forCode === false) {
-    delete transform.required;
-    delete transform.nullable;
-  }
 
   if (transform.items) {
     if (transform.items.constructor === Array) {
@@ -1055,7 +1033,21 @@ const pruneTransform = (transform, forCode = false) => {
     typeNames.delete('Object');
 
   if (typeNames.size === 0)
-    return true;
+    delete transform.type;
+  else if (forCode === false)
+    if (typeNames.size === 1)
+      transform.type = [ ...typeNames ][0];
+    else
+      transform.type = [ ...typeNames ];
+
+  /*
+   * 'required' and 'nullable' are only useful for code generation.
+   * ...and if there is a type remaining.
+   */
+  if (forCode === false || typeNames.size === 0) {
+    delete transform.required;
+    delete transform.nullable;
+  }
 
   return Object.keys(transform).length === 0;
 };
