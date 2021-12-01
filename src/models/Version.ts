@@ -4,15 +4,15 @@ export default class Version {
   major: number
   minor: number
   revision: number
-  value: string
+  protected data: string
 
-  constructor(version) {
-    const parts = version.split('.').map(n => parseInt(n));
+  constructor(data) {
+    const parts = data.split('.').map(n => parseInt(n));
 
     this.major = parts[0];
     this.minor = parts[1];
     this.revision = parts[2];
-    this.value = version;
+    this.data = data;
   }
 
   /*
@@ -30,11 +30,11 @@ export default class Version {
   }
 
   toString() {
-    return this.value;
+    return this.data;
   }
 
   toJSON() {
-    return this.value;
+    return this.data;
   }
 };
 

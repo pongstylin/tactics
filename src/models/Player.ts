@@ -20,22 +20,26 @@ XRegExp.install('astral');
 const rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 
 export default class Player extends ActiveModel {
-  name: string
-  devices: Map<string, any>
-  checkoutAt: Date
-  identityToken: IdentityToken | null
-  acl: Map<string, any>
-  reverseACL: Map<string, any>
-  id: string
+  protected data: {
+    id: string
+    name: string
+    devices: Map<string, any>
+    identityToken: IdentityToken | null
+    acl: Map<string, any>
+    reverseACL: Map<string, any>
+    checkoutAt: Date
+    createdAt: Date
+  }
 
-  constructor(props) {
-    super({
+  constructor(data) {
+    super();
+    this.data = {
       identityToken: null,
       acl: new Map(),
       reverseACL: new Map(),
 
-      ...props,
-    });
+      ...data,
+    };
   }
 
   static create(data) {
@@ -82,6 +86,28 @@ export default class Player extends ActiveModel {
       throw new ServerError(403, 'The name may not contain markup');
   }
 
+  get id() {
+    return this.data.id;
+  }
+  get name() {
+    return this.data.name;
+  }
+  get devices() {
+    return this.data.devices;
+  }
+  get acl() {
+    return this.data.acl;
+  }
+  get identityToken() {
+    return this.data.identityToken;
+  }
+  get checkoutAt() {
+    return this.data.checkoutAt;
+  }
+  get createdAt() {
+    return this.data.createdAt;
+  }
+
   updateProfile(profile) {
     let hasChanged = false;
 
@@ -92,10 +118,10 @@ export default class Player extends ActiveModel {
 
       if (property === 'name') {
         Player.validatePlayerName(profile.name);
-        this.name = profile.name;
+        this.data.name = profile.name;
 
         // Create new access token(s) with the new name
-        for (let [deviceId, device] of this.devices)
+        for (let [deviceId, device] of this.data.devices)
           device.nextToken = this.createAccessToken(deviceId);
 
         hasChanged = true;
@@ -111,7 +137,7 @@ export default class Player extends ActiveModel {
     return false;
   }
   refreshAccessToken(deviceId) {
-    const device = this.devices.get(deviceId);
+    const device = this.data.devices.get(deviceId);
     const token = device.token;
     const nextToken = device.nextToken;
 
@@ -147,15 +173,15 @@ export default class Player extends ActiveModel {
   }
   checkout(client) {
     const checkoutAt = new Date(Date.now() - client.session.idle * 1000);
-    if (checkoutAt > this.checkoutAt) {
-      this.checkoutAt = checkoutAt;
+    if (checkoutAt > this.data.checkoutAt) {
+      this.data.checkoutAt = checkoutAt;
       this.emit('change:checkout');
     }
   }
 
   addDevice(client, token = null) {
     if (token) {
-      if (!token.equals(this.identityToken))
+      if (!token.equals(this.data.identityToken))
         throw new ServerError(403, 'Identity token was revoked');
 
       this.clearIdentityToken();
@@ -174,13 +200,13 @@ export default class Player extends ActiveModel {
       ]]),
     };
 
-    this.devices.set(deviceId, device);
+    this.data.devices.set(deviceId, device);
     this.emit('change:addDevice');
 
     return device;
   }
   getDevice(deviceId) {
-    return this.devices.get(deviceId);
+    return this.data.devices.get(deviceId);
   }
   setDeviceName(deviceId, name) {
     if (name !== null) {
@@ -200,22 +226,22 @@ export default class Player extends ActiveModel {
     return true;
   }
   removeDevice(deviceId) {
-    if (!this.devices.has(deviceId))
+    if (!this.data.devices.has(deviceId))
       return false;
 
-    this.devices.delete(deviceId);
+    this.data.devices.delete(deviceId);
     this.emit('change:removeDevice');
 
     return true;
   }
 
   getPlayerACL(playerId) {
-    const playerACL = this.acl.get(playerId);
-    const reverseType = this.reverseACL.get(playerId);
+    const playerACL = this.data.acl.get(playerId);
+    const reverseType = this.data.reverseACL.get(playerId);
     if (!playerACL && !reverseType)
       return;
 
-    return Object.assign({}, this.acl.get(playerId), { reverseType });
+    return Object.assign({}, this.data.acl.get(playerId), { reverseType });
   }
   setPlayerACL(player, playerACL) {
     if (!playerACL.type)
@@ -229,13 +255,13 @@ export default class Player extends ActiveModel {
 
     Player.validatePlayerName(playerACL.name);
 
-    const acl = this.acl.get(player.id);
+    const acl = this.data.acl.get(player.id);
     if (acl?.type === playerACL.type && acl.name === playerACL.name)
       return false;
 
     playerACL.createdAt = new Date();
 
-    this.acl.set(player.id, playerACL);
+    this.data.acl.set(player.id, playerACL);
     this.emit({
       type: 'acl:set',
       target: this,
@@ -243,7 +269,7 @@ export default class Player extends ActiveModel {
     });
     this.emit('change:setPlayerACL');
 
-    player.setReversePlayerACL(this.id, playerACL.type);
+    player.setReversePlayerACL(this.data.id, playerACL.type);
 
     return true;
   }
@@ -254,10 +280,10 @@ export default class Player extends ActiveModel {
     });
   }
   clearPlayerACL(player) {
-    if (!this.acl.has(player.id))
+    if (!this.data.acl.has(player.id))
       return false;
 
-    this.acl.delete(player.id);
+    this.data.acl.delete(player.id);
     this.emit({
       type: 'acl:clear',
       target: this,
@@ -265,21 +291,21 @@ export default class Player extends ActiveModel {
     });
     this.emit('change:clearPlayerACL');
 
-    player.clearReversePlayerACL(this.id);
+    player.clearReversePlayerACL(this.data.id);
 
     return true;
   }
   hasBlocked(playerId) {
-    return this.acl.get(playerId)?.type === 'blocked';
+    return this.data.acl.get(playerId)?.type === 'blocked';
   }
   hasMutedOrBlocked(playerIds) {
     const isMutedOrBlocked = /^(?:muted|blocked)$/;
 
-    return playerIds.filter(pId => isMutedOrBlocked.test(this.acl.get(pId)?.type));
+    return playerIds.filter(pId => isMutedOrBlocked.test(this.data.acl.get(pId)?.type));
   }
 
   setReversePlayerACL(playerId, aclType) {
-    this.reverseACL.set(playerId, aclType);
+    this.data.reverseACL.set(playerId, aclType);
     this.emit({
       type: 'acl:setReverse',
       target: this,
@@ -287,7 +313,7 @@ export default class Player extends ActiveModel {
     });
   }
   clearReversePlayerACL(playerId) {
-    this.reverseACL.delete(playerId);
+    this.data.reverseACL.delete(playerId);
     this.emit({
       type: 'acl:clearReverse',
       target: this,
@@ -296,14 +322,14 @@ export default class Player extends ActiveModel {
   }
   listBlockedBy() {
     const playerIds = new Set();
-    for (const [ playerId, aclType ] of this.reverseACL) {
+    for (const [ playerId, aclType ] of this.data.reverseACL) {
       if (aclType === 'blocked')
         playerIds.add(playerId);
     }
     return playerIds;
   }
   isBlockedBy(playerId) {
-    return this.reverseACL.get(playerId) === 'blocked';
+    return this.data.reverseACL.get(playerId) === 'blocked';
   }
 
   /*
@@ -311,14 +337,14 @@ export default class Player extends ActiveModel {
    */
   createAccessToken(deviceId) {
     return AccessToken.create({
-      subject: this.id,
+      subject: this.data.id,
       expiresIn: config.ACCESS_TOKEN_TTL || '1h',
-      name: this.name,
+      name: this.data.name,
       deviceId,
     });
   }
   getAccessToken(deviceId) {
-    const device = this.devices.get(deviceId);
+    const device = this.data.devices.get(deviceId);
 
     return device.nextToken || device.token;
   }
@@ -327,25 +353,25 @@ export default class Player extends ActiveModel {
    */
   createIdentityToken() {
     return IdentityToken.create({
-      subject: this.id,
+      subject: this.data.id,
       expiresIn: config.IDENTITY_TOKEN_TTL || '30d',
-      name: this.name,
+      name: this.data.name,
     });
   }
   setIdentityToken(token = this.createIdentityToken()) {
-    this.identityToken = token;
+    this.data.identityToken = token;
     this.emit('change:setIdentityToken');
   }
   getIdentityToken() {
-    if (this.identityToken && this.identityToken.isExpired) {
-      this.identityToken = null;
+    if (this.data.identityToken && this.data.identityToken.isExpired) {
+      this.data.identityToken = null;
       this.emit('change:expireIdentityToken');
     }
 
-    return this.identityToken;
+    return this.data.identityToken;
   }
   clearIdentityToken() {
-    this.identityToken = null;
+    this.data.identityToken = null;
     this.emit('change:clearIdentityToken');
   }
 

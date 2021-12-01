@@ -2,11 +2,14 @@ import ActiveModel from 'models/ActiveModel.js';
 import serializer from 'utils/serializer.js';
 
 export default class PlayerSets extends ActiveModel {
-  playerId: string
-  sets: any[]
+  protected data: {
+    playerId: string
+    sets: any[]
+  }
 
   constructor(data) {
-    super(data);
+    super();
+    this.data = data;
   }
 
   static create(playerId) {
@@ -16,15 +19,19 @@ export default class PlayerSets extends ActiveModel {
     });
   }
 
+  get playerId() {
+    return this.data.playerId;
+  }
+
   values() {
-    return this.sets.values();
+    return this.data.sets.values();
   }
 
   hasDefault(gameTypeId, setName) {
-    return this.sets.findIndex(s => s.type === gameTypeId && s.name === setName) > -1;
+    return this.data.sets.findIndex(s => s.type === gameTypeId && s.name === setName) > -1;
   }
   getDefault(gameType, setName) {
-    const set = this.sets.find(s => s.type === gameType.id && s.name === setName);
+    const set = this.data.sets.find(s => s.type === gameType.id && s.name === setName);
     if (set) return gameType.applySetUnitState(set);
 
     return gameType.getDefaultSet();
@@ -36,11 +43,11 @@ export default class PlayerSets extends ActiveModel {
     set.name = set.name ?? setName;
     set.createdAt = new Date();
 
-    const index = this.sets.findIndex(s => s.type === gameType.id && s.name === setName);
+    const index = this.data.sets.findIndex(s => s.type === gameType.id && s.name === setName);
     if (index === -1)
-      this.sets.push(set);
+      this.data.sets.push(set);
     else
-      this.sets[index] = set;
+      this.data.sets[index] = set;
 
     this.emit('change:setDefault');
     return set;

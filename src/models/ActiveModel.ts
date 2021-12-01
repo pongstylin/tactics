@@ -12,18 +12,19 @@ type EventType = string | symbol
 type EventCB = (...args: any[]) => void
 type RegEvtArgs = [EventType, EventCB]
 
-export default class ActiveModel {
-  _emitter?: EventEmitter
-  constructor(props: any) {
-    this._emitter = new EventEmitter()
-    Object.assign(this, props);
+abstract class ActiveModel {
+  protected abstract data: any
+  private emitter: EventEmitter
+
+  constructor() {
+    this.emitter = new EventEmitter()
   }
 
   on(...args: RegEvtArgs) {
-    if (!this._emitter)
+    if (!this.emitter)
       throw new Error('Active model is destroyed');
 
-    this._emitter.addListener(...args);
+    this.emitter.addListener(...args);
     return this;
   }
   once(eventType: EventType, fn: EventCB) {
@@ -35,15 +36,15 @@ export default class ActiveModel {
     this.on(eventType, listener);
   }
   off(...args: RegEvtArgs) {
-    if (!this._emitter)
+    if (!this.emitter)
       throw new Error('Active model is destroyed');
 
-    this._emitter.removeListener(...args);
+    this.emitter.removeListener(...args);
     return this;
   }
 
   emit(event: any) {
-    if (!this._emitter)
+    if (!this.emitter)
       throw new Error('Active model is destroyed');
 
     if (typeof event === 'string')
@@ -52,31 +53,24 @@ export default class ActiveModel {
     const parts = event.type.split(':');
 
     for (let i = 1; i <= parts.length; i++) {
-      this._emitter.emit(parts.slice(0, i).join(':'), event);
+      this.emitter.emit(parts.slice(0, i).join(':'), event);
     }
   }
 
   toJSON() {
-    if (!this._emitter)
+    if (!this.emitter)
       throw new Error('Active model is destroyed');
 
-    // Is there a better way to do this?
-    const json: any = {};
-
-    for (const [ key, value ] of Object.entries(this)) {
-      if (key[0] === '_') continue;
-
-      json[key] = value;
-    }
-
-    return json;
+    return { ...this.data };
   }
 
   destroy() {
-    if (!this._emitter)
+    if (!this.emitter)
       throw new Error('Active model is destroyed');
 
-    this._emitter.removeAllListeners();
-    delete this._emitter;
+    this.emitter.removeAllListeners();
+    delete this.emitter;
   }
 }
+
+export default ActiveModel;

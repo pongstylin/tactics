@@ -4,10 +4,17 @@ import ActiveModel from 'models/ActiveModel.js';
 import serializer from 'utils/serializer.js';
 
 export default class Room extends ActiveModel {
-  id: string
-  players: any[]
-  events: any
-  createdAt: Date
+  protected data: {
+    id: string
+    players: any[]
+    events: any
+    createdAt: Date
+  }
+
+  constructor(data) {
+    super();
+    this.data = data;
+  }
 
   static create(players, options) {
     if (players.length < 0)
@@ -41,13 +48,23 @@ export default class Room extends ActiveModel {
     return new Room(data);
   }
 
+  get id() {
+    return this.data.id;
+  }
+  get players() {
+    return this.data.players;
+  }
+  get events() {
+    return this.data.events;
+  }
+
   pushMessage(message) {
     if (!message.player)
       throw new Error('Required player');
     if (!message.content)
       throw new Error('Required content');
 
-    const events = this.events;
+    const events = this.data.events;
 
     events.push(Object.assign(message, {
       id: events.last.id + 1,
@@ -60,12 +77,12 @@ export default class Room extends ActiveModel {
     this.seenEvent(message.player.id, events.last.id);
   }
   seenEvent(playerId, eventId) {
-    const player = this.players.find(p => p.id === playerId);
+    const player = this.data.players.find(p => p.id === playerId);
     if (!player)
       throw new Error('The player ID does not exist in this room');
 
-    if (eventId > this.events.last.id)
-      eventId = this.events.last.id;
+    if (eventId > this.data.events.last.id)
+      eventId = this.data.events.last.id;
     if (eventId === player.lastSeenEventId)
       return;
 

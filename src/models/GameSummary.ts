@@ -5,8 +5,10 @@
 import serializer from 'utils/serializer.js';
 
 export default class GameSummary {
-  constructor(props) {
-    Object.assign(this, props);
+  protected data: any
+
+  constructor(data) {
+    this.data = data;
   }
 
   static create(gameType, game) {
@@ -27,7 +29,7 @@ export default class GameSummary {
     else
       updatedAt = startedAt || createdAt;
 
-    const props:any = {
+    const data:any = {
       id: game.id,
       type: gameType.id,
       typeName: gameType.name,
@@ -41,7 +43,7 @@ export default class GameSummary {
       turnStartedAt: game.state.turnStartedAt,
       turnTimeLimit: game.state.turnTimeLimit,
       isPublic: game.isPublic,
-      isFork: !!game.forkOf,
+      isFork: game.isFork,
       teams: teams.map(t => t && {
         createdAt: t.createdAt,
         joinedAt: t.joinedAt,
@@ -51,15 +53,67 @@ export default class GameSummary {
     };
 
     if (endedAt)
-      props.winnerId = game.state.winnerId;
+      data.winnerId = game.state.winnerId;
     else if (startedAt)
-      props.currentTeamId = game.state.currentTeamId;
+      data.currentTeamId = game.state.currentTeamId;
 
-    return new GameSummary(props);
+    return new GameSummary(data);
+  }
+
+  get id() {
+    return this.data.id;
+  }
+  get type() {
+    return this.data.type;
+  }
+  get typeName() {
+    return this.data.typeName;
+  }
+  get createdBy() {
+    return this.data.createdBy;
+  }
+  get createdAt() {
+    return this.data.createdAt;
+  }
+  get updatedAt() {
+    return this.data.updatedAt;
+  }
+  get startedAt() {
+    return this.data.startedAt;
+  }
+  get endedAt() {
+    return this.data.endedAt;
+  }
+  get randomFirstTurn() {
+    return this.data.randomFirstTurn;
+  }
+  get randomHitChance() {
+    return this.data.randomHitChance;
+  }
+  get turnStartedAt() {
+    return this.data.turnStartedAt;
+  }
+  get turnTimeLimit() {
+    return this.data.turnTimeLimit;
+  }
+  get isPublic() {
+    return this.data.isPublic;
+  }
+  get isFork() {
+    return this.data.isFork;
+  }
+  get teams() {
+    return this.data.teams;
+  }
+  get winnerId() {
+    return this.data.winnerId;
+  }
+  get currentTeamId() {
+    return this.data.currentTeamId;
   }
 
   toJSON() {
-    return { ...this };
+    return { ...this.data };
   }
 };
 

@@ -2,11 +2,14 @@ import ActiveModel from 'models/ActiveModel.js';
 import serializer from 'utils/serializer.js';
 
 export default class PlayerStats extends ActiveModel {
-  playerId: string
-  stats: Map<string, any>
+  protected data: {
+    playerId: string
+    stats: Map<string, any>
+  }
 
   constructor(data) {
-    super(data);
+    super();
+    this.data = data;
   }
 
   static create(playerId) {
@@ -16,8 +19,12 @@ export default class PlayerStats extends ActiveModel {
     });
   }
 
+  get playerId() {
+    return this.data.playerId;
+  }
+
   get(playerId) {
-    return this.stats.get(playerId);
+    return this.data.stats.get(playerId);
   }
 
   recordGameStart(game) {
@@ -26,9 +33,9 @@ export default class PlayerStats extends ActiveModel {
     if (game.state.endedAt)
       throw new Error('Game already ended');
 
-    const myTeams = game.state.teams.filter(t => t.playerId === this.playerId);
+    const myTeams = game.state.teams.filter(t => t.playerId === this.data.playerId);
     if (myTeams.length === 0)
-      throw new Error(`Game was not played by ${this.playerId}`);
+      throw new Error(`Game was not played by ${this.data.playerId}`);
 
     // No stats for practice games.
     if (myTeams.length === game.state.teams.length)
@@ -37,16 +44,16 @@ export default class PlayerStats extends ActiveModel {
     const now = Date.now();
 
     for (const team of game.state.teams) {
-      if (!this.stats.has(team.playerId)) {
-        if (team.playerId === this.playerId)
+      if (!this.data.stats.has(team.playerId)) {
+        if (team.playerId === this.data.playerId)
           // Global stats
-          this.stats.set(team.playerId, {
+          this.data.stats.set(team.playerId, {
             // Played X games and abandoned Y games.
             completed: [0, 0],
           });
         else
           // Individual stats
-          this.stats.set(team.playerId, {
+          this.data.stats.set(team.playerId, {
             name: team.name,
             aliases: new Map(),
             all: {
@@ -59,8 +66,8 @@ export default class PlayerStats extends ActiveModel {
           });
       }
 
-      if (team.playerId !== this.playerId) {
-        const stats = this.stats.get(team.playerId);
+      if (team.playerId !== this.data.playerId) {
+        const stats = this.data.stats.get(team.playerId);
 
         if (stats.aliases.has(team.name.toLowerCase())) {
           const alias = stats.aliases.get(team.name.toLowerCase());
@@ -94,12 +101,12 @@ export default class PlayerStats extends ActiveModel {
     if (!game.state.endedAt)
       throw new Error('Game has not ended');
     // No WLD stats for fork games.
-    if (game.forkOf)
+    if (game.isFork)
       return;
 
-    const myTeams = game.state.teams.filter(t => t.playerId === this.playerId);
+    const myTeams = game.state.teams.filter(t => t.playerId === this.data.playerId);
     if (myTeams.length === 0)
-      throw new Error(`Game was not played by ${this.playerId}`);
+      throw new Error(`Game was not played by ${this.data.playerId}`);
 
     // No stats for practice games.
     const numTeams = game.state.teams.length;
@@ -143,15 +150,15 @@ export default class PlayerStats extends ActiveModel {
     }
 
     for (const [ teamId, team ] of game.state.teams.entries()) {
-      if (!this.stats.has(team.playerId))
+      if (!this.data.stats.has(team.playerId))
         throw new Error('Game start not recorded');
 
-      const stats = this.stats.get(team.playerId);
+      const stats = this.data.stats.get(team.playerId);
       /*
        * Collect completed/abandoned game counts for the current player.
        */
-      if (team.playerId === this.playerId) {
-        if (playedBy.has(this.playerId)) {
+      if (team.playerId === this.data.playerId) {
+        if (playedBy.has(this.data.playerId)) {
           // I didn't really complete a game if every other player abandoned it.
           if (playedBy.size === 1)
             continue;
@@ -165,7 +172,7 @@ export default class PlayerStats extends ActiveModel {
        */
       } else {
         // If either I or this player abandoned the game, do not collect WLD stats.
-        if (!playedBy.has(this.playerId) || !playedBy.has(team.playerId))
+        if (!playedBy.has(this.data.playerId) || !playedBy.has(team.playerId))
           continue;
 
         const myAdvantage = myTeams[0].usedUndo || myTeams[0].usedSim;
@@ -195,7 +202,7 @@ export default class PlayerStats extends ActiveModel {
   }
 
   clearWLDStats(playerId, gameTypeId = null) {
-    const stats = this.stats.get(playerId);
+    const stats = this.data.stats.get(playerId);
 
     let wldStats;
     if (gameTypeId) {

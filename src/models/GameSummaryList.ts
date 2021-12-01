@@ -3,11 +3,14 @@ import GameSummary from 'models/GameSummary.js';
 import serializer from 'utils/serializer.js';
 
 export default class GameSummaryList extends ActiveModel {
-  playerId: string
-  gamesSummary: Map<string, GameSummary>
+  protected data: {
+    playerId: string
+    gamesSummary: Map<string, GameSummary>
+  }
 
   constructor(data) {
-    super(data);
+    super();
+    this.data = data;
   }
 
   static create(playerId) {
@@ -17,21 +20,25 @@ export default class GameSummaryList extends ActiveModel {
     });
   }
 
+  get playerId() {
+    return this.data.playerId;
+  }
+
   get size() {
-    return this.gamesSummary.size;
+    return this.data.gamesSummary.size;
   }
   keys() {
-    return this.gamesSummary.keys();
+    return this.data.gamesSummary.keys();
   }
   values() {
-    return this.gamesSummary.values();
+    return this.data.gamesSummary.values();
   }
   entries() {
-    return this.gamesSummary.entries();
+    return this.data.gamesSummary.entries();
   }
 
   set(gameId, gameSummary) {
-    const gamesSummary = this.gamesSummary;
+    const gamesSummary = this.data.gamesSummary;
     if (gamesSummary.has(gameId)) {
       const summaryA = JSON.stringify(gamesSummary.get(gameId));
       const summaryB = JSON.stringify(gameSummary);
@@ -45,13 +52,13 @@ export default class GameSummaryList extends ActiveModel {
     return true;
   }
   has(gameId) {
-    return this.gamesSummary.has(gameId);
+    return this.data.gamesSummary.has(gameId);
   }
   delete(gameId) {
-    const gamesSummary = this.gamesSummary;
+    const gamesSummary = this.data.gamesSummary;
     if (!gamesSummary.has(gameId)) return false;
 
-    this.gamesSummary.delete(gameId);
+    this.data.gamesSummary.delete(gameId);
     this.emit('change:delete');
 
     return true;

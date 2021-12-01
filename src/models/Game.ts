@@ -20,36 +20,40 @@ const stateKeys = new Set([
 ]);
 
 export default class Game extends ActiveModel {
-  id: string
-  createdAt: Date
-  playerRequest: any
-  state: any
-  forkOf: any
-  isPublic: boolean
+  protected data: {
+    id: string
+    playerRequest: any
+    state: GameState
+    forkOf: any
+    isPublic: boolean
+    createdAt: Date
+  }
 
-  constructor(props) {
-    super(props);
+  constructor(data) {
+    super();
 
-    props.state.on('*', event => {
+    data.state.on('*', event => {
       // Clear a player's rejected requests when their turn starts.
-      if (this.playerRequest) {
+      if (data.playerRequest) {
         if (event.type === 'startTurn') {
-          const playerId = props.state.teams[event.data.teamId].playerId;
-          const oldRejected = this.playerRequest.rejected;
+          const playerId = data.state.teams[event.data.teamId].playerId;
+          const oldRejected = data.playerRequest.rejected;
           const newRejected = [ ...oldRejected ].filter(([k,v]) => !k.startsWith(`${playerId}:`));
 
           if (newRejected.length !== oldRejected.size) {
             if (newRejected.length)
-              this.playerRequest.rejected = new Map(newRejected);
+              data.playerRequest.rejected = new Map(newRejected);
             else
-              this.playerRequest = null;
+              data.playerRequest = null;
           }
         } else if (event.type === 'endGame')
-          this.playerRequest = null;
+          data.playerRequest = null;
       }
 
       this.emit('change:state');
     });
+
+    this.data = data;
   }
 
   static create(gameOptions) {
@@ -85,10 +89,29 @@ export default class Game extends ActiveModel {
     return new Game(gameData);
   }
 
+  get id() {
+    return this.data.id;
+  }
+  get state() {
+    return this.data.state;
+  }
+  get forkOf() {
+    return this.data.forkOf;
+  }
+  get isFork() {
+    return !!this.data.forkOf;
+  }
+  get isPublic() {
+    return this.data.isPublic;
+  }
+  get createdAt() {
+    return this.data.createdAt;
+  }
+
   checkout(playerId, checkoutAt) {
     let changed = false;
 
-    for (const team of this.state.teams) {
+    for (const team of this.data.state.teams) {
       if (team?.playerId === playerId && team.checkoutAt < checkoutAt) {
         team.checkoutAt = checkoutAt;
         changed = true;
@@ -101,14 +124,14 @@ export default class Game extends ActiveModel {
   }
 
   submitAction(playerId, action) {
-    if (this.state.endedAt)
+    if (this.data.state.endedAt)
       throw new ServerError(409, 'The game has ended');
 
-    const playerRequest = this.playerRequest;
+    const playerRequest = this.data.playerRequest;
     if (playerRequest?.status === 'pending')
       throw new ServerError(409, `A '${playerRequest.type}' request is still pending`);
 
-    const myTeams = this.state.teams.filter(t => t.playerId === playerId);
+    const myTeams = this.data.state.teams.filter(t => t.playerId === playerId);
     if (myTeams.length === 0)
       throw new ServerError(403, 'You are not a player in this game.');
 
@@ -117,20 +140,20 @@ export default class Game extends ActiveModel {
 
     if (action[0].type === 'surrender')
       action[0].declaredBy = playerId;
-    else if (myTeams.includes(this.state.currentTeam))
-      action.forEach(a => a.teamId = this.state.currentTeamId);
+    else if (myTeams.includes(this.data.state.currentTeam))
+      action.forEach(a => a.teamId = this.data.state.currentTeamId);
     else
       throw new ServerError(409, 'Not your turn!');
 
-    this.state.submitAction(action);
+    this.data.state.submitAction(action);
   }
 
   submitPlayerRequest(playerId, requestType) {
-    const oldRequest = this.playerRequest;
+    const oldRequest = this.data.playerRequest;
     if (oldRequest?.status === 'pending')
       throw new ServerError(409, `A '${requestType}' request is still pending`);
 
-    if (this.state.teams.findIndex(t => t.playerId === playerId) === -1)
+    if (this.data.state.teams.findIndex(t => t.playerId === playerId) === -1)
       throw new ServerError(401, 'You are not a player in this game.');
 
     const newRequest = {
@@ -149,7 +172,7 @@ export default class Game extends ActiveModel {
       saveRequest = this.submitTruceRequest(newRequest);
 
     if (saveRequest) {
-      this.playerRequest = newRequest;
+      this.data.playerRequest = newRequest;
 
       // The request is sent to all players.  The initiator may cancel.
       this.emit({
@@ -160,12 +183,12 @@ export default class Game extends ActiveModel {
     }
   }
   submitUndoRequest(request) {
-    const state = this.state;
+    const state = this.data.state;
     const teams = state.teams;
     if (state.endedAt) {
       const myTeams = teams.filter(t => t.playerId === request.createdBy);
       const isPracticeGame = myTeams.length === teams.length;
-      const isForkGame = !!this.forkOf;
+      const isForkGame = !!this.data.forkOf;
       if (!isPracticeGame && !isForkGame)
         throw new ServerError(409, 'Game already ended');
     }
@@ -202,14 +225,14 @@ export default class Game extends ActiveModel {
     if (request.rejected.has(`${request.createdBy}:${request.type}`))
       throw new ServerError(403, `Your '${request.type}' request was already rejected`);
 
-    const state = this.state;
+    const state = this.data.state;
     if (state.endedAt)
       throw new ServerError(409, 'Game already ended');
     else {
       const teams = state.teams;
       const myTeams = teams.filter(t => t.playerId === request.createdBy);
       const isPracticeGame = myTeams.length === teams.length;
-      const isForkGame = !!this.forkOf;
+      const isForkGame = !!this.data.forkOf;
       if (isPracticeGame || isForkGame)
         throw new ServerError(403, 'Truce not required for this game');
     }
@@ -217,7 +240,7 @@ export default class Game extends ActiveModel {
     return true;
   }
   acceptPlayerRequest(playerId, createdAt) {
-    const request = this.playerRequest;
+    const request = this.data.playerRequest;
     if (request?.status !== 'pending')
       throw new ServerError(409, 'No request');
     if (+createdAt !== +request.createdAt)
@@ -227,7 +250,7 @@ export default class Game extends ActiveModel {
 
     request.accepted.add(playerId);
 
-    const teams = this.state.teams;
+    const teams = this.data.state.teams;
     const acceptedTeams = teams.filter(t => request.accepted.has(t.playerId));
 
     this.emit({
@@ -240,17 +263,17 @@ export default class Game extends ActiveModel {
       this.emit(`playerRequest:complete`);
 
       if (request.type === 'undo') {
-        teams[request.teamId].usedUndo = true;
+        teams[request.teamId].setUsedUndo();
 
-        this.state.undo(teams[request.teamId], true);
+        this.data.state.undo(teams[request.teamId], true);
       } else if (request.type === 'truce')
-        this.state.end('truce');
+        this.data.state.end('truce');
     }
 
     this.emit('change:acceptPlayerRequest');
   }
   rejectPlayerRequest(playerId, createdAt) {
-    const request = this.playerRequest;
+    const request = this.data.playerRequest;
     if (request?.status !== 'pending')
       throw new ServerError(409, 'No request');
     if (+createdAt !== +request.createdAt)
@@ -266,7 +289,7 @@ export default class Game extends ActiveModel {
     this.emit('change:rejectPlayerRequest');
   }
   cancelPlayerRequest(playerId, createdAt) {
-    const request = this.playerRequest;
+    const request = this.data.playerRequest;
     if (request?.status !== 'pending')
       throw new ServerError(409, 'No request');
     if (+createdAt !== +request.createdAt)
@@ -311,20 +334,20 @@ export default class Game extends ActiveModel {
 
     forkGame.createdAt = new Date();
     forkGame.id = uuid();
-    forkGame.forkOf = { gameId:this.id, turnId:forkGame.state.currentTurnId };
+    forkGame.forkOf = { gameId:this.data.id, turnId:forkGame.state.currentTurnId };
     forkGame.isPublic = false;
 
     const teams = forkGame.state.teams = forkGame.state.teams.map(t => t.fork());
 
     if (vs === 'you') {
       if (
-        !this.state.endedAt &&
-        !this.forkOf &&
-        new Set(this.state.teams.map(t => t.playerId)).size > 1
+        !this.data.state.endedAt &&
+        !this.data.forkOf &&
+        new Set(this.data.state.teams.map(t => t.playerId)).size > 1
       ) {
-        const myTeam = this.state.teams.find(t => t.playerId === clientPara.playerId);
+        const myTeam = this.data.state.teams.find(t => t.playerId === clientPara.playerId);
         if (myTeam) {
-          myTeam.usedSim = true;
+          myTeam.setUsedSim();
           this.emit('change:fork');
         }
       }

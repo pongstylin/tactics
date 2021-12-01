@@ -26,12 +26,14 @@ import ServerError from 'server/Error.js';
 import serializer from 'utils/serializer.js';
 
 class Random {
-  count: number
-  initial: any
-  current: any
+  protected data: {
+    count: number
+    initial: any
+    current: any
+  }
 
   constructor(data) {
-    Object.assign(this, data);
+    this.data = data;
   }
 
   static create() {
@@ -51,13 +53,13 @@ class Random {
 
   generate() {
     return {
-      id: ++this.count,
-      number: this.current() * 100,
+      id: ++this.data.count,
+      number: this.data.current() * 100,
     };
   }
 
   toJSON() {
-    const json = { ...this };
+    const json = { ...this.data };
     json.current = json.current.state();
 
     return json;
@@ -65,26 +67,28 @@ class Random {
 };
 
 export default class Team {
-  id: number
-  slot: number
-  createdAt: Date
-  joinedAt: Date | null
-  checkoutAt: Date | null
-  playerId: string
-  name: string
-  colorId: any
-  position: string
-  useRandom: boolean
-  randomState: Random
-  set: any[] | boolean
+  protected data: {
+    id: number
+    slot: number
+    createdAt: Date
+    joinedAt: Date | null
+    checkoutAt: Date | null
+    playerId: string
+    name: string
+    position: string
+    colorId: any
+    useRandom: boolean
+    randomState: Random
+    set: any[] | boolean
+    bot: any
+    usedUndo: boolean
+    usedSim: boolean
+    forkOf: any
+  }
   units: any[][]
-  bot: any
-  usedUndo: boolean
-  usedSim: boolean
-  forkOf: any
 
   constructor(data) {
-    Object.assign(this, {
+    this.data = Object.assign({
       // The position of the team in the teams array post game start
       id: null,
 
@@ -133,8 +137,8 @@ export default class Team {
       usedSim: undefined,
     }, data);
 
-    if (this.useRandom && !this.randomState)
-      this.randomState = Random.create();
+    if (this.data.useRandom && !this.data.randomState)
+      this.data.randomState = Random.create();
   }
 
   static validateSet(data, game, gameType) {
@@ -201,53 +205,124 @@ export default class Team {
     return Team.create({ slot:data.slot }).join(data, clientPara, game, gameType);
   }
 
+  get id() {
+    return this.data.id;
+  }
+  set id(id) {
+    this.data.id = id;
+  }
+  get slot() {
+    return this.data.slot;
+  }
+  get playerId() {
+    return this.data.playerId;
+  }
+  get name() {
+    return this.data.name;
+  }
+  get set() {
+    return this.data.set;
+  }
+  set set(set) {
+    this.data.set = set;
+  }
+  get position() {
+    return this.data.position;
+  }
+  set position(position) {
+    this.data.position = position;
+  }
+  get colorId() {
+    return this.data.colorId;
+  }
+  set colorId(colorId) {
+    this.data.colorId = colorId;
+  }
+  get useRandom() {
+    return this.data.useRandom;
+  }
+  set useRandom(useRandom) {
+    this.data.useRandom = useRandom;
+  }
+  get forkOf() {
+    return this.data.forkOf;
+  }
+  get bot() {
+    return this.data.bot;
+  }
+  get usedUndo() {
+    return this.data.usedUndo === true;
+  }
+  get usedSim() {
+    return this.data.usedSim === true;
+  }
+  get createdAt() {
+    return this.data.createdAt;
+  }
+  get joinedAt() {
+    return this.data.joinedAt;
+  }
+  get checkoutAt() {
+    return this.data.checkoutAt;
+  }
+  set checkoutAt(checkoutAt) {
+    this.data.checkoutAt = checkoutAt;
+  }
+
+  setUsedUndo() {
+    this.data.usedUndo = true;
+  }
+  setUsedSim() {
+    this.data.usedSim = true;
+  }
+
   fork() {
     return new Team({
       createdAt: new Date(),
-      id: this.id,
-      slot: this.slot,
-      position: this.position,
-      forkOf: { playerId:this.playerId, name:this.name },
-      useRandom: this.useRandom,
+      id: this.data.id,
+      slot: this.data.slot,
+      position: this.data.position,
+      forkOf: { playerId:this.data.playerId, name:this.data.name },
+      useRandom: this.data.useRandom,
     });
   }
 
   join(data, clientPara, game = null, gameType = null) {
-    if (this.joinedAt)
+    if (this.data.joinedAt)
       throw new ServerError(409, 'This team has already been joined');
-    if (this.playerId && this.playerId !== clientPara.playerId)
+    if (this.data.playerId && this.data.playerId !== clientPara.playerId)
       throw new ServerError(403, 'This team is reserved');
 
     if (data.set) {
-      if (this.forkOf)
+      if (this.data.forkOf)
         throw new ServerError(403, 'May not assign a set to a forked team');
       data.set = Team.validateSet(data, game, gameType);
     } else
       data.set = null;
 
-    this.joinedAt = new Date();
-    this.playerId = clientPara.playerId;
-    this.name = data.name ?? clientPara.name;
-    this.set = data.set;
+    this.data.joinedAt = new Date();
+    this.data.playerId = clientPara.playerId;
+    this.data.name = data.name ?? clientPara.name;
+    this.data.set = data.set;
 
     return this;
   }
 
   random() {
-    if (!this.useRandom)
+    if (!this.data.useRandom)
       throw new TypeError('May not use random');
 
-    if (!this.randomState)
+    if (!this.data.randomState)
       return { number:Math.random() * 100 };
 
-    return this.randomState.generate();
+    return this.data.randomState.generate();
   }
 
   /*
    * This method is used to send data from the server to the client.
    */
   getData(withSet = false) {
-    const json = {...this};
+    const json = { ...this.data };
 
     // Only indicate presence or absence of a set, not the set itself
     if (!withSet)
@@ -255,7 +330,6 @@ export default class Team {
 
     delete json.checkoutAt;
     delete json.randomState;
-    delete json.units;
 
     return json;
   }
@@ -264,11 +338,7 @@ export default class Team {
    * This method is used to persist the team for storage.
    */
   toJSON() {
-    const json = {...this};
-
-    delete json.units;
-
-    return json;
+    return { ...this.data };
   }
 }
 
