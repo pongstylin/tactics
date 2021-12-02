@@ -503,7 +503,7 @@ export default class ServerSocket {
     clearTimeout(this._closeTimeout);
     this._closeTimeout = setTimeout(
       () => this.close(CLOSE_SERVER_TIMEOUT),
-      process.env.CONNECTION_TIMEOUT,
+      parseInt(process.env.CONNECTION_TIMEOUT),
     );
 
     const serverTimeDiff = message.now - now;

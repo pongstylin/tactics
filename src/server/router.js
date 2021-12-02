@@ -900,7 +900,7 @@ function onClose(code, reason) {
  ******************************************************************************/
 const inboundClientTimeout = new Timeout('inboundClient', {
   verbose: [ 'add', 'delete' ],
-  expireIn: process.env.CONNECTION_TIMEOUT,
+  expireIn: parseInt(process.env.CONNECTION_TIMEOUT),
 });
 inboundClientTimeout.on('expire', ({ data:clients }) => clients.forEach((c,i) => closeClient(c, CLOSE_CLIENT_TIMEOUT)));
 

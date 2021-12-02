@@ -6,7 +6,8 @@
  */
 let lastActiveDate = new Date();
 let isActive = false;
-let setLastActiveDate = () => {
+const eventFlags = { capture:true, passive:true };
+const setLastActiveDate = () => {
   isActive = true;
   removeActivityEvents();
   setTimeout(() => {
@@ -14,16 +15,16 @@ let setLastActiveDate = () => {
     isActive = false;
     addActivityEvents();
   }, 15000);
-}
-let addActivityEvents = () => {
-  window.addEventListener('pointerdown', setLastActiveDate, { capture:true, passive:true });
-  window.addEventListener('pointermove', setLastActiveDate, { capture:true, passive:true });
-  window.addEventListener('pointerup', setLastActiveDate, { capture:true, passive:true });
 };
-let removeActivityEvents = () => {
-  window.removeEventListener('pointerdown', setLastActiveDate);
-  window.removeEventListener('pointermove', setLastActiveDate);
-  window.removeEventListener('pointerup', setLastActiveDate);
+const addActivityEvents = () => {
+  window.addEventListener('pointerdown', setLastActiveDate, eventFlags);
+  window.addEventListener('pointermove', setLastActiveDate, eventFlags);
+  window.addEventListener('pointerup', setLastActiveDate, eventFlags);
+};
+const removeActivityEvents = () => {
+  window.removeEventListener('pointerdown', setLastActiveDate, eventFlags);
+  window.removeEventListener('pointermove', setLastActiveDate, eventFlags);
+  window.removeEventListener('pointerup', setLastActiveDate, eventFlags);
 };
 
 addActivityEvents();
