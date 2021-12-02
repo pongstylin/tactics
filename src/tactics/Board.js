@@ -84,7 +84,7 @@ export default class Board {
       renderer: new PIXI.CanvasRenderer({
         width: 176,
         height: 100,
-        transparent: true,
+        backgroundAlpha: 0,
       }),
       stage: new PIXI.Container(),
       rendering: false,

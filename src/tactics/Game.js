@@ -22,10 +22,10 @@ export default class Game {
     if (!state)
       throw new TypeError('Required game state');
 
-    let renderer = new Renderer({
+    const renderer = new Renderer({
       width: Tactics.width,
       height: Tactics.height,
-      transparent: true,
+      backgroundAlpha: 0,
     });
 
     // Let's not go crazy with the move events.
@@ -34,7 +34,7 @@ export default class Game {
     // Save battery life by updating manually.
     renderer.plugins.interaction.useSystemTicker = false;
 
-    let board = new Board();
+    const board = new Board();
     board.initCard();
     board.draw();
     board
@@ -85,7 +85,7 @@ export default class Game {
     /*
      * Disable tile selection while pinching is in progress
      */
-    let panzoom = PanZoom({ target:renderer.view })
+    const panzoom = PanZoom({ target:renderer.view })
       .on('start', () => {
         board.tilesContainer.interactive = false;
         board.tilesContainer.interactiveChildren = false;
@@ -98,7 +98,7 @@ export default class Game {
         }, 100);
       });
 
-    let whilePlaying = Promise.resolve();
+    const whilePlaying = Promise.resolve();
     whilePlaying.state = 'stopped';
 
     Object.assign(this, {
@@ -1698,7 +1698,7 @@ export default class Game {
   }
 
   _render() {
-    let renderer = this._renderer;
+    const renderer = this._renderer;
 
     this._board.sortUnits();
 

@@ -545,7 +545,7 @@ export default class Unit {
     let frameContainer = new PIXI.Container();
     frameContainer.addChild(frame);
 
-    let avatarCanvas = Tactics.game.renderer.extract.canvas(frameContainer);
+    let avatarCanvas = Tactics.game.renderer.plugins.extract.canvas(frameContainer);
     let avatar = PIXI.Sprite.from(avatarCanvas);
     avatar.x = bounds.x;
     avatar.y = bounds.y;
