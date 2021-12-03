@@ -69,7 +69,6 @@ serializer.addType({
   name: 'GameSummaryList',
   constructor: GameSummaryList,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'object',
     required: [ 'playerId', 'gamesSummary' ],
     properties: {

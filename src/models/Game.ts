@@ -375,7 +375,6 @@ serializer.addType({
   name: 'Game',
   constructor: Game,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'object',
     required: [ 'id', 'isPublic', 'playerRequest', 'state', 'createdBy', 'createdAt' ],
     properties: {

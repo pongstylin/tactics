@@ -96,7 +96,6 @@ serializer.addType({
   name: 'Room',
   constructor: Room,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'object',
     required: [ 'id', 'players', 'events', 'createdAt' ],
     properties: {

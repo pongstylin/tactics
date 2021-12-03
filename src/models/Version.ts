@@ -42,7 +42,6 @@ serializer.addType({
   name: 'Version',
   constructor: Version,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'string',
   },
 });

@@ -290,7 +290,6 @@ serializer.addType({
   name: 'GameType',
   constructor: GameType,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'object',
     required: [ 'id', 'config' ],
     properties: {

@@ -14,7 +14,7 @@ import parseType from 'utils/typeParser.js';
 
 let ajv;
 
-const types = [
+const classTypes = [
   {
     name: 'Object',
     jsonType: 'Object',
@@ -64,7 +64,7 @@ const types = [
           continue;
 
         const keyTransform = transform.keys[i][1];
-        const keyType = typeMap.get(keyTransform.type);
+        const keyType = classTypeMap.get(keyTransform.type);
         if (keyType === undefined)
           throw new TypeError(`The '${keyTransform.type}' type has not been added`);
         data[key] = keyType.normalize(value, keyTransform);
@@ -119,7 +119,7 @@ const types = [
     },
     normalize: (data, transform) => {
       const len = data.length;
-      const itemType = typeMap.get(transform.items.type);
+      const itemType = classTypeMap.get(transform.items.type);
       if (itemType === undefined)
         throw new TypeError(`The '${transform.items.type}' type has not been added`);
 
@@ -200,7 +200,7 @@ const types = [
       const len = data.length;
 
       if (transform.items) {
-        const itemType = typeMap.get(transform.items.type);
+        const itemType = classTypeMap.get(transform.items.type);
 
         for (let i = 0; i < len; i++) {
           const value = data[i][1];
@@ -266,7 +266,7 @@ const types = [
       const len = data.length;
 
       if (transform.items) {
-        const itemType = typeMap.get(transform.items.type);
+        const itemType = classTypeMap.get(transform.items.type);
 
         for (let i = 0; i < len; i++) {
           const value = data[i];
@@ -309,13 +309,13 @@ const types = [
 ];
 const schemas = new Map();
 
-const typeMap = new Map();
+const classTypeMap = new Map();
 const constructors = {};
-for (const type of types) {
+for (const type of classTypes) {
   type.builtin = true;
 
-  typeMap.set(type.name, type);
-  typeMap.set(type.constructor, type);
+  classTypeMap.set(type.name, type);
+  classTypeMap.set(type.constructor, type);
 }
 
 export const enableValidation = newAjv => {
@@ -326,7 +326,7 @@ export const enableValidation = newAjv => {
     schemaType: 'string',
     implements: [ 'validation' ],
     validate: (subType, data, parentSchema) => {
-      const type = typeMap.get(subType);
+      const type = classTypeMap.get(subType);
       if (typeof type.constructor.validate === 'function')
         type.constructor.validate(data, parentSchema.validation);
 
@@ -334,7 +334,7 @@ export const enableValidation = newAjv => {
     },
   });
 
-  for (const type of types) {
+  for (const type of classTypes) {
     if (type.schema)
       ajv.addSchema(type.schema);
   }
@@ -354,9 +354,9 @@ export const unionType = (...types) => {
  * data must be typeof 'object'
  */
 const serialize = (data, transform) => {
-  if (!typeMap.has(data.constructor))
+  if (!classTypeMap.has(data.constructor))
     throw new TypeError(`The '${data.constructor.name}' type has not been added`);
-  const type = typeMap.get(data.constructor);
+  const type = classTypeMap.get(data.constructor);
 
   if (transform.type === undefined)
     transform.type = new Set([ type.name ]);
@@ -373,7 +373,7 @@ const codify = (varName, transform, newVar) => {
   if (transform.type.constructor === Array)
     return codifyUnion(varName, transform, newVar);
 
-  const type = typeMap.get(transform.type);
+  const type = classTypeMap.get(transform.type);
   const varAlias = newVar();
   const varPlaceholder = `__${varAlias}__`;
   const code = codifyOptional(
@@ -408,7 +408,7 @@ const codifyUnion = (varName, transform, newVar) => {
     code.push(`switch (${varAlias}.constructor) {`);
 
   for (const typeName of typeNames) {
-    const type = typeMap.get(typeName);
+    const type = classTypeMap.get(typeName);
     const typeCode = type.codify(varName, varAlias, transform, newVar);
 
     if (typeNames.size > 1)
@@ -446,7 +446,7 @@ const serializeDefault = (data, transform) => {
   if (serialized === undefined || serialized === null)
     return null;
   else if (typeof serialized === 'object') {
-    const type = typeMap.get(serialized.constructor);
+    const type = classTypeMap.get(serialized.constructor);
     return type.serialize(serialized, transform);
   }
 
@@ -460,15 +460,15 @@ const normalizeDefault = (data, transform) => {
   if (data === null)
     return data;
 
-  const type = typeMap.get(transform.type);
+  const type = classTypeMap.get(transform.type);
 
   /*
    * Determine if the object or array requires normalization.
    */
   if (data.constructor === Object && transform.keys)
-    typeMap.get(data.constructor).normalize(data, transform);
+    classTypeMap.get(data.constructor).normalize(data, transform);
   else if (data.constructor === Array && transform.items)
-    typeMap.get(data.constructor).normalize(data, transform);
+    classTypeMap.get(data.constructor).normalize(data, transform);
 
   if (type.constructor.fromJSON)
     return type.constructor.fromJSON(data);
@@ -476,8 +476,8 @@ const normalizeDefault = (data, transform) => {
     return new type.constructor(data);
 };
 const codifyDefault = (varName, varAlias, transform, newVar) => {
-  const type = typeMap.get(transform.type);
-  const jsonType = typeMap.get(type.jsonType);
+  const type = classTypeMap.get(transform.type);
+  const jsonType = classTypeMap.get(type.jsonType);
   const construction = type.constructor.fromJSON
     ? `constructors.${transform.type}.fromJSON(${varAlias})`
     : `new constructors.${transform.type}(${varAlias})`;
@@ -488,7 +488,7 @@ const codifyDefault = (varName, varAlias, transform, newVar) => {
   ].join('');
 };
 const codifyCompiled = (varName, varAlias, transform) => {
-  const type = typeMap.get(transform.type);
+  const type = classTypeMap.get(transform.type);
 
   // Order matters.  __alias__ must be replaced before __name__ because varName
   // may contain __alias__.  This happens when one compiled type has another
@@ -566,8 +566,8 @@ const makeSchema = definition => {
 const makeSubSchema = definition => {
   const subSchema = {};
 
-  if (typeMap.has(definition.$type)) {
-    const type = typeMap.get(definition.$type);
+  if (classTypeMap.has(definition.$type)) {
+    const type = classTypeMap.get(definition.$type);
 
     if (type.builtin) {
       if (definition.$validation)
@@ -622,15 +622,21 @@ const makeSubSchema = definition => {
           subSchema.maxItems = definition.$maxItems;
 
         if (definition.$items.constructor === Array) {
-          if (subSchema.minItems === undefined)
-            subSchema.minItems = definition.$items.length;
-          subSchema.items = [];
-          subSchema.additionalItems = false;
+          if (definition.$items.length) {
+            if (subSchema.minItems === undefined)
+              subSchema.minItems = definition.$items.length;
+            if (subSchema.maxItems === undefined)
+              subSchema.maxItems = definition.$items.length;
 
-          for (const item of definition.$items) {
-            const itemDefinition = normalizeDefinition(item);
+            subSchema.items = [];
+            for (const item of definition.$items) {
+              const itemDefinition = normalizeDefinition(item);
 
-            subSchema.items.push(makeSubSchema(itemDefinition));
+              subSchema.items.push(makeSubSchema(itemDefinition));
+            }
+          } else {
+            if (subSchema.maxItems === undefined)
+              subSchema.maxItems = definition.$items.length;
           }
         } else
           subSchema.items = makeSubSchema(normalizeDefinition(definition.$items));
@@ -762,11 +768,17 @@ const normalizeTypeString = typeString => {
           break;
         case 'tuple':
           type.$type = 'array';
-          type.$minItems = args[1] ?? args[0].length;
           type.$items = args[0];
+          if (args.length === 2)
+            type.$minItems = args[1];
           break;
         default:
-          throw new Error(`Parameters are not supported for '${type}'`);
+          const classType = classTypeMap.get(typeData.name);
+          if (classType && !classType.builtin) {
+            type.$type = typeData.name;
+            type.$validation = args[0];
+          } else
+            throw new Error(`Parameters are not supported for '${type}'`);
       }
     } else if (typeData.name in ajv.formats) {
       type.$type = 'string';
@@ -797,7 +809,7 @@ const normalizeDefinition = definition => {
         $items: definition,
       };
   } else if (typeof definition === 'function') {
-    const type = typeMap.get(definition);
+    const type = classTypeMap.get(definition);
     if (!type)
       throw new TypeError(`Unrecognized type: ${definition.name}`);
 
@@ -816,8 +828,8 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
       subSchema = schema.definitions[ref.replace(/^#\/definitions\//, '')];
     } else if (schemas.has(ref)) {
       subSchema = schemas.get(ref);
-    } else if (typeMap.has(ref)) {
-      const type = typeMap.get(ref);
+    } else if (classTypeMap.has(ref)) {
+      const type = classTypeMap.get(ref);
       if (!type.schema)
         throw new Error(`The ${ref} type has no schema`);
       return { type:type.name, required:isRequired, nullable:false };
@@ -838,8 +850,8 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
           one = schema.definitions[ref.replace(/^#\/definitions\//, '')];
         } else if (schemas.has(ref)) {
           one = schemas.get(ref);
-        } else if (typeMap.has(ref)) {
-          const type = typeMap.get(ref);
+        } else if (classTypeMap.has(ref)) {
+          const type = classTypeMap.get(ref);
           if (!type.schema)
             throw new Error(`The ${ref} type has no schema`);
           one = Object.assign({}, type.schema, { subType:type.name });
@@ -921,8 +933,12 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
   if (types.has('array')) {
     if (subSchema.items) {
       if (subSchema.items.constructor === Array) {
-        if (subSchema.additionalItems !== false)
-          throw new Error('Unsupported additionalItems');
+        if (subSchema.maxItems === undefined) {
+          if (subSchema.additionalItems !== false)
+            throw new Error('Unsupported additionalItems');
+        } else if (subSchema.maxItems !== subSchema.items.length) {
+          throw new Error('Unsupported maxItems');
+        }
 
         const minItems = subSchema.minItems ?? 0;
         transform.items = subSchema.items.map((item, i) => compileSchema(schema, item, i < minItems));
@@ -942,7 +958,7 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
 const compileTypeTransform = (type, transform, suffix = '') => {
   const varName = '__name__';
   const varAlias = '__alias__';
-  const jsonType = typeMap.get(type.jsonType);
+  const jsonType = classTypeMap.get(type.jsonType);
   const construction = type.constructor.fromJSON
     ? `constructors.${transform.type}.fromJSON(${varAlias})`
     : `new constructors.${transform.type}(${varAlias})`;
@@ -973,7 +989,7 @@ const compileTransform = transform => {
 
   const varName = '__name__';
   const varAlias = '__alias__';
-  const type = typeMap.get(transform.type);
+  const type = classTypeMap.get(transform.type);
   let varNew = '';
 
   return type.codify(varName, varAlias, transform, () => {
@@ -1055,7 +1071,7 @@ const codifyOptional = (code, varName, transform) => {
   if (transform.required && !transform.nullable)
     return code;
 
-  const type = typeMap.get(transform.type);
+  const type = classTypeMap.get(transform.type);
 
   let check;
   if (type.jsonType === 'String')
@@ -1072,9 +1088,9 @@ const codifyOptional = (code, varName, transform) => {
 
 const serializer = {
   addType(type) {
-    if (typeMap.has(type.name))
+    if (classTypeMap.has(type.name))
       throw new TypeError('Type name conflict');
-    if (typeMap.has(type.constructor))
+    if (classTypeMap.has(type.constructor))
       throw new TypeError('Type constructor conflict');
 
     // A toJSON method is required to stringify an instance of this type.
@@ -1082,6 +1098,7 @@ const serializer = {
       throw new Error('A toJSON() method is required.');
 
     if (type.schema) {
+      type.schema.$schema = 'http://json-schema.org/draft-07/schema';
       type.schema.$id = `type:${type.name}`;
       type.jsonType = type.schema.type.toUpperCase('first');
 
@@ -1094,7 +1111,7 @@ const serializer = {
         type.serialize = null;
         type.normalize = normalizeNOOP;
       } else {
-        type.code = compileTypeTransform(type, transform, types.length.toString());
+        type.code = compileTypeTransform(type, transform, classTypes.length.toString());
         type.codify = codifyCompiled;
         type.serialize = null;
         type.normalize = compileNormalize(type.code);
@@ -1107,18 +1124,18 @@ const serializer = {
       type.normalize = normalizeDefault;
     }
 
-    types.push(type);
+    classTypes.push(type);
     constructors[type.name] = type.constructor;
-    typeMap.set(type.name, type);
-    typeMap.set(type.constructor, type);
+    classTypeMap.set(type.name, type);
+    classTypeMap.set(type.constructor, type);
     if (type.schema)
-      typeMap.set(type.schema.$id, type);
+      classTypeMap.set(type.schema.$id, type);
   },
   transform(data) {
     if (data === null || typeof data !== 'object')
       throw new TypeError('Unable to transform');
 
-    const type = typeMap.get(data.constructor);
+    const type = classTypeMap.get(data.constructor);
     if (type.schema)
       return { type:type.name, data };
 
@@ -1135,10 +1152,10 @@ const serializer = {
   },
   normalize(serialized) {
     if (serialized.type) {
-      const type = typeMap.get(serialized.type);
+      const type = classTypeMap.get(serialized.type);
       return type.normalize(serialized.data);
     } else if (serialized.transform) {
-      const type = typeMap.get(serialized.transform.type);
+      const type = classTypeMap.get(serialized.transform.type);
       return type.normalize(serialized.data, serialized.transform);
     } else if (serialized.data)
       return serialized.data;

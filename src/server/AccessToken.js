@@ -21,7 +21,6 @@ serializer.addType({
   name: 'AccessToken',
   constructor: AccessToken,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'string',
   },
 });

@@ -18,12 +18,32 @@ export default class AuthService extends Service {
     this.setValidation({
       authorize: { token:AccessToken },
       requests: {
+        register: [ 'auth:profile' ],
+        saveProfile: [ 'auth:profile' ],
+        refreshToken: `tuple([ 'AccessToken({ ignoreExpiration:true })' ], 0)`,
+
+        createIdentityToken: [],
+        getIdentityToken: [],
+        revokeIdentityToken: [],
+
         addDevice: [ IdentityToken ],
-        refreshToken: [{
-          $type: AccessToken,
-          $validation: { ignoreExpiration:true },
-          $required: false,
-        }],
+        getDevices: [],
+        setDeviceName: [ 'uuid', 'string' ],
+        removeDevice: [ 'uuid' ],
+
+        getACL: [],
+        getPlayerACL: [ 'uuid' ],
+        setPlayerACL: [ 'uuid', 'auth:acl' ],
+        clearPlayerACL: [ 'uuid' ],
+      },
+      definitions: {
+        profile: {
+          name: 'string',
+        },
+        acl: {
+          type: `enum([ 'friended', 'muted', 'blocked' ])`,
+          name: 'string',
+        },
       },
     });
   }

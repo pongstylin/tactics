@@ -79,7 +79,6 @@ serializer.addType({
   name: 'IdentityToken',
   constructor: IdentityToken,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'string',
   },
 });
@@ -87,7 +86,6 @@ serializer.addType({
   name: 'AccessToken',
   constructor: AccessToken,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'string',
   },
 });

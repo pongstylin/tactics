@@ -58,7 +58,6 @@ serializer.addType({
   name: 'PlayerSets',
   constructor: PlayerSets,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'object',
     required: [ 'playerId', 'sets' ],
     properties: {

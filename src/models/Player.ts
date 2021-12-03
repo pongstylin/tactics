@@ -244,15 +244,6 @@ export default class Player extends ActiveModel {
     return Object.assign({}, this.data.acl.get(playerId), { reverseType });
   }
   setPlayerACL(player, playerACL) {
-    if (!playerACL.type)
-      throw new ServerError(400, 'Required player ACL type');
-    if (!playerACL.name)
-      throw new ServerError(400, 'Required player ACL name');
-    if (!/^(?:friended|muted|blocked)$/.test(playerACL.type))
-      throw new ServerError(400, 'Unrecognized player ACL type');
-    if (Object.keys(playerACL).length > 2)
-      throw new ServerError(400, 'Too many player ACL properties');
-
     Player.validatePlayerName(playerACL.name);
 
     const acl = this.data.acl.get(player.id);
@@ -389,7 +380,6 @@ serializer.addType({
   name: 'Player',
   constructor: Player,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'object',
     required: [ 'id', 'name', 'devices', 'acl', 'reverseACL', 'identityToken', 'createdAt', 'checkoutAt' ],
     properties: {

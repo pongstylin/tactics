@@ -87,10 +87,11 @@ function getListToken(str, len, startIndex) {
   const subTokens = [];
 
   let nextToken = getNextToken(str, len, startIndex + 1);
+  if (nextToken.type === endTokenType)
+    return { type:tokenType, tokens:subTokens, startIndex, endIndex:nextToken.endIndex };
+
   while (nextToken.type !== 'end') {
-    if (nextToken.type === endTokenType)
-      return { type:tokenType, tokens:subTokens, startIndex, endIndex:nextToken.endIndex };
-    else if (nextToken.type === 'comma') {
+    if (nextToken.type === 'comma') {
       subTokens.push({ type:'undefined' });
       nextToken = getNextToken(str, len, nextToken.endIndex + 1);
     } else {
@@ -100,9 +101,7 @@ function getListToken(str, len, startIndex) {
         nextToken = getNextToken(str, len, nextToken.endIndex + 1);
       else if (nextToken.type === endTokenType)
         return { type:tokenType, tokens:subTokens, startIndex, endIndex:nextToken.endIndex };
-      else if (nextToken.type === 'end')
-        break;
-      else
+      else if (nextToken.type !== 'end')
         throw new ParseError(`Unexpected ${tokenType} token '${nextToken.type}'`, nextToken.startIndex);
     }
   }
@@ -110,25 +109,33 @@ function getListToken(str, len, startIndex) {
   throw new ParseError(`Hit end of input while processing ${tokenType}`, startIndex);
 }
 function getObjectToken(str, len, startIndex) {
+  const tokenType = 'object';
+  const endTokenType = 'object-end';
   const subTokens = [];
 
   let nextToken = getNextToken(str, len, startIndex + 1);
-  while (nextToken.type !== 'end') {
-    if (nextToken.type === 'object-end')
-      return { type:'object', tokens:subTokens, startIndex, endIndex:nextToken.endIndex };
+  if (nextToken.type === endTokenType)
+    return { type:tokenType, tokens:subTokens, startIndex, endIndex:nextToken.endIndex };
 
+  while (nextToken.type !== 'end') {
     const keyToken = nextToken;
     if (keyToken.type !== 'var' && keyToken.type !== 'string')
       throw new ParseError('Expected key token', keyToken.startIndex);
 
-    const commaToken = getNextToken(str, len, i);
-    if (keyToken.type !== 'comma')
-      throw new ParseError('Expected comma token', commaToken.startIndex);
+    const colonToken = getNextToken(str, len, keyToken.endIndex + 1);
+    if (colonToken.type !== 'colon')
+      throw new ParseError('Expected colon token', colonToken.startIndex);
 
-    const valueToken = getNextToken(str, len, commaToken.endIndex + 1);
+    const valueToken = getNextToken(str, len, colonToken.endIndex + 1);
     subTokens.push({ type:'property', keyToken, valueToken });
 
     nextToken = getNextToken(str, len, valueToken.endIndex + 1);
+    if (nextToken.type === 'comma')
+      nextToken = getNextToken(str, len, nextToken.endIndex + 1);
+    else if (nextToken.type === endTokenType)
+      return { type:tokenType, tokens:subTokens, startIndex, endIndex:nextToken.endIndex };
+    else if (nextToken.type !== 'end')
+      throw new ParseError(`Unexpected ${tokenType} token '${nextToken.type}'`, nextToken.startIndex);
   }
 
   throw new ParseError(`Hit end of input while processing object`, startIndex);

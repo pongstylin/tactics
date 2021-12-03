@@ -346,7 +346,6 @@ serializer.addType({
   name: 'Random',
   constructor: Random,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'object',
     properties: {
       count: { type:'number', minimum:0 },
@@ -363,7 +362,6 @@ serializer.addType({
   name: 'Team',
   constructor: Team,
   schema: {
-    $schema: 'http://json-schema.org/draft-07/schema',
     type: 'object',
     required: [ 'id', 'slot', 'name', 'position', 'useRandom', 'joinedAt', 'checkoutAt', 'createdAt' ],
     properties: {
