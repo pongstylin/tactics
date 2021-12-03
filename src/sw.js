@@ -180,17 +180,19 @@ self.addEventListener('fetch', event => {
     return;
   if (request.url.startsWith('https://www.gstatic.com/'))
     return;
-  /*
-   * Do not handle non-GET requests.
-   */
-  if (request.method !== 'GET')
-    return;
 
   // Ignore the query string since it does not affect the response.
   const url = request.url.replace(/\?.+$/, '');
 
   if (url === LOCAL_ENDPOINT)
     return event.respondWith(routeLocalRequest(request));
+
+  /*
+   * Do not handle non-GET requests.
+   * Note: This placement ensures POST/DELETE to the LOCAL_ENDPOINT work.
+   */
+  if (request.method !== 'GET')
+    return;
 
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {
