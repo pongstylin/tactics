@@ -15,6 +15,13 @@ export default class ChatService extends Service {
 
     this.setValidation({
       authorize: { token:AccessToken },
+      events: {
+        message: [ 'chat:group', 'string' ],
+        seen: [ 'chat:group', 'integer(0)' ],
+      },
+      definitions: {
+        group: 'string(/^\\/rooms\\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)',
+      },
     });
 
     this._onPlayerACLChangeListener = this._onPlayerACLChange.bind(this);

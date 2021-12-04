@@ -71,18 +71,23 @@ export default class Service {
           validate = validators.get('authorize');
           if (validate)
             body.data = validate(body.data);
+          else
+            throw new ServerError(501, 'Not implemented');
           break;
         case 'request':
           validate = validators.get(`request:${body.method}`);
           if (validate)
             body.args = validate(body.args);
+          else
+            throw new ServerError(501, 'Not implemented');
           break;
         case 'event':
           validate = validators.get(`event:${body.type}`);
           if (validate) {
             const args = validate([ body.group, body.data ]);
             body.data = args[1];
-          }
+          } else
+            throw new ServerError(501, 'Not implemented');
           break;
       }
     } catch(e) {

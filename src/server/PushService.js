@@ -15,6 +15,9 @@ export default class PushService extends Service {
 
     this.setValidation({
       authorize: { token:AccessToken },
+      requests: {
+        setSubscription: [ 'any' ],
+      },
     });
   }
 
