@@ -317,6 +317,8 @@ export default class Game extends ActiveModel {
      * If necessary, roll back to the previous playable turn.
      */
     forkGame.state.revert(turnId);
+    forkGame.state.autoPass();
+
     while (turnId > 0) {
       if (forkGame.state.winningTeams.length < 2) {
         forkGame.state.revert(--turnId);
