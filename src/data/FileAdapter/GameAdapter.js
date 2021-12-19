@@ -193,10 +193,12 @@ export default class extends FileAdapter {
   async searchOpenGames(player, query) {
     const openGames = await this._getOpenGames();
     const blockedBy = player.listBlockedBy();
-    const data = JSON.parse(JSON.stringify([...openGames.values()])).filter(gs => {
-      gs.creatorACL = player.getPlayerACL(gs.createdBy);
-      return !blockedBy.has(gs.createdBy);
-    });
+    const data = serializer.clone([...groupGames.values()])
+      .map(gs => gs.data)
+      .filter(data => {
+        data.creatorACL = player.getPlayerACL(data.createdBy);
+        return !blockedBy.has(data.createdBy);
+      });
 
     return this._search(data, query);
   }
