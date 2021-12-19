@@ -24,9 +24,9 @@ export const colorFilterMap = new Map([
   ['Orange', [1.99, 1.20, 0.01]],
   ['Brown',  [1.05, 0.80, 0.60]],
   ['Yellow', [1.99, 1.85, 0.70]],
-  ['Blue',   [1.10, 1.45, 0.70]],
+  ['Green',  [1.10, 1.45, 0.70]],
   ['Aqua',   [0.70, 1.50, 1.50]],
-  ['Green',  [0.65, 0.85, 1.35]],
+  ['Blue',   [0.65, 0.85, 1.35]],
 ]);
 
 // Map unit names to IDs until we get rid of the IDs.
