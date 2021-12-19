@@ -772,13 +772,22 @@ const normalizeTypeString = typeString => {
           if (args.length === 2)
             type.$minItems = args[1];
           break;
+        case 'Map':
+          type.$type = 'array';
+          type.$subType = 'Map';
+          type.$items = { $type:'array' };
+          if (args.length === 1)
+            type.$items.$items = [ 'string', args[0] ];
+          else if (args.length === 2)
+            type.$items.$items = args;
+          break;
         default:
           const classType = classTypeMap.get(typeData.name);
           if (classType && !classType.builtin) {
             type.$type = typeData.name;
             type.$validation = args[0];
           } else
-            throw new Error(`Parameters are not supported for '${type}'`);
+            throw new Error(`Parameters are not supported for '${typeData.name}'`);
       }
     } else if (typeData.name in ajv.formats) {
       type.$type = 'string';
