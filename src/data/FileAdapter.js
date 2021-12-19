@@ -220,17 +220,27 @@ export default class {
       throw error;
     });
   }
-  _putFile(name, data, transform) {
-    let fqNameTemp = `${this.filesDir}/.${name}.json`;
-    let fqName = `${this.filesDir}/${name}.json`;
+  async _putFile(name, data, transform) {
+    const parts = name.split('/');
+    const dirPart = parts.slice(0, -1).join('/');
+    const filePart = parts.last;
+
+    const fqDir = dirPart.length ? `${this.filesDir}/${dirPart}` : this.filesDir;
+    const exists = await new Promise((resolve, reject) =>
+      fs.access(fqDir, err => resolve(!err)));
+    if (!exists)
+      await new Promise((resolve, reject) =>
+        fs.mkdir(fqDir, { recursive:true }, err => err ? reject(err) : resolve()));
+
+    const fqNameTemp = `${fqDir}/.${filePart}.json`;
+    const fqName = `${fqDir}/${filePart}.json`;
 
     return new Promise((resolve, reject) => {
       fs.writeFile(fqNameTemp, JSON.stringify(transform(data)), error => {
         if (error) {
           console.log('writeFile', error);
           reject(new ServerError(500, 'Save failed'));
-        }
-        else
+        } else
           resolve();
       });
     }).then(() => new Promise((resolve, reject) => {
@@ -238,8 +248,7 @@ export default class {
         if (error) {
           console.log('rename', error);
           reject(new ServerError(500, 'Save failed'));
-        }
-        else
+        } else
           resolve();
       });
     }));
@@ -252,9 +261,8 @@ export default class {
         if (error) {
           console.log('deleteFile', error);
           reject(new ServerError(500, 'Delete failed'));
-        } else {
+        } else
           resolve();
-        }
       });
     });
   }
