@@ -282,6 +282,8 @@ export default class extends FileAdapter {
       return this.buffer.get('game').get(gameId);
 
     return this.getFile(`game_${gameId}`, data => {
+      if (data === undefined) return;
+
       const game = serializer.normalize(migrate('game', data));
       this._attachGame(game);
 
