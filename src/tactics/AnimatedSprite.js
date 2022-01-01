@@ -70,8 +70,19 @@ export default class AnimatedSprite {
             image.name = [image.name];
 
           if (image.type === 'sheet') {
-            if (image.src.startsWith('data:'))
+            if (image.src.startsWith('data:')) {
               image.texture = Texture.from( shrinkDataURI(image.src) ).baseTexture;
+              if (!image.texture.valid) {
+                loading++;
+                image.texture
+                  .on('loaded', progress)
+                  .on('error', () =>
+                    reject(new Error(
+                      `Failed to load sprite:${spriteName}/images/${i}`
+                    ))
+                  );
+              }
+            }
             else
               throw 'Unsupported image source for sheet';
           }
