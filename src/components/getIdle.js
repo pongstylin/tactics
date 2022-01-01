@@ -20,11 +20,15 @@ const addActivityEvents = () => {
   window.addEventListener('pointerdown', setLastActiveDate, eventFlags);
   window.addEventListener('pointermove', setLastActiveDate, eventFlags);
   window.addEventListener('pointerup', setLastActiveDate, eventFlags);
+  window.addEventListener('keydown', setLastActiveDate, eventFlags);
+  window.addEventListener('keyup', setLastActiveDate, eventFlags);
 };
 const removeActivityEvents = () => {
   window.removeEventListener('pointerdown', setLastActiveDate, eventFlags);
   window.removeEventListener('pointermove', setLastActiveDate, eventFlags);
   window.removeEventListener('pointerup', setLastActiveDate, eventFlags);
+  window.removeEventListener('keydown', setLastActiveDate, eventFlags);
+  window.removeEventListener('keyup', setLastActiveDate, eventFlags);
 };
 
 addActivityEvents();
