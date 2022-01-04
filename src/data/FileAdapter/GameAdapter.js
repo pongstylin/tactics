@@ -368,13 +368,6 @@ export default class extends FileAdapter {
           // to add the other player's games to the cache.
           this.cache.get('playerGames').add(playerGames.id, playerGames);
 
-          if (game.state.endedAt) {
-            this._pruneGameSummaryList(playerGames);
-
-            if (!playerGames.has(game.id))
-              return;
-          }
-
           return playerGames;
         }),
       );
@@ -383,14 +376,9 @@ export default class extends FileAdapter {
     if (game.collection)
       promises.push(
         this._getGameCollection(game.collection).then(collection => {
-          if (game.state.endedAt) {
-            if (game.state.currentTurnId < 4)
-              collection.delete(game.id);
-            else
-              this._pruneGameSummaryList(collection);
-
-            if (!collection.has(game.id))
-              return;
+          if (game.state.endedAt && game.state.currentTurnId < 4) {
+            collection.delete(game.id);
+            return;
           }
 
           return collection;
@@ -405,6 +393,7 @@ export default class extends FileAdapter {
         if (!gameSummaryList) continue;
 
         gameSummaryList.set(game.id, summary);
+        this._pruneGameSummaryList(gameSummaryList);
 
         if (syncingPlayerGames.has(gameSummaryList.id)) {
           const sync = syncingPlayerGames.get(gameSummaryList.id);
