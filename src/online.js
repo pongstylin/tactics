@@ -664,9 +664,11 @@ async function joinGame(gameId) {
 function startGame() {
   const gameId = state.my.lobbyGame.id;
 
-  avatars.getSound('newgame').howl.play();
-
-  location.href = `/game.html?${gameId}`;
+  const newGame = avatars.getSound('newgame').howl;
+  newGame.once('end', () => {
+    location.href = `/game.html?${gameId}`;
+  });
+  newGame.play();
 }
 
 function renderPN(reg) {
