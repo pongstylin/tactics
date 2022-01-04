@@ -322,9 +322,11 @@ migrationMap.set('game', [
   json => {
     const isPublic = json.data.isPublic;
     delete json.data.isPublic;
-
     if (isPublic)
       json.data.collection = 'public';
+
+    if (json.data.playerRequest === undefined)
+      json.data.playerRequest = null;
 
     return json;
   },
