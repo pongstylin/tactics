@@ -151,9 +151,11 @@ export default class AuthClient extends Client {
     // worker IS shared.  When opening a new connection, e.g. opening a page in
     // Safari or opening the PWA, restore the token from cache to make sure both
     // contexts use the same account and always have the most recent token.
-    await this._restoreToken();
-
-    if (this.token) {
+    if (!this.whenReady.isResolved) {
+      const token = await this._restoreToken();
+      if (token)
+        await this._refreshToken();
+    } else {
       // Since a connection can only be resumed for 30 seconds after disconnect
       // and a token is refreshed 1 minute before it expires, a token refresh
       // should not be immediately necessary after resuming a connection.
@@ -171,16 +173,19 @@ export default class AuthClient extends Client {
   }
 
   async _restoreToken() {
-    let token = await this._fetchCachedToken();
+    const cachedToken = await this._fetchCachedToken();
+    let token = this._fetchToken();
 
-    if (token) {
-      if (!this.token)
-        this._storeToken(this.token = token);
-      else if (this.token.playerId !== token.playerId)
-        this._storeToken(this.token = token);
-      else if (this.token.createdAt < token.createdAt)
-        this._storeToken(this.token = token);
+    if (cachedToken) {
+      if (!token)
+        this._storeToken(token = cachedToken);
+      else if (token.playerId !== cachedToken.playerId)
+        this._storeToken(token = cachedToken);
+      else if (token.createdAt < cachedToken.createdAt)
+        this._storeToken(token = cachedToken);
     }
+
+    return token;
   }
   async _refreshToken() {
     // No point in queueing a token refresh if the session is not open.
@@ -247,15 +252,14 @@ export default class AuthClient extends Client {
     });
   }
   async _setToken(token) {
-    let storedToken = this._fetchToken();
+    const storedToken = this._fetchToken();
 
     if (!token) {
       if (!storedToken)
         return this.token = null;
 
       token = storedToken;
-    }
-    else {
+    } else {
       if (typeof token === 'string')
         token = new AccessToken(token);
 

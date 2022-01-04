@@ -172,7 +172,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let randomHitChance = document.querySelector('INPUT[name=randomHitChance]:checked').value;
     let gameOptions = {
       randomFirstTurn: turnOrder === 'random',
-      isPublic: vs === 'public',
+      collection: vs === 'public' ? 'public' : undefined,
       randomHitChance: randomHitChance === 'true',
       teams: [null, null],
     };
@@ -190,7 +190,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let myGameQuery;
     let matchingGameQuery;
     let joinQuery;
-    if (gameOptions.isPublic) {
+    if (gameOptions.collection) {
       let excludedPlayerIds = new Set();
 
       if (authClient.playerId) {
@@ -199,7 +199,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         try {
           // Do not join waiting games against players we are already playing.
-          let games = await gameClient.searchMyActiveGames({
+          let games = await gameClient.searchMyGames({
             filter: {
               // Game type must match player preference.
               type: gameTypeId,
@@ -222,6 +222,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         myGameQuery = {
           filter: {
+            startedAt: null,
             // Game type must match player preference.
             type: gameTypeId,
             // Look for an open game with this player as a participant
@@ -239,6 +240,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         matchingGameQuery = {
           filter: {
+            startedAt: null,
             // Game type must match player preference.
             type: gameTypeId,
             // Look for an open game with this player as a participant
@@ -251,6 +253,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
       joinQuery = {
         filter: {
+          startedAt: null,
           // Game type must match player preference.
           type: gameTypeId,
           // Don't join games against disqualified players
@@ -315,11 +318,13 @@ window.addEventListener('DOMContentLoaded', () => {
 async function findMyGame(myGameQuery, matchingGameQuery) {
   if (!myGameQuery) return;
 
-  let result = await gameClient.searchOpenGames(myGameQuery);
+  // Use a matching existing public game, if any.
+  let result = await gameClient.searchGameCollection('public', myGameQuery);
   if (result.count)
     return result.hits[0].id;
 
-  result = await gameClient.searchOpenGames(matchingGameQuery);
+  // Cancel a game matching the game style
+  result = await gameClient.searchGameCollection('public', matchingGameQuery);
   if (!result.count) return;
 
   gameClient.cancelGame(result.hits[0].id);
@@ -329,7 +334,7 @@ async function joinOpenGame(query) {
   if (!query) return;
 
   try {
-    const result = await gameClient.searchOpenGames(query);
+    const result = await gameClient.searchGameCollection('public', query);
     if (!result.count) return;
 
     const hits = result.hits.filter(h => h.creatorACL?.type !== 'blocked');

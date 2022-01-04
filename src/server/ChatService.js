@@ -53,10 +53,6 @@ export default class ChatService extends Service {
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara) return;
 
-    for (const roomId of clientPara.roomIds) {
-      this.onLeaveRoomGroup(client, `/rooms/${roomId}`, roomId);
-    }
-
     this.clientPara.delete(client.id);
   }
 
@@ -84,9 +80,14 @@ export default class ChatService extends Service {
   }
 
   async onJoinGroup(client, groupPath, params) {
-    let match;
-    if (match = groupPath.match(/^\/rooms\/(.+)$/))
-      return this.onJoinRoomGroup(client, groupPath, match[1], params);
+    if (groupPath.startsWith('/rooms/'))
+      return this.onJoinRoomGroup(client, groupPath, groupPath.slice(7), params);
+    else
+      throw new ServerError(404, 'No such group');
+  }
+  async onLeaveGroup(client, groupPath) {
+    if (groupPath.startsWith('/rooms/'))
+      return this.onLeaveRoomGroup(client, groupPath, groupPath.slice(7));
     else
       throw new ServerError(404, 'No such group');
   }

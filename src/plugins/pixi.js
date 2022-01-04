@@ -30,6 +30,7 @@ CanvasRenderer.registerPlugin('graphics', CanvasGraphicsRenderer);
 CanvasRenderer.registerPlugin('interaction', InteractionManager);
 
 window.PIXI = {
+  Renderer,
   CanvasRenderer,
   BaseTexture,
   Texture,

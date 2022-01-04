@@ -12,7 +12,7 @@ export default class GameClient extends Client {
 
     authClient.on('token', ({data:token}) => this._authorize(token));
 
-    let listener = event => {
+    const listener = event => {
       if (event.body.service !== this.name) return;
 
       this._emit(event);
@@ -32,16 +32,24 @@ export default class GameClient extends Client {
   }
 
   createGame(gameTypeId, gameOptions) {
-    return this._server.requestAuthorized(this.name, 'createGame', [gameTypeId, gameOptions])
+    return this._server.requestAuthorized(this.name, 'createGame', [ gameTypeId, gameOptions ])
       .catch(error => {
         if (error === 'Connection reset')
           return this.createGame(gameTypeId, gameOptions);
         throw error;
       });
   }
+  tagGame(gameId, tags) {
+    return this._server.requestAuthorized(this.name, 'tagGame', [ gameId, tags ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.tagGame(gameId, tags);
+        throw error;
+      });
+  }
 
   forkGame(gameId, options) {
-    return this._server.requestAuthorized(this.name, 'forkGame', [gameId, options])
+    return this._server.requestAuthorized(this.name, 'forkGame', [ gameId, options ])
       .catch(error => {
         if (error === 'Connection reset')
           return this.forkGame(gameId, options);
@@ -50,7 +58,7 @@ export default class GameClient extends Client {
   }
 
   cancelGame(gameId) {
-    return this._server.requestAuthorized(this.name, 'cancelGame', [gameId])
+    return this._server.requestAuthorized(this.name, 'cancelGame', [ gameId ])
       .catch(error => {
         if (error === 'Connection reset')
           return this.cancelGame(gameId);
@@ -164,31 +172,42 @@ export default class GameClient extends Client {
       });
   }
 
-  searchMyActiveGames(query) {
-    return this._server.requestAuthorized(this.name, 'searchMyActiveGames', [ query ])
+  searchMyGames(query) {
+    return this._server.requestAuthorized(this.name, 'searchMyGames', [ query ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.searchMyActiveGames(query);
+          return this.searchMyGames(query);
         throw error;
       });
   }
-  searchOpenGames(query) {
-    return this._server.requestAuthorized(this.name, 'searchOpenGames', [query])
+  searchGameCollection(collection, query) {
+    return this._server.requestAuthorized(this.name, 'searchGameCollection', [ collection, query ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.searchOpenGames(query);
-        throw error;
-      });
-  }
-  searchMyCompletedGames(query) {
-    return this._server.requestAuthorized(this.name, 'searchMyCompletedGames', [ query ])
-      .catch(error => {
-        if (error === 'Connection reset')
-          return this.searchMyCompletedGames(query);
+          return this.searchGameCollection(collection, query);
         throw error;
       });
   }
 
+  joinMyGamesGroup(params) {
+    const playerId = this._authClient.playerId;
+
+    return this._server.joinAuthorized(this.name, `/myGames/${playerId}`, params);
+  }
+  joinCollectionStatsGroup(params) {
+    return this._server.joinAuthorized(this.name, '/collections', params);
+  }
+  joinCollectionGroup(collectionId, params) {
+    return this._server.joinAuthorized(this.name, `/collections/${collectionId}`, params);
+  }
+  leaveCollectionGroup(collectionId) {
+    return this._server.leave(this.name, `/collections/${collectionId}`)
+      .catch(error => {
+        if (error === 'Connection reset')
+          return;
+        throw error;
+      });
+  }
   watchGame(gameId, resume) {
     return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume);
   }

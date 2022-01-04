@@ -24,32 +24,32 @@
 
   <LINK href="/manifest.json" rel="manifest">
   <LINK href="/favicon.ico" rel="icon" sizes="16x16">
-  <LINK href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" rel="stylesheet" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+  <LINK href="https://use.fontawesome.com/releases/v5.15.4/css/all.css" rel="stylesheet" integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" crossorigin="anonymous">
   <LINK href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" crossorigin="anonymous">
 
   <SCRIPT src="/jquery-1.12.4.min.js" crossorigin="anonymous"></SCRIPT>
   <SCRIPT type="text/javascript" src="theme.min.js"></SCRIPT>
   <SCRIPT type="text/javascript" src="errors.min.js"></SCRIPT>
   <SCRIPT type="text/javascript">window.AUTO_CONNECT = true;</SCRIPT>
+  <SCRIPT type="text/javascript" src="tactics.min.js"></SCRIPT>
   <SCRIPT type="text/javascript" src="online.min.js"></SCRIPT>
   <SCRIPT type="text/javascript" src="install.min.js"></SCRIPT>
 
   <STYLE>
+    .os-padding, .os-viewport {
+      height: 100%;
+    }
+
     .page {
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
-      padding: 8px;
-      width: 100%;
-      max-width: 800px;
-      height: 100%;
-      max-height: 600px;
     }
 
     .intro {
       display: flex;
       flex-direction: row;
-      margin: 4px 4px 12px;
+      padding: 8px;
     }
     .intro .greeting {
       flex-grow: 1;
@@ -65,8 +65,7 @@
     }
 
     #pn {
-      padding: 0 4px;
-      margin-bottom: 16px;
+      padding: 0 8px 8px;
     }
     #pn:empty {
       display: none;
@@ -89,6 +88,19 @@
       text-align: center;
     }
 
+    .badge {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 12px;
+      padding: 0 0.3em;
+      background-color: #DED8D5;
+      color: #000;
+    }
+
+    .tabs {
+      margin-top: 8px;
+    }
     .tabs UL {
       display: flex;
       margin: 0;
@@ -126,33 +138,46 @@
     }
     .tabs LI .badge {
       flex: 0 0 auto;
-      border-radius: 12px;
-      background-color: #DED8D5;
-      color: #000;
       height: 15px;
-      padding: 0 0.3em;
-      line-height: 14px;
-      text-align: center;
       margin-left: 0.5em;
+      line-height: 100%;
+    }
+    .tabs LI .badge:empty {
+      display: none;
     }
 
     .tabContent {
+      position: relative;
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
+      flex: 1 1 auto;
+      overflow: hidden;
     }
-    .tabContent > DIV:empty::before {
-      display: block;
-      text-align: center;
-      padding: 8px;
-      content: 'No games!';
+    .tabContent > DIV {
+      height: 100%;
+      opacity: 1;
+      transition-property: opacity;
+      transition-duration: 1s;
+      transition-delay: 250ms;
+    }
+    .tabContent > DIV:not(.is-active) {
+      display: none;
+    }
+    .tabContent > DIV.hide {
+      opacity: 0;
+      transition-duration: 0.5s;
+      transition-delay: 0s;
     }
 
-    .tabContent HEADER {
-      text-align: center;
+    HEADER {
+      display: flex;
+      box-sizing: border-box;
+      width: 100%;
+      margin: 8px 0 0;
       font-style: italic;
       font-weight: bold;
-      margin: 8px 0 0;
+      font-size: 1.2em;
+      color: #b08d57;
     }
 
     .tabContent .game {
@@ -218,6 +243,382 @@
         text-decoration: underline;
       }
     }
+
+    BUTTON.fa {
+      display: block;
+      background: black;
+      border: 0 none;
+      padding: 0;
+      color: inherit;
+    }
+    BUTTON.fa:hover {
+      color: #FFCC00;
+    }
+
+    .tabContent .enterLobby {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .tabContent .lobby {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .tabContent .lobby.show {
+      transition-duration: 1.28s;
+    }
+    .tabContent .lobby.disabled {
+      pointer-events: none;
+    }
+    .tabContent .lobby HEADER {
+      padding: 0 8px;
+    }
+    .tabContent .gameList {
+      padding: 0 8px;
+    }
+    .tabContent > DIV.gameList:empty::before {
+      display: block;
+      text-align: center;
+      padding: 8px;
+      content: 'No games!';
+    }
+    .tabContent .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+    .tabContent .lobby.show {
+      transition-duration: 1s;
+    }
+    .tabContent .lobby.hide {
+      transition-duration: 0.5s;
+    }
+    .tabContent .loading .spinner {
+      color: transparent;
+      font-size: 48px;
+      transform: scale(4);
+    }
+    .tabContent .loading .spinner .fa {
+      background-image: radial-gradient(rgba(80, 128, 0, 0) 47%, #804a00 52%, 55%, #b08d57 57.5%, 60%, #804a00 63%, rgba(80, 128, 0, 0) 66%);
+      -webkit-background-clip: text;
+    }
+    .tabContent .loading .label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+
+      border-radius: 60px;
+      padding-left: 20px;
+      width: 120px;
+      height: 120px;
+
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      background-color: black;
+      color: #b08d57;
+      font-size: 1.5em;
+      font-weight: bold;
+      text-indent: -20px;
+    }
+    HEADER .style {
+      flex-grow: 1;
+    }
+    HEADER .controls {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    HEADER BUTTON:not(.fa) {
+      height: 18px;
+      margin-right: 12px;
+      border: 1px solid #b08d57;
+      border-radius: 2px;
+      padding: 0 4px;
+
+      line-height: 16px;
+      font-weight: normal;
+      font-size: 0.8333em;
+
+      background: none;
+      color: #b08d57;
+      pointer: cursor;
+    }
+    HEADER BUTTON:not(.fa):hover {
+      border-color: #FFCC00;
+      color: #FFCC00;
+    }
+    HEADER BUTTON.fa {
+      width: 22px;
+      height: 22px;
+      margin-right: 4px;
+    }
+    .arenas {
+      display: flex;
+      flex-wrap: wrap;
+      overflow: hidden;
+      padding-top: 28px;
+    }
+    .arenas > * {
+      box-sizing: border-box;
+      width: 160px;
+      height: 125px;
+      transform-origin: 0 0;
+    }
+    .list {
+      position: relative;
+      z-index: 1;
+      top: -20px;
+      width: 100%;
+      max-width: 160px;
+      height: 100%;
+      margin: 0 auto;
+      background-color: black;
+    }
+    .list UL {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0 14px 0 8px;
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      /* Firefox */
+      scrollbar-width: none;
+      font-size: 12px;
+      line-height: 17px;
+      list-style-type: none;
+    }
+    .list UL::-webkit-scrollbar {
+      -webkit-appearance: none;
+      width: 0;
+      border: 0 none;
+    }
+    .list BUTTON.scroll.up {
+      position: absolute;
+      top: 1px;
+      right: 0;
+    }
+    .list BUTTON.scroll.down {
+      position: absolute;
+      bottom: 1px;
+      right: 0;
+    }
+    .list LI {
+      display: flex;
+      flex-direction: row;
+    }
+    .list LI.selected {
+      color: #FFCC00;
+    }
+    .list LI:not(.selected) {
+      cursor: pointer;
+    }
+    .list LI:not(.selected):hover {
+      color: #DDAA00;
+    }
+    .list LI .label {
+      flex: 1 1 auto;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .list LI .badge {
+      flex: 0 0 auto;
+      height: 15px;
+      margin: 1px 2px 0 4px;
+    }
+    .list LI .badge:empty {
+      display: none;
+    }
+    .list LI.selected .badge {
+      display: none;
+    }
+    .list LI:hover .badge {
+      display: none;
+    }
+    .arenas .groups {
+      display: none;
+    }
+    .arenas .groups BUTTON.scroll {
+      right: 8px;
+    }
+    .arena {
+      padding: 28px 6px 0 5px;
+    }
+    .arena.hide {
+      display: none;
+    }
+    .arena-shape {
+      position: relative;
+      width: 149px;
+      height: 97px;
+    }
+    .arena.disabled {
+      pointer-events: none;
+    }
+    .arena:not(.disabled) .arena-shape {
+      cursor: pointer;
+    }
+    .arena-image {
+      transform: translate(-1px, -1px) scale(0.9933319091796875, 0.9897918701171875);
+    }
+    .arena-button-top {
+      display: none;
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      opacity: 0.25;
+    }
+    .arena-button-bottom {
+      display: none;
+      position: absolute;
+      top: 31px;
+      left: 47px;
+      transform-origin: 50px 32px;
+      transform: scale(-1);
+      opacity: 0.25;
+    }
+    .arena .name, .arena .unit {
+      opacity: 0;
+      transition-property: opacity;
+      transition-duration: 0.3s;
+    }
+    .arena .name.show, .arena .unit.show {
+      opacity: 1;
+    }
+    .arena .name {
+      position: absolute;
+      transform: translate(-50%, 0);
+      font-family: Arial;
+      font-size: 10pt;
+      text-align: center;
+      white-space: nowrap;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+    .arena .name.top {
+      top: -44px;
+      left: 52px;
+    }
+    .arena .name.btm {
+      top: -15px;
+      left: 97px;
+    }
+    .arena .unit.top {
+      position: absolute;
+      transform: translate(53px, 35px);
+    }
+    .arena .unit.btm {
+      position: absolute;
+      transform: translate(97px, 63px);
+    }
+    .arena .unit.loser {
+      filter: grayscale(1) contrast(0.5);
+    }
+    .arena:nth-child(4n) .arena-shape .arena-image {
+      transform: scale(1, 1);
+    }
+    .arena:nth-child(4n+1) .arena-shape .arena-image {
+      transform: scale(1, -1);
+    }
+    .arena:nth-child(4n+2) .arena-shape .arena-image {
+      transform: scale(-1, 1);
+    }
+    .arena:nth-child(4n+3) .arena-shape .arena-image {
+      transform: scale(-1, -1);
+    }
+    .arena.active:not(.disabled) .arena-shape:hover .arena-image,
+    .arena.complete:not(.disabled) .arena-shape:hover .arena-image {
+      filter: brightness(1.5);
+    }
+    .arena.empty:not(.disabled) .arena-shape:hover .arena-button-bottom,
+    .arena.waiting:not(.disabled) .arena-shape:hover .arena-button-bottom {
+      display: block;
+    }
+    FOOTER {
+      display: flex;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 8px 0;
+      font-weight: bold;
+      font-size: 1.2em;
+      color: #b08d57;
+    }
+    FOOTER BUTTON.scroll.left, FOOTER BUTTON.scroll.right {
+      width: 22px;
+      height: 22px;
+    }
+    FOOTER .group {
+      width: 140px;
+      text-align: center;
+    }
+
+    @media (min-width:820px) and (min-height:600px) {
+      .page {
+        width: 820px;
+        height: 600px;
+      }
+      .tabContent > DIV {
+        overflow-y: auto;
+      }
+      .tabContent > DIV.lobby .content {
+        flex: 1 1 auto;
+        overflow-y: auto;
+      }
+      .arenas {
+        justify-content: flex-start;
+        align-content: flex-start;
+        width: 800px;
+      }
+      .arenas:not(.active):not(.complete) .floors {
+        order: 1;
+      }
+      .arenas:not(.active):not(.complete) .floors .list {
+        top: 0;
+      }
+      FOOTER {
+        width: 800px;
+      }
+    }
+    @media (max-width:819px), (max-height:599px) {
+      BODY {
+        flex-direction: column;
+        justify-content: flex-start;
+        overflow-y: auto;
+      }
+      .page {
+        width: 100%;
+        flex: 1 1 auto;
+      }
+
+      .arenas {
+        justify-content: space-evenly;
+      }
+      .arenas .groups {
+        display: block;
+      }
+      FOOTER {
+        display: none;
+      }
+
+      .tabContent > DIV.loading {
+        position: fixed;
+      }
+    }
+    @media (max-width:479px) {
+      .arenas .floors, .arenas .groups {
+        height: 80px;
+      }
+    }
   </STYLE>
 </HEAD>
 <BODY>
@@ -233,15 +634,24 @@
     <DIV id="notice"></DIV>
     <DIV class="tabs" style="display:none">
       <UL>
-        <LI class="active"><span class="label">Active Games</span><span class="badge"></span></LI>
-        <LI class="waiting"><span class="label">Waiting Games</span><span class="badge"></span></LI>
-        <LI class="complete"><span class="label">Complete Games</span><span class="badge"></span></LI>
+        <LI class="yourGames"><span class="label">Your Games</span><span class="badge"></span></LI>
+        <LI class="lobby"><span class="label">Lobby</span><span class="badge"></span></LI>
+        <LI class="publicGames"><span class="label">Public Games</span><span class="badge"></span></LI>
       </UL>
     </DIV>
     <DIV class="tabContent">
-      <DIV class="gameList active" style="display:none"></DIV>
-      <DIV class="gameList waiting" style="display:none"></DIV>
-      <DIV class="gameList complete" style="display:none"></DIV>
+      <DIV class="gameList yourGames"></DIV>
+      <DIV class="enterLobby">
+        <BUTTON name="enter">Enter Lobby!</BUTTON>
+      </DIV>
+      <DIV class="lobby"></DIV>
+      <DIV class="gameList publicGames"></DIV>
+      <DIV class="loading">
+        <DIV class="spinner">
+          <I class="fa fa-spinner fa-pulse"></I>
+        </DIV>
+        <DIV class="label">Please<br>wait...</DIV>
+      </DIV>
     </DIV>
   </DIV>
 </BODY>

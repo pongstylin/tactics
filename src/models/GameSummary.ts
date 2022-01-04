@@ -32,6 +32,7 @@ export default class GameSummary {
     const data:any = {
       id: game.id,
       type: gameType.id,
+      collection: game.collection,
       typeName: gameType.name,
       createdBy: game.createdBy,
       createdAt,
@@ -42,7 +43,6 @@ export default class GameSummary {
       randomHitChance: game.state.randomHitChance,
       turnStartedAt: game.state.turnStartedAt,
       turnTimeLimit: game.state.turnTimeLimit,
-      isPublic: game.isPublic,
       isFork: game.isFork,
       teams: teams.map(t => t && {
         createdAt: t.createdAt,
@@ -50,6 +50,7 @@ export default class GameSummary {
         playerId: t.playerId,
         name: t.name,
       }),
+      tags: { ...game.tags },
     };
 
     if (endedAt)
@@ -66,8 +67,32 @@ export default class GameSummary {
   get type() {
     return this.data.type;
   }
+  get collection() {
+    return this.data.collection;
+  }
   get typeName() {
     return this.data.typeName;
+  }
+  get randomFirstTurn() {
+    return this.data.randomFirstTurn;
+  }
+  get randomHitChance() {
+    return this.data.randomHitChance;
+  }
+  get turnTimeLimit() {
+    return this.data.turnTimeLimit;
+  }
+  get isFork() {
+    return this.data.isFork;
+  }
+  get teams() {
+    return this.data.teams;
+  }
+  get currentTeamId() {
+    return this.data.currentTeamId;
+  }
+  get tags() {
+    return this.data.tags;
   }
   get createdBy() {
     return this.data.createdBy;
@@ -81,35 +106,24 @@ export default class GameSummary {
   get startedAt() {
     return this.data.startedAt;
   }
-  get endedAt() {
-    return this.data.endedAt;
-  }
-  get randomFirstTurn() {
-    return this.data.randomFirstTurn;
-  }
-  get randomHitChance() {
-    return this.data.randomHitChance;
-  }
   get turnStartedAt() {
     return this.data.turnStartedAt;
   }
-  get turnTimeLimit() {
-    return this.data.turnTimeLimit;
-  }
-  get isPublic() {
-    return this.data.isPublic;
-  }
-  get isFork() {
-    return this.data.isFork;
-  }
-  get teams() {
-    return this.data.teams;
+  get endedAt() {
+    return this.data.endedAt;
   }
   get winnerId() {
     return this.data.winnerId;
   }
-  get currentTeamId() {
-    return this.data.currentTeamId;
+
+  /*
+   * Properties assigned outside the class.
+   */
+  get creatorACL() {
+    return this.data.creatorACL;
+  }
+  set creatorACL(creatorACL) {
+    this.data.creatorACL = creatorACL;
   }
 
   toJSON() {
@@ -123,7 +137,7 @@ serializer.addType({
   schema: {
     type: 'object',
     required: [
-      'id', 'type', 'typeName', 'isPublic', 'isFork', 'randomFirstTurn',
+      'id', 'type', 'typeName', 'isFork', 'randomFirstTurn',
       'randomHitChance', 'turnTimeLimit', 'startedAt', 'turnStartedAt',
       'endedAt', 'teams', 'createdBy', 'createdAt', 'updatedAt',
     ],
@@ -131,7 +145,7 @@ serializer.addType({
       id: { type:'string', format:'uuid' },
       type: { type:'string' },
       typeName: { type:'string' },
-      isPublic: { type:'boolean' },
+      collection: { type:'string' },
       isFork: { type:'boolean' },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
@@ -165,6 +179,12 @@ serializer.addType({
               additionalProperties: false,
             },
           ],
+        },
+      },
+      tags: {
+        type: 'object',
+        additionalProperties: {
+          type: [ 'string', 'number', 'boolean' ],
         },
       },
       createdBy: { type:'string', format:'uuid' },

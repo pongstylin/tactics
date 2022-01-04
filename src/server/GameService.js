@@ -39,6 +39,9 @@ export default class GameService extends Service {
       // Paradata about each watched game by game ID.
       gamePara: new Map(),
 
+      // Paradata about each watched collection by collection ID.
+      collectionPara: new Map(),
+
       // Paradata about each online player by player ID.
       playerPara: new Map(),
     });
@@ -47,6 +50,7 @@ export default class GameService extends Service {
       authorize: { token:AccessToken },
       requests: {
         createGame: [ 'string', 'game:options' ],
+        tagGame: [ 'uuid', 'game:tags' ],
         forkGame: [ 'uuid', 'game:forkOptions' ],
         cancelGame: [ 'uuid' ],
         joinGame: `tuple([ 'uuid', 'game:joinTeam' ], 1)`,
@@ -63,9 +67,8 @@ export default class GameService extends Service {
         getPlayerInfo: [ 'game:group', 'uuid' ],
         clearWLDStatsRequest: `tuple([ 'uuid', 'string | null' ], 1)`,
 
-        searchOpenGames: [ 'any' ],
-        searchMyActiveGames: [ 'any' ],
-        searchMyCompletedGames: [ 'any' ],
+        searchGameCollection: [ 'string', 'any' ],
+        searchMyGames: [ 'any' ],
 
         hasCustomPlayerSet: [ 'string', 'string' ],
         getPlayerSet: [ 'string', 'string' ],
@@ -107,12 +110,17 @@ export default class GameService extends Service {
           'set?': 'game:setOption',
           'slot?': 'integer(0,4)',
         },
+        tags: `dict('string | number | boolean')`,
         options: {
           teams: 'game:newTeam[2] | game:newTeam[4]',
-          'isPublic?': 'boolean',
+          'collection?': 'string',
           'randomFirstTurn?': 'boolean',
           'randomHitChance?': 'boolean',
+          'strictUndo?': 'boolean',
+          'autoSurrender?': 'boolean',
+          'turnTimeBuffer?': `const(0)`,
           'turnTimeLimit?': 'enum([ 30, 120, 86400, 604800 ])',
+          'tags?': 'game:tags',
         },
         forkOptions: unionType(
           {
@@ -186,10 +194,6 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara) return;
 
-    for (const gameId of clientPara.joinedGroups) {
-      this.onLeaveGameGroup(client, `/games/${gameId}`, gameId);
-    }
-
     const playerId = clientPara.playerId;
     this.data.closePlayer(playerId);
 
@@ -220,7 +224,7 @@ export default class GameService extends Service {
     const playerPara = this.playerPara.get(playerId);
     if (playerPara)
       gamesSummary = gamesSummary
-        .filter(gs => !playerPara.joinedGroups.has(gs.id));
+        .filter(gs => !playerPara.joinedGameGroups.has(gs.id));
 
     const notification = {
       type: 'yourTurn',
@@ -274,6 +278,9 @@ export default class GameService extends Service {
       clientPara.client = client;
       clientPara.token = token;
       clientPara.name = token.playerName;
+
+      // Just in case a client attempts to authorize twice in parallel.
+      await clientPara.playerPromise;
     } else {
       const clientPara = {
         joinedGroups: new Set(),
@@ -284,10 +291,8 @@ export default class GameService extends Service {
       clientPara.token = token;
       clientPara.name = token.playerName;
       clientPara.deviceType = uaparser(client.agent).device.type;
+      clientPara.playerPromise = this.data.openPlayer(playerId);
       this.clientPara.set(client.id, clientPara);
-
-      // Keep this player open for the duration of the session.
-      await this.data.openPlayer(playerId);
 
       const playerPara = this.playerPara.get(playerId);
       if (playerPara)
@@ -296,12 +301,14 @@ export default class GameService extends Service {
       else {
         this.playerPara.set(playerId, {
           clients: new Set([client.id]),
-          joinedGroups: new Map(),
+          joinedGameGroups: new Map(),
         });
 
         // Let people who needs to know that this player is online.
         this._setPlayerGamesStatus(playerId);
       }
+
+      await clientPara.playerPromise;
     }
   }
 
@@ -321,7 +328,7 @@ export default class GameService extends Service {
   onGameEnd(gameId) {
     const gamePara = this.gamePara.get(gameId);
     gamePara.clients.forEach(clientPara =>
-      clientPara.joinedGroups.delete(gameId)
+      clientPara.joinedGroups.delete(`/games/${gameId}`)
     );
     this.gamePara.delete(gameId);
 
@@ -341,6 +348,9 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     const playerId = clientPara.playerId;
     this.throttle(playerId, 'createGame');
+
+    if (gameOptions.collection && !this.config.collections.includes(gameOptions.collection))
+      throw new ServerError(400, 'Unrecognized game group');
 
     if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
       throw new ServerError(400, 'You must join games that you create');
@@ -391,6 +401,15 @@ export default class GameService extends Service {
     }
 
     return game.id;
+  }
+  async onTagGameRequest(client, gameId, tags) {
+    const clientPara = this.clientPara.get(client.id);
+    const game = await this.data.getGame(gameId);
+
+    if (game.createdBy !== clientPara.playerId)
+      throw new ServerError(403, `May not tag someone else's game`);
+
+    game.mergeTags(tags);
   }
 
   async onForkGameRequest(client, gameId, options) {
@@ -496,14 +515,14 @@ export default class GameService extends Service {
     if (clientPara.playerId !== game.createdBy)
       throw new ServerError(403, 'You cannot cancel other users\' game');
 
+    await this.data.cancelGame(game);
+
     const gamePara = this.gamePara.get(gameId);
     if (gamePara) {
       for (const clientId of gamePara.clients) {
         this.onLeaveGameGroup(this.clientPara.get(clientId).client, `/games/${gameId}`, gameId);
       }
     }
-
-    await this.data.cancelGame(game);
   }
 
   async onGetGameTypeConfigRequest(client, gameTypeId) {
@@ -557,7 +576,7 @@ export default class GameService extends Service {
     const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
-    if (!clientPara.joinedGroups.has(gameId))
+    if (!clientPara.joinedGroups.has(groupPath))
       throw new ServerError(412, 'To get player status for this game, you must first join it');
 
     const gamePara = this.gamePara.get(gameId);
@@ -568,7 +587,7 @@ export default class GameService extends Service {
     const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
-    if (!clientPara.joinedGroups.has(gameId))
+    if (!clientPara.joinedGroups.has(groupPath))
       throw new ServerError(412, 'To get player activity for this game, you must first join it');
 
     const game = this.data.getOpenGame(gameId);
@@ -595,7 +614,7 @@ export default class GameService extends Service {
 
     if (playerPara) {
       playerActivity.generalStatus = playerActivity.idle > ACTIVE_LIMIT ? 'inactive' : 'active';
-      playerActivity.gameStatus = playerPara.joinedGroups.has(gameId)
+      playerActivity.gameStatus = playerPara.joinedGameGroups.has(gameId)
         ? playerActivity.gameIdle > ACTIVE_LIMIT ? 'inactive' : 'active'
         : 'closed';
       playerActivity.activity = await this._getPlayerActivity(forPlayerId, gameId, inPlayerId);
@@ -607,7 +626,7 @@ export default class GameService extends Service {
     const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
-    if (!clientPara.joinedGroups.has(gameId))
+    if (!clientPara.joinedGroups.has(groupPath))
       throw new ServerError(412, 'To get player activity for this game, you must first join it');
 
     const game = this.data.getOpenGame(gameId);
@@ -651,29 +670,40 @@ export default class GameService extends Service {
     await this.data.clearPlayerWLDStats(playerId, vsPlayerId, gameTypeId);
   }
 
-  async onSearchMyActiveGamesRequest(client, query) {
+  async onSearchMyGamesRequest(client, query) {
     const playerId = this.clientPara.get(client.id).playerId;
     const player = await this.auth.getPlayer(playerId);
-    return this.data.searchPlayerActiveGames(player, query);
+    return this.data.searchPlayerGames(player, query);
   }
-  async onSearchOpenGamesRequest(client, query) {
+  async onSearchGameCollectionRequest(client, collection, query) {
+    if (!this.config.collections.includes(collection))
+      throw new ServerError(400, 'Unrecognized game collection');
+
     const playerId = this.clientPara.get(client.id).playerId;
     const player = await this.auth.getPlayer(playerId);
-    return this.data.searchOpenGames(player, query);
-  }
-  async onSearchMyCompletedGamesRequest(client, query) {
-    const playerId = this.clientPara.get(client.id).playerId;
-    const player = await this.auth.getPlayer(playerId);
-    return this.data.searchPlayerCompletedGames(player, query);
+    return this.data.searchGameCollection(player, collection, query);
   }
 
   /*
    * Start sending change events to the client about this game.
    */
   onJoinGroup(client, groupPath, params) {
-    let match;
-    if (match = groupPath.match(/^\/games\/(.+)$/))
-      return this.onJoinGameGroup(client, groupPath, match[1], params);
+    if (groupPath.startsWith('/games/'))
+      return this.onJoinGameGroup(client, groupPath, groupPath.slice(7), params);
+    else if (groupPath.startsWith('/myGames/'))
+      return this.onJoinMyGamesGroup(client, groupPath, groupPath.slice(9), params);
+    else if (groupPath === '/collections' || groupPath.startsWith('/collections/'))
+      return this.onJoinCollectionGroup(client, groupPath, groupPath.slice(13), params);
+    else
+      throw new ServerError(404, 'No such group');
+  }
+  onLeaveGroup(client, groupPath) {
+    if (groupPath.startsWith('/games/'))
+      return this.onLeaveGameGroup(client, groupPath, groupPath.slice(7));
+    else if (groupPath.startsWith('/myGames/'))
+      return this.onLeaveMyGamesGroup(client, groupPath, groupPath.slice(9));
+    else if (groupPath === '/collections' || groupPath.startsWith('/collections/'))
+      return this.onLeaveCollectionGroup(client, groupPath, groupPath.slice(13));
     else
       throw new ServerError(404, 'No such group');
   }
@@ -688,7 +718,7 @@ export default class GameService extends Service {
 
     const firstJoined = !this.gamePara.has(gameId);
     if (firstJoined) {
-      const emit = async event => {
+      const emit = event => {
         // Forward game state and playerRequest events to clients.
         this._emit({
           type: 'event',
@@ -715,14 +745,14 @@ export default class GameService extends Service {
     }
 
     const clientPara = this.clientPara.get(client.id);
-    clientPara.joinedGroups.add(gameId);
+    clientPara.joinedGroups.add(groupPath);
 
     const playerId = clientPara.playerId;
     const playerPara = this.playerPara.get(playerId);
-    if (playerPara.joinedGroups.has(gameId))
-      playerPara.joinedGroups.get(gameId).add(client.id);
+    if (playerPara.joinedGameGroups.has(gameId))
+      playerPara.joinedGameGroups.get(gameId).add(client.id);
     else
-      playerPara.joinedGroups.set(gameId, new Set([ client.id ]));
+      playerPara.joinedGameGroups.set(gameId, new Set([ client.id ]));
 
     const gamePara = this.gamePara.get(gameId);
     gamePara.clients.add(client.id);
@@ -761,9 +791,9 @@ export default class GameService extends Service {
       // These values are set when a game is created and cannot be changed.
       // So, when resuming a game, these values need not be sent.
       delete gameData.type;
+      delete gameData.collection;
       delete gameData.createdAt;
       delete gameData.createdBy;
-      delete gameData.isPublic;
       delete gameData.randomFirstTurn;
       delete gameData.randomHitChance;
       delete gameData.turnTimeLimit;
@@ -833,6 +863,203 @@ export default class GameService extends Service {
 
     return response;
   }
+  async onJoinMyGamesGroup(client, groupPath, playerId, params) {
+    const clientPara = this.clientPara.get(client.id);
+    if (playerId !== clientPara.playerId)
+      throw new ServerError(403, 'You may not join other player game groups');
+
+    const playerPara = this.playerPara.get(playerId);
+
+    if (!playerPara.myGames) {
+      const myGames = playerPara.myGames = {
+        clientIds: new Set(),
+      };
+      const playerGames = await this.data.openPlayerGames(playerId);
+      const stats = myGames.stats = this._getGameSummaryListStats(playerGames);
+      const emit = event => this._emit({
+        type: 'event',
+        body: {
+          group: groupPath,
+          type: event.type,
+          data: event.data,
+        },
+      });
+
+      playerGames.on('change', myGames.changeListener = event => {
+        if (event.type === 'change:set') {
+          if (event.data.oldSummary)
+            emit({ type:'change', data:event.data.gameSummary });
+          else
+            emit({ type:'add', data:event.data.gameSummary });
+        } else if (event.type === 'change:delete')
+          emit({ type:'remove', data:event.data.oldSummary });
+
+        const newStats = this._getGameSummaryListStats(playerGames);
+        if (newStats.waiting !== stats.waiting || newStats.active !== stats.active)
+          emit({ type:'stats', data:Object.assign(stats, newStats) });
+      });
+    }
+
+    const myGames = playerPara.myGames;
+    myGames.clientIds.add(client.id);
+
+    const response = {
+      stats: myGames.stats,
+    };
+    if (params.query) {
+      const player = await this.auth.getPlayer(playerId);
+      response.results = await this.data.searchPlayerGames(player, params.query);
+    }
+
+    this._emit({
+      type: 'joinGroup',
+      client: client.id,
+      body: {
+        group: groupPath,
+        user: {
+          id:   playerId,
+          name: clientPara.name,
+        },
+      },
+    });
+
+    return response;
+  }
+  async onJoinCollectionGroup(client, groupPath, collectionId, params = {}) {
+    const allCollectionIds = this.config.collections;
+    const collectionIds = [];
+
+    if (groupPath === '/collections')
+      collectionIds.push(...allCollectionIds);
+    else if (allCollectionIds.includes(collectionId))
+      collectionIds.push(collectionId);
+    else
+      collectionIds.push(...allCollectionIds.filter(c => c.startsWith(`${collectionId}/`)));
+    if (collectionIds.length === 0)
+      throw new ServerError(404, 'No such collection');
+
+    const collections = [];
+    for (const cId of collectionIds) {
+      collections.push(await this.data.openGameCollection(cId));
+    }
+    // Abort if the client is no longer connected.
+    if (client.closed) {
+      for (const cId of collectionIds) {
+        this.data.closeGameCollection(cId);
+      }
+      return;
+    }
+
+    for (const collection of collections) {
+      if (!this.collectionPara.has(collection.id)) {
+        const collectionGroup = `/collections/${collection.id}`;
+        const emit = event => this._emit({
+          type: 'event',
+          body: {
+            group: collectionGroup,
+            type: event.type,
+            data: event.data,
+          },
+        });
+        const changeListener = event => {
+          if (event.type === 'change:set') {
+            if (event.data.oldSummary)
+              emit({ type:'change', data:event.data.gameSummary });
+            else
+              emit({ type:'add', data:event.data.gameSummary });
+          } else if (event.type === 'change:delete')
+            emit({ type:'remove', data:event.data.oldSummary });
+
+          this._emitCollectionStats(collectionGroup, collection);
+        };
+
+        collection.on('change', changeListener);
+
+        this.collectionPara.set(collection.id, {
+          clientIds: new Map(),
+          stats: this._getGameSummaryListStats(collection),
+          changeListener,
+        });
+      }
+
+      const clientIds = this.collectionPara.get(collection.id).clientIds;
+      if (clientIds.has(client.id))
+        clientIds.set(client.id, clientIds.get(client.id) + 1);
+      else
+        clientIds.set(client.id, 1);
+    }
+
+    const clientPara = this.clientPara.get(client.id);
+    clientPara.joinedGroups.add(groupPath);
+
+    const playerId = clientPara.playerId;
+
+    const response = {};
+    if (params.query)
+      if (allCollectionIds.includes(collectionId)) {
+        const player = await this.auth.getPlayer(playerId);
+        response.results = await this.data.searchGameCollection(player, collectionId, params.query);
+      } else
+        throw new ServerError(400, 'Can not query collection stats');
+
+    response.stats = new Map();
+    for (const cId of collectionIds) {
+      response.stats.set(cId, this.collectionPara.get(cId).stats);
+    }
+
+    this._emit({
+      type: 'joinGroup',
+      client: client.id,
+      body: {
+        group: groupPath,
+        user: {
+          id:   playerId,
+          name: clientPara.name,
+        },
+      },
+    });
+
+    return response;
+  }
+  _getGameSummaryListStats(collection) {
+    const stats = { waiting:0, active:0 };
+
+    for (const gameSummary of collection.values()) {
+      if (!gameSummary.startedAt)
+        stats.waiting++;
+      else if (!gameSummary.endedAt)
+        stats.active++;
+    }
+
+    return stats;
+  }
+  /*
+   * When a given collection changes, report stats changes, if any.
+   */
+  _emitCollectionStats(collectionGroup, collection) {
+    const oldStats = this.collectionPara.get(collection.id).stats;
+    const stats = this._getGameSummaryListStats(collection);
+    if (stats.waiting === oldStats.waiting && stats.active === oldStats.active)
+      return;
+
+    this.collectionPara.get(collection.id).stats = stats;
+
+    const emitStats = (group, data) => this._emit({
+      type: 'event',
+      body: {
+        group,
+        type: 'stats',
+        data,
+      },
+    });
+
+    const parts = collectionGroup.split('/');
+    for (let i = 1; i < parts.length; i++) {
+      const group = parts.slice(0, i+1).join('/');
+
+      emitStats(group, { collectionId:collection.id, stats });
+    }
+  }
 
   /*
    * No longer send change events to the client about this game.
@@ -842,7 +1069,7 @@ export default class GameService extends Service {
     const game = this.data.closeGame(gameId);
 
     const clientPara = this.clientPara.get(client.id);
-    clientPara.joinedGroups.delete(gameId);
+    clientPara.joinedGroups.delete(groupPath);
 
     const gamePara = this.gamePara.get(gameId);
     gamePara.clients.delete(client.id);
@@ -856,10 +1083,10 @@ export default class GameService extends Service {
 
     const playerId = clientPara.playerId;
     const playerPara = this.playerPara.get(playerId);
-    const watchingClientIds = playerPara.joinedGroups.get(gameId);
+    const watchingClientIds = playerPara.joinedGameGroups.get(gameId);
 
     if (watchingClientIds.size === 1)
-      playerPara.joinedGroups.delete(gameId);
+      playerPara.joinedGameGroups.delete(gameId);
     else
       watchingClientIds.delete(client.id);
 
@@ -887,12 +1114,87 @@ export default class GameService extends Service {
       },
     });
   }
+  onLeaveMyGamesGroup(client, groupPath, playerId) {
+    const clientPara = this.clientPara.get(client.id);
+    const playerPara = this.playerPara.get(playerId);
+    const myGames = playerPara.myGames;
+
+    myGames.clientIds.delete(client.id);
+
+    if (myGames.clientIds.size === 0) {
+      const playerGames = this.data.closePlayerGames(playerId);
+
+      playerGames.off('change', myGames.changeListener);
+
+      delete playerPara.myGames;
+    }
+
+    this._emit({
+      type: 'leaveGroup',
+      client: client.id,
+      body: {
+        group: groupPath,
+        user: {
+          id: playerId,
+          name: clientPara.name,
+        },
+      },
+    });
+  }
+  onLeaveCollectionGroup(client, groupPath, collectionId) {
+    const allCollectionIds = this.config.collections;
+    const collectionIds = [];
+
+    if (groupPath === '/collections')
+      collectionIds.push(...allCollectionIds);
+    else if (allCollectionIds.includes(collectionId))
+      collectionIds.push(collectionId);
+    else
+      collectionIds.push(...allCollectionIds.filter(c => c.startsWith(`${collectionId}/`)));
+
+    const collections = [];
+    for (const cId of collectionIds) {
+      collections.push(this.data.closeGameCollection(cId));
+    }
+
+    const clientPara = this.clientPara.get(client.id);
+    clientPara.joinedGroups.delete(groupPath);
+
+    for (const collection of collections) {
+      const collectionPara = this.collectionPara.get(collection.id);
+      const clientIds = collectionPara.clientIds;
+      const joinCount = clientIds.get(client.id);
+      if (joinCount > 1)
+        clientIds.set(client.id, joinCount - 1);
+      else {
+        clientIds.delete(client.id);
+
+        if (clientIds.size === 0) {
+          collection.off('change', collectionPara.changeListener);
+
+          this.collectionPara.delete(collection.id);
+        }
+      }
+    }
+
+    this._emit({
+      type: 'leaveGroup',
+      client: client.id,
+      body: {
+        group: groupPath,
+        user: {
+          id: clientPara.playerId,
+          name: clientPara.name,
+        },
+      },
+    });
+  }
 
   onActionRequest(client, groupPath, action) {
     const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
-    if (!clientPara.joinedGroups.has(gameId))
+    if (!clientPara.joinedGroups.has(groupPath))
       throw new ServerError(412, 'You must first join the game group');
 
     const playerId = clientPara.playerId;
@@ -904,7 +1206,7 @@ export default class GameService extends Service {
     const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
-    if (!clientPara.joinedGroups.has(gameId))
+    if (!clientPara.joinedGroups.has(groupPath))
       throw new ServerError(412, 'You must first join the game group');
 
     const playerId = clientPara.playerId;
@@ -1074,7 +1376,7 @@ export default class GameService extends Service {
   }
   _getPlayerGameStatus(playerId, game) {
     const playerPara = this.playerPara.get(playerId);
-    if (!playerPara || (game.state.endedAt && !playerPara.joinedGroups.has(game.id)))
+    if (!playerPara || (game.state.endedAt && !playerPara.joinedGameGroups.has(game.id)))
       return { status:'offline' };
 
     let deviceType;
@@ -1087,14 +1389,14 @@ export default class GameService extends Service {
       break;
     }
 
-    if (!playerPara.joinedGroups.has(game.id))
+    if (!playerPara.joinedGameGroups.has(game.id))
       return { status:'online', deviceType };
 
     /*
      * Determine active status with the minimum idle of all clients this player
      * has connected to this game.
      */
-    const clientIds = [...playerPara.joinedGroups.get(game.id)];
+    const clientIds = [...playerPara.joinedGameGroups.get(game.id)];
     const idle = Math.min(
       ...clientIds.map(cId => this.clientPara.get(cId).client.session.idle)
     );
@@ -1130,8 +1432,8 @@ export default class GameService extends Service {
     const gameIdle = Math.floor((new Date() - (team.checkoutAt ?? game.state.startedAt)) / 1000);
 
     const playerPara = this.playerPara.get(playerId);
-    if (playerPara && playerPara.joinedGroups.has(game.id)) {
-      const clientIds = [...playerPara.joinedGroups.get(game.id)];
+    if (playerPara && playerPara.joinedGameGroups.has(game.id)) {
+      const clientIds = [...playerPara.joinedGameGroups.get(game.id)];
       return Math.min(
         ...clientIds.map(cId => this.clientPara.get(cId).client.session.idle),
         gameIdle,
@@ -1148,7 +1450,7 @@ export default class GameService extends Service {
 
     // Get a list of games in which the player is participating and has opened.
     // Sort the games from most active to least.
-    const openGamesInfo = [...playerPara.joinedGroups.keys()]
+    const openGamesInfo = [...playerPara.joinedGameGroups.keys()]
       .map(gameId => this.data.getOpenGame(gameId))
       .filter(game =>
         game.state.startedAt && !game.state.endedAt &&
@@ -1218,7 +1520,7 @@ export default class GameService extends Service {
     // Only notify if the current player is not already in-game.
     // Still notify if the current player is in-game, but inactive?
     const playerPara = this.playerPara.get(playerId);
-    if (playerPara && playerPara.joinedGroups.has(game.id))
+    if (playerPara && playerPara.joinedGameGroups.has(game.id))
       return;
 
     const notification = await this.getYourTurnNotification(playerId);

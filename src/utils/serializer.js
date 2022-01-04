@@ -306,6 +306,14 @@ const classTypes = [
     normalize: data => new Date(data),
     codify: (varName, varAlias) => `${varName} = new Date(${varAlias});`,
   },
+  {
+    name: 'RegExp',
+    jsonType: 'Object',
+    constructor: RegExp,
+    serialize: data => ({ source:data.source, flags:data.flags }),
+    normalize: data => new RegExp(data.source, data.flags),
+    codify: (varName, varAlias) => `${varName} = new RegExp(${varAlias}.source, ${varAlias}.flags);`,
+  },
 ];
 const schemas = new Map();
 
@@ -598,10 +606,16 @@ const makeSubSchema = definition => {
 
   switch (subSchema.type) {
     case 'object':
+      if (definition.$additionalProperties !== undefined) {
+        const propDefinition = normalizeDefinition(definition.$additionalProperties);
+
+        subSchema.additionalProperties = makeSubSchema(propDefinition);
+      } else
+        subSchema.additionalProperties = !definition.$properties;
+
       if (definition.$properties) {
         subSchema.required = [];
         subSchema.properties = {};
-        subSchema.additionalProperties = false;
 
         const keys = Object.keys(definition.$properties);
         for (const key of keys) {
@@ -771,6 +785,15 @@ const normalizeTypeString = typeString => {
           type.$items = args[0];
           if (args.length === 2)
             type.$minItems = args[1];
+          break;
+        /*
+         * A dictionary is like a Map, except the keys are always strings.
+         * It is also a plain Object instead of a Map instance.
+         */
+        case 'dict':
+          type.$type = 'object';
+          if (args.length === 1)
+            type.$additionalProperties = args[0];
           break;
         case 'Map':
           type.$type = 'array';

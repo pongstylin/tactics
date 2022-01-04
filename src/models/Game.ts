@@ -8,13 +8,17 @@ import ServerError from 'server/Error.js';
 
 const gameKeys = new Set([
   'createdBy',
-  'isPublic',
+  'collection',
+  'tags',
 ]);
 
 const stateKeys = new Set([
   'type',
   'randomFirstTurn',
   'randomHitChance',
+  'strictUndo',
+  'autoSurrender',
+  'turnTimeBuffer',
   'turnTimeLimit',
   'teams',
 ]);
@@ -25,7 +29,9 @@ export default class Game extends ActiveModel {
     playerRequest: any
     state: GameState
     forkOf: any
-    isPublic: boolean
+    collection: string
+    tags: Map<string, string | number | boolean>
+    createdBy: string
     createdAt: Date
   }
 
@@ -92,6 +98,9 @@ export default class Game extends ActiveModel {
   get id() {
     return this.data.id;
   }
+  get collection() {
+    return this.data.collection;
+  }
   get state() {
     return this.data.state;
   }
@@ -101,11 +110,37 @@ export default class Game extends ActiveModel {
   get isFork() {
     return !!this.data.forkOf;
   }
-  get isPublic() {
-    return this.data.isPublic;
+  get tags() {
+    return this.data.tags;
+  }
+  get createdBy() {
+    return this.data.createdBy;
   }
   get createdAt() {
     return this.data.createdAt;
+  }
+
+  mergeTags(tags) {
+    let changed = false;
+
+    if (!this.data.tags) {
+      this.data.tags = tags;
+      changed = true;
+    } else {
+      const thisTags = this.data.tags;
+      for (const [ k, v ] of Object.entries(tags)) {
+        if (thisTags[k] === v)
+          continue;
+
+        thisTags[k] = v;
+        changed = true;
+      }
+    }
+
+    if (changed)
+      this.emit('change:mergeTags');
+
+    return changed;
   }
 
   checkout(playerId, checkoutAt) {
@@ -305,6 +340,7 @@ export default class Game extends ActiveModel {
 
   fork(clientPara, { turnId, vs, as }) {
     const forkGame = serializer.clone(this);
+    delete forkGame.collection;
 
     if (turnId === undefined)
       turnId = forkGame.state.currentTurnId;
@@ -337,7 +373,6 @@ export default class Game extends ActiveModel {
     forkGame.createdAt = new Date();
     forkGame.id = uuid();
     forkGame.forkOf = { gameId:this.data.id, turnId:forkGame.state.currentTurnId };
-    forkGame.isPublic = false;
 
     const teams = forkGame.state.teams = forkGame.state.teams.map(t => t.fork());
 
@@ -378,10 +413,10 @@ serializer.addType({
   constructor: Game,
   schema: {
     type: 'object',
-    required: [ 'id', 'isPublic', 'playerRequest', 'state', 'createdBy', 'createdAt' ],
+    required: [ 'id', 'playerRequest', 'state', 'createdBy', 'createdAt' ],
     properties: {
       id: { type:'string', format:'uuid' },
-      isPublic: { type:'boolean' },
+      collection: { type:'string' },
       playerRequest: {
         type: [ 'object', 'null' ],
         required: [ 'type', 'status', 'accepted', 'rejected', 'createdBy', 'createdAt' ],

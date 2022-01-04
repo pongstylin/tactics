@@ -6,10 +6,12 @@ import getIdle from 'components/getIdle.js';
 import emitter from 'utils/emitter.js';
 import serializer from 'utils/serializer.js';
 
+const CLOSE_GOING_AWAY = 1001;
+
 const CLOSE_CLIENT_TIMEOUT = 4000;
 
 // Proprietary codes used by client
-const CLOSE_SERVER_TIMEOUT         = 4100;
+export const CLOSE_SERVER_TIMEOUT  = 4100;
 export const CLOSE_CLIENT_SHUTDOWN = 4101;
 export const CLOSE_INACTIVE        = 4102;
 const CLOSE_CLIENT_ERROR           = 4103;
@@ -166,6 +168,8 @@ export default class ServerSocket {
      *      A session may or may not be open.
      */
     const socket = this._socket;
+    const reopen = code !== CLOSE_GOING_AWAY && code < CLOSE_CLIENT_SHUTDOWN;
+
     if (socket) {
       // Close the socket if closing was initiated by the client.
       // If closing was initiated by the server, this does nothing.
@@ -184,7 +188,7 @@ export default class ServerSocket {
         this._session.isOpen = false;
 
         // Notify clients that we are offline.
-        this._emit({ type:'close' });
+        this._emit({ type:'close', data:{ code, reopen } });
       }
     }
 
@@ -192,7 +196,6 @@ export default class ServerSocket {
      * Don't reopen if the socket was closed due to inactivity or a shutdown.
      * Do reopen if the socket was closed due to connection loss or timeout.
      */
-    const reopen = code < CLOSE_CLIENT_SHUTDOWN;
     if (reopen) {
       console.warn(`Connection closed: [${code}] ${reason}`);
 
@@ -251,6 +254,24 @@ export default class ServerSocket {
       const promise = this.whenJoined(serviceName, groupPath);
       promise.isResolved = true;
       this._joinRoutes.get(groupKey).resolve();
+
+      return data;
+    });
+  }
+  leave(serviceName, groupPath) {
+    const messageBody = {
+      service: serviceName,
+      group: groupPath,
+    };
+
+    const requestId = this._enqueue('leave', messageBody);
+
+    return new Promise((resolve, reject) => {
+      this._session.responseRoutes.set(requestId, {resolve, reject});
+    }).then(data => {
+      const groupKey = `${serviceName}:${groupPath}`;
+      this._joinRoutes.delete(groupKey);
+      this._whenJoined.delete(groupKey);
 
       return data;
     });

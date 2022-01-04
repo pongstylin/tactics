@@ -1,7 +1,4 @@
-import 'plugins/array.js';
-import 'plugins/set.js';
-import 'plugins/map.js';
-import 'plugins/string.js';
+import 'plugins/index.js';
 import GameAdapter from 'data/FileAdapter/GameAdapter.js';
 
 const dataAdapter = new GameAdapter();

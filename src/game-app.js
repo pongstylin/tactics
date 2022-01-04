@@ -1,5 +1,4 @@
 import Autosave from 'components/Autosave.js';
-import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
 import wakelock from 'components/wakelock.js';
@@ -12,6 +11,7 @@ const ServerError = Tactics.ServerError;
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
 const chatClient = Tactics.chatClient;
+const popup = Tactics.popup;
 
 var settings;
 var playerInfo;
@@ -718,7 +718,7 @@ async function initGame() {
       if (hasJoined.length === teams.length)
         return showPracticeIntro(gameData);
       else if (hasJoined.length)
-        if (gameData.isPublic)
+        if (gameData.collection)
           return showPublicIntro(gameData);
         else
           return showPrivateIntro(gameData);

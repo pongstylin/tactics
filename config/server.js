@@ -1,4 +1,7 @@
 import pkg from '../package.json';
+import gameTypes from 'data/files/game/game_types.json';
+
+const gameTypeIds = gameTypes.map(gt => gt[0]);
 
 export default {
   version: pkg.version,
@@ -43,6 +46,9 @@ export default {
       {
         module: 'server/GameService.js',
         dataAdapterModule: 'data/FileAdapter/GameAdapter.js',
+        config: {
+          collections: [ 'public', ...gameTypeIds.map(gt => `lobby/${gt}`) ],
+        },
       },
     ],
     [

@@ -1,0 +1,41 @@
+BUTTON.scroll {
+  position: relative;
+  background: none;
+  border: 0 none;
+  padding: 0;
+  min-width: 14px;
+  min-height: 14px;
+  vertical-align: bottom;
+  cursor: pointer;
+
+  SPAN {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    border: 1px solid black;
+    border-radius: 1px;
+    padding: 0;
+
+    background-position: center;
+  }
+  &.left SPAN, &.right SPAN {
+    transform: translate(-50%, -50%) rotate(-90deg) scaleX(-1);
+  }
+
+  &[disabled] {
+    cursor: default;
+
+    SPAN {
+      filter: grayscale(1);
+      opacity: 0.6;
+    }
+  }
+  &:not([disabled]):hover SPAN {
+    border-color: #FFCC00;
+  }
+}

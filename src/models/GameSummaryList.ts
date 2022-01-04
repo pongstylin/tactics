@@ -4,7 +4,7 @@ import serializer from 'utils/serializer.js';
 
 export default class GameSummaryList extends ActiveModel {
   protected data: {
-    playerId: string
+    id: string
     gamesSummary: Map<string, GameSummary>
   }
 
@@ -13,15 +13,15 @@ export default class GameSummaryList extends ActiveModel {
     this.data = data;
   }
 
-  static create(playerId) {
+  static create(id) {
     return new GameSummaryList({
-      playerId,
+      id,
       gamesSummary: new Map(),
     });
   }
 
-  get playerId() {
-    return this.data.playerId;
+  get id() {
+    return this.data.id;
   }
 
   get size() {
@@ -39,15 +39,19 @@ export default class GameSummaryList extends ActiveModel {
 
   set(gameId, gameSummary) {
     const gamesSummary = this.data.gamesSummary;
-    if (gamesSummary.has(gameId)) {
-      const summaryA = JSON.stringify(gamesSummary.get(gameId));
+    const oldSummary = gamesSummary.get(gameId);
+    if (oldSummary) {
+      const summaryA = JSON.stringify(oldSummary);
       const summaryB = JSON.stringify(gameSummary);
       if (summaryA === summaryB)
         return false;
     }
 
     gamesSummary.set(gameId, gameSummary);
-    this.emit('change:set');
+    this.emit({
+      type: 'change:set',
+      data: { gameId, gameSummary, oldSummary },
+    });
 
     return true;
   }
@@ -56,10 +60,14 @@ export default class GameSummaryList extends ActiveModel {
   }
   delete(gameId) {
     const gamesSummary = this.data.gamesSummary;
-    if (!gamesSummary.has(gameId)) return false;
+    const oldSummary = gamesSummary.get(gameId);
+    if (!oldSummary) return false;
 
     this.data.gamesSummary.delete(gameId);
-    this.emit('change:delete');
+    this.emit({
+      type: 'change:delete',
+      data: { gameId, oldSummary },
+    });
 
     return true;
   }
@@ -70,9 +78,9 @@ serializer.addType({
   constructor: GameSummaryList,
   schema: {
     type: 'object',
-    required: [ 'playerId', 'gamesSummary' ],
+    required: [ 'id', 'gamesSummary' ],
     properties: {
-      playerId: { type:[ 'string', 'null' ], format:'uuid' },
+      id: { type:'string' },
       gamesSummary: {
         type: 'array',
         subType: 'Map',

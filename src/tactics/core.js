@@ -16,9 +16,10 @@ import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
 import AnimatedSprite from 'tactics/AnimatedSprite.js';
 import sleep from 'utils/sleep.js';
 
-var authClient = clientFactory('auth');
-var gameClient = clientFactory('game');
-var chatClient = clientFactory('chat');
+const authClient = clientFactory('auth');
+const gameClient = clientFactory('game');
+const chatClient = clientFactory('chat');
+const pushClient = clientFactory('push');
 
 window.Tactics = (function () {
   var self = {};
@@ -31,6 +32,8 @@ window.Tactics = (function () {
     authClient,
     gameClient,
     chatClient,
+    pushClient,
+    popup,
     Progress: Progress,
     RemoteTransport: RemoteTransport,
     Game: Game,

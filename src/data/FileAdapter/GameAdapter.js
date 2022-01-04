@@ -34,22 +34,13 @@ export default class extends FileAdapter {
           },
         ],
         [
-          'playerActiveGames', {
-            saver: '_savePlayerActiveGames',
+          'playerGames', {
+            saver: '_savePlayerGames',
           },
         ],
         [
-          // The completed game list can be large and is not frequently used, so
-          // do not cache it as long as other objects.  The game list page does
-          // request it every 5 seconds, so do cache it for a little while.
-          'playerCompletedGames', {
-            cache: { expireIn:2 * 60000 },
-            saver: '_savePlayerCompletedGames',
-          },
-        ],
-        [
-          'openGames', {
-            saver: '_saveOpenGames',
+          'collection', {
+            saver: '_saveGameCollection',
           },
         ],
       ]),
@@ -84,16 +75,32 @@ export default class extends FileAdapter {
     const playerStats = await this._getPlayerStats(playerId);
     this.cache.get('playerStats').open(playerId, playerStats);
 
-    const playerActiveGames = await this._getPlayerActiveGames(playerId);
-    this.cache.get('playerActiveGames').open(playerId, playerActiveGames);
+    const playerGames = await this._getPlayerGames(playerId);
+    this.cache.get('playerGames').open(playerId, playerGames);
 
     const playerSets = await this._getPlayerSets(playerId);
     this.cache.get('playerSets').open(playerId, playerSets);
   }
   closePlayer(playerId) {
     this.cache.get('playerStats').close(playerId);
-    this.cache.get('playerActiveGames').close(playerId);
+    this.cache.get('playerGames').close(playerId);
     this.cache.get('playerSets').close(playerId);
+  }
+
+  async openPlayerGames(playerId) {
+    const playerGames = await this._getPlayerGames(playerId);
+    return this.cache.get('playerGames').open(playerId, playerGames);
+  }
+  closePlayerGames(playerId) {
+    return this.cache.get('playerGames').close(playerId);
+  }
+
+  async openGameCollection(collectionId) {
+    const collection = await this._getGameCollection(collectionId);
+    return this.cache.get('collection').open(collectionId, collection);
+  }
+  closeGameCollection(collectionId) {
+    return this.cache.get('collection').close(collectionId);
   }
 
   async getPlayerStats(myPlayerId, vsPlayerId) {
@@ -177,34 +184,26 @@ export default class extends FileAdapter {
     playerSets.setDefault(gameType, setName, set);
   }
 
-  async searchPlayerActiveGames(player, query) {
-    const playerGames = await this._getPlayerActiveGames(player.id);
+  async searchPlayerGames(player, query) {
+    const playerGames = await this._getPlayerGames(player.id);
     const data = [...playerGames.values()];
 
     return this._search(data, query);
   }
-  async searchPlayerCompletedGames(player, query) {
-    const playerGames = await this._getPlayerCompletedGames(player.id);
-    const data = [...playerGames.values()];
-
-    this.cache.get('playerCompletedGames').add(player.id, playerGames);
-    return this._search(data, query);
-  }
-  async searchOpenGames(player, query) {
-    const openGames = await this._getOpenGames();
+  async searchGameCollection(player, group, query) {
+    const collection = await this._getGameCollection(group);
     const blockedBy = player.listBlockedBy();
-    const data = serializer.clone([...groupGames.values()])
-      .map(gs => gs.data)
-      .filter(data => {
-        data.creatorACL = player.getPlayerACL(data.createdBy);
-        return !blockedBy.has(data.createdBy);
+    const data = serializer.clone([ ...collection.values() ])
+      .filter(gs => {
+        gs.creatorACL = player.getPlayerACL(gs.createdBy);
+        return gs.startedAt || !blockedBy.has(gs.createdBy);
       });
 
     return this._search(data, query);
   }
 
   async listMyTurnGamesSummary(myPlayerId) {
-    const games = await this._getPlayerActiveGames(myPlayerId, true);
+    const games = await this._getPlayerGames(myPlayerId, true);
 
     const myTurnGames = [];
     for (const game of games.values()) {
@@ -225,7 +224,7 @@ export default class extends FileAdapter {
   }
 
   async surrenderPendingGames(myPlayerId, vsPlayerId) {
-    const gamesSummary = await this._getPlayerActiveGames(myPlayerId);
+    const gamesSummary = await this._getPlayerGames(myPlayerId);
 
     for (const gameSummary of gamesSummary.values()) {
       if (!gameSummary.startedAt || gameSummary.endedAt)
@@ -363,36 +362,39 @@ export default class extends FileAdapter {
       }
 
       promises.push(
-        this._getPlayerActiveGames(playerId).then(playerGames => {
+        this._getPlayerGames(playerId).then(playerGames => {
           // Normally, player games are cached when a player authenticates.
           // But if only one player in this game is online, then we may need
           // to add the other player's games to the cache.
-          this.cache.get('playerActiveGames').add(playerGames.playerId, playerGames);
+          this.cache.get('playerGames').add(playerGames.id, playerGames);
 
-          if (game.state.endedAt)
-            playerGames.delete(game.id);
-          else
-            return playerGames;
-        }),
-        this._getPlayerCompletedGames(playerId).then(playerGames => {
-          this.cache.get('playerCompletedGames').add(playerGames.playerId, playerGames);
+          if (game.endedAt) {
+            this._pruneGameSummaryList(playerGames);
 
-          if (!game.state.endedAt)
-            playerGames.delete(game.id);
-          else
-            return playerGames;
+            if (!playerGames.has(game.id))
+              return;
+          }
+
+          return playerGames;
         }),
       );
     }
 
-    if (game.isPublic)
+    if (game.collection)
       promises.push(
-        this._getOpenGames().then(openGames => {
-          if (game.state.startedAt)
-            openGames.delete(game.id);
-          else
-            return openGames;
-        })
+        this._getGameCollection(game.collection).then(collection => {
+          if (game.state.endedAt) {
+            if (game.state.currentTurnId < 4)
+              collection.delete(game.id);
+            else
+              this._pruneGameSummaryList(collection);
+
+            if (!collection.has(game.id))
+              return;
+          }
+
+          return collection;
+        }),
       );
 
     const promise = Promise.all(promises).then(([ gameType, ...gameSummaryLists ]) => {
@@ -404,11 +406,11 @@ export default class extends FileAdapter {
 
         gameSummaryList.set(game.id, summary);
 
-        if (gameSummaryList.playerId) {
-          const sync = syncingPlayerGames.get(gameSummaryList.playerId);
+        if (syncingPlayerGames.has(gameSummaryList.id)) {
+          const sync = syncingPlayerGames.get(gameSummaryList.id);
 
           if (sync.count === 1) {
-            syncingPlayerGames.delete(gameSummaryList.playerId);
+            syncingPlayerGames.delete(gameSummaryList.id);
             sync.resolve(gameSummaryList);
           } else {
             sync.count--;
@@ -427,17 +429,33 @@ export default class extends FileAdapter {
     );
 
     const promises = [...playerIds].map(playerId =>
-      this._getPlayerActiveGames(playerId)
+      this._getPlayerGames(playerId)
     );
 
-    if (game.isPublic)
-      promises.push(this._getOpenGames());
+    if (game.collection)
+      promises.push(this._getGameCollection(game.collection));
 
     return Promise.all(promises).then(gameSummaryLists => {
       for (const gameSummaryList of gameSummaryLists) {
         gameSummaryList.delete(game.id);
       }
     });
+  }
+  _pruneGameSummaryList(gameSummaryList) {
+    /*
+     * Prune completed games to 100 most recently ended
+     */
+    const completed = [];
+    for (const gameSummary of gameSummaryList.values()) {
+      if (gameSummary.endedAt)
+        completed.push(gameSummary);
+    }
+    completed.sort((a,b) => b.endedAt - a.endedAt);
+
+    if (completed.length > 100)
+      for (const gameSummary of completed.slice(100)) {
+        gameSummaryList.delete(gameSummary.id);
+      }
   }
 
   /*
@@ -473,60 +491,34 @@ export default class extends FileAdapter {
   /*
    * Player Games Management
    */
-  async _getPlayerActiveGames(playerId, consistent = false) {
+  async _getPlayerGames(playerId, consistent = false) {
     if (consistent) {
       const sync = this._syncingPlayerGames.get(playerId);
       if (sync)
         return sync.promise;
     }
 
-    if (this.cache.get('playerActiveGames').has(playerId))
-      return this.cache.get('playerActiveGames').get(playerId);
-    else if (this.buffer.get('playerActiveGames').has(playerId))
-      return this.buffer.get('playerActiveGames').get(playerId);
+    if (this.cache.get('playerGames').has(playerId))
+      return this.cache.get('playerGames').get(playerId);
+    else if (this.buffer.get('playerGames').has(playerId))
+      return this.buffer.get('playerGames').get(playerId);
 
-    return this.getFile(`player_${playerId}_activeGames`, data => {
+    return this.getFile(`player_${playerId}_games`, data => {
       const playerGames = data === undefined
         ? GameSummaryList.create(playerId)
         : serializer.normalize(data);
 
-      playerGames.once('change', () => this.buffer.get('playerActiveGames').add(playerId, playerGames));
+      playerGames.once('change', () => this.buffer.get('playerGames').add(playerId, playerGames));
       return playerGames;
     });
   }
-  async _savePlayerActiveGames(playerGames) {
-    const playerId = playerGames.playerId;
+  async _savePlayerGames(playerGames) {
+    const playerId = playerGames.id;
 
-    await this.putFile(`player_${playerId}_activeGames`, () => {
+    await this.putFile(`player_${playerId}_games`, () => {
       const data = serializer.transform(playerGames);
 
-      playerGames.once('change', () => this.buffer.get('playerActiveGames').add(playerId, playerGames));
-      return data;
-    });
-  }
-
-  async _getPlayerCompletedGames(playerId) {
-    if (this.cache.get('playerCompletedGames').has(playerId))
-      return this.cache.get('playerCompletedGames').get(playerId);
-    else if (this.buffer.get('playerCompletedGames').has(playerId))
-      return this.buffer.get('playerCompletedGames').get(playerId);
-
-    return this.getFile(`player_${playerId}_completedGames`, data => {
-      const playerGames = data === undefined
-        ? GameSummaryList.create(playerId)
-        : serializer.normalize(data);
-
-      playerGames.once('change', () => this.buffer.get('playerCompletedGames').add(playerId, playerGames));
-      return playerGames;
-    });
-  }
-  async _savePlayerCompletedGames(playerGames) {
-    const playerId = playerGames.playerId;
-
-    await this.putFile(`player_${playerId}_completedGames`, () => {
-      const data = serializer.transform(playerGames);
-
-      playerGames.once('change', () => this.buffer.get('playerCompletedGames').add(playerId, playerGames));
+      playerGames.once('change', () => this.buffer.get('playerGames').add(playerId, playerGames));
       return data;
     });
   }
@@ -562,29 +554,30 @@ export default class extends FileAdapter {
   }
 
   /*
-   * Open Games Management
+   * Game Collection Management
    */
-  async _getOpenGames() {
-    const cache = this.cache.get('openGames');
-    if (cache.has(null))
-      return cache.get(null);
+  async _getGameCollection(collectionId) {
+    if (this.cache.get('collection').has(collectionId))
+      return this.cache.get('collection').get(collectionId);
+    else if (this.buffer.get('collection').has(collectionId))
+      return this.buffer.get('collection').get(collectionId);
 
-    const openGames = this.getFile(`open_games`, data => {
-      const openGames = data === undefined
-        ? GameSummaryList.create(null)
+    return this.getFile(`collection/${collectionId}`, data => {
+      const collection = data === undefined
+        ? GameSummaryList.create(collectionId)
         : serializer.normalize(data);
 
-      openGames.once('change', () => this.buffer.get('openGames').add(null, openGames));
-      return openGames;
+      collection.once('change', () => this.buffer.get('collection').add(collectionId, collection));
+      return collection;
     });
-
-    return cache.open(null, openGames);
   }
-  async _saveOpenGames(openGames) {
-    await this.putFile(`open_games`, () => {
-      const data = serializer.transform(openGames);
+  async _saveGameCollection(collection) {
+    const collectionId = collection.id;
 
-      openGames.once('change', () => this.buffer.get('openGames').add(null, openGames));
+    await this.putFile(`collection/${collectionId}`, () => {
+      const data = serializer.transform(collection);
+
+      collection.once('change', () => this.buffer.get('collection').add(collectionId, collection));
       return data;
     });
   }

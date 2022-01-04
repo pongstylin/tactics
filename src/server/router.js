@@ -281,7 +281,7 @@ function leaveGroup(serviceName, { client:clientId, body }) {
   let groupId = [serviceName, body.group].join(':');
   let group = groups.get(groupId);
   if (!group)
-    return;
+    throw new Error('Expected group');
 
   group.delete(clientId);
   if (group.size === 0)
@@ -343,13 +343,13 @@ function purgeAcknowledgedMessages(session, message) {
 }
 
 function sendEvent(serviceName, { body }) {
-  let messageBody = { service:serviceName, ...body };
+  const messageBody = { service:serviceName, ...body };
 
-  let groupId = [serviceName, body.group].join(':');
-  let group = groups.get(groupId);
+  const groupId = [serviceName, body.group].join(':');
+  const group = groups.get(groupId);
   if (!group) return;
 
-  for (let sessionId of group.keys()) {
+  for (const sessionId of group.keys()) {
     enqueue(sessions.get(sessionId), 'event', messageBody);
   }
 }
@@ -458,6 +458,11 @@ function debugMessage(client, message, inOrOut) {
       if (body.data?.hits) {
         const logData = Object.assign({}, body.data, { hits:body.data.hits.length });
         suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
+      } else if (body.data?.results) {
+        const logData = body.data.results.constructor === Array
+          ? body.data.results.map(r => Object.assign({}, r, { hits:r.hits.length }))
+          : Object.assign({}, body.data.results, { hits:body.data.results.hits.length });
+        suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
       } else if (body.data?.state) {
         const logData = Object.assign({}, body.data, { state:true });
         suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
@@ -526,7 +531,7 @@ function closeClient(client, code, reason) {
 }
 
 function deleteSession(session, code) {
-  let client = session.client;
+  const client = session.client;
   if (code === CLOSE_CLIENT_TIMEOUT)
     debug(`gone: client=${client.id}; [${client.closed.code}] session timeout`);
   else
@@ -538,16 +543,27 @@ function deleteSession(session, code) {
   // This code is used when the websocket webpage is refreshed or closed.
   sessions.delete(session.id);
 
-  groups.forEach(group => group.delete(session.id));
+  for (const [ groupId, group ] of groups) {
+    if (!group.has(client.id))
+      continue;
 
-  for (let service of services.values())
+    const [ serviceName, groupPath ] = groupId.split(':');
+    const service = services.get(serviceName);
+
+    service.onLeaveGroup(client, groupPath);
+    if (group.has(client.id))
+      throw new Error('Expected to leave group');
+  }
+
+  for (const service of services.values()) {
     service.dropClient(client);
+  }
 }
 
 /*******************************************************************************
  * Client Event Handlers
  ******************************************************************************/
-function onMessage(data) {
+async function onMessage(data) {
   let client = this;
 
   // Ignore messages sent right as the server starts closing the connection.
@@ -620,17 +636,17 @@ function onMessage(data) {
       }
 
       if (message.type === 'event')
-        onEventMessage(client, message);
+        await onEventMessage(client, message);
       else if (message.type === 'request')
-        onRequestMessage(client, message);
+        await onRequestMessage(client, message);
       else if (message.type === 'join')
-        onJoinMessage(client, message);
+        await onJoinMessage(client, message);
       else if (message.type === 'leave')
-        onLeaveMessage(client, message);
+        await onLeaveMessage(client, message);
       else if (message.type === 'sync')
         onSyncMessage(client, message);
       else if (message.type === 'authorize')
-        onAuthorizeMessage(client, message);
+        await onAuthorizeMessage(client, message);
       else
         // 'open', 'resume'
         throw new ServerError({
@@ -650,8 +666,7 @@ function onMessage(data) {
         if (session.onIdleChange)
           session.onIdleChange(session, oldIdle);
       }
-    }
-    else {
+    } else {
       if (message.type === 'open')
         onOpenMessage(client, message);
       else if (message.type === 'resume')
@@ -665,8 +680,7 @@ function onMessage(data) {
           message: 'A session must first be opened or resumed',
         });
     }
-  }
-  catch (error) {
+  } catch (error) {
     sendError(client, error, message);
   }
 }
@@ -777,23 +791,34 @@ async function onJoinMessage(client, message) {
   }
 }
 
-function onLeaveMessage(client, message) {
-  let body = message.body;
-  let service = services.get(body.service);
+async function onLeaveMessage(client, message) {
+  const session = client.session;
+  const requestId = message.id;
+  const body = message.body;
+  const service = services.get(body.service);
+  const method = 'onLeaveGroup';
 
   if (!service)
     throw new ServerError(404, 'No such service');
-  if (!('onLeaveGroup' in service))
+  if (!(method in service))
     throw new ServerError(501, 'Service does not support leaving groups');
 
-  let groupId = [body.service, body.group].join(':');
-  let group = groups.get(groupId);
+  const groupId = [body.service, body.group].join(':');
+  const group = groups.get(groupId);
   if (!group || !group.has(client.id))
     throw new ServerError(409, 'Already left group');
 
-  service.will(client, 'leave', body);
+  try {
+    service.will(client, message.type, body);
 
-  service.onLeaveGroup(client, body.group);
+    const data = await service[method](client, body.group);
+    if (client.closed)
+      return;
+
+    enqueue(session, 'response', { requestId, data });
+  } catch (error) {
+    sendErrorResponse(client, requestId, error);
+  }
 }
 
 function onSyncMessage(client, message) {

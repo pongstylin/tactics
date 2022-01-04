@@ -4,6 +4,7 @@ import DebugLogger from 'debug';
 import config from 'config/server.js';
 import ServerError from 'server/Error.js';
 import Timeout from 'server/Timeout.js';
+import serializer from 'utils/serializer.js';
 
 export const FILES_DIR = 'src/data/files';
 const ops = new Map([
@@ -12,6 +13,79 @@ const ops = new Map([
   [ 'put',    '_putFile' ],
   [ 'delete', '_deleteFile' ],
 ]);
+
+const querySchema = {
+  $schema: 'http://json-schema.org/draft-07/schema',
+  $ref: '#/definitions/query',
+  definitions: {
+    query: {
+      oneOf: [
+        {
+          type: 'array',
+          items: { $ref:'#/definitions/querySingle' },
+        },
+        {
+          $ref: '#/definitions/querySingle',
+        },
+      ],
+    },
+    querySingle: {
+      type: 'object',
+      properties: {
+        filter: { $ref:'#/definitions/filter' },
+        sort: { $ref:'#/definitions/sort' },
+        limit: { type:'number' },
+      },
+      additionalProperties: false,
+    },
+    filter: {
+      oneOf: [
+        {
+          type: 'array',
+          items: { $ref:'#/definitions/filterSingle' },
+        },
+        {
+          $ref: '#/definitions/filterSingle',
+        },
+      ],
+    },
+    filterSingle: {
+      type: 'object',
+      properties: {
+        '!': { $ref:'#/definitions/filter' },
+        '&': { $ref:'#/definitions/filter' },
+      },
+      additionalProperties: { $ref:'#/definitions/condition' },
+    },
+    condition: {
+      oneOf: [
+        {
+          type: 'array',
+          items: { $ref:'#/definitions/primitive' },
+        },
+        {
+          $ref:'#/definitions/primitive',
+        },
+        {
+          type: 'object',
+          properties: {
+            '!': { $ref:'#/definitions/condition' },
+            '~': {
+              type: 'string',
+              subType: 'RegExp',
+            },
+          },
+          additionalProperties: false,
+        },
+      ],
+    },
+    primitive: {
+      type: [ 'null', 'string', 'number', 'boolean' ],
+    },
+  },
+};
+// Serializer needs to support recursive schemas before we can use it.
+//const validateQuery = serializer.makeValidator('data:query', querySchema);
 
 export default class {
   constructor(props) {
@@ -349,25 +423,49 @@ export default class {
    *   }
    */
   _search(data, query) {
-    query = Object.assign({
-      page: 1,
-      limit: 10,
-    }, query);
+    /*
+    try {
+      validateQuery(query);
+    } catch(e) {
+      if (e.constructor === Array) {
+        // User-facing validation errors are treated manually with specific messages.
+        // So, be verbose since failures indicate a problem with the schema or client.
+        console.error('search', JSON.stringify(query, null, 2));
+        console.error('errors', e);
+        e = new ServerError(422, 'Validation error');
+      }
 
-    if (query.limit > 50)
-      throw new ServerError(400, 'Maximum limit is 50');
+      throw e;
+    }
+    */
 
-    let offset = (query.page - 1) * query.limit;
-    let hits = data
-      .filter(this._compileFilter(query.filter))
-      .sort(this._compileSort(query.sort));
+    const multiQuery = query.constructor === Array;
+    if (!multiQuery)
+      query = [ query ];
 
-    return {
-      page: query.page,
-      limit: query.limit,
-      count: hits.length,
-      hits: hits.slice(offset, offset+query.limit),
-    };
+    const results = [];
+    for (const q of query) {
+      Object.assign(q, Object.assign({ page:1, limit:10 }, q));
+
+      if (q.limit > 50)
+        throw new ServerError(400, 'Maximum limit is 50');
+
+      const offset = (q.page - 1) * q.limit;
+      const hits = data
+        .filter(this._compileFilter(q.filter))
+        .sort(this._compileSort(q.sort));
+
+      results.push({
+        page: q.page,
+        limit: q.limit,
+        count: hits.length,
+        hits: hits.slice(offset, offset+q.limit),
+      });
+    }
+
+    if (multiQuery)
+      return results;
+    return results[0];
   }
   _compileFilter(filter) {
     if (!filter)
@@ -410,31 +508,38 @@ export default class {
      * When the condition is not an object, the value and condition data types
      * are expected to be null, number, string, or arrays of the same.
      */
-    if (Array.isArray(condition)) {
-      if (Array.isArray(value))
+    if (condition === null || typeof condition !== 'object') {
+      if (value === null || typeof value !== 'object')
+        return value === condition;
+      else if (value.constructor === Array)
+        return value.includes(condition);
+    } else if (condition.constructor === Array) {
+      if (value === null || typeof value !== 'object')
+        return condition.includes(value);
+      else if (value.constructor === Array)
         if (value.length > condition.length)
           return condition.findIndex(c => value.includes(c)) > -1;
         else
           return value.findIndex(v => condition.includes(v)) > -1;
-
-      return condition.includes(value);
-    } else if (typeof condition === 'object' && condition !== null)
+    } else if (condition.constructor === Object) {
       // Find the first condition that does NOT match, if none return TRUE
-      return !Object.keys(condition).find(cKey => {
+      return !Object.entries(condition).find(([ cKey, cValue ]) => {
         /*
          * These are value operators.
          *   Example: { "field":{ "!":"value" } }
          */
         if (cKey === '!')
-          return this._matchItemByCondition(value, '', condition[cKey]);
-        else
-          throw new Error(`The '${cKey}' condition is not supported`);
-      });
-    else {
-      if (Array.isArray(value))
-        return value.includes(condition);
+          return this._matchItemByCondition(value, '', cValue);
+        else if (cKey === '~') {
+          if (typeof value !== 'string')
+            return true;
+          if (typeof cValue?.source !== 'string' || typeof cValue?.flags !== 'string')
+            throw new ServerError(400, `The '${cKey}' condition must have a RegExp value`);
 
-      return value === condition;
+          return !(new RegExp(cValue.source, cValue.flags).test(value));
+        } else
+          throw new ServerError(400, `The '${cKey}' condition is not supported`);
+      });
     }
   }
   _extractItemValue(item, path) {

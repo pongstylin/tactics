@@ -63,6 +63,9 @@ export default class GameState {
       {
         randomFirstTurn: true,
         randomHitChance: true,
+        strictUndo: false,
+        autoSurrender: false,
+        turnTimeBuffer: null,
         turnTimeLimit: null,
       },
       stateData,

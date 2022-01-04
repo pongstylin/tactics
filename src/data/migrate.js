@@ -319,6 +319,15 @@ migrationMap.set('game', [
 
     return { type:'Game', data };
   },
+  json => {
+    const isPublic = json.data.isPublic;
+    delete json.data.isPublic;
+
+    if (isPublic)
+      json.data.collection = 'public';
+
+    return json;
+  },
 ]);
 
 migrationMap.set('sets', [
