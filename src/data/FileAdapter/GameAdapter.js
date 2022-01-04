@@ -368,7 +368,7 @@ export default class extends FileAdapter {
           // to add the other player's games to the cache.
           this.cache.get('playerGames').add(playerGames.id, playerGames);
 
-          if (game.endedAt) {
+          if (game.state.endedAt) {
             this._pruneGameSummaryList(playerGames);
 
             if (!playerGames.has(game.id))
