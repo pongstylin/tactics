@@ -611,7 +611,7 @@ async function createGame(divArena) {
   } catch (e) {
     if (e.code === 429)
       popup('Creating games too quickly.');
-    else {
+    else if (e.code !== 404) {
       reportError(e);
       popup('Oops!  Something went wrong.');
     }
