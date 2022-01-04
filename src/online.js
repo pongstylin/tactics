@@ -155,7 +155,6 @@ const groups = new Map([
 
 gameClient
   .on('event', ({ body }) => {
-console.log('event', body);
     if (body.group === `/myGames/${authClient.playerId}`) {
       if (body.type === 'stats') {
         state.my.stats = body.data;
