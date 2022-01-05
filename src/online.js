@@ -358,10 +358,9 @@ function init() {
       state.isInitialized = true;
       if (state.my.lobbyGame) {
         const styleId = state.my.lobbyGame.collection.slice(6);
+        state.selectedStyleId = styleId;
         if (avatarsPromise.isResolved)
           selectStyle(styleId, true);
-        else
-          state.selectedStyleId = styleId;
       }
 
       return openTab();
@@ -1143,7 +1142,8 @@ function getLobbyGames() {
   const waitingGames = [ ...state.lobby.games[0].values() ]
     .sort((a,b) => a.createdAt - b.createdAt);
 
-  for (const game of waitingGames) {
+  // Cloning the array allows us to use .splice()
+  for (const game of waitingGames.slice()) {
     if (game.id === state.my.lobbyGame?.id) {
       waitingGames.splice(waitingGames.indexOf(game), 1);
       continue;
@@ -1617,11 +1617,7 @@ function renderGame(game) {
     else
       middle = '<I>Finish Setup</I>';
   } else if (game.startedAt || game.createdBy !== authClient.playerId) {
-    // Use of 'Set' was to de-dup the names.
-    // Only useful for 4-player games where 2 players have the same name.
-    const opponents = [...new Set(
-      teams.filter(t => t?.joinedAt && t.playerId !== myPlayerId).map(t => t.name)
-    )];
+    const opponents = teams.filter(t => t?.joinedAt && t.playerId !== myPlayerId).map(t => t.name);
     if (opponents.length === 0)
       middle = '<I>Yourself</I>';
     else

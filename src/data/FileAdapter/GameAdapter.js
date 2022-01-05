@@ -436,16 +436,18 @@ export default class extends FileAdapter {
    * Prune active games with expired time limits (collections only)
    */
   _pruneGameSummaryList(gameSummaryList) {
+    // Hacky
+    const isCollectionList = !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(gameSummaryList.id);
     const now = Date.now();
 
     const completed = [];
     for (const gameSummary of gameSummaryList.values()) {
       if (gameSummary.endedAt)
         completed.push(gameSummary);
-      else if (gameSummary.startedAt && gameSummary.collection) {
+      else if (gameSummary.startedAt && isCollectionList) {
         if (!gameSummary.turnTimeLimit)
           gameSummaryList.delete(gameSummary.id);
-        else if ((gameSummary.turnStartedAt.getTime() + gameSummary.turnTimeLimit*1000) > now);
+        else if ((gameSummary.turnStartedAt.getTime() + gameSummary.turnTimeLimit*1000) < now)
           gameSummaryList.delete(gameSummary.id);
       }
     }

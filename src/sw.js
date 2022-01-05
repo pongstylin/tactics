@@ -204,6 +204,8 @@ self.addEventListener('fetch', event => {
       // Google Fonts API disallows CORS requests.
       if (url.startsWith('https://fonts.googleapis.com/css'))
         fetchPromise = fetch(request);
+      else if (url.startsWith('https://fonts.gstatic.com/'))
+        fetchPromise = fetch(request);
       else
         fetchPromise = fetch(url, OPTIONS);
 
