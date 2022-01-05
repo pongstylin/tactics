@@ -1250,14 +1250,11 @@ async function fillArena(divArena, arena = true) {
   if (arena === true)
     return emptyArena(divArena);
 
-  const oldArena = JSON.parse(divArena.dataset.arena ?? 'null');
+  divArena.classList.toggle('disabled', !!state.my.lobbyGame?.startedAt && !arena.startedAt);
 
-  if (!divArena.classList.contains('empty')) {
-    if (JSON.stringify(arena) === JSON.stringify(oldArena)) {
-      divArena.classList.toggle('disabled', !!state.my.lobbyGame?.startedAt && !arena.startedAt);
-      return false;
-    }
-  }
+  const oldArena = JSON.parse(divArena.dataset.arena ?? 'null');
+  if (JSON.stringify(arena) === JSON.stringify(oldArena))
+    return false;
 
   divArena.dataset.arena = JSON.stringify(arena);
   divArena.classList.remove('empty');
