@@ -393,7 +393,8 @@ export default class extends FileAdapter {
         if (!gameSummaryList) continue;
 
         gameSummaryList.set(game.id, summary);
-        this._pruneGameSummaryList(gameSummaryList);
+        if (game.state.startedAt)
+          this._pruneGameSummaryList(gameSummaryList);
 
         if (syncingPlayerGames.has(gameSummaryList.id)) {
           const sync = syncingPlayerGames.get(gameSummaryList.id);
@@ -430,14 +431,23 @@ export default class extends FileAdapter {
       }
     });
   }
+  /*
+   * Prune completed games to 100 most recently ended.
+   * Prune active games with expired time limits (collections only)
+   */
   _pruneGameSummaryList(gameSummaryList) {
-    /*
-     * Prune completed games to 100 most recently ended
-     */
+    const now = Date.now();
+
     const completed = [];
     for (const gameSummary of gameSummaryList.values()) {
       if (gameSummary.endedAt)
         completed.push(gameSummary);
+      else if (gameSummary.startedAt && gameSummary.collection) {
+        if (!gameSummary.turnTimeLimit)
+          gameSummaryList.delete(gameSummary.id);
+        else if ((gameSummary.turnStartedAt.getTime() + gameSummary.turnTimeLimit*1000) > now);
+          gameSummaryList.delete(gameSummary.id);
+      }
     }
     completed.sort((a,b) => b.endedAt - a.endedAt);
 
