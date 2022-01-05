@@ -355,14 +355,15 @@ window.addEventListener('DOMContentLoaded', () => {
 function init() {
   return syncData()
     .then(() => {
-      state.isInitialized = true;
       if (state.my.lobbyGame) {
         const styleId = state.my.lobbyGame.collection.slice(6);
-        state.selectedStyleId = styleId;
         if (avatarsPromise.isResolved)
           selectStyle(styleId, true);
+        else
+          state.selectedStyleId = styleId;
       }
 
+      state.isInitialized = true;
       return openTab();
     })
     .catch(error => {
@@ -514,7 +515,7 @@ function resize(sheet) {
   `, sheet.cssRules.length);
 }
 function selectStyle(styleId, skipFill = false) {
-  if (styleId !== state.selectedStyleId)
+  if (styleId !== state.selectedStyleId && state.isInitialized)
     gameClient.leaveCollectionGroup(`lobby/${state.selectedStyleId}`);
 
   const spnStyle = document.querySelector('.lobby HEADER .style');
