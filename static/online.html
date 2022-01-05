@@ -180,7 +180,7 @@
       color: #b08d57;
     }
 
-    .tabContent .game {
+    .gameList .game {
       display: flex;
       justify-content: space-between;
       border: 1px solid #444444;
@@ -188,40 +188,44 @@
       padding: 8px;
       cursor: pointer;
     }
+    .gameList .game .winner {
+      color: #b08d57;
+      font-weight: bold;
+    }
 
-    .tabContent .game .left {
+    .gameList .game .left {
       flex: 1 1 auto;
       width: 18%;
       margin: auto 0;
     }
-    .tabContent .game .left SPAN {
+    .gameList .game .left SPAN {
       white-space: nowrap;
     }
-    .tabContent .game .middle {
+    .gameList .game .middle {
       flex: 1 1 auto;
       text-align: center;
       margin: auto 0;
     }
-    .tabContent .game .right {
+    .gameList .game .right {
       flex: 1 1 auto;
       width: 18%;
       text-align: right;
       margin: auto 0;
     }
 
-    .tabContent .game .right.low {
+    .gameList .game .right.low {
       color: red;
     }
 
-    .tabContent .game .share,
-    .tabContent .game .copy {
+    .gameList .game .share,
+    .gameList .game .copy {
       color: #00FFFF;
       cursor: pointer;
       text-decoration: underline;
       user-select: none;
     }
-    .tabContent .game .share .label,
-    .tabContent .game .copy .label {
+    .gameList .game .share .label,
+    .gameList .game .copy .label {
       margin-left: 6px;
     }
 
@@ -234,12 +238,12 @@
         color: #00FFFF;
       }
 
-      .tabContent .game:hover {
+      .gameList .game:hover {
         border-color: #00FFFF;
       }
 
-      .tabContent .game .share:hover .label,
-      .tabContent .game .copy:hover .label {
+      .gameList .game .share:hover .label,
+      .gameList .game .copy:hover .label {
         text-decoration: underline;
       }
     }
@@ -277,7 +281,7 @@
     .tabContent .gameList {
       padding: 0 8px;
     }
-    .tabContent > DIV.gameList:empty::before {
+    .tabContent .gameList:empty::before {
       display: block;
       text-align: center;
       padding: 8px;

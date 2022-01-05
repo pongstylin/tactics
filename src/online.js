@@ -1541,19 +1541,19 @@ function renderGame(game) {
   let left = `${game.typeName}`;
   // Completed Games
   if (game.endedAt) {
+    if (game.isFork)
+      left += ', <SPAN>Fork</SPAN>';
+    else if (game.collection?.startsWith('lobby/'))
+      left += ', <SPAN>Lobby</SPAN>';
+
     if (game.winnerId === 'truce')
       left += ', <SPAN>Truce!</SPAN>';
     else if (game.winnerId === 'draw')
       left += ', <SPAN>Draw!</SPAN>';
     else if (teams[game.winnerId].playerId === myPlayerId)
       left += ', <SPAN>You Win!</SPAN>';
-    else
+    else if (teams.findIndex(t => t.playerId === myPlayerId) > -1)
       left += ', <SPAN>You Lose!</SPAN>';
-
-    if (game.isFork)
-      left += ', <SPAN>Fork</SPAN>';
-    else if (game.collection?.startsWith('lobby/'))
-      left += ', <SPAN>Lobby</SPAN>';
   // Active Games
   } else if (game.startedAt) {
     const labels = [];
@@ -1614,7 +1614,13 @@ function renderGame(game) {
     else
       middle = '<I>Finish Setup</I>';
   } else if (game.startedAt || game.createdBy !== authClient.playerId) {
-    const opponents = teams.filter(t => t?.joinedAt && t.playerId !== myPlayerId).map(t => t.name);
+    const opponents = teams.map((team, teamId) => {
+      if (!team?.joinedAt || team.playerId === myPlayerId)
+        return false;
+      if (game.endedAt && game.winnerId === teamId)
+        return `<SPAN class="winner">${team.name}</SPAN>`;
+      return team.name;
+    }).filter(n => typeof n === 'string');
     if (opponents.length === 0)
       middle = '<I>Yourself</I>';
     else
