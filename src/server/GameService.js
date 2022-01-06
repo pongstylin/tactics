@@ -515,14 +515,14 @@ export default class GameService extends Service {
     if (clientPara.playerId !== game.createdBy)
       throw new ServerError(403, 'You cannot cancel other users\' game');
 
-    await this.data.cancelGame(game);
-
     const gamePara = this.gamePara.get(gameId);
     if (gamePara) {
       for (const clientId of gamePara.clients) {
         this.onLeaveGameGroup(this.clientPara.get(clientId).client, `/games/${gameId}`, gameId);
       }
     }
+
+    await this.data.cancelGame(game);
   }
 
   async onGetGameTypeConfigRequest(client, gameTypeId) {
