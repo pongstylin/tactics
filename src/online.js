@@ -379,11 +379,35 @@ function setCurrentTab() {
   else if (location.hash === '#publicGames')
     state.currentTab = 'publicGames';
 }
+function setYourLobbyGame(gameSummary, skipRender = false) {
+  const lobbyGame = state.my.lobbyGame;
+  const styleId = gameSummary.collection.slice(6);
+  state.my.lobbyGame = gameSummary;
+
+  if (!skipRender && state.currentTab === 'lobby' && state.selectedStyleId === styleId)
+    renderLobbyGames();
+
+  if (lobbyGame?.id === gameSummary.id && !lobbyGame.startedAt && gameSummary.startedAt)
+    return startGame();
+}
+function unsetYourLobbyGame(gameSummary, skipRender = false) {
+  const lobbyGame = state.my.lobbyGame;
+  if (!lobbyGame || lobbyGame.id !== gameSummary.id)
+    return;
+
+  const styleId = lobbyGame.collection.slice(6);
+  state.my.lobbyGame = null;
+
+  if (!skipRender && state.currentTab === 'lobby' && state.selectedStyleId === styleId)
+    renderLobbyGames();
+}
 function setYourGame(gameSummary) {
   const isLobbyGame = gameSummary.collection?.startsWith('lobby/');
-  const lobbyGame = state.my.lobbyGame;
-  unsetYourGame(gameSummary, true);
 
+  state.my.games[0].delete(gameSummary.id);
+  state.my.games[1].delete(gameSummary.id);
+  state.my.games[2].delete(gameSummary.id);
+  state.my.games[3].delete(gameSummary.id);
   if (gameSummary.endedAt)
     state.my.games[2] = new Map([ [ gameSummary.id, gameSummary ], ...state.my.games[2] ]);
   else if (isLobbyGame)
@@ -394,40 +418,43 @@ function setYourGame(gameSummary) {
     state.my.games[0] = new Map([ [ gameSummary.id, gameSummary ], ...state.my.games[0] ]);
 
   if (isLobbyGame) {
+    const lobbyGame = state.my.lobbyGame;
     if (lobbyGame) {
       if (lobbyGame.id === gameSummary.id) {
         if (gameSummary.endedAt)
-          state.my.lobbyGame = null;
-        else {
-          state.my.lobbyGame = gameSummary;
-          if (gameSummary.startedAt && !lobbyGame.startedAt)
-            return startGame();
-        }
+          unsetYourLobbyGame(gameSummary);
+        else
+          setYourLobbyGame(gameSummary);
       }
     } else {
       if (!gameSummary.endedAt)
-        state.my.lobbyGame = gameSummary;
+        setYourLobbyGame(gameSummary);
     }
   }
 
   if (state.currentTab === 'yourGames')
     renderYourGames();
 }
-function unsetYourGame(gameSummary, skipRender = false) {
-  state.my.games[0].delete(gameSummary.id);
-  state.my.games[1].delete(gameSummary.id);
-  state.my.games[2].delete(gameSummary.id);
-  state.my.games[3].delete(gameSummary.id);
+function unsetYourGame(gameSummary) {
+  let isDirty = false;
 
-  if (gameSummary.id === state.my.lobbyGame?.id)
-    state.my.lobbyGame = null;
+  for (let i = 0; i < state.my.games.length; i++) {
+    if (state.my.games[i].delete(gameSummary.id))
+      isDirty = true;
+  }
 
-  if (!skipRender && state.currentTab === 'yourGames')
-    renderYourGames();
+  if (isDirty) {
+    if (gameSummary.id === state.my.lobbyGame?.id)
+      unsetYourLobbyGame(gameSummary);
+
+    if (state.currentTab === 'yourGames')
+      renderYourGames();
+  }
 }
 function setLobbyGame(gameSummary) {
-  unsetLobbyGame(gameSummary, true);
-
+  state.lobby.games[0].delete(gameSummary.id);
+  state.lobby.games[1].delete(gameSummary.id);
+  state.lobby.games[2].delete(gameSummary.id);
   if (!gameSummary.startedAt)
     state.lobby.games[0] = new Map([ [ gameSummary.id, gameSummary ], ...state.lobby.games[0] ]);
   else if (!gameSummary.endedAt)
@@ -437,17 +464,21 @@ function setLobbyGame(gameSummary) {
 
   renderLobbyGames();
 }
-function unsetLobbyGame(gameSummary, skipRender = false) {
-  state.lobby.games[0].delete(gameSummary.id);
-  state.lobby.games[1].delete(gameSummary.id);
-  state.lobby.games[2].delete(gameSummary.id);
+function unsetLobbyGame(gameSummary) {
+  let isDirty = false;
 
-  if (!skipRender)
+  for (let i = 0; i < state.lobby.games.length; i++) {
+    if (state.lobby.games[i].delete(gameSummary.id))
+      isDirty = true;
+  }
+
+  if (isDirty)
     renderLobbyGames();
 }
 function setPublicGame(gameSummary) {
-  unsetPublicGame(gameSummary, true);
-
+  state.public.games[0].delete(gameSummary.id);
+  state.public.games[1].delete(gameSummary.id);
+  state.public.games[2].delete(gameSummary.id);
   if (!gameSummary.startedAt)
     state.public.games[0] = new Map([ [ gameSummary.id, gameSummary ], ...state.public.games[0] ]);
   else if (!gameSummary.endedAt)
@@ -457,12 +488,15 @@ function setPublicGame(gameSummary) {
 
   renderPublicGames();
 }
-function unsetPublicGame(gameSummary, skipRender = false) {
-  state.public.games[0].delete(gameSummary.id);
-  state.public.games[1].delete(gameSummary.id);
-  state.public.games[2].delete(gameSummary.id);
+function unsetPublicGame(gameSummary) {
+  let isDirty = false;
 
-  if (!skipRender)
+  for (let i = 0; i < state.public.games.length; i++) {
+    if (state.public.games[i].delete(gameSummary.id))
+      isDirty = true;
+  }
+
+  if (isDirty)
     renderPublicGames();
 }
 
@@ -1822,15 +1856,13 @@ async function syncData() {
   return Promise.all([
     gameClient.joinCollectionStatsGroup().then(rsp => state.stats = rsp.stats),
     gameClient.joinMyGamesGroup({ query }).then(rsp => {
-      state.my = {
-        stats: rsp.stats,
-        games: rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ]))),
-      };
+      state.my.stats = rsp.stats;
+      state.my.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
 
       if (rsp.results[3].hits.length)
-        state.my.lobbyGame = rsp.results[3].hits[0];
+        setYourLobbyGame(rsp.results[3].hits[0], true);
       else
-        state.my.lobbyGame = null;
+        unsetYourLobbyGame(state.my.lobbyGame, true);
 
       // TODO: Search for active lobby game and prompt to play it
       // (Make sure DOM is loaded, though)
