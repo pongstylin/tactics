@@ -274,7 +274,7 @@ export default class ChatService extends Service {
 
     for (const roomId of playerPara.roomIds) {
       const roomPara = this.roomPara.get(roomId);
-      const oldMuted = roomPara.muted.get(player.id);
+      const oldMuted = [ ...roomPara.muted.get(player.id) ];
       const newMuted = player.hasMutedOrBlocked(roomPara.memberIds);
       if (oldMuted.join(',') === newMuted.join(','))
         continue;
