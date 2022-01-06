@@ -75,6 +75,12 @@ migrationMap.set('player', [
 
     return { type:'Player', data };
   },
+  json => {
+    return {
+      $type: json.type,
+      $data: json.data,
+    };
+  },
 ]);
 
 migrationMap.set('game', [
@@ -330,6 +336,12 @@ migrationMap.set('game', [
 
     return json;
   },
+  json => {
+    return {
+      $type: json.type,
+      $data: json.data,
+    };
+  },
 ]);
 
 migrationMap.set('sets', [
@@ -337,6 +349,12 @@ migrationMap.set('sets', [
     return {
       type: 'PlayerSets',
       data: { playerId, sets:data },
+    };
+  },
+  json => {
+    return {
+      $type: json.type,
+      $data: json.data,
     };
   },
 ]);
@@ -348,6 +366,12 @@ migrationMap.set('stats', [
       data: { playerId, stats:data },
     };
   },
+  json => {
+    return {
+      $type: json.type,
+      $data: json.data,
+    };
+  },
 ]);
 
 migrationMap.set('room', [
@@ -355,6 +379,12 @@ migrationMap.set('room', [
     delete data.version;
 
     return { type:'Room', data };
+  },
+  json => {
+    return {
+      $type: json.type,
+      $data: json.data,
+    };
   },
 ]);
 

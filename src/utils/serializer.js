@@ -1169,30 +1169,30 @@ const serializer = {
 
     const type = classTypeMap.get(data.constructor);
     if (type.schema)
-      return { type:type.name, data };
+      return { $type:type.name, $data:data };
 
     const transform = {};
     const serialized = serialize(data, transform);
 
     if (pruneTransform(transform))
-      return { data:serialized };
+      return serialized;
 
-    return { transform, data:serialized };
+    return { $transform:transform, $data:serialized };
   },
   stringify(data) {
     return JSON.stringify(serializer.transform(data));
   },
   normalize(serialized) {
-    if (serialized.type) {
-      const type = classTypeMap.get(serialized.type);
-      return type.normalize(serialized.data);
-    } else if (serialized.transform) {
-      const type = classTypeMap.get(serialized.transform.type);
-      return type.normalize(serialized.data, serialized.transform);
-    } else if (serialized.data)
-      return serialized.data;
+    if (serialized.$type) {
+      const type = classTypeMap.get(serialized.$type);
+      return type.normalize(serialized.$data);
+    } else if (serialized.$transform) {
+      const type = classTypeMap.get(serialized.$transform.type);
+      return type.normalize(serialized.$data, serialized.$transform);
+    } else if (serialized.$data)
+      return serialized.$data;
 
-    throw new TypeError('Unable to normalize');
+    return serialized;
   },
   parse(json) {
     return serializer.normalize(JSON.parse(json));
