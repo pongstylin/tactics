@@ -249,8 +249,8 @@ export default class extends FileAdapter {
         const gameTypes = new Map();
         for (const [ id, config ] of data) {
           gameTypes.set(id, serializer.normalize({
-            type: 'GameType',
-            data: { id, config },
+            $type: 'GameType',
+            $data: { id, config },
           }));
         }
 
