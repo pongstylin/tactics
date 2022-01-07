@@ -339,42 +339,42 @@ export default class Game extends ActiveModel {
   }
 
   fork(clientPara, { turnId, vs, as }) {
-    const forkGame = serializer.clone(this);
-    delete forkGame.collection;
+    const forkGameData = serializer.clone(this.data);
+    delete forkGameData.collection;
 
     if (turnId === undefined)
-      turnId = forkGame.state.currentTurnId;
-    if (turnId > forkGame.state.currentTurnId)
-      turnId = forkGame.state.currentTurnId;
+      turnId = forkGameData.state.currentTurnId;
+    if (turnId > forkGameData.state.currentTurnId)
+      turnId = forkGameData.state.currentTurnId;
     if (vs === undefined)
       vs = 'you';
 
     /*
      * If necessary, roll back to the previous playable turn.
      */
-    forkGame.state.revert(turnId);
-    forkGame.state.autoPass();
+    forkGameData.state.revert(turnId);
+    forkGameData.state.autoPass();
 
     while (turnId > 0) {
-      if (forkGame.state.winningTeams.length < 2) {
-        forkGame.state.revert(--turnId);
+      if (forkGameData.state.winningTeams.length < 2) {
+        forkGameData.state.revert(--turnId);
         continue;
       }
 
-      const draw = forkGame.state.autoPass();
+      const draw = forkGameData.state.autoPass();
       if (draw) {
-        forkGame.state.revert(--turnId);
+        forkGameData.state.revert(--turnId);
         continue;
       }
 
       break;
     }
 
-    forkGame.createdAt = new Date();
-    forkGame.id = uuid();
-    forkGame.forkOf = { gameId:this.data.id, turnId:forkGame.state.currentTurnId };
+    forkGameData.createdAt = new Date();
+    forkGameData.id = uuid();
+    forkGameData.forkOf = { gameId:this.data.id, turnId:forkGameData.state.currentTurnId };
 
-    const teams = forkGame.state.teams = forkGame.state.teams.map(t => t.fork());
+    const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
 
     if (vs === 'you') {
       if (
@@ -391,20 +391,20 @@ export default class Game extends ActiveModel {
 
       teams.forEach(t => t.join({}, clientPara));
 
-      forkGame.state.turnTimeLimit = null;
-      forkGame.state.start();
+      forkGameData.state.turnTimeLimit = null;
+      forkGameData.state.start();
     } else if (vs === 'private') {
       if (teams[as] === undefined)
         throw new ServerError(400, "Invalid 'as' option value");
 
       teams[as].join({}, clientPara);
 
-      forkGame.state.startedAt = null;
-      forkGame.state.turnStartedAt = null;
-      forkGame.state.turnTimeLimit = 86400;
+      forkGameData.state.startedAt = null;
+      forkGameData.state.turnStartedAt = null;
+      forkGameData.state.turnTimeLimit = 86400;
     }
 
-    return forkGame;
+    return new Game(forkGameData);
   }
 };
 
