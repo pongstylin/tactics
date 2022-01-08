@@ -11,10 +11,7 @@ export default class AuthClient extends Client {
       token: this._fetchToken(),
 
       // The client is ready once the token, if any, is refreshed.
-      whenReady: new Promise(resolve => this._resolveReady = () => {
-        this.whenReady.isResolved = true;
-        resolve();
-      }),
+      whenReady: new Promise(),
 
       _refreshTimeout: null,
     });
@@ -166,7 +163,7 @@ export default class AuthClient extends Client {
     }
 
     if (data.reason === 'new')
-      this._resolveReady();
+      this.whenReady.resolve();
   }
   _onClose() {
     this._clearRefreshTimeout();

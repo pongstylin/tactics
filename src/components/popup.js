@@ -5,10 +5,7 @@ class Popup {
     Object.assign(this, {
       el: null,
       options: null,
-      whenClosed: new Promise((resolve, reject) => {
-        this._resolveClosed = resolve;
-        this._rejectClosed = reject;
-      }),
+      whenClosed: new Promise(),
 
       _openTimeout: null,
     });
@@ -224,9 +221,9 @@ class Popup {
     if (this.options.onClose)
       this.options.onClose(event);
     if (event.error)
-      this._rejectClosed(event.error);
+      this.whenClosed.reject(event.error);
     else
-      this._resolveClosed(event.value);
+      this.whenClosed.resolve(event.value);
 
     this.el.remove();
     this.el = null;

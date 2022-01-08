@@ -13,11 +13,11 @@ export default class LocalTransport {
 
     Object.assign(this, {
       // Ready means the object is hydrated with state data.
-      whenReady: new Promise(resolve => this._resolveReady = resolve),
+      whenReady: new Promise(),
 
       // Started means the game has started (and possibly ended)
-      whenStarted: new Promise(resolve => this._resolveStarted = resolve),
-      whenTurnStarted: new Promise(resolve => this._resolveTurnStarted = resolve),
+      whenStarted: new Promise(),
+      whenTurnStarted: new Promise(),
 
       _worker:    worker,
       _resolvers: new Map(),
@@ -36,7 +36,7 @@ export default class LocalTransport {
           endedAt: null,
           winnerId: null,
         });
-        this._resolveStarted();
+        this.whenStarted.resolve();
         this._emit({ type:'change' });
       })
       .on('startTurn', ({ data }) => {
@@ -50,7 +50,7 @@ export default class LocalTransport {
           currentTeamId: data.teamId,
           actions: [],
         });
-        this._resolveTurnStarted();
+        this.whenTurnStarted.resolve();
         this._emit({ type:'change' });
       })
       .on('action', ({ data:actions }) => {
@@ -241,9 +241,9 @@ export default class LocalTransport {
     return this._call('undo', arguments);
   }
   restart() {
-    this.whenReady = new Promise(resolve => this._resolveReady = resolve);
-    this.whenStarted = new Promise(resolve => this._resolveStarted = resolve);
-    this.whenTurnStarted = new Promise(resolve => this._resolveTurnStarted = resolve);
+    this.whenReady = new Promise();
+    this.whenStarted = new Promise();
+    this.whenTurnStarted = new Promise();
 
     this._post({ type:'restart' });
   }
@@ -255,8 +255,8 @@ export default class LocalTransport {
    * Private methods that send messages to the worker.
    */
   _call(method, args) {
-    let resolvers = this._resolvers;
-    let id = ++counter;
+    const resolvers = this._resolvers;
+    const id = ++counter;
 
     this._post({
       type: 'call',
@@ -264,7 +264,10 @@ export default class LocalTransport {
       data: { id:id, method:method, args:Array.from(args) },
     });
 
-    return new Promise(resolve => resolvers.set(id, resolve));
+    const promise = new Promise();
+    resolvers.set(id, promise);
+
+    return promise;
   }
 
   _post(message) {
@@ -290,28 +293,28 @@ export default class LocalTransport {
   }
 
   _onMessage(message) {
-    let {type, data} = message;
+    const {type, data} = message;
 
     if (type === 'init') {
       this._data = { state:data };
-      this._resolveReady();
+      this.whenReady.resolve();
 
       if (data.startedAt)
-        this._resolveStarted();
+        this.whenStarted.resolve();
       if (data.turnStartedAt)
-        this._resolveTurnStarted();
+        this.whenTurnStarted.resolve();
     }
     else if (type === 'event')
       this._emit(data);
     else if (type === 'reply') {
-      let resolvers = this._resolvers;
+      const resolvers = this._resolvers;
 
-      let resolve = resolvers.get(data.id);
-      if (!resolve)
+      const promise = resolvers.get(data.id);
+      if (!promise)
         throw new Error('No such resolver id: '+data.id);
 
       resolvers.delete(data.id);
-      resolve(data.value);
+      promise.resolve(data.value);
     }
     else
       console.warn('Unhandled message', message);

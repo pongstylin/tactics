@@ -43,6 +43,7 @@ var unhandledrejectionListener = function (event) {
       reportData.error = getErrorData(error);
     else if (error !== undefined)
       reportData.error = error + '';
+    reportData.promise = promise.tags;
 
     report(reportData, now);
   } catch (e) {

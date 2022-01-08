@@ -1,3 +1,4 @@
+import 'plugins/promise.js';
 import config from 'config/client.js';
 import Version from 'models/Version.js';
 import { installUpdate } from 'client/Update.js';
@@ -37,9 +38,7 @@ export default class ServerSocket {
       _closeTimeout: null,
 
       _whenAuthorized: new Map(),
-      _authorizeRoutes: new Map(),
       _whenJoined: new Map(),
-      _joinRoutes: new Map(),
 
       // The close code when the socket was closed.
       closed: false,
@@ -98,14 +97,11 @@ export default class ServerSocket {
     const whenAuthorized = this._whenAuthorized;
 
     if (!whenAuthorized.has(serviceName)) {
-      const promise = new Promise((resolve, reject) => {
-        this._authorizeRoutes.set(serviceName, { resolve, reject });
-      });
-      promise.isResolved = false;
-      promise.ignoreConnectionReset = true;
+      const authorizePromise = new Promise();
+      authorizePromise.ignoreConnectionReset = true;
 
-      whenAuthorized.set(serviceName, promise);
-      return promise;
+      whenAuthorized.set(serviceName, authorizePromise);
+      return authorizePromise;
     }
 
     return whenAuthorized.get(serviceName);
@@ -115,14 +111,11 @@ export default class ServerSocket {
     const groupKey = `${serviceName}:${groupPath}`;
 
     if (!whenJoined.has(groupKey)) {
-      const promise = new Promise((resolve, reject) => {
-        this._joinRoutes.set(groupKey, { resolve, reject });
-      });
-      promise.isResolved = false;
-      promise.ignoreConnectionReset = true;
+      const joinPromise = new Promise();
+      joinPromise.ignoreConnectionReset = true;
 
-      whenJoined.set(groupKey, promise);
-      return promise;
+      whenJoined.set(groupKey, joinPromise);
+      return joinPromise;
     }
 
     return whenJoined.get(groupKey);
@@ -209,34 +202,33 @@ export default class ServerSocket {
   /*****************************************************************************
    * Public Methods for sending messages
    ****************************************************************************/
-  authorize(serviceName, data) {
+  async authorize(serviceName, data) {
     // No point in queueing authorization messages while offline.
     if (!this.isOpen)
       return;
 
-    const session = this._session;
     const requestId = this._enqueue('authorize', {
       service: serviceName,
       data: data,
     });
+    const responsePromise = new Promise();
 
-    return new Promise((resolve, reject) => {
-      session.responseRoutes.set(requestId, {resolve, reject});
-    }).then(() => {
-      const promise = this.whenAuthorized(serviceName);
-      promise.isResolved = true;
-      this._authorizeRoutes.get(serviceName).resolve();
-    }).catch(error => {
+    this._session.responseRoutes.set(requestId, responsePromise);
+
+    try {
+      await responsePromise;
+      this.whenAuthorized(serviceName).resolve();
+    } catch(error) {
       // If the connection is reset while authorizing, ignore it.  A new attempt
       // to authorize will be made when the connection is reestablished.
       if (error === 'Connection reset')
         return;
 
       throw error;
-    });
+    }
   }
 
-  join(serviceName, groupPath, params) {
+  async join(serviceName, groupPath, params) {
     const messageBody = {
       service: serviceName,
       group: groupPath,
@@ -245,36 +237,33 @@ export default class ServerSocket {
     if (params)
       messageBody.params = params;
 
+    const groupKey = `${serviceName}:${groupPath}`;
     const requestId = this._enqueue('join', messageBody);
+    const responsePromise = new Promise();
 
-    return new Promise((resolve, reject) => {
-      this._session.responseRoutes.set(requestId, {resolve, reject});
-    }).then(data => {
-      const groupKey = `${serviceName}:${groupPath}`;
-      const promise = this.whenJoined(serviceName, groupPath);
-      promise.isResolved = true;
-      this._joinRoutes.get(groupKey).resolve();
+    this._session.responseRoutes.set(requestId, responsePromise);
 
-      return data;
-    });
+    const data = await responsePromise;
+    this.whenJoined(serviceName, groupKey).resolve();
+
+    return data;
   }
-  leave(serviceName, groupPath) {
+  async leave(serviceName, groupPath) {
     const messageBody = {
       service: serviceName,
       group: groupPath,
     };
 
     const requestId = this._enqueue('leave', messageBody);
+    const responsePromise = new Promise();
 
-    return new Promise((resolve, reject) => {
-      this._session.responseRoutes.set(requestId, {resolve, reject});
-    }).then(data => {
-      const groupKey = `${serviceName}:${groupPath}`;
-      this._joinRoutes.delete(groupKey);
-      this._whenJoined.delete(groupKey);
+    this._session.responseRoutes.set(requestId, responsePromise);
 
-      return data;
-    });
+    const data = await responsePromise;
+    const groupKey = `${serviceName}:${groupPath}`;
+    this._whenJoined.delete(groupKey);
+
+    return data;
   }
   emit(serviceName, groupPath, eventType, data) {
     return this.whenJoined(serviceName, groupPath).then(() => {
@@ -299,10 +288,11 @@ export default class ServerSocket {
       method: methodName,
       args: args,
     });
+    const responsePromise = new Promise();
 
-    return new Promise((resolve, reject) => {
-      this._session.responseRoutes.set(requestId, {resolve, reject});
-    });
+    this._session.responseRoutes.set(requestId, responsePromise);
+
+    return responsePromise;
   }
 
   /*
@@ -451,23 +441,21 @@ export default class ServerSocket {
   }
   _resetSession(session = this._session) {
     // Authorized services are no longer authorized.
-    this._authorizeRoutes.forEach(route => route.reject('Connection reset'));
-    this._authorizeRoutes.clear();
+    this._whenAuthorized.forEach(promise => promise.reject('Connection reset'));
     this._whenAuthorized.clear();
 
     // Joined groups are no longer joined.
-    this._joinRoutes.forEach(route => route.reject('Connection reset'));
-    this._joinRoutes.clear();
+    this._whenJoined.forEach(promise => promise.reject('Connection reset'));
     this._whenJoined.clear();
 
     // Reset the session
     session.responseRoutes.forEach(route => route.reject('Connection reset'));
+    session.responseRoutes.clear();
 
     session.id = null;
     session.serverMessageId = 0;
     session.clientMessageId = 0;
     session.outbox.length = 0;
-    session.responseRoutes.clear();
   }
 
   _emit(event) {

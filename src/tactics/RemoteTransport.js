@@ -14,14 +14,11 @@ export default class RemoteTransport {
       playerStatus: new Map(),
 
       // Ready means the object is hydrated with game data.
-      whenReady: new Promise((resolve, reject) => {
-        this._resolveReady = resolve;
-        this._rejectReady = reject;
-      }),
+      whenReady: new Promise(),
 
       // Started means the game has started (and possibly ended)
-      whenStarted: new Promise(resolve => this._resolveStarted = resolve),
-      whenTurnStarted: new Promise(resolve => this._resolveTurnStarted = resolve),
+      whenStarted: new Promise(),
+      whenTurnStarted: new Promise(),
 
       _data: null,
     });
@@ -69,9 +66,9 @@ export default class RemoteTransport {
       const playerIds = new Set(gameData.state.teams.map(t => t.playerId));
       const playerStatus = [ ...playerIds ].map(playerId => ({ playerId, status:'offline' }));
       this._emit({ type:'playerStatus', data:playerStatus });
-      this._resolveReady();
-      this._resolveStarted();
-      this._resolveTurnStarted();
+      this.whenReady.resolve();
+      this.whenStarted.resolve();
+      this.whenTurnStarted.resolve();
     }
     else
       this._init(gameId);
@@ -211,18 +208,18 @@ export default class RemoteTransport {
       this._emit({ type:'playerStatus', data:playerStatus });
 
       this._data = gameData;
-      this._resolveReady();
+      this.whenReady.resolve();
 
       if (gameData.state.startedAt)
-        this._resolveStarted();
+        this.whenStarted.resolve();
       if (gameData.state.turnStartedAt)
-        this._resolveTurnStarted();
+        this.whenTurnStarted.resolve();
     }).catch(error => {
       if (error === 'Connection reset')
         return this._init(gameId);
 
       // The error is assumed to be permanent.
-      this._rejectReady(error);
+      this.whenReady.reject(error);
     });
   }
   _resume() {
@@ -282,9 +279,9 @@ export default class RemoteTransport {
           this._data.state.actions.push(...newActions);
 
         if (!oldStarted && this._data.state.startedAt)
-          this._resolveStarted();
+          this.whenStarted.resolve();
         if (!oldTurnStarted && this._data.state.turnStartedAt)
-          this._resolveTurnStarted();
+          this.whenTurnStarted.resolve();
 
         this._emit({ type:'change' });
       } else if (newActions) {
@@ -328,7 +325,7 @@ export default class RemoteTransport {
           teams: data.teams,
           units: data.units,
         });
-        this._resolveStarted();
+        this.whenStarted.resolve();
         this._emit({ type:'change' });
       })
       .on('startTurn', ({ data }) => {
@@ -356,7 +353,7 @@ export default class RemoteTransport {
           currentTeamId: data.teamId,
           actions: [],
         });
-        this._resolveTurnStarted();
+        this.whenTurnStarted.resolve();
         this._emit({ type:'change' });
       })
       .on('action', ({ data:actions }) => {

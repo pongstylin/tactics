@@ -6,10 +6,7 @@ export default class Modal {
       el: null,
       options: null,
       data,
-      whenClosed: new Promise((resolve, reject) => {
-        this._resolveClosed = resolve;
-        this._rejectClosed = reject;
-      }),
+      whenClosed: new Promise(),
     });
     if (options)
       this.setOptions(options);
@@ -115,7 +112,7 @@ export default class Modal {
 
     if (this.options.onClose)
       this.options.onClose();
-    this._resolveClosed();
+    this.whenClosed.resolve();
 
     this.destroy();
   }

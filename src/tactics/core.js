@@ -40,7 +40,6 @@ window.Tactics = (function () {
     ServerError: ServerError,
     loadedUnitTypes: new Set(),
     _setupMap: new Map(),
-    _resolveSetup: null,
 
     load: async function (unitTypes, cb = () => {}) {
       if (!Array.isArray(unitTypes))
@@ -171,7 +170,7 @@ window.Tactics = (function () {
 
       let progress = new Progress();
       let setup = this._setupMap.get(gameTypeId);
-      let promise = new Promise(r => this._resolveSetup = r);
+      let promise = new Promise();
 
       if (!setup) {
         progress.percent = 0;
@@ -196,7 +195,7 @@ window.Tactics = (function () {
         let set = await gameClient.getPlayerSet(gameType.id, setName);
         setup = new Setup({ colorId:'Red', set }, gameType);
         setup.on('back', () => {
-          this._resolveSetup(false);
+          promise.resolve(false);
 
           setup.reset();
         });
@@ -213,7 +212,7 @@ window.Tactics = (function () {
           gameClient.savePlayerSet(gameType.id, setName, set).then(() => {
             notice.close();
 
-            this._resolveSetup(true);
+            promise.resolve(true);
           });
         });
 

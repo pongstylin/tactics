@@ -21,8 +21,8 @@ export default class Progress {
     }
 
     Object.assign(this, {
-      root:     root,
-      whenComplete: new Promise(resolve => this._resolveComplete = resolve),
+      root,
+      whenComplete: new Promise(),
     });
   }
 
@@ -43,11 +43,10 @@ export default class Progress {
     if (percent === 1 && !whenComplete.isResolved) {
       this._emit({ type:'complete' });
 
-      whenComplete.isResolved = true;
-      this._resolveComplete();
+      this.whenComplete.resolve();
     }
     else if (whenComplete.isResolved) {
-      this.whenComplete = new Promise(resolve => this._resolveComplete = resolve);
+      this.whenComplete = new Promise();
     }
   }
   set message(message) {

@@ -29,7 +29,6 @@ const state = {
   lobby: {},
   public: {},
 };
-window.test = state;
 const fillArenaQueueMap = new Map();
 
 setCurrentTab();
@@ -74,7 +73,6 @@ const avatarsPromise = Tactics.load([ 'avatars' ]).then(() => {
   };
 
   renderLobby();
-  avatarsPromise.isResolved = true;
 });
 
 const renderer = new PIXI.Renderer();
