@@ -15,6 +15,7 @@ if (!self.Promise.isEnhanced) {
     constructor(fn, tags = {}) {
       const data = {
         value: undefined,
+        bound: {},
         isResolved: false,
         isRejected: false,
         isFinalized: false,
@@ -28,16 +29,18 @@ if (!self.Promise.isEnhanced) {
         data.rejector = reject;
       });
 
+      data.bound.resolver = this.resolve.bind(this);
+      data.bound.rejector = this.reject.bind(this);
       this._data = data;
       if (fn)
-        fn(this.resolve.bind(this), this.reject.bind(this));
+        fn(data.bound.resolver, data.bound.rejector);
 
       return this;
     }
 
     static wrap(nativePromise, tags) {
       return new EnhancedPromise(
-        (resolve, reject) => nativePromise.then(resolve).catch(reject),
+        (resolve, reject) => nativePromise.then(resolve, reject),
         tags,
       );
     }
@@ -50,17 +53,23 @@ if (!self.Promise.isEnhanced) {
     }
     resolve(value) {
       const data = this._data;
+      if (typeof value?.then === 'function')
+        return value.then(data.bound.resolver, data.bound.rejector);
+
       data.isResolved = data.isFinalized = true;
-      data.value = value;
-      data.resolver(value);
+      data.resolver(data.value = value);
+
+      return value;
     }
     reject(value) {
       const data = this._data;
+
       data.tags.rejectedAt = new Date();
       data.tags.rejectedStack = new Error().stack;
       data.isRejected = data.isFinalized = true;
-      data.value = value;
-      data.rejector(value);
+      data.rejector(data.value = value);
+
+      return value;
     }
 
     get value() {
