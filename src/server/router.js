@@ -189,6 +189,7 @@ schema.oneOf.forEach((schema, i) => {
 });
 
 const sessions = new Map();
+const requests = new Set();
 
 /*
  * This function is called to route a new connection.
@@ -695,6 +696,11 @@ async function onAuthorizeMessage(client, message) {
   if (!service)
     throw new ServerError(404, 'No such service');
 
+  const requestKey = `authorize:${body.service}`;
+  if (requests.has(requestKey))
+    throw new ServerError(409, 'Concurrent authorization conflict');
+  requests.add(requestKey);
+
   try {
     service.will(client, message.type, body);
 
@@ -706,6 +712,8 @@ async function onAuthorizeMessage(client, message) {
   } catch (error) {
     sendErrorResponse(client, requestId, error);
   }
+
+  requests.delete(requestKey);
 }
 
 async function onEventMessage(client, message) {
@@ -778,6 +786,11 @@ async function onJoinMessage(client, message) {
   if (group && group.has(client.id))
     throw new ServerError(409, 'Already joined group');
 
+  const requestKey = `join:${groupId}`;
+  if (requests.has(requestKey))
+    throw new ServerError(409, 'Concurrent join conflict');
+  requests.add(requestKey);
+
   try {
     service.will(client, message.type, body);
 
@@ -789,6 +802,8 @@ async function onJoinMessage(client, message) {
   } catch (error) {
     sendErrorResponse(client, requestId, error);
   }
+
+  requests.delete(requestKey);
 }
 
 async function onLeaveMessage(client, message) {
