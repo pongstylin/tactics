@@ -244,7 +244,7 @@ export default class ServerSocket {
     this._session.responseRoutes.set(requestId, responsePromise);
 
     const data = await responsePromise;
-    this.whenJoined(serviceName, groupKey).resolve();
+    this.whenJoined(serviceName, groupPath).resolve();
 
     return data;
   }
