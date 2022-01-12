@@ -41,7 +41,7 @@ export default class Setup {
     // Clip unused empty space part #1
     let width = Tactics.width - TILE_WIDTH*2;
     let height = Tactics.height - TILE_HEIGHT*1.5;
-    let renderer = new Renderer({ width, height, transparent:true });
+    let renderer = new Renderer({ width, height, backgroundAlpha:0 });
 
     // Let's not go crazy with the move events.
     renderer.plugins.interaction.moveWhenInside = true;
