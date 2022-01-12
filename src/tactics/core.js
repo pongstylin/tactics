@@ -168,11 +168,11 @@ window.Tactics = (function () {
         gameTypeId = gameType.id;
       }
 
-      let progress = new Progress();
-      let setup = this._setupMap.get(gameTypeId);
-      let promise = new Promise();
+      const progress = new Progress();
+      const setup = this._setupMap.get(gameTypeId) ?? {};
+      setup.whenComplete = new Promise();
 
-      if (!setup) {
+      if (!setup.component) {
         progress.percent = 0;
         progress.message = 'Loading set...';
         progress.show();
@@ -192,38 +192,37 @@ window.Tactics = (function () {
         // Allow the message to show
         await sleep(200);
 
-        let set = await gameClient.getPlayerSet(gameType.id, setName);
-        setup = new Setup({ colorId:'Red', set }, gameType);
-        setup.on('back', () => {
-          promise.resolve(false);
+        const set = await gameClient.getPlayerSet(gameType.id, setName);
+        setup.component = new Setup({ colorId:'Red', set }, gameType)
+          .on('back', () => {
+            setup.whenComplete.resolve(false);
+            setup.component.reset();
+          })
+          .on('save', ({ data:set }) => {
+            let notice = popup({
+              message: 'Saving to server...',
+              buttons: [],
+              closeOnCancel: false,
+              autoOpen: 1000, // open after one second
+            });
 
-          setup.reset();
-        });
-        setup.on('save', ({ data:set }) => {
-          let notice = popup({
-            message: 'Saving to server...',
-            buttons: [],
-            closeOnCancel: false,
-            autoOpen: 1000, // open after one second
+            setup.component.set = set;
+
+            gameClient.savePlayerSet(gameType.id, setName, set).then(() => {
+              notice.close();
+
+              setup.whenComplete.resolve(true);
+            });
           });
 
-          setup.set = set;
-
-          gameClient.savePlayerSet(gameType.id, setName, set).then(() => {
-            notice.close();
-
-            promise.resolve(true);
-          });
-        });
-
-        this._setupMap.set(gameType.id, setup);
+        this._setupMap.set(gameTypeId, setup);
 
         progress.hide();
       }
 
-      setup.show();
+      setup.component.show();
 
-      return promise;
+      return setup.whenComplete;
     },
     draw: function (data) {
       var types = {C:'Container',G:'Graphics',T:'Text'};
