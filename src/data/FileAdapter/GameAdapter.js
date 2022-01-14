@@ -402,7 +402,8 @@ export default class extends FileAdapter {
             gameSummaryList.set(game.id, summary);
             if (game.state.endedAt)
               this._pruneGameSummaryList(gameSummaryList);
-          }
+          } else if (gameSummaryList.has(game.id))
+            gameSummaryList.delete(game.id);
         } else
           gameSummaryList.set(game.id, summary);
 

@@ -1075,7 +1075,7 @@ export default class GameService extends Service {
     for (const [ player, oldStats ] of collectionPara.stats) {
       const stats = this._getGameSummaryListStats(collection, player);
       if (stats.waiting === oldStats.waiting && stats.active === oldStats.active)
-        return;
+        continue;
 
       collectionPara.stats.set(player, stats);
 
