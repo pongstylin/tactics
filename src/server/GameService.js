@@ -1025,12 +1025,10 @@ export default class GameService extends Service {
     const stats = { waiting:0, active:0 };
 
     for (const gameSummary of collection.values()) {
-      if (!gameSummary.startedAt && player?.isBlockedBy(gameSummary.createdBy))
-        continue;
-
-      if (!gameSummary.startedAt)
-        stats.waiting++;
-      else if (!gameSummary.endedAt)
+      if (!gameSummary.startedAt) {
+        if (!player?.isBlockedBy(gameSummary.createdBy))
+          stats.waiting++;
+      } else if (!gameSummary.endedAt)
         stats.active++;
     }
 

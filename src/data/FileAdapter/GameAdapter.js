@@ -394,7 +394,7 @@ export default class extends FileAdapter {
 
         // Avoid adding and immediately removing a game to the main list.
         if (game.state.startedAt) {
-          const clone = gameSummaryList.clone();
+          const clone = serializer.clone(gameSummaryList);
           clone.set(game.id, summary);
           this._pruneGameSummaryList(clone);
 
