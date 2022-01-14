@@ -392,9 +392,19 @@ export default class extends FileAdapter {
       for (const gameSummaryList of gameSummaryLists) {
         if (!gameSummaryList) continue;
 
-        gameSummaryList.set(game.id, summary);
-        if (game.state.startedAt)
-          this._pruneGameSummaryList(gameSummaryList);
+        // Avoid adding and immediately removing a game to the main list.
+        if (game.state.startedAt) {
+          const clone = gameSummaryList.clone();
+          clone.set(game.id, summary);
+          this._pruneGameSummaryList(clone);
+
+          if (clone.has(game.id)) {
+            gameSummaryList.set(game.id, summary);
+            if (game.state.endedAt)
+              this._pruneGameSummaryList(gameSummaryList);
+          }
+        } else
+          gameSummaryList.set(game.id, summary);
 
         if (syncingPlayerGames.has(gameSummaryList.id)) {
           const sync = syncingPlayerGames.get(gameSummaryList.id);
