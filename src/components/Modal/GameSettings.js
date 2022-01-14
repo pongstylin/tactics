@@ -16,12 +16,20 @@ export default class GameSettings extends Modal {
       `;
     }
 
+    const timeLimit = data.game.state.turnTimeLimit;
+    const timeLimitLabel =
+      timeLimit === 30 ? 'Blitz' :
+      timeLimit === 120 ? 'Standard' :
+      timeLimit === 86400 ? '1 Day' :
+      timeLimit === 604800 ? '1 Week' : 'None';
+
     options.title = 'Game Settings';
     options.content = `
       ${fork}
       <DIV class="info">
         <DIV>Game Style: ${data.gameType.name}</DIV>
         <DIV>Blocking System: ${data.game.state.randomHitChance ? 'Random (Luck)' : 'Predictable (No Luck)'}</DIV>
+        <DIV>Turn Time Limit: ${timeLimitLabel}</DIV>
       </DIV>
       <DIV class="settings">
         <DIV class="row audio">
@@ -46,7 +54,6 @@ export default class GameSettings extends Modal {
         </DIV>
       </DIV>
     `;
-
 
     super(options, data);
 
@@ -90,7 +97,7 @@ export default class GameSettings extends Modal {
 
   detectSettings() {
     let app = document.querySelector('#app');
-    let settings = this.settings;
+    let settings = this.data.settings;
 
     settings.fullscreen = fullscreen.isEnabled();
 
@@ -116,14 +123,14 @@ export default class GameSettings extends Modal {
   }
 
   toggleAudio() {
-    this.settings.audio = !this.settings.audio;
+    this.data.settings.audio = !this.data.settings.audio;
     this.save();
 
-    Howler.mute(!this.settings.audio);
+    Howler.mute(!this.data.settings.audio);
   }
 
   setGameSpeed(gameSpeed) {
-    this.settings.gameSpeed = gameSpeed;
+    this.data.settings.gameSpeed = gameSpeed;
     this.save();
 
     if (gameSpeed === 'auto')
@@ -133,13 +140,13 @@ export default class GameSettings extends Modal {
   }
 
   toggleFullscreen() {
-    this.settings.fullscreen = !this.settings.fullscreen;
+    this.data.settings.fullscreen = !this.data.settings.fullscreen;
 
     fullscreen.toggle();
   }
 
   toggleBarPosition() {
-    this.settings.barPosition = this.settings.barPosition === 'left' ? 'right' : 'left';
+    this.data.settings.barPosition = this.data.settings.barPosition === 'left' ? 'right' : 'left';
     this.save();
 
     let app = document.querySelector('#app');
@@ -148,13 +155,14 @@ export default class GameSettings extends Modal {
   }
 
   save() {
-    let settings = this.settings;
+    const thisSettings = this.data.settings;
+    const settings = Object.assign(JSON.parse(localStorage.getItem('settings') ?? '{}'), {
+      audio: thisSettings.audio,
+      gameSpeed: thisSettings.gameSpeed,
+      barPosition: thisSettings.barPosition,
+    });
 
-    localStorage.setItem('settings', JSON.stringify({
-      audio: settings.audio,
-      gameSpeed: settings.gameSpeed,
-      barPosition: settings.barPosition,
-    }));
+    localStorage.setItem('settings', JSON.stringify(settings));
   }
   restore() {
     let settings = localStorage.getItem('settings');
@@ -187,7 +195,7 @@ export default class GameSettings extends Modal {
       };
     }
 
-    this.settings = settings;
+    this.data.settings = settings;
   }
 
   destroy() {

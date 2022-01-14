@@ -118,8 +118,7 @@ export default class GameService extends Service {
           'randomHitChance?': 'boolean',
           'strictUndo?': 'boolean',
           'autoSurrender?': 'boolean',
-          'turnTimeBuffer?': `const(0)`,
-          'turnTimeLimit?': 'enum([ 30, 120, 86400, 604800 ])',
+          'turnTimeLimit?': `enum([ 'blitz', 'standard', 86400, 604800 ])`,
           'tags?': 'game:tags',
         },
         forkOptions: unionType(
@@ -359,6 +358,14 @@ export default class GameService extends Service {
 
     gameOptions.createdBy = playerId;
     gameOptions.type = gameTypeId;
+
+    if (gameOptions.turnTimeLimit === 'standard') {
+      gameOptions.turnTimeLimit = 120;
+      gameOptions.turnTimeBuffer = 300;
+    } else if (gameOptions.turnTimeLimit === 'blitz') {
+      gameOptions.turnTimeLimit = 30;
+      gameOptions.turnTimeBuffer = 120;
+    }
 
     const game = Game.create({
       ...gameOptions,

@@ -548,6 +548,50 @@
     .arena.waiting:not(.disabled) .arena-shape:hover .arena-button-bottom {
       display: block;
     }
+    .arena .label {
+      --notchSize: 4px;
+
+      position: absolute;
+      top: 58px;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+
+      background-color: #b08d57;
+      clip-path: polygon(
+        0% var(--notchSize),
+        var(--notchSize) 0%,
+        calc(100% - var(--notchSize)) 0%,
+        100% var(--notchSize),
+        100% calc(100% - var(--notchSize)),
+        calc(100% - var(--notchSize)) 100%,
+        var(--notchSize) 100%,
+        0 calc(100% - var(--notchSize))
+      );
+      padding: 0 6px;
+    }
+    .arena .label::before {
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      z-index: -1;
+
+      width: calc(100% - 2px);
+      height: calc(100% - 2px);
+      content: '';
+
+      background-color: black;
+      clip-path: polygon(
+        0% var(--notchSize),
+        var(--notchSize) 0%,
+        calc(100% - var(--notchSize)) 0%,
+        100% var(--notchSize),
+        100% calc(100% - var(--notchSize)),
+        calc(100% - var(--notchSize)) 100%,
+        var(--notchSize) 100%,
+        0 calc(100% - var(--notchSize))
+      );
+    }
     FOOTER {
       display: flex;
       justify-content: center;

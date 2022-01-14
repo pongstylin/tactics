@@ -13,21 +13,19 @@ export default class GameSummary {
 
   static create(gameType, game) {
     const createdAt = game.createdAt;
-    const startedAt = game.state.startedAt;
-    const endedAt   = game.state.endedAt;
-    const teams   = game.state.teams;
+    const turnStartedAt = game.state.turnStartedAt;
+    const endedAt = game.state.endedAt;
+    const teams = game.state.teams;
     const actions = game.state.actions;
-    const turns   = game.state.turns;
+    const turns = game.state.turns;
 
     let updatedAt;
     if (endedAt)
       updatedAt = endedAt;
     else if (actions.length)
       updatedAt = actions.last.createdAt;
-    else if (turns.length)
-      updatedAt = turns.last.actions.last.createdAt;
     else
-      updatedAt = startedAt || createdAt;
+      updatedAt = turnStartedAt || createdAt;
 
     const data:any = {
       id: game.id,
@@ -37,12 +35,13 @@ export default class GameSummary {
       createdBy: game.createdBy,
       createdAt,
       updatedAt,
-      startedAt,
+      startedAt: game.state.startedAt,
       endedAt,
       randomFirstTurn: game.state.randomFirstTurn,
       randomHitChance: game.state.randomHitChance,
-      turnStartedAt: game.state.turnStartedAt,
+      turnStartedAt,
       turnTimeLimit: game.state.turnTimeLimit,
+      currentTimeLimit: game.state.getTurnTimeLimit(),
       isFork: game.isFork,
       teams: teams.map(t => t && {
         createdAt: t.createdAt,
@@ -55,7 +54,7 @@ export default class GameSummary {
 
     if (endedAt)
       data.winnerId = game.state.winnerId;
-    else if (startedAt)
+    else if (turnStartedAt)
       data.currentTeamId = game.state.currentTeamId;
 
     return new GameSummary(data);
@@ -106,9 +105,6 @@ export default class GameSummary {
   get startedAt() {
     return this.data.startedAt;
   }
-  get turnStartedAt() {
-    return this.data.turnStartedAt;
-  }
   get endedAt() {
     return this.data.endedAt;
   }
@@ -124,6 +120,20 @@ export default class GameSummary {
   }
   set creatorACL(creatorACL) {
     this.data.creatorACL = creatorACL;
+  }
+
+  getTurnTimeRemaining(now = Date.now()) {
+    if (!this.data.startedAt || this.data.endedAt)
+      return false;
+    if (!this.data.turnTimeLimit)
+      return Infinity;
+
+    const turnTimeLimit = this.data.currentTimeLimit;
+    const turnTimeout = (+this.data.turnStartedAt + turnTimeLimit*1000) - now;
+    const actionTimeLimit = 10000;
+    const actionTimeout = (+this.data.updatedAt + actionTimeLimit) - now;
+
+    return Math.max(0, turnTimeout, actionTimeout);
   }
 
   toJSON() {

@@ -65,8 +65,8 @@ export default class GameState {
         randomHitChance: true,
         strictUndo: false,
         autoSurrender: false,
-        turnTimeBuffer: null,
         turnTimeLimit: null,
+        turnTimeBuffer: null,
       },
       stateData,
       {
@@ -89,6 +89,14 @@ export default class GameState {
     });
 
     return gameState;
+  }
+  static fromJSON(stateData) {
+    for (const turn of stateData.turns) {
+      if (turn.timeBuffer === undefined)
+        turn.timeBuffer = 0;
+    }
+
+    return new GameState(stateData);
   }
 
   /*****************************************************************************
@@ -286,6 +294,10 @@ export default class GameState {
       this.startedAt = new Date();
       this.turnStartedAt = this.startedAt;
 
+      if (this.turnTimeBuffer)
+        for (const team of this.teams)
+          team.turnTimeBuffer = 0;
+
       // First turn must be passed, but at least recovery drops.
       // The second turn might be passed, too, if all units are in recovery.
       // Even after auto passing, the game and next turn starts at the same time.
@@ -306,6 +318,7 @@ export default class GameState {
           startedAt: this.turnStartedAt,
           turnId: this.currentTurnId,
           teamId: this.currentTeamId,
+          timeBuffer: this.currentTeam.turnTimeBuffer,
         },
       });
     }
@@ -321,6 +334,7 @@ export default class GameState {
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
       turnTimeLimit: this.turnTimeLimit,
+      turnTimeBuffer: this.turnTimeBuffer,
 
       teams: this.teams.map(t => t?.getData(!!this.startedAt)),
 
@@ -345,6 +359,7 @@ export default class GameState {
         startedAt: this.turnStartedAt,
         units: this.units,
         actions: this.actions,
+        timeBuffer: this.currentTeam.turnTimeBuffer,
       };
     else if (!this.turns[turnId])
       return null;
@@ -565,6 +580,7 @@ export default class GameState {
           startedAt: this.turnStartedAt,
           turnId: this.currentTurnId,
           teamId: this.currentTeamId,
+          timeBuffer: this.currentTeam.turnTimeBuffer,
         },
       });
   }
@@ -662,6 +678,49 @@ export default class GameState {
     }
   }
 
+  getTurnTimeLimit(timeBuffer = this.currentTeam.turnTimeBuffer) {
+    if (!this.startedAt || !this.turnTimeLimit || this.endedAt)
+      return;
+
+    let turnTimeLimit = this.turnTimeLimit;
+    if (this.turnTimeBuffer) {
+      if (this.teamHasPlayed(this.currentTeam))
+        turnTimeLimit += timeBuffer;
+      else
+        turnTimeLimit = this.turnTimeBuffer;
+    }
+
+    return turnTimeLimit;
+  }
+  getTeamFirstTurnId(team) {
+    const numTeams = this.teams.length;
+    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
+    const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
+
+    return team.id + (numTeams * Math.max(waitTurns, skipTurns));
+  }
+  teamHasPlayed(team) {
+    if ([ 'truce', 'draw', team.id ].includes(this.winnerId))
+      return true;
+
+    const firstTurnId = this.getTeamFirstTurnId(team);
+    if (this.currentTurnId < firstTurnId)
+      return false;
+
+    /*
+     * If the game ended on the turn after this team's first turn, then it
+     * is possible that this team surrendered.  If so, turn not played.
+     */
+    const actions = this.currentTurnId === firstTurnId
+      ? this.actions
+      : this.turns[firstTurnId].actions;
+    const playedAction = actions.find(a => a.type !== 'surrender' && !a.forced);
+    if (!playedAction)
+      return false;
+
+    return true;
+  }
+
   /*
    * Determine if provided team may request an undo.
    * Also indicate if approval should be required of opponents.
@@ -724,11 +783,8 @@ export default class GameState {
       }
 
       // Require approval if the turn time limit was reached.
-      if (this.turnTimeLimit) {
-        let turnTimeout = turnData.startedAt.getTime() + this.turnTimeLimit*1000;
-        if (Date.now() > turnTimeout)
-          return approve;
-      }
+      if (this._getTurnTimeRemaining(turnId, 5000) === 0)
+        return approve;
 
       break;
     }
@@ -829,11 +885,8 @@ export default class GameState {
         }
 
         // Require approval if the turn time limit was reached.
-        if (!approved && this.turnTimeLimit) {
-          let turnTimeout = turnData.startedAt.getTime() + this.turnTimeLimit*1000;
-          if (Date.now() > turnTimeout)
-            return false;
-        }
+        if (!approved && this._getTurnTimeRemaining(turnId, 5000) === 0)
+          return false;
 
         // Keep lucky actions if not approved.
         this.revert(turnId, !approved);
@@ -887,6 +940,7 @@ export default class GameState {
         startedAt: this.turnStartedAt,
         turnId: this.currentTurnId,
         teamId: this.currentTeamId,
+        timeBuffer: this.currentTeam.turnTimeBuffer,
         actions: this.actions,
         units: this.units,
       },
@@ -897,18 +951,25 @@ export default class GameState {
    * Intended for serializing game data for persistent storage.
    */
   toJSON() {
+    const turns = this.turns.slice().map(t => ({ ...t }));
+    for (const turn of turns) {
+      if (turn.timeBuffer === 0)
+        delete turn.timeBuffer;
+    }
+
     return {
       type: this.type,
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
       turnTimeLimit: this.turnTimeLimit,
+      turnTimeBuffer: this.turnTimeBuffer,
 
       teams: this.teams,
 
       startedAt: this.startedAt,
 
       turnStartedAt: this.turnStartedAt,
-      turns: this.turns,
+      turns,
       units: this.units,
       actions: this.actions,
 
@@ -920,6 +981,29 @@ export default class GameState {
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
+  /*
+   * Normally, after submitting an action, you are granted at least 10 seconds
+   * to make another action.  The exception is when you wish to undo.  You only
+   * get 5 seconds (passed as an argument) to undo.
+   */
+  _getTurnTimeRemaining(turnId = this.currentTurnId, actionTimeLimit = 10000) {
+    if (!this.startedAt || this.endedAt)
+      return false;
+    if (!this.turnTimeLimit)
+      return Infinity;
+
+    const turn = this.getTurnData(turnId);
+    const turnTimeLimit = this.getTurnTimeLimit(turn.timeBuffer);
+
+    const now = Date.now();
+    const lastAction = turn.actions.last;
+    const lastActionAt = lastAction ? +lastAction.createdAt : 0;
+    const actionTimeout = (lastActionAt + actionTimeLimit) - now;
+    const turnTimeout = (+turn.startedAt + turnTimeLimit*1000) - now;
+
+    return Math.max(0, actionTimeout, turnTimeout);
+  }
+
   /*
    * End turn results include:
    *   The selected unit mRecovery is incremented based on their actions.
@@ -1043,15 +1127,8 @@ export default class GameState {
       if (team !== this.currentTeam)
         throw new ServerError(403, "It is not the team's turn");
 
-      const now = Date.now();
-      const lastAction = this._actions.last;
-      const lastActionAt = lastAction ? lastAction.createdAt.getTime() : 0;
-      const actionTimeout = (lastActionAt + 10000) - now;
-      const turnTimeout = (this.turnStartedAt.getTime() + this.turnTimeLimit*1000) - now;
-      const timeout = Math.max(actionTimeout, turnTimeout);
-
       // The team's timeout must be exceeded.
-      if (timeout > 0)
+      if (this._getTurnTimeRemaining() > 0)
         throw new ServerError(403, 'The time limit has not been exceeded');
     }
 
@@ -1124,7 +1201,7 @@ export default class GameState {
 
   _resetTurn() {
     // Get and return the (encoded) actions that were reset.
-    let actions = this.actions;
+    const actions = this.actions;
 
     this._board.setState(this.units, this.teams);
     this._actions.length = 0;
@@ -1132,15 +1209,30 @@ export default class GameState {
     return actions;
   }
   _pushHistory() {
-    let board = this._board;
-
-    this.turns.push({
+    const board = this._board;
+    const actions = this.actions;
+    const turnEndedAt = actions.last.createdAt;
+    const team = this.currentTeam;
+    const firstTurnId = this.getTeamFirstTurnId(team);
+    const turn = {
       startedAt: this.turnStartedAt,
       units: this.units,
-      actions: this.actions,
-    });
+      actions,
+      timeBuffer: team.turnTimeBuffer,
+    };
 
-    this.turnStartedAt = this.actions.last.createdAt;
+    if (this.turnTimeBuffer && this.currentTurnId > firstTurnId) {
+      const turnTimeBuffer = this.turnTimeBuffer;
+      const turnTimeLimit = this.turnTimeLimit;
+      const elapsed = Math.floor((turnEndedAt - turn.startedAt) / 1000);
+      if (elapsed > turnTimeLimit)
+        team.turnTimeBuffer = Math.max(0, team.turnTimeBuffer - (elapsed - turnTimeLimit));
+      else
+        team.turnTimeBuffer = Math.min(turnTimeBuffer, team.turnTimeBuffer + Math.max(0, (turnTimeLimit / 2) - elapsed));
+    }
+
+    this.turns.push(turn);
+    this.turnStartedAt = turnEndedAt;
     this.units = board.getState();
     this._actions.length = 0;
 
@@ -1151,13 +1243,13 @@ export default class GameState {
    * 'turnId' can be used to revert to any previous turn by ID.
    */
   _popHistory(turnId) {
-    let turns = this.turns;
+    const turns = this.turns;
     if (turns.length === 0) return;
 
     if (turnId === undefined)
       turnId = turns.length - 1;
 
-    let turnData = turns[turnId];
+    const turnData = turns[turnId];
 
     // Truncate the turn history.
     turns.length = turnId;
@@ -1169,6 +1261,20 @@ export default class GameState {
       units: turnData.units,
       _actions: [],
     });
+    this.currentTeam.turnTimeBuffer = turnData.timeBuffer;
+
+    /*
+     * Sync up other teams' turn time buffers just in case more than one turn
+     * was popped.
+     */
+    const numTeams = this.teams.length;
+    for (let tId = turnId - numTeams + 1; tId < turnId; tId++) {
+      const team = this.teams[tId % numTeams];
+      if (tId < 0)
+        team.turnTimeBuffer = 0;
+      else
+        team.turnTimeBuffer = turns[tId].timeBuffer;
+    }
 
     this._board.setState(this.units, this.teams);
 
@@ -1184,14 +1290,16 @@ serializer.addType({
   schema: {
     type: 'object',
     required: [
-      'type', 'randomFirstTurn', 'randomHitChance', 'turnTimeLimit', 'teams',
-      'startedAt', 'endedAt', 'turns', 'turnStartedAt', 'units', 'actions',
+      'type', 'randomFirstTurn', 'randomHitChance', 'turnTimeLimit',
+      'turnTimeBuffer', 'teams', 'startedAt', 'endedAt', 'turns',
+      'turnStartedAt', 'units', 'actions',
     ],
     properties: {
       type: { type:'string' },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
       turnTimeLimit: { type:[ 'number', 'null' ] },
+      turnTimeBuffer: { type:[ 'number', 'null' ] },
       teams: {
         type: 'array',
         minItems: 2,

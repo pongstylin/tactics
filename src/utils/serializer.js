@@ -574,6 +574,11 @@ const makeSchema = definition => {
 const makeSubSchema = definition => {
   const subSchema = {};
 
+  if (definition.$const)
+    return { type:definition.$type, const:definition.$const };
+  if (definition.$enum)
+    return { type:definition.$type, enum:definition.$enum };
+
   if (classTypeMap.has(definition.$type)) {
     const type = classTypeMap.get(definition.$type);
 
@@ -597,12 +602,6 @@ const makeSubSchema = definition => {
     return { oneOf:definition.$type.map(t => makeSubSchema(normalizeDefinition(t))) };
   else
     subSchema.type = definition.$type;
-
-  // These apply to multiple types.
-  if (definition.$const !== undefined)
-    subSchema.const = definition.$const;
-  if (definition.$enum !== undefined)
-    subSchema.enum = definition.$enum;
 
   switch (subSchema.type) {
     case 'object':

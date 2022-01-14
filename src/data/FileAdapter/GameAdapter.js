@@ -458,7 +458,7 @@ export default class extends FileAdapter {
       else if (gameSummary.startedAt && isCollectionList) {
         if (!gameSummary.turnTimeLimit)
           gameSummaryList.delete(gameSummary.id);
-        else if ((gameSummary.turnStartedAt.getTime() + gameSummary.turnTimeLimit*1000) < now)
+        else if (gameSummary.getTurnTimeRemaining(now) === 0)
           gameSummaryList.delete(gameSummary.id);
       }
     }

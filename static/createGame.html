@@ -134,6 +134,25 @@
       margin-left: 6px;
       -webkit-tap-highlight-color: transparent;
     }
+
+    .fa.fa-info {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+
+      margin: 0 8px;
+      border: 2px solid #00FFFF;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+
+      color: #00FFFF;
+      cursor: pointer;
+    }
+    .fa.fa-info:hover {
+      border-color: #CCFFFF;
+      color: #CCFFFF;
+    }
   </STYLE>
 </HEAD>
 <BODY>
@@ -195,8 +214,8 @@
         <DIV class="indent">
           <LABEL><INPUT type="radio" name="turnLimit" value="604800" checked> 1 Week</LABEL>
           <LABEL><INPUT type="radio" name="turnLimit" value="86400"> 1 Day</LABEL>
-          <LABEL><INPUT type="radio" name="turnLimit" value="120"> 2 Min</LABEL>
-          <LABEL><INPUT type="radio" name="turnLimit" value="30"> 30 Sec</LABEL>
+          <LABEL><INPUT type="radio" name="turnLimit" value="standard"> Standard</LABEL>
+          <LABEL><INPUT type="radio" name="turnLimit" value="blitz"> Blitz</LABEL>
         </DIV>
       </DIV>
       <DIV>
@@ -208,7 +227,7 @@
         </DIV>
       </DIV>
       <DIV>
-        <DIV>Choose a blocking system.</DIV>
+        <DIV>Choose a blocking system.<SPAN class="fa fa-info"></SPAN></DIV>
         <DIV class="indent">
           <LABEL><INPUT type="radio" name="randomHitChance" value="true" checked> I'm feeling lucky.</LABEL>
           <LABEL><INPUT type="radio" name="randomHitChance" value="false"> I like chess.</LABEL>

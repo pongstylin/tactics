@@ -30,6 +30,7 @@ const debugV = DebugLogger('service-v:router');
 
 const ajv = new Ajv({
   strictTuples: false,
+  allowUnionTypes: true,
 });
 addFormats(ajv);
 addKeywords(ajv);
@@ -556,7 +557,7 @@ function deleteSession(session, code) {
 
     service.onLeaveGroup(client, groupPath);
     if (group.has(client.id))
-      throw new Error('Expected to leave group');
+      throw new Error(`Expected to leave group: ${groupId}`);
   }
 
   for (const service of services.values()) {

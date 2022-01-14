@@ -79,6 +79,7 @@ export default class Team {
     colorId: any
     useRandom: boolean
     randomState: Random
+    turnTimeBuffer: number
     set: any[] | boolean
     bot: any
     usedUndo: boolean
@@ -122,6 +123,9 @@ export default class Team {
       // The random number generator to see if a unit in the team will hit
       // Not applicable to games that don't use random numbers.
       randomState: undefined,
+
+      // The number of seconds accumulated in the turn time limit buffer.
+      turnTimeBuffer: undefined,
 
       // The set the team used at start of game.
       set: undefined,
@@ -243,6 +247,12 @@ export default class Team {
   }
   set useRandom(useRandom) {
     this.data.useRandom = useRandom;
+  }
+  get turnTimeBuffer() {
+    return this.data.turnTimeBuffer;
+  }
+  set turnTimeBuffer(turnTimeBuffer) {
+    this.data.turnTimeBuffer = turnTimeBuffer;
   }
   get forkOf() {
     return this.data.forkOf;

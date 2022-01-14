@@ -1,0 +1,37 @@
+.modal.lobbySettings {
+  .content {
+    display: grid;
+    align-items: center;
+    grid-template-columns: auto auto auto auto;
+
+    HEADER {
+      grid-column: span 4;
+      font-style: normal;
+    }
+    HEADER:first-child {
+      margin: 0;
+    }
+    HEADER:not(:first-child) {
+      margin-top: 12px;
+    }
+    .audio LABEL:last-child, .labels LABEL:last-child {
+      grid-column: span 2;
+    }
+    .row {
+      display: contents;
+
+      .label {
+        margin-right: 16px;
+      }
+      .label, LABEL {
+        white-space: nowrap;
+      }
+    }
+  }
+}
+
+@media (max-width: 320px) {
+  .modal.lobbySettings .content {
+    padding: 8px !important;
+  }
+}

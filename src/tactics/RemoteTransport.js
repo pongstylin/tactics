@@ -100,6 +100,9 @@ export default class RemoteTransport {
   get turnTimeLimit() {
     return this._getStateData('turnTimeLimit');
   }
+  get turnTimeBuffer() {
+    return this._getStateData('turnTimeBuffer');
+  }
   get createdAt() {
     return this._getData('createdAt');
   }
@@ -145,6 +148,9 @@ export default class RemoteTransport {
   }
   get currentTeamId() {
     return this._getStateData('currentTeamId');
+  }
+  get currentTeam() {
+    return this.teams[this.currentTeamId];
   }
   get turnStartedAt() {
     return this._getStateData('turnStartedAt');
@@ -347,7 +353,13 @@ export default class RemoteTransport {
 
         this.applyActions();
 
-        Object.assign(this._data.state, {
+        const state = this._data.state;
+        if (state.turnTimeBuffer) {
+          const team = state.teams[data.teamId];
+          team.turnTimeBuffer = data.timeBuffer;
+        }
+
+        Object.assign(state, {
           turnStartedAt: data.startedAt,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,
@@ -394,7 +406,13 @@ export default class RemoteTransport {
           action.createdAt = new Date(action.createdAt);
         });
 
-        Object.assign(this._data.state, {
+        const state = this._data.state;
+        if (state.turnTimeBuffer) {
+          const team = state.teams[data.teamId];
+          team.turnTimeBuffer = data.timeBuffer;
+        }
+
+        Object.assign(state, {
           turnStartedAt: data.startedAt,
           currentTurnId: data.turnId,
           currentTeamId: data.teamId,

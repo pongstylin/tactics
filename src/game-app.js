@@ -1588,8 +1588,8 @@ function setTurnTimeoutClock() {
       timeoutText = `&lt; ${Math.ceil(timeout / 3600000)}h`;
       tick = (timeout % 3600000) + 250;
     }
-    // If greater than 2 minutes, show minutes
-    else if (timeout > 120000) {
+    // If greater than 9 minutes, show minutes
+    else if (timeout > 540000) {
       timeoutText = `&lt; ${Math.ceil(timeout / 60000)}m`;
       tick = (timeout % 60000) + 250;
     }

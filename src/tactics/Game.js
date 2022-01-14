@@ -156,6 +156,23 @@ export default class Game {
   get whenStarted() {
     return this.state.whenStarted;
   }
+  get turnTimeLimit() {
+    const state = this.state;
+    if (!state.startedAt || !state.turnTimeLimit || state.endedAt)
+      return;
+
+    let turnTimeLimit = state.turnTimeLimit;
+    if (state.turnTimeBuffer) {
+      const team = state.currentTeam;
+
+      if (this.teamHasPlayed(team))
+        turnTimeLimit += team.turnTimeBuffer;
+      else
+        turnTimeLimit = state.turnTimeBuffer;
+    }
+
+    return turnTimeLimit;
+  }
   get turnTimeRemaining() {
     const state = this.state;
     if (!state.turnTimeLimit)
@@ -167,8 +184,7 @@ export default class Game {
     const lastAction = state.actions.last;
     const lastActionAt = lastAction ? +lastAction.createdAt : 0;
     const actionTimeout = (lastActionAt + 10000) - now;
-    const turnStartedAt = +state.turnStartedAt;
-    const turnTimeout = (turnStartedAt + state.turnTimeLimit*1000) - now;
+    const turnTimeout = (+state.turnStartedAt + this.turnTimeLimit*1000) - now;
 
     return Math.max(0, actionTimeout, turnTimeout);
   }

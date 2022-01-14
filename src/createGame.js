@@ -139,6 +139,21 @@ window.addEventListener('DOMContentLoaded', () => {
     );
   });
 
+  document.querySelector('.fa.fa-info').addEventListener('click', event => {
+    popup({
+      title: 'The Tale of Two Blocking Systems',
+      message: `In the original 'Luck' blocking system, attacks will succeed or
+        fail depending on randomly generated numbers.  In the chess, a.k.a. No
+        Luck, blocking system you will know if an attack will succeed ahead of
+        time.  In both blocking systems, you can hover your mouse (or finger)
+        over a tile you intend to attack.  This will display the chances (a
+        percentage) or result (hit or block) for the attack.  Generally, if the
+        percentage is high enough for an attack in luck mode, then it will
+        succeed in chess, a.k.a. No Luck, mode.`,
+      maxWidth: '500px',
+    });
+  });
+
   document.querySelectorAll('INPUT[name=vs]').forEach(radio => {
     radio.addEventListener('change', event => {
       if (radio.value === 'you') {

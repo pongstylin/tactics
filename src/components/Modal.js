@@ -1,7 +1,9 @@
 import 'components/Modal.scss';
+import whenDOMReady from 'components/whenDOMReady.js';
+import emitter from 'utils/emitter.js';
 
 export default class Modal {
-  constructor(options, data) {
+  constructor(options, data = {}) {
     Object.assign(this, {
       el: null,
       options: null,
@@ -95,7 +97,7 @@ export default class Modal {
       throw new TypeError('Already open');
 
     this.el = this.render();
-    document.body.appendChild(this.el);
+    whenDOMReady.then(() => document.body.appendChild(this.el));
 
     if (this.options.autoShow === true)
       this.show();
@@ -122,3 +124,5 @@ export default class Modal {
     this.el = null;
   }
 }
+
+emitter(Modal);

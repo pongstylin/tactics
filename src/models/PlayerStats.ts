@@ -120,33 +120,8 @@ export default class PlayerStats extends ActiveModel {
     const currentTurnId = game.state.currentTurnId;
     const playedBy = new Set();
     for (const team of game.state.teams) {
-      if (
-        game.state.winnerId === 'truce' ||
-        game.state.winnerId === 'draw' ||
-        game.state.winnerId === team.id
-      ) {
+      if (game.state.teamHasPlayed(team))
         playedBy.add(team.playerId);
-        continue;
-      }
-
-      const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
-      const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
-      const firstTurnId = team.id + (numTeams * Math.max(waitTurns, skipTurns));
-      if (currentTurnId < firstTurnId)
-        continue;
-
-      /*
-       * If the game ended on the turn after this team's first turn, then it
-       * is possible that this team surrendered.  If so, turn not played.
-       */
-      const actions = currentTurnId === firstTurnId
-        ? game.state.actions
-        : game.state.turns[firstTurnId].actions;
-      const playedAction = actions.find(a => a.type !== 'surrender' && !a.forced);
-      if (!playedAction)
-        continue;
-
-      playedBy.add(team.playerId);
     }
 
     for (const [ teamId, team ] of game.state.teams.entries()) {

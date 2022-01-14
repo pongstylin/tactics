@@ -6,6 +6,7 @@ import unitDataMap from 'tactics/unitData.js';
 import { colorFilterMap } from 'tactics/colorMap.js';
 import unitFactory from 'tactics/unitFactory.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
+import LobbySettingsModal from 'components/Modal/LobbySettings.js';
 
 // We will be fetching the updates games list from the server on this interval
 const GAMES_FETCH_INTERVAL = 5 * 1000;
@@ -30,6 +31,13 @@ const state = {
   public: {},
 };
 const fillArenaQueueMap = new Map();
+
+const settings = new LobbySettingsModal({
+  autoShow: false,
+  hideOnCancel: true,
+}).on('settings', event => {
+  state.settings = event.data;
+});
 
 setCurrentTab();
 
@@ -610,7 +618,7 @@ async function selectArena(divArena) {
     if (arena.teams.find(t => t?.playerId === authClient.playerId))
       cancelGame();
     else
-      joinGame(arena.id);
+      joinGame(arena);
   } else {
     const arena = JSON.parse(divArena.dataset.arena);
     location.href = `/game.html?${arena.id}`;
@@ -620,15 +628,44 @@ async function createGame(divArena) {
   if (!await cancelGame())
     return;
 
+  let { createBlocking, createTimeLimit } = state.settings;
+  if (createBlocking === 'ask')
+    await popup({
+      message: 'Choose blocking system.',
+      buttons: [
+        {
+          label: 'Luck',
+          onClick: () => createBlocking = 'luck',
+        },
+        {
+          label: 'No Luck',
+          onClick: () => createBlocking = 'noluck',
+        },
+      ],
+    }).whenClosed;
+  if (createTimeLimit === 'ask')
+    await popup({
+      message: 'Choose turn time limit.',
+      buttons: [
+        {
+          label: 'Standard',
+          onClick: () => createTimeLimit = 'standard',
+        },
+        {
+          label: 'Blitz',
+          onClick: () => createTimeLimit = 'blitz',
+        },
+      ],
+    }).whenClosed;
+
   try {
     await gameClient.createGame(state.selectedStyleId, {
       collection: `lobby/${state.selectedStyleId}`,
       randomFirstTurn: true,
-      randomHitChance: true,
+      randomHitChance: createBlocking === 'luck',
       strictUndo: true,
       autoSurrender: true,
-      turnTimeLimit: 120,
-      turnTimeBuffer: 0,
+      turnTimeLimit: createTimeLimit,
       teams: [
         {
           playerId: authClient.playerId,
@@ -643,7 +680,7 @@ async function createGame(divArena) {
   } catch (e) {
     if (e.code === 429)
       popup('Creating games too quickly.');
-    else if (e.code !== 404) {
+    else {
       reportError(e);
       popup('Oops!  Something went wrong.');
     }
@@ -675,18 +712,66 @@ async function cancelGame() {
     return false;
   }
 }
-async function joinGame(gameId) {
+async function joinGame(arena) {
   if (!await cancelGame())
     return false;
 
+  const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
+  if (arena.creatorACL) {
+    let proceed = false;
+    let message;
+    let joinLabel = 'Join Game';
+
+    if (arena.creatorACL.type === 'blocked') {
+      if (arena.creatorACL.name !== creatorTeam.name)
+        message = `
+          You blocked this player under the name ${arena.creatorACL.name}.
+          You may still play them if you mute them instead.
+        `;
+      else
+        message = `
+          You blocked this player, but may still play them if you mute them instead.
+        `;
+      joinLabel = 'Mute and Join Game';
+    } else {
+      if (arena.creatorACL.name !== creatorTeam.name)
+        message = `
+          You ${arena.creatorACL.type} this player under the name ${arena.creatorACL.name}.
+          Do you still want to join their game?
+        `;
+      else
+        proceed = true;
+    }
+
+    if (proceed === false)
+      proceed = await popup({
+        message,
+        buttons: [
+          {
+            label: joinLabel,
+            onClick: () => true,
+          },
+          {
+            label: 'Cancel',
+            onClick: () => false,
+          },
+        ],
+        maxWidth: '300px',
+      }).whenClosed;
+    if (proceed === false)
+      return false;
+  }
+
   try {
-    await gameClient.joinGame(gameId, {
+    await gameClient.joinGame(arena.id, {
       playerId: authClient.playerId,
       set: { name:'default' },
     });
     return true;
   } catch (e) {
-    if (e.code !== 409) {
+    // A 404 means the game was cancelled right before we tried to join
+    // A 409 means someone else joined the game first.
+    if (e.code !== 404 && e.code !== 409) {
       reportError(e);
       popup('Oops!  Something went wrong.');
     }
@@ -924,7 +1009,7 @@ function renderLobby() {
   btnSettings.name = 'settings';
   btnSettings.title = 'Settings';
   btnSettings.addEventListener('click', event => {
-    popup('Sorry!  Settings are not yet available.');
+    settings.show();
   });
   divControls.appendChild(btnSettings);
 
@@ -1152,6 +1237,10 @@ function renderArena(index) {
   nameBtm.classList.add('btm');
   shpArena.appendChild(nameBtm);
 
+  const divLabel = document.createElement('DIV');
+  divLabel.classList.add('label');
+  shpArena.appendChild(divLabel);
+
   return divArena;
 }
 function getLobbyGames() {
@@ -1312,6 +1401,16 @@ async function fillArena(divArena, arena = true) {
       fillTeam(divArena, 'btm', arena, oldArena),
     ]);
   }
+
+  const labels = [];
+  if (!arena.startedAt && arena.createdBy !== authClient.playerId) {
+    if (arena.randomHitChance === false)
+      labels.push('No Luck');
+    if (arena.turnTimeLimit === 30)
+      labels.push('Blitz');
+  }
+
+  divArena.querySelector('.label').textContent = labels.join(', ');
 }
 async function fillTeam(divArena, slot, arena, oldArena) {
   const spnName = divArena.querySelector(`.name.${slot}`);
@@ -1374,6 +1473,8 @@ async function emptyArena(divArena) {
   divArena.classList.remove('complete');
   divArena.classList.add('empty');
 
+  divArena.querySelector('.label').textContent = '';
+
   return Promise.all([
     fillTeam(divArena, 'top', null, oldArena),
     fillTeam(divArena, 'btm', null, oldArena),
@@ -1388,8 +1489,7 @@ function renderYourGames() {
   const waitingGames = [ ...state.my.games[0].values() ];
   const activeGames = [ ...state.my.games[1].values() ]
     .map(game => {
-      if (game.turnTimeLimit)
-        game.turnTimeRemaining = game.turnTimeLimit*1000 - (now - game.turnStartedAt.getTime());
+      game.turnTimeRemaining = game.getTurnTimeRemaining(now);
 
       return game;
     })
@@ -1406,8 +1506,7 @@ function renderYourGames() {
   const completeGames = [ ...state.my.games[2].values() ];
   const lobbyGames = [ ...state.my.games[3].values() ]
     .map(game => {
-      if (game.turnStartedAt && game.turnTimeLimit)
-        game.turnTimeRemaining = game.turnTimeLimit*1000 - (now - game.turnStartedAt.getTime());
+      game.turnTimeRemaining = game.getTurnTimeRemaining(now);
 
       return game;
     });
@@ -1605,13 +1704,6 @@ function renderGame(game) {
   } else {
     const labels = [];
 
-    if (game.turnTimeLimit === 86400)
-      labels.push('1 Day');
-    else if (game.turnTimeLimit === 120)
-      labels.push('2 Min');
-    else if (game.turnTimeLimit === 30)
-      labels.push('30 sec');
-
     if (!game.randomFirstTurn) {
       if (
         (!teams[0] || teams[0].playerId === myPlayerId) &&
@@ -1624,6 +1716,18 @@ function renderGame(game) {
 
     if (!game.randomHitChance)
       labels.push('No Luck');
+
+    if (game.collection?.startsWith('lobby/')) {
+      if (game.turnTimeLimit === 30)
+        labels.push('Blitz');
+    } else {
+      if (game.turnTimeLimit === 86400)
+        labels.push('1 Day');
+      else if (game.turnTimeLimit === 120)
+        labels.push('Standard');
+      else if (game.turnTimeLimit === 30)
+        labels.push('Blitz');
+    }
 
     if (game.isFork)
       labels.push('Fork');
@@ -1707,7 +1811,6 @@ function renderGame(game) {
   return divGame;
 }
 
-12345678901234567890123456789012345678901234567890123456789012345678901234567890
 /*
  * This is complicated because this method is called under 3 circumstances:
  *   1) When the page first loads.
