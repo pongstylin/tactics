@@ -195,6 +195,7 @@ export default class GameService extends Service {
     if (!clientPara) return;
 
     const playerId = clientPara.playerId;
+    this.auth.closePlayer(playerId);
     this.data.closePlayer(playerId);
 
     const playerPara = this.playerPara.get(playerId);
@@ -300,6 +301,7 @@ export default class GameService extends Service {
         playerPara.clients.add(client.id);
       else {
         this.playerPara.set(playerId, {
+          player: await this.auth.openPlayer(playerId),
           clients: new Set([client.id]),
           joinedGameGroups: new Map(),
         });
@@ -371,7 +373,7 @@ export default class GameService extends Service {
 
       let team;
       if (teamData.playerId && teamData.playerId !== playerId) {
-        const player = await this.auth.getPlayer(teamData.playerId);
+        const player = await this._getAuthPlayer(teamData.playerId);
         if (!player)
           throw new ServerError(404, 'A team has an unrecognized player ID');
 
@@ -436,7 +438,7 @@ export default class GameService extends Service {
     if (game.state.startedAt)
       throw new ServerError(409, 'The game has already started.');
 
-    const creator = await this.auth.getPlayer(game.createdBy);
+    const creator = await this._getAuthPlayer(game.createdBy);
     if (creator.hasBlocked(playerId))
       throw new ServerError(403, 'You are blocked from joining this game.');
 
@@ -444,7 +446,7 @@ export default class GameService extends Service {
      * You can't play a blocked player.  But you can downgrade them to muted first.
      */
     if (creator.isBlockedBy(playerId)) {
-      const joiner = await this.auth.getPlayer(playerId);
+      const joiner = await this._getAuthPlayer(playerId);
       const playerACL = joiner.getPlayerACL(creator.id);
       if (playerACL && playerACL.type === 'blocked')
         joiner.mute(creator, playerACL.name);
@@ -643,8 +645,8 @@ export default class GameService extends Service {
     if (!team)
       throw new ServerError(403, 'To get player info for this game, they must be a participant.');
 
-    const me = await this.auth.getPlayer(inPlayerId);
-    const player = await this.auth.getPlayer(forPlayerId);
+    const me = await this._getAuthPlayer(inPlayerId);
+    const player = await this._getAuthPlayer(forPlayerId);
     const globalStats = await this.data.getPlayerStats(forPlayerId, forPlayerId);
     const localStats = await this.data.getPlayerStats(inPlayerId, forPlayerId);
 
@@ -672,7 +674,7 @@ export default class GameService extends Service {
 
   async onSearchMyGamesRequest(client, query) {
     const playerId = this.clientPara.get(client.id).playerId;
-    const player = await this.auth.getPlayer(playerId);
+    const player = await this._getAuthPlayer(playerId);
     return this.data.searchPlayerGames(player, query);
   }
   async onSearchGameCollectionRequest(client, collection, query) {
@@ -680,7 +682,7 @@ export default class GameService extends Service {
       throw new ServerError(400, 'Unrecognized game collection');
 
     const playerId = this.clientPara.get(client.id).playerId;
-    const player = await this.auth.getPlayer(playerId);
+    const player = await this._getAuthPlayer(playerId);
     return this.data.searchGameCollection(player, collection, query);
   }
 
@@ -907,7 +909,7 @@ export default class GameService extends Service {
       stats: myGames.stats,
     };
     if (params.query) {
-      const player = await this.auth.getPlayer(playerId);
+      const player = await this._getAuthPlayer(playerId);
       response.results = await this.data.searchPlayerGames(player, params.query);
     }
 
@@ -950,6 +952,9 @@ export default class GameService extends Service {
       return;
     }
 
+    const clientPara = this.clientPara.get(client.id);
+    const player = await this._getAuthPlayer(clientPara.playerId);
+
     for (const collection of collections) {
       if (!this.collectionPara.has(collection.id)) {
         const collectionGroup = `/collections/${collection.id}`;
@@ -962,14 +967,7 @@ export default class GameService extends Service {
           },
         });
         const changeListener = event => {
-          if (event.type === 'change:set') {
-            if (event.data.oldSummary)
-              emit({ type:'change', data:event.data.gameSummary });
-            else
-              emit({ type:'add', data:event.data.gameSummary });
-          } else if (event.type === 'change:delete')
-            emit({ type:'remove', data:event.data.oldSummary });
-
+          this._emitCollectionChange(collectionGroup, collection, event);
           this._emitCollectionStats(collectionGroup, collection);
         };
 
@@ -977,34 +975,36 @@ export default class GameService extends Service {
 
         this.collectionPara.set(collection.id, {
           clientIds: new Map(),
-          stats: this._getGameSummaryListStats(collection),
+          stats: new Map(),
           changeListener,
         });
       }
 
-      const clientIds = this.collectionPara.get(collection.id).clientIds;
+      const collectionPara = this.collectionPara.get(collection.id);
+
+      const clientIds = collectionPara.clientIds;
       if (clientIds.has(client.id))
         clientIds.set(client.id, clientIds.get(client.id) + 1);
       else
         clientIds.set(client.id, 1);
+
+      const stats = collectionPara.stats;
+      if (!stats.has(player))
+        stats.set(player, this._getGameSummaryListStats(collection, player));
     }
 
-    const clientPara = this.clientPara.get(client.id);
     clientPara.joinedGroups.add(groupPath);
-
-    const playerId = clientPara.playerId;
 
     const response = {};
     if (params.query)
-      if (allCollectionIds.includes(collectionId)) {
-        const player = await this.auth.getPlayer(playerId);
+      if (allCollectionIds.includes(collectionId))
         response.results = await this.data.searchGameCollection(player, collectionId, params.query);
-      } else
+      else
         throw new ServerError(400, 'Can not query collection stats');
 
     response.stats = new Map();
     for (const cId of collectionIds) {
-      response.stats.set(cId, this.collectionPara.get(cId).stats);
+      response.stats.set(cId, this.collectionPara.get(cId).stats.get(player));
     }
 
     this._emit({
@@ -1013,7 +1013,7 @@ export default class GameService extends Service {
       body: {
         group: groupPath,
         user: {
-          id:   playerId,
+          id:   player.id,
           name: clientPara.name,
         },
       },
@@ -1021,10 +1021,13 @@ export default class GameService extends Service {
 
     return response;
   }
-  _getGameSummaryListStats(collection) {
+  _getGameSummaryListStats(collection, player = null) {
     const stats = { waiting:0, active:0 };
 
     for (const gameSummary of collection.values()) {
+      if (!gameSummary.startedAt && player?.isBlockedBy(gameSummary.createdBy))
+        continue;
+
       if (!gameSummary.startedAt)
         stats.waiting++;
       else if (!gameSummary.endedAt)
@@ -1033,19 +1036,37 @@ export default class GameService extends Service {
 
     return stats;
   }
+  _emitCollectionChange(collectionGroup, collection, event) {
+    const collectionPara = this.collectionPara.get(collection.id);
+    const gameSummary = event.data.gameSummary ?? event.data.oldSummary;
+    const eventType = event.type === 'change:delete'
+      ? 'remove'
+      : event.data.oldSummary ? 'change' : 'add';
+    const emitChange = userId => this._emit({
+      type: 'event',
+      userId,
+      body: {
+        group: collectionGroup,
+        type: eventType,
+        data: gameSummary,
+      },
+    });
+
+    for (const player of collectionPara.stats.keys()) {
+      if (!gameSummary.startedAt && player.isBlockedBy(gameSummary.createdBy))
+        continue;
+
+      emitChange(player.id);
+    }
+  }
   /*
    * When a given collection changes, report stats changes, if any.
    */
   _emitCollectionStats(collectionGroup, collection) {
-    const oldStats = this.collectionPara.get(collection.id).stats;
-    const stats = this._getGameSummaryListStats(collection);
-    if (stats.waiting === oldStats.waiting && stats.active === oldStats.active)
-      return;
-
-    this.collectionPara.get(collection.id).stats = stats;
-
-    const emitStats = (group, data) => this._emit({
+    const collectionPara = this.collectionPara.get(collection.id);
+    const emitStats = (userId, group, data) => this._emit({
       type: 'event',
+      userId,
       body: {
         group,
         type: 'stats',
@@ -1053,11 +1074,19 @@ export default class GameService extends Service {
       },
     });
 
-    const parts = collectionGroup.split('/');
-    for (let i = 1; i < parts.length; i++) {
-      const group = parts.slice(0, i+1).join('/');
+    for (const [ player, oldStats ] of collectionPara.stats) {
+      const stats = this._getGameSummaryListStats(collection, player);
+      if (stats.waiting === oldStats.waiting && stats.active === oldStats.active)
+        return;
 
-      emitStats(group, { collectionId:collection.id, stats });
+      collectionPara.stats.set(player, stats);
+
+      const parts = collectionGroup.split('/');
+      for (let i = 1; i < parts.length; i++) {
+        const group = parts.slice(0, i+1).join('/');
+
+        emitStats(player.id, group, { collectionId:collection.id, stats });
+      }
     }
   }
 
@@ -1240,6 +1269,13 @@ export default class GameService extends Service {
   /*******************************************************************************
    * Helpers
    ******************************************************************************/
+  _getAuthPlayer(playerId) {
+    if (this.playerPara.has(playerId))
+      return this.playerPara.get(playerId).player;
+    else
+      return this.auth.getPlayer(playerId);
+  }
+
   async _resolveTeamsSets(game, gameType, teams) {
     /*
      * Resolve default sets before resolving opponent sets
@@ -1413,7 +1449,7 @@ export default class GameService extends Service {
    * than the longer idle times of client(s) still checked in.
    */
   async _getPlayerIdle(playerId) {
-    const player = await this.auth.getPlayer(playerId);
+    const player = await this._getAuthPlayer(playerId);
     const idle = Math.floor((new Date() - player.checkoutAt) / 1000);
 
     const playerPara = this.playerPara.get(playerId);
