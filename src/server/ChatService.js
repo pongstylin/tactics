@@ -183,7 +183,7 @@ export default class ChatService extends Service {
   /*
    * No longer send message events to the client about this room.
    */
-  async onLeaveRoomGroup(client, groupPath, roomId) {
+  onLeaveRoomGroup(client, groupPath, roomId) {
     const room = this.data.closeRoom(roomId);
 
     const clientPara = this.clientPara.get(client.id);
