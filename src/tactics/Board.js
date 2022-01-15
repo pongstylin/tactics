@@ -639,9 +639,7 @@ export default class Board {
     tilesContainer.pointertap = event => {
       if (this.locked === true) return;
 
-      let { x, y } = event.target.data;
-      let tile = this.getTile(x, y);
-      if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(tile))
+      if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data))
         Tactics.game.selectMode = 'attack'; 
 
       if (this.viewed || this.selected)
@@ -2013,7 +2011,7 @@ export default class Board {
     });
   }
   isAdjacentToHighlighted({ x, y }, includeDiagonal = true) {
-    return [
+    return undefined != [
         [x - 1, y],
         [x + 1, y],
         [x, y - 1],
@@ -2023,8 +2021,7 @@ export default class Board {
         [x - 1, y + 1],
         [x + 1, y - 1],
         [x + 1, y + 1]
-      ]).map(([x,y]) => this.getTile(x,y))
-      .find(t => this._highlighted.get(t));
+      ]).find(pt => this._highlighted.get(this.getTile(...pt)));
   }
 };
 
