@@ -77,19 +77,6 @@ export default class Game extends ActiveModel {
         gameData[option] = gameOptions[option];
     });
 
-    /*
-     * Use the default turn time limit if this is a multiplayer game
-     */
-    if (stateData.turnTimeLimit === undefined) {
-      for (const team of stateData.teams) {
-        if (team && team.playerId === stateData.teams[0].playerId)
-          continue;
-
-        stateData.turnTimeLimit = 604800;
-        break;
-      }
-    }
-
     gameData.state = GameState.create(stateData);
 
     return new Game(gameData);

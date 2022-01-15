@@ -365,6 +365,10 @@ export default class GameService extends Service {
     } else if (gameOptions.turnTimeLimit === 'blitz') {
       gameOptions.turnTimeLimit = 30;
       gameOptions.turnTimeBuffer = 120;
+    } else if (gameOptions.turnTimeLimit === undefined) {
+      // Use the default turn time limit if this is a multiplayer game
+      if (gameOptions.teams.find(t => !t?.playerId === playerId))
+        stateData.turnTimeLimit = 604800;
     }
 
     const game = Game.create({
