@@ -72,32 +72,41 @@ export default class AuthService extends Service {
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
+  /*
+   * The router guards against parallel calls to this method by the same client.
+   * This method guards against a client getting dropped between authorization
+   * starting and completing.  To this end, it aborts if the client is closed
+   * after each async call.  It also waits until all async calls are complete
+   * before adding the client to the clientPara.
+   */
   async onAuthorize(client, { token }) {
     const { player, device } = await this._validateAccessToken(client, token);
+    if (client.closed)
+      return;
 
-    if (this.clientPara.has(client.id)) {
-      const clientPara = this.clientPara.get(client.id);
-      clientPara.token = token;
+    const clientPara = this.clientPara.get(client.id) ?? {};
+    clientPara.token = token;
 
-      if (clientPara.playerId !== token.playerId) {
+    if (clientPara.playerId !== token.playerId) {
+      if (clientPara.playerId)
         this.data.closePlayer(clientPara.playerId);
-        clientPara.playerId = player.id;
-        clientPara.device = device;
-
-        await this.data.openPlayer(token.playerId);
-      } else if (clientPara.device.id !== device.id)
-        throw new ServerError(501, 'Unsupported change of device');
-    } else {
-      const clientPara = {};
-
-      clientPara.token = token;
-      clientPara.playerId = player.id;
-      clientPara.device = device;
-      this.clientPara.set(client.id, clientPara);
 
       // Keep this player open for the duration of the session.
       await this.data.openPlayer(player.id);
+      if (client.closed) {
+        this.data.closePlayer(player.id);
+        return;
+      }
+
+      clientPara.playerId = player.id;
     }
+
+    if (clientPara.device === undefined)
+      clientPara.device = device;
+    else if (clientPara.device.id !== device.id)
+      throw new ServerError(501, 'Unsupported change of device');
+
+    this.clientPara.set(client.id, clientPara);
   }
 
   async onRegisterRequest(client, playerData) {

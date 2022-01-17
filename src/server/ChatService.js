@@ -85,7 +85,7 @@ export default class ChatService extends Service {
     else
       throw new ServerError(404, 'No such group');
   }
-  async onLeaveGroup(client, groupPath) {
+  onLeaveGroup(client, groupPath) {
     if (groupPath.startsWith('/rooms/'))
       return this.onLeaveRoomGroup(client, groupPath, groupPath.slice(7));
     else

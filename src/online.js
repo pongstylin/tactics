@@ -2,6 +2,7 @@ import config from 'config/client.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
 import ScrollButton from 'components/ScrollButton.js';
+import sleep from 'utils/sleep.js';
 import unitDataMap from 'tactics/unitData.js';
 import { colorFilterMap } from 'tactics/colorMap.js';
 import unitFactory from 'tactics/unitFactory.js';
@@ -19,16 +20,48 @@ const popup = Tactics.popup;
 let myPlayerId = null;
 const state = {
   audioEnabled: false,
-  isInitialized: false,
-  isLoading: false,
-  isLoaded: false,
+  // Indicates the currently selected tab
   currentTab: null,
-  selectedStyleId: 'freestyle',
-  selectedGroupId: 'lobby',
-  my: {},
-  stats: new Map(),
-  lobby: {},
-  public: {},
+  tabContent: {
+    stats: {
+      isSynced: false,
+      whenSynced: Promise.resolve(),
+      byCollection: new Map(),
+    },
+    yourGames: {
+      // Indicates whether the tab content is loaded, rendered, and visible.
+      isOpen: false,
+      // Indicates whether the tab content is synced (groups are joined)
+      // This is expected to be synced even if tab is not open.
+      isSynced: false,
+      whenSynced: Promise.resolve(),
+      // Indicates that loading tab content is in progress.
+      isLoading: false,
+      // Used to update game clocks
+      renderTimeout: null,
+    },
+    lobby: {
+      // Indicates we should do a dramatic open of the lobby
+      firstOpen: true,
+      // The tab can be open, but not synced (spinner is shown)
+      isOpen: false,
+      // This should only be synced while the tab is open
+      isSynced: false,
+      // The value of this promise tells us the styleId that was joined
+      whenSynced: Promise.resolve(),
+      isLoading: false,
+      selectedStyleId: null,
+      selectedGroupId: 'lobby',
+    },
+    publicGames: {
+      isOpen: false,
+      isSynced: false,
+      whenSynced: Promise.resolve(),
+      isLoading: false,
+      renderTimeout: null,
+    },
+  },
+  settings: null,
 };
 const fillArenaQueueMap = new Map();
 
@@ -38,8 +71,6 @@ const settings = new LobbySettingsModal({
 }).on('settings', event => {
   state.settings = event.data;
 });
-
-setCurrentTab();
 
 const pushPublicKey = Uint8Array.from(
   atob(
@@ -161,9 +192,14 @@ const groups = new Map([
 
 gameClient
   .on('event', ({ body }) => {
+    const statsContent = state.tabContent.stats;
+    const yourContent = state.tabContent.yourGames;
+    const lobbyContent = state.tabContent.lobby;
+    const publicContent = state.tabContent.publicGames;
+
     if (body.group === `/myGames/${authClient.playerId}`) {
       if (body.type === 'stats') {
-        state.my.stats = body.data;
+        yourContent.stats = body.data;
         renderStats('my');
       } else if (body.type === 'add' || body.type === 'change')
         setYourGame(body.data);
@@ -171,10 +207,10 @@ gameClient
         unsetYourGame(body.data);
     } else if (body.group === '/collections') {
       if (body.type === 'stats') {
-        state.stats.set(body.data.collectionId, body.data.stats);
+        statsContent.byCollection.set(body.data.collectionId, body.data.stats);
         renderStats('collections');
       }
-    } else if (body.group === `/collections/lobby/${state.selectedStyleId}`) {
+    } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
       if (body.type === 'add' || body.type === 'change')
         setLobbyGame(body.data);
       else if (body.type === 'remove')
@@ -187,25 +223,31 @@ gameClient
     }
   })
   .on('open', async ({ data:{ reason } }) => {
-    if (state.isInitialized && reason !== 'resume')
-      syncData()
-        .then(openTab)
-        .catch(error => {
-          if (error === 'Connection reset')
-            return;
-          throw error;
-        });
+    if (state.currentTab === null || reason === 'resume')
+      return;
+
+    /*
+     * Now that the connection is open, sync the current tab.  This is always
+     * required regardless of whether the page has never finished loading any
+     * data or if tabs have changed while offline or if a tab was in the middle
+     * of being loaded.  But just in case any tabs were synced at the time we
+     * lost connection, mark them as no longer synced.
+     */
+    for (const tabContent of Object.values(state.tabContent)) {
+      tabContent.isSynced = false;
+      tabContent.whenSynced = Promise.resolve();
+    }
+    syncTab();
   })
   .on('close', ({ data:{ reopen } }) => {
     const divLoading = document.querySelector('.tabContent .loading');
     if (reopen)
       divLoading.classList.add('is-active');
-    state.isLoaded = false;
   });
 
 window.addEventListener('DOMContentLoaded', () => {
-  let divGreeting = document.querySelector('.greeting');
-  let divNotice = document.querySelector('#notice');
+  const divGreeting = document.querySelector('.greeting');
+  const divNotice = document.querySelector('#notice');
 
   if (authClient.token) {
     // Just in case fetching the most recent info is slow...
@@ -227,7 +269,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (myPlayerId) {
       divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
-      await init();
+      await openTab();
       divNotice.textContent = '';
       document.querySelector('.tabs').style.display = '';
     } else {
@@ -337,19 +379,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   document.querySelector('.tabContent').addEventListener('click', gameClickHandler);
 
-  window.addEventListener('hashchange', event => {
-    if (state.currentTab === 'yourGames')
-      clearTimeout(state.my.renderTimeout);
-    else if (state.currentTab === 'lobby')
-      gameClient.leaveCollectionGroup(`lobby/${state.selectedStyleId}`);
-    else if (state.currentTab === 'publicGames') {
-      gameClient.leaveCollectionGroup('public');
-      clearTimeout(state.public.renderTimeout);
-    }
-
-    setCurrentTab();
-    openTab();
-  });
+  window.addEventListener('hashchange', event => openTab());
 
   const dynamicStyle = document.createElement('STYLE');
   document.body.appendChild(dynamicStyle);
@@ -358,73 +388,63 @@ window.addEventListener('DOMContentLoaded', () => {
   resize(dynamicStyle.sheet);
 });
 
-function init() {
-  return syncData()
-    .then(() => {
-      if (state.my.lobbyGame) {
-        const styleId = state.my.lobbyGame.collection.slice(6);
-        if (avatarsPromise.isResolved)
-          selectStyle(styleId, true);
-        else
-          state.selectedStyleId = styleId;
-      }
-
-      state.isInitialized = true;
-      return openTab();
-    })
-    .catch(error => {
-      if (error === 'Connection reset')
-        return init();
-      throw error;
-    });
-}
-function setCurrentTab() {
-  state.currentTab = 'yourGames';
-  if (location.hash === '#lobby')
-    state.currentTab = 'lobby';
-  else if (location.hash === '#publicGames')
-    state.currentTab = 'publicGames';
-}
 function setYourLobbyGame(gameSummary, skipRender = false) {
-  const lobbyGame = state.my.lobbyGame;
+  const yourContent = state.tabContent.yourGames;
+  const lobbyContent = state.tabContent.lobby;
+  const lobbyGame = yourContent.lobbyGame;
   const styleId = gameSummary.collection.slice(6);
-  state.my.lobbyGame = gameSummary;
+  yourContent.lobbyGame = gameSummary;
 
-  if (!skipRender && state.currentTab === 'lobby' && state.selectedStyleId === styleId)
+  if (!skipRender && state.currentTab === 'lobby' && lobbyContent.selectedStyleId === styleId)
     renderLobbyGames();
 
-  if (lobbyGame?.id === gameSummary.id && !lobbyGame.startedAt && gameSummary.startedAt)
-    return startGame();
+  if (!lobbyGame && gameSummary.startedAt)
+    popup({
+      message: 'You have an active lobby game!',
+      buttons: [
+        {
+          label: 'Play Now',
+          onClick: () => location.href = `/game.html?${gameSummary.id}`,
+        },
+        {
+          label: 'Ignore',
+        },
+      ],
+    });
+  else if (lobbyGame?.id === gameSummary.id && !lobbyGame.startedAt && gameSummary.startedAt)
+    startGame();
 }
 function unsetYourLobbyGame(gameSummary, skipRender = false) {
-  const lobbyGame = state.my.lobbyGame;
+  const lobbyGame = state.tabContent.yourGames.lobbyGame;
   if (!lobbyGame || lobbyGame.id !== gameSummary.id)
     return;
 
   const styleId = lobbyGame.collection.slice(6);
-  state.my.lobbyGame = null;
+  state.tabContent.yourGames.lobbyGame = null;
 
-  if (!skipRender && state.currentTab === 'lobby' && state.selectedStyleId === styleId)
-    renderLobbyGames();
+  if (!skipRender && state.currentTab === 'lobby')
+    if (state.tabContent.lobby.selectedStyleId === styleId)
+      renderLobbyGames();
 }
 function setYourGame(gameSummary) {
+  const yourGames = state.tabContent.yourGames.games;
   const isLobbyGame = gameSummary.collection?.startsWith('lobby/');
 
-  state.my.games[0].delete(gameSummary.id);
-  state.my.games[1].delete(gameSummary.id);
-  state.my.games[2].delete(gameSummary.id);
-  state.my.games[3].delete(gameSummary.id);
+  yourGames[0].delete(gameSummary.id);
+  yourGames[1].delete(gameSummary.id);
+  yourGames[2].delete(gameSummary.id);
+  yourGames[3].delete(gameSummary.id);
   if (gameSummary.endedAt)
-    state.my.games[2] = new Map([ [ gameSummary.id, gameSummary ], ...state.my.games[2] ]);
+    yourGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[2] ]);
   else if (isLobbyGame)
-    state.my.games[3] = new Map([ [ gameSummary.id, gameSummary ], ...state.my.games[3] ]);
+    yourGames[3] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[3] ]);
   else if (gameSummary.startedAt)
-    state.my.games[1] = new Map([ [ gameSummary.id, gameSummary ], ...state.my.games[1] ]);
+    yourGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[1] ]);
   else
-    state.my.games[0] = new Map([ [ gameSummary.id, gameSummary ], ...state.my.games[0] ]);
+    yourGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[0] ]);
 
   if (isLobbyGame) {
-    const lobbyGame = state.my.lobbyGame;
+    const lobbyGame = state.tabContent.yourGames.lobbyGame;
     if (lobbyGame) {
       if (lobbyGame.id === gameSummary.id) {
         if (gameSummary.endedAt)
@@ -442,15 +462,16 @@ function setYourGame(gameSummary) {
     renderYourGames();
 }
 function unsetYourGame(gameSummary) {
+  const yourGames = state.tabContent.yourGames.games;
   let isDirty = false;
 
-  for (let i = 0; i < state.my.games.length; i++) {
-    if (state.my.games[i].delete(gameSummary.id))
+  for (let i = 0; i < yourGames.length; i++) {
+    if (yourGames[i].delete(gameSummary.id))
       isDirty = true;
   }
 
   if (isDirty) {
-    if (gameSummary.id === state.my.lobbyGame?.id)
+    if (gameSummary.id === state.tabContent.yourGames.lobbyGame?.id)
       unsetYourLobbyGame(gameSummary);
 
     if (state.currentTab === 'yourGames')
@@ -458,23 +479,26 @@ function unsetYourGame(gameSummary) {
   }
 }
 function setLobbyGame(gameSummary) {
-  state.lobby.games[0].delete(gameSummary.id);
-  state.lobby.games[1].delete(gameSummary.id);
-  state.lobby.games[2].delete(gameSummary.id);
+  const lobbyGames = state.tabContent.lobby.games;
+
+  lobbyGames[0].delete(gameSummary.id);
+  lobbyGames[1].delete(gameSummary.id);
+  lobbyGames[2].delete(gameSummary.id);
   if (!gameSummary.startedAt)
-    state.lobby.games[0] = new Map([ [ gameSummary.id, gameSummary ], ...state.lobby.games[0] ]);
+    lobbyGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...lobbyGames[0] ]);
   else if (!gameSummary.endedAt)
-    state.lobby.games[1] = new Map([ [ gameSummary.id, gameSummary ], ...state.lobby.games[1] ]);
+    lobbyGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...lobbyGames[1] ]);
   else if (gameSummary.teams.findIndex(t => t?.playerId === authClient.playerId) === -1)
-    state.lobby.games[2] = new Map([ [ gameSummary.id, gameSummary ], ...state.lobby.games[2] ]);
+    lobbyGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...lobbyGames[2] ]);
 
   renderLobbyGames();
 }
 function unsetLobbyGame(gameSummary) {
+  const lobbyGames = state.tabContent.lobby.games;
   let isDirty = false;
 
-  for (let i = 0; i < state.lobby.games.length; i++) {
-    if (state.lobby.games[i].delete(gameSummary.id))
+  for (let i = 0; i < lobbyGames.length; i++) {
+    if (lobbyGames[i].delete(gameSummary.id))
       isDirty = true;
   }
 
@@ -482,23 +506,26 @@ function unsetLobbyGame(gameSummary) {
     renderLobbyGames();
 }
 function setPublicGame(gameSummary) {
-  state.public.games[0].delete(gameSummary.id);
-  state.public.games[1].delete(gameSummary.id);
-  state.public.games[2].delete(gameSummary.id);
+  const publicGames = state.tabContent.publicGames.games;
+
+  publicGames[0].delete(gameSummary.id);
+  publicGames[1].delete(gameSummary.id);
+  publicGames[2].delete(gameSummary.id);
   if (!gameSummary.startedAt)
-    state.public.games[0] = new Map([ [ gameSummary.id, gameSummary ], ...state.public.games[0] ]);
+    publicGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[0] ]);
   else if (!gameSummary.endedAt)
-    state.public.games[1] = new Map([ [ gameSummary.id, gameSummary ], ...state.public.games[1] ]);
+    publicGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[1] ]);
   else
-    state.public.games[2] = new Map([ [ gameSummary.id, gameSummary ], ...state.public.games[2] ]);
+    publicGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[2] ]);
 
   renderPublicGames();
 }
 function unsetPublicGame(gameSummary) {
+  const publicGames = state.tabContent.publicGames.games;
   let isDirty = false;
 
-  for (let i = 0; i < state.public.games.length; i++) {
-    if (state.public.games[i].delete(gameSummary.id))
+  for (let i = 0; i < publicGames.length; i++) {
+    if (publicGames[i].delete(gameSummary.id))
       isDirty = true;
   }
 
@@ -554,27 +581,22 @@ function resize(sheet) {
     }
   `, sheet.cssRules.length);
 }
-function selectStyle(styleId, skipFill = false) {
-  if (styleId !== state.selectedStyleId && state.isInitialized)
-    gameClient.leaveCollectionGroup(`lobby/${state.selectedStyleId}`);
-
+function selectStyle(styleId) {
+  const tabContent = state.tabContent.lobby;
   const spnStyle = document.querySelector('.lobby HEADER .style');
   const divArenas = document.querySelector('.lobby .arenas');
   const ulFloorList = divArenas.querySelector('.floors UL');
   const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
 
-  ulFloorList.querySelector(`[data-style-id=${state.selectedStyleId}]`).classList.remove('selected');
+  if (tabContent.selectedStyleId)
+    ulFloorList.querySelector(`[data-style-id=${tabContent.selectedStyleId}]`).classList.remove('selected');
   ulFloorList.querySelector(`[data-style-id=${styleId}]`).classList.add('selected');
 
   spnStyle.textContent = styles.get(styleId);
-  state.selectedStyleId = styleId;
-
-  if (!skipFill) {
-    Promise.all(divArenaList.map(d => queueFillArena(d, state.selectedGroupId === 'lobby')))
-      .then(fetchGames);
-  }
+  tabContent.selectedStyleId = styleId;
 }
-async function selectGroup(groupId, skipFill = false) {
+async function selectGroup(groupId) {
+  const tabContent = state.tabContent.lobby;
   const divArenas = document.querySelector('.lobby .arenas');
   const divGroups = divArenas.querySelector('.groups');
   const ulGroupList = divGroups.querySelector('UL');
@@ -585,7 +607,7 @@ async function selectGroup(groupId, skipFill = false) {
   divArenas.classList.toggle('active', groupId === 'active');
   divArenas.classList.toggle('complete', groupId === 'complete');
 
-  ulGroupList.querySelector(`[data-group-id=${state.selectedGroupId}]`).classList.remove('selected');
+  ulGroupList.querySelector(`[data-group-id=${tabContent.selectedGroupId}]`).classList.remove('selected');
   ulGroupList.querySelector(`[data-group-id=${groupId}]`).classList.add('selected');
 
   const groupIds = [ ...groups.keys() ];
@@ -599,16 +621,13 @@ async function selectGroup(groupId, skipFill = false) {
       groupIndex === (groupIds.length - 1);
 
   spnGroup.textContent = groups.get(groupId);
-  state.selectedGroupId = groupId;
-
-  if (!skipFill) {
-    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
-    renderLobbyGames();
-  }
+  tabContent.selectedGroupId = groupId;
 }
 async function selectArena(divArena) {
+  const tabContent = state.tabContent.lobby;
   if (divArena.classList.contains('empty')) {
-    if (state.my.lobbyGame?.collection === `lobby/${state.selectedStyleId}`)
+    const lobbyGame = tabContent.lobbyGame;
+    if (lobbyGame?.collection === `lobby/${tabContent.selectedStyleId}`)
       moveGame(divArena);
     else
       createGame(divArena);
@@ -628,6 +647,7 @@ async function createGame(divArena) {
   if (!await cancelGame())
     return;
 
+  const tabContent = state.tabContent.lobby;
   let { createBlocking, createTimeLimit } = state.settings;
   if (createBlocking === 'ask')
     await popup({
@@ -659,8 +679,8 @@ async function createGame(divArena) {
     }).whenClosed;
 
   try {
-    await gameClient.createGame(state.selectedStyleId, {
-      collection: `lobby/${state.selectedStyleId}`,
+    await gameClient.createGame(tabContent.selectedStyleId, {
+      collection: `lobby/${tabContent.selectedStyleId}`,
       randomFirstTurn: true,
       randomHitChance: createBlocking === 'luck',
       strictUndo: true,
@@ -690,14 +710,14 @@ async function createGame(divArena) {
   return true;
 }
 async function moveGame(divArena) {
-  const myLobbyGame = state.my.lobbyGame;
+  const myLobbyGame = state.tabContent.yourGames.lobbyGame;
 
   gameClient.tagGame(myLobbyGame.id, {
     arenaIndex: parseInt(divArena.dataset.index),
   });
 }
 async function cancelGame() {
-  const myLobbyGame = state.my.lobbyGame;
+  const myLobbyGame = state.tabContent.yourGames.lobbyGame;
   if (!myLobbyGame)
     return true;
 
@@ -779,7 +799,7 @@ async function joinGame(arena) {
   }
 }
 function startGame() {
-  const gameId = state.my.lobbyGame.id;
+  const gameId = state.tabContent.yourGames.lobbyGame.id;
 
   const newGame = avatars.getSound('newgame').howl;
   newGame.once('end', () => {
@@ -901,10 +921,13 @@ function unsubscribePN() {
 }
 
 function renderStats(scope = 'all') {
+  const statsByCollection = state.tabContent.stats.byCollection;
+  const yourGames = state.tabContent.yourGames.games;
+
   if (scope === 'my' || scope === 'all') {
     let numYourTurn = 0;
 
-    for (const game of state.my.games[1].values()) {
+    for (const game of yourGames[1].values()) {
       // Exclude practice games
       if (!game.teams.find(t => t.playerId !== myPlayerId))
         continue;
@@ -918,10 +941,10 @@ function renderStats(scope = 'all') {
 
   if (scope === 'collections' || scope === 'all') {
     let numLobby = 0;
-    let numPublic = state.stats.get('public').waiting;
+    let numPublic = statsByCollection.get('public').waiting;
     const numLobbyByStyle = new Map();
 
-    for (const [ collectionId, stats ] of state.stats) {
+    for (const [ collectionId, stats ] of statsByCollection) {
       if (!collectionId.startsWith('lobby/'))
         continue;
 
@@ -931,7 +954,7 @@ function renderStats(scope = 'all') {
       numLobbyByStyle.set(styleId, stats.waiting);
     }
 
-    for (const game of state.my.games[3].values()) {
+    for (const game of yourGames[3].values()) {
       if (game.startedAt)
         continue;
 
@@ -941,7 +964,7 @@ function renderStats(scope = 'all') {
       numLobbyByStyle.set(styleId, numLobbyByStyle.get(styleId) - 1);
     }
 
-    for (const game of state.my.games[0].values()) {
+    for (const game of yourGames[0].values()) {
       if (game.collection === 'public')
         numPublic--;
     }
@@ -956,18 +979,6 @@ function renderStats(scope = 'all') {
       }
     }
   }
-}
-function renderGames() {
-  renderStats();
-
-  if (state.currentTab === 'yourGames')
-    renderYourGames();
-  else if (state.currentTab === 'lobby')
-    renderLobbyGames();
-  else if (state.currentTab === 'publicGames')
-    renderPublicGames();
-
-  return true;
 }
 
 function renderLobby() {
@@ -1038,9 +1049,12 @@ function renderLobby() {
   const groupIds = [ ...groups.keys() ];
 
   const btnScrollLeft = new ScrollButton('left').render();
-  btnScrollLeft.addEventListener('click', () => {
-    const groupIndex = groupIds.indexOf(state.selectedGroupId);
+  btnScrollLeft.addEventListener('click', async () => {
+    const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
+    const groupIndex = groupIds.indexOf(state.tabContent.lobby.selectedGroupId);
     selectGroup(groupIds[groupIndex - 1]);
+    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
+    renderLobbyGames();
   });
   footer.appendChild(btnScrollLeft);
 
@@ -1050,18 +1064,20 @@ function renderLobby() {
   footer.appendChild(spnGroup);
 
   const btnScrollRight = new ScrollButton('right').render();
-  btnScrollRight.addEventListener('click', () => {
-    const groupIndex = groupIds.indexOf(state.selectedGroupId);
+  btnScrollRight.addEventListener('click', async () => {
+    const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
+    const groupIndex = groupIds.indexOf(state.tabContent.lobby.selectedGroupId);
     selectGroup(groupIds[groupIndex + 1]);
+    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
+    renderLobbyGames();
   });
   footer.appendChild(btnScrollRight);
 
   liLobby.appendChild(footer);
-
-  selectStyle(state.selectedStyleId, true);
-  selectGroup(state.selectedGroupId, true);
 }
 function renderFloors() {
+  const tabContent = state.tabContent.lobby;
+
   const divFloors = document.createElement('DIV');
   divFloors.classList.add('floors');
 
@@ -1079,13 +1095,19 @@ function renderFloors() {
 
       avatars.getSound('focus').howl.play();
     });
-    liFloor.addEventListener('click', () => {
+    liFloor.addEventListener('click', async () => {
       if (liFloor.classList.contains('selected'))
         return;
 
       avatars.getSound('select').howl.play();
 
       selectStyle(styleId);
+      const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
+      await Promise.all(divArenaList.map(d =>
+        queueFillArena(d, tabContent.selectedGroupId === 'lobby'))
+      );
+      tabContent.isSynced = false;
+      syncTab();
     });
     ulFloorList.appendChild(liFloor);
 
@@ -1127,6 +1149,8 @@ function renderFloors() {
   return divFloors;
 }
 function renderGroups() {
+  const tabContent = state.tabContent.lobby;
+
   const divGroups = document.createElement('DIV');
   divGroups.classList.add('groups');
 
@@ -1137,7 +1161,7 @@ function renderGroups() {
   const ulGroupList = document.createElement('UL');
   for (const [ groupId, groupName ] of groups) {
     const liGroup = document.createElement('LI');
-    liGroup.classList.toggle('selected', groupId === state.selectedGroupId);
+    liGroup.classList.toggle('selected', groupId === tabContent.selectedGroupId);
     liGroup.dataset.groupId = groupId;
     liGroup.addEventListener('mouseenter', () => {
       if (liGroup.classList.contains('selected'))
@@ -1145,13 +1169,16 @@ function renderGroups() {
 
       avatars.getSound('focus').howl.play();
     });
-    liGroup.addEventListener('click', () => {
+    liGroup.addEventListener('click', async () => {
       if (liGroup.classList.contains('selected'))
         return;
 
       avatars.getSound('select').howl.play();
 
       selectGroup(groupId);
+      const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
+      await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
+      renderLobbyGames();
     });
     liGroup.textContent = groupName;
     ulGroupList.appendChild(liGroup);
@@ -1160,16 +1187,22 @@ function renderGroups() {
 
   const groupIds = [ ...groups.keys() ];
   const btnScrollUp = new ScrollButton('up').render();
-  btnScrollUp.addEventListener('click', () => {
-    const groupIndex = groupIds.indexOf(state.selectedGroupId);
+  btnScrollUp.addEventListener('click', async () => {
+    const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
+    const groupIndex = groupIds.indexOf(tabContent.selectedGroupId);
     selectGroup(groupIds[groupIndex - 1]);
+    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
+    renderLobbyGames();
   });
   divGroupList.appendChild(btnScrollUp);
 
   const btnScrollDown = new ScrollButton('down').render();
-  btnScrollDown.addEventListener('click', () => {
-    const groupIndex = groupIds.indexOf(state.selectedGroupId);
+  btnScrollDown.addEventListener('click', async () => {
+    const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
+    const groupIndex = groupIds.indexOf(tabContent.selectedGroupId);
     selectGroup(groupIds[groupIndex + 1]);
+    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
+    renderLobbyGames();
   });
   divGroupList.appendChild(btnScrollDown);
 
@@ -1244,6 +1277,8 @@ function renderArena(index) {
   return divArena;
 }
 function getLobbyGames() {
+  const lobbyGame = state.tabContent.yourGames.lobbyGame;
+  const tabContent = state.tabContent.lobby;
   const arenas = new Array(14).fill(null);
   // Subtract 1 to reserve an arena.
   let numRemaining = arenas.length - 1;
@@ -1251,22 +1286,22 @@ function getLobbyGames() {
   /*
    * Place my waiting or active lobby game.
    */
-  if (state.my.lobbyGame?.collection === `lobby/${state.selectedStyleId}`) {
-    const index = state.my.lobbyGame.tags.arenaIndex;
+  if (lobbyGame?.collection === `lobby/${tabContent.selectedStyleId}`) {
+    const index = lobbyGame.tags.arenaIndex;
 
-    arenas[index] = state.my.lobbyGame;
+    arenas[index] = lobbyGame;
     // Do not subtract from numRemaining to use the reserved arena.
   }
 
   /*
    * Place all waiting games with no conflicts.
    */
-  const waitingGames = [ ...state.lobby.games[0].values() ]
+  const waitingGames = [ ...tabContent.games[0].values() ]
     .sort((a,b) => a.createdAt - b.createdAt);
 
   // Cloning the array allows us to use .splice()
   for (const game of waitingGames.slice()) {
-    if (game.id === state.my.lobbyGame?.id) {
+    if (game.id === lobbyGame?.id) {
       waitingGames.splice(waitingGames.indexOf(game), 1);
       continue;
     }
@@ -1293,7 +1328,7 @@ function getLobbyGames() {
   /*
    * Place all active games with no conflicts.
    */
-  const activeGames = [ ...state.lobby.games[1].values() ]
+  const activeGames = [ ...tabContent.games[1].values() ]
     .sort((a,b) => b.startedAt - a.startedAt);
 
   for (const game of activeGames) {
@@ -1308,7 +1343,7 @@ function getLobbyGames() {
   /*
    * Place all complete games with no conflicts.
    */
-  const completeGames = [ ...state.lobby.games[2].values() ]
+  const completeGames = [ ...tabContent.games[2].values() ]
     .sort((a,b) => b.endedAt - a.endedAt);
 
   for (const game of completeGames) {
@@ -1325,14 +1360,26 @@ function getLobbyGames() {
 async function renderLobbyGames() {
   const divArenas = document.querySelector('.lobby .arenas');
   const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
+  const tabContent = state.tabContent.lobby;
   const arenas = [];
 
-  if (state.selectedGroupId === 'lobby')
+  if (!tabContent.selectedStyleId) {
+    const lobbyGame = state.tabContent.yourGames.lobbyGame;
+    if (lobbyGame)
+      selectStyle(lobbyGame.collection.slice(6));
+    else
+      selectStyle('freestyle');
+  }
+
+  if (!tabContent.selectedGroupId)
+    selectGroup('lobby');
+
+  if (tabContent.selectedGroupId === 'lobby')
     arenas.push(...getLobbyGames());
-  else if (state.selectedGroupId === 'active')
-    arenas.push(...state.lobby.games[1].values());
-  else if (state.selectedGroupId === 'complete')
-    arenas.push(...state.lobby.games[2].values());
+  else if (tabContent.selectedGroupId === 'active')
+    arenas.push(...tabContent.games[1].values());
+  else if (tabContent.selectedGroupId === 'complete')
+    arenas.push(...tabContent.games[2].values());
 
   while (divArenaList.length < arenas.length) {
     const divArena = renderArena(divArenaList.length);
@@ -1372,7 +1419,8 @@ async function fillArena(divArena, arena = true) {
   if (arena === true)
     return emptyArena(divArena);
 
-  divArena.classList.toggle('disabled', !!state.my.lobbyGame?.startedAt && !arena.startedAt);
+  const lobbyGame = state.tabContent.yourGames.lobbyGame;
+  divArena.classList.toggle('disabled', !!lobbyGame?.startedAt && !arena.startedAt);
 
   const oldArena = JSON.parse(divArena.dataset.arena ?? 'null');
   if (JSON.stringify(arena) === JSON.stringify(oldArena))
@@ -1394,7 +1442,7 @@ async function fillArena(divArena, arena = true) {
       fillTeam(divArena, 'top', arena, null),
       fillTeam(divArena, 'btm', arena, null),
     ]);
-    divArena.classList.toggle('disabled', !!state.my.lobbyGame?.startedAt && !arena.startedAt);
+    divArena.classList.toggle('disabled', !!lobbyGame?.startedAt && !arena.startedAt);
   } else {
     await Promise.all([
       fillTeam(divArena, 'top', arena, oldArena),
@@ -1461,7 +1509,8 @@ async function fillTeam(divArena, slot, arena, oldArena) {
 }
 async function emptyArena(divArena) {
   if (divArena.classList.contains('empty')) {
-    divArena.classList.toggle('disabled', !!state.my.lobbyGame?.startedAt);
+    const lobbyGame = state.tabContent.yourGames.lobbyGame;
+    divArena.classList.toggle('disabled', !!lobbyGame?.startedAt);
     return false;
   }
 
@@ -1482,12 +1531,13 @@ async function emptyArena(divArena) {
 }
 
 function renderYourGames() {
+  const tabContent = state.tabContent.yourGames;
   const divTabContent = document.querySelector('.tabContent .yourGames');
   divTabContent.innerHTML = '';
 
   const now = gameClient.serverNow;
-  const waitingGames = [ ...state.my.games[0].values() ];
-  const activeGames = [ ...state.my.games[1].values() ]
+  const waitingGames = [ ...tabContent.games[0].values() ];
+  const activeGames = [ ...tabContent.games[1].values() ]
     .map(game => {
       game.turnTimeRemaining = game.getTurnTimeRemaining(now);
 
@@ -1503,8 +1553,8 @@ function renderYourGames() {
 
       return a.turnTimeRemaining - b.turnTimeRemaining;
     });
-  const completeGames = [ ...state.my.games[2].values() ];
-  const lobbyGames = [ ...state.my.games[3].values() ]
+  const completeGames = [ ...tabContent.games[2].values() ];
+  const lobbyGames = [ ...tabContent.games[3].values() ]
     .map(game => {
       game.turnTimeRemaining = game.getTurnTimeRemaining(now);
 
@@ -1619,17 +1669,18 @@ function renderYourGames() {
     completeGames.forEach(game => divTabContent.appendChild(renderGame(game)));
   }
 
-  state.my.renderTimeout = setTimeout(renderYourGames, 30000);
+  tabContent.renderTimeout = setTimeout(renderYourGames, 30000);
 }
 
 async function renderPublicGames() {
+  const tabContent = state.tabContent.publicGames;
   const divTabContent = document.querySelector('.tabContent .publicGames');
   divTabContent.innerHTML = '';
 
   const now = gameClient.serverNow;
-  const waitingGames = [ ...state.public.games[0].values() ];
-  const activeGames = [ ...state.public.games[1].values() ];
-  const completeGames = [ ...state.public.games[2].values() ];
+  const waitingGames = [ ...tabContent.games[0].values() ];
+  const activeGames = [ ...tabContent.games[1].values() ];
+  const completeGames = [ ...tabContent.games[2].values() ];
 
   /*
    * Waiting for Opponent
@@ -1664,7 +1715,7 @@ async function renderPublicGames() {
     completeGames.forEach(game => divTabContent.appendChild(renderGame(game)));
   }
 
-  state.public.renderTimeout = setTimeout(renderPublicGames, 30000);
+  tabContent.renderTimeout = setTimeout(renderPublicGames, 30000);
 }
 
 function renderGame(game) {
@@ -1811,70 +1862,108 @@ function renderGame(game) {
   return divGame;
 }
 
-/*
- * This is complicated because this method is called under 3 circumstances:
- *   1) When the page first loads.
- *   2) When the tab changes.
- *   3) When we lose connection and must reconnect.
- *
- * The 1st two cases are detected by the fact that the desired tab is not active
- * yet.  In these cases, we must abort a previous tab load request, if any, and
- * start loading the current tab.
- *
- * The 3rd case must be skipped if we are already reloading or reloaded the tab.
- * This is tracked using the state.isLoading and state.isLoaded properties.
- * Otherwise, we must refetch the games and hide the loading spinner.
- *
- * The loading spinner is displayed any time we lost connection or a tab is
- * being loaded.
- */
 async function openTab() {
-  const tab = document.querySelector(`.tabs .${state.currentTab}`);
-  const tabContent = document.querySelector(`.tabContent .${state.currentTab}`);
-  const divLoading = document.querySelector(`.tabContent .loading`);
+  closeTab();
 
-  if (tab.classList.contains('is-active')) {
-    if (state.isLoading || state.isLoaded)
-      return;
-  } else if (!tab.classList.contains('is-active')) {
-    document.querySelectorAll('.tabs LI')
-      .forEach(li => li.classList.remove('is-active'));
-    document.querySelectorAll('.tabContent > DIV')
-      .forEach(div => div.classList.remove('is-active'));
+  state.currentTab = 'yourGames';
+  if (location.hash === '#lobby')
+    state.currentTab = 'lobby';
+  else if (location.hash === '#publicGames')
+    state.currentTab = 'publicGames';
 
-    tab.classList.add('is-active');
-  }
+  document.querySelector(`.tabs .${state.currentTab}`).classList.add('is-active');
 
-  divLoading.classList.add('is-active');
-  divLoading.classList.add('hide');
-  whenTransitionEnds(divLoading, () => {
-    divLoading.classList.remove('hide');
-  });
-  state.isLoading = true;
-
-  // If fetch games aborts, bail.
-  if (!await fetchGames())
+  syncTab();
+}
+function closeTab() {
+  if (!state.currentTab)
     return;
 
-  if (state.currentTab === 'lobby') {
-    setTimeout(() => {
-      divLoading.classList.remove('is-active');
-      state.isLoading = false;
-      state.isLoaded = true;
+  document.querySelector(`.tabs .${state.currentTab}`).classList.remove('is-active');
+
+  const tabContent = state.tabContent[state.currentTab];
+
+  if (tabContent.isOpen) {
+    document.querySelector(`.tabContent .${state.currentTab}`).classList.remove('is-active');
+
+    if (tabContent.isSynced) {
+      if (state.currentTab === 'yourGames')
+        clearTimeout(tabContent.renderTimeout);
+      else if (state.currentTab === 'lobby') {
+        gameClient.leaveCollectionGroup(`lobby/${tabContent.selectedStyleId}`);
+        tabContent.isSynced = false;
+        tabContent.whenSynced = Promise.resolve();
+      } else if (state.currentTab === 'publicGames') {
+        gameClient.leaveCollectionGroup('public');
+        tabContent.isSynced = false;
+        tabContent.whenSynced = Promise.resolve();
+        clearTimeout(tabContent.renderTimeout);
+      }
+    }
+
+    tabContent.isOpen = false;
+  }
+}
+
+async function syncTab() {
+  const currentTab = state.currentTab;
+  const tabContent = state.tabContent[currentTab];
+  if (tabContent.isOpen && tabContent.isSynced || tabContent.isLoading)
+    return;
+  tabContent.isLoading = true;
+
+  const divLoading = document.querySelector(`.tabContent .loading`);
+
+  if (!divLoading.classList.contains('is-active')) {
+    divLoading.classList.add('is-active');
+    divLoading.classList.add('hide');
+    whenTransitionEnds(divLoading, () => {
+      divLoading.classList.remove('hide');
+    });
+  }
+
+  try {
+    if (!tabContent.isSynced) {
+      await fetchGames(currentTab);
+
+      // If the tab was changed before fetching completed, abort.
+      if (state.currentTab !== currentTab)
+        throw 'abort';
+
+      renderStats();
+    }
+
+    if (state.currentTab === 'lobby') {
+      renderLobbyGames();
 
       // Check for a running state directly in case the state property
       // hasn't updated yet.
+      await sleep();
       if (Howler.ctx.state === 'running' || state.audioEnabled)
         showLobby();
       else
         showEnterLobby();
-    });
-  } else {
-    divLoading.classList.remove('is-active');
-    state.isLoading = false;
-    state.isLoaded = true;
-    tabContent.classList.add('is-active');
+    } else {
+      if (state.currentTab === 'yourGames')
+        renderYourGames();
+      else
+        renderPublicGames();
+
+      document.querySelector(`.tabContent .${currentTab}`).classList.add('is-active');
+    }
+
+    tabContent.isOpen = true;
+  } catch(error) {
+    if (error !== 'abort') {
+      if (state.currentTab === currentTab)
+        popup('Oops!  Something went wrong while loading the tab.');
+      console.error(error);
+      reportError(error);
+    }
   }
+
+  divLoading.classList.remove('is-active');
+  tabContent.isLoading = false;
 }
 function showEnterLobby() {
   const divEnterLobby = document.querySelector('.tabContent .enterLobby');
@@ -1882,6 +1971,7 @@ function showEnterLobby() {
   divEnterLobby.querySelector('BUTTON').addEventListener('click', showLobby);
 }
 function showLobby() {
+  const tabContent = state.tabContent.lobby;
   const divEnterLobby = document.querySelector('.tabContent .enterLobby');
   if (divEnterLobby.classList.contains('is-active')) {
     divEnterLobby.classList.remove('is-active');
@@ -1890,9 +1980,7 @@ function showLobby() {
 
   const divLobby = document.querySelector('.tabContent .lobby');
 
-  if (state.lobby.isOpen)
-    divLobby.classList.add('is-active');
-  else {
+  if (tabContent.firstOpen) {
     divLobby.classList.add('is-active');
     divLobby.classList.add('disabled');
     divLobby.classList.add('hide');
@@ -1906,9 +1994,10 @@ function showLobby() {
       });
       login.play();
 
-      state.lobby.isOpen = true;
+      tabContent.firstOpen = false;
     });
-  }
+  } else
+    divLobby.classList.add('is-active');
 }
 
 function getTabNameForElement(el) {
@@ -1920,133 +2009,174 @@ function getTabNameForElement(el) {
     return 'publicGames';
 }
 
-async function syncData() {
-  const query = [
-    {
-      filter: {
-        collection: { '!':{ '~':/^lobby\// } },
-        startedAt: null,
-      },
-      sort: { field:'updatedAt', order:'desc' },
-      limit: 50,
-    },
-    {
-      filter: {
-        collection: { '!':{ '~':/^lobby\// } },
-        startedAt: { '!':null },
-        endedAt: null,
-      },
-      sort: { field:'updatedAt', order:'desc' },
-      limit: 50,
-    },
-    {
-      filter: { endedAt:{ '!':null } },
-      sort: { field:'updatedAt', order:'desc' },
-      limit: 50,
-    },
-    {
-      filter: {
-        collection: { '~':/^lobby\// },
-        endedAt: null,
-      },
-      sort: { field:'updatedAt', order:'asc' },
-      limit: 50,
-    },
-  ];
+async function fetchGames(tabName) {
+  const promises = [];
 
-  return Promise.all([
-    gameClient.joinCollectionStatsGroup().then(rsp => state.stats = rsp.stats),
-    gameClient.joinMyGamesGroup({ query }).then(rsp => {
-      state.my.stats = rsp.stats;
-      state.my.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
-
-      if (rsp.results[3].hits.length)
-        setYourLobbyGame(rsp.results[3].hits[0], true);
-      else
-        unsetYourLobbyGame(state.my.lobbyGame, true);
-
-      // TODO: Search for active lobby game and prompt to play it
-      // (Make sure DOM is loaded, though)
-      // Perhaps upgrade popups to auto wait for DOM load
-    }),
-  ]);
-}
-async function fetchGames() {
-  if (state.fetcher)
-    state.fetcher.abort = true;
-  const fetcherState = state.fetcher = { abort:false };
-
-  try {
-    if (state.currentTab === 'lobby') {
-      const query = [
-        {
-          filter: {
-            'teams[].playerId': { '!':myPlayerId },
-            startedAt: null,
-          },
-          sort: { field:'createdAt', order:'asc' },
-          limit: 50,
-        },
-        {
-          filter: {
-            'teams[].playerId': { '!':myPlayerId },
-            startedAt: { '!':null },
-            endedAt: null,
-          },
-          sort: { field:'startedAt', order:'desc' },
-          limit: 50,
-        },
-        {
-          filter: {
-            'teams[].playerId': { '!':myPlayerId },
-            endedAt: { '!':null },
-          },
-          sort: { field:'endedAt', order:'desc' },
-          limit: 50,
-        },
-      ];
-
-      await gameClient.joinCollectionGroup(`lobby/${state.selectedStyleId}`, { query }).then(rsp => avatarsPromise.then(() => {
-        state.lobby.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
-      }));
-    } else if (state.currentTab === 'publicGames') {
-      const query = [
-        {
-          filter: {
-            'teams[].playerId': { '!':myPlayerId },
-            startedAt: null,
-          },
-          sort: { field:'createdAt', order:'desc' },
-          limit: 50,
-        },
-        {
-          filter: {
-            'teams[].playerId': { '!':myPlayerId },
-            startedAt: { '!':null },
-            endedAt: null
-          },
-          sort: { field:'startedAt', order:'desc' },
-          limit: 50,
-        },
-        {
-          filter: {
-            'teams[].playerId': { '!':myPlayerId },
-            endedAt: { '!':null },
-          },
-          sort: { field:'endedAt', order:'desc' },
-          limit: 50,
-        },
-      ];
-
-      await gameClient.joinCollectionGroup(`public`, { query }).then(rsp => {
-        state.public.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
+  const statsContent = state.tabContent.stats;
+  if (!statsContent.isSynced) {
+    if (statsContent.whenSynced.isFinalized)
+      statsContent.whenSynced = gameClient.joinCollectionStatsGroup().then(rsp => {
+        statsContent.byCollection = rsp.stats;
+        statsContent.isSynced = true;
       });
-    }
-  } catch(error) {
-    if (error === 'Connection reset')
-      return fetcherState.abort ? false : fetchGames();
-    throw error;
+    promises.push(statsContent.whenSynced);
   }
 
-  return fetcherState.abort ? false : renderGames();
+  const yourContent = state.tabContent.yourGames;
+  if (!yourContent.isSynced) {
+    const query = [
+      {
+        filter: {
+          collection: { '!':{ '~':/^lobby\// } },
+          startedAt: null,
+        },
+        sort: { field:'updatedAt', order:'desc' },
+        limit: 50,
+      },
+      {
+        filter: {
+          collection: { '!':{ '~':/^lobby\// } },
+          startedAt: { '!':null },
+          endedAt: null,
+        },
+        sort: { field:'updatedAt', order:'desc' },
+        limit: 50,
+      },
+      {
+        filter: { endedAt:{ '!':null } },
+        sort: { field:'updatedAt', order:'desc' },
+        limit: 50,
+      },
+      {
+        filter: {
+          collection: { '~':/^lobby\// },
+          endedAt: null,
+        },
+        sort: { field:'updatedAt', order:'asc' },
+        limit: 50,
+      },
+    ];
+
+    if (yourContent.whenSynced.isFinalized)
+      yourContent.whenSynced = gameClient.joinMyGamesGroup({ query }).then(rsp => {
+        yourContent.stats = rsp.stats;
+        yourContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
+
+        if (rsp.results[3].hits.length)
+          setYourLobbyGame(rsp.results[3].hits[0], true);
+        else if (yourContent.lobbyGame)
+          unsetYourLobbyGame(yourContent.lobbyGame, true);
+
+        yourContent.isSynced = true;
+      });
+    promises.push(yourContent.whenSynced);
+  }
+
+  const tabContent = state.tabContent[tabName];
+
+  if (tabName === 'lobby') {
+    const query = [
+      {
+        filter: {
+          'teams[].playerId': { '!':myPlayerId },
+          startedAt: null,
+        },
+        sort: { field:'createdAt', order:'asc' },
+        limit: 50,
+      },
+      {
+        filter: {
+          'teams[].playerId': { '!':myPlayerId },
+          startedAt: { '!':null },
+          endedAt: null,
+        },
+        sort: { field:'startedAt', order:'desc' },
+        limit: 50,
+      },
+      {
+        filter: {
+          'teams[].playerId': { '!':myPlayerId },
+          endedAt: { '!':null },
+        },
+        sort: { field:'endedAt', order:'desc' },
+        limit: 50,
+      },
+    ];
+
+    const join = styleId =>
+      gameClient.joinCollectionGroup(`lobby/${styleId}`, { query }).then(rsp => {
+        if (tabContent.selectedStyleId !== styleId)
+          return gameClient.leaveCollectionGroup(`lobby/${styleId}`)
+            .then(() => tabContent.whenSynced);
+
+        tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
+        tabContent.isSynced = true;
+      });
+    const leave = styleId =>
+      gameClient.leaveCollectionGroup(`lobby/${styleId}`);
+
+    if (tabContent.selectedStyleId === null) {
+      await Promise.all([ avatarsPromise, yourContent.whenSynced ]);
+      const styleId = yourContent.lobbyGame?.collection.slice(6) ?? 'freestyle';
+      selectStyle(styleId);
+      selectGroup('lobby');
+    }
+
+    const styleId = tabContent.selectedStyleId;
+    if (tabContent.whenSynced.styleId)
+      tabContent.whenSynced = Promise.all([
+        leave(tabContent.whenSynced.styleId),
+        join(styleId),
+      ]);
+    else
+      tabContent.whenSynced = join(styleId);
+    tabContent.whenSynced.styleId = styleId;
+
+    promises.push(tabContent.whenSynced);
+  } else if (tabName === 'publicGames') {
+    const query = [
+      {
+        filter: {
+          'teams[].playerId': { '!':myPlayerId },
+          startedAt: null,
+        },
+        sort: { field:'createdAt', order:'desc' },
+        limit: 50,
+      },
+      {
+        filter: {
+          'teams[].playerId': { '!':myPlayerId },
+          startedAt: { '!':null },
+          endedAt: null
+        },
+        sort: { field:'startedAt', order:'desc' },
+        limit: 50,
+      },
+      {
+        filter: {
+          'teams[].playerId': { '!':myPlayerId },
+          endedAt: { '!':null },
+        },
+        sort: { field:'endedAt', order:'desc' },
+        limit: 50,
+      },
+    ];
+
+    promises.push(
+      gameClient.joinCollectionGroup(`public`, { query }).then(rsp => {
+        tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
+        tabContent.isSynced = true;
+      })
+    );
+  }
+
+  return Promise.all(promises).catch(error => {
+    if (error !== 'Connection reset')
+      throw error;
+
+    if (state.currentTab !== tabName)
+      return;
+
+    return fetchGames(tabName);
+  });
 }

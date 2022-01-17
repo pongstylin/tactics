@@ -18,7 +18,6 @@ if (!self.Promise.isEnhanced) {
         bound: {},
         isResolved: false,
         isRejected: false,
-        isFinalized: false,
         tags: Object.assign(tags, {
           createdAt: new Date(),
           createdStack: new Error().stack,
@@ -56,7 +55,7 @@ if (!self.Promise.isEnhanced) {
       if (typeof value?.then === 'function')
         return value.then(data.bound.resolver, data.bound.rejector);
 
-      data.isResolved = data.isFinalized = true;
+      data.isResolved = true;
       data.resolver(data.value = value);
 
       return value;
@@ -66,7 +65,7 @@ if (!self.Promise.isEnhanced) {
 
       data.tags.rejectedAt = new Date();
       data.tags.rejectedStack = new Error().stack;
-      data.isRejected = data.isFinalized = true;
+      data.isRejected = true;
       data.rejector(data.value = value);
 
       return value;
@@ -75,6 +74,9 @@ if (!self.Promise.isEnhanced) {
     get value() {
       return this._data.value;
     }
+    get isPending() {
+      return !this._data.isResolved && !this._data.isRejected;
+    }
     get isResolved() {
       return this._data.isResolved;
     }
@@ -82,7 +84,7 @@ if (!self.Promise.isEnhanced) {
       return this._data.isRejected;
     }
     get isFinalized() {
-      return this._data.isFinalized;
+      return this._data.isResolved || this._data.isRejected;
     }
     get tags() {
       return this._data.tags;
