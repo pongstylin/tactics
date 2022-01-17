@@ -639,6 +639,9 @@ export default class Board {
     tilesContainer.pointertap = event => {
       if (this.locked === true) return;
 
+      if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data))
+        Tactics.game.selectMode = 'attack'; 
+
       if (this.viewed || this.selected)
         this._emit({
           type: 'deselect',
@@ -2006,6 +2009,19 @@ export default class Board {
         tile.set_interactive(!!tile.assigned);
       }
     });
+  }
+  isAdjacentToHighlighted({ x, y }, includeDiagonal = true) {
+    return undefined != [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1]
+      ].concat(!includeDiagonal ? [] : [
+        [x - 1, y - 1],
+        [x - 1, y + 1],
+        [x + 1, y - 1],
+        [x + 1, y + 1]
+      ]).find(pt => this._highlighted.get(this.getTile(...pt)));
   }
 };
 
