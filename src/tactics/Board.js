@@ -2011,7 +2011,7 @@ export default class Board {
     });
   }
   isAdjacentToHighlighted({ x, y }, includeDiagonal = true) {
-    return undefined != [
+    return !![
         [x - 1, y],
         [x + 1, y],
         [x, y - 1],
