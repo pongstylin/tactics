@@ -678,16 +678,20 @@ export default class GameState {
     }
   }
 
-  getTurnTimeLimit(timeBuffer = this.currentTeam.turnTimeBuffer) {
-    if (!this.startedAt || !this.turnTimeLimit || this.endedAt)
+  getTurnTimeLimit(turnId = this.currentTurnId) {
+    if (!this.startedAt || !this.turnTimeLimit)
       return;
+
+    const turnData = this.getTurnData(turnId);
+    const team = this.teams[turnId % this.teams.length];
+    const firstTurnId = this.getTeamFirstTurnId(team);
 
     let turnTimeLimit = this.turnTimeLimit;
     if (this.turnTimeBuffer) {
-      if (this.teamHasPlayed(this.currentTeam))
-        turnTimeLimit += timeBuffer;
-      else
+      if (turnId === firstTurnId)
         turnTimeLimit = this.turnTimeBuffer;
+      else
+        turnTimeLimit += turnData.timeBuffer;
     }
 
     return turnTimeLimit;
@@ -993,7 +997,7 @@ export default class GameState {
       return Infinity;
 
     const turn = this.getTurnData(turnId);
-    const turnTimeLimit = this.getTurnTimeLimit(turn.timeBuffer);
+    const turnTimeLimit = this.getTurnTimeLimit(turnId);
 
     const now = Date.now();
     const lastAction = turn.actions.last;

@@ -158,17 +158,18 @@ export default class Game {
   }
   get turnTimeLimit() {
     const state = this.state;
-    if (!state.startedAt || !state.turnTimeLimit || state.endedAt)
+    if (!state.startedAt || !state.turnTimeLimit)
       return;
 
     let turnTimeLimit = state.turnTimeLimit;
     if (state.turnTimeBuffer) {
       const team = state.currentTeam;
+      const firstTurnId = this.getTeamFirstTurnId(team);
 
-      if (this.teamHasPlayed(team))
-        turnTimeLimit += team.turnTimeBuffer;
-      else
+      if (state.currentTurnId === firstTurnId)
         turnTimeLimit = state.turnTimeBuffer;
+      else
+        turnTimeLimit += team.turnTimeBuffer;
     }
 
     return turnTimeLimit;
@@ -526,6 +527,13 @@ export default class Game {
 
     return this.teams.filter(t => this.isMyTeam(t)).length === 1;
   }
+  getTeamFirstTurnId(team) {
+    const numTeams = this.state.teams.length;
+    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
+    const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
+
+    return team.id + (numTeams * Math.max(waitTurns, skipTurns));
+  }
   /*
    * Determine team's first playable turn and whether that turn has been made.
    */
@@ -536,10 +544,7 @@ export default class Game {
       this.state.winnerId === team.id
     ) return true;
 
-    const numTeams = this.state.teams.length;
-    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
-    const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
-    const firstTurnId = team.id + (numTeams * Math.max(waitTurns, skipTurns));
+    const firstTurnId = this.getTeamFirstTurnId(team);
 
     if (this.state.currentTurnId < firstTurnId)
       return false;
