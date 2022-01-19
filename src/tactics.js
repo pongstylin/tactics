@@ -1,4 +1,5 @@
 import 'plugins/index.js';
+import 'plugins/promise.js';
 
 import 'utils/event.js';
 
