@@ -270,46 +270,49 @@ export default class GameService extends Service {
    * Socket Message Event Handlers
    ****************************************************************************/
   async onAuthorize(client, { token }) {
-    if (this.clientPara.has(client.id)) {
-      const clientPara = this.clientPara.get(client.id);
-      if (clientPara.playerId !== token.playerId)
-        throw new ServerError(501, 'Unsupported change of player');
-
-      clientPara.client = client;
-      clientPara.token = token;
-      clientPara.name = token.playerName;
-
-      // Just in case a client attempts to authorize twice in parallel.
-      await clientPara.playerPromise;
-    } else {
+    if (!this.clientPara.has(client.id)) {
+      const playerId = token.playerId;
       const clientPara = {
         joinedGroups: new Set(),
+        playerId,
+        deviceType: uaparser(client.agent).device.type,
       };
 
-      const playerId = clientPara.playerId = token.playerId;
-      clientPara.client = client;
-      clientPara.token = token;
-      clientPara.name = token.playerName;
-      clientPara.deviceType = uaparser(client.agent).device.type;
-      clientPara.playerPromise = this.data.openPlayer(playerId);
-      this.clientPara.set(client.id, clientPara);
-
-      const playerPara = this.playerPara.get(playerId);
-      if (playerPara)
-        // This operation would be redundant if client authorizes more than once.
-        playerPara.clients.add(client.id);
-      else {
-        this.playerPara.set(playerId, {
-          player: await this.auth.openPlayer(playerId),
-          clients: new Set([client.id]),
-          joinedGameGroups: new Map(),
-        });
-
-        // Let people who needs to know that this player is online.
-        this._setPlayerGamesStatus(playerId);
+      await Promise.all([
+        this.auth.openPlayer(playerId),
+        this.data.openPlayer(playerId),
+      ]).then(([ player ]) => clientPara.player = player);
+      if (client.closed) {
+        this.auth.closePlayer(playerId);
+        this.data.closePlayer(playerId);
+        return;
       }
 
-      await clientPara.playerPromise;
+      this.clientPara.set(client.id, clientPara);
+    }
+
+    const clientPara = this.clientPara.get(client.id);
+    if (clientPara.playerId !== token.playerId)
+      throw new ServerError(501, 'Unsupported change of player');
+
+    clientPara.client = client;
+    clientPara.token = token;
+    clientPara.name = token.playerName;
+
+    const player = clientPara.player;
+    const playerPara = this.playerPara.get(player.id);
+    if (playerPara)
+      // This operation would be redundant if client authorizes more than once.
+      playerPara.clients.add(client.id);
+    else {
+      this.playerPara.set(player.id, {
+        player,
+        clients: new Set([client.id]),
+        joinedGameGroups: new Map(),
+      });
+
+      // Let people who needs to know that this player is online.
+      this._setPlayerGamesStatus(player.id);
     }
   }
 
@@ -684,16 +687,14 @@ export default class GameService extends Service {
   }
 
   async onSearchMyGamesRequest(client, query) {
-    const playerId = this.clientPara.get(client.id).playerId;
-    const player = await this._getAuthPlayer(playerId);
+    const player = this.clientPara.get(client.id).player;
     return this.data.searchPlayerGames(player, query);
   }
   async onSearchGameCollectionRequest(client, collection, query) {
     if (!this.config.collections.includes(collection))
       throw new ServerError(400, 'Unrecognized game collection');
 
-    const playerId = this.clientPara.get(client.id).playerId;
-    const player = await this._getAuthPlayer(playerId);
+    const player = this.clientPara.get(client.id).player;
     return this.data.searchGameCollection(player, collection, query);
   }
 
@@ -878,7 +879,8 @@ export default class GameService extends Service {
   }
   async onJoinMyGamesGroup(client, groupPath, playerId, params) {
     const clientPara = this.clientPara.get(client.id);
-    if (playerId !== clientPara.playerId)
+    const player = clientPara.player;
+    if (playerId !== player.id)
       throw new ServerError(403, 'You may not join other player game groups');
 
     const playerPara = this.playerPara.get(playerId);
@@ -919,10 +921,8 @@ export default class GameService extends Service {
     const response = {
       stats: myGames.stats,
     };
-    if (params.query) {
-      const player = await this._getAuthPlayer(playerId);
+    if (params.query)
       response.results = await this.data.searchPlayerGames(player, params.query);
-    }
 
     this._emit({
       type: 'joinGroup',
@@ -964,7 +964,7 @@ export default class GameService extends Service {
     }
 
     const clientPara = this.clientPara.get(client.id);
-    const player = await this._getAuthPlayer(clientPara.playerId);
+    const player = clientPara.player;
 
     for (const collection of collections) {
       if (!this.collectionPara.has(collection.id)) {
