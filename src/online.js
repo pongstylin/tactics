@@ -1451,7 +1451,7 @@ async function fillArena(divArena, arena = true) {
   }
 
   const labels = [];
-  if (!arena.startedAt && arena.createdBy !== authClient.playerId) {
+  if (!arena.startedAt) {
     if (arena.randomHitChance === false)
       labels.push('No Luck');
     if (arena.turnTimeLimit === 30)
@@ -1970,7 +1970,7 @@ function showEnterLobby() {
   divEnterLobby.classList.add('is-active');
   divEnterLobby.querySelector('BUTTON').addEventListener('click', showLobby);
 }
-function showLobby() {
+async function showLobby() {
   const tabContent = state.tabContent.lobby;
   const divEnterLobby = document.querySelector('.tabContent .enterLobby');
   if (divEnterLobby.classList.contains('is-active')) {
@@ -1985,17 +1985,14 @@ function showLobby() {
     divLobby.classList.add('disabled');
     divLobby.classList.add('hide');
 
-    whenTransitionEnds(divLobby, () => {
+    await whenTransitionEnds(divLobby, () => {
       divLobby.classList.remove('hide');
 
-      const login = avatars.getSound('login').howl;
-      login.once('end', () => {
-        divLobby.classList.remove('disabled');
-      });
-      login.play();
+      avatars.getSound('login').howl.play();
 
       tabContent.firstOpen = false;
     });
+    divLobby.classList.remove('disabled');
   } else
     divLobby.classList.add('is-active');
 }

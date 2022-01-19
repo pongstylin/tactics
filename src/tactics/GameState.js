@@ -1230,7 +1230,7 @@ export default class GameState {
       const turnTimeLimit = this.turnTimeLimit;
       const elapsed = Math.floor((turnEndedAt - turn.startedAt) / 1000);
       if (elapsed > turnTimeLimit)
-        team.turnTimeBuffer = Math.max(0, team.turnTimeBuffer - Math.max(0, elapsed - turnTimeLimit));
+        team.turnTimeBuffer = Math.max(0, team.turnTimeBuffer - (elapsed - turnTimeLimit));
       else
         team.turnTimeBuffer = Math.min(turnTimeBuffer, team.turnTimeBuffer + Math.max(0, (turnTimeLimit / 2) - elapsed));
     }

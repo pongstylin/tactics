@@ -62,6 +62,13 @@ export default class LobbySettings extends Modal {
     });
   }
 
+  show() {
+    if (Tactics.audioBroken)
+      this.els.audio.classList.add('broken');
+
+    super.show();
+  }
+
   detectSettings() {
     const settings = this.data.settings;
 

@@ -17,6 +17,19 @@
     .audio LABEL:last-child, .labels LABEL:last-child {
       grid-column: span 2;
     }
+    .audio.broken {
+      & > * {
+        display: none;
+      }
+      &::after {
+        content: 'Audio is broken in this browser.';
+        color: red;
+        grid-column: span 4;
+        padding: 4px 0;
+        // Fixes an apparent bug in Chrome
+        text-shadow: 0 0 red;
+      }
+    }
     .row {
       display: contents;
 

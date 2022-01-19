@@ -200,7 +200,7 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 
     if (vs !== 'you')
-      gameOptions.turnTimeLimit = parseInt(turnLimit);
+      gameOptions.turnTimeLimit = isNaN(turnLimit) ? turnLimit : parseInt(turnLimit);
 
     let myGameQuery;
     let matchingGameQuery;

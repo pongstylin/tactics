@@ -95,6 +95,13 @@ export default class GameSettings extends Modal {
     window.addEventListener('resize', this._resizeListener);
   }
 
+  show() {
+    if (Tactics.audioBroken)
+      this.els.audio.classList.add('broken');
+
+    super.show();
+  }
+
   detectSettings() {
     let app = document.querySelector('#app');
     let settings = this.data.settings;

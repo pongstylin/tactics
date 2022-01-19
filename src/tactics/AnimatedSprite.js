@@ -136,10 +136,10 @@ export default class AnimatedSprite {
           else if (typeof sound.name === 'string')
             sound.name = [sound.name];
 
-          let isURL = sound.src instanceof URL;
-          let isDataURL = !isURL && sound.src.startsWith('data:');
-          let isSpriteURI = !isURL && sound.src.startsWith('sprite:');
-          let isCustom = sound.volume !== undefined || sound.rate !== undefined;
+          const isURL = sound.src instanceof URL;
+          const isDataURL = !isURL && sound.src.startsWith('data:');
+          const isSpriteURI = !isURL && sound.src.startsWith('sprite:');
+          const isCustom = sound.volume !== undefined || sound.rate !== undefined;
 
           if (isURL || isDataURL || isCustom) {
             if (isURL)
@@ -149,7 +149,7 @@ export default class AnimatedSprite {
             else if (isSpriteURI)
               sound.src = AnimatedSprite.get(sound.src).howl._src;
 
-            let soundName = sound.name[0] || i;
+            const soundName = sound.name[0] || i;
 
             loading++;
             sound.howl = new Howl({
@@ -159,10 +159,17 @@ export default class AnimatedSprite {
               rate: sound.rate || 1,
               sprite: sound.sprite,
               onload: progress,
-              onloaderror: (id, error) =>
-                reject(new Error(
-                  `Failed to load sprite:${spriteName}/sounds/${soundName}: ${id}, ${error}`
-                )),
+              onloaderror: (id, error) => {
+                if (error === 'Decoding audio data failed.') {
+                  if (!Tactics.audioBroken)
+                    console.warn('Audio is broken in this browser');
+                  Tactics.audioBroken = true;
+                  progress();
+                } else
+                  reject(new Error(
+                    `Failed to load sprite:${spriteName}/sounds/${soundName}: ${id}, ${error}`
+                  ));
+              },
             });
           }
           else if (isSpriteURI)
