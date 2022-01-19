@@ -294,6 +294,7 @@ export default class Team {
       position: this.data.position,
       forkOf: { playerId:this.data.playerId, name:this.data.name },
       useRandom: this.data.useRandom,
+      set: this.data.set,
     });
   }
 
