@@ -2137,7 +2137,7 @@ async function fetchGames(tabName) {
           'teams[].playerId': { '!':myPlayerId },
           startedAt: null,
         },
-        sort: { field:'createdAt', order:'desc' },
+        sort: { field:'createdAt', order:'asc' },
         limit: 50,
       },
       {
@@ -2146,7 +2146,7 @@ async function fetchGames(tabName) {
           startedAt: { '!':null },
           endedAt: null
         },
-        sort: { field:'startedAt', order:'desc' },
+        sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
       {
