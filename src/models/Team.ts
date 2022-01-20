@@ -314,7 +314,7 @@ export default class Team {
     this.data.joinedAt = new Date();
     this.data.playerId = clientPara.playerId;
     this.data.name = data.name ?? clientPara.name;
-    this.data.set = data.set;
+    this.data.set = data.set ?? this.data.set;
 
     return this;
   }

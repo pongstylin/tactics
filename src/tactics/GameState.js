@@ -1272,12 +1272,8 @@ export default class GameState {
      * was popped.
      */
     const numTeams = this.teams.length;
-    for (let tId = turnId - numTeams + 1; tId < turnId; tId++) {
-      const team = this.teams[tId % numTeams];
-      if (tId < 0)
-        team.turnTimeBuffer = 0;
-      else
-        team.turnTimeBuffer = turns[tId].timeBuffer;
+    for (let tId = Math.max(0, turnId - numTeams + 1); tId < turnId; tId++) {
+      this.teams[tId % numTeams].turnTimeBuffer = turns[tId].timeBuffer;
     }
 
     this._board.setState(this.units, this.teams);
