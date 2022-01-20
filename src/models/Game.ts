@@ -34,6 +34,7 @@ export default class Game extends ActiveModel {
     createdBy: string
     createdAt: Date
   }
+  protected isCancelled: boolean = false
 
   constructor(data) {
     super();
@@ -393,6 +394,16 @@ export default class Game extends ActiveModel {
     }
 
     return new Game(forkGameData);
+  }
+
+  cancel() {
+    if (this.isCancelled === true)
+      return;
+    if (this.state.startedAt)
+      throw new ServerError(409, 'Game already started');
+
+    this.isCancelled = true;
+    this.emit('delete');
   }
 };
 

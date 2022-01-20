@@ -136,19 +136,6 @@ export default class extends FileAdapter {
   closeGame(gameId) {
     return this.cache.get('game').close(gameId);
   }
-  async cancelGame(game) {
-    if (this._dirtyGames.has(game.id))
-      await this._dirtyGames.get(game.id);
-
-    if (game.state.startedAt)
-      throw new ServerError(409, 'Game already started');
-
-    this.cache.get('game').delete(game.id);
-    this.buffer.get('game').delete(game.id);
-    game.destroy();
-
-    await this._deleteGame(game);
-  }
   async getGame(gameId) {
     const game = await this._getGame(gameId);
     return this.cache.get('game').add(gameId, game);
@@ -295,6 +282,9 @@ export default class extends FileAdapter {
         this.buffer.get('game').add(game.id, game);
       this._updateGameSummary(game);
     });
+    game.on('delete', event => {
+      this._deleteGame(game);
+    });
     if (!game.state.startedAt)
       game.state.once('startGame', event => this._recordGameStats(game));
     if (!game.state.endedAt)
@@ -323,8 +313,15 @@ export default class extends FileAdapter {
     });
   }
   async _deleteGame(game) {
-    await this._clearGameSummary(game);
-    await this.deleteFile(`game_${game.id}`);
+    if (this._dirtyGames.has(game.id))
+      await this._dirtyGames.get(game.id);
+
+    this.cache.get('game').delete(game.id);
+    this.buffer.get('game').delete(game.id);
+    game.destroy();
+
+    this._clearGameSummary(game);
+    this.deleteFile(`game_${game.id}`);
   }
 
   /*

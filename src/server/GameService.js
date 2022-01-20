@@ -538,7 +538,7 @@ export default class GameService extends Service {
       }
     }
 
-    await this.data.cancelGame(game);
+    game.cancel();
   }
 
   async onGetGameTypeConfigRequest(client, gameTypeId) {

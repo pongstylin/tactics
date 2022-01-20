@@ -725,7 +725,7 @@ async function cancelGame() {
     await gameClient.cancelGame(myLobbyGame.id);
     return true;
   } catch (e) {
-    if (e.code !== 409) {
+    if (e.code !== 404 && e.code !== 409) {
       reportError(e);
       popup('Oops!  Something went wrong.');
     }
