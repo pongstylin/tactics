@@ -360,6 +360,7 @@ export default class Game extends ActiveModel {
     forkGameData.createdAt = new Date();
     forkGameData.id = uuid();
     forkGameData.forkOf = { gameId:this.data.id, turnId:forkGameData.state.currentTurnId };
+    forkGameData.state.turnTimeBuffer = null;
 
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
 

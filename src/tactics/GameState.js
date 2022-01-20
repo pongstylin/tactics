@@ -91,9 +91,11 @@ export default class GameState {
     return gameState;
   }
   static fromJSON(stateData) {
-    for (const turn of stateData.turns) {
-      if (turn.timeBuffer === undefined)
-        turn.timeBuffer = 0;
+    if (this.turnTimeBuffer) {
+      for (const turn of stateData.turns) {
+        if (turn.timeBuffer === undefined)
+          turn.timeBuffer = 0;
+      }
     }
 
     return new GameState(stateData);
@@ -956,9 +958,11 @@ export default class GameState {
    */
   toJSON() {
     const turns = this.turns.slice().map(t => ({ ...t }));
-    for (const turn of turns) {
-      if (turn.timeBuffer === 0)
-        delete turn.timeBuffer;
+    if (this.turnTimeBuffer) {
+      for (const turn of turns) {
+        if (turn.timeBuffer === 0)
+          delete turn.timeBuffer;
+      }
     }
 
     return {
@@ -1216,23 +1220,27 @@ export default class GameState {
     const board = this._board;
     const actions = this.actions;
     const turnEndedAt = actions.last.createdAt;
-    const team = this.currentTeam;
-    const firstTurnId = this.getTeamFirstTurnId(team);
     const turn = {
       startedAt: this.turnStartedAt,
       units: this.units,
       actions,
-      timeBuffer: team.turnTimeBuffer,
     };
 
-    if (this.turnTimeBuffer && this.currentTurnId > firstTurnId) {
-      const turnTimeBuffer = this.turnTimeBuffer;
-      const turnTimeLimit = this.turnTimeLimit;
-      const elapsed = Math.floor((turnEndedAt - turn.startedAt) / 1000);
-      if (elapsed > turnTimeLimit)
-        team.turnTimeBuffer = Math.max(0, team.turnTimeBuffer - (elapsed - turnTimeLimit));
-      else
-        team.turnTimeBuffer = Math.min(turnTimeBuffer, team.turnTimeBuffer + Math.max(0, (turnTimeLimit / 2) - elapsed));
+    if (this.turnTimeBuffer) {
+      const team = this.currentTeam;
+      const firstTurnId = this.getTeamFirstTurnId(team);
+
+      turn.timeBuffer = team.turnTimeBuffer;
+
+      if (this.currentTurnId > firstTurnId) {
+        const turnTimeBuffer = this.turnTimeBuffer;
+        const turnTimeLimit = this.turnTimeLimit;
+        const elapsed = Math.floor((turnEndedAt - turn.startedAt) / 1000);
+        if (elapsed > turnTimeLimit)
+          team.turnTimeBuffer = Math.max(0, team.turnTimeBuffer - (elapsed - turnTimeLimit));
+        else
+          team.turnTimeBuffer = Math.min(turnTimeBuffer, team.turnTimeBuffer + Math.max(0, (turnTimeLimit / 2) - elapsed));
+      }
     }
 
     this.turns.push(turn);
@@ -1265,15 +1273,18 @@ export default class GameState {
       units: turnData.units,
       _actions: [],
     });
-    this.currentTeam.turnTimeBuffer = turnData.timeBuffer;
 
-    /*
-     * Sync up other teams' turn time buffers just in case more than one turn
-     * was popped.
-     */
-    const numTeams = this.teams.length;
-    for (let tId = Math.max(0, turnId - numTeams + 1); tId < turnId; tId++) {
-      this.teams[tId % numTeams].turnTimeBuffer = turns[tId].timeBuffer;
+    if (this.turnTimeBuffer) {
+      this.currentTeam.turnTimeBuffer = turnData.timeBuffer;
+
+      /*
+       * Sync up other teams' turn time buffers just in case more than one turn
+       * was popped.
+       */
+      const numTeams = this.teams.length;
+      for (let tId = Math.max(0, turnId - numTeams + 1); tId < turnId; tId++) {
+        this.teams[tId % numTeams].turnTimeBuffer = turns[tId].timeBuffer;
+      }
     }
 
     this._board.setState(this.units, this.teams);
