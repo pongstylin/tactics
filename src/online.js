@@ -626,7 +626,7 @@ async function selectGroup(groupId) {
 async function selectArena(divArena) {
   const tabContent = state.tabContent.lobby;
   if (divArena.classList.contains('empty')) {
-    const lobbyGame = tabContent.lobbyGame;
+    const lobbyGame = state.tabContent.yourGames.lobbyGame;
     if (lobbyGame?.collection === `lobby/${tabContent.selectedStyleId}`)
       moveGame(divArena);
     else
