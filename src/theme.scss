@@ -120,10 +120,18 @@ BUTTON {
 BUTTON:empty {
   border-radius: 0;
 }
+BUTTON:disabled, BUTTON.disabled {
+  background: radial-gradient(#DED8D5 10%, #444);
+  color: inherit;
+
+  border: 1px solid #DED8D5;
+
+  opacity: 0.4;
+}
 
 @media (hover:hover) {
-  BUTTON:hover,
-  BUTTON:focus {
+  BUTTON:hover:not(.disabled),
+  BUTTON:focus:not(.disabled) {
     outline: none;
     background: radial-gradient(#b08d57, 80%, #804a00);
   }

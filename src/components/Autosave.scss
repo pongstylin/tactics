@@ -3,7 +3,11 @@
   flex-direction: row;
   align-items: center;
 
+  border-top: 1px solid rgba(0, 0, 0, 0);
+  border-right: 1px solid rgba(0, 0, 0, 0);
   border-bottom: 1px solid #888888;
+  border-left: 1px solid rgba(0, 0, 0, 0);
+  padding: 0 !important;
 }
 .inputTextAutosave INPUT[type=text] {
   flex: 1 1 auto;
@@ -15,8 +19,11 @@
   padding: 4px;
   width: 100%;
 }
+.inputTextAutosave:focus-within {
+  border-color: #b08d57;
+}
 .inputTextAutosave INPUT[type=text]:focus {
-  outline: #b08d57 auto 1px;
+  outline: none;
 }
 .inputTextAutosave INPUT[type=text]::placeholder {
   font-style: italic;
@@ -29,6 +36,7 @@
   display: flex;
   align-items: center;
   flex: 0 0 auto;
+  padding: 0 !important;
 
   & > * {
     display: flex;

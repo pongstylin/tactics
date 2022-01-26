@@ -12,14 +12,6 @@ window.addEventListener('DOMContentLoaded', () => {
       // Clear selection
       target.value = target.value;
   }, true);
-  document.body.addEventListener('keydown', event => {
-    const target = event.target;
-    if (target.matches('.inputTextAutosave INPUT[type=text]')) {
-      if (event.keyCode === 13)
-        event.target.blur();
-      event.stopPropagation();
-    }
-  }, true);
   document.body.addEventListener('input', event => {
     const target = event.target;
     if (target.matches('.inputTextAutosave INPUT[type=text]')) {
@@ -34,9 +26,21 @@ export default class Autosave {
   constructor(props) {
     this.props = Object.assign({
       icons: new Map(),
+      autoFocus: false,
+      // Requires a value (can't be null/empty-string)
+      isRequired: props.defaultValue === false,
+      // A value of 'null' means the default value is nothing.
+      //   -- This allows you to erase an existing value.
+      // A value of 'false' means there is no default value, so fallback on existing value.
+      //   -- This allows you to prevent erasing an existing value.
+      defaultValue: null,
+      // The initial value
+      // A value of 'null' is equivalent to an empty string
+      value: null,
     }, props);
     this.data = {
-      value: props.value,
+      // The current value, set to the initial value at first.
+      value: this.props.value,
       icons: new Map(),
     };
     this.whenSaved = Promise.resolve();
@@ -66,7 +70,8 @@ export default class Autosave {
   appendTo(parent) {
     const props = this.props;
     const divAutosave = document.createElement('DIV');
-    divAutosave.classList.add('inputTextAutosave', 'is-saved');
+    divAutosave.classList.add('inputTextAutosave');
+    divAutosave.classList.toggle('is-saved', !this.props.isRequired || this.data.value !== null);
 
     const input = document.createElement('INPUT');
     input.type = 'text';
@@ -149,37 +154,88 @@ export default class Autosave {
     const input = this.input = divAutosave.querySelector('INPUT');
     this.data.value = input.value.trim().length ? input.value.trim() : null;
 
+    input.addEventListener('keydown', event => {
+      const target = event.target;
+      if (event.keyCode === 13)
+        this._submit(divAutosave);
+      else
+        divError.textContent = '';
+      event.stopPropagation();
+    });
     input.addEventListener('blur', async event => {
-      let newValue = input.value.trim().length ? input.value.trim() : null;
-      if (newValue === null) {
-        if (this.props.defaultValue === false)
-          newValue = this.data.value;
-        else
-          newValue = this.props.defaultValue ?? null;
-      }
+      this._change(divAutosave);
+    });
 
-      // Just in case spaces were trimmed or the name unset.
-      input.value = newValue ?? '';
+    if (this.props.autoFocus)
+      setTimeout(() => input.focus());
 
-      divError.textContent = '';
+    return this;
+  }
 
-      if (newValue === this.data.value)
+  async _submit(divAutosave) {
+    const divError = divAutosave.nextElementSibling;
+    const input = this.input;
+    const changed = await this._change(divAutosave);
+
+    if (this.props.onSubmit && changed) {
+      divAutosave.classList.remove('is-saved');
+      divAutosave.classList.add('is-saving');
+
+      try {
+        await (this.whenSaved = this.props.onSubmit(input.value));
+
+        this.data.value = input.value;
+        divAutosave.classList.remove('is-saving');
         divAutosave.classList.add('is-saved');
-      else {
-        divAutosave.classList.remove('is-saved');
+      } catch (error) {
+        divAutosave.classList.remove('is-saving');
+        divError.textContent = error.toString();
+      }
+    } else
+      input.blur();
+  }
+
+  async _change(divAutosave) {
+    const divError = divAutosave.nextElementSibling;
+    const input = this.input;
+
+    let newValue = input.value.trim().length ? input.value.trim() : null;
+    if (newValue === null && this.props.isRequired) {
+      if (this.props.defaultValue === false)
+        newValue = this.data.value;
+      else
+        newValue = this.props.defaultValue;
+    }
+
+    // Just in case spaces were trimmed or the name unset.
+    input.value = newValue ?? '';
+
+    if (newValue === this.data.value)
+      divAutosave.classList.toggle('is-saved', !this.props.isRequired || this.data.value !== null);
+    else {
+      divAutosave.classList.remove('is-saved');
+
+      if (this.props.onChange) {
         divAutosave.classList.add('is-saving');
 
         try {
           await (this.whenSaved = this.props.onChange(newValue));
 
-          this.data.value = input.value;
           divAutosave.classList.remove('is-saving');
-          divAutosave.classList.add('is-saved');
+
+          if (!this.props.onSubmit) {
+            this.data.value = input.value;
+            divAutosave.classList.add('is-saved');
+          }
+          return true;
         } catch (error) {
           divAutosave.classList.remove('is-saving');
           divError.textContent = error.toString();
         }
-      }
-    });
+      } else
+        return true;
+    }
+
+    return false;
   }
 }

@@ -6,6 +6,7 @@ import sleep from 'utils/sleep.js';
 import unitDataMap from 'tactics/unitData.js';
 import { colorFilterMap } from 'tactics/colorMap.js';
 import unitFactory from 'tactics/unitFactory.js';
+import Autosave from 'components/Autosave.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
 import LobbySettingsModal from 'components/Modal/LobbySettings.js';
 
@@ -258,11 +259,8 @@ window.addEventListener('DOMContentLoaded', () => {
       divNotice.textContent = 'Your games will be loaded once you are online.';
     else
       divNotice.textContent = 'Loading your games...';
-  }
-  else {
-    divGreeting.style.display = '';
-    divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
-  }
+  } else
+    showRegister();
 
   authClient.whenReady.then(async () => {
     myPlayerId = authClient.playerId;
@@ -272,11 +270,8 @@ window.addEventListener('DOMContentLoaded', () => {
       await openTab();
       divNotice.textContent = '';
       document.querySelector('.tabs').style.display = '';
-    } else {
-      divGreeting.textContent = `Welcome!`;
-      divNotice.textContent = 'Once you create or join some games, you\'ll see them here.';
-      return;
-    }
+    } else
+      showRegister();
   });
 
   if (navigator.serviceWorker)
@@ -387,6 +382,58 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => resize(dynamicStyle.sheet));
   resize(dynamicStyle.sheet);
 });
+
+function showRegister() {
+  const divRegister = document.querySelector('#register');
+  if (divRegister.style.display === '')
+    return;
+
+  const divGreeting = document.querySelector('.greeting');
+  const divNotice = document.querySelector('#notice');
+
+  divGreeting.textContent = `Welcome!`;
+  divGreeting.style.display = '';
+  divNotice.textContent = [
+    'Never seen you before!',
+    'By what name are you known?',
+  ].map(s => s.replace(/ /g, '\u00A0')).join('  ');
+
+  const btnEnter = document.createElement('BUTTON');
+  btnEnter.textContent = 'Enter Lobby';
+  btnEnter.addEventListener('click', () => {
+    if (!btnEnter.classList.contains('disabled'))
+      register(autosave.value)
+  });
+  btnEnter.classList.add('disabled');
+
+  const autosave = new Autosave({
+    isRequired: true,
+    autoFocus: true,
+    maxLength: 20,
+    onSubmit: register,
+    onChange: () => btnEnter.classList.remove('disabled'),
+  });
+
+  autosave.appendTo(divRegister);
+  divRegister.appendChild(btnEnter);
+  divRegister.style.display = '';
+}
+async function register(name) {
+  const divNotice = document.querySelector('#notice');
+  const divRegister = document.querySelector('#register');
+  const divGreeting = document.querySelector('.greeting');
+
+  await authClient.register({ name });
+
+  myPlayerId = authClient.playerId;
+  divNotice.textContent = '';
+  divRegister.style.display = 'none';
+  divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
+
+  history.replaceState(null, null, '#lobby');
+  await openTab();
+  document.querySelector('.tabs').style.display = '';
+}
 
 function setYourLobbyGame(gameSummary, skipRender = false) {
   const yourContent = state.tabContent.yourGames;

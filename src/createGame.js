@@ -1,14 +1,22 @@
+import Autosave from 'components/Autosave.js';
 import popup from 'components/popup.js';
 
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
 
 window.addEventListener('DOMContentLoaded', () => {
-  let txtPlayerName = document.querySelector('INPUT[name=playerName]');
-  let btnCreate = document.querySelector('BUTTON[name=create]');
-  let divConfigure = document.querySelector('.view.configure');
-  let divWaiting = document.querySelector('.waiting');
-  let divError = document.querySelector('.view.configure .row.error');
+  const divPlayerSetup = document.querySelector('.playerSetup .indent');
+  const btnCreate = document.querySelector('BUTTON[name=create]');
+  const divConfigure = document.querySelector('.view.configure');
+  const divWaiting = document.querySelector('.waiting');
+  const divError = document.querySelector('.view.configure .row.error');
+
+  const autosave = new Autosave({
+    defaultValue: false,
+    value: 'Noob',
+    maxLength: 20,
+    onChange: newAccountName => authClient.setAccountName(newAccountName),
+  }).appendTo(divPlayerSetup);
 
   let notice;
   if (navigator.onLine === false)
@@ -29,88 +37,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (notice)
       notice.close();
 
-    let playerName = authClient.playerName;
-    if (playerName !== null)
-      txtPlayerName.value = playerName;
-    else
-      txtPlayerName.value = 'Noob';
+    if (authClient.token)
+      autosave.value = authClient.playerName;
 
     divConfigure.classList.add('show');
-  });
-
-  authClient.whenReady.then(async () => {
-    if (notice)
-      notice.close();
-
-    if (!authClient.playerId)
-      await authClient.register({ name:'Noob' })
-        .catch(error => popup({
-          message: 'There was an error while loading your account.',
-          buttons: [],
-          closeOnCancel: false,
-        }));
-
-    txtPlayerName.value = authClient.playerName;
-    divConfigure.classList.add('show');
-  });
-
-  document.body.addEventListener('focus', event => {
-    let target = event.target;
-    if (target.matches('INPUT[type=text]'))
-      target.select();
-  }, true);
-  document.body.addEventListener('blur', event => {
-    let target = event.target;
-    if (target.matches('INPUT[type=text]'))
-      // Clear selection
-      target.value = target.value;
-  }, true);
-  document.body.addEventListener('keydown', event => {
-    let target = event.target;
-    if (target.matches('INPUT[type=text]'))
-      if (event.keyCode === 13)
-        event.target.blur();
-  }, true);
-  document.body.addEventListener('input', event => {
-    let target = event.target;
-    if (target.matches('INPUT[type=text]')) {
-      let inputTextAutosave = event.target.parentElement;
-      inputTextAutosave.classList.remove('is-saved');
-      inputTextAutosave.classList.remove('is-saving');
-    }
-  }, true);
-
-  let divAccountAutoSave = document.querySelector('.inputTextAutosave');
-  let divAccountError = divAccountAutoSave.nextElementSibling;
-  let txtAccountName = divAccountAutoSave.querySelector('INPUT');
-  txtAccountName.addEventListener('blur', event => {
-    let newAccountName = txtAccountName.value.trim().length
-      ? txtAccountName.value.trim() : null;
-
-    if (newAccountName === null)
-      newAccountName = authClient.playerName;
-
-    // Just in case spaces were trimmed or the name unset.
-    txtAccountName.value = newAccountName;
-
-    divAccountError.textContent = '';
-
-    if (newAccountName === authClient.playerName)
-      divAccountAutoSave.classList.add('is-saved');
-    else {
-      divAccountAutoSave.classList.remove('is-saved');
-      divAccountAutoSave.classList.add('is-saving');
-
-      authClient.setAccountName(newAccountName)
-        .then(() => {
-          divAccountAutoSave.classList.remove('is-saving');
-          divAccountAutoSave.classList.add('is-saved');
-        })
-        .catch(error => {
-          divAccountAutoSave.classList.remove('is-saving');
-          divAccountError.textContent = error.toString();
-        });
-    }
   });
 
   let selGameType = document.querySelector('SELECT[name=type]');
