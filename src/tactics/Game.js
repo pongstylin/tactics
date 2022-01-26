@@ -1263,10 +1263,11 @@ export default class Game {
     action = board.decodeAction(action);
 
     if (actionType === 'endTurn') {
-      let doShowDirection = (
+      const doShowDirection = (
         selected &&
         selected.directional !== false &&
-        (!this.isMyTeam(action.teamId) || this._inReplay)
+        (!this.isMyTeam(action.teamId) || this._inReplay) &&
+        (this.state.turnTimeLimit > 30 || this._inReplay)
       );
       if (doShowDirection) {
         // Show the direction the unit turned for 2 seconds.
@@ -1311,7 +1312,7 @@ export default class Game {
         action: 'move',
         color: MOVE_TILE_COLOR,
       }, true);
-      await sleep(2000);
+      await sleep(2000 / speed);
 
       actor.deactivate();
       await actor.move(action, speed);
@@ -1347,7 +1348,7 @@ export default class Game {
           this.drawCard(actor);
       }
 
-      await sleep(2000);
+      await sleep(2000 / speed);
 
       targetUnits.forEach(tu => {
         tu.deactivate();
@@ -1369,10 +1370,10 @@ export default class Game {
     else if (actionType === 'phase') {
       // Show the user the egg for 1 second before changing color
       this.drawCard(actor);
-      await sleep(1000);
+      await sleep(1000 / speed);
 
       await actor.phase(action, speed);
-      await sleep(1000);
+      await sleep(1000 / speed);
     }
     // Only applicable to Chaos Seed counter-attack
     else if (actionType === 'heal') {
@@ -1387,7 +1388,7 @@ export default class Game {
       targetUnit.activate();
       this.drawCard(targetUnit);
 
-      await sleep(1000);
+      await sleep(1000 / speed);
 
       targetUnit.deactivate();
       actor.deactivate();
@@ -1398,7 +1399,7 @@ export default class Game {
     else if (actionType === 'hatch') {
       this.drawCard(actor);
       actor.activate();
-      await sleep(2000);
+      await sleep(2000 / speed);
 
       actor.deactivate();
       selected.deactivate(); // the target
@@ -1414,7 +1415,7 @@ export default class Game {
         actor.activate();
       }
 
-      await sleep(2000);
+      await sleep(2000 / speed);
 
       actor.deactivate();
       await actor[action.type](action, speed);
@@ -1554,7 +1555,7 @@ export default class Game {
       // Show the effect on the unit
       this.drawCard(unit);
       if (unit.type === 'Furgon' && changes.mRecovery === 6)
-        await sleep(2000);
+        await sleep(2000 / speed);
 
       if (result.miss) {
         let notice = result.miss.toUpperCase('first')+'!';
