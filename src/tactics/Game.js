@@ -157,37 +157,10 @@ export default class Game {
     return this.state.whenStarted;
   }
   get turnTimeLimit() {
-    const state = this.state;
-    if (!state.startedAt || !state.turnTimeLimit)
-      return;
-
-    let turnTimeLimit = state.turnTimeLimit;
-    if (state.turnTimeBuffer) {
-      const team = state.currentTeam;
-      const firstTurnId = this.getTeamFirstTurnId(team);
-
-      if (state.currentTurnId === firstTurnId)
-        turnTimeLimit = state.turnTimeBuffer;
-      else
-        turnTimeLimit += team.turnTimeBuffer;
-    }
-
-    return turnTimeLimit;
+    return this.state.getTurnTimeLimit();
   }
   get turnTimeRemaining() {
-    const state = this.state;
-    if (!state.turnTimeLimit)
-      return;
-    if (state.endedAt)
-      return;
-
-    const now = state.now;
-    const lastAction = state.actions.last;
-    const lastActionAt = lastAction ? +lastAction.createdAt : 0;
-    const actionTimeout = (lastActionAt + 10000) - now;
-    const turnTimeout = (+state.turnStartedAt + this.turnTimeLimit*1000) - now;
-
-    return Math.max(0, actionTimeout, turnTimeout);
+    return this.state.getTurnTimeRemaining();
   }
   set speed(speed) {
     if (typeof speed === 'number')
@@ -527,13 +500,6 @@ export default class Game {
 
     return this.teams.filter(t => this.isMyTeam(t)).length === 1;
   }
-  getTeamFirstTurnId(team) {
-    const numTeams = this.state.teams.length;
-    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
-    const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
-
-    return team.id + (numTeams * Math.max(waitTurns, skipTurns));
-  }
   /*
    * Determine team's first playable turn and whether that turn has been made.
    */
@@ -544,7 +510,7 @@ export default class Game {
       this.state.winnerId === team.id
     ) return true;
 
-    const firstTurnId = this.getTeamFirstTurnId(team);
+    const firstTurnId = this.state.getTeamFirstTurnId(team);
 
     if (this.state.currentTurnId < firstTurnId)
       return false;
@@ -1064,6 +1030,8 @@ export default class Game {
   /*
    * Determine if player's team may request an undo.
    * Even if you can undo, the request may be rejected.
+   *
+   * If a number is returned then you may undo for X ms.
    */
   canUndo() {
     if (this.isViewOnly)
@@ -1121,14 +1089,8 @@ export default class Game {
       const isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
       if (isLucky)
         return false;
-    } else if (state.playerRequest?.rejected.has(`${this.playerId}:undo`)) {
+    } else if (state.strictUndo || state.playerRequest?.rejected.has(`${this.playerId}:undo`)) {
       if (this.state.endedAt)
-        return false;
-
-      // We are either requesting an undo for the current turn or the previous.
-      // There is no easy way to know if the previous turn as time remaining.
-      // But if the current turn has no time remaining, then same for previous.
-      if (this.turnTimeRemaining === 0)
         return false;
 
       if (myTeam === this.currentTeam) {
@@ -1145,6 +1107,17 @@ export default class Game {
         // You may not ask for an undo after actions have been made by your opponent.
         if (actions.length > 0)
           return false;
+      }
+
+      if (state.strictUndo) {
+        const lastActionAt = actions.length ? actions.last.createdAt : state.turnStartedAt;
+        return Math.max(0, lastActionAt - this.state.now + 5000);
+      } else {
+        let turnId = state.currentTurnId;
+        while (turnId % teams.length !== myTeam.id)
+          turnId--;
+
+        return this.state.getTurnTimeRemaining(turnId, 5000);
       }
     }
 
@@ -1276,8 +1249,7 @@ export default class Game {
           // before submitting this action.  The unit is reselected and board is
           // unlocked just in case it is an undo request that will be rejected.
           this.notice = null;
-        }
-        else {
+        } else {
           this.notice = 'Server Error!';
           throw error;
         }
@@ -1303,19 +1275,18 @@ export default class Game {
       }
 
       return this._playEndTurn(action);
-    }
-    else if (actionType === 'surrender')
+    } else if (actionType === 'surrender')
       return this._playSurrender(action);
 
     const actor = action.unit;
     const speed = this.speed;
 
-    // Show the player the unit that is about to act.
-    if (!selected) {
-      selected = board.selected = actor;
-      if (action.type !== 'phase')
-        actor.activate();
+    // Select the unit that is about to act.
+    if (action.type === 'select') {
+      board.selected = actor;
+      actor.activate();
       this.drawCard();
+      return;
     }
 
     const quick = (

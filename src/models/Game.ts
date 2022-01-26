@@ -171,7 +171,7 @@ export default class Game extends ActiveModel {
     this.data.state.submitAction(action);
   }
 
-  submitPlayerRequest(playerId, requestType) {
+  submitPlayerRequest(playerId, requestType, receivedAt = Date.now()) {
     const oldRequest = this.data.playerRequest;
     if (oldRequest?.status === 'pending')
       throw new ServerError(409, `A '${requestType}' request is still pending`);
@@ -190,7 +190,7 @@ export default class Game extends ActiveModel {
 
     let saveRequest = false;
     if (requestType === 'undo')
-      saveRequest = this.submitUndoRequest(newRequest);
+      saveRequest = this.submitUndoRequest(newRequest, receivedAt);
     else if (requestType === 'truce')
       saveRequest = this.submitTruceRequest(newRequest);
 
@@ -205,7 +205,7 @@ export default class Game extends ActiveModel {
       this.emit('change:submitPlayerRequest');
     }
   }
-  submitUndoRequest(request) {
+  submitUndoRequest(request, receivedAt = Date.now()) {
     const state = this.data.state;
     const teams = state.teams;
     if (state.endedAt) {
@@ -232,13 +232,13 @@ export default class Game extends ActiveModel {
 
     request.teamId = team.id;
 
-    const canUndo = state.canUndo(team);
+    const canUndo = state.canUndo(team, receivedAt);
     if (canUndo === false)
       // The undo is rejected.
       throw new ServerError(403, 'You may not undo right now');
     else if (canUndo === true)
       // The undo is auto-approved.
-      state.undo(team);
+      state.undo(team, false, receivedAt);
     else if (request.rejected.has(`${request.createdBy}:${request.type}`))
       throw new ServerError(403, `Your '${request.type}' request was already rejected`);
     else

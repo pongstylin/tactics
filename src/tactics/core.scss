@@ -562,8 +562,7 @@
 #app.with-playerRequest,
 #app.locked:not(.gameover):not(.readonly) {
   #game-play.buttons BUTTON:not([name=chat]):not([name=swapbar]),
-  #game-settings.buttons BUTTON[name=rotate],
-  #game-settings.buttons BUTTON[name=undo] {
+  #game-settings.buttons BUTTON[name=rotate] {
     // Make the button appear disabled.
     opacity: 0.4;
     cursor: default;
@@ -598,8 +597,7 @@
 
 #app.locked.gameover {
   #game-play.buttons BUTTON[name=pass],
-  #game-play.buttons BUTTON[name=surrender],
-  #game-play.buttons BUTTON[name=undo] {
+  #game-play.buttons BUTTON[name=surrender] {
     // Make the button appear disabled.
     opacity: 0.4;
     cursor: default;

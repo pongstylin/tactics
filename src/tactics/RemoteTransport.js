@@ -97,6 +97,9 @@ export default class RemoteTransport {
   get randomHitChance() {
     return this._getStateData('randomHitChance');
   }
+  get strictUndo() {
+    return this._getStateData('strictUndo');
+  }
   get turnTimeLimit() {
     return this._getStateData('turnTimeLimit');
   }
@@ -203,6 +206,81 @@ export default class RemoteTransport {
   }
   cancelPlayerRequest() {
     gameClient.cancelPlayerRequest(this._data.id, this.playerRequest.createdAt);
+  }
+
+  /*
+   * Other public methods that imitate GameState.
+   */
+  /*
+   * Like GameState->getTeamFirstTurnid()
+   */
+  getTeamFirstTurnId(team) {
+    const numTeams = this.teams.length;
+    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
+    const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
+
+    return team.id + (numTeams * Math.max(waitTurns, skipTurns));
+  }
+  /*
+   * Like GameState->getTurnTimeLimit() but with limited history support.
+   */
+  getTurnTimeLimit(turnId) {
+    const currentTurnId = this.currentTurnId;
+    const teams = this.teams;
+    if (!turnId)
+      turnId = currentTurnId;
+    else if (turnId < currentTurnId - (teams.length - 1))
+      return;
+
+    if (!this.startedAt || !this.turnTimeLimit)
+      return;
+
+    let turnTimeLimit = this.turnTimeLimit;
+    if (this.turnTimeBuffer) {
+      const team = teams[turnId % teams.length];
+      const firstTurnId = this.getTeamFirstTurnId(team);
+
+      if (turnId === firstTurnId)
+        turnTimeLimit = this.turnTimeBuffer;
+      else
+        turnTimeLimit += team.turnTimeBuffer;
+    }
+
+    return turnTimeLimit;
+  }
+  /*
+   * Like GameState->getTurnTimeRemaining() but with limited history support.
+   */
+  getTurnTimeRemaining(turnId, actionTimeLimit = 10000) {
+    const currentTurnId = this.currentTurnId;
+    if (!turnId)
+      turnId = currentTurnId;
+    else if (turnId < currentTurnId - (teams.length - 1))
+      return;
+
+    if (!this.startedAt || this.endedAt)
+      return false;
+    if (!this.turnTimeLimit)
+      return Infinity;
+
+    const turn = {};
+    if (turnId === currentTurnId) {
+      turn.startedAt = this.turnStartedAt;
+      turn.actions = this.actions;
+    } else {
+      // This estimate is good enough for determining if you can undo.
+      turn.startedAt = this.turnStartedAt - 10000;
+      turn.actions = [{ type:'endTurn', createdAt:this.turnStartedAt }];
+    }
+    const turnTimeLimit = this.getTurnTimeLimit(turnId);
+
+    const now = gameClient.serverNow;
+    const lastAction = turn.actions.last;
+    const lastActionAt = lastAction ? +lastAction.createdAt : 0;
+    const actionTimeout = (lastActionAt + actionTimeLimit) - now;
+    const turnTimeout = (+turn.startedAt + turnTimeLimit*1000) - now;
+
+    return Math.max(0, actionTimeout, turnTimeout);
   }
 
   /*

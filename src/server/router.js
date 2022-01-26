@@ -569,7 +569,8 @@ function deleteSession(session, code) {
  * Client Event Handlers
  ******************************************************************************/
 async function onMessage(data) {
-  let client = this;
+  const now = Date.now();
+  const client = this;
 
   // Ignore messages sent right as the server starts closing the connection.
   if (client.closed)
@@ -589,9 +590,6 @@ async function onMessage(data) {
       message: 'Message data is not valid JSON'
     }));
   }
-
-  if (message.type === 'open' && !message.body)
-    message.body = { version:'NULL' };
 
   try {
     if (!validate(message)) {
@@ -615,6 +613,8 @@ async function onMessage(data) {
           message: 'Missing or unrecognized message type',
         });
     }
+
+    message.receivedAt = now;
 
     debugMessage(client, message, 'in');
 
@@ -763,7 +763,7 @@ async function onRequestMessage(client, message) {
   try {
     service.will(client, message.type, body);
 
-    const data = await service[method](client, ...body.args);
+    const data = await service[method](client, ...body.args, message.receivedAt);
     if (client.closed)
       return;
 

@@ -342,6 +342,20 @@ migrationMap.set('game', [
       $data: json.data,
     };
   },
+  json => {
+    const state = json.$data.state;
+
+    for (let i = 0; i < state.turns.length; i++) {
+      const actions = state.turns[i].actions;
+      if (actions[0].unit)
+        actions.unshift({ type:'select', unit:actions[0].unit });
+    }
+
+    if (state.actions[0]?.unit)
+      state.actions.unshift({ type:'select', unit:actions[0].unit });
+
+    return json;
+  },
 ]);
 
 migrationMap.set('sets', [

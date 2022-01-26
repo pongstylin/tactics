@@ -1240,7 +1240,7 @@ export default class GameService extends Service {
 
     game.submitAction(playerId, action);
   }
-  onPlayerRequestRequest(client, groupPath, requestType) {
+  onPlayerRequestRequest(client, groupPath, requestType, receivedAt) {
     const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
@@ -1250,7 +1250,7 @@ export default class GameService extends Service {
     const playerId = clientPara.playerId;
     const game = this.data.getOpenGame(gameId);
 
-    game.submitPlayerRequest(playerId, requestType);
+    game.submitPlayerRequest(playerId, requestType, receivedAt);
   }
 
   onPlayerRequestAcceptEvent(client, groupPath, createdAt) {

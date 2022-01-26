@@ -1653,7 +1653,7 @@ async function startGame() {
   game
     .on('state-change', event => {
       $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
-      $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+      toggleUndoButton();
       if (game.state.endedAt && !game.isLocalGame && !game.state.forkOf)
         $('BUTTON[name=undo]').hide();
       toggleReplayButtons();
@@ -1812,7 +1812,7 @@ function updatePlayerRequestPopup(createIfNeeded = false) {
 
   if (!playerRequestPopup && !createIfNeeded) {
     // When a request is rejected, the undo button becomes disabled.
-    $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+    toggleUndoButton();
     return;
   }
 
@@ -1831,7 +1831,7 @@ function updatePlayerRequestPopup(createIfNeeded = false) {
     onClose: () => {
       // When a request is rejected, the undo button becomes disabled.
       if (playerRequest.type === 'undo')
-        $('BUTTON[name=undo]').prop('disabled', !game.canUndo());
+        toggleUndoButton();
 
       playerRequestPopup = null;
       $('#app').removeClass('with-playerRequest');
@@ -1923,6 +1923,24 @@ function setHistoryState() {
 
     history.replaceState(null, document.title, url);
   }
+}
+
+/*
+ * The undo button state is reset every time there is a state change.  So, it is
+ * always accurate except in one case... when the undo time limit has run out.
+ * There are no events to indicate that time has run out so a timeout is used.
+ * The timeout is cleared when a state change occurs before time is up.
+ */
+let undoTimeout = null;
+function toggleUndoButton() {
+  clearTimeout(undoTimeout);
+
+  const canUndo = game.canUndo();
+  $('BUTTON[name=undo]').prop('disabled', !canUndo);
+
+  // If we are only able to undo for a limited time, set a timer to disable it.
+  if (canUndo && typeof canUndo === 'number')
+    undoTimeout = setTimeout(toggleUndoButton, canUndo);
 }
 
 function toggleReplayButtons() {
