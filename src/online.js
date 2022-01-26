@@ -1932,6 +1932,7 @@ function closeTab() {
 
   if (tabContent.isOpen) {
     document.querySelector(`.tabContent .${state.currentTab}`).classList.remove('is-active');
+    document.querySelector(`.tabContent .enterLobby`).classList.remove('is-active');
 
     if (tabContent.isSynced) {
       if (state.currentTab === 'yourGames')
