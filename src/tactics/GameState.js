@@ -934,25 +934,18 @@ export default class GameState {
         if (!approved) {
           const selectedUnitId = actions[0].unit;
 
-          for (const action of actions) {
-            const preserve = (
-              // Preserve unit selection in strict mode
-              // Preserve old actions in strict mode
-              !!this.strictUndo && (
-                action.type === 'select' ||
-                now - action.createdAt > 5000
-              ) ||
-              // Preserve counter-attacks
-              action.unit !== selectedUnitId ||
-              // Preserve luck-involved attacks
-              action.results && !!action.results.find(r => 'luck' in r)
-            );
-
-            if (preserve)
-              actionId++;
-            else
-              break;
-          }
+          actionId = actions.findLastIndex(action => (
+            // Preserve unit selection in strict mode
+            // Preserve old actions in strict mode
+            !!this.strictUndo && (
+              action.type === 'select' ||
+              now - action.createdAt > 5000
+            ) ||
+            // Preserve counter-attacks
+            action.unit !== undefined && action.unit !== selectedUnitId ||
+            // Preserve luck-involved attacks
+            !!action.results && !!action.results.find(r => 'luck' in r)
+          )) + 1;
         }
 
         this.revert(turnId, actionId);
