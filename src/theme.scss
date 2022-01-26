@@ -103,6 +103,16 @@ TEXTAREA {
   }
 }
 
+@media (hover:hover) {
+  BUTTON:hover,
+  BUTTON:focus {
+    background: radial-gradient(#b08d57, 80%, #804a00);
+  }
+  BUTTON:focus:not(.disabled) {
+    outline: none;
+  }
+}
+
 BUTTON {
   background: radial-gradient(#b08d57 10%, #804a00);
   color: #FFEECC;
@@ -127,14 +137,7 @@ BUTTON:disabled, BUTTON.disabled {
   border: 1px solid #DED8D5;
 
   opacity: 0.4;
-}
-
-@media (hover:hover) {
-  BUTTON:hover:not(.disabled),
-  BUTTON:focus:not(.disabled) {
-    outline: none;
-    background: radial-gradient(#b08d57, 80%, #804a00);
-  }
+  cursor: default;
 }
 
 A {
