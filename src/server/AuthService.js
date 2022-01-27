@@ -114,6 +114,8 @@ export default class AuthService extends Service {
     if (this.clientPara.has(client.id))
       throw new ServerError(403, 'Already registered');
 
+    const player = Player.create(playerData);
+
     /*
      * More than one client may be registered to a given IP address, e.g.
      * two mobile phones on the same wireless network.  Just don't register
@@ -121,7 +123,6 @@ export default class AuthService extends Service {
      */
     this.throttle(client.address, 'register', 1, 30);
 
-    const player = Player.create(playerData);
     const device = player.addDevice(client);
     await this.data.createPlayer(player);
 
