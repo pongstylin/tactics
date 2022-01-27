@@ -28,7 +28,7 @@ export default class AuthService extends Service {
 
         addDevice: [ IdentityToken ],
         getDevices: [],
-        setDeviceName: [ 'uuid', 'string' ],
+        setDeviceName: [ 'uuid', 'string | null' ],
         removeDevice: [ 'uuid' ],
 
         getACL: [],
