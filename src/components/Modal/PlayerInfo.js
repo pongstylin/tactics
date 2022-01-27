@@ -215,6 +215,7 @@ export default class PlayerInfo extends Modal {
 
     const playerName = info.acl?.name ?? data.team.name;
     const playerACLName = new Autosave({
+      submitOnChange: true,
       defaultValue: false,
       value: playerName,
       maxLength: 20,
@@ -310,13 +311,12 @@ export default class PlayerInfo extends Modal {
           },
         }],
       ]),
-      onChange: async newName => {
-        await this.rename(newName);
-        for (const [ iconName, icon ] of playerACLName.icons) {
-          icon.active = iconName === info.acl.type;
-        }
-      },
-    });
+    }).on('submit', event => event.waitUntil(async () => {
+      await this.rename(event.data);
+      for (const [ iconName, icon ] of playerACLName.icons) {
+        icon.active = iconName === info.acl.type;
+      }
+    }));
     playerACLName.appendTo(this.el.querySelector('.playerACLName'));
   }
 

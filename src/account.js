@@ -27,10 +27,12 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
   accountNameAutosave = new Autosave({
+    submitOnChange: true,
     defaultValue: false,
     maxLength: 20,
-    onChange: newAccountName => authClient.setAccountName(newAccountName),
-  });
+  }).on('submit', event => event.waitUntil(
+    authClient.setAccountName(event.data),
+  ));
   accountNameAutosave.attach(
     document.querySelector('.accountName .inputTextAutosave'),
   );
@@ -97,6 +99,7 @@ function renderACL() {
     divPlayer.appendChild(divName);
 
     const autosave = new Autosave({
+      submitOnChange: true,
       defaultValue: false,
       value: playerACL.name,
       maxLength: 20,
@@ -195,11 +198,10 @@ function renderACL() {
           },
         }],
       ]),
-      onChange: async newPlayerName => {
-        playerACL.name = newPlayerName;
-        await authClient.setPlayerACL(playerId, playerACL);
-      },
-    });
+    }).on('submit', event => event.waitUntil(() => {
+      playerACL.name = event.data;
+      return authClient.setPlayerACL(playerId, playerACL);
+    }));
     autosave.appendTo(divName);
   }
 }
@@ -313,6 +315,7 @@ function renderDeviceList() {
     divDevice.appendChild(divHeader);
 
     const deviceNameAutosave = new Autosave({
+      submitOnChange: true,
       name: 'deviceName',
       placeholder: autoDeviceName,
       value: deviceName,
@@ -341,11 +344,10 @@ function renderDeviceList() {
           },
         }]
       ]),
-      onChange: async newDeviceName => {
-        await authClient.setDeviceName(device.id, newDeviceName);
-        device.name = newDeviceName;
-      },
-    });
+    }).on('submit', event => event.waitUntil(async () => {
+      await authClient.setDeviceName(device.id, event.data);
+      device.name = event.data;
+    }));
     deviceNameAutosave.appendTo(divHeader);
 
     let divToggle = document.createElement('DIV');

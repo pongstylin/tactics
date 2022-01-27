@@ -400,9 +400,14 @@ function showRegister() {
 
   const btnEnter = document.createElement('BUTTON');
   btnEnter.textContent = 'Enter Lobby';
-  btnEnter.addEventListener('click', () => {
+  btnEnter.addEventListener('click', async () => {
     if (!btnEnter.classList.contains('disabled'))
-      register(autosave.value)
+      try {
+        await register(autosave.inputValue);
+      } catch(error) {
+        btnEnter.classList.add('disabled');
+        autosave.error = error.toString();
+      }
   });
   btnEnter.classList.add('disabled');
 
@@ -410,8 +415,12 @@ function showRegister() {
     isRequired: true,
     autoFocus: true,
     maxLength: 20,
-    onSubmit: register,
-    onChange: () => btnEnter.classList.remove('disabled'),
+  }).on('submit', event => {
+    event.waitUntil(register(event.data)).catch(error => {
+      btnEnter.classList.add('disabled');
+    });
+  }).on('change', ({ data:name }) => {
+    btnEnter.classList.toggle('disabled', name === null);
   });
 
   autosave.appendTo(divRegister);

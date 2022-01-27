@@ -12,11 +12,13 @@ window.addEventListener('DOMContentLoaded', () => {
   const divError = document.querySelector('.view.configure .row.error');
 
   const autosave = new Autosave({
+    submitOnChange: true,
     defaultValue: false,
     value: 'Noob',
     maxLength: 20,
-    onChange: newAccountName => authClient.setAccountName(newAccountName),
-  }).appendTo(divPlayerSetup);
+  }).on('submit', event => event.waitUntil(
+    authClient.setAccountName(event.data),
+  )).appendTo(divPlayerSetup);
 
   let notice;
   if (navigator.onLine === false)

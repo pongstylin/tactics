@@ -1130,12 +1130,12 @@ async function showPracticeIntro(gameData) {
 
   let teamName = authClient.playerName;
   const playerName = new Autosave({
+    submitOnChange: true,
     defaultValue: false,
     value: authClient.playerName,
     maxLength: 20,
-    onChange: newTeamName => teamName = newTeamName,
-  });
-  playerName.appendTo(root.querySelector('.playerName'));
+  }).on('submit', event => teamName = event.data)
+    .appendTo(root.querySelector('.playerName'));
 
   const creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
 
@@ -1212,12 +1212,13 @@ async function showJoinFork(gameData) {
   const btnJoin = root.querySelector('BUTTON[name=join]');
 
   const playerName = new Autosave({
+    submitOnChange: true,
     defaultValue: false,
     value: authClient.token ? authClient.playerName : 'Noob',
     maxLength: 20,
-    onChange: newPlayerName => authClient.setAccountName(newPlayerName),
-  });
-  playerName.appendTo(root.querySelector('.playerName'));
+  }).on('submit', event => event.waitUntil(
+    authClient.setAccountName(event.data),
+  )).appendTo(root.querySelector('.playerName'));
 
   const creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
   const opponentTeam = gameData.state.teams.find(t => !t.joinedAt);
@@ -1304,12 +1305,13 @@ async function showJoinIntro(gameData) {
   const btnJoin = root.querySelector('BUTTON[name=join]');
 
   const playerName = new Autosave({
+    submitOnChange: true,
     defaultValue: false,
     value: authClient.token ? authClient.playerName : 'Noob',
     maxLength: 20,
-    onChange: newPlayerName => authClient.setAccountName(newPlayerName),
-  });
-  playerName.appendTo(root.querySelector('.playerName'));
+  }).on('submit', event => event.waitUntil(
+    authClient.setAccountName(event.data),
+  )).appendTo(root.querySelector('.playerName'));
 
   if (gameData.state.startedAt) {
     btnJoin.textContent = 'Watch Game';

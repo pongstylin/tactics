@@ -1,24 +1,11 @@
 import 'components/Autosave.scss';
+import emitter from 'utils/emitter.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   document.body.addEventListener('focus', event => {
     const target = event.target;
     if (target.matches('.inputTextAutosave INPUT[type=text]'))
       target.select();
-  }, true);
-  document.body.addEventListener('blur', event => {
-    const target = event.target;
-    if (target.matches('.inputTextAutosave INPUT[type=text]'))
-      // Clear selection
-      target.value = target.value;
-  }, true);
-  document.body.addEventListener('input', event => {
-    const target = event.target;
-    if (target.matches('.inputTextAutosave INPUT[type=text]')) {
-      const inputTextAutosave = event.target.parentElement;
-      inputTextAutosave.classList.remove('is-saved');
-      inputTextAutosave.classList.remove('is-saving');
-    }
   }, true);
 });
 
@@ -27,6 +14,9 @@ export default class Autosave {
     this.props = Object.assign({
       icons: new Map(),
       autoFocus: false,
+      // Normally, a user must press Enter to submit the field.
+      // Set this to true to also submit on change/blur.
+      submitOnChange: false,
       // Requires a value (can't be null/empty-string)
       isRequired: props.defaultValue === false,
       // A value of 'null' means the default value is nothing.
@@ -57,10 +47,34 @@ export default class Autosave {
     return this.data.value;
   }
   set value(value) {
-    if (this.data.value === value)
-      return value;
+    const divAutosave = this._root;
+    divAutosave.classList.remove('is-saving');
+    divAutosave.classList.add('is-saved');
 
-    return this.input.value = this.data.value = value;
+    return this._input.value = this.data.value = value;
+  }
+
+  get error() {
+    return this._error.textContent;
+  }
+  set error(error) {
+    this._root.classList.remove('is-saving');
+
+    this._error.textContent = error;
+  }
+
+  get inputValue() {
+    const input = this._input;
+
+    let newValue = input.value.trim().length ? input.value.trim() : null;
+    if (newValue === null && this.props.isRequired) {
+      if (this.props.defaultValue === false)
+        newValue = this.data.value;
+      else
+        newValue = this.props.defaultValue;
+    }
+
+    return newValue;
   }
 
   get icons() {
@@ -150,20 +164,66 @@ export default class Autosave {
   }
 
   attach(divAutosave) {
-    const divError = divAutosave.nextElementSibling;
-    const input = this.input = divAutosave.querySelector('INPUT');
+    this._root = divAutosave;
+    const divError = this._error = divAutosave.nextElementSibling;
+    const input = this._input = divAutosave.querySelector('INPUT');
     this.data.value = input.value.trim().length ? input.value.trim() : null;
+
+    const submit = () => {
+      const promises = [];
+      const waitUntil = promise => {
+        if (typeof promise === 'function')
+          promise = promise();
+
+        promises.push(promise);
+        return promise;
+      };
+
+      const newValue = this.inputValue;
+      if (newValue === this.data.value)
+        // Just in case the value was trimmed.
+        return this.value = newValue;
+
+      this._emit({ type:'submit', data:newValue, waitUntil });
+
+      if (promises.length) {
+        divAutosave.classList.add('is-saving');
+
+        this.whenSaved = Promise.all(promises)
+          .then(() => {
+            this.value = newValue;
+            input.blur();
+          })
+          .catch(error => this.error = error.toString());
+      }
+    };
 
     input.addEventListener('keydown', event => {
       const target = event.target;
       if (event.keyCode === 13)
-        this._submit(divAutosave);
-      else
-        divError.textContent = '';
+        submit();
       event.stopPropagation();
     });
-    input.addEventListener('blur', async event => {
-      this._change(divAutosave);
+    input.addEventListener('input', event => {
+      divAutosave.classList.remove('is-saved');
+      divAutosave.classList.remove('is-saving');
+      divError.textContent = '';
+    });
+    input.addEventListener('change', event => {
+      this._emit({ type:'change', data:this.inputValue });
+
+      if (this.props.submitOnChange)
+        submit();
+    });
+    input.addEventListener('blur', event => {
+      if (this.inputValue === this.data.value)
+        // Trim
+        this.value = this.data.value;
+      else
+        // Clear selection
+        input.value = input.value;
+
+      this._emit({ type:'blur' });
     });
 
     if (this.props.autoFocus)
@@ -171,71 +231,6 @@ export default class Autosave {
 
     return this;
   }
-
-  async _submit(divAutosave) {
-    const divError = divAutosave.nextElementSibling;
-    const input = this.input;
-    const changed = await this._change(divAutosave);
-
-    if (this.props.onSubmit && changed) {
-      divAutosave.classList.remove('is-saved');
-      divAutosave.classList.add('is-saving');
-
-      try {
-        await (this.whenSaved = this.props.onSubmit(input.value));
-
-        this.data.value = input.value;
-        divAutosave.classList.remove('is-saving');
-        divAutosave.classList.add('is-saved');
-      } catch (error) {
-        divAutosave.classList.remove('is-saving');
-        divError.textContent = error.toString();
-      }
-    } else
-      input.blur();
-  }
-
-  async _change(divAutosave) {
-    const divError = divAutosave.nextElementSibling;
-    const input = this.input;
-
-    let newValue = input.value.trim().length ? input.value.trim() : null;
-    if (newValue === null && this.props.isRequired) {
-      if (this.props.defaultValue === false)
-        newValue = this.data.value;
-      else
-        newValue = this.props.defaultValue;
-    }
-
-    // Just in case spaces were trimmed or the name unset.
-    input.value = newValue ?? '';
-
-    if (newValue === this.data.value)
-      divAutosave.classList.toggle('is-saved', !this.props.isRequired || this.data.value !== null);
-    else {
-      divAutosave.classList.remove('is-saved');
-
-      if (this.props.onChange) {
-        divAutosave.classList.add('is-saving');
-
-        try {
-          await (this.whenSaved = this.props.onChange(newValue));
-
-          divAutosave.classList.remove('is-saving');
-
-          if (!this.props.onSubmit) {
-            this.data.value = input.value;
-            divAutosave.classList.add('is-saved');
-          }
-          return true;
-        } catch (error) {
-          divAutosave.classList.remove('is-saving');
-          divError.textContent = error.toString();
-        }
-      } else
-        return true;
-    }
-
-    return false;
-  }
 }
+
+emitter(Autosave);
