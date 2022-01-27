@@ -352,7 +352,29 @@ migrationMap.set('game', [
     }
 
     if (state.actions[0]?.unit)
-      state.actions.unshift({ type:'select', unit:actions[0].unit });
+      state.actions.unshift({ type:'select', unit:state.actions[0].unit });
+
+    return json;
+  },
+  json => {
+    const state = json.$data.state;
+
+    for (let i = 0; i < state.turns.length; i++) {
+      const actions = state.turns[i].actions;
+      if (actions[0].type === 'select' && !actions[0].createdAt && actions[1].unit)
+        Object.assign(actions[0], {
+          teamId: actions[1].teamId,
+          createdAt: actions[1].createdAt,
+        });
+    }
+
+    const actions = state.actions;
+    if (actions[0]?.type === 'select' && !actions[0].createdAt && actions[1].unit)
+      Object.assign(actions[0], {
+        unit: actions[1].unit,
+        teamId: actions[1].teamId,
+        createdAt: actions[1].createdAt,
+      });
 
     return json;
   },
