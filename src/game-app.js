@@ -201,13 +201,13 @@ var buttons = {
     game.pass();
   },
   surrender: () => {
-    if (!game.isMyTurn && !game.turnTimeRemaining)
+    if (game.isLocalGame)
       popup({
-        message: 'Force your opponent to surrender?',
+        message: `End your practice game?`,
         buttons: [
           {
             label: 'Yes',
-            onClick: () => game.forceSurrender(),
+            onClick: () => game.surrender(),
           },
           {
             label: 'No',
@@ -215,13 +215,13 @@ var buttons = {
         ],
         margin: '16px',
       });
-    else if (game.isLocalGame)
+    else if (!game.isMyTurn && !game.turnTimeRemaining)
       popup({
-        message: `End your practice game?`,
+        message: 'Force your opponent to surrender?',
         buttons: [
           {
             label: 'Yes',
-            onClick: () => game.surrender(),
+            onClick: () => game.forceSurrender(),
           },
           {
             label: 'No',
@@ -1561,14 +1561,14 @@ function setTurnTimeoutClock() {
   clearTimeout(turnTimeout);
   turnTimeout = null;
 
-  let timeout = game.turnTimeRemaining;
-  if (game.inReplay || timeout === undefined) {
+  if (game.inReplay || game.state.turnTimeLimit === null) {
     $('.clock').css({ display:'none' });
     return;
   }
   else
     $('.clock').css({ display:'' });
 
+  let timeout = game.turnTimeRemaining;
   let state = game.state;
   let timeoutClass;
   let removeClass;

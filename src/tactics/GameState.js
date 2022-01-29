@@ -460,41 +460,52 @@ export default class GameState {
       // Recovering or paralyzed units can't take action.
       if (unit.mRecovery || unit.paralyzed) return;
 
-      // Taking an action may break certain status effects.
-      const breakAction = unit.getBreakAction(action);
-      if (breakAction)
-        this._pushAction(breakAction);
+      try {
+        if (this._actions.length === 0)
+          this._pushAction({ type:'select', unit });
 
-      // Apply unit-specific validation and determine results.
-      action = unit.validateAction(action);
-      if (!action) return;
+        // Taking an action may break certain status effects.
+        const breakAction = unit.getBreakAction(action);
+        if (breakAction)
+          this._pushAction(breakAction);
 
-      /*
-       * Validate the action taking game state into consideration.
-       */
-      const moved    = this.moved;
-      const attacked = this.attacked;
+        // Apply unit-specific validation and determine results.
+        action = unit.validateAction(action);
+        if (!action)
+          throw new ServerError(403, 'Action is not allowed');
 
-      if (action.type === 'move') {
-        // Can't move twice.
-        if (moved) return;
-      } else if (action.type === 'attack' || action.type === 'attackSpecial') {
-        // Can't attack twice
-        if (attacked) return;
+        /*
+         * Validate the action taking game state into consideration.
+         */
+        const moved    = this.moved;
+        const attacked = this.attacked;
 
-        // Can't attack if poisoned at turn start.
-        const unitState = this.units[unit.team.id].find(u => u.id === unit.id);
-        if (unitState.poisoned)
-          return;
+        if (action.type === 'move') {
+          // Can't move twice.
+          if (moved)
+            throw new ServerError(403, 'Too many move actions');
+        } else if (action.type === 'attack' || action.type === 'attackSpecial') {
+          // Can't attack twice
+          if (attacked)
+            throw new ServerError(403, 'Too many attack actions');
+
+          // Can't attack if poisoned at turn start.
+          const unitState = this.units[unit.team.id].find(u => u.id === unit.id);
+          if (unitState.poisoned)
+            throw new ServerError(403, 'Poisoned units cannot attack');
+        }
+
+        // Turning in the current direction is the same as ending your turn.
+        if (action.type === 'turn' && action.direction === unit.direction)
+          return setEndTurn();
+
+        this._pushAction(action);
+      } catch(error) {
+        if (this._newActions.length)
+          this.revert(this.currentTurnId, this._actions.length - this._newActions.length, true);
+
+        throw error;
       }
-
-      // Turning in the current direction is the same as ending your turn.
-      if (action.type === 'turn' && action.direction === unit.direction)
-        return setEndTurn();
-
-      if (this._actions.length === 0)
-        this._pushAction({ type:'select', unit });
-      this._pushAction(action);
 
       // A turn action immediately ends the turn.
       if (action.type === 'turn')
@@ -517,7 +528,7 @@ export default class GameState {
             return true;
           if (unit.mRecovery)
             return true;
-          if ((moved || !unit.canMove()) && !unit.canTurn())
+          if ((this.moved || !unit.canMove()) && !unit.canTurn())
             return true;
           if (this.winningTeams.length < 2)
             return true;
@@ -966,7 +977,7 @@ export default class GameState {
       data: { winnerId },
     });
   }
-  revert(turnId, actionId = 0) {
+  revert(turnId, actionId = 0, silent = false) {
     const board = this._board;
     let actions;
     if (turnId === this.currentTurnId)
@@ -986,17 +997,18 @@ export default class GameState {
     this.endedAt = null;
     this.winnerId = null;
 
-    this._emit({
-      type: 'revert',
-      data: {
-        startedAt: this.turnStartedAt,
-        turnId: this.currentTurnId,
-        teamId: this.currentTeamId,
-        timeBuffer: this.currentTeam.turnTimeBuffer,
-        actions: this.actions,
-        units: this.units,
-      },
-    });
+    if (!silent)
+      this._emit({
+        type: 'revert',
+        data: {
+          startedAt: this.turnStartedAt,
+          turnId: this.currentTurnId,
+          teamId: this.currentTeamId,
+          timeBuffer: this.currentTeam.turnTimeBuffer,
+          actions: this.actions,
+          units: this.units,
+        },
+      });
   }
 
   /*
