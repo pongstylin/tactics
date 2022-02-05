@@ -1037,15 +1037,6 @@ export default class Game {
     if (this.isViewOnly)
       return false;
 
-    const state = this.state;
-    const actions = state.actions;
-
-    // Local games can always undo if there is something to undo
-    if (this.isLocalGame)
-      return !!(state.currentTurnId > 1 || actions.length > 0);
-    if (state.endedAt && !state.forkOf)
-      return false;
-
     // Determine the team that is requesting the undo.
     const teams = this.teams;
     let myTeam = this.currentTeam;
@@ -1054,74 +1045,7 @@ export default class Game {
       myTeam = teams[prevTeamId];
     }
 
-    // Pretend the first team is the last since it was force-passed.
-    const testTeamId = (myTeam.id === 0 ? teams.length : myTeam.id) - 1;
-    const testTurnId = state.currentTurnId - 1;
-
-    // Can't undo if we haven't had a turn yet.
-    if (testTeamId > testTurnId)
-      return false;
-
-    // Can't undo if we haven't made an action yet.
-    if (testTeamId === testTurnId && actions.length === 0)
-      return false;
-
-    if (this.isBotGame) {
-      if (this.state.endedAt)
-        return false;
-
-      // Bot rejects undo if it is not your turn.
-      if (myTeam !== this.currentTeam)
-        return false;
-
-      // Bot rejects undo if it involves undoing a previous turn.
-      if (actions.length === 0)
-        return false;
-
-      const lastAction = actions.last;
-
-      // Bot rejects undo if the last action was a counter-attack
-      const selectedUnitId = actions[0].unit;
-      if (selectedUnitId !== lastAction.unit)
-        return false;
-
-      // Bot rejects undo if the last action required luck
-      const isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
-      if (isLucky)
-        return false;
-    } else if (state.strictUndo || state.playerRequest?.rejected.has(`${this.playerId}:undo`)) {
-      if (this.state.endedAt)
-        return false;
-
-      if (myTeam === this.currentTeam) {
-        // You may not ask for an undo of a previous turn.
-        if (actions.length === 0)
-          return false;
-
-        // You may not ask for an undo of a lucky attack
-        const lastAction = actions.last;
-        const isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
-        if (isLucky)
-          return false;
-      } else {
-        // You may not ask for an undo after actions have been made by your opponent.
-        if (actions.length > 0)
-          return false;
-      }
-
-      if (state.strictUndo) {
-        const lastActionAt = actions.length ? actions.last.createdAt : state.turnStartedAt;
-        return Math.max(0, lastActionAt - this.state.now + 5000);
-      } else {
-        let turnId = state.currentTurnId;
-        while (turnId % teams.length !== myTeam.id)
-          turnId--;
-
-        return this.state.getTurnTimeRemaining(turnId, 5000);
-      }
-    }
-
-    return true;
+    return this.state.canUndo(myTeam);
   }
   undo() {
     return this.state.undo();

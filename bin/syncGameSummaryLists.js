@@ -2,6 +2,7 @@ import 'plugins/index.js';
 import GameAdapter from 'data/FileAdapter/GameAdapter.js';
 
 const dataAdapter = new GameAdapter();
+await dataAdapter.bootstrap();
 
 dataAdapter.listAllGameIds().then(gameIds => {
   let promise = gameIds.reduce(

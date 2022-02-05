@@ -142,6 +142,10 @@ export default class {
     });
   }
 
+  async bootstrap() {
+    return this;
+  }
+
   async cleanup() {
     const promises = [];
 
@@ -285,11 +289,13 @@ export default class {
           resolve(transform(JSON.parse(data)));
       });
     }).catch(error => {
-      if (error.code === 'ENOENT')
-        if (transform(initialValue) === undefined)
+      if (error.code === 'ENOENT') {
+        const data = transform(initialValue);
+        if (data === undefined)
           error = new ServerError(404, 'Not found');
         else
-          return transform(initialValue);
+          return data;
+      }
 
       throw error;
     });
@@ -328,7 +334,7 @@ export default class {
     }));
   }
   _deleteFile(name) {
-    let fqName = `${this.filesDir}/${name}.json`;
+    const fqName = `${this.filesDir}/${name}.json`;
 
     return new Promise((resolve, reject) => {
       fs.unlink(fqName, error => {

@@ -351,7 +351,6 @@ export default class GameService extends Service {
   async onCreateGameRequest(client, gameTypeId, gameOptions) {
     const clientPara = this.clientPara.get(client.id);
     const playerId = clientPara.playerId;
-    this.throttle(playerId, 'createGame');
 
     if (gameOptions.collection && !this.config.collections.includes(gameOptions.collection))
       throw new ServerError(400, 'Unrecognized game group');
@@ -378,7 +377,7 @@ export default class GameService extends Service {
       ...gameOptions,
       teams: new Array(gameOptions.teams.length).fill(null),
     });
-    const gameType = await this.data.getGameType(gameTypeId);
+    const gameType = this.data.getGameType(gameTypeId);
 
     for (const [slot, teamData] of gameOptions.teams.entries()) {
       if (!teamData) continue;
@@ -466,7 +465,7 @@ export default class GameService extends Service {
         joiner.mute(creator, playerACL.name);
     }
 
-    const gameType = await this.data.getGameType(game.state.type);
+    const gameType = this.data.getGameType(game.state.type);
     const teams = game.state.teams;
 
     let openSlot = teams.findIndex(t => !t?.playerId);
@@ -785,6 +784,14 @@ export default class GameService extends Service {
 
     const gameData = game.toJSON();
     const state = gameData.state = game.state.getData();
+    const recentTurns = new Array(game.state.teams.length);
+
+    for (let i = 0; i < recentTurns.length; i++) {
+      const turnId = game.state.currentTurnId - recentTurns.length + i;
+      recentTurns[i] = game.state.getTurnData(turnId);
+      if (recentTurns[i] !== null)
+        delete recentTurns[i].units;
+    }
 
     const isPlayer = state.teams.findIndex(t => t?.playerId === playerId) > -1;
     if (isPlayer) {
@@ -797,10 +804,11 @@ export default class GameService extends Service {
       playerStatus: [ ...gamePara.playerStatus ]
         .map(([playerId, playerStatus]) => ({ playerId, ...playerStatus })),
       gameData,
+      recentTurns,
     };
 
-    // Parameters are used to resume a game from a given point.
-    // This is done by only sending the data that has changed
+    // We don't need to send all the data every time the client reconnects.
+    // The params are used to tell the server what data the client already has.
     if (params) {
       // These values are set when a game is created and cannot be changed.
       // So, when resuming a game, these values need not be sent.
@@ -811,33 +819,44 @@ export default class GameService extends Service {
       delete gameData.randomFirstTurn;
       delete gameData.randomHitChance;
       delete gameData.turnTimeLimit;
+      delete gameData.turnTimeBuffer;
+      delete gameData.strictUndo;
+      delete gameData.autoSurrender;
 
       if (params.since === 'start') {
         // Nothing has changed if the game hasn't started yet... for now.
         if (!state.startedAt)
           delete gameData.state;
-      }
-      else if (params.since === 'end')
+      } else if (params.since === 'end')
         // Game data doesn't change after game end
         delete gameData.state;
       else {
-        // Once the game starts, the teams do not change... for now.
+        // Once the game starts, the teams do not change... mostly.
         delete state.startedAt;
-        delete state.teams;
+        if (state.turnTimeBuffer)
+          state.teams = state.teams.map(t => ({ turnTimeBuffer:t.turnTimeBuffer }));
+        else
+          delete state.teams;
 
         params.since = new Date(params.since);
-        const since = state.actions.length ? state.actions.last.createdAt : state.turnStartedAt;
+        const since = state.endedAt ?? state.actions.last?.createdAt ?? state.turnStartedAt;
 
-        if (+params.since === +since)
-          // Nothing has changed
-          delete gameData.state;
-        else if (state.currentTurnId === params.turnId) {
+        if (+params.since === +since) {
+          // Nothing has changed except...
+          // Since a server restart can change team buffers, communicate them.
+          if (state.turnTimeBuffer)
+            gameData.state = { teams:state.teams };
+          else
+            delete gameData.state;
+          delete response.recentTurns;
+        } else if (state.currentTurnId === params.turnId) {
           // Current turn hasn't changed
           delete state.currentTurnId;
           delete state.currentTeamId;
 
           // Don't need the units at start of turn if they were already seen
           if (params.since >= state.turnStartedAt) {
+            delete response.recentTurns;
             delete state.turnStartedAt;
             delete state.units;
           }
@@ -867,12 +886,6 @@ export default class GameService extends Service {
 
       if (Object.keys(state).length === 0)
         delete gameData.state;
-    }
-    else {
-      const gameData = game.toJSON();
-      gameData.state = game.state.getData();
-
-      response.gameData = gameData;
     }
 
     return response;

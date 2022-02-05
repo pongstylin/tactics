@@ -45,7 +45,10 @@ const props = {
   },
   off: {
     value() {
-      getPrivateData(this).emitter.off(...arguments);
+      if (arguments.length < 2)
+        getPrivateData(this).emitter.removeAllListeners(...arguments);
+      else
+        getPrivateData(this).emitter.off(...arguments);
       return this;
     },
   },

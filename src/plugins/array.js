@@ -33,3 +33,51 @@ Object.defineProperty(Array.prototype, 'last', {
     return this[this.length-1];
   },
 });
+
+const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+/*
+ * Sort the item before its peers.
+ */
+Object.defineProperty(Array.prototype, 'unshiftSorted', {
+  value: function (item, cmp = compare) {
+    const array = this;
+    let low = 0;
+    let high = array.length;
+    let mid;
+
+    while (low < high) {
+      mid = (low + high) >>> 1;
+      if (cmp(array[mid], item) < 0)
+        low = mid + 1;
+      else
+        high = mid;
+    }
+
+    this.splice(low, 0, item);
+
+    return low;
+  },
+});
+/*
+ * Sort the item after its peers.
+ */
+Object.defineProperty(Array.prototype, 'pushSorted', {
+  value: function (item, cmp = compare) {
+    const array = this;
+    let low = 0;
+    let high = array.length;
+    let mid;
+
+    while (low < high) {
+      mid = (low + high) >>> 1;
+      if (cmp(array[mid], item) > 0)
+        high = mid;
+      else
+        low = mid + 1;
+    }
+
+    this.splice(low, 0, item);
+
+    return low;
+  },
+});

@@ -58,9 +58,9 @@ export default class RemoteTransport {
     if (gameData && gameData.state.endedAt && !authClient.token) {
       this._data = gameData;
       Object.assign(this._data.state, {
-        startedAt: new Date(gameData.state.startedAt),
-        turnStartedAt: new Date(gameData.state.turnStartedAt),
-        endedAt: new Date(gameData.state.endedAt),
+        startedAt: gameData.state.startedAt,
+        turnStartedAt: gameData.state.turnStartedAt,
+        endedAt: gameData.state.endedAt,
       });
 
       const playerIds = new Set(gameData.state.teams.map(t => t.playerId));
@@ -99,6 +99,9 @@ export default class RemoteTransport {
   }
   get strictUndo() {
     return this._getStateData('strictUndo');
+  }
+  get autoSurrender() {
+    return this._getStateData('autoSurrender');
   }
   get turnTimeLimit() {
     return this._getStateData('turnTimeLimit');
@@ -211,9 +214,134 @@ export default class RemoteTransport {
   /*
    * Other public methods that imitate GameState.
    */
+  canUndo(team = this.currentTeam) {
+    const teams = this.teams;
+    const currentTurnId = this.currentTurnId;
+    let actions = this._data.state.actions;
+
+    // Practice games don't impose restrictions.
+    const bot = teams.find(t => !!t.bot);
+    const opponent = teams.find(t => t.playerId !== team.playerId);
+    if (!bot && !opponent)
+      return !!(currentTurnId > 1 || actions.length > 0);
+
+    if (this.endedAt && (!this.forkOf || bot))
+      return false;
+
+    const firstTurnId = this.getTeamFirstTurnId(team);
+
+    // Can't undo if we haven't had a turn yet.
+    if (firstTurnId > currentTurnId)
+      return false;
+
+    // Can't undo if we haven't made an action yet.
+    if (firstTurnId === currentTurnId && actions.length === 0)
+      return false;
+
+    // Bots will never approve anything that requires approval.
+    // Strict undo also doesn't allow approval for undos.
+    // Once undo was rejected, approval cannot be requested.
+    const approve = (
+      bot ||
+      this.strictUndo ||
+      this.playerRequest?.rejected.has(`${team.playerId}:undo`)
+    ) ? false : 'approve';
+    let turnId;
+
+    if (this.endedAt)
+      return approve;
+
+    // Determine the turn being undone in whole or in part
+    for (turnId = currentTurnId; turnId > -1; turnId--) {
+      // Bots do not allow undo after the turn has ended.  This is a technical
+      // limitation since bots start executing their move immediately when their
+      // turn starts.  It would be better if they started planning the move
+      // immediately, but waited to execute until undo limit has passed.
+      if (bot && turnId < currentTurnId)
+        return false;
+
+      const turnData = this.getRecentTurnData(turnId);
+      // Stop if not a recent turn
+      if (turnData === false)
+        break;
+      actions = turnData.actions;
+
+      // Current turn not actionable if no actions were made.
+      if (actions.length === 0)
+        continue;
+
+      // Not an actionable turn if the turn was forced to pass.
+      if (
+        actions.length === 1 &&
+        actions[0].type === 'endTurn' &&
+        actions[0].forced
+      ) continue;
+
+      // Require approval if undoing actions made by the opponent team.
+      if (turnData.teamId !== team.id)
+        return approve;
+
+      // Require approval if the turn time limit was reached.
+      if (this.getTurnTimeRemaining(turnId, 5000, this.now) === 0)
+        return approve;
+
+      const preservedActionId = this.getPreservedActionId(actions);
+      if (preservedActionId === actions.length)
+        return approve;
+
+      if (this.strictUndo)
+        return +actions.last.createdAt + 5000 - this.now;
+
+      break;
+    }
+
+    return true;
+  }
   /*
-   * Like GameState->getTeamFirstTurnid()
+   * Notice: Recent turn data does not include 'units'.
    */
+  getRecentTurnData(turnId) {
+    let turnData;
+
+    if (turnId === this.currentTurnId)
+      turnData = {
+        startedAt: this.turnStartedAt,
+        actions: this.actions,
+        timeBuffer: this.currentTeam.turnTimeBuffer,
+      };
+    else if (turnId > this.currentTurnId || turnId < 0)
+      return null;
+    else {
+      const recentTurns = this._data.recentTurns;
+      const turnIndex = turnId - this.currentTurnId + recentTurns.length;
+
+      if (recentTurns[turnIndex])
+        turnData = recentTurns[turnIndex];
+      else
+        return false;
+    }
+
+    turnData.id = turnId;
+    turnData.teamId = turnId % this.teams.length;
+
+    return turnData;
+  }
+  getPreservedActionId(actions) {
+    const selectedUnitId = actions[0].unit;
+
+    return actions.findLastIndex(action => (
+      // Preserve unit selection in strict mode
+      // Preserve old actions in strict mode
+      this.strictUndo && (
+        action.type === 'select' ||
+        this.now - action.createdAt > 5000
+      ) ||
+      // Preserve counter-attacks
+      action.unit !== undefined && action.unit !== selectedUnitId ||
+      // Preserve luck-involved attacks
+      !!action.results && !!action.results.find(r => 'luck' in r)
+    )) + 1;
+  }
   getTeamFirstTurnId(team) {
     const numTeams = this.teams.length;
     const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
@@ -224,26 +352,22 @@ export default class RemoteTransport {
   /*
    * Like GameState->getTurnTimeLimit() but with limited history support.
    */
-  getTurnTimeLimit(turnId) {
-    const currentTurnId = this.currentTurnId;
-    const teams = this.teams;
-    if (!turnId)
-      turnId = currentTurnId;
-    else if (turnId < currentTurnId - (teams.length - 1))
-      return;
-
+  getTurnTimeLimit(turnId = this.currentTurnId) {
     if (!this.startedAt || !this.turnTimeLimit)
       return;
 
     let turnTimeLimit = this.turnTimeLimit;
     if (this.turnTimeBuffer) {
-      const team = teams[turnId % teams.length];
+      const turnData = this.getRecentTurnData(turnId);
+      if (turnData === null)
+        return this.turnTimeLimit;
+      const team = this.teams[turnData.teamId];
       const firstTurnId = this.getTeamFirstTurnId(team);
 
       if (turnId === firstTurnId)
         turnTimeLimit = this.turnTimeBuffer;
       else
-        turnTimeLimit += team.turnTimeBuffer;
+        turnTimeLimit += turnData.timeBuffer;
     }
 
     return turnTimeLimit;
@@ -251,34 +375,22 @@ export default class RemoteTransport {
   /*
    * Like GameState->getTurnTimeRemaining() but with limited history support.
    */
-  getTurnTimeRemaining(turnId, actionTimeLimit = 10000) {
-    const currentTurnId = this.currentTurnId;
-    if (!turnId)
-      turnId = currentTurnId;
-    else if (turnId < currentTurnId - (teams.length - 1))
-      return;
-
+  getTurnTimeRemaining(turnId = this.currentTurnId, actionTimeLimit = 10000) {
     if (!this.startedAt || this.endedAt)
       return false;
     if (!this.turnTimeLimit)
       return Infinity;
 
-    const turn = {};
-    if (turnId === currentTurnId) {
-      turn.startedAt = this.turnStartedAt;
-      turn.actions = this.actions;
-    } else {
-      // This estimate is good enough for determining if you can undo.
-      turn.startedAt = this.turnStartedAt - 10000;
-      turn.actions = [{ type:'endTurn', createdAt:this.turnStartedAt }];
-    }
+    const turnData = this.getRecentTurnData(turnId);
+    if (turnData === null)
+      return 0;
     const turnTimeLimit = this.getTurnTimeLimit(turnId);
 
     const now = gameClient.serverNow;
-    const lastAction = turn.actions.last;
+    const lastAction = turnData.actions.filter(a => !a.forced).last;
     const lastActionAt = lastAction ? +lastAction.createdAt : 0;
     const actionTimeout = (lastActionAt + actionTimeLimit) - now;
-    const turnTimeout = (+turn.startedAt + turnTimeLimit*1000) - now;
+    const turnTimeout = (+turnData.startedAt + turnTimeLimit*1000) - now;
 
     return Math.max(0, actionTimeout, turnTimeout);
   }
@@ -287,11 +399,12 @@ export default class RemoteTransport {
    * Other Private Methods
    */
   _init(gameId) {
-    gameClient.watchGame(gameId).then(({playerStatus, gameData}) => {
+    gameClient.watchGame(gameId).then(({ playerStatus, gameData, recentTurns }) => {
       // Event emitted internally to set this.playerStatus.
       this._emit({ type:'playerStatus', data:playerStatus });
 
       this._data = gameData;
+      this._data.recentTurns = recentTurns;
       this.whenReady.resolve();
 
       if (gameData.state.startedAt)
@@ -341,7 +454,7 @@ export default class RemoteTransport {
 
     // Instead of watching the game from its current point, resume watching
     // the game from the point we lost connection.
-    gameClient.watchGame(gameId, resume).then(({ playerStatus, gameData, newActions }) => {
+    gameClient.watchGame(gameId, resume).then(({ playerStatus, gameData, recentTurns, newActions }) => {
       this._emit({ type:'playerStatus', data:playerStatus });
 
       const oldRequest = this._data.playerRequest;
@@ -358,6 +471,11 @@ export default class RemoteTransport {
         const oldStarted = this._data.state.startedAt;
         const oldTurnStarted = this._data.state.turnStartedAt;
 
+        if (gameData.state.teams) {
+          for (let i = 0; i < gameData.state.teams.length; i++)
+            Object.merge(this._data.state.teams[i], gameData.state.teams[i]);
+          delete gameData.state.teams;
+        }
         this._data.state.merge(gameData.state);
         if (newActions)
           this._data.state.actions.push(...newActions);
@@ -368,10 +486,13 @@ export default class RemoteTransport {
           this.whenTurnStarted.resolve();
 
         this._emit({ type:'change' });
-      } else if (newActions) {
+      }
+      if (newActions) {
         this._data.state.actions.push(...newActions);
         this._emit({ type:'change' });
       }
+      if (recentTurns)
+        this._data.recentTurns = recentTurns;
 
       if (!outbox) return;
 
@@ -397,13 +518,11 @@ export default class RemoteTransport {
     this
       .on('playerStatus', ({ data }) => {
         if (!Array.isArray(data))
-          data = [data];
+          data = [ data ];
 
         data.forEach(ps => this.playerStatus.set(ps.playerId, ps));
       })
       .on('startGame', ({ data }) => {
-        data.startedAt = new Date(data.startedAt);
-
         Object.assign(this._data.state, {
           startedAt: data.startedAt,
           teams: data.teams,
@@ -413,8 +532,6 @@ export default class RemoteTransport {
         this._emit({ type:'change' });
       })
       .on('startTurn', ({ data }) => {
-        data.startedAt = new Date(data.startedAt);
-
         // Clear a player's rejected requests when their turn starts.
         if (this._data.playerRequest) {
           const playerId = this._data.state.teams[data.teamId].playerId;
@@ -449,10 +566,6 @@ export default class RemoteTransport {
       .on('action', ({ data:actions }) => {
         let state = this._data.state;
 
-        actions.forEach(action => {
-          action.createdAt = new Date(action.createdAt);
-        });
-
         state.actions.push(...actions);
 
         // Emit a change so that the game state cursor can pick up on the new
@@ -466,6 +579,14 @@ export default class RemoteTransport {
          * new turn during an 'endGame' event, but connection lag can delay it.
          */
         if (actions.last.type === 'endTurn') {
+          const recentTurns = this._data.recentTurns;
+          recentTurns.push({
+            startedAt: this.turnStartedAt,
+            actions: this.actions,
+            timeBuffer: this.currentTeam.turnTimeBuffer,
+          });
+          recentTurns.shift();
+
           this.applyActions();
 
           Object.assign(state, {
@@ -479,11 +600,6 @@ export default class RemoteTransport {
         }
       })
       .on('revert', ({ data }) => {
-        data.startedAt = new Date(data.startedAt);
-        data.actions.forEach(action => {
-          action.createdAt = new Date(action.createdAt);
-        });
-
         const state = this._data.state;
         if (state.turnTimeBuffer) {
           const team = state.teams[data.teamId];
@@ -510,10 +626,6 @@ export default class RemoteTransport {
         this._emit({ type:'change' });
       })
       .on('playerRequest', ({ data:request }) => {
-        request.createdAt = new Date(request.createdAt);
-        request.accepted = new Set(request.accepted);
-        request.rejected = new Map(request.rejected);
-
         this._data.playerRequest = request;
       })
       .on('playerRequest:accept', ({ data }) => {

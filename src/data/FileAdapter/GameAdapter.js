@@ -1,9 +1,10 @@
 import fs from 'fs';
 import util from 'util';
 
+import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import serializer from 'utils/serializer.js';
 import FileAdapter from 'data/FileAdapter.js';
-import migrate, { getLatestVersionNumber } from 'data/migrate.js';
+import Timeout from 'server/Timeout.js';
 
 import GameType from 'tactics/GameType.js';
 import Game from 'models/Game.js';
@@ -45,26 +46,123 @@ export default class extends FileAdapter {
         ],
       ]),
 
-      // Lazy loaded and cached forever
       _gameTypes: null,
+      _autoSurrender: null,
 
       _dirtyGames: new Map(),
       _syncingPlayerGames: new Map(),
     });
   }
 
+  async bootstrap() {
+    this._gameTypes = await this.getFile('game_types', data => {
+      const gameTypes = new Map();
+      for (const [ id, config ] of data) {
+        gameTypes.set(id, serializer.normalize({
+          $type: 'GameType',
+          $data: { id, config },
+        }));
+      }
+
+      return gameTypes;
+    });
+
+    const autoSurrender = await this.getFile(`timeout/autoSurrender`, data => {
+      if (data === undefined)
+        return {
+          timeout: new Timeout(`${this.name}AutoSurrender`),
+          shutdownAt: new Date(),
+        };
+      else
+        return serializer.normalize(data);
+    });
+
+    this._autoSurrender = autoSurrender.timeout.on('expire', async ({ data:items }) => {
+      const games = await Promise.all(
+        [ ...items.values() ].map(({ id:gameId }) => this._getGame(gameId)),
+      );
+      for (const game of games) {
+        // Just in case they finished their turn at the very last moment.
+        if (game.state.getTurnTimeRemaining() > 0)
+          continue;
+
+        if (game.state.actions.length)
+          game.state.submitAction({
+            type: 'endTurn',
+            forced: true,
+          });
+        else
+          game.state.submitAction({
+            type: 'surrender',
+            declaredBy: 'system',
+          });
+      }
+    });
+
+    /*
+     * If the server was shut down for more than 30 seconds, end real-time
+     * games in a truce.
+     */
+    if (Date.now() - autoSurrender.shutdownAt > 30000) {
+      autoSurrender.timeout.pause();
+
+      const games = await Promise.all(
+        autoSurrender.timeout.values()
+          .filter(({ turnTimeBuffer }) => !!turnTimeBuffer)
+          .map(({ id:gameId }) => this._getGame(gameId)),
+      );
+
+      for (const game of games) {
+        game.state.end('truce');
+        game.emit('change:cleanup');
+      }
+
+      autoSurrender.timeout.resume();
+    }
+
+    return super.bootstrap();
+  }
+
+  async cleanup() {
+    const autoSurrender = this._autoSurrender.pause();
+
+    /*
+     * In the hopes that the server will restart quickly, set team turn time
+     * buffers to max.
+     */
+    const games = await Promise.all(
+      autoSurrender.values()
+        .filter(({ turnTimeBuffer }) => !!turnTimeBuffer)
+        .map(({ id:gameId }) => this._getGame(gameId)),
+    );
+
+    for (const game of games) {
+      for (const team of game.state.teams) {
+        team.turnTimeBuffer = game.state.turnTimeBuffer;
+      }
+      game.emit('change:cleanup');
+    }
+
+    await this.putFile(`timeout/autoSurrender`, () =>
+      serializer.transform({
+        timeout: this._autoSurrender,
+        shutdownAt: new Date(),
+      })
+    );
+
+    return super.cleanup();
+  }
+
   /*****************************************************************************
    * Public Interface
    ****************************************************************************/
-  async hasGameType(gameTypeId) {
-    const gameTypes = await this._getGameTypes();
-    return gameTypes.has(gameTypeId);
+  hasGameType(gameTypeId) {
+    return this._gameTypes.has(gameTypeId);
   }
-  async getGameType(gameTypeId) {
-    const gameTypes = await this._getGameTypes();
+  getGameType(gameTypeId) {
+    const gameTypes = this._gameTypes;
     if (!gameTypes.has(gameTypeId))
       throw new ServerError(404, 'No such game type');
-
     return gameTypes.get(gameTypeId);
   }
 
@@ -154,7 +252,7 @@ export default class extends FileAdapter {
    */
   async getPlayerSet(playerId, gameType, setName) {
     if (typeof gameType === 'string')
-      gameType = await this.getGameType(gameType);
+      gameType = this._gameTypes.get(gameType);
 
     const playerSets = await this._getPlayerSets(playerId);
     return playerSets.getDefault(gameType, setName);
@@ -165,7 +263,7 @@ export default class extends FileAdapter {
    */
   async setPlayerSet(playerId, gameType, setName, set) {
     if (typeof gameType === 'string')
-      gameType = await this.getGameType(gameType);
+      gameType = this._gameTypes.get(gameType);
 
     const playerSets = await this._getPlayerSets(playerId);
     playerSets.setDefault(gameType, setName, set);
@@ -230,23 +328,6 @@ export default class extends FileAdapter {
   /*****************************************************************************
    * Private Interface
    ****************************************************************************/
-  async _getGameTypes() {
-    if (!this._gameTypes)
-      this._gameTypes = await this.getFile('game_types', data => {
-        const gameTypes = new Map();
-        for (const [ id, config ] of data) {
-          gameTypes.set(id, serializer.normalize({
-            $type: 'GameType',
-            $data: { id, config },
-          }));
-        }
-
-        return gameTypes;
-      });
-
-    return this._gameTypes;
-  }
-
   /*
    * Game Management
    */
@@ -258,8 +339,11 @@ export default class extends FileAdapter {
       this._attachGame(game);
       return data;
     });
-    await this._recordGameStats(game);
     await this._updateGameSummary(game);
+    if (game.state.startedAt) {
+      await this._recordGameStats(game);
+      this._syncAutoSurrender(game);
+    }
   }
   async _getGame(gameId) {
     if (this.cache.get('game').has(gameId))
@@ -277,22 +361,31 @@ export default class extends FileAdapter {
     });
   }
   _attachGame(game) {
-    game.on('change', event => {
-      if (!this.buffer.get('game').has(game.id))
-        this.buffer.get('game').add(game.id, game);
-      this._updateGameSummary(game);
-    });
-    game.on('delete', event => {
-      this._deleteGame(game);
-    });
+    game.on('change', event => this._onGameChange(game));
+    game.on('delete', event => this._onGameDelete(game));
     if (!game.state.startedAt)
       game.state.once('startGame', event => this._recordGameStats(game));
     if (!game.state.endedAt)
       game.state.once('endGame', event => this._recordGameStats(game));
   }
-  async _recordGameStats(game) {
-    if (!game.state.startedAt) return;
+  _onGameChange(game) {
+    if (!this.buffer.get('game').has(game.id))
+      this.buffer.get('game').add(game.id, game);
+    this._updateGameSummary(game);
+    this._syncAutoSurrender(game);
+  }
+  async _onGameDelete(game) {
+    if (this._dirtyGames.has(game.id))
+      await this._dirtyGames.get(game.id);
 
+    this.cache.get('game').delete(game.id);
+    this.buffer.get('game').delete(game.id);
+    game.destroy();
+
+    this._clearGameSummary(game);
+    this.deleteFile(`game_${game.id}`);
+  }
+  async _recordGameStats(game) {
     const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
     if (playerIds.size === 1) return;
 
@@ -311,17 +404,6 @@ export default class extends FileAdapter {
 
       return data;
     });
-  }
-  async _deleteGame(game) {
-    if (this._dirtyGames.has(game.id))
-      await this._dirtyGames.get(game.id);
-
-    this.cache.get('game').delete(game.id);
-    this.buffer.get('game').delete(game.id);
-    game.destroy();
-
-    this._clearGameSummary(game);
-    this.deleteFile(`game_${game.id}`);
   }
 
   /*
@@ -345,9 +427,7 @@ export default class extends FileAdapter {
     const playerIds = new Set(
       game.state.teams.filter(t => !!t?.playerId).map(t => t.playerId)
     );
-    const promises = [
-      this.getGameType(game.state.type),
-    ];
+    const promises = [];
 
     for (const playerId of playerIds) {
       if (syncingPlayerGames.has(playerId)) {
@@ -382,7 +462,8 @@ export default class extends FileAdapter {
         }),
       );
 
-    const promise = Promise.all(promises).then(([ gameType, ...gameSummaryLists ]) => {
+    const promise = Promise.all(promises).then(gameSummaryLists => {
+      const gameType = this._gameTypes.get(game.state.type);
       const summary = GameSummary.create(gameType, game);
       dirtyGames.delete(game.id);
 
@@ -465,6 +546,19 @@ export default class extends FileAdapter {
       for (const gameSummary of completed.slice(100)) {
         gameSummaryList.delete(gameSummary.id);
       }
+  }
+
+  _syncAutoSurrender(game) {
+    if (!game.state.autoSurrender)
+      return;
+
+    if (game.state.endedAt)
+      this._autoSurrender.delete(game.id);
+    else
+      this._autoSurrender.add(game.id, {
+        id: game.id,
+        turnTimeBuffer: game.state.turnTimeBuffer,
+      }, game.state.getTurnTimeRemaining());
   }
 
   /*

@@ -33,7 +33,7 @@ const servicesReady = Promise.all(
 
     services.set(serviceName, new Service({
       name: serviceName,
-      data: new DataAdapter(),
+      data: await new DataAdapter().bootstrap(),
       config: serviceInfo.config,
     }));
   }),

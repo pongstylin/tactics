@@ -335,6 +335,7 @@ export default class GameState {
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
       strictUndo: this.strictUndo,
+      autoSurrender: this.autoSurrender,
       turnTimeLimit: this.turnTimeLimit,
       turnTimeBuffer: this.turnTimeBuffer,
 
@@ -425,7 +426,7 @@ export default class GameState {
     // Validate actions until the turn ends.
     actions.find(action => {
       if (action.type === 'endTurn')
-        return setEndTurn();
+        return setEndTurn(action.forced);
 
       if (action.type === 'surrender') {
         const team = this._validateSurrenderAction(action);
@@ -701,12 +702,12 @@ export default class GameState {
     if (!this.startedAt || !this.turnTimeLimit)
       return;
 
-    const turnData = this.getTurnData(turnId);
-    const team = this.teams[turnId % this.teams.length];
-    const firstTurnId = this.getTeamFirstTurnId(team);
-
     let turnTimeLimit = this.turnTimeLimit;
     if (this.turnTimeBuffer) {
+      const turnData = this.getTurnData(turnId);
+      const team = this.teams[turnData.teamId];
+      const firstTurnId = this.getTeamFirstTurnId(team);
+
       if (turnId === firstTurnId)
         turnTimeLimit = this.turnTimeBuffer;
       else
@@ -726,13 +727,13 @@ export default class GameState {
     if (!this.turnTimeLimit)
       return Infinity;
 
-    const turn = this.getTurnData(turnId);
+    const turnData = this.getTurnData(turnId);
     const turnTimeLimit = this.getTurnTimeLimit(turnId);
 
-    const lastAction = turn.actions.last;
+    const lastAction = turnData.actions.filter(a => !a.forced).last;
     const lastActionAt = lastAction ? +lastAction.createdAt : 0;
     const actionTimeout = (lastActionAt + actionTimeLimit) - now;
-    const turnTimeout = (+turn.startedAt + turnTimeLimit*1000) - now;
+    const turnTimeout = (+turnData.startedAt + turnTimeLimit*1000) - now;
 
     return Math.max(0, actionTimeout, turnTimeout);
   }
@@ -765,23 +766,26 @@ export default class GameState {
    */
   canUndo(team = this.currentTeam, now = Date.now()) {
     const teams = this.teams;
+    const currentTurnId = this.currentTurnId;
+    let actions = this._actions;
 
     // Practice games don't impose restrictions.
     const bot = teams.find(t => !!t.bot);
     const opponent = teams.find(t => t.playerId !== team.playerId);
     if (!bot && !opponent)
-      return !!(this.currentTurnId > 1 || this._actions.length > 0);
+      return !!(currentTurnId > 1 || actions.length > 0);
 
-    // Pretend the first team is the last since it was force-passed.
-    const testTeamId = (team.id === 0 ? teams.length : team.id) - 1;
-    const testTurnId = this.currentTurnId - 1;
+    if (this.endedAt && !this.forkOf)
+      return false;
+
+    const firstTurnId = this.getTeamFirstTurnId(team);
 
     // Can't undo if we haven't had a turn yet.
-    if (testTeamId > testTurnId)
+    if (firstTurnId > currentTurnId)
       return false;
 
     // Can't undo if we haven't made an action yet.
-    if (testTeamId === testTurnId && this._actions.length === 0)
+    if (firstTurnId === currentTurnId && actions.length === 0)
       return false;
 
     // Bots will never approve anything that requires approval.
@@ -789,18 +793,17 @@ export default class GameState {
     const approve = bot || this.strictUndo ? false : 'approve';
     let requireApproval = false;
     let turnId;
-    let actions;
 
     if (this.endedAt)
       return approve;
 
     // Determine the turn being undone in whole or in part
-    for (turnId = this.currentTurnId; turnId > -1; turnId--) {
+    for (turnId = currentTurnId; turnId > -1; turnId--) {
       // Bots do not allow undo after the turn has ended.  This is a technical
       // limitation since bots start executing their move immediately when their
       // turn starts.  It would be better if they started planning the move
       // immediately, but waited to execute until undo limit has passed.
-      if (bot && turnId < this.currentTurnId)
+      if (bot && turnId < currentTurnId)
         return false;
 
       const turnData = this.getTurnData(turnId);
@@ -827,44 +830,12 @@ export default class GameState {
       if (this.getTurnTimeRemaining(turnId, 5000, now) === 0)
         return approve;
 
-      /*
-       * Strict rules disallow undoing the selection of a unit.  A unit is
-       * selected once it is used to move or attack.  Even if that move or
-       * attack was undone, it remains selected and cannot be deselected.
-       *
-       * Strict rules also disallow undo 5 seconds after making an action.
-       */
-      if (this.strictUndo) {
-        const lastAction = actions.last;
-        if (lastAction.type === 'select' || now - lastAction.createdAt > 5000)
-          return false;
-      }
+      const preservedActionId = this.getPreservedActionId(actions, now);
+      if (preservedActionId === actions.length)
+        return approve;
 
       break;
     }
-
-    // Can't undo if team has no actionable turns to undo.
-    if (turnId === -1)
-      return false;
-
-    if (requireApproval)
-      return approve;
-
-    // If turn not force ended, then change direction does not require approval.
-    if (turnId !== this.currentTurnId && !actions.last.forced)
-      return true;
-
-    const lastAction = actions.filter(a => a.type !== 'endTurn').last;
-
-    // Requires approval if the last action was a counter-attack
-    const selectedUnitId = actions[0].unit;
-    if (selectedUnitId !== lastAction.unit)
-      return approve;
-
-    // Requires approval if the last action required luck
-    const isLucky = lastAction.results && !!lastAction.results.find(r => 'luck' in r);
-    if (isLucky)
-      return approve;
 
     return true;
   }
@@ -941,23 +912,7 @@ export default class GameState {
         /*
          * Some actions should not be undone unless approved.
          */
-        let actionId = 0;
-        if (!approved) {
-          const selectedUnitId = actions[0].unit;
-
-          actionId = actions.findLastIndex(action => (
-            // Preserve unit selection in strict mode
-            // Preserve old actions in strict mode
-            !!this.strictUndo && (
-              action.type === 'select' ||
-              now - action.createdAt > 5000
-            ) ||
-            // Preserve counter-attacks
-            action.unit !== undefined && action.unit !== selectedUnitId ||
-            // Preserve luck-involved attacks
-            !!action.results && !!action.results.find(r => 'luck' in r)
-          )) + 1;
-        }
+        const actionId = approved ? 0 : this.getPreservedActionId(actions, now);
 
         this.revert(turnId, actionId);
         break;
@@ -967,6 +922,22 @@ export default class GameState {
       if (turnId === -1)
         return false;
     }
+  }
+  getPreservedActionId(actions, now = Date.now()) {
+    const selectedUnitId = actions[0].unit;
+
+    return actions.findLastIndex(action => (
+      // Preserve unit selection in strict mode
+      // Preserve old actions in strict mode
+      this.strictUndo && (
+        action.type === 'select' ||
+        now - action.createdAt > 5000
+      ) ||
+      // Preserve counter-attacks
+      action.unit !== undefined && action.unit !== selectedUnitId ||
+      // Preserve luck-involved attacks
+      !!action.results && !!action.results.find(r => 'luck' in r)
+    )) + 1;
   }
   end(winnerId) {
     this.endedAt = new Date();
@@ -1028,6 +999,7 @@ export default class GameState {
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
       strictUndo: this.strictUndo,
+      autoSurrender: this.autoSurrender,
       turnTimeLimit: this.turnTimeLimit,
       turnTimeBuffer: this.turnTimeBuffer,
 
@@ -1149,16 +1121,22 @@ export default class GameState {
     return action;
   }
   _validateSurrenderAction(action) {
-    const teams = this.teams;
-    if (action.teamId === undefined && action.declaredBy) {
-      for (let i = 0; i < teams.length; i++) {
-        const teamId = (this.currentTeamId + i) % teams.length;
-        if (teams[teamId].playerId !== action.declaredBy)
-          continue;
+    if (action.declaredBy === 'system')
+      return this.currentTeam;
 
-        action.teamId = teamId;
-        break;
-      }
+    const teams = this.teams;
+    if (action.teamId === undefined) {
+      if (action.declaredBy !== 'system') {
+        for (let i = 0; i < teams.length; i++) {
+          const teamId = (this.currentTeamId + i) % teams.length;
+          if (teams[teamId].playerId !== action.declaredBy)
+            continue;
+
+          action.teamId = teamId;
+          break;
+        }
+      } else
+        action.teamId = this.currentTeamId;
     }
 
     const team = teams[action.teamId];
@@ -1182,7 +1160,7 @@ export default class GameState {
     let board = this._board;
 
     return team.units.map(unit => {
-      let result = { unit, changes: { mHealth:-unit.health } };
+      let result = { unit, changes:{ mHealth:-unit.health } };
       let subResults = [];
 
       // Most attacks break the focus of focusing units.
@@ -1337,15 +1315,15 @@ serializer.addType({
   schema: {
     type: 'object',
     required: [
-      'type', 'randomFirstTurn', 'randomHitChance', 'strictUndo',
-      'turnTimeLimit', 'turnTimeBuffer', 'teams', 'startedAt', 'endedAt',
-      'turns', 'turnStartedAt', 'units', 'actions',
+      'type', 'teams', 'startedAt', 'endedAt', 'turns', 'turnStartedAt',
+      'units', 'actions',
     ],
     properties: {
       type: { type:'string' },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
       strictUndo: { type:'boolean' },
+      autoSurrender: { type:'boolean' },
       turnTimeLimit: { type:[ 'number', 'null' ] },
       turnTimeBuffer: { type:[ 'number', 'null' ] },
       teams: {

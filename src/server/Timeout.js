@@ -1,6 +1,7 @@
 import DebugLogger from 'debug';
 
 import emitter from 'utils/emitter.js';
+import serializer from 'utils/serializer.js';
 
 const timeouts = new Map();
 
@@ -21,6 +22,7 @@ export default class Timeout {
     }, config, {
       _opened: new Map(),
       _closed: new Map(),
+      _isPaused: false,
     });
 
     timeouts.set(name, this);
@@ -33,6 +35,15 @@ export default class Timeout {
     }
   }
 
+  static fromJSON(data) {
+    const timeout = new Timeout(data.name, data.config);
+
+    timeout._opened = data.opened;
+    timeout._closed = data.closed;
+
+    return timeout;
+  }
+
   log(operation, message) {
     if (this.verbose === true || Array.isArray(this.verbose) && this.verbose.includes(operation))
       this.debugV(message ?? operation);
@@ -40,9 +51,18 @@ export default class Timeout {
       this.debug(message ?? operation);
   }
 
+  pause() {
+    this._isPaused = true;
+    return this;
+  }
+  resume() {
+    this._isPaused = false;
+    return this;
+  }
+
   _tick(now) {
     const closed = this._closed;
-    if (closed.size === 0 || this._checkAt > now)
+    if (closed.size === 0 || this._checkAt > now || this._isPaused)
       return;
 
     let expiredItems = new Map();
@@ -82,29 +102,32 @@ export default class Timeout {
       return item;
 
     const closed = this._closed;
+    let itemTimeout;
+
     if (closed.has(itemId)) {
-      const itemTimeout = closed.get(itemId);
-      itemTimeout.expireAt = Date.now() + ttl;
-
-      if (ttl === this.expireIn) {
-        closed.delete(itemId);
-        closed.set(itemId, itemTimeout);
-      }
-
-      this.log('add', `refresh=${itemId}`);
+      itemTimeout = closed.get(itemId);
+      closed.delete(itemId);
+      this.log('add', `refresh=${itemId}; ttl=${ttl}`);
     } else {
-      closed.set(itemId, {
-        item,
-        expireAt: Date.now() + ttl,
-      });
-
-      this.log('add', `add=${itemId}`);
+      itemTimeout = { item };
+      this.log('add', `add=${itemId}; ttl=${ttl}`);
     }
 
-    if (ttl !== this.expireIn)
-      this._closed = new Map(
-        [ ...closed ].sort((a,b) => a[1].expireAt - b[1].expireAt)
-      );
+    itemTimeout.expireAt = Date.now() + ttl;
+
+    if (closed.size) {
+      const closedArray = [ ...closed ];
+
+      if (itemTimeout.expireAt > closedArray.last.expireAt)
+        closed.set(itemId, itemTimeout);
+      else {
+        closedArray.pushSorted([ itemId, itemTimeout ], i =>
+          i[1].expireAt - itemTimeout.expireAt
+        );
+        this._closed = new Map(closedArray);
+      }
+    } else
+      closed.set(itemId, itemTimeout);
 
     return item;
   }
@@ -207,7 +230,69 @@ export default class Timeout {
     this.log('clear', `clear=${values.length}`);
     return values;
   }
+
+  toJSON() {
+    const config = {};
+    if (this.verbose !== false)
+      config.verbose = this.verbose;
+    if (this.interval !== 0)
+      config.interval = this.interval;
+    if (this.expireIn !== 60 * 60 * 1000)
+      config.expireIn = this.expireIn;
+    if (this.expireLimit !== Infinity)
+      config.expireLimit = this.expireLimit;
+
+    return {
+      name: this.name,
+      config,
+      opened: this._opened,
+      closed: this._closed,
+    };
+  }
 }
 
 Timeout.timeouts = timeouts;
 emitter(Timeout);
+
+serializer.addType({
+  name: 'Timeout',
+  constructor: Timeout,
+  schema: {
+    type: 'object',
+    required: [ 'name' ],
+    additionalProperties: false,
+    properties: {
+      name: { type:'string' },
+      config: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          verbose: {
+            type: [ 'boolean', 'array' ],
+            items: { type:'string' },
+          },
+          interval: { type:'integer' },
+          expireIn: { type:'integer' },
+          expireLimit: { type:'integer' },
+        },
+      },
+      opened: { $ref:'#/definitions/set' },
+      closed: { $ref:'#/definitions/set' },
+    },
+    definitions: {
+      set: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          minItems: 2,
+          maxItems: 2,
+          items: [
+            { type:[ 'string', 'number' ] },
+            {},
+          ],
+        },
+      },
+    },
+  },
+});
