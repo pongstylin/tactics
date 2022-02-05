@@ -1561,11 +1561,10 @@ function setTurnTimeoutClock() {
   clearTimeout(turnTimeout);
   turnTimeout = null;
 
-  if (game.inReplay || game.state.turnTimeLimit === null) {
+  if (game.inReplay || game.state.turnTimeLimit === null || game.state.endedAt) {
     $('.clock').css({ display:'none' });
     return;
-  }
-  else
+  } else
     $('.clock').css({ display:'' });
 
   let timeout = game.turnTimeRemaining;
@@ -1584,19 +1583,16 @@ function setTurnTimeoutClock() {
     if (timeout > 82800000) {
       timeoutText = `&lt; ${Math.ceil(timeout / 86400000)}d`;
       tick = (timeout % 86400000) + 250;
-    }
     // If greater than 1 hour, show hours
-    else if (timeout > 3600000) {
+    } else if (timeout > 3600000) {
       timeoutText = `&lt; ${Math.ceil(timeout / 3600000)}h`;
       tick = (timeout % 3600000) + 250;
-    }
     // If greater than 9 minutes, show minutes
-    else if (timeout > 540000) {
+    } else if (timeout > 540000) {
       timeoutText = `&lt; ${Math.ceil(timeout / 60000)}m`;
       tick = (timeout % 60000) + 250;
-    }
     // Show clock
-    else {
+    } else {
       let min = Math.floor(timeout / 60000);
       let sec = Math.floor((timeout % 60000) / 1000).toString().padStart(2, '0');
       timeoutText = `${min}:${sec}`;
@@ -1605,8 +1601,7 @@ function setTurnTimeoutClock() {
 
     if (tick < 0x80000000)
       turnTimeout = setTimeout(setTurnTimeoutClock, tick);
-  }
-  else {
+  } else {
     timeoutClass = 'expired';
     removeClass = 'short long';
     timeoutText = '0:00';
@@ -1727,7 +1722,7 @@ async function startGame() {
     })
     .on('timeout', () => {
       // Only display once per page load
-      if (timeoutPopup === undefined)
+      if (timeoutPopup === undefined && !game.state.autoSurrender)
         timeoutPopup = popup({
           title: "Time's up!",
           message: `
