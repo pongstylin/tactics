@@ -18,6 +18,27 @@ const gameClient = Tactics.gameClient;
 const pushClient = Tactics.pushClient;
 const popup = Tactics.popup;
 
+const styles = new Map([
+  [ 'freestyle',        'Freestyle' ],
+  [ 'classic',          'Classic' ],
+  [ 'droplessGray',     'Dropless Gray' ],
+  [ 'fpsGray',          'FPS Gray' ],
+  [ 'legendsGray',      'Legends Gray' ],
+  [ 'alphaTurtle',      'Alpha Turtle' ],
+  [ 'legendsTurtle',    'Legends Turtle' ],
+  [ 'fpsGold',          'FPS Gold' ],
+  [ 'legendsGold',      'Legends Gold' ],
+  [ 'legendsGoldNoDSM', 'Legends Gold (no DSM)' ],
+  [ 'delta',            'Delta Force' ],
+  [ 'moderator',        'Moderator' ],
+]);
+
+const groups = new Map([
+  [ 'lobby',    'Lobby' ],
+  [ 'active',   'Active Games' ],
+  [ 'complete', 'Completed Games' ],
+]);
+
 let myPlayerId = null;
 const state = {
   audioEnabled: false,
@@ -169,27 +190,6 @@ const getAvatar = (team, direction = 'S') => {
   return avatar;
 };
 state.getAvatar = getAvatar;
-
-const styles = new Map([
-  [ 'freestyle',        'Freestyle' ],
-  [ 'classic',          'Classic' ],
-  [ 'droplessGray',     'Dropless Gray' ],
-  [ 'fpsGray',          'FPS Gray' ],
-  [ 'legendsGray',      'Legends Gray' ],
-  [ 'alphaTurtle',      'Alpha Turtle' ],
-  [ 'legendsTurtle',    'Legends Turtle' ],
-  [ 'fpsGold',          'FPS Gold' ],
-  [ 'legendsGold',      'Legends Gold' ],
-  [ 'legendsGoldNoDSM', 'Legends Gold (no DSM)' ],
-  [ 'delta',            'Delta Force' ],
-  [ 'moderator',        'Moderator' ],
-]);
-
-const groups = new Map([
-  [ 'lobby',    'Lobby' ],
-  [ 'active',   'Active Games' ],
-  [ 'complete', 'Completed Games' ],
-]);
 
 gameClient
   .on('event', ({ body }) => {
