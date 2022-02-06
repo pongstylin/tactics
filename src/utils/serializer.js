@@ -115,6 +115,9 @@ const classTypes = [
         }
       }
 
+      if (!transform.items.type)
+        delete transform.items;
+
       return serialized;
     },
     normalize: (data, transform) => {

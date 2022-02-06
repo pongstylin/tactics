@@ -339,7 +339,7 @@ export default class GameState {
       turnTimeLimit: this.turnTimeLimit,
       turnTimeBuffer: this.turnTimeBuffer,
 
-      teams: this.teams.map(t => t?.getData(!!this.startedAt)),
+      teams: this.teams.map(t => t && t.getData(!!this.startedAt)),
 
       startedAt: this.startedAt,
 
