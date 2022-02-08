@@ -473,7 +473,10 @@ export default class RemoteTransport {
 
         if (gameData.state.teams) {
           for (let i = 0; i < gameData.state.teams.length; i++)
-            Object.merge(this._data.state.teams[i], gameData.state.teams[i]);
+            this._data.state.teams[i] = Object.merge(
+              this._data.state.teams[i],
+              gameData.state.teams[i],
+            );
           delete gameData.state.teams;
         }
         this._data.state.merge(gameData.state);
