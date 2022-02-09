@@ -66,7 +66,7 @@ export default class ServerSocket {
       // Used to detect failed connection to the server.
       _failListener: event => this._onFail(event),
       // Used to recieve messages from the server.
-      _messageListener: event => this._onMessage(event),
+      _messageListener: event => this._onMessage(event, Date.now()),
       // Used to detect dropped connections to the server.
       _closeListener: event => this._onClose(event),
     });
@@ -497,11 +497,10 @@ export default class ServerSocket {
     this.open();
   }
 
-  _onMessage({ target:socket, data }) {
+  _onMessage({ target:socket, data }, now) {
     if (socket !== this._socket)
       return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onMessage');
 
-    const now = Date.now();
     const message = JSON.parse(data);
     const session = this._session;
 
@@ -515,6 +514,10 @@ export default class ServerSocket {
       parseInt(process.env.CONNECTION_TIMEOUT),
     );
 
+    /*
+     * While this does not attempt to measure and subtract latency, it does
+     * minimize the effect of latency on the time difference.
+     */
     const serverTimeDiff = message.now - now;
     if (this._serverTimeDiff === null)
       this._serverTimeDiff = serverTimeDiff;
