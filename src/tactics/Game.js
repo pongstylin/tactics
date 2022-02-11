@@ -1870,11 +1870,16 @@ export default class Game {
   _applyChangeResults(results, applyFocusChanges = false) {
     if (!results) return;
 
-    results.forEach(result => {
-      let unit    = result.unit;
-      let changes = result.changes;
+    const board = this._board;
 
-      if (changes) {
+    results.forEach(result => {
+      const unit = result.unit;
+
+      if (result.type === 'summon') {
+        // Add a clone of the unit so that the original unit remains unchanged
+        board.addUnit(unit.clone(), this.teams[result.teamId]);
+      } else if (result.changes) {
+        const changes = result.changes;
         if (changes.direction)
           unit.stand(changes.direction);
 

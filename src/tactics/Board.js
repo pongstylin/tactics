@@ -1237,15 +1237,14 @@ export default class Board {
     if (!results) return;
 
     results.forEach(result => {
-      let unit = result.unit;
+      const unit = result.unit;
 
       if (result.type === 'summon') {
         // Add a clone of the unit so that the original unit remains unchanged
         this.addUnit(unit.clone(), this.teams[result.teamId]);
-      }
-      else {
+      } else if (result.changes) {
         // Use a shallow clone to protect against modification.
-        let changes = Object.assign({}, result.changes);
+        const changes = Object.assign({}, result.changes);
 
         if (Object.keys(changes).length) {
           // For a change in type, we need to replace the unit instance.
@@ -1253,7 +1252,7 @@ export default class Board {
           // By default, only the old unit id, direction, assignment, and color is inherited.
           if (changes.type) {
             // Dropping a unit clears the assignment.  So get it first.
-            let assignment = unit.assignment;
+            const assignment = unit.assignment;
 
             unit = this
               .dropUnit(unit)
@@ -1270,10 +1269,10 @@ export default class Board {
           if (Object.keys(changes).length)
             unit.change(changes);
         }
-
-        if (result.results)
-          this.applyActionResults(result.results);
       }
+
+      if (result.results)
+        this.applyActionResults(result.results);
     });
   }
 
