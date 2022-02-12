@@ -1237,7 +1237,7 @@ export default class Board {
     if (!results) return;
 
     results.forEach(result => {
-      const unit = result.unit;
+      let unit = result.unit;
 
       if (result.type === 'summon') {
         // Add a clone of the unit so that the original unit remains unchanged
