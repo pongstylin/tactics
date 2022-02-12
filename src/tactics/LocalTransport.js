@@ -207,6 +207,9 @@ export default class LocalTransport {
   get currentTeamId() {
     return this._getStateData('currentTeamId');
   }
+  get currentTeam() {
+    return this.teams[this.currentTeamId];
+  }
   get turnStartedAt() {
     return this._getStateData('turnStartedAt');
   }
@@ -249,6 +252,183 @@ export default class LocalTransport {
   }
   submitAction() {
     return this._call('submitAction', arguments);
+  }
+
+  /*
+   * Other public methods that imitate GameState.
+   */
+  canUndo(team = this.currentTeam) {
+    const teams = this.teams;
+    const currentTurnId = this.currentTurnId;
+    let actions = this._data.state.actions;
+
+    // Practice games don't impose restrictions.
+    const bot = teams.find(t => !!t.bot);
+    const opponent = teams.find(t => t.playerId !== team.playerId);
+    if (!bot && !opponent)
+      return !!(currentTurnId > 1 || actions.length > 0);
+
+    if (this.endedAt && (!this.forkOf || bot))
+      return false;
+
+    const firstTurnId = this.getTeamFirstTurnId(team);
+
+    // Can't undo if we haven't had a turn yet.
+    if (firstTurnId > currentTurnId)
+      return false;
+
+    // Can't undo if we haven't made an action yet.
+    if (firstTurnId === currentTurnId && actions.length === 0)
+      return false;
+
+    // Bots will never approve anything that requires approval.
+    // Strict undo also doesn't allow approval for undos.
+    // Once undo was rejected, approval cannot be requested.
+    const approve = (
+      bot ||
+      this.strictUndo ||
+      this.playerRequest?.rejected.has(`${team.playerId}:undo`)
+    ) ? false : 'approve';
+    let turnId;
+
+    if (this.endedAt)
+      return approve;
+
+    // Determine the turn being undone in whole or in part
+    for (turnId = currentTurnId; turnId > -1; turnId--) {
+      // Bots do not allow undo after the turn has ended.  This is a technical
+      // limitation since bots start executing their move immediately when their
+      // turn starts.  It would be better if they started planning the move
+      // immediately, but waited to execute until undo limit has passed.
+      if (bot && turnId < currentTurnId)
+        return false;
+
+      const turnData = this.getRecentTurnData(turnId);
+      // Stop if not a recent turn
+      if (turnData === false)
+        break;
+      actions = turnData.actions;
+
+      // Current turn not actionable if no actions were made.
+      if (actions.length === 0)
+        continue;
+
+      // Not an actionable turn if the turn was forced to pass.
+      if (
+        actions.length === 1 &&
+        actions[0].type === 'endTurn' &&
+        actions[0].forced
+      ) continue;
+
+      // Require approval if undoing actions made by the opponent team.
+      if (turnData.teamId !== team.id)
+        return approve;
+
+      // Require approval if the turn time limit was reached.
+      if (this.getTurnTimeRemaining(turnId, 5000, this.now) === 0)
+        return approve;
+
+      const preservedActionId = this.getPreservedActionId(actions);
+      if (preservedActionId === actions.length)
+        return approve;
+
+      if (this.strictUndo)
+        return +actions.last.createdAt + 5000 - this.now;
+
+      break;
+    }
+
+    return true;
+  }
+  /*
+   * Notice: Recent turn data does not include 'units'.
+   */
+  getRecentTurnData(turnId) {
+    let turnData;
+
+    if (turnId === this.currentTurnId)
+      turnData = {
+        startedAt: this.turnStartedAt,
+        actions: this.actions,
+        timeBuffer: this.currentTeam.turnTimeBuffer,
+      };
+    else if (turnId > this.currentTurnId || turnId < 0)
+      return null;
+    else
+      return false;
+
+    turnData.id = turnId;
+    turnData.teamId = turnId % this.teams.length;
+
+    return turnData;
+  }
+  getPreservedActionId(actions) {
+    const selectedUnitId = actions[0].unit;
+
+    return actions.findLastIndex(action => (
+      // Preserve unit selection in strict mode
+      // Preserve old actions in strict mode
+      this.strictUndo && (
+        action.type === 'select' ||
+        this.now - action.createdAt > 5000
+      ) ||
+      // Preserve counter-attacks
+      action.unit !== undefined && action.unit !== selectedUnitId ||
+      // Preserve luck-involved attacks
+      !!action.results && !!action.results.find(r => 'luck' in r)
+    )) + 1;
+  }
+  getTeamFirstTurnId(team) {
+    const numTeams = this.teams.length;
+    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
+    const skipTurns = numTeams === 2 && team.id === 0 ? 1 : 0;
+
+    return team.id + (numTeams * Math.max(waitTurns, skipTurns));
+  }
+  /*
+   * Like GameState->getTurnTimeLimit() but with limited history support.
+   */
+  getTurnTimeLimit(turnId = this.currentTurnId) {
+    if (!this.startedAt || !this.turnTimeLimit)
+      return;
+
+    let turnTimeLimit = this.turnTimeLimit;
+    if (this.turnTimeBuffer) {
+      const turnData = this.getRecentTurnData(turnId);
+      if (turnData === false)
+        return this.turnTimeLimit;
+      const team = this.teams[turnData.teamId];
+      const firstTurnId = this.getTeamFirstTurnId(team);
+
+      if (turnId === firstTurnId)
+        turnTimeLimit = this.turnTimeBuffer;
+      else
+        turnTimeLimit += turnData.timeBuffer;
+    }
+
+    return turnTimeLimit;
+  }
+  /*
+   * Like GameState->getTurnTimeRemaining() but with limited history support.
+   */
+  getTurnTimeRemaining(turnId = this.currentTurnId, actionTimeLimit = 10000) {
+    if (!this.startedAt || this.endedAt)
+      return false;
+    if (!this.turnTimeLimit)
+      return Infinity;
+
+    const turnData = this.getRecentTurnData(turnId);
+    if (turnData === null)
+      return 0;
+    const turnTimeLimit = this.getTurnTimeLimit(turnId);
+
+    const now = gameClient.serverNow;
+    const lastAction = turnData.actions.filter(a => !a.forced).last;
+    const lastActionAt = lastAction ? +lastAction.createdAt : 0;
+    const actionTimeout = (lastActionAt + actionTimeLimit) - now;
+    const turnTimeout = (+turnData.startedAt + turnTimeLimit*1000) - now;
+
+    return Math.max(0, actionTimeout, turnTimeout);
   }
 
   /*

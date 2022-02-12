@@ -359,7 +359,7 @@ export default class RemoteTransport {
     let turnTimeLimit = this.turnTimeLimit;
     if (this.turnTimeBuffer) {
       const turnData = this.getRecentTurnData(turnId);
-      if (turnData === null)
+      if (turnData === false)
         return this.turnTimeLimit;
       const team = this.teams[turnData.teamId];
       const firstTurnId = this.getTeamFirstTurnId(team);
