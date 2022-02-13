@@ -489,8 +489,7 @@ export default class RemoteTransport {
           this.whenTurnStarted.resolve();
 
         this._emit({ type:'change' });
-      }
-      if (newActions) {
+      } else if (newActions) {
         this._data.state.actions.push(...newActions);
         this._emit({ type:'change' });
       }
