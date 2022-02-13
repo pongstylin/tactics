@@ -372,7 +372,8 @@ export default class extends FileAdapter {
     if (!this.buffer.get('game').has(game.id))
       this.buffer.get('game').add(game.id, game);
     this._updateGameSummary(game);
-    this._syncAutoSurrender(game);
+    if (game.state.startedAt)
+      this._syncAutoSurrender(game);
   }
   async _onGameDelete(game) {
     if (this._dirtyGames.has(game.id))
