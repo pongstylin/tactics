@@ -246,6 +246,7 @@ export default class RemoteTransport {
       this.strictUndo ||
       this.playerRequest?.rejected.has(`${team.playerId}:undo`)
     ) ? false : 'approve';
+    let requireApproval = false;
     let turnId;
 
     if (this.endedAt)
@@ -278,8 +279,10 @@ export default class RemoteTransport {
       ) continue;
 
       // Require approval if undoing actions made by the opponent team.
-      if (turnData.teamId !== team.id)
-        return approve;
+      if (turnData.teamId !== team.id) {
+        requireApproval = true;
+        continue;
+      }
 
       // Require approval if the turn time limit was reached.
       if (this.getTurnTimeRemaining(turnId, 5000, this.now) === 0)
@@ -294,6 +297,9 @@ export default class RemoteTransport {
 
       break;
     }
+
+    if (requireApproval)
+      return approve;
 
     return true;
   }

@@ -238,7 +238,7 @@ export default class Game extends ActiveModel {
       throw new ServerError(403, 'You may not undo right now');
     else if (canUndo === true)
       // The undo is auto-approved.
-      state.undo(team, false, receivedAt);
+      state.undo(team, receivedAt);
     else if (request.rejected.has(`${request.createdBy}:${request.type}`))
       throw new ServerError(403, `Your '${request.type}' request was already rejected`);
     else

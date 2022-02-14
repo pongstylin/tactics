@@ -837,6 +837,9 @@ export default class GameState {
       break;
     }
 
+    if (requireApproval)
+      return approve;
+
     return true;
   }
 
