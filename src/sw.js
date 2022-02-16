@@ -180,6 +180,8 @@ self.addEventListener('fetch', event => {
     return;
   if (request.url.startsWith('https://www.gstatic.com/'))
     return;
+  if (request.url.startsWith('https://ssl.gstatic.com/'))
+    return;
 
   // Ignore the query string since it does not affect the response.
   const url = request.url.replace(/\?.+$/, '');
