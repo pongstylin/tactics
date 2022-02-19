@@ -23,6 +23,8 @@ const request  = DebugLogger('server:request');
 const response = DebugLogger('server:response');
 const report   = DebugLogger('server:report');
 
+app.enable('trust proxy');
+
 let requestId = 1;
 app.use((req, res, next) => {
   req.id = requestId++;
@@ -65,6 +67,10 @@ app.get(API_PREFIX + '/status', (req, res, next) => {
       res.send(status);
     })
     .catch(error => next(error));
+});
+app.post(API_PREFIX + '/errors', (req, res) => {
+  report(util.inspect(req.body, false, null));
+  res.send(true);
 });
 app.post(API_PREFIX + '/report', (req, res) => {
   report(util.inspect(req.body, false, null));

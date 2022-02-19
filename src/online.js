@@ -31,6 +31,8 @@ const styles = new Map([
   [ 'legendsGoldNoDSM', 'Legends Gold (no DSM)' ],
   [ 'delta',            'Delta Force' ],
   [ 'moderator',        'Moderator' ],
+  [ 'mob',              'Mob' ],
+  [ 'alpha12',          'Twelve Clouds' ],
 ]);
 
 const groups = new Map([

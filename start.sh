@@ -15,12 +15,9 @@ else
   NODE='node'
 fi
 
-# winpty doesn't convert LF to CRLF automatically.  So, we insert CR manually.
-CR=$(printf '\r')
-NODE_ENV=development $WEBPACK --watch --config webpack.config.cjs | sed "s/\$/$CR/" &
-
+STAMP=$(date "+%Y.%m.%d-%H.%M.%S")
 # Wait for the node server to terminate
-$NODE --es-module-specifier-resolution=node --experimental-modules --experimental-loader ./resolver.mjs --require dotenv/config src/server.js
+NODE_ENV=beta $NODE --es-module-specifier-resolution=node --experimental-modules --experimental-loader ./resolver.mjs --require dotenv/config src/server.js > log/$STAMP.log 2>&1
 
 # Stop all child processes like webpack and sed
 kill -INT 0

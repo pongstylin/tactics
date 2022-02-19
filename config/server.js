@@ -1,7 +1,7 @@
 import pkg from '../package.json';
 import gameTypes from 'data/files/game/game_types.json';
 
-const gameTypeIds = gameTypes.map(gt => gt[0]);
+const gameTypeIds = gameTypes.filter(gt => !gt[1].archived).map(gt => gt[0]);
 
 export default {
   version: pkg.version,

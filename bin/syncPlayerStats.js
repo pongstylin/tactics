@@ -51,6 +51,21 @@ const gameAdapter = new GameAdapter();
       game.state.endedAt = endedAt;
       playerStats.recordGameEnd(game);
     }
+
+    // Reset WLD stats to zero, preserving global stats and aliases
+    for (const [ thisPlayerId, stats ] of playerStats.data.entries()) {
+      if (thisPlayerId === playerId) continue;
+
+      stats.all.win = [0,0];
+      stats.all.lose = [0,0];
+      stats.all.draw = [0,0];
+
+      for (const [ gameTypeId, styleStats ] of stats.style) {
+        styleStats.win = [0,0];
+        styleStats.lose = [0,0];
+        styleStats.draw = [0,0];
+      }
+    }
   }
 
   await gameAdapter.cleanup();
