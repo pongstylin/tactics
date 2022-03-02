@@ -270,7 +270,7 @@ export default class RemoteTransport extends Transport {
       return false;
     };
     const pushAction = action => {
-      action.createdAt = new Date();
+      action.createdAt = new Date(this.now);
       action.teamId = action.teamId ?? this.currentTeamId;
 
       if (action.forced === false)

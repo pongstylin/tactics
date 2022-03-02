@@ -278,7 +278,7 @@ export default class Transport {
     return actions.findLastIndex(action => (
       // Preserve unit selection in strict mode
       // Preserve old actions in strict mode
-      this.strictUndo && (
+      this.strictUndo && !action.isLocal && (
         action.type === 'select' ||
         this.now - action.createdAt > 5000
       ) ||
