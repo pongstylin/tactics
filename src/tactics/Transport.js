@@ -344,7 +344,7 @@ export default class Transport {
   makeState(units, actions) {
     const board = new Board();
     board.setState(units, this.teams.map(t => new Team(t)));
-    board.decodeAction(this.actions).forEach(a => board.applyAction(a));
+    board.decodeAction(actions).forEach(a => board.applyAction(a));
     return board.getState();
   }
 

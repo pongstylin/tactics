@@ -614,7 +614,7 @@ export default class Game {
   }
 
   setState() {
-    let board = this._board;
+    const board = this._board;
     board.setState(this.units, this._teams);
 
     let actions = this.actions;
@@ -624,12 +624,10 @@ export default class Game {
 
     if (actions.length) {
       this.selected = actions[0].unit;
-    }
-    else if (this._inReplay && this.cursor.actions.length) {
+    } else if (this._inReplay && this.cursor.actions.length) {
       actions = board.decodeAction(this.cursor.actions);
       this.selected = actions[0].unit;
-    }
-    else
+    } else
       this.render();
   }
 
