@@ -278,7 +278,7 @@ export default class Transport {
     return actions.findLastIndex(action => (
       // Preserve unit selection in strict mode
       // Preserve old actions in strict mode
-      this.strictUndo && (
+      this.strictUndo && !action.isLocal && (
         action.type === 'select' ||
         this.now - action.createdAt > 5000
       ) ||
@@ -344,7 +344,7 @@ export default class Transport {
   makeState(units, actions) {
     const board = new Board();
     board.setState(units, this.teams.map(t => new Team(t)));
-    board.decodeAction(this.actions).forEach(a => board.applyAction(a));
+    board.decodeAction(actions).forEach(a => board.applyAction(a));
     return board.getState();
   }
 
