@@ -146,7 +146,7 @@ export default class Game extends ActiveModel {
     return changed;
   }
 
-  submitAction(playerId, action) {
+  submitAction(playerId, actions) {
     if (this.data.state.endedAt)
       throw new ServerError(409, 'The game has ended');
 
@@ -158,17 +158,19 @@ export default class Game extends ActiveModel {
     if (myTeams.length === 0)
       throw new ServerError(403, 'You are not a player in this game.');
 
-    if (!Array.isArray(action))
-      action = [ action ];
+    if (!Array.isArray(actions))
+      actions = [ actions ];
 
-    if (action[0].type === 'surrender')
-      action[0].declaredBy = playerId;
-    else if (myTeams.includes(this.data.state.currentTeam))
-      action.forEach(a => a.teamId = this.data.state.currentTeamId);
-    else
-      throw new ServerError(409, 'Not your turn!');
+    for (const action of actions) {
+      if (action.type === 'surrender')
+        action.declaredBy = playerId;
+      else if (myTeams.includes(this.data.state.currentTeam))
+        action.teamId = this.data.state.currentTeamId;
+      else
+        throw new ServerError(409, 'Not your turn!');
+    }
 
-    this.data.state.submitAction(action);
+    this.data.state.submitAction(actions);
   }
 
   submitPlayerRequest(playerId, requestType, receivedAt = Date.now()) {
