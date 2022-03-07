@@ -151,7 +151,9 @@ export default class Game extends ActiveModel {
       throw new ServerError(409, 'The game has ended');
 
     const playerRequest = this.data.playerRequest;
-    if (playerRequest?.status === 'pending')
+    // Do not let truce requests lock out actions.  This prevents local actions
+    // from being submitted when 15 seconds remain on the turn timeout clock.
+    if (playerRequest?.type === 'undo' && playerRequest.status === 'pending')
       throw new ServerError(409, `A '${playerRequest.type}' request is still pending`);
 
     const myTeams = this.data.state.teams.filter(t => t.playerId === playerId);
