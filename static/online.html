@@ -232,15 +232,33 @@
       color: red;
     }
 
+    .brave .copy {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .brave .copy .fa-thumbs-up {
+      margin: 2px 0 2px 6px;
+    }
+
     .gameList .game .share,
-    .gameList .game .copy {
+    .gameList .game .copy,
+    .brave .copy {
       color: #00FFFF;
-      cursor: pointer;
       text-decoration: underline;
       user-select: none;
     }
+    .gameList .game .share .fa-copy,
+    .gameList .game .copy .fa-copy,
+    .brave .copy .fa-copy {
+      cursor: pointer;
+    }
     .gameList .game .share .label,
-    .gameList .game .copy .label {
+    .gameList .game .copy .label,
+    .brave .copy .label {
+      cursor: pointer;
       margin-left: 6px;
     }
 
