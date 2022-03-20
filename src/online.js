@@ -867,7 +867,7 @@ function startGame() {
 }
 
 function renderPN(reg) {
-  let divPN = document.querySelector('#pn');
+  const divPN = document.querySelector('#pn');
 
   if (reg === null) {
     divPN.innerHTML = 'Your privacy settings prevent push notifications.';
@@ -941,7 +941,7 @@ function renderPN(reg) {
   });
 }
 function subscribePN() {
-  let divPN = document.querySelector('#pn');
+  const divPN = document.querySelector('#pn');
 
   return navigator.serviceWorker.getRegistration().then(reg =>
     reg.pushManager.subscribe({
@@ -951,9 +951,43 @@ function subscribePN() {
       // renderPN() will sync the server with the current status.
       renderPN(reg);
     })
-    .catch(error => {
+    .catch(async error => {
       if (window.Notification.permission === 'denied')
         return renderPN(reg);
+      else if (window.Notification.permission === 'granted') {
+        const isBrave = (navigator.brave && await navigator.brave.isBrave() || false);
+        if (isBrave && error.message === 'Registration failed - push service error') {
+          const link = `brave://settings/privacy`;
+          const bravePopup = popup({
+            className: 'brave',
+            message: [
+              `Notifications in the Brave browser won't work until you enable `,
+              `"Use Google services for push messaging" in your Privacy Settings.  `,
+              `You can copy the link to this setting and paste it into the address bar.`,
+
+              `<DIV class="copy brave"><SPAN class="fa fa-copy"></SPAN><SPAN class="label">`,
+                link,
+              `</SPAN></DIV>`,
+            ].join(''),
+            maxWidth: '300px',
+          });
+          const divCopy = bravePopup.el.querySelector('.copy.brave');
+
+          divCopy.addEventListener('click', event => {
+            if (window.getComputedStyle(event.target).cursor !== 'pointer')
+              return;
+
+            copy(link);
+
+            const thumbsUp = document.createElement('SPAN');
+            thumbsUp.classList.add('fa');
+            thumbsUp.classList.add('fa-thumbs-up');
+            divCopy.appendChild(thumbsUp);
+          });
+
+          return;
+        }
+      }
 
       console.error('subscribe:', error);
 
@@ -962,7 +996,7 @@ function subscribePN() {
   );
 }
 function unsubscribePN() {
-  let divPN = document.querySelector('#pn');
+  const divPN = document.querySelector('#pn');
 
   return navigator.serviceWorker.getRegistration().then(reg =>
     reg.pushManager.getSubscription().then(subscription =>
@@ -2070,11 +2104,16 @@ async function fetchGames(tabName) {
 
   const statsContent = state.tabContent.stats;
   if (!statsContent.isSynced) {
-    if (statsContent.whenSynced.isFinalized)
+    if (statsContent.whenSynced.isFinalized) {
       statsContent.whenSynced = gameClient.joinCollectionStatsGroup().then(rsp => {
         statsContent.byCollection = rsp.stats;
         statsContent.isSynced = true;
       });
+      // Suppress unhandledrejection in the event that this promise is rejected
+      // before we reach Promise.all() below.  This is possible because of an
+      // await before then.
+      statsContent.whenSynced.catch(() => {});
+    }
     promises.push(statsContent.whenSynced);
   }
 

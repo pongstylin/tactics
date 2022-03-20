@@ -227,9 +227,9 @@ export default class Game {
     return this._board.selected;
   }
   set selected(selected) {
-    let board        = this._board;
-    let old_selected = board.selected;
-    let old_viewed   = board.viewed;
+    const board        = this._board;
+    const old_selected = board.selected;
+    const old_viewed   = board.viewed;
 
     if (selected !== old_selected) {
       if (old_viewed) {
@@ -258,16 +258,13 @@ export default class Game {
         if (this._inReplay || !this.isMyTurn) {
           selected.activate();
           this._showActions(!this._isSynced);
-        }
-        else
+        } else
           this.selectMode = this._pickSelectMode();
-      }
-      else {
+      } else {
         this.drawCard();
         this.selectMode = 'move';
       }
-    }
-    else if (old_viewed) {
+    } else if (old_viewed) {
       board.hideMode();
       old_viewed.deactivate();
       board.viewed = null;

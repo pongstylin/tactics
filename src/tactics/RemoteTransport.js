@@ -309,6 +309,9 @@ export default class RemoteTransport extends Transport {
       let action = board.decodeAction(pAction);
       const unit = action.unit;
 
+      // Only a unit from the current team may take action.
+      if (unit.team !== this.currentTeam) return;
+
       if (this.actions.length === 0)
         pushAction({ type:'select', unit });
 

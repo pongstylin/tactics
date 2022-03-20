@@ -51,6 +51,8 @@ class Popup {
 
     let divOverlay = document.createElement('DIV');
     divOverlay.classList.add('overlay');
+    if (options.className)
+      divOverlay.classList.add(options.className);
     if (options.zIndex)
       divOverlay.style.zIndex = options.zIndex;
     divOverlay.addEventListener('click', event => {
