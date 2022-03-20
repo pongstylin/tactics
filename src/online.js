@@ -2102,11 +2102,16 @@ async function fetchGames(tabName) {
 
   const statsContent = state.tabContent.stats;
   if (!statsContent.isSynced) {
-    if (statsContent.whenSynced.isFinalized)
+    if (statsContent.whenSynced.isFinalized) {
       statsContent.whenSynced = gameClient.joinCollectionStatsGroup().then(rsp => {
         statsContent.byCollection = rsp.stats;
         statsContent.isSynced = true;
       });
+      // Suppress unhandledrejection in the event that this promise is rejected
+      // before we reach Promise.all() below.  This is possible because of an
+      // await before then.
+      statsContent.whenSynced.catch(() => {});
+    }
     promises.push(statsContent.whenSynced);
   }
 
