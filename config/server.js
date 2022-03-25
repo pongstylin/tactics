@@ -47,7 +47,43 @@ export default {
         module: 'server/GameService.js',
         dataAdapterModule: 'data/FileAdapter/GameAdapter.js',
         config: {
-          collections: [ 'public', ...gameTypeIds.map(gt => `lobby/${gt}`) ],
+          collections: [
+            {
+              name: 'public',
+              gameOptions: {
+                defaults: {
+                  strictUndo: false,
+                  autoSurrender: false,
+                },
+                schema: {
+                  strictUndo: 'const(false)',
+                  autoSurrender: 'const(false)',
+                },
+              },
+            },
+            {
+              name: 'lobby',
+              numPendingGamesPerPlayer: 1,
+              gameOptions: {
+                defaults: {
+                  randomFirstTurn: true,
+                  strictUndo: true,
+                  autoSurrender: true,
+                  turnTimeLimit: 'standard',
+                },
+                schema: {
+                  randomFirstTurn: 'const(true)',
+                  strictUndo: 'const(true)',
+                  autoSurrender: 'const(true)',
+                  turnTimeLimit: `enum([ 'blitz', 'standard' ])`,
+                },
+              },
+              collections: gameTypeIds.map(gtId => ({
+                name: gtId,
+                gameType: gtId,
+              })),
+            },
+          ],
         },
       },
     ],

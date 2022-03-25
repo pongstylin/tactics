@@ -737,10 +737,7 @@ async function createGame(divArena) {
   try {
     await gameClient.createGame(tabContent.selectedStyleId, {
       collection: `lobby/${tabContent.selectedStyleId}`,
-      randomFirstTurn: true,
       randomHitChance: createBlocking === 'luck',
-      strictUndo: true,
-      autoSurrender: true,
       turnTimeLimit: createTimeLimit,
       teams: [
         {
@@ -756,7 +753,8 @@ async function createGame(divArena) {
   } catch (e) {
     if (e.code === 429)
       popup('Creating games too quickly.');
-    else {
+    // Ignore cases where we attempted to create multiple open games
+    else if (e.code !== 409) {
       reportError(e);
       popup('Oops!  Something went wrong.');
     }

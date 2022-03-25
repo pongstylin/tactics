@@ -6,7 +6,7 @@ import ServerError from 'server/Error.js';
 import Game from 'models/Game.js';
 import Team from 'models/Team.js';
 import Player from 'models/Player.js';
-import { unionType } from 'utils/serializer.js';
+import serializer, { unionType } from 'utils/serializer.js';
 
 const ACTIVE_LIMIT = 120;
 const idleWatcher = function (session, oldIdle) {
@@ -164,6 +164,8 @@ export default class GameService extends Service {
       },
     });
 
+    this.setCollections();
+
     this.idleWatcher = idleWatcher.bind(this);
   }
 
@@ -266,6 +268,55 @@ export default class GameService extends Service {
     this.data.surrenderPendingGames(clientPlayerId, playerId);
   }
 
+  setCollections() {
+    const items = Object.clone(this.config.collections);
+    const collections = new Map();
+    const collectionGroups = new Map();
+
+    while (items.length) {
+      const item = items.shift();
+      collectionGroups.set(item.name, []);
+
+      if (!item.collections) {
+        let node = item;
+        while (node) {
+          collectionGroups.get(node.name).push(item.name);
+          node = node.parent;
+        }
+
+        collections.set(item.name, item);
+        continue;
+      }
+
+      const template = {
+        gameType: item.gameType,
+        gameOptions: item.gameOptions,
+      };
+      const parent = {
+        name: item.name,
+        numPendingGamesPerPlayer: item.numPendingGamesPerPlayer,
+        parent: item.parent,
+      };
+
+      for (const subItem of item.collections) {
+        const name = `${item.name}/${subItem.name}`;
+        const newItem = Object.merge(template, subItem, { name, parent });
+
+        if (newItem.gameOptions?.schema) {
+          const schema = newItem.gameOptions.schema;
+          delete newItem.gameOptions.schema;
+
+          newItem.gameOptions.validator = serializer.makeValidator(`game:/gameOptions/${name}`, schema);
+        }
+
+        items.push(newItem);
+      }
+    }
+
+    this.collections = collections;
+    this.collectionGroups = collectionGroups;
+  }
+
   /*****************************************************************************
    * Socket Message Event Handlers
    ****************************************************************************/
@@ -352,8 +403,8 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     const playerId = clientPara.playerId;
 
-    if (gameOptions.collection && !this.config.collections.includes(gameOptions.collection))
-      throw new ServerError(400, 'Unrecognized game group');
+    if (gameOptions.collection)
+      await this._validateCreateGameForCollection(gameTypeId, gameOptions);
 
     if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
       throw new ServerError(400, 'You must join games that you create');
@@ -450,6 +501,9 @@ export default class GameService extends Service {
     const game = await this.data.getGame(gameId);
     if (game.state.startedAt)
       throw new ServerError(409, 'The game has already started.');
+
+    if (game.collection)
+      await this._validateJoinGameForCollection(playerId, this.collections.get(game.collection));
 
     const creator = await this._getAuthPlayer(game.createdBy);
     if (creator.hasBlocked(playerId))
@@ -689,12 +743,12 @@ export default class GameService extends Service {
     const player = this.clientPara.get(client.id).player;
     return this.data.searchPlayerGames(player, query);
   }
-  async onSearchGameCollectionRequest(client, collection, query) {
-    if (!this.config.collections.includes(collection))
+  async onSearchGameCollectionRequest(client, collectionId, query) {
+    if (!this.collections.has(collectionId))
       throw new ServerError(400, 'Unrecognized game collection');
 
     const player = this.clientPara.get(client.id).player;
-    return this.data.searchGameCollection(player, collection, query);
+    return this.data.searchGameCollection(player, collectionId, query);
   }
 
   /*
@@ -952,22 +1006,19 @@ export default class GameService extends Service {
     return response;
   }
   async onJoinCollectionGroup(client, groupPath, collectionId, params = {}) {
-    const allCollectionIds = this.config.collections;
+    const collectionGroups = this.collectionGroups;
     const collectionIds = [];
 
     if (groupPath === '/collections')
-      collectionIds.push(...allCollectionIds);
-    else if (allCollectionIds.includes(collectionId))
-      collectionIds.push(collectionId);
+      collectionIds.push(...this.collections.keys());
+    else if (collectionGroups.has(collectionId))
+      collectionIds.push(...collectionGroups.get(collectionId));
     else
-      collectionIds.push(...allCollectionIds.filter(c => c.startsWith(`${collectionId}/`)));
-    if (collectionIds.length === 0)
       throw new ServerError(404, 'No such collection');
 
-    const collections = [];
-    for (const cId of collectionIds) {
-      collections.push(await this.data.openGameCollection(cId));
-    }
+    const collections = await Promise.all(
+      collectionIds.map(cId => this.data.openGameCollection(cId))
+    );
     // Abort if the client is no longer connected.
     if (client.closed) {
       for (const cId of collectionIds) {
@@ -1021,7 +1072,7 @@ export default class GameService extends Service {
 
     const response = {};
     if (params.query)
-      if (allCollectionIds.includes(collectionId))
+      if (this.collections.has(collectionId))
         response.results = await this.data.searchGameCollection(player, collectionId, params.query);
       else
         throw new ServerError(400, 'Can not query collection stats');
@@ -1044,6 +1095,81 @@ export default class GameService extends Service {
     });
 
     return response;
+  }
+  async _validateCreateGameForCollection(gameTypeId, gameOptions) {
+    /*
+     * Validate collection existance.
+     */
+    const collection = this.collections.get(gameOptions.collection);
+    if (!collection)
+      throw new ServerError(400, 'Unrecognized game collection');
+
+    /*
+     * Validate collection game type
+     */
+    if (collection.gameType) {
+      if (collection.gameType !== gameTypeId)
+        throw new ServerError(403, 'Game type is not allowed for this collection');
+    }
+
+    /*
+     * Validate collection game options
+     */
+    if (collection.gameOptions) {
+      if (collection.gameOptions.defaults)
+        for (const key of Object.keys(collection.gameOptions.defaults)) {
+          if (gameOptions[key] === undefined)
+            gameOptions[key] = collection.gameOptions.defaults[key];
+        }
+
+      try {
+        collection.gameOptions.validate?.(gameOptions);
+      } catch(e) {
+        if (e.constructor === Array) {
+          // User-facing validation errors are treated manually with specific messages.
+          // So, be verbose since failures indicate a problem with the schema or client.
+          console.error('data', JSON.stringify({ type:messageType, body }, null, 2));
+          console.error('errors', e);
+          e = new ServerError(403, 'Game options are not allowed for this collection');
+        }
+
+        throw e;
+      }
+    }
+
+    const playerIds = new Set(gameOptions.teams.filter(t => t?.playerId).map(t => t.playerId));
+    await Promise.all([ ...playerIds ].map(pId => this._validateJoinGameForCollection(pId, collection)));
+  }
+  async _validateJoinGameForCollection(playerId, collection) {
+    const collectionGroups = this.collectionGroups;
+
+    /*
+     * Validate game limits
+     */
+    let node = collection;
+    while (node) {
+      if (node.numPendingGamesPerPlayer) {
+        const gameCollections = await Promise.all(
+          collectionGroups.get(node.name).map(cId => this.data.getGameCollection(cId))
+        );
+
+        let count = 0;
+        for (const gameCollection of gameCollections) {
+          for (const gameSummary of gameCollection.values()) {
+            if (gameSummary.endedAt)
+              continue;
+            if (gameSummary.teams.findIndex(t => t?.playerId === playerId) === -1)
+              continue;
+
+            count++;
+            if (count === node.numPendingGamesPerPlayer)
+              throw new ServerError(409, 'Too many pending games for this collection');
+          }
+        }
+      }
+
+      node = node.parent;
+    }
   }
   _getGameSummaryListStats(collection, player = null) {
     const stats = { waiting:0, active:0 };
@@ -1193,20 +1319,17 @@ export default class GameService extends Service {
     });
   }
   onLeaveCollectionGroup(client, groupPath, collectionId) {
-    const allCollectionIds = this.config.collections;
+    const collectionGroups = this.collectionGroups;
     const collectionIds = [];
 
     if (groupPath === '/collections')
-      collectionIds.push(...allCollectionIds);
-    else if (allCollectionIds.includes(collectionId))
-      collectionIds.push(collectionId);
+      collectionIds.push(...this.collections.keys());
+    else if (collectionGroups.has(collectionId))
+      collectionIds.push(...collectionGroups.get(collectionId));
     else
-      collectionIds.push(...allCollectionIds.filter(c => c.startsWith(`${collectionId}/`)));
+      throw new ServerError(404, 'No such collection');
 
-    const collections = [];
-    for (const cId of collectionIds) {
-      collections.push(this.data.closeGameCollection(cId));
-    }
+    const collections = collectionIds.map(cId => this.data.closeGameCollection(cId));
 
     const clientPara = this.clientPara.get(client.id);
     clientPara.joinedGroups.delete(groupPath);
