@@ -4,11 +4,22 @@ import clientFactory from 'client/clientFactory.js';
 import Token from 'client/Token.js';
 import popup from 'components/popup.js';
 
-let authClient = clientFactory('auth');
+const authClient = clientFactory('auth');
 
 window.addEventListener('DOMContentLoaded', async () => {
-  let tokenValue = location.search.slice(1).replace(/[&=].*$/, '');
-  let identityToken = new Token(tokenValue);
+  const tokenValue = location.search.slice(1).replace(/[&=].*$/, '');
+  let identityToken;
+
+  try {
+    identityToken = new Token(tokenValue);
+  } catch (e) {
+    return popup({
+      message: 'Oops!  This is not a valid account URL.',
+      buttons: [],
+      closeOnCancel: false,
+      maxWidth: '300px',
+    });
+  }
 
   if (identityToken.isExpired)
     return popup({

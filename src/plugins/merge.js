@@ -1,19 +1,33 @@
-Object.defineProperty(Object, 'merge', {
-  value: function (item1, item2) {
-    if (item1 === null || typeof item1 !== 'object')
-      return item2;
+import 'plugins/clone.js';
 
-    return item1.merge(item2);
+Object.defineProperty(Object, 'merge', {
+  value: function (...items) {
+    let value;
+
+    for (const item of items) {
+      if (item === undefined)
+        continue;
+      else if (value === undefined)
+        value = Object.clone(item);
+      else if (value === null || typeof value !== 'object')
+        value = item;
+      else
+        value.merge(item);
+    }
+
+    return value;
   },
 });
 
 Object.defineProperty(Object.prototype, 'merge', {
   writable: true,
   value: function (item) {
-    if (item === null || typeof item !== 'object')
+    if (item === undefined)
+      return this;
+    else if (item === null || typeof item !== 'object')
       return item;
 
-    for (let key of Object.keys(item)) {
+    for (const key of Object.keys(item)) {
       this[key] = Object.merge(this[key], item[key]);
     }
 

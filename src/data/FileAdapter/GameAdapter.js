@@ -200,6 +200,10 @@ export default class extends FileAdapter {
   closeGameCollection(collectionId) {
     return this.cache.get('collection').close(collectionId);
   }
+  async getGameCollection(collectionId) {
+    const collection = await this._getGameCollection(collectionId);
+    return this.cache.get('collection').add(collectionId, collection);
+  }
 
   async getPlayerStats(myPlayerId, vsPlayerId) {
     const playerStats = await this._getPlayerStats(myPlayerId);

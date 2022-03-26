@@ -49,23 +49,23 @@ window.Tactics = (function () {
       if (!AnimatedSprite.has('core'))
         unitTypes.unshift('core');
 
-      let baseSpriteURL = new URL(process.env.SPRITE_SOURCE, location.href);
-      let baseSoundURL = new URL(process.env.SOUND_SOURCE, location.href);
+      const baseSpriteURL = new URL(process.env.SPRITE_SOURCE, location.href);
+      const baseSoundURL = new URL(process.env.SOUND_SOURCE, location.href);
       let progress = 0;
       let effectTypes = new Set();
 
-      let unitsData = await Promise.all(unitTypes.map(async unitType => {
-        let spriteName;
+      const unitsData = await Promise.all(unitTypes.map(async unitType => {
+        const unitData = unitDataMap.get(unitType);
 
-        let unitData = unitDataMap.get(unitType);
+        let spriteName;
         if (unitData && unitData.baseSprite)
           spriteName = unitData.baseSprite;
         else
           spriteName = unitType;
 
-        let spriteURL = new URL(`${spriteName}.json`, baseSpriteURL);
-        let rsp = await fetch(spriteURL);
-        let spriteData = await rsp.json();
+        const spriteURL = new URL(`${spriteName}.json`, baseSpriteURL);
+        const rsp = await fetch(spriteURL);
+        const spriteData = await rsp.json();
 
         spriteData.name = unitType;
 
@@ -107,10 +107,10 @@ window.Tactics = (function () {
       effectTypes = [...effectTypes];
       progress = 0;
 
-      let effectsData = await Promise.all(effectTypes.map(async effectType => {
-        let spriteURL = new URL(`${effectType}.json`, baseSpriteURL);
-        let rsp = await fetch(spriteURL);
-        let spriteData = await rsp.json();
+      const effectsData = await Promise.all(effectTypes.map(async effectType => {
+        const spriteURL = new URL(`${effectType}.json`, baseSpriteURL);
+        const rsp = await fetch(spriteURL);
+        const spriteData = await rsp.json();
 
         spriteData.name = effectType;
 
@@ -137,8 +137,7 @@ window.Tactics = (function () {
         let unitData = unitDataMap.get(unitType);
         try {
           await AnimatedSprite.load(unitType);
-        }
-        catch (e) {
+        } catch (e) {
           cb(
             0.50 + progress / unitTypes.length * 0.50,
             `Loading failed!`,
