@@ -718,6 +718,7 @@ async function createGame(divArena) {
           onClick: () => createBlocking = 'noluck',
         },
       ],
+      closeOnCancel: false,
     }).whenClosed;
   if (createTimeLimit === 'ask')
     await popup({
@@ -732,6 +733,7 @@ async function createGame(divArena) {
           onClick: () => createTimeLimit = 'blitz',
         },
       ],
+      closeOnCancel: false,
     }).whenClosed;
 
   try {
