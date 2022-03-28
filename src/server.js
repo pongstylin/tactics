@@ -14,6 +14,7 @@ import services, { servicesReady } from 'server/services.js';
 import Timeout from 'server/Timeout.js';
 import ServerError from 'server/Error.js';
 import AccessToken from 'server/AccessToken.js';
+import fbsdk from 'facebook-sdk';
 
 const PORT     = process.env.PORT;
 const app      = express();
@@ -27,8 +28,11 @@ let requestId = 1;
 app.use((req, res, next) => {
   req.id = requestId++;
   next();
-});
-
+})
+.use(fbsdk.facebook({
+  appId  : '2620792168051316',
+  secret : '06f787a90c5619b64c6654fd987066b9'
+}));
 morgan.token('id', req => req.id);
 
 app.use(morgan('[:id] ip=:remote-addr; ":method :url HTTP/:http-version"; agent=":user-agent"', {
