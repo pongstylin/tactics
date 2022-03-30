@@ -29,6 +29,7 @@ export default class Player extends ActiveModel {
     reverseACL: Map<string, any>
     checkoutAt: Date
     createdAt: Date
+    fbid: string
   }
 
   constructor(data) {
@@ -52,7 +53,7 @@ export default class Player extends ActiveModel {
     data.createdAt = new Date();
     data.checkoutAt = data.createdAt;
     data.devices = new Map();
-
+    data.fbid = data.fbid || '';
     return new Player(data);
   }
   static fromJSON(data) {
@@ -101,8 +102,14 @@ export default class Player extends ActiveModel {
   get identityToken() {
     return this.data.identityToken;
   }
+  get fbid() {
+    return this.data.fbid;
+  }
   get checkoutAt() {
     return this.data.checkoutAt;
+  }
+  get isFBConnected(){
+    return this.data.fbid ? true : false;
   }
   get createdAt() {
     return this.data.createdAt;
@@ -468,6 +475,7 @@ serializer.addType({
       },
       createdAt: { type:'string', subType:'Date' },
       checkoutAt: { type:'string', subType:'Date' },
+      fbid: {type:'string'}
     },
     additionalProperties: false,
     definitions: {

@@ -21,7 +21,7 @@ const APP_FILES = [
   '/install.min.js',
   '/tactics.min.js',
   '/check.min.js',
-
+'/login.html',  
   '/online.html',
   '/online.min.js',
   '/createGame.html',

@@ -56,11 +56,20 @@ export default class AuthClient extends Client {
     return this.whenReady.then(() => {
       let token = this.token;
       if (token)
-        return this.saveProfile({ name:newName });
-
-      return this.register({ name:newName });
-    });
-  }
+{        return this.saveProfile({ name:newName });
+    }
+    else{
+      if(FB)
+      return FB.getLoginStatus((response) => {
+        if (response.status === 'connected') {
+          //user is authorized
+          FB.api('/me', function(response) {
+             this.register({ name:newName, fbid:response.id });
+          });
+        } });
+        else
+        return this.register({ name:newName});
+  }})}
 
   register(profile) {
     return this._server.request(this.name, 'register', [profile])

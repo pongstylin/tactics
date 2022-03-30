@@ -29,11 +29,11 @@
 
   <SCRIPT src="/jquery-1.12.4.min.js" crossorigin="anonymous"></SCRIPT>
   <SCRIPT type="text/javascript" src="theme.min.js"></SCRIPT>
-  <SCRIPT type="text/javascript" src="errors.min.js"></SCRIPT>
-  <SCRIPT type="text/javascript">window.AUTO_CONNECT = true;</SCRIPT>
-  <SCRIPT type="text/javascript" src="tactics.min.js"></SCRIPT>
-  <SCRIPT type="text/javascript" src="online.min.js"></SCRIPT>
-  <SCRIPT type="text/javascript" src="install.min.js"></SCRIPT>
+  
+
+  
+  <SCRIPT type="text/javascript" src="login.min.js"></SCRIPT>
+ 
 
   <STYLE>
     .os-padding, .os-viewport {
@@ -702,52 +702,64 @@
         height: 80px;
       }
     }
+    .button-div {
+    width: 150px;
+    height: 60px;
+    border: 2px solid #eee;
+    background-color: #b6bdc9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 7px;
+    padding: 7px
+}
+.login-button {
+    width: 100%;
+    height: 55px;
+    border: none;
+    border-radius: 5px;
+    font-size: 17px;
+    font-weight: 600;
+    color: #fff;
+    background-color: #1859c9;
+    cursor: pointer
+}
+
+.login-button:hover {
+    background-color: #1859c9db
+}
+
   </STYLE>
 </HEAD>
 <BODY>
   <DIV class="page">
     <DIV class="intro">
-      <DIV class="greeting" style="display:none">Welcome!</DIV>
+      <DIV class="greeting" >Welcome!</DIV>
       <DIV class="menu">
-        <DIV><A href="/createGame.html">Create Game</A></DIV>
-        <DIV><A href="/account.html">Account</A></DIV>
+        <DIV><A href="/index.html">Home</A></DIV>
+       
       </DIV>
     </DIV>
     <DIV id="pn"></DIV>
     <DIV id="notice"></DIV>
     <DIV id="register" style="display:none"></DIV>
-    <DIV class="tabs" style="display:none">
-      <UL>
-        <LI class="yourGames"><span class="label">Your Games</span><span class="badge"></span></LI>
-        <LI class="lobby"><span class="label">Lobby</span><span class="badge"></span></LI>
-        <LI class="publicGames"><span class="label">Public Games</span><span class="badge"></span></LI>
-      </UL>
-    </DIV>
-    <DIV class="tabContent">
-      <DIV class="gameList yourGames"></DIV>
-      <DIV class="enterLobby">
-        <BUTTON name="enter">Enter Lobby!</BUTTON>
-      </DIV>
-      <DIV class="lobby"></DIV>
-      <DIV class="gameList publicGames"></DIV>
-      <DIV class="loading">
-        <DIV class="spinner">
-          <I class="fa fa-spinner fa-pulse"></I>
-        </DIV>
-        <DIV class="label">Please<br>wait...</DIV>
-      </DIV>
-    </DIV>
-  </DIV> <script>
-      window.fbAsyncInit = function() {
-        FB.init({
-          appId            : '2620792168051316',
-          autoLogAppEvents : true,
-          xfbml            : true,
-          version          : 'v13.0'
-        });
-      };
-    </script>
-  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v13.0&appId=2620792168051316&autoLogAppEvents=1" nonce="1bG55Qi3"></script>
+    
+   
+      <DIV class="tabs">
+        <ul>
+<li> <div class="button-div"> <button class="login-button">Facebook Login</button>
+</div>
+</li>
+          <li>
+            <a href="online.html"><span class="label">Continue without facebook</span><span class="badge"></span></a>
 
+          </li>
+        </ul>
+      </DIV>
+     
+   
+  </DIV>
+  
+  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v13.0&appId=2620792168051316&autoLogAppEvents=1" nonce="1bG55Qi3"></script>
 </BODY>
 </HTML>
