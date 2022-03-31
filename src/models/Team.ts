@@ -80,7 +80,7 @@ export default class Team {
     useRandom: boolean
     randomState: Random
     turnTimeBuffer: number
-    set: any[] | boolean
+    set: any[] | string | boolean
     bot: any
     usedUndo: boolean
     usedSim: boolean
@@ -160,7 +160,7 @@ export default class Team {
       } else
         throw new ServerError(400, 'Unrecognized set option value');
     } else if (typeof data.set === 'string') {
-      let firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt)[0];
+      const firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt)[0];
 
       if (data.set === 'same') {
         if (game.state.teams.length !== 2)
