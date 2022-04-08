@@ -1,5 +1,5 @@
-import pkg from '../package.json';
-import gameTypes from 'data/files/game/game_types.json';
+import pkg from '../package.json' assert { type: 'json' };
+import gameTypes from 'data/files/game/game_types.json' assert { type: 'json' };
 
 const gameTypeIds = gameTypes.map(gt => gt[0]);
 
