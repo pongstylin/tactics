@@ -103,7 +103,7 @@ export default class {
       cache: new Map(),
      
       queue: new Map(),
-      filesDir: `${FILES_DIR}/${props.name}`,
+      
     }, props);
 
     for (const [ fileType, fileConfig ] of this.fileTypes) {
@@ -140,7 +140,14 @@ export default class {
   }
 
   
+  async createFile(fileName, ...args) {
+    if (args.length === 1 && typeof args[0] === 'function')
+      args.unshift(undefined);
+    else if (args.length === 1)
+      args.push(v => v);
 
+    return this._pushQueue(fileName, { type:'create', args });
+  }
   
   /*
    * Return the initial value (or throw error) if the file does not exist.
@@ -238,11 +245,13 @@ export default class {
    * Only call these methods while a lock is in place.
    */
   _createFile(name, data, transform) {
-    const fqName = `${this.filesDir}/${name}.json`;
+    const fqName = `${name}.json`;
 
     return new Promise((resolve, reject) => {
       redisDB.set(fqName, JSON.stringify(transform(data)), resp => {
-        if (resp.toLowerCase() !=='ok') {
+        console.log(resp);
+        
+        if (resp) {
           console.log('createFile', error);
           reject(new ServerError(500, 'Create failed'));
         } else {
@@ -252,10 +261,10 @@ export default class {
     });
   }
   _getFile(name, initialValue, transform) {
-    const fqName = `${this.filesDir}/${name}.json`;
+    const fqName = `${name}.json`;
 
     return new Promise((resolve, reject) => {
-      fs.readFile(fqName, 'utf8', (error, data) => {
+      redisDB.get(fqName,  (error, data) => {
         if (error)
           reject(error);
         else
@@ -277,40 +286,17 @@ export default class {
     const parts = name.split('/');
     const dirPart = parts.slice(0, -1).join('/');
     const filePart = parts.last;
-
-    const fqDir = dirPart.length ? `${this.filesDir}/${dirPart}` : this.filesDir;
-    const exists = await new Promise((resolve, reject) =>
-      fs.access(fqDir, err => resolve(!err)));
-    if (!exists)
-      await new Promise((resolve, reject) =>
-        fs.mkdir(fqDir, { recursive:true }, err => err ? reject(err) : resolve()));
-
-    const fqNameTemp = `${fqDir}/.${filePart}.json`;
-    const fqName = `${fqDir}/${filePart}.json`;
+    const fqName = `${filePart}.json`;
 
     return new Promise((resolve, reject) => {
-      fs.writeFile(fqNameTemp, JSON.stringify(transform(data)), error => {
-        if (error) {
-          console.log('writeFile', error);
-          reject(new ServerError(500, 'Save failed'));
-        } else
-          resolve();
-      });
-    }).then(() => new Promise((resolve, reject) => {
-      fs.rename(fqNameTemp, fqName, error => {
-        if (error) {
-          console.log('rename', error);
-          reject(new ServerError(500, 'Save failed'));
-        } else
-          resolve();
-      });
-    }));
-  }
-  _deleteFile(name) {
-    const fqName = `${this.filesDir}/${name}.json`;
+      redisDB.set(fqName,JSON.stringify(transform(data))).then(resolve());
+  })}
+
+  async _deleteFile(name) {
+    const fqName = `${name}.json`;
 
     return new Promise((resolve, reject) => {
-      fs.unlink(fqName, error => {
+      redisDB.del(fqName, error => {
         if (error) {
           console.log('deleteFile', error);
           reject(new ServerError(500, 'Delete failed'));

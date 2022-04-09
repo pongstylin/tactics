@@ -1,11 +1,11 @@
 import fs from 'fs';
 
 import serializer from 'utils/serializer.js';
-import FileAdapter from 'data/FileAdapter.js';
+import RedisAdapter from 'data/RedisAdapter.js';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import Player from 'models/Player.js';
 
-export default class extends FileAdapter {
+export default class extends RedisAdapter {
   constructor() {
     super({
       name: 'auth',
@@ -49,40 +49,39 @@ export default class extends FileAdapter {
    * Private Interface
    ****************************************************************************/
   async _createPlayer(player) {
-    const buffer = this.buffer.get('player');
+    
 
     await this.createFile(`player_${player.id}`, () => {
       const data = serializer.transform(player);
       data.version = getLatestVersionNumber('player');
 
-      player.once('change', () => buffer.add(player.id, player));
+      player.once('change', () => this._savePlayer(player));
       return data;
     });
   }
   async _getPlayer(playerId) {
     const cache = this.cache.get('player');
-    const buffer = this.buffer.get('player');
+   
 
     if (cache.has(playerId))
       return cache.get(playerId);
-    else if (buffer.has(playerId))
-      return buffer.get(playerId);
+  
 
     return this.getFile(`player_${playerId}`, data => {
       const player = serializer.normalize(migrate('player', data));
 
-      player.once('change', () => buffer.add(playerId, player));
+      player.once('change', () => this._savePlayer(player));
       return player;
     });
   }
   async _savePlayer(player) {
-    const buffer = this.buffer.get('player');
+    
 
     await this.putFile(`player_${player.id}`, () => {
       const data = serializer.transform(player);
       data.version = getLatestVersionNumber('player');
 
-      player.once('change', () => buffer.add(player.id, player));
+      player.once('change', () => this._savePlayer( player));
       return data;
     });
   }
