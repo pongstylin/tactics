@@ -3,7 +3,7 @@ import fs from 'fs';
 import serializer from 'utils/serializer.js';
 import RedisAdapter from 'data/RedisAdapter.js';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
-import Player from 'models/Player.js';
+
 
 export default class extends RedisAdapter {
   constructor() {
@@ -22,6 +22,7 @@ export default class extends RedisAdapter {
   /*****************************************************************************
    * Public Interface
    ****************************************************************************/
+  
   async createPlayer(player) {
     await this._createPlayer(player);
     this.cache.get('player').add(player.id, player);

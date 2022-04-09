@@ -21,77 +21,6 @@ const ops = new Map([
   [ 'put',    '_putFile' ],
   [ 'delete', '_deleteFile' ],
 ]);
-
-const querySchema = {
-  $schema: 'http://json-schema.org/draft-07/schema',
-  $ref: '#/definitions/query',
-  definitions: {
-    query: {
-      oneOf: [
-        {
-          type: 'array',
-          items: { $ref:'#/definitions/querySingle' },
-        },
-        {
-          $ref: '#/definitions/querySingle',
-        },
-      ],
-    },
-    querySingle: {
-      type: 'object',
-      properties: {
-        filter: { $ref:'#/definitions/filter' },
-        sort: { $ref:'#/definitions/sort' },
-        limit: { type:'number' },
-      },
-      additionalProperties: false,
-    },
-    filter: {
-      oneOf: [
-        {
-          type: 'array',
-          items: { $ref:'#/definitions/filterSingle' },
-        },
-        {
-          $ref: '#/definitions/filterSingle',
-        },
-      ],
-    },
-    filterSingle: {
-      type: 'object',
-      properties: {
-        '!': { $ref:'#/definitions/filter' },
-        '&': { $ref:'#/definitions/filter' },
-      },
-      additionalProperties: { $ref:'#/definitions/condition' },
-    },
-    condition: {
-      oneOf: [
-        {
-          type: 'array',
-          items: { $ref:'#/definitions/primitive' },
-        },
-        {
-          $ref:'#/definitions/primitive',
-        },
-        {
-          type: 'object',
-          properties: {
-            '!': { $ref:'#/definitions/condition' },
-            '~': {
-              type: 'string',
-              subType: 'RegExp',
-            },
-          },
-          additionalProperties: false,
-        },
-      ],
-    },
-    primitive: {
-      type: [ 'null', 'string', 'number', 'boolean' ],
-    },
-  },
-};
 // Serializer needs to support recursive schemas before we can use it.
 //const validateQuery = serializer.makeValidator('data:query', querySchema);
 
@@ -119,7 +48,10 @@ export default class {
       
     }
   }
-
+async cleanup(){
+  return await redisDB.disconnect();
+  
+}
   getStatus() {
     const status = {};
     for (const fileType of this.fileTypes.keys()) {
