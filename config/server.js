@@ -45,7 +45,7 @@ export default {
       'game',
       {
         module: 'server/GameService.js',
-        dataAdapterModule: 'data/FileAdapter/GameAdapter.js',
+        dataAdapterModule: 'data/DataAdapter/GameAdapter.js',
         config: {
           collections: [
             {

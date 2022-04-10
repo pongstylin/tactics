@@ -24,7 +24,7 @@ const ops = new Map([
 // Serializer needs to support recursive schemas before we can use it.
 //const validateQuery = serializer.makeValidator('data:query', querySchema);
 
-export default class {
+export default class RedisAdapter{
   constructor(props) {
     Object.assign(this, {
       debug: DebugLogger(`data:${props.name}`),
@@ -181,7 +181,7 @@ async cleanup(){
 
     return new Promise((resolve, reject) => {
       redisDB.set(fqName, JSON.stringify(transform(data)), resp => {
-        console.log(resp);
+        
         
         if (resp) {
           console.log('createFile', error);
@@ -197,6 +197,7 @@ async cleanup(){
 
     return new Promise((resolve, reject) => {
       redisDB.get(fqName,  (error, data) => {
+        
         if (error)
           reject(error);
         else
@@ -517,3 +518,5 @@ async cleanup(){
     return 0;
   }
 };
+
+export {RedisAdapter}

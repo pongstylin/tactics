@@ -3,7 +3,7 @@ import util from 'util';
 
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import serializer from 'utils/serializer.js';
-import FileAdapter from 'data/FileAdapter.js';
+
 import Timeout from 'server/Timeout.js';
 
 import GameType from 'tactics/GameType.js';
@@ -13,8 +13,10 @@ import GameSummaryList from 'models/GameSummaryList.js';
 import PlayerStats from 'models/PlayerStats.js';
 import PlayerSets from 'models/PlayerSets.js';
 import ServerError from 'server/Error.js';
+import {RedisAdapter, redisDB} from 'data/RedisAdapter.js';
+import { resolve } from 'path';
 
-export default class extends FileAdapter {
+export default class extends RedisAdapter {
   constructor() {
     super({
       name: 'game',
@@ -53,20 +55,11 @@ export default class extends FileAdapter {
       _syncingPlayerGames: new Map(),
     });
   }
+  
 
   async bootstrap() {
-    this._gameTypes = await this.getFile('game_types', data => {
-      const gameTypes = new Map();
-      for (const [ id, config ] of data) {
-        gameTypes.set(id, serializer.normalize({
-          $type: 'GameType',
-          $data: { id, config },
-        }));
-      }
-
-      return gameTypes;
-    });
-
+   this._gametypes = redis.get("gametypes");
+    
     const autoSurrender = await this.getFile(`timeout/autoSurrender`, data => {
       if (data === undefined)
         return {
