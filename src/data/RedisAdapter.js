@@ -6,7 +6,7 @@ import ServerError from 'server/Error.js';
 import Timeout from 'server/Timeout.js';
 import serializer from 'utils/serializer.js';
 
-import Redis  from 'ioredis';
+import Redis  from 'ioredis-json';
 
 export const redisDB =  new Redis({
   port: (process.env.redisPort || 6379),

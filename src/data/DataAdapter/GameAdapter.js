@@ -58,18 +58,12 @@ export default class extends RedisAdapter {
   
 
   async bootstrap() {
-   this._gametypes = redis.get("gametypes");
-    
-    const autoSurrender = await this.getFile(`timeout/autoSurrender`, data => {
-      if (data === undefined)
-        return {
-          timeout: new Timeout(`${this.name}AutoSurrender`),
-          shutdownAt: new Date(),
-        };
-      else
-        return serializer.normalize(data);
-    });
-
+   this._gametypes = await redisDB.get("gametypes",'.').then(res=>res);
+  
+     let autoSurrender =await redisDB.get("timeouts",'.').then(res=>res);
+     
+     if(!autoSurrender.timeout)
+     autoSurrender.timeout=new Timeout(`${this.name}AutoSurrender`);
     this._autoSurrender = autoSurrender.timeout.on('expire', async ({ data:items }) => {
       const games = await Promise.all(
         [ ...items.values() ].map(({ id:gameId }) => this._getGame(gameId)),
