@@ -49,7 +49,7 @@ export default class RedisAdapter{
     }
   }
 async cleanup(){
-  return await redisDB.disconnect();
+  return;
   
 }
   getStatus() {
