@@ -20,15 +20,17 @@ init = ()=>{
     
 }
   _gameTypes = async ()=>{ return this.files.getFile('game_types', data => {
-   console.log(data);
     const gameTypes = new Map();
+   console.log(data);
+   
     for (const [ id, config ] of data) {
+      
       gameTypes.set(id, serializer.normalize({
         $type: 'GameType',
         $data: { id, config },
       }));
     }
-
+ 
     return gameTypes;
   });
 };
