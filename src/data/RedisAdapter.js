@@ -180,27 +180,19 @@ async cleanup(){
     const fqName = `${name}.json`;
 
     return new Promise((resolve, reject) => {
-      redisDB.set(fqName, JSON.stringify(transform(data)), resp => {
+      redisDB.set(fqName, '.',JSON.stringify(transform(data))).then( (resp) => {
+         resolve(data);
         
-        
-        if (resp) {
-          console.log('createFile', error);
-          reject(new ServerError(500, 'Create failed'));
-        } else {
-          resolve(data);
-        }
       });
     });
   }
   _getFile(name, initialValue, transform) {
     const fqName = `${name}.json`;
-
+    console.log("file name "+fqName);
     return new Promise((resolve, reject) => {
-      redisDB.get(fqName,  (error, data) => {
-        
-        if (error)
-          reject(error);
-        else
+      redisDB.get(fqName, '.').then(( data) => {
+      
+       
           resolve(transform(JSON.parse(data)));
       });
     }).catch(error => {
@@ -222,14 +214,14 @@ async cleanup(){
     const fqName = `${filePart}.json`;
 
     return new Promise((resolve, reject) => {
-      redisDB.set(fqName,JSON.stringify(transform(data))).then(resolve());
+      redisDB.set(fqName,'.',JSON.stringify(transform(data))).then(resolve());
   })}
 
   async _deleteFile(name) {
     const fqName = `${name}.json`;
 
     return new Promise((resolve, reject) => {
-      redisDB.del(fqName, error => {
+      redisDB.del(fqName,'.', error => {
         if (error) {
           console.log('deleteFile', error);
           reject(new ServerError(500, 'Delete failed'));

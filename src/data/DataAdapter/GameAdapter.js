@@ -559,11 +559,10 @@ export default class extends RedisAdapter {
   async _getPlayerStats(playerId) {
     if (this.cache.get('playerStats').has(playerId))
       return this.cache.get('playerStats').get(playerId);
-    else if (this.buffer.get('playerStats').has(playerId))
-      return this.buffer.get('playerStats').get(playerId);
-
+    
     return this.getFile(`player_${playerId}_stats`, data => {
-      const playerStats = data === undefined
+      
+      const playerStats = data === null
         ? PlayerStats.create(playerId)
         : serializer.normalize(migrate('stats', data, { playerId }));
 
@@ -595,11 +594,11 @@ export default class extends RedisAdapter {
 
     if (this.cache.get('playerGames').has(playerId))
       return this.cache.get('playerGames').get(playerId);
-    else if (this.buffer.get('playerGames').has(playerId))
-      return this.buffer.get('playerGames').get(playerId);
+   
 
     return this.getFile(`player_${playerId}_games`, data => {
-      const playerGames = data === undefined
+      console.log("games:"+data);
+      const playerGames = data === null
         ? GameSummaryList.create(playerId)
         : serializer.normalize(data);
 
@@ -624,11 +623,10 @@ export default class extends RedisAdapter {
   async _getPlayerSets(playerId) {
     if (this.cache.get('playerSets').has(playerId))
       return this.cache.get('playerSets').get(playerId);
-    else if (this.buffer.get('playerSets').has(playerId))
-      return this.buffer.get('playerSets').get(playerId);
+  
 
     return this.getFile(`player_${playerId}_sets`, data => {
-      const playerSets = data === undefined
+      const playerSets = data === null
         ? PlayerSets.create(playerId)
         : serializer.normalize(migrate('sets', data, { playerId }));
 
@@ -654,11 +652,9 @@ export default class extends RedisAdapter {
   async _getGameCollection(collectionId) {
     if (this.cache.get('collection').has(collectionId))
       return this.cache.get('collection').get(collectionId);
-    else if (this.buffer.get('collection').has(collectionId))
-      return this.buffer.get('collection').get(collectionId);
-
+    
     return this.getFile(`collection/${collectionId}`, data => {
-      const collection = data === undefined
+      const collection = data === null
         ? GameSummaryList.create(collectionId)
         : serializer.normalize(data);
 
