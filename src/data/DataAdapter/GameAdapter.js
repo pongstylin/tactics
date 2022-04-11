@@ -58,9 +58,10 @@ export default class extends RedisAdapter {
   
 
   async bootstrap() {
-   this._gametypes = await redisDB.get("gametypes",'.').then(res=>res);
-  
-     let autoSurrender =await redisDB.get("timeouts",'.').then(res=>res);
+    
+  await redisDB.get("gametypes").then((res,data)=>{this._gametypes = new Map(Object.entries(serializer.parse(res)));});
+  let autoSurrender={};
+    await redisDB.get("timeouts").then(res=>{  autoSurrender = new Map(Object.entries(serializer.parse(res)));});
      
      if(!autoSurrender.timeout)
      autoSurrender.timeout=new Timeout(`${this.name}AutoSurrender`);
@@ -108,6 +109,7 @@ export default class extends RedisAdapter {
     }
 
     return super.bootstrap();
+
   }
 
   async cleanup() {
@@ -147,10 +149,10 @@ export default class extends RedisAdapter {
     return this._gameTypes.has(gameTypeId);
   }
   getGameType(gameTypeId) {
-    const gameTypes = this._gameTypes;
-    if (!gameTypes.has(gameTypeId))
+    console.log('inside getgametype....typeof gametypes:'+typeof this._gametypes.keys());
+    if (!this._gametypes.has(gameTypeId))
       throw new ServerError(404, 'No such game type');
-    return gameTypes.get(gameTypeId);
+    return this._gametypes.get(gameTypeId);
   }
 
   /*
@@ -454,7 +456,11 @@ export default class extends RedisAdapter {
         }),
       );
 
-    const promise = Promise.all(promises).then(gameSummaryLists => {
+    const promise = Promise.all(promises).then((gameSummaryLists) => {
+      console.log("gametypes: "+typeof this._gametypes+" keys: ");
+      for(key in this._gametypes.keys()){
+        console.log("key "+key);
+      }
       const gameType = this._gameTypes.get(game.state.type);
       const summary = GameSummary.create(gameType, game);
       dirtyGames.delete(game.id);

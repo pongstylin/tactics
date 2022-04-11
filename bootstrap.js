@@ -16,8 +16,8 @@ init = async ()=>{
     const gameTypes = await this._gameTypes();
     const timeout = await this._timeout();
      
-      await redisDB.set("gametypes",'.',serializer.transform(gameTypes));
-      await redisDB.set("timeouts",'.',serializer.transform(timeout));
+      await redisDB.set("gametypes", serializer.stringify(gameTypes));
+      await redisDB.set("timeouts",serializer.stringify(timeout));
     
     console.log("timeouts and gametypes have been successfully loaded!");
     process.exit();

@@ -6,7 +6,8 @@ import ServerError from 'server/Error.js';
 import Timeout from 'server/Timeout.js';
 import serializer from 'utils/serializer.js';
 
-import Redis  from 'ioredis-json';
+import Redis  from 'ioredis';
+
 
 export const redisDB =  new Redis({
   port: (process.env.redisPort || 6379),
@@ -14,7 +15,11 @@ export const redisDB =  new Redis({
   username: process.env.redisUsername,
   password: process.env.redisPW,
 });
- 
+// Redis.Command.setReplyTransformer("get", (result) => {
+//   if(typeof result == 'String')
+//    return new Map(Object.entries(serializer.parse(result)));
+//   return result;
+// });
 const ops = new Map([
   [ 'create', '_createFile' ],
   [ 'get',    '_getFile' ],
@@ -47,6 +52,7 @@ export default class RedisAdapter{
 
       
     }
+
   }
 async cleanup(){
   return;
@@ -180,7 +186,7 @@ async cleanup(){
     const fqName = `${name}.json`;
 
     return new Promise((resolve, reject) => {
-      redisDB.set(fqName, '.',JSON.stringify(transform(data))).then( (resp) => {
+      redisDB.set(fqName, JSON.stringify(transform(data))).then( (resp) => {
          resolve(data);
         
       });
@@ -190,7 +196,7 @@ async cleanup(){
     const fqName = `${name}.json`;
     console.log("file name "+fqName);
     return new Promise((resolve, reject) => {
-      redisDB.get(fqName, '.').then(( data) => {
+      redisDB.get(fqName).then(( data) => {
       
        
           resolve(transform(JSON.parse(data)));
@@ -214,14 +220,14 @@ async cleanup(){
     const fqName = `${filePart}.json`;
 
     return new Promise((resolve, reject) => {
-      redisDB.set(fqName,'.',JSON.stringify(transform(data))).then(resolve());
+      redisDB.set(fqName,JSON.stringify(transform(data))).then(resolve());
   })}
 
   async _deleteFile(name) {
     const fqName = `${name}.json`;
 
     return new Promise((resolve, reject) => {
-      redisDB.del(fqName,'.', error => {
+      redisDB.del(fqName, error => {
         if (error) {
           console.log('deleteFile', error);
           reject(new ServerError(500, 'Delete failed'));
