@@ -58,9 +58,8 @@ export default class extends RedisAdapter {
   
 
   async bootstrap() {
-    
-  await redisDB.get("gametypes").then((res,data)=>{this._gametypes = new Map(Object.entries(serializer.parse(res)));});
-  let autoSurrender={};
+    this._gametypes =  this.getGameTypes();
+     let autoSurrender={};
     await redisDB.get("timeouts").then(res=>{  autoSurrender = new Map(Object.entries(serializer.parse(res)));});
      
      if(!autoSurrender.timeout)
@@ -111,7 +110,8 @@ export default class extends RedisAdapter {
     return super.bootstrap();
 
   }
-
+async getGameTypes(){return await redisDB.get("gametypes").then((res,data)=>{return new Map(Object.entries(serializer.parse(res)));});
+}
   async cleanup() {
     const autoSurrender = this._autoSurrender.pause();
 
@@ -149,11 +149,14 @@ export default class extends RedisAdapter {
     return this._gameTypes.has(gameTypeId);
   }
   getGameType(gameTypeId) {
-    console.log('inside getgametype....typeof gametypes:'+typeof this._gametypes.keys());
-    if (!this._gametypes.has(gameTypeId))
+     this.getGameTypes().then(function(data){
+      if (!data.has(gameTypeId))
       throw new ServerError(404, 'No such game type');
-    return this._gametypes.get(gameTypeId);
-  }
+    return data.get(gameTypeId);
+  
+     })
+    
+  }  
 
   /*
    * This opens the player's game and set list.
@@ -457,10 +460,8 @@ export default class extends RedisAdapter {
       );
 
     const promise = Promise.all(promises).then((gameSummaryLists) => {
-      console.log("gametypes: "+typeof this._gametypes+" keys: ");
-      for(key in this._gametypes.keys()){
-        console.log("key "+key);
-      }
+    
+     
       const gameType = this._gameTypes.get(game.state.type);
       const summary = GameSummary.create(gameType, game);
       dirtyGames.delete(game.id);
@@ -603,7 +604,7 @@ export default class extends RedisAdapter {
    
 
     return this.getFile(`player_${playerId}_games`, data => {
-      console.log("games:"+data);
+     
       const playerGames = data === null
         ? GameSummaryList.create(playerId)
         : serializer.normalize(data);
