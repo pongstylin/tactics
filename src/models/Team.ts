@@ -303,10 +303,10 @@ export default class Team {
       throw new ServerError(409, 'This team has already been joined');
     if (this.data.playerId && this.data.playerId !== clientPara.playerId)
       throw new ServerError(403, 'This team is reserved');
-
     if (data.set) {
       if (this.data.forkOf)
         throw new ServerError(403, 'May not assign a set to a forked team');
+       
       data.set = Team.validateSet(data, game, gameType);
     } else
       data.set = null;

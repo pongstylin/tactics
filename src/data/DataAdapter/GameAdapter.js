@@ -17,6 +17,7 @@ import {RedisAdapter, redisDB} from 'data/RedisAdapter.js';
 import { resolve } from 'path';
 
 export default class extends RedisAdapter {
+  
   constructor() {
     super({
       name: 'game',
@@ -58,7 +59,7 @@ export default class extends RedisAdapter {
   
 
   async bootstrap() {
-    this._gametypes =  this.getGameTypes();
+    this.getGameTypes().then(d=>{this._gametypes = d;Object.freeze(this._gametypes)});
      let autoSurrender={};
     await redisDB.get("timeouts").then(res=>{  autoSurrender = new Map(Object.entries(serializer.parse(res)));});
      
@@ -149,12 +150,12 @@ async getGameTypes(){return await redisDB.get("gametypes").then((res,data)=>{ret
     return this._gameTypes.has(gameTypeId);
   }
   getGameType(gameTypeId) {
-     this.getGameTypes().then(function(data){
-      if (!data.has(gameTypeId))
+     
+      if (!this._gametypes.has(gameTypeId))
       throw new ServerError(404, 'No such game type');
-    return data.get(gameTypeId);
+    return this._gametypes.get(gameTypeId);
   
-     })
+     
     
   }  
 
