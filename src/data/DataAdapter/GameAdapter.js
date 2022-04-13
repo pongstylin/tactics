@@ -59,7 +59,7 @@ export default class extends RedisAdapter {
   
 
   async bootstrap() {
-    this.getGameTypes().then(d=>{this._gametypes = d;Object.freeze(this._gametypes)});
+    this.getGameTypes().then(d=>{this._gametypes = d;Object.freeze(this._gametypess)});
      let autoSurrender={};
     await redisDB.get("timeouts").then(res=>{  autoSurrender = new Map(Object.entries(serializer.parse(res)));});
      
@@ -111,8 +111,22 @@ export default class extends RedisAdapter {
     return super.bootstrap();
 
   }
-async getGameTypes(){return await redisDB.get("gametypes").then((res,data)=>{return new Map(Object.entries(serializer.parse(res)));});
-}
+async getGameTypes(){ await redisDB.get("gametypes").then((res)=>{ 
+  
+ 
+  const gameTypes = new Map();
+
+   
+  for (const [ id, config ] of res) {
+    
+    gameTypes.set(id, serializer.normalize({
+      $type: 'GameType',
+      $data: { id, config }
+    }));
+  }
+  return gameTypes;
+  });}
+
   async cleanup() {
     const autoSurrender = this._autoSurrender.pause();
 
@@ -149,8 +163,9 @@ async getGameTypes(){return await redisDB.get("gametypes").then((res,data)=>{ret
   hasGameType(gameTypeId) {
     return this._gameTypes.has(gameTypeId);
   }
-  getGameType(gameTypeId) {
-     
+  async getGameType(gameTypeId) {
+   await this.getGameTypes().then(d=>{this._gametypess = d;Object.freeze(this._gametypess)});
+   
       if (!this._gametypes.has(gameTypeId))
       throw new ServerError(404, 'No such game type');
     return this._gametypes.get(gameTypeId);
@@ -459,9 +474,11 @@ async getGameTypes(){return await redisDB.get("gametypes").then((res,data)=>{ret
           return collection;
         }),
       );
-
+      promises.push(
+        this.getGameTypes().then(d=>{this._gametypes = d;Object.freeze(this._gametypes); return;})
+      )  
     const promise = Promise.all(promises).then((gameSummaryLists) => {
-    
+      
      
       const gameType = this._gameTypes.get(game.state.type);
       const summary = GameSummary.create(gameType, game);

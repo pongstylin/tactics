@@ -14,39 +14,21 @@ export default class bootstrapper extends RedisAdapter {
     }
 init = async ()=>{
     const gameTypes = await this._gameTypes();
-    const timeout = await this._timeout();
+   
      
-      await redisDB.set("gametypes", JSON.stringify(serializer.transform(gameTypes)));
-      await redisDB.set("timeouts",JSON.stringify(serializer.transform(timeout)));
+      await redisDB.set("gametypes", JSON.stringify(gameTypes));
+      await redisDB.set("timeouts",JSON.stringify({
+        timeout: new Timeout(`${this.name}AutoSurrender`),
+        shutdownAt: new Date(),
+      }));
     
     console.log("timeouts and gametypes have been successfully loaded!");
     process.exit();
     
 }
   _gameTypes = async ()=>{ return this.files.getFile('game_types', data => {
-    const gameTypes = new Map();
-
-   
-    for (const [ id, config ] of data) {
-      
-      gameTypes.set(id, serializer.normalize({
-        $type: 'GameType',
-        $data: { id, config },
-      }));
-    }
- 
-    return gameTypes;
+   return data;
   });
-};
-_timeout = async () => { return this.files.getFile(`timeout/autoSurrender`, data => {
-  if (data === undefined)
-    return {
-      timeout: new Timeout(`${this.name}AutoSurrender`),
-      shutdownAt: new Date(),
-    };
-  else
-    return serializer.normalize(data);
-});
 };
 }
 new bootstrapper();
