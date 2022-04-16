@@ -119,7 +119,7 @@ async getGameTypes(){
   gts.forEach((gametyp)=>{
     gt[gametyp[0]]=gametyp[1];})
   
-  return gt;
+  return new Map(Object.entries(gt));
 }
   async cleanup() {
     const autoSurrender = this._autoSurrender.pause();
@@ -159,9 +159,9 @@ async getGameTypes(){
   }
   async getGameType(gameTypeId) {
   
-    if (!this._gametypes[gameTypeId])
+    if (!this._gametypes.has(gameTypeId))
       throw new ServerError(404, 'No such game type');
-    return this._gametypes[gameTypeId];
+    return this._gametypes.get(gameTypeId);
    }  
 
   /*
@@ -467,7 +467,7 @@ async getGameTypes(){
     const promise = Promise.all(promises).then((gameSummaryLists) => {
      
      
-      const gameType = this._gametypes[game.state.type]; ;
+      const gameType = this._gametypes.get(game.state.type) ;
       const summary = GameSummary.create(gameType, game);
       dirtyGames.delete(game.id);
 
