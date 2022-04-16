@@ -1,5 +1,5 @@
-import pkg from '../package.json';
-import gameTypes from 'data/files/game/game_types.json';
+import pkg from '../package.json' assert { type: 'json' };
+import gameTypes from 'data/files/game/game_types.json' assert { type: 'json' };
 
 const gameTypeIds = gameTypes.map(gt => gt[0]);
 
@@ -38,14 +38,14 @@ export default {
       'auth',
       {
         module: 'server/AuthService.js',
-        dataAdapterModule: 'data/FileAdapter/AuthAdapter.js',
+        dataAdapterModule: 'data/DataAdapter/AuthAdapter.js',
       },
     ],
     [
       'game',
       {
         module: 'server/GameService.js',
-        dataAdapterModule: 'data/FileAdapter/GameAdapter.js',
+        dataAdapterModule: 'data/DataAdapter/GameAdapter.js',
         config: {
           collections: [
             {

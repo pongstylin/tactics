@@ -18,6 +18,7 @@ That is as far as it goes.  This project is intended to recreate the core game e
 
 ## Requirements
 * Node.js tested on version v16.13.2
+* Redis - docker run -d -p 6379:6379 redislabs/redismod:latest
 
 To install under windows, you also need Git Bash and configure npm to use the Git Bash executable.
 Example:
