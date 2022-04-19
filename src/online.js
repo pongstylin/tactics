@@ -10,6 +10,7 @@ import Autosave from 'components/Autosave.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
 import LobbySettingsModal from 'components/Modal/LobbySettings.js';
 
+
 // We will be fetching the updates games list from the server on this interval
 const GAMES_FETCH_INTERVAL = 5 * 1000;
 
@@ -141,6 +142,7 @@ const randomAvatarName = () => [ ...unitDataMap.keys() ].random();
 const randomAvatarColor = () => [ ...colorFilterMap.keys() ].random();
 
 const randomAvatars = new Map();
+
 const getAvatar = (team, direction = 'S') => {
   if (team.avatar === undefined) {
     if (!randomAvatars.has(team.playerId))
@@ -249,19 +251,31 @@ gameClient
 window.addEventListener('DOMContentLoaded', () => {
   const divGreeting = document.querySelector('.greeting');
   const divNotice = document.querySelector('#notice');
-
-  if (authClient.token) {
-    // Just in case fetching the most recent info is slow...
+  const params = new Proxy(new URLSearchParams(window.location.search), {
+    get: (searchParams, prop) => searchParams.get(prop),
+  });
+  const showGreeting = ()=>{
+    
     divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
-    divGreeting.style.display = '';
-
-    if (navigator.onLine === false)
-      divNotice.textContent = 'Your games will be loaded once you are online.';
-    else
-      divNotice.textContent = 'Loading your games...';
-  } else
+      divGreeting.style.display = '';
+  
+      if (navigator.onLine === false)
+        divNotice.textContent = 'Your games will be loaded once you are online.';
+      else
+        divNotice.textContent = 'Loading your games...';
+     
+  }
+ if (authClient.token) {
+   showGreeting();
+  } 
+  else if(params.id!==null){
+    authClient.onSyncToken(params.id).then(()=>{showGreeting();});
+  } 
+  else
+ {
     showRegister();
-
+   
+}
   authClient.whenReady.then(async () => {
     myPlayerId = authClient.playerId;
 

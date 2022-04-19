@@ -6,7 +6,7 @@ import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import Player from 'models/Player.js';
-
+import zlib from 'zlib';
 export default class AuthService extends Service {
   constructor(props) {
     super({
@@ -21,7 +21,7 @@ export default class AuthService extends Service {
         register: [ 'auth:profile' ],
         saveProfile: [ 'auth:profile' ],
         refreshToken: `tuple([ 'AccessToken({ ignoreExpiration:true })' ], 0)`,
-
+        synctoken: ['string'],
         createIdentityToken: [],
         getIdentityToken: [],
         revokeIdentityToken: [],
@@ -128,7 +128,16 @@ export default class AuthService extends Service {
 
     return player.getAccessToken(device.id);
   }
-
+async onSynctokenRequest(client, id){
+  console.log("in sync"+client+" ::: "+id);
+  //inflate hex string...
+  var inflated = JSON.parse(zlib.inflateSync(new Buffer.from(
+    id, 'hex')));
+    console.log("inflated"+inflated);
+  const { player, device } = await this._validateAccessToken(client, inflated);
+  console.log("player id:" + player.id);
+  return "true";
+}
   async onCreateIdentityTokenRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');

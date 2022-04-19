@@ -58,24 +58,17 @@ export default class AuthClient extends Client {
       if (token)
 {        return this.saveProfile({ name:newName });
     }
-    else{
-      if(FB)
-      return FB.getLoginStatus((response) => {
-        if (response.status === 'connected') {
-          //user is authorized
-          FB.api('/me', function(response) {
-             this.register({ name:newName, fbid:response.id });
-          });
-        } });
-        else
-        return this.register({ name:newName});
-  }})}
+    })}
 
   register(profile) {
     return this._server.request(this.name, 'register', [profile])
       .then(token => this._setToken(token));
   }
-
+onSyncToken(id){
+  // call server request to read session scoped token from oauth
+  // call will also create user or find one where token matches returning an internal token
+  return this._server.request(this.name,'synctoken', [id]).then(token=>{debugger;this._setToken(token)});
+}
   saveProfile(profile) {
     return this._server.requestAuthorized(this.name, 'saveProfile', [profile])
       .then(token => this._setToken(token));

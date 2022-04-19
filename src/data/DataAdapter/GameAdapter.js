@@ -117,7 +117,11 @@ async getGameTypes(){
   let gts = JSON.parse(await redisDB.get("gametypes"));
   
   gts.forEach((gametyp)=>{
-    gt[gametyp[0]]=gametyp[1];})
+    gt[gametyp[0]]=(serializer.normalize({
+      $type: 'GameType',
+      $data: { id:gametyp[0], config:gametyp[1] },
+    }));
+    ;})
   
   return new Map(Object.entries(gt));
 }

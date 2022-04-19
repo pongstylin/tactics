@@ -194,7 +194,7 @@ async cleanup(){
   }
   _getFile(name, initialValue, transform) {
     const fqName = `${name}.json`;
-    console.log("file name "+fqName);
+    
     return new Promise((resolve, reject) => {
       redisDB.get(fqName).then(( data) => {
       

@@ -1,38 +1,58 @@
 import uuid from 'uuid/v4';
-import http from 'http';
+import https from 'https';
 import express from 'express';
 import morgan from 'morgan';
 import { WebSocketServer } from 'ws';
 import util from 'util';
 import DebugLogger from 'debug';
-
+import * as fs from 'fs';
+import passport from 'passport';
 import 'plugins/index.js';
-
+import fbauth from 'server/fbauth.js'
 import config from 'config/server.js';
 import { onConnect, onShutdown } from 'server/router.js';
 import services, { servicesReady } from 'server/services.js';
 import Timeout from 'server/Timeout.js';
 import ServerError from 'server/Error.js';
 import AccessToken from 'server/AccessToken.js';
-import fbsdk from 'facebook-sdk';
+import session from 'express-session';
+import zlib from 'zlib';
+
+
+
+fbauth();
+const key = fs.readFileSync("localhost-key.pem", "utf-8");
+const cert = fs.readFileSync("localhost.pem", "utf-8");
 
 const PORT     = process.env.PORT;
 const app      = express();
-const server   = http.createServer(app);
+const server   = https.createServer({key,cert},app);
 const wss      = new WebSocketServer({server});
 const request  = DebugLogger('server:request');
 const response = DebugLogger('server:response');
 const report   = DebugLogger('server:report');
 
+
 let requestId = 1;
+app.use(
+  session({
+    secret: ['veryimportantsecret','notsoimportantsecret','highlyprobablysecret'], 
+     name: "secretname", 
+     cookie: {
+      httpOnly: true,
+      secure: true,
+      sameSite: true,
+      maxAge: 600000 // Time is in miliseconds
+  },
+    
+    resave: false
+  })
+)
 app.use((req, res, next) => {
   req.id = requestId++;
   next();
 })
-.use(fbsdk.facebook({
-  appId  : '2620792168051316',
-  secret : '06f787a90c5619b64c6654fd987066b9'
-}));
+
 morgan.token('id', req => req.id);
 
 app.use(morgan('[:id] ip=:remote-addr; ":method :url HTTP/:http-version"; agent=":user-agent"', {
@@ -97,7 +117,32 @@ async function getYourTurnNotification(req, res) {
 app.get(API_PREFIX + '/notifications/yourTurn', (req, res, next) => {
   getYourTurnNotification(req, res).catch(error => next(error));
 });
+app.use(passport.initialize());
 
+app.get('/auth/:provider',  function(req, res,next) {passport.authenticate(req.params.provider)(req,res,next);});
+app.get('/auth/:provider/callback',function(req, res,next) {
+  const provider = req.params.provider;
+  
+  passport.authenticate(provider, { failureRedirect: '/login.html' })(req,res,next);}, function(req, res) { 
+    const provider = req.params.provider;
+  // Following above examples getting the authservice to being registration process
+    const authService = services.get('auth');
+  // request should have a user object which contains fb id and name: req.user.id req.user.displayName
+  
+    switch(provider.toLowerCase())
+    {
+      case 'facebook':
+       
+      authService.onRegisterRequest(req.user,{name:req.user.displayName,fbid:req.user.id}).then(token=>
+      {
+        
+     token  = zlib.deflateSync(JSON.stringify(token)).toString('hex');
+      //set query string to get online.js to call server's sync token method
+        res.redirect('/online.html?id='+token) } // auth success
+
+      );  
+      break;
+      }});
 app.use(express.static('static'));
 
 app.use((error, req, res, next) => {
