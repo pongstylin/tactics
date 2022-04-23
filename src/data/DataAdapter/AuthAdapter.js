@@ -33,7 +33,7 @@ export default class extends RedisAdapter {
     this.cache.get('player').open(player.id, player);
   }
   async getPlayerID({fbid, discordid}){
-    const playerid = this._getPlayerID({fbid, discordid});
+    const playerid = await this._getPlayerID({fbid, discordid});
     return playerid ? this.openPlayer(playerid): null;
   }
   async openPlayer(playerId) {

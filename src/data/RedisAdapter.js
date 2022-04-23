@@ -212,12 +212,13 @@ async cleanup(){
 })}
   _getPlayerIDFromFB(fbid){
     
-    return redisDB.smembers("fbid:"+fbid).then(members=>{
+    return new Promise((resolve, reject) => {
+       redisDB.smembers("fbid:"+fbid).then(members=>{
       if(members.length)
-      return members[0];
+      resolve(members[0]);
       else
-      return null;
-    })
+      resolve();
+    })});
   }
   _getFile(name, initialValue, transform) {
    

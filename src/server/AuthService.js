@@ -114,8 +114,12 @@ async onFBAuthorization(client,{fbUserData}){
   //get the player id
   
  const player = await this.data.getPlayerID({fbid:fbUserData});
-  
- return player ? player.getIdentityToken():null;
+ if(player){
+  const devl = player.addDevice(client);
+  return player.createAccessToken(devl.id);
+ }
+
+ return null;
 }
   async onRegisterRequest(client, playerData) {
     // An authorized player cannot register an account.
