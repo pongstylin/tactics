@@ -7,6 +7,8 @@ import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import Player from 'models/Player.js';
 import zlib from 'zlib';
+import AuthAdapter from '../data/DataAdapter/AuthAdapter.js';
+import serializer from 'utils/serializer.js'
 export default class AuthService extends Service {
   constructor(props) {
     super({
@@ -108,7 +110,13 @@ export default class AuthService extends Service {
 
     this.clientPara.set(client.id, clientPara);
   }
-
+async onFBAuthorization(client,{fbUserData}){
+  //get the player id
+  
+ const player = await this.data.getPlayerID({fbid:fbUserData});
+  
+ return player ? player.getIdentityToken():null;
+}
   async onRegisterRequest(client, playerData) {
     // An authorized player cannot register an account.
     if (this.clientPara.has(client.id))
@@ -124,19 +132,23 @@ export default class AuthService extends Service {
     this.throttle(client.address, 'register', 1, 30);
 
     const device = player.addDevice(client);
+    
     await this.data.createPlayer(player);
 
     return player.getAccessToken(device.id);
   }
 async onSynctokenRequest(client, id){
-  console.log("in sync"+client+" ::: "+id);
-  //inflate hex string...
-  var inflated = JSON.parse(zlib.inflateSync(new Buffer.from(
-    id, 'hex')));
-    console.log("inflated"+inflated);
-  const { player, device } = await this._validateAccessToken(client, inflated);
-  console.log("player id:" + player.id);
-  return "true";
+
+  id =  Buffer.from(id, 'hex');
+   
+  id = serializer.normalize(JSON.parse(zlib.gunzipSync(id)));
+
+  
+  const { player, device } = await this._validateAccessToken(client, id);
+   this.throttle(client.address, 'syncToken', 1, 30);
+  return player.getAccessToken(device.id);   
+    
+  
 }
   async onCreateIdentityTokenRequest(client) {
     if (!this.clientPara.has(client.id))

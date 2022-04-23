@@ -1,7 +1,7 @@
 import fs from 'fs';
 
 import serializer from 'utils/serializer.js';
-import RedisAdapter from 'data/RedisAdapter.js';
+import {redisDB, RedisAdapter} from 'data/RedisAdapter.js';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 
 
@@ -32,7 +32,12 @@ export default class extends RedisAdapter {
     await this._createPlayer(player);
     this.cache.get('player').open(player.id, player);
   }
+  async getPlayerID({fbid, discordid}){
+    const playerid = this._getPlayerID({fbid, discordid});
+    return playerid ? this.openPlayer(playerid): null;
+  }
   async openPlayer(playerId) {
+    
     const player = await this._getPlayer(playerId);
     return this.cache.get('player').open(playerId, player);
   }
@@ -40,6 +45,7 @@ export default class extends RedisAdapter {
     return this.cache.get('player').close(playerId);
   }
   async getPlayer(playerId) {
+   
     const player = await this._getPlayer(playerId);
     return this.cache.get('player').add(playerId, player);
   }
@@ -51,25 +57,30 @@ export default class extends RedisAdapter {
    * Private Interface
    ****************************************************************************/
   async _createPlayer(player) {
-    
 
-    await this.createFile(`player_${player.id}`, () => {
+    await this.createFile(`player:${player.id}`, () => {
       const data = serializer.transform(player);
       data.version = getLatestVersionNumber('player');
-
+      data.fbid = player.data.fbid; 
       player.once('change', () => this._savePlayer(player));
       return data;
     });
   }
+   _getPlayerID({fbid, discordid}){
+    if(fbid){
+     
+      return this.getPlayerIDFromFB(fbid)
+    }
+    else if(discordid){
+      return this.getPlayerIDFromDC(discordid);
+    }
+  }
   async _getPlayer(playerId) {
     const cache = this.cache.get('player');
-   
-
     if (cache.has(playerId))
       return cache.get(playerId);
   
-
-    return this.getFile(`player_${playerId}`, data => {
+      return this.getFile(`player:${playerId}`, data => {
       const player = serializer.normalize(migrate('player', data));
 
       player.once('change', () => this._savePlayer(player));
@@ -79,7 +90,7 @@ export default class extends RedisAdapter {
   async _savePlayer(player) {
     
 
-    await this.putFile(`player_${player.id}`, () => {
+    await this.putFile(`player:${player.id}`, () => {
       const data = serializer.transform(player);
       data.version = getLatestVersionNumber('player');
 
@@ -92,7 +103,7 @@ export default class extends RedisAdapter {
    * Only used for testing right now.
    */
   async deletePlayer(playerId) {
-    await this.deleteFile(`player_${playerId}`);
+    await this.deleteFile(`player:${playerId}`);
     //await this.deleteFile(`player_${playerId}_sets`);
     //await this.deleteFile(`player_${playerId}_games`);
   }

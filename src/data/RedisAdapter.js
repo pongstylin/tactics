@@ -128,6 +128,9 @@ async cleanup(){
 
     return this._pushQueue(fileName, { type:'put', args });
   }
+   getPlayerIDFromFB(fbid){
+    return this._getPlayerIDFromFB(fbid);
+  }
   /*
    * Pretend the file was deleted if it does not exist.
    * Remove the file if it does exist.
@@ -183,24 +186,54 @@ async cleanup(){
    * Only call these methods while a lock is in place.
    */
   _createFile(name, data, transform) {
-    const fqName = `${name}.json`;
-
-    return new Promise((resolve, reject) => {
-      redisDB.set(fqName, JSON.stringify(transform(data))).then( (resp) => {
-         resolve(data);
-        
-      });
-    });
-  }
-  _getFile(name, initialValue, transform) {
-    const fqName = `${name}.json`;
+    const fqName = `${name}`;
     
     return new Promise((resolve, reject) => {
-      redisDB.get(fqName).then(( data) => {
       
+      if(name.match(/player:/i))
+      {
+        const pname = name;
+        data = transform(data);
+        redisDB.hset(pname,{data:JSON.stringify(data)}).then( (resp) => {
        
-          resolve(transform(JSON.parse(data)));
+          if(data.fbid)
+          redisDB.sadd("fbid:"+data.fbid, pname.substring(7)); 
+        resolve(data);
+        
       });
+      }
+      else{
+      redisDB.set(fqName, JSON.stringify(transform(data))).then( (resp) => {
+        resolve(data);
+      }
+  
+  );
+  }
+})}
+  _getPlayerIDFromFB(fbid){
+    
+    return redisDB.smembers("fbid:"+fbid).then(members=>{
+      if(members.length)
+      return members[0];
+      else
+      return null;
+    })
+  }
+  _getFile(name, initialValue, transform) {
+   
+    return new Promise((resolve, reject) => {
+      if(name.match(/player:/i))
+       { 
+        redisDB.hget(name,'data').then(( data) => {
+         resolve(transform(JSON.parse(data)));
+      });
+       }
+       else
+       {
+        redisDB.get(name).then(( data) => {
+          resolve(transform(JSON.parse(data)));
+       });
+       }
     }).catch(error => {
       if (error.code === 'ENOENT') {
         const data = transform(initialValue);
@@ -217,10 +250,19 @@ async cleanup(){
     const parts = name.split('/');
     const dirPart = parts.slice(0, -1).join('/');
     const filePart = parts.last;
-    const fqName = `${filePart}.json`;
+    const fqName = `${filePart}`;
 
     return new Promise((resolve, reject) => {
-      redisDB.set(fqName,JSON.stringify(transform(data))).then(resolve());
+      if(fqName.match(/player:/i))
+      {
+        const pname = fqName.substring(7);
+        data = transform(data);
+      redisDB.hset("player:"+pname,{data:JSON.stringify(data)});
+      if(data.fbid)
+      redisDB.sadd("fbid:"+data.fbid, pname); 
+      }
+      else
+        redisDB.set(fqName,JSON.stringify(transform(data))).then(resolve());
   })}
 
   async _deleteFile(name) {

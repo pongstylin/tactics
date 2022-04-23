@@ -1,4 +1,4 @@
-import uuid from 'uuid/v4';
+
 import https from 'https';
 import express from 'express';
 import morgan from 'morgan';
@@ -15,8 +15,8 @@ import services, { servicesReady } from 'server/services.js';
 import Timeout from 'server/Timeout.js';
 import ServerError from 'server/Error.js';
 import AccessToken from 'server/AccessToken.js';
-import session from 'express-session';
 import zlib from 'zlib';
+import serializer from 'utils/serializer.js';
 
 
 
@@ -34,20 +34,7 @@ const report   = DebugLogger('server:report');
 
 
 let requestId = 1;
-app.use(
-  session({
-    secret: ['veryimportantsecret','notsoimportantsecret','highlyprobablysecret'], 
-     name: "secretname", 
-     cookie: {
-      httpOnly: true,
-      secure: true,
-      sameSite: true,
-      maxAge: 600000 // Time is in miliseconds
-  },
-    
-    resave: false
-  })
-)
+
 app.use((req, res, next) => {
   req.id = requestId++;
   next();
@@ -132,17 +119,27 @@ app.get('/auth/:provider/callback',function(req, res,next) {
     switch(provider.toLowerCase())
     {
       case 'facebook':
-       
-      authService.onRegisterRequest(req.user,{name:req.user.displayName,fbid:req.user.id}).then(token=>
-      {
-        
-     token  = zlib.deflateSync(JSON.stringify(token)).toString('hex');
-      //set query string to get online.js to call server's sync token method
-        res.redirect('/online.html?id='+token) } // auth success
+      //check for existing fb
+      authService.onFBAuthorization(req.user,{fbUserData:req.user.id}).then(FBtoken=>{
+        if(!FBtoken)
+        authService.onRegisterRequest(req.user,{name:req.user.displayName,fbid:req.user.id}).then(token=>
+        {
+         token  = zlib.gzipSync(JSON.stringify(serializer.transform(token)));
+          res.redirect('/online.html?id='+token.toString("hex"));
+        });
+        else{
+         
+        FBtoken  = zlib.gzipSync(JSON.stringify(serializer.transform(FBtoken)));
+          res.redirect('/online.html?id='+FBtoken.toString("hex"));
+      }  
+      });
+      //register new fb login
+      
+  }
 
-      );  
-      break;
-      }});
+  });
+     
+  
 app.use(express.static('static'));
 
 app.use((error, req, res, next) => {

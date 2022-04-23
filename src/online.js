@@ -250,7 +250,7 @@ gameClient
 
 window.addEventListener('DOMContentLoaded', () => {
   const divGreeting = document.querySelector('.greeting');
-  const divNotice = document.querySelector('#notice');
+  const divNotice = document.querySelector('#notice');  
   const params = new Proxy(new URLSearchParams(window.location.search), {
     get: (searchParams, prop) => searchParams.get(prop),
   });
@@ -265,17 +265,29 @@ window.addEventListener('DOMContentLoaded', () => {
         divNotice.textContent = 'Loading your games...';
      
   }
- if (authClient.token) {
+  if(params.id!==null){
+    
+    authClient.onSyncToken(params.id).then(()=>{showGreeting(); openTab(); divNotice.textContent = '';
+    document.querySelector('.tabs').style.display = '';
+    loadTAO();
+  });
+  } 
+ else if (authClient.token) {
    showGreeting();
+   loadTAO();
   } 
-  else if(params.id!==null){
-    authClient.onSyncToken(params.id).then(()=>{showGreeting();});
-  } 
+  
   else
  {
     showRegister();
+    loadTAO();
    
 }
+ 
+});
+function loadTAO(){
+  const divGreeting = document.querySelector('.greeting');
+  const divNotice = document.querySelector('#notice');  
   authClient.whenReady.then(async () => {
     myPlayerId = authClient.playerId;
 
@@ -395,8 +407,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('resize', () => resize(dynamicStyle.sheet));
   resize(dynamicStyle.sheet);
-});
 
+}
 function showRegister() {
   const divRegister = document.querySelector('#register');
   if (divRegister.style.display === '')

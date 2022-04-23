@@ -67,7 +67,7 @@ export default class AuthClient extends Client {
 onSyncToken(id){
   // call server request to read session scoped token from oauth
   // call will also create user or find one where token matches returning an internal token
-  return this._server.request(this.name,'synctoken', [id]).then(token=>{debugger;this._setToken(token)});
+  return this._server.request(this.name,'synctoken', [id]).then(token=>{this._setToken(token)});
 }
   saveProfile(profile) {
     return this._server.requestAuthorized(this.name, 'saveProfile', [profile])
