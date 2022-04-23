@@ -428,7 +428,7 @@ export default class GameService extends Service {
       ...gameOptions,
       teams: new Array(gameOptions.teams.length).fill(null),
     });
-    const gameType = this.data.getGameType(gameTypeId);
+    const gameType = await this.data.getGameType(gameTypeId);
 
     for (const [slot, teamData] of gameOptions.teams.entries()) {
       if (!teamData) continue;
@@ -519,7 +519,7 @@ export default class GameService extends Service {
         joiner.mute(creator, playerACL.name);
     }
 
-    const gameType = this.data.getGameType(game.state.type);
+    const gameType = await this.data.getGameType(game.state.type);
     const teams = game.state.teams;
 
     let openSlot = teams.findIndex(t => !t?.playerId);

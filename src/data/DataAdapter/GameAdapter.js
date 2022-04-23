@@ -117,13 +117,10 @@ async getGameTypes(){
   let gts = JSON.parse(await redisDB.get("gametypes"));
   
   gts.forEach((gametyp)=>{
-    gt[gametyp[0]]=(serializer.normalize({
-      $type: 'GameType',
-      $data: { id:gametyp[0], config:gametyp[1] },
-    }));
+    gt.set(gametyp[0], new GameType({ id:gametyp[0], config:gametyp[1] }));
     ;})
   
-  return new Map(Object.entries(gt));
+  return gt;
 }
   async cleanup() {
     const autoSurrender = this._autoSurrender.pause();
@@ -165,7 +162,7 @@ async getGameTypes(){
   
     if (!this._gametypes.has(gameTypeId))
       throw new ServerError(404, 'No such game type');
-    return this._gametypes.get(gameTypeId);
+    return await this._gametypes.get(gameTypeId);
    }  
 
   /*
@@ -581,7 +578,7 @@ async getGameTypes(){
         ? PlayerStats.create(playerId)
         : serializer.normalize(migrate('stats', data, { playerId }));
 
-      playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
+      //playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
       return playerStats;
     });
   }
@@ -592,7 +589,7 @@ async getGameTypes(){
       const data = serializer.transform(playerStats);
       data.version = getLatestVersionNumber('stats');
 
-      playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
+      //playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
       return data;
     });
   }
@@ -627,7 +624,7 @@ async getGameTypes(){
     await this.putFile(`player_${playerId}_games`, () => {
       const data = serializer.transform(playerGames);
 
-      playerGames.once('change', () => this.buffer.get('playerGames').add(playerId, playerGames));
+     // playerGames.once('change', () => this.buffer.get('playerGames').add(playerId, playerGames));
       return data;
     });
   }
@@ -645,7 +642,7 @@ async getGameTypes(){
         ? PlayerSets.create(playerId)
         : serializer.normalize(migrate('sets', data, { playerId }));
 
-      playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
+      //playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
       return playerSets;
     });
   }
@@ -656,7 +653,7 @@ async getGameTypes(){
       const data = serializer.transform(playerSets);
       data.version = getLatestVersionNumber('sets');
 
-      playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
+      //playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
       return data;
     });
   }
@@ -683,7 +680,7 @@ async getGameTypes(){
     await this.putFile(`collection/${collectionId}`, () => {
       const data = serializer.transform(collection);
 
-      collection.once('change', () => this.buffer.get('collection').add(collectionId, collection));
+     // collection.once('change', () => this.buffer.get('collection').add(collectionId, collection));
       return data;
     });
   }
