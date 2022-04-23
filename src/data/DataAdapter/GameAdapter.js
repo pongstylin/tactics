@@ -354,8 +354,7 @@ async getGameTypes(){
   async _getGame(gameId) {
     if (this.cache.get('game').has(gameId))
       return this.cache.get('game').get(gameId);
-    else if (this.buffer.get('game').has(gameId))
-      return this.buffer.get('game').get(gameId);
+   
 
     return this.getFile(`game_${gameId}`, data => {
       if (data === undefined) return;
@@ -385,7 +384,7 @@ async getGameTypes(){
       await this._dirtyGames.get(game.id);
 
     this.cache.get('game').delete(game.id);
-    this.buffer.get('game').delete(game.id);
+    
     game.destroy();
 
     this._clearGameSummary(game);
