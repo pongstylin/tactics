@@ -106,21 +106,15 @@ app.get(API_PREFIX + '/notifications/yourTurn', (req, res, next) => {
 });
 app.use(passport.initialize());
 
-app.get('/auth/:provider',  function(req, res,next) {passport.authenticate(req.params.provider)(req,res,next);});
-app.get('/auth/:provider/callback',function(req, res,next) {
-  const provider = req.params.provider;
+app.get('/auth/facebook', passport.authenticate('facebook'));
+app.get('/auth/facebook/callback',
   
-  passport.authenticate(provider, { failureRedirect: '/login.html' })(req,res,next);}, function(req, res) { 
-    const provider = req.params.provider;
+  passport.authenticate('facebook', { failureRedirect: '/login.html' }), function(req, res) { 
+  console.log("success"); 
   // Following above examples getting the authservice to being registration process
     const authService = services.get('auth');
   // request should have a user object which contains fb id and name: req.user.id req.user.displayName
-  
-    switch(provider.toLowerCase())
-    {
-      case 'facebook':
-      //check for existing fb
-      authService.onFBAuthorization(req.user,{fbUserData:req.user.id}).then(FBtoken=>{
+  authService.onFBAuthorization(req.user,{fbUserData:req.user.id}).then(FBtoken=>{
         if(!FBtoken)
         authService.onRegisterRequest(req.user,{name:req.user.displayName,fbid:req.user.id}).then(token=>
         {
@@ -137,7 +131,7 @@ app.get('/auth/:provider/callback',function(req, res,next) {
       
   }
 
-  });
+  );
      
   
 app.use(express.static('static'));

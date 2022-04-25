@@ -14,7 +14,7 @@ export default  function() {
   passport.use(new Strategy({
       clientID: process.env['FACEBOOK_CLIENT_ID'],
       clientSecret: process.env['FACEBOOK_CLIENT_SECRET'],
-      callbackURL: '/auth/facebook/callback',
+      callbackURL: 'https://tactics-edge.taorankings.com/auth/facebook/callback',
       state: false
     },
     function(accessToken, refreshToken, profile, cb) {
@@ -23,7 +23,8 @@ export default  function() {
       // be associated with a user record in the application's database, which
       // allows for account linking and authentication with other identity
       // providers.
-      return cb(null, profile);
+console.log("logggggedin");      
+return cb(null, profile);
     }));
     
   // Configure Passport authenticated session persistence.
