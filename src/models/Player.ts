@@ -30,6 +30,7 @@ export default class Player extends ActiveModel {
     checkoutAt: Date
     createdAt: Date
     fbid: string
+    discordid: string
   }
 
   constructor(data) {
@@ -54,6 +55,7 @@ export default class Player extends ActiveModel {
     data.checkoutAt = data.createdAt;
     data.devices = new Map();
     data.fbid = data.fbid || '';
+    data.discordid  = data.discordid || '';
     return new Player(data);
   }
   static fromJSON(data) {

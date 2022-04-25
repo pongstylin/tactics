@@ -127,12 +127,36 @@ app.get('/auth/facebook/callback',
           res.redirect('/online.html?id='+FBtoken.toString("hex"));
       }  
       });
-      //register new fb login
+     
       
   }
 
   );
-     
+  app.get('/auth/discord', passport.authenticate('discord'));
+  app.get('/auth/discord/callback',
+    
+    passport.authenticate('discord', { failureRedirect: '/login.html' }), function(req, res) { 
+    
+    // Following above examples getting the authservice to being registration process
+      const authService = services.get('auth');
+    // request should have a user object which contains fb id and name: req.user.id req.user.displayName
+    authService.onDiscordAuthorization(req.user,{dcUserData:req.user.id}).then(dctoken=>{
+          if(!dctoken)
+          authService.onRegisterRequest(req.user,{name:req.user.displayName,discordid:req.user.id}).then(token=>
+          {
+           token  = zlib.gzipSync(JSON.stringify(serializer.transform(token)));
+            res.redirect('/online.html?id='+token.toString("hex"));
+          });
+          else{
+           
+          dctoken  = zlib.gzipSync(JSON.stringify(serializer.transform(FBtoken)));
+            res.redirect('/online.html?id='+dctoken.toString("hex"));
+        }  
+        });
+      }
+  
+    );
+           
   
 app.use(express.static('static'));
 

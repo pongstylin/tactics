@@ -121,6 +121,17 @@ async onFBAuthorization(client,{fbUserData}){
 
  return null;
 }
+async onDiscordAuthorization(client,{dcUserData}){
+  //get the player id
+  
+ const player = await this.data.getPlayerID({discordid:dcUserData});
+ if(player){
+  const devl = player.addDevice(client);
+  return player.createAccessToken(devl.id);
+ }
+
+ return null;
+}
   async onRegisterRequest(client, playerData) {
     // An authorized player cannot register an account.
     if (this.clientPara.has(client.id))

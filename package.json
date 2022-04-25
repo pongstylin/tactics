@@ -40,7 +40,7 @@
     "webpack-cli": "^4.9.2"
   },
   "dependencies": {
-    "@pixi/app":"^6.3.0",
+    "@pixi/app": "^6.3.0",
     "@pixi/canvas-display": "^6.3.0",
     "@pixi/canvas-graphics": "^6.3.0",
     "@pixi/canvas-renderer": "^6.3.0",
@@ -70,16 +70,15 @@
     "cors": "^2.8.5",
     "events": "^3.3.0",
     "express": "^4.16.4",
-    
     "howler": "^2.2.3",
     "impetus": "^0.8.8",
     "ioredis": "^4.17.3",
     "ioredis-json": "^0.1.1",
     "jsonwebtoken": "^8.5.1",
-    
     "morgan": "^1.9.1",
     "nosleep.js": "github:pongstylin/nosleep.js",
     "passport": "^0.5.2",
+    "passport-discord": "^0.1.4",
     "passport-facebook": "^3.0.0",
     "redis": "^4.0.6",
     "seedrandom": "^3.0.5",

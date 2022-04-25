@@ -128,8 +128,16 @@ async cleanup(){
 
     return this._pushQueue(fileName, { type:'put', args });
   }
+  /***
+   * 
+   * 
+   * federated logins - getting the player and token from ids
+   */
    getPlayerIDFromFB(fbid){
     return this._getPlayerIDFromFB(fbid);
+  }
+  getPlayerIDFromDC(discordid){
+    return this._getPlayerIDFromDC(discordid);
   }
   /*
    * Pretend the file was deleted if it does not exist.
@@ -198,6 +206,8 @@ async cleanup(){
        
           if(data.fbid)
           redisDB.sadd("fbid:"+data.fbid, pname.substring(7)); 
+          if(data.discordid)
+          redisDB.sadd("discordid:"+data.discordid, pname.substring(7)); 
         resolve(data);
         
       });
@@ -210,6 +220,16 @@ async cleanup(){
   );
   }
 })}
+_getPlayerIDFromDC(discordid){
+  return new Promise((resolve, reject) => {
+    redisDB.smembers("discordid:"+fbid).then(members=>{
+   if(members.length)
+   resolve(members[0]);
+   else
+   resolve();
+ })});
+
+}
   _getPlayerIDFromFB(fbid){
     
     return new Promise((resolve, reject) => {
