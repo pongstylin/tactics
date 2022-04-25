@@ -1,5 +1,5 @@
 
-import https from 'https';
+import http from 'http';
 import express from 'express';
 import morgan from 'morgan';
 import { WebSocketServer } from 'ws';
@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import passport from 'passport';
 import 'plugins/index.js';
 import fbauth from 'server/fbauth.js'
+import dcauth from 'server/discordauth.js'
 import config from 'config/server.js';
 import { onConnect, onShutdown } from 'server/router.js';
 import services, { servicesReady } from 'server/services.js';
@@ -21,13 +22,14 @@ import serializer from 'utils/serializer.js';
 
 
 fbauth();
+dcauth();
 const key = fs.readFileSync("localhost-key.pem", "utf-8");
 const cert = fs.readFileSync("localhost.pem", "utf-8");
 
 const PORT     = process.env.PORT;
 const app      = express();
-const server   = https.createServer({key,cert},app);
-const wss      = new WebSocketServer({server});
+const server   = http.createServer(app);
+const wss      = new WebSocketServer({server:server,path:"/ws"});
 const request  = DebugLogger('server:request');
 const response = DebugLogger('server:response');
 const report   = DebugLogger('server:report');
@@ -139,10 +141,12 @@ app.get('/auth/facebook/callback',
     
     // Following above examples getting the authservice to being registration process
       const authService = services.get('auth');
+      console.log(req.user);
+      console.log(req.profile);
     // request should have a user object which contains fb id and name: req.user.id req.user.displayName
-    authService.onDiscordAuthorization(req.user,{dcUserData:req.user.id}).then(dctoken=>{
+    authService.onDiscordAuthorization(req.user,{dcUserData:req.profile.id}).then(dctoken=>{
           if(!dctoken)
-          authService.onRegisterRequest(req.user,{name:req.user.displayName,discordid:req.user.id}).then(token=>
+          authService.onRegisterRequest(req.user,{name:req.profile.displayName,discordid:req.profile.id}).then(token=>
           {
            token  = zlib.gzipSync(JSON.stringify(serializer.transform(token)));
             res.redirect('/online.html?id='+token.toString("hex"));

@@ -14,7 +14,7 @@ export default  function() {
  
   var scopes = ['identify', 'email', 'guilds', 'guilds.join'];
  
-  passport.use(new DiscordStrategy({
+  passport.use(new Strategy({
       clientID: process.env['DISCORD_CLIENT_ID'],
       clientSecret: process.env['DISCORD_CLIENT_SECRET'],
       callbackURL: 'https://tactics-edge.taorankings.com/auth/discord/callback',
@@ -22,7 +22,7 @@ export default  function() {
   },
   function(accessToken, refreshToken, profile, cb) {
       
-          return cb(err, user);
+          return cb(err, profile);
       
   }));
     

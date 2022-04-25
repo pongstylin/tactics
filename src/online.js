@@ -9,7 +9,7 @@ import unitFactory from 'tactics/unitFactory.js';
 import Autosave from 'components/Autosave.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
 import LobbySettingsModal from 'components/Modal/LobbySettings.js';
-
+import * as PIXI from 'pixi.js';
 
 // We will be fetching the updates games list from the server on this interval
 const GAMES_FETCH_INTERVAL = 5 * 1000;
@@ -2297,3 +2297,4 @@ async function fetchGames(tabName) {
     return fetchGames(tabName);
   });
 }
+
