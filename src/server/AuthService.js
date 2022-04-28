@@ -30,6 +30,7 @@ export default class AuthService extends Service {
 
         addDevice: [ IdentityToken ],
         getDevices: [],
+        getFederated:[],
         setDeviceName: [ 'uuid', 'string | null' ],
         removeDevice: [ 'uuid' ],
 
@@ -113,11 +114,12 @@ export default class AuthService extends Service {
 async onFBAuthorization(client,{fbUserData}){
   //get the player id
   
- const player = await this.data.getPlayerID({fbid:fbUserData});
+ let player = await this.data.getPlayerID({fbid:fbUserData});
  if(player){
   const devl = player.addDevice(client);
   return player.createAccessToken(devl.id);
  }
+// if no player is found but we are logged in then link the accounts
 
  return null;
 }
@@ -193,7 +195,11 @@ async onSynctokenRequest(client, id){
 
     return player.getIdentityToken();
   }
-
+onGetFederatedRequest(client){
+  const clientPara = this.clientPara.get(client.id);
+  const player = this.data.getOpenPlayer(clientPara.playerId);
+  return {facebook: player.fbid ? true:false, discord: player.discordid ? true:false};
+}
   onGetDevicesRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');

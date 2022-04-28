@@ -87,6 +87,9 @@ onSyncToken(id){
   getDevices() {
     return this._server.requestAuthorized(this.name, 'getDevices');
   }
+  getFederated() {
+    return this._server.requestAuthorized(this.name, 'getFederated');
+  }
   addDevice(identityToken) {
     let promise;
     if (this.token)

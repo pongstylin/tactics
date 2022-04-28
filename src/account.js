@@ -9,7 +9,7 @@ let accountNameAutosave;
 let identityToken;
 let devices;
 let acl;
-
+let federatedlogins;
 window.addEventListener('DOMContentLoaded', () => {
   let notice;
   if (navigator.onLine === false)
@@ -64,6 +64,9 @@ function renderPage() {
     authClient.getDevices().then(data => {
       devices = data;
     }),
+    authClient.getFederated().then(data => {
+      federatedlogins = data;
+    }),
     authClient.getACL().then(data => {
       acl = data;
       for (const playerACL of acl.values()) {
@@ -74,11 +77,28 @@ function renderPage() {
     renderACL();
     renderManageLink();
     renderDeviceList();
+    renderFederated();
 
     document.querySelector('.page').style.display = '';
   });
 }
 
+function renderFederated(){
+  const hasFederated = Object.values(federatedlogins).some(p=>p)
+  const localSecurity = document.querySelector(".localsecurity");
+  const facebook = document.querySelector(".facebook");
+  if(hasFederated)
+  {  facebook.childNodes.forEach(p=>facebook.removeChild(p));
+    facebook.appendChild(document.createElement("span").innerText="Account is linked")
+  }
+  localSecurity.style.display=hasFederated ? "none":"";
+  const btnFBLogin = document.querySelector(".fb-login-button");
+  btnFBLogin.addEventListener("click", function () {
+     location.href="auth/facebook";}
+    
+  );
+  
+}
 function renderACL() {
   const content = [];
   const aclTypes = [ 'muted', 'blocked' ];

@@ -78,7 +78,6 @@
     "morgan": "^1.9.1",
     "nosleep.js": "github:pongstylin/nosleep.js",
     "passport": "^0.5.2",
-    "passport-discord": "^0.1.4",
     "passport-facebook": "^3.0.0",
     "pixi.js": "^6.3.0",
     "redis": "^4.0.6",

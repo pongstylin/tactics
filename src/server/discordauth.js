@@ -1,5 +1,5 @@
 import passport from 'passport';
-import Strategy from 'passport-discord';
+import Strategy from 'passport-discord-token';
 
 
 export default  function() {
@@ -17,8 +17,8 @@ export default  function() {
   passport.use(new Strategy({
       clientID: process.env['DISCORD_CLIENT_ID'],
       clientSecret: process.env['DISCORD_CLIENT_SECRET'],
-      callbackURL: 'https://tactics-edge.taorankings.com/auth/discord/callback',
-      scope: scopes
+      callbackURL: 'https://localhost:2000/auth/discord/callback'
+      
   },
   function(accessToken, refreshToken, profile, cb) {
       
@@ -27,7 +27,7 @@ export default  function() {
   }));
     
   // Configure Passport authenticated session persistence.
-  //
+  //s
   // In order to restore authentication state across HTTP requests, Passport needs
   // to serialize users into and deserialize users out of the session.  In a
   // production-quality application, this would typically be as simple as

@@ -1,5 +1,5 @@
 
-import http from 'http';
+import https from 'https';
 import express from 'express';
 import morgan from 'morgan';
 import { WebSocketServer } from 'ws';
@@ -19,20 +19,22 @@ import AccessToken from 'server/AccessToken.js';
 import zlib from 'zlib';
 import serializer from 'utils/serializer.js';
 
-
-
 fbauth();
-dcauth();
+
 const key = fs.readFileSync("localhost-key.pem", "utf-8");
 const cert = fs.readFileSync("localhost.pem", "utf-8");
-
+const options = {key:key,cert:cert};
 const PORT     = process.env.PORT;
 const app      = express();
-const server   = http.createServer(app);
+const server   = https.createServer(options,app);
 const wss      = new WebSocketServer({server:server,path:"/ws"});
 const request  = DebugLogger('server:request');
 const response = DebugLogger('server:response');
 const report   = DebugLogger('server:report');
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
+const redirect = encodeURIComponent('http://localhost:2000/auth/discord/callback');
+
 
 
 let requestId = 1;
@@ -134,29 +136,45 @@ app.get('/auth/facebook/callback',
   }
 
   );
-  app.get('/auth/discord', passport.authenticate('discord'));
+  app.get('/auth/discord', (req,res)=>{ 
+    res.redirect(`https://discordapp.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&scope=identify&response_type=code&redirect_uri=${redirect}`);
+  });
+  
   app.get('/auth/discord/callback',
     
-    passport.authenticate('discord', { failureRedirect: '/login.html' }), function(req, res) { 
-    
-    // Following above examples getting the authservice to being registration process
-      const authService = services.get('auth');
-      console.log(req.user);
-      console.log(req.profile);
-    // request should have a user object which contains fb id and name: req.user.id req.user.displayName
-    authService.onDiscordAuthorization(req.user,{dcUserData:req.profile.id}).then(dctoken=>{
+    function(req, res) { 
+      if (!req.query.code) throw new Error('NoCodeProvided');
+      const code = req.query.code;
+      const creds = `${CLIENT_ID}:${CLIENT_SECRET}`.toString("base64");
+      const response = await fetch(`https://discordapp.com/api/oauth2/token?grant_type=authorization_code&code=${code}&redirect_uri=${redirect}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${creds}`,
+          },
+        });
+      const json = await response.json();
+      if(json.access_token){
+        authService.onDiscordAuthorization(req.user,{dcUserData:req.query.code}).then(dctoken=>{
           if(!dctoken)
-          authService.onRegisterRequest(req.user,{name:req.profile.displayName,discordid:req.profile.id}).then(token=>
+          authService.onRegisterRequest(req.user,{name:req.profile.displayName,discordid:req.query.code}).then(token=>
           {
            token  = zlib.gzipSync(JSON.stringify(serializer.transform(token)));
             res.redirect('/online.html?id='+token.toString("hex"));
           });
           else{
            
-          dctoken  = zlib.gzipSync(JSON.stringify(serializer.transform(FBtoken)));
+          dctoken  = zlib.gzipSync(JSON.stringify(serializer.transform(dctoken)));
             res.redirect('/online.html?id='+dctoken.toString("hex"));
         }  
-        });
+        })
+      }
+      else{
+        res.redirect("/login.html?error=100")
+      }
+      
+    // Following above examples getting the authservice to being registration process
+     
       }
   
     );
@@ -177,12 +195,12 @@ app.use((error, req, res, next) => {
 
 // Don't start listening for connections until services are ready.
 servicesReady.then(() => {
-  server.listen(PORT, () => {
-    console.log('Tactics now running at URL: http://localhost:'+PORT);
-    console.log('');
+    server.listen(PORT, () => {
+      console.log('Tactics now running at URL: http://localhost:'+PORT);
+      console.log('');
 
-    wss.on('connection', onConnect);
-  });
+      wss.on('connection', onConnect);
+    });
 });
 
 /*
