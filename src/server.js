@@ -1,5 +1,5 @@
 
-import https from 'https';
+import http from 'http';
 import express from 'express';
 import morgan from 'morgan';
 import { WebSocketServer } from 'ws';
@@ -9,7 +9,6 @@ import * as fs from 'fs';
 import passport from 'passport';
 import 'plugins/index.js';
 import fbauth from 'server/fbauth.js'
-import dcauth from 'server/discordauth.js'
 import config from 'config/server.js';
 import { onConnect, onShutdown } from 'server/router.js';
 import services, { servicesReady } from 'server/services.js';
@@ -18,7 +17,8 @@ import ServerError from 'server/Error.js';
 import AccessToken from 'server/AccessToken.js';
 import zlib from 'zlib';
 import serializer from 'utils/serializer.js';
-
+import axios from 'axios';
+import FormData from 'form-data';
 fbauth();
 
 const key = fs.readFileSync("localhost-key.pem", "utf-8");
@@ -26,16 +26,14 @@ const cert = fs.readFileSync("localhost.pem", "utf-8");
 const options = {key:key,cert:cert};
 const PORT     = process.env.PORT;
 const app      = express();
-const server   = https.createServer(options,app);
+const server   = http.createServer(app);
 const wss      = new WebSocketServer({server:server,path:"/ws"});
 const request  = DebugLogger('server:request');
 const response = DebugLogger('server:response');
 const report   = DebugLogger('server:report');
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
-const redirect = encodeURIComponent('http://localhost:2000/auth/discord/callback');
-
-
+const redirect = encodeURIComponent('https://tactics-edge.taorankings.com/auth/discord/callback');
 
 let requestId = 1;
 
@@ -114,7 +112,7 @@ app.get('/auth/facebook', passport.authenticate('facebook'));
 app.get('/auth/facebook/callback',
   
   passport.authenticate('facebook', { failureRedirect: '/login.html' }), function(req, res) { 
-  console.log("success"); 
+  
   // Following above examples getting the authservice to being registration process
     const authService = services.get('auth');
   // request should have a user object which contains fb id and name: req.user.id req.user.displayName
@@ -131,33 +129,42 @@ app.get('/auth/facebook/callback',
           res.redirect('/online.html?id='+FBtoken.toString("hex"));
       }  
       });
-     
-      
-  }
-
-  );
+      }  );
   app.get('/auth/discord', (req,res)=>{ 
-    res.redirect(`https://discordapp.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&scope=identify&response_type=code&redirect_uri=${redirect}`);
+    res.redirect(`https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=https%3A%2F%2Ftactics-edge.taorankings.com%2Fauth%2Fdiscord%2Fcallback&response_type=code&scope=identify%20email%20guilds`);
   });
   
   app.get('/auth/discord/callback',
     
-    function(req, res) { 
-      if (!req.query.code) throw new Error('NoCodeProvided');
-      const code = req.query.code;
-      const creds = `${CLIENT_ID}:${CLIENT_SECRET}`.toString("base64");
-      const response = await fetch(`https://discordapp.com/api/oauth2/token?grant_type=authorization_code&code=${code}&redirect_uri=${redirect}`,
-        {
-          method: 'POST',
+  (req,res)=>{
+    if (!req.query.code) throw new Error('NoCodeProvided');
+     //got the code now need the access and token at which point we can then get the userid/uniqid
+    const code = req.query.code;
+       const data = new FormData();
+  data.append('client_id', DISCORD_CLIENT_ID);
+   data.append('client_secret', DISCORD_CLIENT_SECRET);
+ 
+   data.append('grant_type', 'authorization_code');
+   data.append('redirect_uri', `https://tactics-edge.taorankings.com/auth/discord/callback`);
+   data.append('scope', 'identify');
+   data.append('code',code);
+   axios.post('https://discord.com/api/oauth2/token', data).then((req) =>{ 
+        
+       if(req.data.access_token){
+        axios.get(`https://discordapp.com/api/users/@me`, {
           headers: {
-            Authorization: `Basic ${creds}`,
-          },
-        });
-      const json = await response.json();
-      if(json.access_token){
-        authService.onDiscordAuthorization(req.user,{dcUserData:req.query.code}).then(dctoken=>{
+              "Authorization": `Bearer ${req.data.access_token}`,
+              "Content-Type": "application/x-www-form-urlencoded" 
+          }
+      })
+      .then(function(response) {
+         
+          let dctoken = response.data.id;
+          const authService = services.get('auth');
+          authService.onDiscordAuthorization(response.data,{dcUserData:dctoken}).then(dctoken=>{
+        
           if(!dctoken)
-          authService.onRegisterRequest(req.user,{name:req.profile.displayName,discordid:req.query.code}).then(token=>
+          authService.onRegisterRequest(response.data,{name:response.data.username,discordid:dctoken}).then(token=>
           {
            token  = zlib.gzipSync(JSON.stringify(serializer.transform(token)));
             res.redirect('/online.html?id='+token.toString("hex"));
@@ -167,23 +174,24 @@ app.get('/auth/facebook/callback',
           dctoken  = zlib.gzipSync(JSON.stringify(serializer.transform(dctoken)));
             res.redirect('/online.html?id='+dctoken.toString("hex"));
         }  
-        })
+          
+      })})
+      .catch(function(err) {
+          console.log(err);
+      });
       }
       else{
         res.redirect("/login.html?error=100")
       }
-      
-    // Following above examples getting the authservice to being registration process
-     
-      }
-  
-    );
+    } 
+      );}
+   );
            
   
 app.use(express.static('static'));
 
 app.use((error, req, res, next) => {
-  if (error instanceof ServerError)
+  if(error instanceof ServerError)
     return res.status(error.code).send({ error });
 
   res.status(500).send({ error:{

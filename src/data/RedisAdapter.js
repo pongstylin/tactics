@@ -222,7 +222,7 @@ async cleanup(){
 })}
 _getPlayerIDFromDC(discordid){
   return new Promise((resolve, reject) => {
-    redisDB.smembers("discordid:"+fbid).then(members=>{
+    redisDB.smembers("discordid:"+discordid).then(members=>{
    if(members.length)
    resolve(members[0]);
    else
