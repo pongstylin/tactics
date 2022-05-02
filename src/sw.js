@@ -176,6 +176,10 @@ self.addEventListener('fetch', event => {
    * Do not handle requests to domains relating to google translation
    * TODO: Use a whitelist, instead.
    */
+  let discordPattern = /discord/i;
+  
+  if(discordPattern.test(request.url))
+    return;
   if (request.url.startsWith('https://translate.google.com/'))
     return;
   if (request.url.startsWith('https://www.gstatic.com/'))
@@ -195,18 +199,24 @@ self.addEventListener('fetch', event => {
    */
   if (request.method !== 'GET')
     return;
-
+  
+    
   event.respondWith(
     getCache(url).then(([cache, cachedResponse]) => {
       // Return cached response (unless it is a localhost URL)
-      if (cachedResponse && (ENVIRONMENT !== 'development' || !url.startsWith('http://localhost:')))
-        return cachedResponse;
+      
 
       let fetchPromise;
+      
+      
+      let gstaticPattern = /gstatic/i;
+      let googlePattern = /googleapis/i;
+      
+      const getFresh = googlePattern.test(url)||gstaticPattern.test(url);
+      if (cachedResponse && (ENVIRONMENT !== 'development' || !url.startsWith('http://localhost:')) && !getFresh)
+        return cachedResponse;
       // Google Fonts API disallows CORS requests.
-      if (url.startsWith('https://fonts.googleapis.com/css'))
-        fetchPromise = fetch(request);
-      else if (url.startsWith('https://fonts.gstatic.com/'))
+      else if (getFresh)
         fetchPromise = fetch(request);
       else
         fetchPromise = fetch(url, OPTIONS);

@@ -19,6 +19,7 @@ import zlib from 'zlib';
 import serializer from 'utils/serializer.js';
 import axios from 'axios';
 import FormData from 'form-data';
+
 fbauth();
 
 const key = fs.readFileSync("localhost-key.pem", "utf-8");
@@ -158,7 +159,7 @@ app.get('/auth/facebook/callback',
           }
       })
       .then(function(response) {
-         
+       
           let dctoken = response.data.id;
           const authService = services.get('auth');
           authService.onDiscordAuthorization(response.data,{dcUserData:dctoken}).then(dctoken=>{
@@ -184,7 +185,9 @@ app.get('/auth/facebook/callback',
         res.redirect("/login.html?error=100")
       }
     } 
-      );}
+      ).catch(function(err) {
+        console.log(err);
+    });}
    );
            
   
