@@ -648,6 +648,7 @@
     "alpha12",
     {
       "name": "Twelve Clouds",
+      "archived": true,
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
@@ -804,6 +805,106 @@
             { "assignment":[5, 3], "type":"GolemAmbusher" },
             { "assignment":[6, 3], "type":"Berserker" }
           ]
+      }]
+    }
+  ],
+  [
+    "alphaScout",
+    {
+      "name": "Ninja Turtles",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "rules": {
+          "oneSide": 6
+        },
+        "units": {
+          "max": 10,
+
+          "types": [
+            [
+              "Cleric",
+              {
+                "required": 0,
+                "max": 1
+              }
+            ],
+            [
+              "Scout",
+              {
+                "required": 4,
+                "max": 5,
+                "tiles": { "start":[0,0], "end":[10,3] }
+              }
+            ],
+            [
+              "PoisonWisp",
+              {
+                "required": 0,
+                "max": 1
+              }
+            ],
+            [
+              "DragonTyrant",
+              {
+                "required": 1,
+                "max": 1,
+                "size": 2,
+                "tiles": { "start":[0,0], "end":[10,3] }
+              }
+            ],
+            [
+              "FrostGolem",
+              {
+                "required": 0,
+                "max": 1
+              }
+            ],
+            [
+              "StoneGolem",
+              {
+                "max": 1,
+                "required": 1,
+                "rules": {
+                  "maxStone": true
+                },
+                "tiles": [
+                  { "start":[0,0], "end":[10,0] },
+                  [1,1],
+                  [9,1]
+                ]
+              }
+            ],
+            [
+              "Furgon",
+              {
+                "required": 0,
+                "max": 1
+              }
+            ],
+            [
+              "Berserker",
+              {
+                "required": 0,
+                "max": 1
+              }
+            ]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[4, 0], "type":"StoneGolem" },
+          { "assignment":[3, 0], "type":"Cleric" },
+          { "assignment":[5, 1], "type":"Scout" },
+          { "assignment":[4, 1], "type":"Scout" },
+          { "assignment":[3, 1], "type":"Scout" },
+          { "assignment":[5, 2], "type":"Furgon" },
+          { "assignment":[4, 2], "type":"Scout" },
+          { "assignment":[3, 2], "type":"PoisonWisp" },
+          { "assignment":[4, 3], "type":"DragonTyrant" }
+        ]
       }]
     }
   ]

@@ -32,7 +32,7 @@ const styles = new Map([
   [ 'delta',            'Delta Force' ],
   [ 'moderator',        'Moderator' ],
   [ 'mob',              'Mob' ],
-  [ 'alpha12',          'Twelve Clouds' ],
+  [ 'alphaScout',       'Ninja Turtles' ],
 ]);
 
 const groups = new Map([
