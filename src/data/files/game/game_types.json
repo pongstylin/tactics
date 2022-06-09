@@ -754,6 +754,7 @@
     "mob",
     {
       "name": "Mob",
+      "archived": true,
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,3] },
@@ -904,6 +905,100 @@
           { "assignment":[4, 2], "type":"Scout" },
           { "assignment":[3, 2], "type":"PoisonWisp" },
           { "assignment":[4, 3], "type":"DragonTyrant" }
+        ]
+      }]
+    }
+  ],
+  [
+    "jenkinsRush",
+    {
+      "name": "Jenkins Jamboree",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,4], "end":[10,4] },
+        "units": {
+          "max": 10,
+
+          "types": [
+            ["Scout",             { "max":2  }],
+            ["Assassin",          { "max":10 }],
+            ["Knight",            { "max":3  }],
+            ["Pyromancer",        { "max":10 }],
+            ["Enchantress",       { "max":10 }],
+            ["DarkMagicWitch",    { "max":10 }],
+            ["LightningWard",     { "max":1  }],
+            ["MudGolem",          { "max":10 }],
+            ["PoisonWisp",        { "max":1  }],
+            ["FrostGolem",        { "max":10 }],
+            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["Furgon",            { "max":1  }],
+            ["DragonspeakerMage", { "max":1  }],
+            ["BeastRider",        { "max":10 }],
+            ["GolemAmbusher",     { "max":1  }],
+            ["Berserker",         { "max":1  }]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[1, 4], "type":"Scout" },
+          { "assignment":[2, 4], "type":"Pyromancer", "mPower":12 },
+          { "assignment":[3, 4], "type":"Knight" },
+          { "assignment":[4, 4], "type":"DragonTyrant", "mPower":-24 },
+          { "assignment":[5, 4], "type":"Knight" },
+          { "assignment":[6, 4], "type":"MudGolem" },
+          { "assignment":[7, 4], "type":"Knight" },
+          { "assignment":[8, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[9, 4], "type":"Scout" }
+        ]
+      }]
+    }
+  ],
+  [
+    "tao100",
+    {
+      "name": "TAO 100",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "units": {
+          "max": 100,
+          "types": [
+            ["Scout",             { "max":1, "size":10 }],
+            ["Assassin",          { "max":1, "size":8 }],
+            ["Knight",            { "max":1, "size":10 }],
+            ["Cleric",            { "max":1, "size":14 }],
+            ["StoneGolem",        { "max":1, "size":14 }],
+            ["Pyromancer",        { "max":1, "size":6 }],
+            ["Enchantress",       { "max":1, "size":6 }],
+            ["DarkMagicWitch",    { "max":1, "size":8 }],
+            ["BarrierWard",       { "max":1, "size":6 }],
+            ["LightningWard",     { "max":1, "size":10 }],
+            ["MudGolem",          { "max":1, "size":12 }],
+            ["PoisonWisp",        { "max":1, "size":12 }],
+            ["FrostGolem",        { "max":1, "size":12 }],
+            ["DragonTyrant",      { "max":1, "size":16 }],
+            ["Furgon",            { "max":1, "size":12 }],
+            ["DragonspeakerMage", { "max":1, "size":10 }],
+            ["BeastRider",        { "max":1, "size":10 }],
+            ["GolemAmbusher",     { "max":1, "size":10 }],
+            ["Berserker",         { "max":1, "size":8 }]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[1, 4], "type":"GolemAmbusher" },
+          { "assignment":[2, 4], "type":"Knight" },
+          { "assignment":[4, 4], "type":"MudGolem" },
+          { "assignment":[5, 4], "type":"LightningWard" },
+          { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[8, 4], "type":"BeastRider" },
+          { "assignment":[9, 4], "type":"Berserker" }
         ]
       }]
     }
