@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "1.6000.19",
+  "version": "1.601.19",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
