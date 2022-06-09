@@ -1421,70 +1421,63 @@ export default class GameService extends Service {
       return this.auth.getPlayer(playerId);
   }
 
-  async _resolveTeamsSets(game, gameType, teams) {
-    /*
-     * Resolve default sets before resolving opponent sets
-     */
-    const opponentSetTeams = [];
+  /*
+   * Designed to be run against the same game multiple times.  This is necessary
+   * since sets may need to be resolved every time somebody joins the game.  This
+   * ensures that sets are what the player expects at the time the game is created
+   * and is not affected by further changing of their sets before game starts.
+   */
+  async _resolveTeamsSets(game, gameType) {
+    const joinedTeams = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt);
+    const firstTeam = joinedTeams[0];
 
-    for (const team of teams) {
-      if (!team)
-        continue;
-
-      if (!gameType.isCustomizable || team.set === null)
-        team.set = gameType.getDefaultSet();
-      else if (typeof team.set === 'object' && !team.set.units)
-        team.set = await this.data.getPlayerSet(team.playerId, gameType, team.set.name);
-      else if (team.set === 'same')
-        opponentSetTeams.push(team);
-      else if (team.set === 'mirror')
-        opponentSetTeams.push(team);
-
-      // Avoid saving some fields in the game data
-      if (typeof team.set === 'object')
-        team.set = { units:team.set.units };
-    }
-
-    if (opponentSetTeams.length) {
-      const opponentSet = teams.find(t => typeof t?.set !== 'string').set;
-      for (const team of opponentSetTeams) {
-        if (team.set === 'same')
-          team.set = {
-            via: 'same',
-            ...opponentSet,
-          };
-        else if (team.set === 'mirror') {
-          if (Object.keys(opponentSet).length !== 1)
-            throw new ServerError(501, 'Unsupported keys in set');
-
-          team.set = {
-            via: 'mirror',
-            units: opponentSet.units.map(u => {
-              const unit = {...u};
-              unit.assignment = [...unit.assignment];
-              unit.assignment[0] = 10 - unit.assignment[0];
-              if (unit.direction === 'W')
-                unit.direction = 'E';
-              else if (unit.direction === 'E')
-                unit.direction = 'W';
-              return unit;
-            }),
-          };
-        }
+    const resolve = async team => {
+      if (!gameType.isCustomizable || team.set === null) {
+        const set = gameType.getDefaultSet();
+        team.set = { units:set.units };
+      } else if (team.set?.name !== undefined) {
+        const set = await this.data.getPlayerSet(team.playerId, gameType, team.set.name);
+        team.set = { units:set.units };
+      } else if (team.set === 'same') {
+        team.set = {
+          via: 'same',
+          ...firstTeam.set,
+        };
+      } else if (team.set === 'mirror') {
+        team.set = {
+          via: 'mirror',
+          units: firstTeam.set.units.map(u => {
+            const unit = { ...u };
+            unit.assignment = [ ...unit.assignment ];
+            unit.assignment[0] = 10 - unit.assignment[0];
+            if (unit.direction === 'W')
+              unit.direction = 'E';
+            else if (unit.direction === 'E')
+              unit.direction = 'W';
+            return unit;
+          }),
+        };
       }
-    }
+    };
+
+    /*
+     * Resolve the first team set first since this is used to resolve 'same' and
+     * 'mirror' sets after.
+     */
+    await resolve(firstTeam);
+    await Promise.all(joinedTeams.slice(1).map(t => resolve(t)));
   }
   async _joinGame(game, gameType, team) {
-    const teams = game.state.teams;
-
     game.state.join(team);
+
+    await this._resolveTeamsSets(game, gameType);
 
     /*
      * If no open slots remain, start the game.
      */
-    if (teams.findIndex(t => !t?.joinedAt) === -1) {
-      await this._resolveTeamsSets(game, gameType, teams);
+    const teams = game.state.teams;
 
+    if (teams.findIndex(t => !t?.joinedAt) === -1) {
       const players = new Map(teams.map(t => [ t.playerId, t.name ]));
       if (players.size > 1)
         await this.chat.createRoom(

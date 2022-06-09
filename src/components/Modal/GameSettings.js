@@ -24,7 +24,7 @@ export default class GameSettings extends Modal {
       timeLimit === 86400 ? '1 Day' :
       timeLimit === 604800 ? '1 Week' : 'None';
 
-    const showLocalize = timeLimit !== 30 && 'localize' in data.game.state;
+    const showLocalize = timeLimit !== null && timeLimit !== 30 && 'localize' in data.game.state;
 
     options.title = 'Game Settings';
     options.content = `

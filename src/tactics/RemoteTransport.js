@@ -282,7 +282,17 @@ export default class RemoteTransport extends Transport {
       board.applyAction(action);
     };
 
-    const turnTimeRemaining = this.getTurnTimeRemaining();
+    const turnTimeLimit = this._data.state.turnTimeLimit;
+    const localize = (
+      // Only localize when the setting is enabled
+      this._localize === true &&
+      // Only localize when NOT a practice game
+      turnTimeLimit !== null &&
+      // Only localize when NOT a blitz game
+      turnTimeLimit !== 30 &&
+      // Only localize when more than 15 seconds remain on the time limit
+      this.getTurnTimeRemaining() > 15000
+    );
 
     /*
      * Find a proto action that must be submitted to the server.
@@ -291,15 +301,10 @@ export default class RemoteTransport extends Transport {
     const remote = protoActions.findIndex(pAction => {
       this._protoActions.push(pAction);
 
-      // Submit all actions to the server if localization isn't enabled.
-      if (this._localize !== true)
+      if (!localize)
         return true;
 
-      // Immediately submit actions to server in blitz games.
-      // Immediately submit actions when less than 15 seconds remain.
-      if (turnTimeRemaining < 15000 || this._data.state.turnTimeLimit === 30)
-        return true;
-
+      // Only localize actions that do NOT immediately end the turn
       if (pAction.type === 'turn' || pAction.type === 'endTurn' || pAction.type === 'surrender')
         return true;
 

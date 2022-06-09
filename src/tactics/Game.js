@@ -1101,12 +1101,15 @@ export default class Game {
     return this;
   }
 
-  delayNotice(notice) {
+  delayNotice(notice, priority = false) {
     const delay = 200;
 
     this.notice = null;
     this._noticeTimeout = setTimeout(() => {
-      this.notice = notice;
+      if (priority)
+        this.drawCard(null, notice);
+      else
+        this.notice = notice;
     }, delay);
   }
 
@@ -1144,7 +1147,7 @@ export default class Game {
     const locked = this.locked;
 
     this.notice = null;
-    this.delayNotice('Sending order...');
+    this.delayNotice('Sending order...', true);
 
     this.lock();
     return this.state.submitAction(this._board.encodeAction(action))
@@ -1624,7 +1627,7 @@ export default class Game {
   }
 
   _startTurn() {
-    let team = this.currentTeam;
+    const team = this.currentTeam;
     let teamMoniker;
 
     if (team.name && this.teams.filter(t => t.name === team.name).length === 1)
@@ -1636,13 +1639,11 @@ export default class Game {
       if (this.hasOneLocalTeam()) {
         this.notice = 'Your Turn!';
         Tactics.playSound('newturn');
-      }
-      else
+      } else
         this.notice = `Go ${teamMoniker}!`;
 
       this.unlock();
-    }
-    else {
+    } else {
       this.delayNotice(`Go ${teamMoniker}!`);
 
       this.lock('readonly');

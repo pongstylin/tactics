@@ -299,9 +299,9 @@ window.addEventListener('DOMContentLoaded', () => {
     location.hash = '#' + tab;
   });
 
-  let getShareGameMessage = async gameId => {
-    let gameData = await gameClient.getGameData(gameId);
-    let gameType = await gameClient.getGameType(gameData.state.type);
+  const getShareGameMessage = async gameId => {
+    const gameData = await gameClient.getGameData(gameId);
+    const gameType = await gameClient.getGameType(gameData.state.type);
 
     let message = `Want to play a ${gameType.name} game`;
     if (gameData.state.turnTimeLimit === 120)
@@ -314,16 +314,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
     return message;
   };
-  let gameClickHandler = async event => {
-    let divGame = event.target.closest('.game');
+  const gameClickHandler = async event => {
+    const divGame = event.target.closest('.game');
     if (!divGame) return;
 
-    let gameId = divGame.id;
-    let link = location.origin + '/game.html?' + gameId;
+    const gameId = divGame.id;
+    const link = location.origin + '/game.html?' + gameId;
 
-    let spnCopy = event.target.closest('.copy');
+    const spnCopy = event.target.closest('.copy');
     if (spnCopy) {
-      let message = await getShareGameMessage(gameId);
+      const message = await getShareGameMessage(gameId);
 
       copy(`${message} ${link}`);
       popup({
@@ -333,9 +333,9 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    let spnShare = event.target.closest('.share');
+    const spnShare = event.target.closest('.share');
     if (spnShare) {
-      let message = await getShareGameMessage(gameId);
+      const message = await getShareGameMessage(gameId);
 
       share({
         title: 'Tactics',
@@ -721,6 +721,7 @@ async function createGame(divArena) {
           onClick: () => createBlocking = 'noluck',
         },
       ],
+      closeOnCancel: false,
     }).whenClosed;
   if (createTimeLimit === 'ask')
     await popup({
@@ -735,6 +736,7 @@ async function createGame(divArena) {
           onClick: () => createTimeLimit = 'blitz',
         },
       ],
+      closeOnCancel: false,
     }).whenClosed;
 
   try {
