@@ -12,7 +12,7 @@ Object.defineProperty(Object, 'merge', {
       else if (value === null || typeof value !== 'object')
         value = item;
       else
-        value.merge(item);
+        value = value.merge(item);
     }
 
     return value;
@@ -28,7 +28,12 @@ Object.defineProperty(Object.prototype, 'merge', {
       return item;
 
     for (const key of Object.keys(item)) {
-      this[key] = Object.merge(this[key], item[key]);
+      if (item[key] === undefined)
+        delete this[key];
+      else if (this[key] === null || typeof value !== 'object')
+        this[key] = item[key];
+      else
+        this[key] = this[key].merge(item[key]);
     }
 
     return this;

@@ -327,27 +327,28 @@ export default class Unit {
     return calc;
   }
   /*
-   * Attack results must not take prior attack results into consideration.
-   * In other words, if attacking a previous unit removed armored effect from
-   * a following unit, the following unit should still be armored.
+   * An attack might affect multiple targets at the same time.  So, it doesn't
+   * matter if the first target we look at removed armor from the 2nd.  The
+   * 2nd target is hit as if it is still armored.  So, each attack is calculated
+   * as if prior attacks have not yet happened.
    *
-   * But there's a catch.  If attacking a previous unit removed paralysis from
-   * a following unit, and we are adding paralysis to the following unit, then
-   * it should only be paralyzed once - not by both.
+   * But there's a catch.  Attack results DO recognize that previous attacks
+   * have happened.  So, if paralyzing the 1st target removed paralysis from
+   * the 2nd, the 2nd target attack results must recognize that it is not still
+   * paralyzed by the 1st.
    *
-   * If prior attack results are needed, then use the board unit normally.  As
-   * changes are calculated, they are applied to the board unit.  Otherwise,
-   * use the clone of the unit if initial unit state is needed.
+   * This dichotomy is managed by calculating all the attacks first then results
+   * are applied after they are determined for each target.
    */
   getAttackResults(action) {
-    let board = this.board;
-    let cUnits = new Map();
+    const board = this.board;
+    const calcs = this.getTargetUnits(action.target).map(targetUnit => [
+      targetUnit,
+      this.calcAttack(targetUnit, this.assignment, action.target),
+    ]);
 
-    board.teamsUnits.flat().forEach(unit => cUnits.set(unit.id, unit.clone()));
-
-    return this.getTargetUnits(action.target).map(targetUnit => {
-      let cUnit = cUnits.get(targetUnit.id);
-      let result = this.getAttackResult(action, targetUnit, cUnit);
+    return calcs.map(([targetUnit, calc]) => {
+      const result = this.getAttackResult(action, targetUnit, calc);
       board.applyActionResults([result]);
       this.getAttackSubResults(result);
       return result;
@@ -357,9 +358,9 @@ export default class Unit {
    * The default behavior for this method is appropriate for melee and magic
    * attacks and healing, but units with other attacks should override this.
    */
-  getAttackResult(action, unit, cUnit) {
-    let result = { unit };
-    let calc = this.calcAttack(cUnit, this.assignment, action.target);
+  getAttackResult(action, unit, calc) {
+    const result = { unit };
+    calc ??= this.calcAttack(unit, this.assignment, action.target);
 
     if (calc.miss === 'immune') {
       result.miss = 'immune';
@@ -374,19 +375,20 @@ export default class Unit {
       random = this.team.random();
 
       result.luck = Object.assign({ chance:calc.chance }, random);
-    }
-    else
+    } else
       random = { number:50 };
 
     if (random.number < calc.chance) {
       result.damage = calc.damage;
       result.changes = {};
-      result.changes.mHealth = Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage));
-
+      if (result.damage)
+        result.changes.mHealth = Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage));
       if (calc.bonus)
         result.changes.mBlocking = unit.mBlocking += calc.bonus;
-    }
-    else {
+
+      if (Object.keys(result.changes).length === 0)
+        delete result.changes;
+    } else {
       result.miss = 'blocked';
 
       if (calc.penalty || unit.directional !== false) {
@@ -411,10 +413,10 @@ export default class Unit {
   getAttackSubResults(result) {
     if (result.miss) return;
 
-    let board = this.board;
-    let unit = result.unit;
-    let changes = result.changes;
-    let subResults = result.results || [];
+    const board = this.board;
+    const unit = result.unit;
+    const changes = result.changes;
+    const subResults = result.results || [];
 
     // Most attacks break the focus of focusing units.
     if (unit.focusing) {
@@ -424,7 +426,13 @@ export default class Unit {
         this.aType === 'armor'
       ) return;
 
-      subResults.push(...unit.getBreakFocusResult(true));
+      for (const subResult of unit.getBreakFocusResult(true)) {
+        const foundResult = subResults.find(r => r.unit === subResult.unit);
+        if (foundResult)
+          foundResult.changes.merge(subResult.changes);
+        else
+          subResults.push(subResult);
+      }
     }
 
     if (unit.mHealth === -unit.health) {
@@ -432,12 +440,20 @@ export default class Unit {
         type: 'dropUnit',
         unit,
         attacker: this,
-        addResults: r => subResults.push(...r),
+        addResults: rs => {
+          for (const r of rs) {
+            const index = subResults.findIndex(sr => sr.unit === r.unit);
+            if (index > -1)
+              subResults[index].changes.merge(r.changes);
+            else
+              subResults.push(r);
+          }
+        },
       });
 
       // Remove focus from dead units
       if (unit.paralyzed || unit.poisoned || unit.armored) {
-        let focusingUnits = [
+        const focusingUnits = [
           ...(unit.paralyzed || []),
           ...(unit.poisoned  || []),
           ...(unit.armored   || []),
@@ -445,6 +461,9 @@ export default class Unit {
 
         // All units focusing on this dead unit can stop.
         focusingUnits.forEach(fUnit => {
+          if (fUnit === unit)
+            return;
+
           subResults.push({
             unit: fUnit,
             changes: {
@@ -457,7 +476,7 @@ export default class Unit {
 
         // Stop showing the unit as paralyzed or poisoned
         if (unit.paralyzed || unit.poisoned) {
-          let subChanges = {};
+          const subChanges = {};
           if (unit.paralyzed)
             subChanges.paralyzed = unit.paralyzed = false;
           if (unit.poisoned)
@@ -1645,49 +1664,72 @@ export default class Unit {
    * Certain actions can break certain status effects.
    */
   getBreakAction(action) {
-    let breakAction = { type:'break', unit:this, results:[] };
+    const breakAction = { type:'break', unit:this, results:[] };
 
     // Any action will break focus.
     if (this.focusing)
       breakAction.results.push(this.getBreakFocusResult());
 
     // Any action except turning will break barrier.
-    if (this.barriered && action.type !== 'turn')
-      breakAction.results.push({
-        unit: this,
-        changes: {
-          barriered: false,
-        },
-        results: [
-          ...this.barriered.map(fUnit => ({
-            unit: fUnit,
-            changes: {
-              focusing: fUnit.focusing.length === 1
-                ? false
-                : fUnit.focusing.filter(u => u !== this),
-            },
-          })),
-        ],
-      });
+    if (this.barriered && action.type !== 'turn') {
+      const results = [];
+      for (const fUnit of this.barriered) {
+        // Skip if the unit barriered itself
+        if (fUnit === this)
+          continue;
+
+        results.push({
+          unit: fUnit,
+          changes: {
+            focusing: fUnit.focusing.length === 1
+              ? false
+              : fUnit.focusing.filter(u => u !== this),
+          },
+        });
+      }
+
+      // If none, it means we broke our own barrier
+      if (results.length) {
+        const result = breakAction.results.find(r => r.unit === this);
+        const changes = { barriered:false };
+        if (result) {
+          result.changes.merge(changes);
+          if (result.results)
+            result.results.push(...results);
+          else
+            result.results = results;
+        } else
+          breakAction.results.push({ unit:this, changes, results });
+      }
+    }
 
     // Only moving breaks poison
-    if (this.poisoned && action.type === 'move')
-      breakAction.results.push({
-        unit: this,
-        changes: {
-          poisoned: false,
-        },
-        results: [
-          ...this.poisoned.map(fUnit => ({
-            unit: fUnit,
-            changes: {
-              focusing: fUnit.focusing.length === 1
-                ? false
-                : fUnit.focusing.filter(u => u !== this),
-            },
-          })),
-        ],
-      });
+    if (this.poisoned && action.type === 'move') {
+      const results = [];
+      for (const fUnit of this.poisoned) {
+        results.push({
+          unit: fUnit,
+          changes: {
+            focusing: fUnit.focusing.length === 1
+              ? false
+              : fUnit.focusing.filter(u => u !== this),
+          },
+        });
+      }
+
+      if (results.length) {
+        const result = breakAction.results.find(r => r.unit === this);
+        const changes = { poisoned:false };
+        if (result) {
+          result.changes.merge(changes);
+          if (result.results)
+            result.results.push(...results);
+          else
+            result.results = results;
+        } else
+          breakAction.results.push({ unit:this, changes, results });
+      }
+    }
 
     if (breakAction.results.length === 0)
       return null;
@@ -1704,7 +1746,7 @@ export default class Unit {
     return null;
   }
   validateMoveAction(validate) {
-    let action = { type:'move', unit:validate.unit };
+    const action = { type:'move', unit:validate.unit };
 
     if (validate.direction && this.directional === false)
       return null;
@@ -1712,22 +1754,21 @@ export default class Unit {
     if (!validate.assignment)
       return null;
 
-    let tiles = this.getMoveTiles();
+    const tiles = this.getMoveTiles();
     if (!tiles.find(tile => tile === validate.assignment))
       return null;
 
     action.assignment = validate.assignment;
 
     if (this.directional !== false) {
-      let board = this.board;
+      const board = this.board;
       let direction;
       if (this.mType === 'path') {
-        let path = board.findPath(this, action.assignment);
+        const path = board.findPath(this, action.assignment);
         path.unshift(this.assignment);
 
         direction = board.getDirection(path[path.length-2], path[path.length-1]);
-      }
-      else
+      } else
         direction = board.getDirection(this.assignment, action.assignment, this.direction);
 
       if (validate.direction && validate.direction !== direction)
@@ -1739,7 +1780,7 @@ export default class Unit {
     return action;
   }
   validateAttackAction(validate) {
-    let action = { type:'attack', unit:validate.unit };
+    const action = { type:'attack', unit:validate.unit };
 
     if (validate.direction && this.directional === false)
       return null;
@@ -1752,26 +1793,24 @@ export default class Unit {
       // Not opinionated on presence or absense of 'direction'
       if (validate.direction)
         action.direction = validate.direction;
-    }
-    else {
+    } else {
       // Tile data is required when not attacking all tiles.
       if (!validate.target)
         return null;
 
-      let tiles = this.getAttackTiles();
+      const tiles = this.getAttackTiles();
       if (!tiles.find(tile => tile === validate.target))
         return null;
 
       if (validate.direction) {
-        let direction = this.board.getDirection(this.assignment, validate.target);
+        const direction = this.board.getDirection(this.assignment, validate.target);
         if (direction.indexOf(validate.direction) === -1)
           return null;
 
         if (validate.direction !== this.direction)
-          action.direction = direction;
-      }
-      else if (this.directional !== false) {
-        let direction = this.board.getDirection(this.assignment, validate.target, this.direction);
+          action.direction = validate.direction;
+      } else if (this.directional !== false) {
+        const direction = this.board.getDirection(this.assignment, validate.target, this.direction);
         if (direction !== this.direction)
           action.direction = direction;
       }
@@ -1833,7 +1872,7 @@ export default class Unit {
   }
 
   toJSON() {
-    let state = {
+    const state = {
       type: this.type,
       assignment: this.assignment && this.assignment.toJSON(),
     };
@@ -1848,12 +1887,12 @@ export default class Unit {
       state.direction = this.direction;
 
     if (this.team) {
-      let colorId = reverseColorMap.get(this.color);
+      const colorId = reverseColorMap.get(this.color);
       if (colorId !== this.team.colorId)
         state.colorId = colorId;
     }
 
-    let properties = [
+    const properties = [
       'disposition',
       'mHealth',
       'mBlocking',

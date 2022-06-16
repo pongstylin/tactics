@@ -16,23 +16,34 @@ export default class BarrierWard extends Unit {
     };
   }
   getBreakFocusResult(flatten = false) {
-    let result = {
+    const result = {
       unit: this,
       changes: { focusing:false },
     };
-    let subResults = this.focusing.map(tUnit => ({
-      unit: tUnit,
-      changes: {
-        barriered: tUnit.barriered.length === 1
-          ? false
-          : tUnit.barriered.filter(t => t !== this),
-      },
-    }));
+    const subResults = [];
+
+    for (const tUnit of this.focusing) {
+      const subResult = {
+        unit: tUnit,
+        changes: {
+          barriered: tUnit.barriered.length === 1
+            ? false
+            : tUnit.barriered.filter(t => t !== this),
+        },
+      };
+
+      if (tUnit === this)
+        result.changes.merge(subResult.changes);
+      else
+        subResults.push(subResult);
+    }
 
     if (flatten)
-      return [result, ...subResults];
+      return [ result, ...subResults ];
+    else if (subResults.length)
+      return { ...result, results:subResults };
     else
-      return {...result, results:subResults};
+      return result;
   }
   focus(view_only) {
     super.focus(view_only);

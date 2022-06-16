@@ -510,7 +510,7 @@ export default class GameState {
 
       // A turn action immediately ends the turn.
       if (action.type === 'turn')
-        return setEndTurn();
+        return setEndTurn(true);
 
       /*
        * If the unit is unable to continue, end the turn early.
@@ -602,6 +602,40 @@ export default class GameState {
    * ...or the game ends due to draw.
    */
   autoPass() {
+    let {
+      passedTurnLimit,
+      passedTurnCount,
+      attackTurnLimit,
+      attackTurnCount
+    } = this.calcDrawCounts();
+
+    // First turn is always auto passed (unless it is the Chaos challenge)
+    if (this.currentTurnId === 0 && this.type !== 'chaos')
+      this._pushAction(this._getEndTurnAction(true));
+
+    let turnEnded = true;
+    while (turnEnded) {
+      if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit)
+        return 'draw';
+
+      // End the next turn if we can't find one playable unit.
+      turnEnded = !this.currentTeam.units.find(unit => {
+        if (unit.mRecovery) return;
+        if (unit.paralyzed) return;
+        if (unit.type === 'Shrub') return;
+
+        return true;
+      });
+
+      if (turnEnded) {
+        this._pushAction(this._getEndTurnAction(true));
+        passedTurnCount++;
+        attackTurnCount++;
+      }
+    }
+  }
+
+  calcDrawCounts() {
     // If all teams pass their turns 3 times, draw!
     const passedTurnLimit = this.teams.length * 3;
     let passedTurnCount = 0;
@@ -662,35 +696,8 @@ export default class GameState {
       attackTurnCount++;
     }
 
-    /*
-     * With draw counts in place, let's start auto passing turns.
-     * First turn is always auto passed (unless it is the Chaos challenge)
-     */
-    if (this.currentTurnId === 0 && this.type !== 'chaos')
-      this._pushAction(this._getEndTurnAction(true));
-
-    let turnEnded = true;
-    while (turnEnded) {
-      if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit)
-        return 'draw';
-
-      // End the next turn if we can't find one playable unit.
-      turnEnded = !this.currentTeam.units.find(unit => {
-        if (unit.mRecovery) return;
-        if (unit.paralyzed) return;
-        if (unit.type === 'Shrub') return;
-
-        return true;
-      });
-
-      if (turnEnded) {
-        this._pushAction(this._getEndTurnAction(true));
-        passedTurnCount++;
-        attackTurnCount++;
-      }
-    }
+    return { passedTurnLimit, passedTurnCount, attackTurnLimit, attackTurnCount };
   }
-
   getTeamFirstTurnId(team) {
     const numTeams = this.teams.length;
     const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
@@ -1098,7 +1105,15 @@ export default class GameState {
     this._board.trigger({
       type: 'endTurn',
       currentTeam: this.currentTeam,
-      addResults: r => results.push(...r),
+      addResults: addedResults => {
+        for (const addedResult of addedResults) {
+          const result = results.find(r => r.unit === addedResult.unit);
+          if (result)
+            result.changes.merge(addedResult.changes);
+          else
+            results.push(addedResult);
+        }
+      },
     });
 
     // If the player team was killed, he can take over for a bot team.
@@ -1153,18 +1168,18 @@ export default class GameState {
         throw new ServerError(403, "It is not the team's turn");
 
       // The team's timeout must be exceeded.
-      if (this.getTurnTimeRemaining() > 0)
+      if (this.turnTimeLimit && this.getTurnTimeRemaining() > 0)
         throw new ServerError(403, 'The time limit has not been exceeded');
     }
 
     return team;
   }
   _getSurrenderResults(team) {
-    let board = this._board;
+    const board = this._board;
 
     return team.units.map(unit => {
-      let result = { unit, changes:{ mHealth:-unit.health } };
-      let subResults = [];
+      const result = { unit, changes:{ mHealth:-unit.health } };
+      const subResults = [];
 
       // Most attacks break the focus of focusing units.
       if (unit.focusing)
@@ -1172,7 +1187,7 @@ export default class GameState {
 
       // Remove focus from dead units
       if (unit.paralyzed || unit.poisoned || unit.armored || unit.barriered) {
-        let focusingUnits = [
+        const focusingUnits = [
           ...(unit.paralyzed || []),
           ...(unit.poisoned  || []),
           ...(unit.armored   || []),
@@ -1180,18 +1195,29 @@ export default class GameState {
         ];
 
         // All units focusing on this dead unit can stop.
-        subResults.push(...focusingUnits.map(fUnit => ({
-          unit: fUnit,
-          changes: {
-            focusing: fUnit.focusing.length === 1
-              ? false
-              : fUnit.focusing.filter(u => u !== unit),
-          }
-        })));
+        for (const fUnit of focusingUnits) {
+          if (fUnit === unit)
+            continue;
+
+          const subResult = {
+            unit: fUnit,
+            changes: {
+              focusing: fUnit.focusing.length === 1
+                ? false
+                : fUnit.focusing.filter(u => u !== unit),
+            }
+          };
+
+          const index = subResults.findIndex(r => r.unit === fUnit);
+          if (index > -1)
+            subResults[index].changes.merge(subResult.changes);
+          else
+            subResults.push(subResult);
+        }
 
         // Stop showing the unit as paralyzed, poisoned, or barriered
         if (unit.paralyzed || unit.poisoned || unit.barriered) {
-          let subChanges = {};
+          const subChanges = {};
           if (unit.paralyzed)
             subChanges.paralyzed = false;
           if (unit.poisoned)
@@ -1199,10 +1225,16 @@ export default class GameState {
           if (unit.barriered)
             subChanges.barriered = false;
 
-          subResults.push({
+          const subResult = {
             unit: unit,
             changes: subChanges,
-          });
+          };
+
+          const index = subResults.findIndex(r => r.unit === unit);
+          if (index > -1)
+            subResults[index].changes.merge(subResult.changes);
+          else
+            subResults.push(subResult);
         }
       }
 
