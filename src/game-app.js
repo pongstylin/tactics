@@ -1940,7 +1940,7 @@ function toggleUndoButton() {
   clearTimeout(undoTimeout);
 
   const playerRequest = game.state.playerRequest;
-  if (playerRequest.status === 'pending')
+  if (playerRequest?.status === 'pending')
     return $('BUTTON[name=undo]').prop('disabled', true).removeClass('request');
 
   const canUndo = game.canUndo();
