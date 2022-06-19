@@ -47,6 +47,9 @@ export default class Transport {
   get strictUndo() {
     return this._getStateData('strictUndo');
   }
+  get strictFork() {
+    return this._getStateData('strictFork');
+  }
   get autoSurrender() {
     return this._getStateData('autoSurrender');
   }
@@ -165,8 +168,16 @@ export default class Transport {
     if (!bot && !opponent)
       return !!(currentTurnId > 1 || actions.length > 0);
 
-    if (this.endedAt && (!this.forkOf || bot))
-      return false;
+    // Bots will never approve anything that requires approval.
+    // Strict undo also doesn't allow approval for undos.
+    // Once undo was rejected, approval cannot be requested.
+    const approve = (
+      bot ||
+      this.playerRequest?.rejected.has(`${team.playerId}:undo`)
+    ) ? false : 'approve';
+
+    if (this.endedAt)
+      return this.forkOf ? approve : false;
 
     const firstTurnId = this.getTeamFirstTurnId(team);
 
@@ -178,19 +189,8 @@ export default class Transport {
     if (firstTurnId === currentTurnId && actions.length === 0)
       return false;
 
-    // Bots will never approve anything that requires approval.
-    // Strict undo also doesn't allow approval for undos.
-    // Once undo was rejected, approval cannot be requested.
-    const approve = (
-      bot ||
-      this.strictUndo ||
-      this.playerRequest?.rejected.has(`${team.playerId}:undo`)
-    ) ? false : 'approve';
     let requireApproval = false;
     let turnId;
-
-    if (this.endedAt)
-      return approve;
 
     // Determine the turn being undone in whole or in part
     for (turnId = currentTurnId; turnId > -1; turnId--) {
@@ -220,19 +220,29 @@ export default class Transport {
 
       // Require approval if undoing actions made by the opponent team.
       if (turnData.teamId !== team.id) {
+        // ...only allowed for fork games.
+        if (!this.forkOf)
+          return false;
+
         requireApproval = true;
         continue;
       }
+
+      // Can't undo previous turns after 5 seconds unless it is a fork game
+      if (!this.forkOf && turnId < currentTurnId && this.now - actions.last.createdAt > 5000)
+        return false;
 
       // Require approval if the turn time limit was reached.
       if (this.getTurnTimeRemaining(turnId, 5000, this.now) === 0)
         return approve;
 
+      // Require approval if undoing a lucky or old action
       const preservedActionId = this.getPreservedActionId(actions);
       if (preservedActionId === actions.length)
         return approve;
 
-      if (this.strictUndo && !actions.last.isLocal)
+      // If not a fork game, indicate when we will no longer be able to freely undo
+      if (!this.forkOf && (this.strictUndo || turnId < currentTurnId))
         return +actions.last.createdAt + 5000 - this.now;
 
       break;
@@ -275,18 +285,18 @@ export default class Transport {
   getPreservedActionId(actions) {
     const selectedUnitId = actions[0].unit;
 
-    return actions.findLastIndex(action => (
-      // Preserve unit selection in strict mode
+    if (this.strictUndo)
+      // Indirectly preserves unit selection in strict mode
+      // Preserve previous actions in strict mode
       // Preserve old actions in strict mode
-      this.strictUndo && !action.isLocal && (
-        action.type === 'select' ||
-        this.now - action.createdAt > 5000
-      ) ||
-      // Preserve counter-attacks
-      action.unit !== undefined && action.unit !== selectedUnitId ||
-      // Preserve luck-involved attacks
-      !!action.results && !!action.results.find(r => 'luck' in r)
-    )) + 1;
+      return this.now - actions.last.createdAt > 5000 ? actions.length : actions.length - 1;
+    else
+      return actions.findLastIndex(action => (
+        // Preserve counter-attacks
+        action.unit !== undefined && action.unit !== selectedUnitId ||
+        // Preserve luck-involved attacks
+        !!action.results && !!action.results.find(r => 'luck' in r)
+      )) + 1;
   }
   getTeamFirstTurnId(team) {
     const numTeams = this.teams.length;

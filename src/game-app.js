@@ -1152,7 +1152,7 @@ async function showPracticeIntro(gameData) {
   const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
 
   details.innerHTML = `
-    <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+    <DIV>The game style is <I>${gameType.name}</I>.</DIV>
     <DIV>The first team to move is ${person}.</DIV>
     <DIV>The blocking system is ${blocking}.</DIV>
   `;
@@ -1270,7 +1270,7 @@ async function showJoinFork(gameData) {
 
   details.innerHTML = `
     <DIV>This is a fork of <A href="${forkOfURL}" target="_blank">this ${of} and turn</A>.</DIV>
-    <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+    <DIV>The game style is <I>${gameType.name}</I>.</DIV>
     <DIV>The turn time limit is set to ${turnLimit}.</DIV>
     <DIV>The next person to move is ${person}.</DIV>
     <DIV>The blocking system is ${blocking}.</DIV>
@@ -1398,6 +1398,16 @@ async function showJoinIntro(gameData) {
     }
     challenge.innerHTML = message.join('  ');
 
+    let vs;
+    if (gameData.collection === 'public')
+      vs = 'Public';
+    else if (gameData.collection)
+      vs = 'Lobby';
+    else if (gameData.state.strictUndo && gameData.state.strictFork && gameData.state.autoSurrender)
+      vs = 'Tournament';
+    else
+      vs = 'Private';
+
     let turnLimit;
     switch (gameData.state.turnTimeLimit) {
       case 604800:
@@ -1424,7 +1434,8 @@ async function showJoinIntro(gameData) {
     const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
 
     details.innerHTML = `
-      <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+      <DIV>This is a ${vs} game.</DIV>
+      <DIV>The game style is <I>${gameType.name}</I>.</DIV>
       <DIV>The turn time limit is set to ${turnLimit}.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
       <DIV>The blocking system is ${blocking}.</DIV>
@@ -1741,10 +1752,10 @@ async function startGame() {
         timeoutPopup.close();
     })
     .on('resetTimeout', () => setTurnTimeoutClock())
-    .on('playerRequest', ({ data:request }) => updatePlayerRequestPopup(request.status === 'pending'))
-    .on('playerRequest:accept', () => updatePlayerRequestPopup())
-    .on('playerRequest:reject', () => updatePlayerRequestPopup())
-    .on('playerRequest:cancel', () => updatePlayerRequestPopup())
+    .on('playerRequest', ({ data:request }) => updatePlayerRequestPopup('request', request.status === 'pending'))
+    .on('playerRequest:accept', () => updatePlayerRequestPopup('accept'))
+    .on('playerRequest:reject', () => updatePlayerRequestPopup('reject'))
+    .on('playerRequest:cancel', () => updatePlayerRequestPopup('cancel'))
     .on('playerRequest:complete', hidePlayerRequestPopup)
     .on('startSync', () => {
       $('BUTTON[name=play]').hide();
@@ -1803,15 +1814,15 @@ async function startGame() {
     game.play(-1);
 }
 
-function updatePlayerRequestPopup(createIfNeeded = false) {
+function updatePlayerRequestPopup(eventType, createIfNeeded = false) {
   if (game.isViewOnly)
     return;
 
-  if (!playerRequestPopup && !createIfNeeded) {
-    // When a request is rejected, the undo button becomes disabled.
+  if (eventType !== 'accept')
     toggleUndoButton();
+
+  if (!playerRequestPopup && !createIfNeeded)
     return;
-  }
 
   const playerRequest = game.state.playerRequest;
   // Was undo cancelled before we got an update?
@@ -1826,10 +1837,6 @@ function updatePlayerRequestPopup(createIfNeeded = false) {
   const popupData = {
     buttons: [],
     onClose: () => {
-      // When a request is rejected, the undo button becomes disabled.
-      if (playerRequest.type === 'undo')
-        toggleUndoButton();
-
       playerRequestPopup = null;
       $('#app').removeClass('with-playerRequest');
     },
@@ -1932,8 +1939,13 @@ let undoTimeout = null;
 function toggleUndoButton() {
   clearTimeout(undoTimeout);
 
+  const playerRequest = game.state.playerRequest;
+  if (playerRequest.status === 'pending')
+    return $('BUTTON[name=undo]').prop('disabled', true).removeClass('request');
+
   const canUndo = game.canUndo();
   $('BUTTON[name=undo]').prop('disabled', !canUndo);
+  $('BUTTON[name=undo]').toggleClass('request', canUndo === 'approve');
 
   // If we are only able to undo for a limited time, set a timer to disable it.
   if (canUndo && typeof canUndo === 'number')
@@ -1952,7 +1964,7 @@ function toggleReplayButtons() {
 
   $('BUTTON[name=forward]').prop('disabled', atCurrent);
   $('BUTTON[name=end]').prop('disabled', atCurrent);
-  $('BUTTON[name=fork]').prop('disabled', atEnd);
+  $('BUTTON[name=fork]').prop('disabled', (game.state.strictUndo && !game.state.endedAt) || atEnd);
 }
 
 function setCursorAlert() {

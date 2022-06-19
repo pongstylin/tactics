@@ -117,6 +117,7 @@ export default class GameService extends Service {
           'randomFirstTurn?': 'boolean',
           'randomHitChance?': 'boolean',
           'strictUndo?': 'boolean',
+          'strictFork?': 'boolean',
           'autoSurrender?': 'boolean',
           'turnTimeLimit?': `enum([ 'blitz', 'standard', 86400, 604800 ])`,
           'tags?': 'game:tags',
