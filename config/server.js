@@ -67,7 +67,7 @@ export default {
               gameOptions: {
                 defaults: {
                   randomFirstTurn: true,
-                  strictUndo: true,
+                  strictUndo: false,
                   autoSurrender: true,
                   turnTimeLimit: 'standard',
                 },

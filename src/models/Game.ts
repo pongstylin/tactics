@@ -17,6 +17,7 @@ const stateKeys = new Set([
   'randomFirstTurn',
   'randomHitChance',
   'strictUndo',
+  'strictFork',
   'autoSurrender',
   'turnTimeBuffer',
   'turnTimeLimit',
@@ -331,6 +332,9 @@ export default class Game extends ActiveModel {
   }
 
   fork(clientPara, { turnId, vs, as }) {
+    if (this.state.strictFork && !this.state.endedAt)
+      throw new ServerError(403, 'Forking is restricted for this game until it ends.');
+
     const forkGameData = serializer.clone(this.data);
     delete forkGameData.collection;
 
@@ -366,6 +370,9 @@ export default class Game extends ActiveModel {
     forkGameData.id = uuid();
     forkGameData.forkOf = { gameId:this.data.id, turnId:forkGameData.state.currentTurnId };
     forkGameData.state.turnTimeBuffer = null;
+    forkGameData.state.strictUndo = false;
+    forkGameData.state.strictFork = false;
+    forkGameData.state.autoSurrender = false;
 
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
 

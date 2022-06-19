@@ -24,8 +24,6 @@ export default class GameSettings extends Modal {
       timeLimit === 86400 ? '1 Day' :
       timeLimit === 604800 ? '1 Week' : 'None';
 
-    const showLocalize = timeLimit !== null && timeLimit !== 30 && 'localize' in data.game.state;
-
     options.title = 'Game Settings';
     options.content = `
       ${fork}
@@ -44,11 +42,6 @@ export default class GameSettings extends Modal {
           <DIV class="label">Game Speed</DIV>
           <LABEL><INPUT type="radio" name="gameSpeed" value="auto"> Auto</LABEL>
           <LABEL><INPUT type="radio" name="gameSpeed" value="2"> 2x</LABEL>
-        </DIV>
-        <DIV class="row localize"${ showLocalize ? '' : ' style="display:none"' }>
-          <DIV class="label">Localize Actions</DIV>
-          <LABEL><INPUT type="radio" name="localize" value="on"> On</LABEL>
-          <LABEL><INPUT type="radio" name="localize" value="off"> Off</LABEL>
         </DIV>
         <DIV class="row fullscreen">
           <DIV class="label">Full Screen</DIV>
@@ -69,7 +62,6 @@ export default class GameSettings extends Modal {
       modal: this.el.querySelector('.modal'),
       audio: this.el.querySelector('.audio'),
       gameSpeed: this.el.querySelector('.gameSpeed'),
-      localized: this.el.querySelector('.localized'),
       fullscreen: this.el.querySelector('.fullscreen'),
       barPosition: this.el.querySelector('.barPosition'),
     };
@@ -82,9 +74,6 @@ export default class GameSettings extends Modal {
           break;
         case 'gameSpeed':
           this.setGameSpeed(event.target.value);
-          break;
-        case 'localize':
-          this.setLocalize(event.target.value);
           break;
         case 'fullscreen':
           this.toggleFullscreen();
@@ -130,11 +119,6 @@ export default class GameSettings extends Modal {
     else
       this.el.querySelector('INPUT[name=gameSpeed][value="2"]').checked = true;
 
-    if (settings.localize)
-      this.el.querySelector('INPUT[name=localize][value=on]').checked = true;
-    else
-      this.el.querySelector('INPUT[name=localize][value=off]').checked = true;
-
     if (settings.fullscreen)
       this.el.querySelector('INPUT[name=fullscreen][value=on]').checked = true;
     else
@@ -163,41 +147,6 @@ export default class GameSettings extends Modal {
     this.data.game.speed = gameSpeed;
   }
 
-  setLocalize(localize) {
-    localize = localize === 'on';
-
-    const doSetLocalize = () => {
-      this.data.settings.localize = localize;
-      this.save();
-
-      this.data.game.state.localize = localize;
-    };
-    const cancel = () => {
-      this.el.querySelector('INPUT[name=localize][value=off]').checked = true;
-    };
-
-    if (localize)
-      popup({
-        title: 'Localize Actions',
-        message: `
-          This means actions taken by your units are not sent to the server or
-          seen by your opponent until your turn ends.  This grants you more
-          freedom to undo and change your mind in lobby games and less lag if
-          you have slow internet.  Note that luck-based attacks are always sent
-          to the server and your opponent to determine the result.  Also,
-          localized actions are disabled once your turn time limit shows less
-          than 15 seconds remaining.  It is always disabled for Blitz games.
-        `,
-        buttons: [
-          { label:'Enable', onClick:doSetLocalize },
-          { label:'Cancel', onClick:cancel },
-        ],
-        maxWidth: '500px',
-      });
-    else
-      doSetLocalize();
-  }
-
   toggleFullscreen() {
     this.data.settings.fullscreen = !this.data.settings.fullscreen;
 
@@ -218,7 +167,6 @@ export default class GameSettings extends Modal {
     const settings = Object.assign(JSON.parse(localStorage.getItem('settings') ?? '{}'), {
       audio: thisSettings.audio,
       gameSpeed: thisSettings.gameSpeed,
-      localize: thisSettings.localize,
       barPosition: thisSettings.barPosition,
     });
 
@@ -239,10 +187,6 @@ export default class GameSettings extends Modal {
         settings.gameSpeed = parseInt(settings.gameSpeed);
       this.data.game.speed = settings.gameSpeed;
 
-      if (settings.localize === undefined)
-        settings.localize = false;
-      this.data.game.state.localize = settings.localize;
-
       let app = document.querySelector('#app');
       if (settings.barPosition === 'left') {
         app.classList.remove('left');
@@ -255,7 +199,6 @@ export default class GameSettings extends Modal {
       settings = {
         audio: !Howler._muted,
         gameSpeed: 'auto',
-        localize: false,
         barPosition: app.classList.contains('left') ? 'right' : 'left',
       };
     }

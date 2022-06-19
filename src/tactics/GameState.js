@@ -64,6 +64,7 @@ export default class GameState {
         randomFirstTurn: true,
         randomHitChance: true,
         strictUndo: false,
+        strictFork: false,
         autoSurrender: false,
         turnTimeLimit: null,
         turnTimeBuffer: null,
@@ -335,6 +336,7 @@ export default class GameState {
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
       strictUndo: this.strictUndo,
+      strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       turnTimeLimit: this.turnTimeLimit,
       turnTimeBuffer: this.turnTimeBuffer,
@@ -782,8 +784,11 @@ export default class GameState {
     if (!bot && !opponent)
       return !!(currentTurnId > 1 || actions.length > 0);
 
-    if (this.endedAt && !this.forkOf)
-      return false;
+    // Bots will never approve anything that requires approval.
+    const approve = bot ? false : 'approve';
+
+    if (this.endedAt)
+      return this.forkOf ? approve : false;
 
     const firstTurnId = this.getTeamFirstTurnId(team);
 
@@ -795,14 +800,8 @@ export default class GameState {
     if (firstTurnId === currentTurnId && actions.length === 0)
       return false;
 
-    // Bots will never approve anything that requires approval.
-    // Strict undo also doesn't allow approval for undos.
-    const approve = bot || this.strictUndo ? false : 'approve';
     let requireApproval = false;
     let turnId;
-
-    if (this.endedAt)
-      return approve;
 
     // Determine the turn being undone in whole or in part
     for (turnId = currentTurnId; turnId > -1; turnId--) {
@@ -829,14 +828,23 @@ export default class GameState {
 
       // Require approval if undoing actions made by the opponent team.
       if (turnData.teamId !== team.id) {
+        // ...only allowed for fork games.
+        if (!this.forkOf)
+          return false;
+
         requireApproval = true;
         continue;
       }
+
+      // Can't undo previous turns after 5 seconds unless it is a fork game
+      if (!this.forkOf && turnId < currentTurnId && now - actions.last.createdAt > 5000)
+        return false;
 
       // Require approval if the turn time limit was reached.
       if (this.getTurnTimeRemaining(turnId, 5000, now) === 0)
         return approve;
 
+      // Require approval if undoing a lucky or old action
       const preservedActionId = this.getPreservedActionId(actions, now);
       if (preservedActionId === actions.length)
         return approve;
@@ -936,18 +944,18 @@ export default class GameState {
   getPreservedActionId(actions, now = Date.now()) {
     const selectedUnitId = actions[0].unit;
 
-    return actions.findLastIndex(action => (
-      // Preserve unit selection in strict mode
+    if (this.strictUndo)
+      // Indirectly preserves unit selection in strict mode
+      // Preserve previous actions in strict mode
       // Preserve old actions in strict mode
-      this.strictUndo && (
-        action.type === 'select' ||
-        now - action.createdAt > 5000
-      ) ||
-      // Preserve counter-attacks
-      action.unit !== undefined && action.unit !== selectedUnitId ||
-      // Preserve luck-involved attacks
-      !!action.results && !!action.results.find(r => 'luck' in r)
-    )) + 1;
+      return now - actions.last.createdAt > 5000 ? actions.length : actions.length - 1;
+    else
+      return actions.findLastIndex(action => (
+        // Preserve counter-attacks
+        action.unit !== undefined && action.unit !== selectedUnitId ||
+        // Preserve luck-involved attacks
+        !!action.results && !!action.results.find(r => 'luck' in r)
+      )) + 1;
   }
   end(winnerId) {
     this.endedAt = new Date();
@@ -1009,6 +1017,7 @@ export default class GameState {
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
       strictUndo: this.strictUndo,
+      strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       turnTimeLimit: this.turnTimeLimit,
       turnTimeBuffer: this.turnTimeBuffer,
@@ -1358,6 +1367,7 @@ serializer.addType({
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
       strictUndo: { type:'boolean' },
+      strictFork: { type:'boolean' },
       autoSurrender: { type:'boolean' },
       turnTimeLimit: { type:[ 'number', 'null' ] },
       turnTimeBuffer: { type:[ 'number', 'null' ] },

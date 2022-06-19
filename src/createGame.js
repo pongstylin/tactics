@@ -71,7 +71,32 @@ window.addEventListener('DOMContentLoaded', () => {
     );
   });
 
-  document.querySelector('.fa.fa-info').addEventListener('click', event => {
+  document.querySelector('.fa.fa-info.vs').addEventListener('click', event => {
+    popup({
+      title: 'Choosing Your Opponent',
+      message: `
+        <UL class="vs-info">
+          <LI><B>Public</B> games allow you to get auto matched with another
+          player or "jumped" by another player that sees your game in the public
+          games list.</LI>
+
+          <LI><B>Private</B> games allow you to choose your opponent by sharing
+          a link with them so that they may join you.</LI>
+
+          <LI><B>Tournament</B> games are for experienced players since your
+          ability to undo is more limited and you may not create fork games
+          until the game ends.  Also, if your time runs out, you will surrender
+          automatically.</LI>
+
+          <LI><B>Practice</B> games are played against yourself or someone
+          sharing your screen.  If possible, you are given the opportunity to
+          choose what set you wish to play against.</LI>
+        </UL>
+      `,
+      maxWidth: '500px',
+    });
+  });
+  document.querySelector('.fa.fa-info.randomHitChance').addEventListener('click', event => {
     popup({
       title: 'The Tale of Two Blocking Systems',
       message: `In the original 'Luck' blocking system, attacks will succeed or
@@ -133,6 +158,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (vs !== 'you')
       gameOptions.turnTimeLimit = isNaN(turnLimit) ? turnLimit : parseInt(turnLimit);
+    if (vs === 'tournament')
+      gameOptions.strictUndo = gameOptions.strictFork = gameOptions.autoSurrender = true;
 
     let myGameQuery;
     let matchingGameQuery;
