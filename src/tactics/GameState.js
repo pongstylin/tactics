@@ -686,7 +686,7 @@ export default class GameState {
    * ...or the game ends due to draw.
    */
   autoPass() {
-    const {
+    let {
       passedTurnLimit,
       passedTurnCount,
       attackTurnLimit,
