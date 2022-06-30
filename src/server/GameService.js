@@ -807,23 +807,25 @@ export default class GameService extends Service {
           data: event.data,
         },
       });
-
-      game.on('playerRequest', emit);
-
-      // Send notification, if needed, to the active player
-      game.state.on('startTurn', event => {
+      const listener = event => {
         // Only send a notification after the first playable turn
         // This is because notifications are already sent elsewhere on game start.
-        if (event.data.startedAt > game.state.startedAt)
+        if (event.type === 'startTurn' && event.data.startedAt > game.state.startedAt)
+          // Send notification, if needed, to the active player
           this._notifyYourTurn(game);
-      });
+        else if (event.type === 'sync')
+          // Sync clients with the latest game state they may view
+          this._emitGameSync(game);
+      };
 
-      // Sync clients with the latest game state they may view
-      game.state.on('sync', () => this._emitGameSync(game));
+      game.on('playerRequest', emit);
+      game.state.on('startTurn', listener);
+      game.state.on('sync', listener);
 
       this.gamePara.set(gameId, {
         playerStatus: new Map(),
         clients: new Map(),
+        listener,
         emit,
       });
     }
@@ -1193,7 +1195,8 @@ export default class GameService extends Service {
     gamePara.clients.delete(client.id);
     if (gamePara.clients.size === 0) {
       // TODO: Don't shut down the game state until all bots have made their turns.
-      game.state.off('*', gamePara.emit);
+      game.state.off('startTurn', gamePara.listener);
+      game.state.off('sync', gamePara.listener);
       game.off('playerRequest', gamePara.emit);
 
       this.gamePara.delete(gameId);
