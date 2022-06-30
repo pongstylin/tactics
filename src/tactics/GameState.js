@@ -868,7 +868,7 @@ export default class GameState {
     // Require approval if undoing a lucky or old action
     const preservedActionId = this.getPreservedActionId(actions, now);
     if (preservedActionId === actions.length)
-      return actions.last.type === 'endTurn' ? false : approve;
+      return actions.last?.type === 'endTurn' ? false : approve;
 
     return true;
   }

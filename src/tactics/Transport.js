@@ -207,7 +207,7 @@ export default class Transport {
     // Require approval if undoing a lucky or old action
     const preservedActionId = this.getPreservedActionId(actions);
     if (preservedActionId === actions.length)
-      return actions.last.type === 'endTurn' ? false : approve;
+      return actions.last?.type === 'endTurn' ? false : approve;
 
     // If a rated game, indicate when we will no longer be able to freely undo
     if (this.rated && (this.strictUndo || actions.last.type === 'endTurn'))
