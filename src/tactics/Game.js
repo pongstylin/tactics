@@ -753,9 +753,9 @@ export default class Game {
       this._emit({ type:'endSync' });
     }
   }
-  async showTurn(turnId = this.turnId, actionId = 0, skipPassedTurns) {
+  async showTurn(turnId = this.turnId, actionId = 0, skipAutoPassedTurns) {
     await this.pause();
-    await this.cursor.set(turnId, actionId, skipPassedTurns);
+    await this.cursor.set(turnId, actionId, skipAutoPassedTurns);
     this.setState();
 
     if (this.cursor.atEnd)

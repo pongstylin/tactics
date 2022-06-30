@@ -108,11 +108,6 @@ export default class PlayerStats extends ActiveModel {
     if (myTeams.length === 0)
       throw new Error(`Game was not played by ${this.data.playerId}`);
 
-    // No stats for practice games.
-    const numTeams = game.state.teams.length;
-    if (myTeams.length === numTeams)
-      return;
-
     /*
      * Determine which players played a turn.
      */

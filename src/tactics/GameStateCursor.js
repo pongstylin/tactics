@@ -90,8 +90,8 @@ export default class GameStateCursor {
     this._emit({ type:'change' });
   }
 
-  async set(turnId = this.turnId, nextActionId = 0, skipPassedTurns = false) {
-    const cursorData = await this._getCursorData(turnId, nextActionId, skipPassedTurns);
+  async set(turnId = this.turnId, nextActionId = 0, skipAutoPassedTurns = false) {
+    const cursorData = await this._getCursorData(turnId, nextActionId, skipAutoPassedTurns);
     const hasChanged = !this.equals(cursorData);
 
     // Assign even if cursor hasn't changed since actions may have changed.
@@ -179,7 +179,7 @@ export default class GameStateCursor {
   /*
    * Pains are taken to request as little data as possible.
    */
-  async _getCursorData(turnId, nextActionId, skipPassedTurns = false, skipTurnData) {
+  async _getCursorData(turnId, nextActionId, skipAutoPassedTurns = false, skipTurnData) {
     const state = this.state;
     const stateTurnId = state.currentTurnId;
     let turnData;
@@ -240,14 +240,15 @@ export default class GameStateCursor {
       turnData = await state.getTurnData(turnId);
 
     if (
-      skipPassedTurns &&
+      skipAutoPassedTurns &&
       turnData.actions.length === 1 &&
-      turnData.actions[0].type === 'endTurn'
+      turnData.actions[0].type === 'endTurn' &&
+      turnData.actions[0].forced
     ) {
-      if (skipPassedTurns === 'back' && turnData.id > 0)
-        return this._getCursorData(turnData.id - 1, nextActionId, skipPassedTurns);
-      else if (skipPassedTurns === 'forward' && turnData.id < state.currentTurnId)
-        return this._getCursorData(turnData.id + 1, nextActionId, skipPassedTurns, turnData);
+      if (skipAutoPassedTurns === 'back' && turnData.id > 0)
+        return this._getCursorData(turnData.id - 1, nextActionId, skipAutoPassedTurns);
+      else if (skipAutoPassedTurns === 'forward' && turnData.id < state.currentTurnId)
+        return this._getCursorData(turnData.id + 1, nextActionId, skipAutoPassedTurns, turnData);
     }
 
     if (nextActionId < 0)
