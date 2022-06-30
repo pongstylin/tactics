@@ -407,8 +407,6 @@ export default class extends FileAdapter {
     this.deleteFile(`game_${game.id}`);
   }
   async _recordGameStats(game) {
-    if (!game.state.rated) return;
-
     const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
 
     for (const playerId of playerIds) {
