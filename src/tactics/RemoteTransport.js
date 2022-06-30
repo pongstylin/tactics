@@ -8,6 +8,8 @@ export default class RemoteTransport extends Transport {
   constructor(gameId, gameData) {
     super({
       playerStatus: new Map(),
+
+      _recentTurns: [],
     });
 
     gameClient
@@ -63,11 +65,33 @@ export default class RemoteTransport extends Transport {
    * Proxy these methods to the game client.
    * Returns a promise that resolves to the method result, if any.
    */
-  getTurnData() {
-    return gameClient.getTurnData(this._data.id, ...arguments);
+  async getTurnData(turnId) {
+    const state = this._data.state;
+    if (turnId === state.currentTurnId)
+      return {
+        id: turnId,
+        teamId: state.currentTeamId,
+        startedAt: state.turnStartedAt,
+        units: state.units,
+        actions: state.actions,
+      };
+    else if (turnId > state.currentTurnId)
+      return null;
+    else if (turnId >= state.currentTurnId - this._recentTurns.length)
+      return this._recentTurns[turnId - state.currentTurnId + this._recentTurns.length];
+
+    return gameClient.getTurnData(this._data.id, turnId);
   }
-  getTurnActions() {
-    return gameClient.getTurnActions(this._data.id, ...arguments);
+  getTurnActions(turnId) {
+    const state = this._data.state;
+    if (turnId === state.currentTurnId)
+      return state.actions;
+    else if (turnId > state.currentTurnId)
+      return null;
+    else if (turnId >= state.currentTurnId - this._recentTurns.length)
+      return this._recentTurns[turnId - state.currentTurnId + this._recentTurns.length].actions;
+
+    return gameClient.getTurnActions(this._data.id, turnId);
   }
   submitAction(protoAction) {
     return gameClient.submitAction(this._data.id, protoAction);
@@ -92,8 +116,8 @@ export default class RemoteTransport extends Transport {
    * Other Private Methods
    */
   _init(gameId) {
-    gameClient.watchGame(gameId).then(({ playerStatus, gameData, recentTurns }) => {
-      this._makeReady(Object.assign(gameData, { recentTurns }));
+    gameClient.watchGame(gameId).then(({ playerStatus, sync }) => {
+      this._makeReady(sync);
 
       // Event emitted internally to set this.playerStatus.
       this._emit({ type:'playerStatus', data:playerStatus });
@@ -123,29 +147,18 @@ export default class RemoteTransport extends Transport {
   }
   _reset(outbox) {
     const gameId = this._data.id;
-    const board = this.board;
-    const state = this._data.state;
-    const actions = state.actions;
-    let resume;
-
-    if (state.endedAt)
-      resume = { since:'end' };
-    else if (state.startedAt)
-      resume = {
-        turnId: state.currentTurnId,
-        nextActionId: actions.length,
-        since: actions.length ? actions.last.createdAt : state.turnStartedAt,
-      };
-    else
-      resume = { since:'start' };
+    const reference = this._data.reference;
 
     // Instead of watching the game from its current point, resume watching
     // the game from the point we lost connection.
-    gameClient.watchGame(gameId, resume).then(({ playerStatus, gameData, recentTurns, newActions }) => {
+    gameClient.watchGame(gameId, reference).then(({ playerStatus, sync }) => {
       this._emit({ type:'playerStatus', data:playerStatus });
 
+      /*
+       * Sync Player Status
+       */
       const oldRequest = this._data.playerRequest;
-      const newRequest = gameData.playerRequest;
+      const newRequest = sync.playerRequest;
       if (newRequest)
         // Inform the game of a change in player request status, if any.
         this._emit({ type:`playerRequest`, data:newRequest });
@@ -154,38 +167,10 @@ export default class RemoteTransport extends Transport {
         // But 'complete' will result in hiding the dialog, if any.
         this._emit({ type:`playerRequest:complete` });
 
-      if (gameData.state) {
-        const oldStarted = this._data.state.startedAt;
-        const oldTurnStarted = this._data.state.turnStartedAt;
+      delete sync.playerRequest;
 
-        if (gameData.state.teams) {
-          for (let i = 0; i < gameData.state.teams.length; i++)
-            this._data.state.teams[i] = Object.merge(
-              this._data.state.teams[i],
-              gameData.state.teams[i],
-            );
-          delete gameData.state.teams;
-        }
-        this._data.state.merge(gameData.state);
-        if (newActions) {
-          this._data.state.actions.push(...newActions);
-          board.decodeAction(newActions).forEach(a => board.applyAction(a));
-        } else if (gameData.state.units || gameData.state.actions)
-          this._applyState();
-
-        if (!oldStarted && this._data.state.startedAt)
-          this.whenStarted.resolve();
-        if (!oldTurnStarted && this._data.state.turnStartedAt)
-          this.whenTurnStarted.resolve();
-
-        this._emit({ type:'change' });
-      } else if (newActions) {
-        this._data.state.actions.push(...newActions);
-        board.decodeAction(newActions).forEach(a => board.applyAction(a));
-        this._emit({ type:'change' });
-      }
-      if (recentTurns)
-        this._data.recentTurns = recentTurns;
+      if (sync.reference)
+        this._emit({ type:'sync', data:sync });
 
       if (!outbox) return;
 
@@ -207,6 +192,14 @@ export default class RemoteTransport extends Transport {
     });
   }
 
+  _onSync(event) {
+    const sync = event.data;
+
+    if (sync.state?.currentTurnId !== undefined)
+      this._recentTurns.length = 0;
+
+    return super._onSync(event);
+  }
   _onStartTurn(event) {
     // Clear a player's rejected requests when their turn starts.
     if (this._data.playerRequest) {
@@ -223,10 +216,15 @@ export default class RemoteTransport extends Transport {
     }
 
     const state = this._data.state;
-    if (state.turnTimeBuffer) {
-      const team = state.teams[event.data.teamId];
-      team.turnTimeBuffer = event.data.timeBuffer;
-    }
+    this._recentTurns.push({
+      id: state.currentTurnId,
+      teamId: state.currentTeamId,
+      startedAt: state.turnStartedAt,
+      units: state.units,
+      actions: state.actions,
+    });
+    if (this._recentTurns.length === 11)
+      this._recentTurns.shift();
 
     return super._onStartTurn(event);
   }

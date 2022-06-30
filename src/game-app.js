@@ -229,9 +229,9 @@ var buttons = {
         ],
         margin: '16px',
       });
-    else if (game.isFork)
+    else if (!game.state.rated)
       popup({
-        message: `Do you surrender?  Since this is a fork game, it won't affect your Win/Lose/Draw stats.`,
+        message: `Do you surrender?  This is not a rated game so it won't affect your Win/Lose/Draw stats.`,
         buttons: [
           {
             label: 'Yes',
@@ -696,6 +696,11 @@ $(window).on('resize', () => {
 });
 
 async function initGame() {
+  // Authenticate first, if possible, so that the server knows what information to return.
+  await authClient.whenReady;
+  if (authClient.token)
+    await gameClient.whenAuthorized;
+
   return getGameData(gameId)
     .then(async gameData => {
       gameType = await gameClient.getGameType(gameData.state.type);
@@ -1026,9 +1031,15 @@ async function showPrivateIntro(gameData) {
   renderShareLink(gameData, document.querySelector('#private .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
+  const vs =
+    gameData.state.strictUndo && gameData.state.strictFork && gameData.state.autoSurrender ? 'Tournament' :
+    gameData.state.rated ? 'Private' : 'Unrated';
+
   let $greeting = $('#private .greeting');
+  let $subText = $greeting.next();
   let myTeam = gameData.state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
+  $subText.text($subText.text().replace('{vs}', vs));
 
   let transport = await loadTransport(gameData.id);
 
@@ -1400,13 +1411,15 @@ async function showJoinIntro(gameData) {
 
     let vs;
     if (gameData.collection === 'public')
-      vs = 'Public';
+      vs = 'a Public';
     else if (gameData.collection)
-      vs = 'Lobby';
+      vs = 'a Lobby';
     else if (gameData.state.strictUndo && gameData.state.strictFork && gameData.state.autoSurrender)
-      vs = 'Tournament';
+      vs = 'a Tournament';
+    else if (!gameData.state.rated)
+      vs = 'an Unrated';
     else
-      vs = 'Private';
+      vs = 'a Private';
 
     let turnLimit;
     switch (gameData.state.turnTimeLimit) {
@@ -1434,7 +1447,7 @@ async function showJoinIntro(gameData) {
     const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
 
     details.innerHTML = `
-      <DIV>This is a ${vs} game.</DIV>
+      <DIV>This is ${vs} game.</DIV>
       <DIV>The game style is <I>${gameType.name}</I>.</DIV>
       <DIV>The turn time limit is set to ${turnLimit}.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
@@ -1572,19 +1585,18 @@ function setTurnTimeoutClock() {
   clearTimeout(turnTimeout);
   turnTimeout = null;
 
-  if (game.inReplay || game.state.turnTimeLimit === null || game.state.endedAt) {
+  if (game.inReplay || game.currentTurnTimeLimit === null) {
     $('.clock').css({ display:'none' });
     return;
   } else
     $('.clock').css({ display:'' });
 
   let timeout = game.turnTimeRemaining;
-  let state = game.state;
   let timeoutClass;
   let removeClass;
   let timeoutText;
   if (timeout > 0) {
-    let timeLimit = state.turnTimeLimit;
+    let timeLimit = game.turnTimeLimit;
     timeoutClass = timeout < timeLimit*1000 * 0.2 ? 'short' : 'long';
     removeClass = timeout < timeLimit*1000 * 0.2 ? 'long' : 'short';
     removeClass += ' expired';
@@ -1662,7 +1674,7 @@ async function startGame() {
     .on('state-change', event => {
       $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
       toggleUndoButton();
-      if (game.state.endedAt && !game.isLocalGame && !game.state.forkOf)
+      if (game.state.endedAt && game.state.rated)
         $('BUTTON[name=undo]').hide();
       toggleReplayButtons();
     })

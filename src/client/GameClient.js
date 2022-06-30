@@ -208,8 +208,8 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  watchGame(gameId, resume) {
-    return this._server.joinAuthorized(this.name, `/games/${gameId}`, resume);
+  watchGame(gameId, reference) {
+    return this._server.joinAuthorized(this.name, `/games/${gameId}`, reference);
   }
   async submitAction(gameId, action) {
     const beforeUnloadListener = event => {

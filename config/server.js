@@ -54,6 +54,7 @@ export default {
                 defaults: {
                   strictUndo: false,
                   autoSurrender: false,
+                  rated: true,
                 },
                 schema: {
                   strictUndo: 'const(false)',
@@ -69,6 +70,7 @@ export default {
                   randomFirstTurn: true,
                   strictUndo: false,
                   autoSurrender: true,
+                  rated: true,
                   turnTimeLimit: 'standard',
                 },
                 schema: {

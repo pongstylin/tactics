@@ -156,8 +156,11 @@ export default class Game {
   get whenStarted() {
     return this.state.whenStarted;
   }
+  get currentTurnTimeLimit() {
+    return this.state.currentTurnTimeLimit;
+  }
   get turnTimeLimit() {
-    return this.state.getTurnTimeLimit();
+    return this.state.turnTimeLimit;
   }
   get turnTimeRemaining() {
     return this.state.getTurnTimeRemaining();
@@ -646,8 +649,7 @@ export default class Game {
       // This triggers the removal of location.hash
       this._isSynced = true;
       this._emit({ type:'startSync' });
-    }
-    else {
+    } else {
       const turnId = this.isMyTurn && !this.isLocalGame ? -this._teams.length : -1;
 
       this.play(turnId, 0, 'back');
@@ -706,8 +708,9 @@ export default class Game {
       if (movement === 'back')
         // The undo button can cause the next action to be a previous one
         this.setState();
-      else if (movement === 'forward')
+      else if (movement === 'forward') {
         await this._performAction(cursor.thisAction);
+      }
 
       if (whilePlaying.state === 'interrupt')
         return stopPlaying();
@@ -1785,20 +1788,18 @@ export default class Game {
   }
 
   /*
-   * Turns won't time out if an action was performed within the last 10 seconds.
-   *
    * _turnTimeout is true when a timeout has been triggered.
    * _turnTimeout is a number when a timeout has been set, but not reached.
-   * _turnTimeout is null when a timout is not necessary.
+   * _turnTimeout is null when a timeout is not necessary.
    */
   _setTurnTimeout() {
-    let state = this.state;
+    const state = this.state;
     if (!state.turnTimeLimit)
       return;
 
     this._emit({ type:'resetTimeout' });
 
-    if (state.endedAt) {
+    if (state.currentTurnTimeLimit === null) {
       clearTimeout(this._turnTimeout);
       this._turnTimeout = null;
       return;
@@ -1826,13 +1827,12 @@ export default class Game {
       // Value must be less than a 32-bit signed integer.
       if (timeout < 0x80000000)
         this._turnTimeout = setTimeout(() => {
-          if (state.endedAt) return;
+          if (state.currentTurnTimeLimit === null) return;
 
           this._turnTimeout = true;
           this._emit({ type:'timeout' });
         }, timeout);
-    }
-    else {
+    } else {
       if (this._turnTimeout !== true) {
         this._turnTimeout = true;
         this._emit({ type:'timeout' });

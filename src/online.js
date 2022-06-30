@@ -45,6 +45,7 @@ const groups = new Map([
 let myPlayerId = null;
 const state = {
   audioEnabled: false,
+  activeGameId: null,
   // Indicates the currently selected tab
   currentTab: null,
   tabContent: {
@@ -448,6 +449,15 @@ async function register(name) {
 }
 
 function setYourLobbyGame(gameSummary, skipRender = false) {
+  if (state.activeGameId === gameSummary.id && gameSummary.startedAt) {
+    const newGame = avatars.getSound('newgame').howl;
+    newGame.once('end', () => {
+      location.href = `/game.html?${gameSummary.id}`;
+    });
+    newGame.play();
+    return;
+  }
+
   const yourContent = state.tabContent.yourGames;
   const lobbyContent = state.tabContent.lobby;
   const lobbyGame = yourContent.lobbyGame;
@@ -470,8 +480,6 @@ function setYourLobbyGame(gameSummary, skipRender = false) {
         },
       ],
     });
-  else if (lobbyGame?.id === gameSummary.id && !lobbyGame.startedAt && gameSummary.startedAt)
-    startGame();
 }
 function unsetYourLobbyGame(gameSummary, skipRender = false) {
   const lobbyGame = state.tabContent.yourGames.lobbyGame;
@@ -740,7 +748,7 @@ async function createGame(divArena) {
     }).whenClosed;
 
   try {
-    await gameClient.createGame(tabContent.selectedStyleId, {
+    state.activeGameId = await gameClient.createGame(tabContent.selectedStyleId, {
       collection: `lobby/${tabContent.selectedStyleId}`,
       randomHitChance: createBlocking === 'luck',
       turnTimeLimit: createTimeLimit,
@@ -782,6 +790,7 @@ async function cancelGame() {
 
   try {
     await gameClient.cancelGame(myLobbyGame.id);
+    state.activeGameId = null;
     return true;
   } catch (e) {
     if (e.code !== 404 && e.code !== 409) {
@@ -842,12 +851,15 @@ async function joinGame(arena) {
   }
 
   try {
+    state.activeGameId = arena.id;
     await gameClient.joinGame(arena.id, {
       playerId: authClient.playerId,
       set: { name:'default' },
     });
     return true;
   } catch (e) {
+    state.activeGameId = null;
+
     // A 404 means the game was cancelled right before we tried to join
     // A 409 means someone else joined the game first.
     if (e.code !== 404 && e.code !== 409) {
@@ -856,15 +868,6 @@ async function joinGame(arena) {
     }
     return false;
   }
-}
-function startGame() {
-  const gameId = state.tabContent.yourGames.lobbyGame.id;
-
-  const newGame = avatars.getSound('newgame').howl;
-  newGame.once('end', () => {
-    location.href = `/game.html?${gameId}`;
-  });
-  newGame.play();
 }
 
 function renderPN(reg) {
@@ -1819,6 +1822,8 @@ function renderGame(game) {
   if (game.endedAt) {
     if (game.isFork)
       left += ', <SPAN>Fork</SPAN>';
+    else if (!game.rated)
+      left += ', <SPAN>Unrated</SPAN>';
     else if (game.collection?.startsWith('lobby/'))
       left += ', <SPAN>Lobby</SPAN>';
 
@@ -1839,6 +1844,8 @@ function renderGame(game) {
 
     if (game.isFork)
       labels.push('Fork');
+    else if (!game.rated)
+      labels.push('Unrated');
     else if (game.collection?.startsWith('lobby/'))
       labels.push('Lobby');
 
@@ -1875,6 +1882,8 @@ function renderGame(game) {
 
     if (game.isFork)
       labels.push('Fork');
+    else if (!game.rated)
+      labels.push('Unrated');
     else if (game.collection?.startsWith('lobby/'))
       labels.push('Lobby');
 

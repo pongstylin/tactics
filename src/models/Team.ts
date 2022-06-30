@@ -125,7 +125,7 @@ export default class Team {
       randomState: undefined,
 
       // The number of seconds accumulated in the turn time limit buffer.
-      turnTimeBuffer: undefined,
+      turnTimeBuffer: 0,
 
       // The set the team used at start of game.
       set: undefined,
@@ -341,6 +341,7 @@ export default class Team {
 
     delete json.checkoutAt;
     delete json.randomState;
+    delete json.turnTimeBuffer;
 
     return json;
   }
@@ -349,7 +350,12 @@ export default class Team {
    * This method is used to persist the team for storage.
    */
   toJSON() {
-    return { ...this.data };
+    const json = { ...this.data };
+
+    if (json.turnTimeBuffer === 0)
+      delete json.turnTimeBuffer;
+
+    return json;
   }
 }
 

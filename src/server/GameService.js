@@ -1,4 +1,5 @@
 import uaparser from 'ua-parser-js';
+import util from 'util';
 
 import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
@@ -119,6 +120,7 @@ export default class GameService extends Service {
           'strictUndo?': 'boolean',
           'strictFork?': 'boolean',
           'autoSurrender?': 'boolean',
+          'rated?': 'boolean',
           'turnTimeLimit?': `enum([ 'blitz', 'standard', 86400, 604800 ])`,
           'tags?': 'game:tags',
         },
@@ -383,8 +385,8 @@ export default class GameService extends Service {
  *
   onGameEnd(gameId) {
     const gamePara = this.gamePara.get(gameId);
-    gamePara.clients.forEach(clientPara =>
-      clientPara.joinedGroups.delete(`/games/${gameId}`)
+    gamePara.clients.keys().forEach(clientId =>
+      this.clientPara.get(clientId).joinedGroups.delete(`/games/${gameId}`)
     );
     this.gamePara.delete(gameId);
 
@@ -410,6 +412,13 @@ export default class GameService extends Service {
     if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
       throw new ServerError(400, 'You must join games that you create');
 
+    if (!gameOptions.rated && gameOptions.strictUndo)
+      throw new ServerError(400, 'Strict undo may only be enabled in rated games');
+
+    const isMultiplayer = gameOptions.teams.findIndex(t => t?.playerId !== playerId) > -1;
+    if (gameOptions.rated && !isMultiplayer)
+      throw new ServerError(400, 'Practice games can\'t be rated');
+
     gameOptions.createdBy = playerId;
     gameOptions.type = gameTypeId;
 
@@ -419,9 +428,10 @@ export default class GameService extends Service {
     } else if (gameOptions.turnTimeLimit === 'blitz') {
       gameOptions.turnTimeLimit = 30;
       gameOptions.turnTimeBuffer = 120;
+      if (gameOptions.rated)
+        gameOptions.strictUndo = true;
     } else if (gameOptions.turnTimeLimit === undefined) {
-      // Use the default turn time limit if this is a multiplayer game
-      if (gameOptions.teams.find(t => !t?.playerId === playerId))
+      if (isMultiplayer)
         stateData.turnTimeLimit = 604800;
     }
 
@@ -587,7 +597,7 @@ export default class GameService extends Service {
 
     const gamePara = this.gamePara.get(gameId);
     if (gamePara) {
-      for (const clientId of gamePara.clients) {
+      for (const clientId of gamePara.clients.keys()) {
         this.onLeaveGameGroup(this.clientPara.get(clientId).client, `/games/${gameId}`, gameId);
       }
     }
@@ -621,9 +631,10 @@ export default class GameService extends Service {
     /*
      * When getting a game, leave out the turn history as an efficiency measure.
      */
+    const clientPara = this.clientPara.get(client.id);
     const game = await this.data.getGame(gameId);
     const gameData = game.toJSON();
-    gameData.state = gameData.state.getData();
+    gameData.state = gameData.state.getDataForPlayer(clientPara?.playerId);
 
     return gameData;
   }
@@ -776,7 +787,7 @@ export default class GameService extends Service {
       throw new ServerError(404, 'No such group');
   }
 
-  async onJoinGameGroup(client, groupPath, gameId, params) {
+  async onJoinGameGroup(client, groupPath, gameId, reference) {
     const game = await this.data.openGame(gameId);
     // Abort if the client is no longer connected.
     if (client.closed) {
@@ -786,28 +797,33 @@ export default class GameService extends Service {
 
     const firstJoined = !this.gamePara.has(gameId);
     if (firstJoined) {
-      const emit = event => {
-        // Forward game state and playerRequest events to clients.
-        this._emit({
-          type: 'event',
-          body: {
-            group: groupPath,
-            type: event.type,
-            data: event.data,
-          },
-        });
+      // Forward game state and playerRequest events to clients.
+      const emit = event => this._emit({
+        type: 'event',
+        clientId: event.clientId,
+        body: {
+          group: groupPath,
+          type: event.type,
+          data: event.data,
+        },
+      });
 
+      game.on('playerRequest', emit);
+
+      // Send notification, if needed, to the active player
+      game.state.on('startTurn', event => {
         // Only send a notification after the first playable turn
         // This is because notifications are already sent elsewhere on game start.
-        if (event.type === 'startTurn' && event.data.startedAt > game.state.startedAt)
+        if (event.data.startedAt > game.state.startedAt)
           this._notifyYourTurn(game);
-      };
-      game.state.on('*', emit);
-      game.on('playerRequest', emit);
+      });
+
+      // Sync clients with the latest game state they may view
+      game.state.on('sync', () => this._emitGameSync(game));
 
       this.gamePara.set(gameId, {
         playerStatus: new Map(),
-        clients: new Set(),
+        clients: new Map(),
         emit,
       });
     }
@@ -823,7 +839,8 @@ export default class GameService extends Service {
       playerPara.joinedGameGroups.set(gameId, new Set([ client.id ]));
 
     const gamePara = this.gamePara.get(gameId);
-    gamePara.clients.add(client.id);
+    const sync = game.getSyncForPlayer(playerId, reference);
+    gamePara.clients.set(client.id, sync.reference);
 
     this._emit({
       type: 'joinGroup',
@@ -837,18 +854,7 @@ export default class GameService extends Service {
       },
     });
 
-    const gameData = game.toJSON();
-    const state = gameData.state = game.state.getData();
-    const recentTurns = new Array(game.state.teams.length);
-
-    for (let i = 0; i < recentTurns.length; i++) {
-      const turnId = game.state.currentTurnId - recentTurns.length + i;
-      recentTurns[i] = game.state.getTurnData(turnId);
-      if (recentTurns[i] !== null)
-        delete recentTurns[i].units;
-    }
-
-    const isPlayer = state.teams.findIndex(t => t?.playerId === playerId) > -1;
+    const isPlayer = game.state.teams.findIndex(t => t?.playerId === playerId) > -1;
     if (isPlayer) {
       this._setGamePlayersStatus(gameId);
       this._watchClientIdleForGame(gameId, client);
@@ -858,90 +864,8 @@ export default class GameService extends Service {
     const response = {
       playerStatus: [ ...gamePara.playerStatus ]
         .map(([playerId, playerStatus]) => ({ playerId, ...playerStatus })),
-      gameData,
-      recentTurns,
+      sync,
     };
-
-    // We don't need to send all the data every time the client reconnects.
-    // The params are used to tell the server what data the client already has.
-    if (params) {
-      // These values are set when a game is created and cannot be changed.
-      // So, when resuming a game, these values need not be sent.
-      delete gameData.type;
-      delete gameData.collection;
-      delete gameData.createdAt;
-      delete gameData.createdBy;
-      delete gameData.randomFirstTurn;
-      delete gameData.randomHitChance;
-      delete gameData.turnTimeLimit;
-      delete gameData.turnTimeBuffer;
-      delete gameData.strictUndo;
-      delete gameData.autoSurrender;
-
-      if (params.since === 'start') {
-        // Nothing has changed if the game hasn't started yet... for now.
-        if (!state.startedAt)
-          delete gameData.state;
-      } else if (params.since === 'end')
-        // Game data doesn't change after game end
-        delete gameData.state;
-      else {
-        // Once the game starts, the teams do not change... mostly.
-        delete state.startedAt;
-        if (state.turnTimeBuffer)
-          state.teams = state.teams.map(t => ({ turnTimeBuffer:t.turnTimeBuffer }));
-        else
-          delete state.teams;
-
-        params.since = new Date(params.since);
-        const since = state.endedAt ?? state.actions.last?.createdAt ?? state.turnStartedAt;
-
-        if (+params.since === +since) {
-          // Nothing has changed except...
-          // Since a server restart can change team buffers, communicate them.
-          if (state.turnTimeBuffer)
-            gameData.state = { teams:state.teams };
-          else
-            delete gameData.state;
-          delete response.recentTurns;
-        } else if (state.currentTurnId === params.turnId) {
-          // Current turn hasn't changed
-          delete state.currentTurnId;
-          delete state.currentTeamId;
-
-          // Don't need the units at start of turn if they were already seen
-          if (params.since >= state.turnStartedAt) {
-            delete response.recentTurns;
-            delete state.turnStartedAt;
-            delete state.units;
-          }
-
-          // What actions has the client not seen yet?
-          const newActions = state.actions.filter(a => a.createdAt > params.since);
-
-          // Are all client actions still valid?  (not reverted)
-          const actionsAreValid = params.nextActionId === state.actions.length - newActions.length;
-
-          if (actionsAreValid) {
-            // Existing actions haven't changed
-            delete state.actions;
-
-            if (newActions.length) {
-              // But there are new actions to append
-              response.newActions = newActions;
-            }
-          }
-        }
-      }
-
-      if (!state.endedAt) {
-        delete state.endedAt;
-        delete state.winnerId;
-      }
-
-      if (Object.keys(state).length === 0)
-        delete gameData.state;
-    }
 
     return response;
   }
@@ -1184,6 +1108,22 @@ export default class GameService extends Service {
     }
 
     return stats;
+  }
+  _emitGameSync(game) {
+    const gamePara = this.gamePara.get(game.id);
+
+    for (const [ clientId, reference ] of gamePara.clients.entries()) {
+      const clientPara = this.clientPara.get(clientId);
+      const sync = game.getSyncForPlayer(clientPara.playerId, reference);
+      if (!sync.reference)
+        continue;
+
+      // playerRequest is synced elsewhere
+      delete sync.playerRequest;
+
+      gamePara.clients.set(clientId, sync.reference);
+      gamePara.emit({ clientId, type:'sync', data:sync });
+    }
   }
   _emitCollectionChange(collectionGroup, collection, event) {
     const collectionPara = this.collectionPara.get(collection.id);
