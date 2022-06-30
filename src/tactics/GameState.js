@@ -702,7 +702,7 @@ export default class GameState {
       if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit)
         return 'draw';
 
-      const currentTurnId = this._actions.last?.type === 'endTurn' ? this.currentTurnId : this.currentTurnId + 1;
+      const currentTurnId = this._actions.last?.type === 'endTurn' ? this.currentTurnId + 1 : this.currentTurnId;
       const currentTeamId = currentTurnId % this.teams.length;
       const currentTeam = this.teams[currentTeamId];
 
