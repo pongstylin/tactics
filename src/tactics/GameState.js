@@ -716,6 +716,8 @@ export default class GameState {
       });
 
       if (turnEnded) {
+        if (currentTurnId > this.currentTurnId)
+          this._pushHistory();
         this._pushAction(this._getEndTurnAction(true));
         passedTurnCount++;
         attackTurnCount++;
@@ -1115,18 +1117,18 @@ export default class GameState {
    *   All units' mBlocking are reduced by 20% per turn cycle.
    */
   _getEndTurnAction(forced) {
-    let action = { type:'endTurn', forced };
+    const action = { type:'endTurn', forced };
 
-    let selected    = this.selected;
-    let moved       = this.moved;
-    let attacked    = this.attacked;
-    let teams       = this.teams;
-    let currentTeam = this.currentTeam;
-    let results     = action.results = [];
+    const selected    = this.selected;
+    const moved       = this.moved;
+    const attacked    = this.attacked;
+    const teams       = this.teams;
+    const currentTeam = this.currentTeam;
+    const results     = action.results = [];
 
     // Per turn mBlocking decay rate is based on the number of teams.
     // It is calculated such that a full turn cycle is still a 20% reduction.
-    let decay = teams.length;
+    const decay = teams.length;
 
     teams.forEach(team => {
       team.units.forEach(unit => {
