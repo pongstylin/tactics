@@ -66,6 +66,7 @@ export default class GameState {
         strictUndo: false,
         strictFork: false,
         autoSurrender: false,
+        rated: false,
         turnTimeLimit: null,
         turnTimeBuffer: null,
       },
@@ -92,7 +93,7 @@ export default class GameState {
     return gameState;
   }
   static fromJSON(stateData) {
-    if (this.turnTimeBuffer) {
+    if (stateData.turnTimeBuffer) {
       for (const turn of stateData.turns) {
         if (turn.timeBuffer === undefined)
           turn.timeBuffer = 0;
@@ -113,6 +114,31 @@ export default class GameState {
   }
   get currentTeamId() {
     return this.currentTurnId % this.teams.length;
+  }
+  get currentTurn() {
+    return {
+      startedAt: this.turnStartedAt,
+      units: this.units,
+      actions: this.actions,
+      timeBuffer: this.currentTeam.turnTimeBuffer,
+    };
+  }
+  get currentTurnTimeLimit() {
+    if (!this.startedAt || this.endedAt || !this.turnTimeLimit)
+      return null;
+
+    let turnTimeLimit = this.turnTimeLimit;
+    if (this.turnTimeBuffer) {
+      const team = this.currentTeam;
+      const firstTurnId = this.getTeamFirstTurnId(team);
+
+      if (this.currentTurnId === firstTurnId)
+        turnTimeLimit = this.turnTimeBuffer;
+      else
+        turnTimeLimit += team.turnTimeBuffer;
+    }
+
+    return turnTimeLimit;
   }
   get currentTeam() {
     return this.teams[this.currentTeamId];
@@ -314,15 +340,7 @@ export default class GameState {
         },
       });
 
-      this._emit({
-        type: 'startTurn',
-        data: {
-          startedAt: this.turnStartedAt,
-          turnId: this.currentTurnId,
-          teamId: this.currentTeamId,
-          timeBuffer: this.currentTeam.turnTimeBuffer,
-        },
-      });
+      this.startTurn();
     }
   }
 
@@ -338,23 +356,57 @@ export default class GameState {
       strictUndo: this.strictUndo,
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
+      rated: this.rated,
       turnTimeLimit: this.turnTimeLimit,
       turnTimeBuffer: this.turnTimeBuffer,
+      currentTurnTimeLimit: this.currentTurnTimeLimit,
 
       teams: this.teams.map(t => t && t.getData(!!this.startedAt)),
 
       startedAt: this.startedAt,
 
       // Data about the current turn
-      turnStartedAt: this.turnStartedAt,
       currentTurnId: this.currentTurnId,
       currentTeamId: this.currentTeamId,
+      turnStartedAt: this.turnStartedAt,
       units:         this.units,
       actions:       this.actions,
 
       endedAt: this.endedAt,
       winnerId: this.winnerId,
     };
+  }
+  /*
+   * Sometimes a player may only view an earlier state
+   */
+  getDataForPlayer(playerId = 'anonymous') {
+    const data = this.getData();
+    // Everybody sees the game start and end
+    // Everybody sees everything in unrated games.
+    if (!this.startedAt || this.endedAt || !this.rated)
+      return data;
+    // Current player sees everything
+    if (playerId === this.currentTeam.playerId)
+      return data;
+
+    if (this.teams.find(t => t.playerId === playerId))
+      // Opponent(s) don't see actions that can be undone
+      data.actions.length = this.getPreservedActionId();
+    else {
+      // Observer(s) don't see recent turns
+      const minTurnId = this.getFirstTurnId() - 1;
+      const turnId = Math.max(minTurnId, this.currentTurnId - this.teams.length);
+      const turn = this.turns[turnId];
+
+      data.currentTurnId = turnId;
+      data.currentTeamId = turnId % this.teams.length;
+      data.turnStartedAt = turn.startedAt;
+      data.currentTurnTimeLimit = null;
+      data.units = turn.units;
+      data.actions = turn.actions;
+    }
+
+    return data;
   }
   getTurnData(turnId) {
     let turnData;
@@ -364,12 +416,13 @@ export default class GameState {
         startedAt: this.turnStartedAt,
         units: this.units,
         actions: this.actions,
-        timeBuffer: this.currentTeam.turnTimeBuffer,
       };
     else if (!this.turns[turnId])
       return null;
-    else
+    else {
       turnData = {...this.turns[turnId]};
+      delete turnData.timeBuffer;
+    }
 
     turnData.id = turnId;
     turnData.teamId = turnId % this.teams.length;
@@ -389,28 +442,12 @@ export default class GameState {
     return turnActions;
   }
 
-  _pushAction(action) {
-    // Auto passed turns start and end at the same time.  This guarantee enables
-    // use to determine if a given turn is the first playable turn by comparing
-    // the turn start date with the game start date.  This is currently used for
-    // triggering "Your Turn" notifications at the right times.
-    if (this._actions.length === 0 && action.type === 'endTurn' && action.forced)
-      action.createdAt = this.turnStartedAt;
-    else
-      action.createdAt = new Date();
-
-    action.teamId = action.teamId ?? this.currentTeamId;
-
-    if (action.forced === false)
-      delete action.forced;
-
-    this._newActions.push(action);
-    this._applyAction(action);
-  }
-  submitAction(actions) {
+  _pushActions(actions) {
     // Actions may only be submitted between game start and end.
-    if (!this.startedAt || this.endedAt)
-      return;
+    if (!this.startedAt)
+      throw new Error(400, 'Game has not started yet');
+    if (this.endedAt)
+      throw new Error(409, 'Game has already ended');
 
     if (!Array.isArray(actions))
       actions = [ actions ];
@@ -418,7 +455,6 @@ export default class GameState {
     const board = this._board;
     actions = board.decodeAction(actions);
 
-    this._newActions = [];
     let endTurn;
     const setEndTurn = forced => {
       endTurn = this._getEndTurnAction(forced);
@@ -446,69 +482,70 @@ export default class GameState {
         return;
       }
 
+      const actions = this._actions;
+      if (actions.length && actions.last.type === 'endTurn')
+        throw new ServerError(400, 'Actions found after endTurn');
+
       /*
        * Validate and populate the action
        */
       // Only a unit that exists may take action.
       const unit = action.unit;
-      if (!unit) return;
+      if (!unit)
+        throw new ServerError(400, 'Action found with no unit');
 
       // Only a unit from the current team may take action.
-      if (unit.team !== this.currentTeam) return;
+      if (unit.team !== this.currentTeam)
+        throw new ServerError(400, 'Actor is on the wrong team');
 
       // Only the first unit to take action may take another.
       const selected = this.selected;
-      if (selected && unit !== selected) return;
+      if (selected && unit !== selected)
+        throw new ServerError(400, 'Actor is not the selected unit');
 
       // Recovering or paralyzed units can't take action.
-      if (unit.mRecovery || unit.paralyzed) return;
+      if (unit.mRecovery || unit.paralyzed)
+        throw new ServerError(400, 'Actor is unable to act');
 
-      try {
-        if (this._actions.length === 0)
-          this._pushAction({ type:'select', unit });
+      if (actions.length === 0)
+        this._pushAction({ type:'select', unit });
 
-        // Taking an action may break certain status effects.
-        const breakAction = unit.getBreakAction(action);
-        if (breakAction)
-          this._pushAction(breakAction);
+      // Taking an action may break certain status effects.
+      const breakAction = unit.getBreakAction(action);
+      if (breakAction)
+        this._pushAction(breakAction);
 
-        // Apply unit-specific validation and determine results.
-        action = unit.validateAction(action);
-        if (!action)
-          throw new ServerError(403, 'Action is not allowed');
+      // Apply unit-specific validation and determine results.
+      action = unit.validateAction(action);
+      if (!action)
+        throw new ServerError(403, 'Action is not allowed');
 
-        /*
-         * Validate the action taking game state into consideration.
-         */
-        const moved    = this.moved;
-        const attacked = this.attacked;
+      /*
+       * Validate the action taking game state into consideration.
+       */
+      const moved    = this.moved;
+      const attacked = this.attacked;
 
-        if (action.type === 'move') {
-          // Can't move twice.
-          if (moved)
-            throw new ServerError(403, 'Too many move actions');
-        } else if (action.type === 'attack' || action.type === 'attackSpecial') {
-          // Can't attack twice
-          if (attacked)
-            throw new ServerError(403, 'Too many attack actions');
+      if (action.type === 'move') {
+        // Can't move twice.
+        if (moved)
+          throw new ServerError(403, 'Too many move actions');
+      } else if (action.type === 'attack' || action.type === 'attackSpecial') {
+        // Can't attack twice
+        if (attacked)
+          throw new ServerError(403, 'Too many attack actions');
 
-          // Can't attack if poisoned at turn start.
-          const unitState = this.units[unit.team.id].find(u => u.id === unit.id);
-          if (unitState.poisoned)
-            throw new ServerError(403, 'Poisoned units cannot attack');
-        }
-
-        // Turning in the current direction is the same as ending your turn.
-        if (action.type === 'turn' && action.direction === unit.direction)
-          return setEndTurn();
-
-        this._pushAction(action);
-      } catch(error) {
-        if (this._newActions.length)
-          this.revert(this.currentTurnId, this._actions.length - this._newActions.length, true);
-
-        throw error;
+        // Can't attack if poisoned at turn start.
+        const unitState = this.units[unit.team.id].find(u => u.id === unit.id);
+        if (unitState.poisoned)
+          throw new ServerError(403, 'Poisoned units cannot attack');
       }
+
+      // Turning in the current direction is the same as ending your turn.
+      if (action.type === 'turn' && action.direction === unit.direction)
+        return setEndTurn();
+
+      this._pushAction(action);
 
       // A turn action immediately ends the turn.
       if (action.type === 'turn')
@@ -556,6 +593,48 @@ export default class GameState {
       }
     });
 
+    return endTurn;
+  }
+  _pushAction(action) {
+    const actions = this._actions;
+
+    // Auto passed turns start and end at the same time.  This guarantee enables
+    // use to determine if a given turn is the first playable turn by comparing
+    // the turn start date with the game start date.  This is currently used for
+    // triggering "Your Turn" notifications at the right times.
+    if (actions.length === 0 && action.type === 'endTurn' && action.forced)
+      action.createdAt = this.turnStartedAt;
+    else {
+      action.createdAt = new Date();
+
+      if (actions.last?.type === 'endTurn')
+        this._pushHistory(actions.last.forced ? actions.last.createdAt : action.createdAt);
+    }
+
+    action.teamId = action.teamId ?? this.currentTeamId;
+
+    if (action.forced === false)
+      delete action.forced;
+
+    this._newActions.push(action);
+    this._applyAction(action);
+  }
+  submitAction(actions) {
+    this._newActions = [];
+    let endTurn;
+
+    /*
+     * If the full transaction isn't a success, rollback any changes that were pending.
+     */
+    try {
+      endTurn = this._pushActions(actions);
+    } catch(error) {
+      if (this._newActions.length)
+        this.revert(this.currentTurnId, this._actions.length - this._newActions.length, true);
+
+      throw error;
+    }
+
     // Find teams that has a unit that keeps it alive.
     const winners = this.winningTeams;
     let endGame;
@@ -580,24 +659,27 @@ export default class GameState {
       endGame = this.autoPass();
     }
 
-    if (this._newActions.length)
-      this._emit({
-        type: 'action',
-        data: board.encodeAction(this._newActions),
-      });
+    if (!this._newActions.length)
+      return;
+
+    const event = {
+      type: 'action',
+      data: this._board.encodeAction(this._newActions),
+    };
+    this._emit(event);
 
     if (endGame !== undefined)
       this.end(endGame);
-    else if (endTurn)
-      this._emit({
-        type: 'startTurn',
-        data: {
-          startedAt: this.turnStartedAt,
-          turnId: this.currentTurnId,
-          teamId: this.currentTeamId,
-          timeBuffer: this.currentTeam.turnTimeBuffer,
-        },
-      });
+    else {
+      // At the very least, echo actions back to submitter.
+      this.sync(event);
+
+      // Rated games hide undoable actions from opponents
+      //   If strict mode, all actions are seen by opponent(s) after a timeout
+      //   If turn ended, start turn after a timeout
+      if (this.rated && (this.strictUndo || endTurn))
+        this.willSync();
+    }
   }
   /*
    * Keep ending turns until a team is capable of making their turn.
@@ -700,6 +782,9 @@ export default class GameState {
 
     return { passedTurnLimit, passedTurnCount, attackTurnLimit, attackTurnCount };
   }
+  getFirstTurnId() {
+    return Math.min(...this.teams.map(t => this.getTeamFirstTurnId(t)));
+  }
   getTeamFirstTurnId(team) {
     const numTeams = this.teams.length;
     const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
@@ -707,44 +792,16 @@ export default class GameState {
 
     return team.id + (numTeams * Math.max(waitTurns, skipTurns));
   }
-  getTurnTimeLimit(turnId = this.currentTurnId) {
-    if (!this.startedAt || !this.turnTimeLimit)
-      return;
-
-    let turnTimeLimit = this.turnTimeLimit;
-    if (this.turnTimeBuffer) {
-      const turnData = this.getTurnData(turnId);
-      const team = this.teams[turnData.teamId];
-      const firstTurnId = this.getTeamFirstTurnId(team);
-
-      if (turnId === firstTurnId)
-        turnTimeLimit = this.turnTimeBuffer;
-      else
-        turnTimeLimit += turnData.timeBuffer;
-    }
-
-    return turnTimeLimit;
-  }
-  /*
-   * Normally, after submitting an action, you are granted at least 10 seconds
-   * to make another action.  The exception is when you wish to undo.  You only
-   * get 5 seconds (passed as an argument) to undo.
-   */
-  getTurnTimeRemaining(turnId = this.currentTurnId, actionTimeLimit = 10000, now = Date.now()) {
+  getTurnTimeRemaining(now = Date.now()) {
     if (!this.startedAt || this.endedAt)
       return false;
     if (!this.turnTimeLimit)
       return Infinity;
 
-    const turnData = this.getTurnData(turnId);
-    const turnTimeLimit = this.getTurnTimeLimit(turnId);
+    const turnTimeLimit = this.currentTurnTimeLimit;
+    const turnTimeout = +this.turnStartedAt + turnTimeLimit*1000 - now;
 
-    const lastAction = turnData.actions.filter(a => !a.forced).last;
-    const lastActionAt = lastAction ? +lastAction.createdAt : 0;
-    const actionTimeout = (lastActionAt + actionTimeLimit) - now;
-    const turnTimeout = (+turnData.startedAt + turnTimeLimit*1000) - now;
-
-    return Math.max(0, actionTimeout, turnTimeout);
+    return Math.max(0, turnTimeout);
   }
 
   teamHasPlayed(team) {
@@ -776,7 +833,7 @@ export default class GameState {
   canUndo(team = this.currentTeam, now = Date.now()) {
     const teams = this.teams;
     const currentTurnId = this.currentTurnId;
-    let actions = this._actions;
+    const actions = this._actions;
 
     // Practice games don't impose restrictions.
     const bot = teams.find(t => !!t.bot);
@@ -785,11 +842,8 @@ export default class GameState {
       return !!(currentTurnId > 1 || actions.length > 0);
 
     // Bots will never approve anything that requires approval.
-    const approve = bot ? false : 'approve';
-
-    if (this.endedAt)
-      return this.forkOf ? approve : false;
-
+    // Approval is also disabled for blitz games with auto surrender.
+    const approve = bot || this.turnTimeLimit === 30 && this.autoSurrender ? false : 'approve';
     const firstTurnId = this.getTeamFirstTurnId(team);
 
     // Can't undo if we haven't had a turn yet.
@@ -800,60 +854,21 @@ export default class GameState {
     if (firstTurnId === currentTurnId && actions.length === 0)
       return false;
 
-    let requireApproval = false;
-    let turnId;
+    // Only unrated games can undo after the game ends.
+    if (this.endedAt)
+      return this.rated ? false : approve;
 
-    // Determine the turn being undone in whole or in part
-    for (turnId = currentTurnId; turnId > -1; turnId--) {
-      // Bots do not allow undo after the turn has ended.  This is a technical
-      // limitation since bots start executing their move immediately when their
-      // turn starts.  It would be better if they started planning the move
-      // immediately, but waited to execute until undo limit has passed.
-      if (bot && turnId < currentTurnId)
-        return false;
+    // Only unrated games can undo after the turn ends.
+    const prevTeamId = (this.currentTeamId + teams.length - 1) % teams.length;
+    if (team.id === prevTeamId)
+      return this.rated ? false : actions.length === 0 ? true : approve;
+    else if (team.id !== this.currentTeamId)
+      return this.rated ? false : approve;
 
-      const turnData = this.getTurnData(turnId);
-      actions = turnData.actions;
-
-      // Current turn not actionable if no actions were made.
-      if (actions.length === 0)
-        continue;
-
-      // Not an actionable turn if the turn was forced to pass.
-      if (
-        actions.length === 1 &&
-        actions[0].type === 'endTurn' &&
-        actions[0].forced
-      ) continue;
-
-      // Require approval if undoing actions made by the opponent team.
-      if (turnData.teamId !== team.id) {
-        // ...only allowed for fork games.
-        if (!this.forkOf)
-          return false;
-
-        requireApproval = true;
-        continue;
-      }
-
-      // Can't undo previous turns after 5 seconds unless it is a fork game
-      if (!this.forkOf && turnId < currentTurnId && now - actions.last.createdAt > 5000)
-        return false;
-
-      // Require approval if the turn time limit was reached.
-      if (this.getTurnTimeRemaining(turnId, 5000, now) === 0)
-        return approve;
-
-      // Require approval if undoing a lucky or old action
-      const preservedActionId = this.getPreservedActionId(actions, now);
-      if (preservedActionId === actions.length)
-        return approve;
-
-      break;
-    }
-
-    if (requireApproval)
-      return approve;
+    // Require approval if undoing a lucky or old action
+    const preservedActionId = this.getPreservedActionId(actions, now);
+    if (preservedActionId === actions.length)
+      return actions.last.type === 'endTurn' ? false : approve;
 
     return true;
   }
@@ -862,25 +877,26 @@ export default class GameState {
    * Initiate an undo action by provided team (defaults to current turn's team)
    */
   undo(team = this.currentTeam, approved = false, now = Date.now()) {
-    let teams   = this.teams;
+    const teams = this.teams;
+    const currentTurnId = this.currentTurnId;
     let actions = this._actions;
 
+    const bot = teams.find(t => !!t.bot);
+    const opponent = teams.find(t => t.playerId !== team.playerId);
+    const firstTurnId = this.getTeamFirstTurnId(team);
+
     // Can't undo if we haven't had a turn yet.
-    if (team.id > this.currentTurnId)
+    if (firstTurnId > currentTurnId)
       return false;
 
     // Can't undo if we haven't made an action yet.
-    if (team.id === this.currentTurnId && this._actions.length === 0)
+    if (firstTurnId === currentTurnId && actions.length === 0)
       return false;
-
-    let bot      = teams.find(t => !!t.bot);
-    let opponent = teams.find(t => t.playerId !== team.playerId);
 
     // Practice games don't impose restrictions.
     if (!bot && !opponent) {
       for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
-        let turnData = this.getTurnData(turnId);
-        let actions = turnData.actions;
+        actions = this.getTurnActions(turnId);
 
         // Not an actionable turn if the turn was forced to pass.
         if (actions.length === 0)
@@ -897,17 +913,8 @@ export default class GameState {
         break;
       }
     } else {
-      if (!approved && this.endedAt)
-        return false;
-
-      let turnId;
-      for (turnId = this.currentTurnId; turnId > -1; turnId--) {
-        // Bots do not allow undo after the turn has ended.
-        if (bot && turnId < this.currentTurnId)
-          return false;
-
-        let turnData = this.getTurnData(turnId);
-        actions = turnData.actions;
+      for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
+        actions = this.getTurnActions(turnId);
 
         // Current turn not actionable if no actions were made by opponent yet.
         if (actions.length === 0)
@@ -920,12 +927,10 @@ export default class GameState {
           actions[0].forced
         ) continue;
 
-        // Require approval if undoing actions made by the opponent team.
-        let turnTeam = teams[turnId % teams.length];
-        if (turnTeam.id !== team.id) {
-          if (!approved) return false;
+        // Not an actionable turn if it isn't the team's turn
+        const teamId = turnId % teams.length;
+        if (teamId !== team.id)
           continue;
-        }
 
         /*
          * Some actions should not be undone unless approved.
@@ -935,36 +940,87 @@ export default class GameState {
         this.revert(turnId, actionId);
         break;
       }
-
-      // Can't undo if team has no actionable turns to undo.
-      if (turnId === -1)
-        return false;
     }
   }
-  getPreservedActionId(actions, now = Date.now()) {
-    const selectedUnitId = actions[0].unit;
+  getPreservedActionId(actions = this._actions, now = Date.now()) {
+    if (actions.length === 0)
+      return 0;
+    if (this.rated && this.getTurnTimeRemaining(now) === 0)
+      return actions.length;
 
-    if (this.strictUndo)
-      // Indirectly preserves unit selection in strict mode
-      // Preserve previous actions in strict mode
-      // Preserve old actions in strict mode
-      return now - actions.last.createdAt > 5000 ? actions.length : actions.length - 1;
-    else
-      return actions.findLastIndex(action => (
-        // Preserve counter-attacks
-        action.unit !== undefined && action.unit !== selectedUnitId ||
-        // Preserve luck-involved attacks
-        !!action.results && !!action.results.find(r => 'luck' in r)
-      )) + 1;
+    const selectedUnitId = actions[0].unit;
+    const forcedEndTurn = actions.last.type === 'endTurn' && actions.last.forced;
+
+    let actionId = actions.findLastIndex(action => (
+      // Preserve any old action in strict mode
+      this.strictUndo && (action.type === 'select' || now - action.createdAt > 5000) ||
+      // Preserve an old end turn action in rated games
+      this.rated && action.type === 'endTurn' && now - action.createdAt > 5000 ||
+      // Preserve counter-attacks
+      action.unit !== undefined && action.unit !== selectedUnitId ||
+      // Preserve luck-involved attacks
+      !!action.results && !!action.results.find(r => 'luck' in r)
+    )) + 1;
+
+    // If the only action that can be undone is a forced endTurn, then nothing can be undone
+    if (actionId === actions.length - 1 && forcedEndTurn)
+      actionId++;
+
+    // In strict undo mode, you may only undo one action (forced endTurn doesn't count)
+    if (this.strictUndo && actionId < actions.length)
+      return forcedEndTurn ? actions.length - 2 : actions.length - 1;
+
+    return actionId;
+  }
+  startTurn() {
+    this._pushHistory();
+
+    const event = {
+      type: 'startTurn',
+      data: {
+        turnId: this.currentTurnId,
+        teamId: this.currentTeamId,
+        startedAt: this.turnStartedAt,
+        timeLimit: this.currentTurnTimeLimit,
+      },
+    };
+
+    this._emit(event);
+    this.sync(event);
   }
   end(winnerId) {
     this.endedAt = new Date();
     this.winnerId = winnerId;
 
-    this._emit({
+    const event = {
       type: 'endGame',
       data: { winnerId },
-    });
+    };
+
+    this._emit(event);
+    this.sync(event);
+  }
+  sync(originalEvent) {
+    const actions = this._actions;
+    if (actions.length && actions.last.type === 'endTurn' && (!this.rated || this.getPreservedActionId() === actions.length))
+      return this.startTurn();
+
+    this._emit({ type:'sync', data:originalEvent });
+  }
+  /*
+   * This is only called after an action is submitted.
+   * The game is assumed to be rated.
+   * Strict mode is assumed to be enabled or the turn ended.
+   */
+  willSync() {
+    const actions = this._actions;
+    const actionTimeout = 5000 - (Date.now() - actions.last.createdAt);
+    const turnTimeout = this.getTurnTimeRemaining();
+
+    // Let opponents know an action has occurred 5 seconds after it was submitted.
+    // Start a turn 5 seconds after the previous one ends.
+    if (turnTimeout || actionTimeout)
+      this._emit({ type:'willSync', data:Math.min(actionTimeout, turnTimeout) });
   }
   revert(turnId, actionId = 0, silent = false) {
     const board = this._board;
@@ -986,18 +1042,26 @@ export default class GameState {
     this.endedAt = null;
     this.winnerId = null;
 
-    if (!silent)
-      this._emit({
-        type: 'revert',
-        data: {
-          startedAt: this.turnStartedAt,
-          turnId: this.currentTurnId,
-          teamId: this.currentTeamId,
-          timeBuffer: this.currentTeam.turnTimeBuffer,
-          actions: this.actions,
-          units: this.units,
-        },
-      });
+    if (silent) return;
+
+    const event = {
+      type: 'revert',
+      data: {
+        turnId: this.currentTurnId,
+        teamId: this.currentTeamId,
+        startedAt: this.turnStartedAt,
+        timeLimit: this.currentTurnTimeLimit,
+        actions: this.actions,
+        units: this.units,
+      },
+    };
+
+    this._emit(event);
+    this.sync(event);
+
+    // Just in case the previous action is still fresh
+    if (actionId > 0 && this.rated && (this.strictUndo || endTurn))
+      this.willSync();
   }
 
   /*
@@ -1019,6 +1083,7 @@ export default class GameState {
       strictUndo: this.strictUndo,
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
+      rated: this.rated,
       turnTimeLimit: this.turnTimeLimit,
       turnTimeBuffer: this.turnTimeBuffer,
 
@@ -1260,9 +1325,6 @@ export default class GameState {
     this._actions.push(action);
 
     this._board.applyAction(action);
-
-    if (action.type === 'endTurn')
-      this._pushHistory();
   }
 
   _resetTurn() {
@@ -1274,36 +1336,29 @@ export default class GameState {
 
     return actions;
   }
-  _pushHistory() {
-    const board = this._board;
-    const actions = this.actions;
-    const turnEndedAt = actions.last.createdAt;
-    const turn = {
-      startedAt: this.turnStartedAt,
-      units: this.units,
-      actions,
-    };
+  _pushHistory(nextTurnStartsAt = new Date()) {
+    const turn = this.currentTurn;
 
     if (this.turnTimeBuffer) {
+      const turnStartedAt = turn.startedAt;
+      const turnEndedAt = turn.actions.last.createdAt;
       const team = this.currentTeam;
       const firstTurnId = this.getTeamFirstTurnId(team);
-
-      turn.timeBuffer = team.turnTimeBuffer;
 
       if (this.currentTurnId > firstTurnId) {
         const turnTimeBuffer = this.turnTimeBuffer;
         const turnTimeLimit = this.turnTimeLimit;
-        const elapsed = Math.floor((turnEndedAt - turn.startedAt) / 1000);
+        const elapsed = Math.floor((turnEndedAt - turnStartedAt) / 1000);
         if (elapsed > turnTimeLimit)
-          team.turnTimeBuffer = Math.max(0, team.turnTimeBuffer - (elapsed - turnTimeLimit));
+          team.turnTimeBuffer = 0;
         else
           team.turnTimeBuffer = Math.min(turnTimeBuffer, team.turnTimeBuffer + Math.max(0, (turnTimeLimit / 2) - elapsed));
       }
     }
 
     this.turns.push(turn);
-    this.turnStartedAt = turnEndedAt;
-    this.units = board.getState();
+    this.turnStartedAt = nextTurnStartsAt;
+    this.units = this._board.getState();
     this._actions.length = 0;
 
     return this;
@@ -1369,6 +1424,7 @@ serializer.addType({
       strictUndo: { type:'boolean' },
       strictFork: { type:'boolean' },
       autoSurrender: { type:'boolean' },
+      rated: { type:'boolean' },
       turnTimeLimit: { type:[ 'number', 'null' ] },
       turnTimeBuffer: { type:[ 'number', 'null' ] },
       teams: {

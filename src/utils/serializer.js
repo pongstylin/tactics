@@ -64,10 +64,25 @@ const classTypes = [
           continue;
 
         const keyTransform = transform.keys[i][1];
-        const keyType = classTypeMap.get(keyTransform.type);
-        if (keyType === undefined)
-          throw new TypeError(`The '${keyTransform.type}' type has not been added`);
-        data[key] = keyType.normalize(value, keyTransform);
+        const keyTypeNames = keyTransform.type.constructor === Array ? keyTransform.type : [ keyTransform.type ];
+        const values = [];
+
+        for (const keyTypeName of keyTypeNames) {
+          const keyType = classTypeMap.get(keyTypeName);
+          if (keyType === undefined)
+            throw new TypeError(`The '${keyTransform.type}' type has not been added`);
+          if (keyType.jsonType !== value.constructor.name)
+            continue;
+
+          values.push(keyType.normalize(value, keyTransform));
+        }
+
+        if (values.length === 1)
+          data[key] = values[0];
+        else if (values.length === 0)
+          data[key] = value;
+        else
+          throw new TypeError(`The key '${key}' value is of an ambiguous type`);
       }
 
       return data;

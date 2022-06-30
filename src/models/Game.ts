@@ -1,4 +1,5 @@
 import uuid from 'uuid/v4';
+import util from 'util';
 
 import ActiveModel from 'models/ActiveModel.js';
 import serializer from 'utils/serializer.js';
@@ -19,10 +20,17 @@ const stateKeys = new Set([
   'strictUndo',
   'strictFork',
   'autoSurrender',
+  'rated',
   'turnTimeBuffer',
   'turnTimeLimit',
   'teams',
 ]);
+
+const REF_TURN_ID    = 0;
+const REF_TURN_AT    = 1;
+const REF_TURN_LIMIT = 2;
+const REF_ENDED_AT   = 3;
+const REF_ACTION_AT  = 4;
 
 export default class Game extends ActiveModel {
   protected data: {
@@ -40,7 +48,7 @@ export default class Game extends ActiveModel {
   constructor(data) {
     super();
 
-    data.state.on('*', event => {
+    data.state.on('sync', ({ data:event }) => {
       // Clear a player's rejected requests when their turn starts.
       if (data.playerRequest) {
         if (event.type === 'startTurn') {
@@ -212,16 +220,11 @@ export default class Game extends ActiveModel {
   }
   submitUndoRequest(request, receivedAt = Date.now()) {
     const state = this.data.state;
-    const teams = state.teams;
-    if (state.endedAt) {
-      const myTeams = teams.filter(t => t.playerId === request.createdBy);
-      const isPracticeGame = myTeams.length === teams.length;
-      const isForkGame = !!this.data.forkOf;
-      if (!isPracticeGame && !isForkGame)
-        throw new ServerError(409, 'Game already ended');
-    }
+    if (state.endedAt && state.rated)
+      throw new ServerError(409, 'Game already ended');
 
     // Determine the team that is making the request.
+    const teams = state.teams;
     let team = state.currentTeam;
     let prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
     if (team.playerId === request.createdBy) {
@@ -256,14 +259,8 @@ export default class Game extends ActiveModel {
     const state = this.data.state;
     if (state.endedAt)
       throw new ServerError(409, 'Game already ended');
-    else {
-      const teams = state.teams;
-      const myTeams = teams.filter(t => t.playerId === request.createdBy);
-      const isPracticeGame = myTeams.length === teams.length;
-      const isForkGame = !!this.data.forkOf;
-      if (isPracticeGame || isForkGame)
-        throw new ServerError(403, 'Truce not required for this game');
-    }
+    if (!state.rated)
+      throw new ServerError(403, 'Truce not required for this game');
 
     return true;
   }
@@ -373,15 +370,12 @@ export default class Game extends ActiveModel {
     forkGameData.state.strictUndo = false;
     forkGameData.state.strictFork = false;
     forkGameData.state.autoSurrender = false;
+    forkGameData.state.rated = false;
 
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
 
     if (vs === 'you') {
-      if (
-        !this.data.state.endedAt &&
-        !this.data.forkOf &&
-        new Set(this.data.state.teams.map(t => t.playerId)).size > 1
-      ) {
+      if (!this.data.state.endedAt && this.data.state.rated) {
         const myTeam = this.data.state.teams.find(t => t.playerId === clientPara.playerId);
         if (myTeam) {
           myTeam.setUsedSim();
@@ -415,6 +409,189 @@ export default class Game extends ActiveModel {
 
     this.isCancelled = true;
     this.emit('delete');
+  }
+
+  getSyncForPlayer(playerId, reference) {
+    const gameData = this.toJSON();
+    const state = gameData.state = this.state.getDataForPlayer(playerId);
+
+    // Don't care about syncing tags
+    delete gameData.tags;
+
+    if (!state.startedAt)
+      gameData.reference = 'creation';
+    else
+      gameData.reference = [
+        state.currentTurnId,
+        state.turnStartedAt.toISOString(),
+        state.currentTurnTimeLimit,
+        state.endedAt ? state.endedAt.toISOString() : null,
+        ...state.actions.map(a => a.createdAt.toISOString()),
+      ];
+
+    if (!reference)
+      return gameData;
+
+    // These values are set when a game is created and cannot be changed.
+    // So, when resuming a game, these values need not be sent.
+    delete gameData.id;
+    delete gameData.collection;
+    delete gameData.createdAt;
+    delete gameData.createdBy;
+
+    if (JSON.stringify(reference) === JSON.stringify(gameData.reference)) {
+      delete gameData.reference;
+      delete gameData.state;
+      return gameData;
+    }
+
+    delete gameData.state.type;
+    delete gameData.state.randomFirstTurn;
+    delete gameData.state.randomHitChance;
+    delete gameData.state.turnTimeLimit;
+    delete gameData.state.turnTimeBuffer;
+    delete gameData.state.strictUndo;
+    delete gameData.state.strictFork;
+    delete gameData.state.autoSurrender;
+    delete gameData.state.rated;
+
+    if (reference === 'creation')
+      return gameData;
+
+    // These values are set when a game starts and cannot be changed.
+    // So, when resuming a game, these values need not be sent.
+    delete state.startedAt;
+    delete state.teams;
+
+    this._pruneGameState(gameData, reference);
+
+    return gameData;
+  }
+
+  _pruneGameState(gameData, reference) {
+    const state = gameData.state;
+    const fromTurnId = reference[REF_TURN_ID];
+    const fromTurnStartedAt = reference[REF_TURN_AT];
+    const fromTurnLimit = reference[REF_TURN_LIMIT];
+    const fromEndedAt = reference[REF_ENDED_AT];
+    const fromActionId = reference.length - REF_ACTION_AT;
+    const fromActionsAt = reference.slice(REF_ACTION_AT);
+    const toTurnId = gameData.reference[REF_TURN_ID];
+    const toTurnLimit = state.currentTurnTimeLimit;
+    const toEndedAt = gameData.reference[REF_ENDED_AT];
+
+    // If the turn doesn't exist anymore...
+    // Or if they are too far behind, just prune a couple things
+    if (fromTurnId > toTurnId || fromTurnId < toTurnId - 10) {
+      if (fromTurnLimit === toTurnLimit)
+        delete state.currentTurnTimeLimit;
+
+      if (fromEndedAt === toEndedAt) {
+        delete state.endedAt;
+        delete state.winnerId;
+      }
+
+      return;
+    }
+
+    gameData.events = [];
+
+    const toTurn = {
+      id: state.currentTurnId,
+      teamId: state.currentTeamId,
+      startedAt: state.turnStartedAt,
+      timeLimit: state.currentTurnTimeLimit,
+      units: state.units,
+      actions: state.actions,
+    };
+    const turn = fromTurnId === toTurnId ? toTurn : this.state.getTurnData(fromTurnId);
+    const toTurnStartedAt = turn.startedAt.toISOString();
+    const toActionId = turn.actions.length;
+    const toActionsAt = turn.actions.map(a => a.createdAt.toISOString());
+
+    // Whether fromTurnId is old or current, we aren't changing it yet
+    delete state.currentTurnId;
+    delete state.currentTeamId;
+
+    // Don't need the units at start of turn if they were already seen
+    if (fromTurnStartedAt === toTurnStartedAt) {
+      delete state.turnStartedAt;
+      delete state.units;
+
+      if (fromTurnLimit === toTurnLimit)
+        delete state.currentTurnTimeLimit;
+
+      if (fromActionId === toActionId && fromActionsAt.last === toActionsAt.last)
+        // Actions are unchanged
+        delete state.actions;
+      else if (fromActionId) {
+        const actionId = fromActionsAt.findIndex((aAt,i) => aAt !== toActionsAt[i]);
+        if (actionId === -1) {
+          // No actions have changed and there are more!
+          gameData.events.push({ type:'action', data:turn.actions.slice(fromActionId) });
+          delete state.actions;
+        } else if (actionId === 0) {
+          // All actions have changed, replace them!
+          state.actions = turn.actions;
+        } else {
+          // Some actions have changed or disappeared, truncate!
+          gameData.actionId = actionId;
+
+          // Push actions, if necessary
+          if (toActionId > actionId)
+            gameData.events.push({ type:'action', data:turn.actions.slice(actionId) });
+
+          delete state.actions;
+        }
+      } else if (toActionId) {
+        gameData.events.push({ type:'action', data:turn.actions });
+
+        delete state.actions;
+      }
+    } else {
+      state.turnStartedAt = turn.startedAt;
+      if (fromTurnLimit !== turn.timeLimit)
+        state.currentTurnTimeLimit = turn.timeLimit;
+      else
+        delete state.currentTurnTimeLimit;
+      state.units = turn.units;
+      if (fromActionId || turn.actions.length)
+        state.actions = turn.actions;
+      else
+        delete state.actions;
+    }
+
+    for (let turnId = fromTurnId+1; turnId <= toTurnId; turnId++) {
+      const nextTurn = turnId === toTurnId ? toTurn : this.state.getTurnData(turnId);
+
+      gameData.events.push({
+        type: 'startTurn',
+        data: {
+          turnId: nextTurn.id,
+          teamId: nextTurn.teamId,
+          startedAt: nextTurn.startedAt,
+          timeLimit: nextTurn.timeLimit,
+        },
+      });
+      if (nextTurn.actions.length)
+        gameData.events.push({ type:'action', data:nextTurn.actions });
+    }
+
+    if (toEndedAt)
+      gameData.events.push({ type:'endGame', data:{ winnerId:state.winnerId } });
+
+    if (fromEndedAt) {
+      state.endedAt = null;
+      state.winnerId = null;
+    } else {
+      delete state.endedAt;
+      delete state.winnerId;
+    }
+
+    if (Object.keys(state).length === 0)
+      delete gameData.state;
+    if (gameData.events.length === 0)
+      delete gameData.events;
   }
 };
 

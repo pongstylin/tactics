@@ -88,6 +88,10 @@ window.addEventListener('DOMContentLoaded', () => {
           until the game ends.  Also, if your time runs out, you will surrender
           automatically.</LI>
 
+          <LI><B>Unrated</B> games are for friendly matches that won't affect
+          your stats.  These are great for training games since you may use undo
+          freely and in full view of your opponent.</LI>
+
           <LI><B>Practice</B> games are played against yourself or someone
           sharing your screen.  If possible, you are given the opportunity to
           choose what set you wish to play against.</LI>
@@ -111,25 +115,18 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  document.querySelectorAll('INPUT[name=vs]').forEach(radio => {
-    radio.addEventListener('change', event => {
-      if (radio.value === 'you') {
-        document.querySelectorAll('INPUT[name=turnLimit]').forEach(radio => {
-          radio.disabled = true;
-        });
+  document.querySelectorAll('INPUT[name=vs]').forEach(vsRadio => {
+    vsRadio.addEventListener('change', event => {
+      document.querySelectorAll('INPUT[name=turnLimit]').forEach(turnLimitRadio => {
+        turnLimitRadio.disabled = vsRadio.value === 'you';
+      });
 
+      if (vsRadio.value === 'you')
         btnCreate.textContent = 'Start Playing';
-      }
-      else {
-        document.querySelectorAll('INPUT[name=turnLimit]').forEach(radio => {
-          radio.disabled = false;
-        });
-
-        if (radio.value === 'public')
-          btnCreate.textContent = 'Create or Join Game';
-        else
-          btnCreate.textContent = 'Create Game Link';
-      }
+      else if (vsRadio.value === 'public')
+        btnCreate.textContent = 'Create or Join Game';
+      else
+        btnCreate.textContent = 'Create Game Link';
     });
   });
 
@@ -156,8 +153,12 @@ window.addEventListener('DOMContentLoaded', () => {
       set: { name:'default' },
     };
 
-    if (vs !== 'you')
+    if (vs !== 'you') {
       gameOptions.turnTimeLimit = isNaN(turnLimit) ? turnLimit : parseInt(turnLimit);
+
+      if (vs !== 'unrated')
+        gameOptions.rated = true;
+    }
     if (vs === 'tournament')
       gameOptions.strictUndo = gameOptions.strictFork = gameOptions.autoSurrender = true;
 

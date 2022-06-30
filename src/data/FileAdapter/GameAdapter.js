@@ -51,6 +51,14 @@ export default class extends FileAdapter {
 
       _dirtyGames: new Map(),
       _syncingPlayerGames: new Map(),
+
+      _willSync: new Timeout('gameSync'),
+    });
+
+    this._willSync.on('expire', async ({ data:items }) => {
+      for (const game of items.values()) {
+        game.state.sync({ type:'timeout' });
+      }
     });
   }
 
@@ -86,15 +94,15 @@ export default class extends FileAdapter {
         if (game.state.getTurnTimeRemaining() > 0)
           continue;
 
-        if (game.state.actions.length)
-          game.state.submitAction({
-            type: 'endTurn',
-            forced: true,
-          });
-        else
+        if (game.state.actions.length === 0)
           game.state.submitAction({
             type: 'surrender',
             declaredBy: 'system',
+          });
+        else if (game.state.actions.last.type !== 'endTurn')
+          game.state.submitAction({
+            type: 'endTurn',
+            forced: true,
           });
       }
     });
@@ -365,12 +373,20 @@ export default class extends FileAdapter {
     });
   }
   _attachGame(game) {
+    game.state.on('willSync', event => this._onGameWillSync(game, event.data));
+    game.state.on('sync', event => this._onGameSync(game));
     game.on('change', event => this._onGameChange(game));
     game.on('delete', event => this._onGameDelete(game));
     if (!game.state.startedAt)
       game.state.once('startGame', event => this._recordGameStats(game));
     if (!game.state.endedAt)
       game.state.once('endGame', event => this._recordGameStats(game));
+  }
+  _onGameWillSync(game, expireIn) {
+    this._willSync.add(game.id, game, expireIn);
+  }
+  _onGameSync(game) {
+    this._willSync.delete(game.id);
   }
   _onGameChange(game) {
     if (!this.buffer.get('game').has(game.id))
@@ -391,8 +407,9 @@ export default class extends FileAdapter {
     this.deleteFile(`game_${game.id}`);
   }
   async _recordGameStats(game) {
+    if (!game.state.rated) return;
+
     const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
-    if (playerIds.size === 1) return;
 
     for (const playerId of playerIds) {
       const playerStats = await this._getPlayerStats(playerId);
