@@ -686,7 +686,7 @@ export default class GameState {
    * ...or the game ends due to draw.
    */
   autoPass() {
-    let {
+    const {
       passedTurnLimit,
       passedTurnCount,
       attackTurnLimit,
@@ -702,8 +702,12 @@ export default class GameState {
       if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit)
         return 'draw';
 
+      const currentTurnId = this._actions.last?.type === 'endTurn' ? this.currentTurnId : this.currentTurnId + 1;
+      const currentTeamId = currentTurnId % this.teams.length;
+      const currentTeam = this.teams[currentTeamId];
+
       // End the next turn if we can't find one playable unit.
-      turnEnded = !this.currentTeam.units.find(unit => {
+      turnEnded = !currentTeam.units.find(unit => {
         if (unit.mRecovery) return;
         if (unit.paralyzed) return;
         if (unit.type === 'Shrub') return;
