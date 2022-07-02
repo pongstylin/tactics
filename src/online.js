@@ -1673,6 +1673,9 @@ function renderYourGames() {
     // Exclude games where it is someone else's turn
     if (game.teams[game.currentTeamId].playerId !== myPlayerId)
       continue;
+    // Exclude games where it is my turn, but it ended
+    if (game.turnEndedAt)
+      continue;
     // Exclude practice games
     if (!game.teams.find(t => t.playerId !== myPlayerId))
       continue;
@@ -1695,8 +1698,8 @@ function renderYourGames() {
    */
   const theirTurnGames = [];
   for (const game of activeGames) {
-    // Exclude games where it is my turn
-    if (game.teams[game.currentTeamId].playerId === myPlayerId)
+    // Exclude games where it is my turn and the turn hasn't ended
+    if (game.teams[game.currentTeamId].playerId === myPlayerId && !game.turnEndedAt)
       continue;
     // Exclude practice games
     if (!game.teams.find(t => t.playerId !== myPlayerId))
@@ -2127,7 +2130,7 @@ async function fetchGames(tabName) {
   const yourContent = state.tabContent.yourGames;
   if (!yourContent.isSynced) {
     const query = [
-      {
+      { // Waiting Games (except Lobby games)
         filter: {
           collection: { '!':{ '~':/^lobby\// } },
           startedAt: null,
@@ -2135,7 +2138,7 @@ async function fetchGames(tabName) {
         sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
-      {
+      { // Active Games (except Lobby games)
         filter: {
           collection: { '!':{ '~':/^lobby\// } },
           startedAt: { '!':null },
@@ -2144,12 +2147,12 @@ async function fetchGames(tabName) {
         sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
-      {
+      { // Completed Games
         filter: { endedAt:{ '!':null } },
         sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
-      {
+      { // Waiting and Active Lobby games
         filter: {
           collection: { '~':/^lobby\// },
           endedAt: null,

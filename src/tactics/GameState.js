@@ -892,6 +892,8 @@ export default class GameState {
       return this.rated ? false : actions.length === 0 ? true : approve;
     else if (team.id !== this.currentTeamId)
       return this.rated ? false : approve;
+    else if (actions.length === 0)
+      return this.rated ? false : approve;
 
     // Require approval if undoing a lucky or old action
     const preservedActionId = this.getPreservedActionId(currentTurnId, now);
@@ -1090,7 +1092,7 @@ export default class GameState {
     this.sync(event);
 
     // Just in case the previous action is still fresh
-    if (actionId > 0 && this.rated && (this.strictUndo || endTurn))
+    if (actionId > 0 && this.rated && this.strictUndo)
       this.willSync();
   }
 

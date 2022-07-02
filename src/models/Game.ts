@@ -570,7 +570,7 @@ export default class Game extends ActiveModel {
           turnId: nextTurn.id,
           teamId: nextTurn.teamId,
           startedAt: nextTurn.startedAt,
-          timeLimit: nextTurn.timeLimit,
+          timeLimit: nextTurn.timeLimit ?? null,
         },
       });
       if (nextTurn.actions.length)

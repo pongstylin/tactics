@@ -203,6 +203,8 @@ export default class Transport {
       return this.rated ? false : actions.length === 0 ? true : approve;
     else if (team.id !== this.currentTeamId)
       return this.rated ? false : approve;
+    else if (actions.length === 0)
+      return this.rated ? false : approve;
 
     // Require approval if undoing a lucky or old action
     const preservedActionId = this.getPreservedActionId(actions);
@@ -216,7 +218,7 @@ export default class Transport {
     return true;
   }
   getPreservedActionId() {
-    const actions = this.actions;
+    const actions = this._data.state.actions;
     if (actions.length === 0)
       return 0;
     if (this.rated && this.getTurnTimeRemaining() === 0)
