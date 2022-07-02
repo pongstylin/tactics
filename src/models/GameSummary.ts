@@ -40,6 +40,8 @@ export default class GameSummary {
       randomFirstTurn: game.state.randomFirstTurn,
       randomHitChance: game.state.randomHitChance,
       turnStartedAt,
+      // This value is only non-null for 5 seconds after a rated game turn ends
+      turnEndedAt: actions.last?.type === 'endTurn' ? actions.last.createdAt : null,
       turnTimeLimit: game.state.turnTimeLimit,
       currentTurnTimeLimit: game.state.currentTurnTimeLimit,
       isFork: game.isFork,
@@ -78,6 +80,9 @@ export default class GameSummary {
   }
   get randomHitChance() {
     return this.data.randomHitChance;
+  }
+  get turnEndedAt() {
+    return this.data.turnEndedAt;
   }
   get turnTimeLimit() {
     return this.data.turnTimeLimit;
