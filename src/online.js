@@ -20,6 +20,7 @@ const popup = Tactics.popup;
 
 const styles = new Map([
   [ 'freestyle',        'Freestyle' ],
+  [ 'faceoff',          'Faceoff' ],
   [ 'classic',          'Classic' ],
   [ 'droplessGray',     'Dropless Gray' ],
   [ 'fpsGray',          'FPS Gray' ],
