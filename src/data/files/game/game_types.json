@@ -1002,5 +1002,20 @@
         ]
       }]
     }
+  ],
+  [
+    "faceoff",
+    {
+      "name": "Faceoff",
+      "customizable": false,
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[4, 2], "type":"Knight" },
+          { "assignment":[5, 2], "type":"Knight" },
+          { "assignment":[6, 2], "type":"Knight" }
+        ]
+      }]
+    }
   ]
 ]

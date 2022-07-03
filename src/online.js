@@ -34,6 +34,7 @@ const styles = new Map([
   [ 'alphaScout',       'Ninja Turtles' ],
   [ 'jenkinsRush',      'Jenkins Jamboree' ],
   [ 'tao100',           'TAO 100' ],
+  [ 'faceoff',          'Faceoff' ],
 ]);
 
 const groups = new Map([
