@@ -1045,8 +1045,11 @@ export default class GameState {
    */
   willSync() {
     const actions = this._actions;
+    if (actions.length === 0)
+      return;
+
     const now = Date.now();
-    const actionTimeout = 5000 - (now - actions.last.createdAt);
+    const actionTimeout = Math.max(0, 5000 - (now - actions.last.createdAt));
     const turnTimeout = this.getTurnTimeRemaining(this.currentTurnId, now);
 
     // Let opponents know an action has occurred 5 seconds after it was submitted.
@@ -1092,7 +1095,7 @@ export default class GameState {
     this.sync(event);
 
     // Just in case the previous action is still fresh
-    if (actionId > 0 && this.rated && this.strictUndo)
+    if (this.rated && this.strictUndo)
       this.willSync();
   }
 
