@@ -22,21 +22,6 @@
     }
   ],
   [
-    "faceoff",
-    {
-      "name": "Faceoff",
-      "customizable": false,
-      "sets": [{
-        "name":"Default",
-        "units": [
-          { "assignment":[4, 2], "type":"Knight" },
-          { "assignment":[5, 2], "type":"Knight" },
-          { "assignment":[6, 2], "type":"Knight" }
-        ]
-      }]
-    }
-  ],
-  [
     "droplessGray",
     {
       "name": "Dropless Gray",
@@ -1014,6 +999,21 @@
           { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
           { "assignment":[8, 4], "type":"BeastRider" },
           { "assignment":[9, 4], "type":"Berserker" }
+        ]
+      }]
+    }
+  ],
+  [
+    "faceoff",
+    {
+      "name": "Faceoff",
+      "customizable": false,
+      "sets": [{
+        "name":"Default",
+        "units": [
+          { "assignment":[4, 2], "type":"Knight" },
+          { "assignment":[5, 2], "type":"Knight" },
+          { "assignment":[6, 2], "type":"Knight" }
         ]
       }]
     }
