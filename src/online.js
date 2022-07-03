@@ -9,6 +9,7 @@ import unitFactory from 'tactics/unitFactory.js';
 import Autosave from 'components/Autosave.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
 import LobbySettingsModal from 'components/Modal/LobbySettings.js';
+import gameTypeJSON from './data/files/game/game_types.json';
 
 // We will be fetching the updates games list from the server on this interval
 const GAMES_FETCH_INTERVAL = 5 * 1000;
@@ -18,20 +19,9 @@ const gameClient = Tactics.gameClient;
 const pushClient = Tactics.pushClient;
 const popup = Tactics.popup;
 
-const styles = new Map([
-  [ 'freestyle',        'Freestyle' ],
-  [ 'classic',          'Classic' ],
-  [ 'droplessGray',     'Dropless Gray' ],
-  [ 'fpsGray',          'FPS Gray' ],
-  [ 'legendsGray',      'Legends Gray' ],
-  [ 'alphaTurtle',      'Alpha Turtle' ],
-  [ 'legendsTurtle',    'Legends Turtle' ],
-  [ 'fpsGold',          'FPS Gold' ],
-  [ 'legendsGold',      'Legends Gold' ],
-  [ 'legendsGoldNoDSM', 'Legends Gold (no DSM)' ],
-  [ 'delta',            'Delta Force' ],
-  [ 'moderator',        'Moderator' ],
-]);
+// An array of gameTypes => [ [ 'freestyle, 'Freestyle' ], ['classic', 'Classic'], ['droplessGray', 'Dropless Gray'] ... ]
+const stylesArray = gameTypeJSON.map((gameType) => [gameType[0], gameType[1].name]);
+const styles = new Map(stylesArray);
 
 const groups = new Map([
   [ 'lobby',    'Lobby' ],

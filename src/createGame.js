@@ -1,5 +1,6 @@
 import Autosave from 'components/Autosave.js';
 import popup from 'components/popup.js';
+import gameTypeJSON from './data/files/game/game_types.json';
 
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
@@ -19,6 +20,15 @@ window.addEventListener('DOMContentLoaded', () => {
   }).on('submit', event => event.waitUntil(
     authClient.setAccountName(event.data),
   )).appendTo(divPlayerSetup);
+
+  // Dynamically generate gameType options in the createGame.html dropdown.
+  gameTypeJSON.forEach(gameType => {
+    const dropdownValue = gameType[0];
+    const dropdownText = gameType[1].name;
+
+    const dropdownOption = `<option value="${dropdownValue}">${dropdownText}</option>`
+    $('#gameTypes-dropdown').append(dropdownOption);
+  })
 
   let notice;
   if (navigator.onLine === false)
