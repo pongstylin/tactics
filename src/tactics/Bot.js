@@ -304,7 +304,7 @@ export default class {
   }
 
   startTurn() {
-    let myColor = this.team.units[0].color;
+    const myColor = this.team.units[0].color;
 
     this.choices = [];
     this.friends = [];
@@ -316,7 +316,7 @@ export default class {
       else {
         // To bots, Chaos is not always an enemy.
         if (team.name === 'Chaos') {
-          let agent = team.units[0];
+          const agent = team.units[0];
           if (agent.type === 'ChaosSeed') {
             // Don't attack Seed if off color
             if (agent.color !== myColor)
@@ -335,9 +335,8 @@ export default class {
 
     this.addChoice(this.calcTeamFuture(this.team, null));
 
-    if (this.inRange()) {
+    if (this.inRange())
       this.considerUnit();
-    }
     else {
       this.considerPosition();
       this.endTurn();

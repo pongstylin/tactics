@@ -641,29 +641,20 @@ export default class GameState {
 
     // Find teams that has a unit that keeps it alive.
     const winners = this.winningTeams;
-    let endGame;
-    if (winners.length === 0) {
-      if (endTurn)
-        this._pushAction(endTurn);
-      endGame = 'draw';
-    } else if (winners.length === 1) {
-      if (endTurn)
-        this._pushAction(endTurn);
-      endGame = winners[0].id;
-    } else if (endTurn) {
-      // Team Chaos needs a chance to phase before ending their turn.
-      const currentTeam = this.currentTeam;
-      if (currentTeam.name === 'Chaos') {
-        const phaseAction = currentTeam.units[0].getPhaseAction();
-        if (phaseAction)
-          this._pushAction(phaseAction);
+
+    if (endTurn) {
+      if (winners.length > 1) {
+        // Team Chaos needs a chance to phase before ending their turn.
+        const currentTeam = this.currentTeam;
+        if (currentTeam.name === 'Chaos') {
+          const phaseAction = currentTeam.units[0].getPhaseAction();
+          if (phaseAction)
+            this._pushAction(phaseAction);
+        }
       }
 
       this._pushAction(endTurn);
-      endGame = this.autoPass();
-    }
-
-    if (!this._newActions.length)
+    } else if (this._newActions.length === 0)
       return;
 
     const event = {
@@ -671,6 +662,14 @@ export default class GameState {
       data: this._board.encodeAction(this._newActions),
     };
     this._emit(event);
+
+    let endGame;
+    if (winners.length === 0)
+      endGame = 'draw';
+    else if (winners.length === 1)
+      endGame = winners[0].id;
+    else
+      endGame = this.autoPass();
 
     if (endGame !== undefined)
       this.end(endGame);
@@ -994,7 +993,8 @@ export default class GameState {
     )) + 1;
 
     // If the only action that can be undone is a forced endTurn, then nothing can be undone
-    if (actions.length > 1 && actionId === actions.length - 1 && forcedEndTurn)
+    // This includes a forced pass turn where the only action is a forcedEndTurn
+    if (actionId === actions.length - 1 && forcedEndTurn)
       actionId++;
 
     // In strict undo mode, you may only undo one action (forced endTurn doesn't count)
@@ -1022,6 +1022,9 @@ export default class GameState {
   end(winnerId) {
     this.endedAt = new Date();
     this.winnerId = winnerId;
+
+    if (this._actions.last?.type === 'endTurn')
+      this._pushHistory();
 
     const event = {
       type: 'endGame',
