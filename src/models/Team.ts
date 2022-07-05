@@ -260,6 +260,12 @@ export default class Team {
   get bot() {
     return this.data.bot;
   }
+  /*
+   * Used to set bot to 'false' in the Chaos hallenge
+   */
+  set bot(bot) {
+    this.data.bot = bot;
+  }
   get usedUndo() {
     return this.data.usedUndo === true;
   }
