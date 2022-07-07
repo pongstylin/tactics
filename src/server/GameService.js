@@ -244,8 +244,7 @@ export default class GameService extends Service {
         Math.max(...gamesSummary.map(gs => gs.updatedAt))
       );
       return notification;
-    }
-    else
+    } else
       notification.turnStartedAt = gamesSummary[0].updatedAt;
 
     // Search for the next opponent team after this team.
@@ -807,19 +806,18 @@ export default class GameService extends Service {
           data: event.data,
         },
       });
-      const listener = event => {
+      const listener = ({ data:event }) => {
+        // Send notification, if needed, to the current player
         // Only send a notification after the first playable turn
         // This is because notifications are already sent elsewhere on game start.
         if (event.type === 'startTurn' && event.data.startedAt > game.state.startedAt)
-          // Send notification, if needed, to the active player
           this._notifyYourTurn(game);
-        else if (event.type === 'sync')
-          // Sync clients with the latest game state they may view
-          this._emitGameSync(game);
+
+        // Sync clients with the latest game state they may view
+        this._emitGameSync(game);
       };
 
       game.on('playerRequest', emit);
-      game.state.on('startTurn', listener);
       game.state.on('sync', listener);
 
       this.gamePara.set(gameId, {
@@ -1195,7 +1193,6 @@ export default class GameService extends Service {
     gamePara.clients.delete(client.id);
     if (gamePara.clients.size === 0) {
       // TODO: Don't shut down the game state until all bots have made their turns.
-      game.state.off('startTurn', gamePara.listener);
       game.state.off('sync', gamePara.listener);
       game.off('playerRequest', gamePara.emit);
 
