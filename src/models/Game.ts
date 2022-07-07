@@ -117,6 +117,10 @@ export default class Game extends ActiveModel {
     return this.data.createdAt;
   }
 
+  getTeamForPlayer(playerId) {
+    return this.data.state.getTeamForPlayer(playerId);
+  }
+
   mergeTags(tags) {
     let changed = false;
 
@@ -165,8 +169,8 @@ export default class Game extends ActiveModel {
     if (playerRequest?.type === 'undo' && playerRequest.status === 'pending')
       throw new ServerError(409, `A '${playerRequest.type}' request is still pending`);
 
-    const myTeams = this.data.state.teams.filter(t => t.playerId === playerId);
-    if (myTeams.length === 0)
+    const myTeam = this.getTeamForPlayer(playerId);
+    if (!myTeam)
       throw new ServerError(403, 'You are not a player in this game.');
 
     if (!Array.isArray(actions))
@@ -175,8 +179,8 @@ export default class Game extends ActiveModel {
     for (const action of actions) {
       if (action.type === 'surrender')
         action.declaredBy = playerId;
-      else if (myTeams.includes(this.data.state.currentTeam))
-        action.teamId = this.data.state.currentTeamId;
+      else if (myTeam.id === this.data.state.currentTeamId)
+        action.teamId = myTeam.id;
       else
         throw new ServerError(409, 'Not your turn!');
     }
@@ -189,7 +193,7 @@ export default class Game extends ActiveModel {
     if (oldRequest?.status === 'pending')
       throw new ServerError(409, `A '${requestType}' request is still pending`);
 
-    if (this.data.state.teams.findIndex(t => t.playerId === playerId) === -1)
+    if (this.getTeamForPlayer(playerId) === null)
       throw new ServerError(401, 'You are not a player in this game.');
 
     const newRequest = {
@@ -224,19 +228,9 @@ export default class Game extends ActiveModel {
       throw new ServerError(409, 'Game already ended');
 
     // Determine the team that is making the request.
-    const teams = state.teams;
-    let team = state.currentTeam;
-    let prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
-    if (team.playerId === request.createdBy) {
-      const prevTeam = teams[prevTeamId];
-      if (prevTeam.playerId === request.createdBy && state._actions.length === 0)
-        team = prevTeam;
-    } else {
-      while (team.playerId !== request.createdBy) {
-        prevTeamId = (team.id === 0 ? teams.length : team.id) - 1;
-        team = teams[prevTeamId];
-      }
-    }
+    const team = state.isPracticeGame && state._actions.length === 0
+      ? state.getPreviousTeam()
+      : state.getTeamForPlayer(request.createdBy);
 
     request.teamId = team.id;
 
@@ -429,8 +423,10 @@ export default class Game extends ActiveModel {
         ...state.actions.map(a => a.createdAt.toISOString()),
       ];
 
-    if (!reference)
+    if (!reference) {
+      this._addRecentTurns(gameData, playerId);
       return gameData;
+    }
 
     // These values are set when a game is created and cannot be changed.
     // So, when resuming a game, these values need not be sent.
@@ -455,8 +451,10 @@ export default class Game extends ActiveModel {
     delete gameData.state.autoSurrender;
     delete gameData.state.rated;
 
-    if (reference === 'creation')
+    if (reference === 'creation') {
+      this._addRecentTurns(gameData, playerId);
       return gameData;
+    }
 
     // These values are set when a game starts and cannot be changed.
     // So, when resuming a game, these values need not be sent.
@@ -464,6 +462,7 @@ export default class Game extends ActiveModel {
     delete state.teams;
 
     this._pruneGameState(gameData, reference);
+    this._addRecentTurns(gameData, playerId);
 
     return gameData;
   }
@@ -592,6 +591,60 @@ export default class Game extends ActiveModel {
       delete gameData.state;
     if (gameData.events.length === 0)
       delete gameData.events;
+  }
+
+  /*
+   * Provide enough back history to support undo detection.
+   */
+  _addRecentTurns(gameData, playerId) {
+    const state = this.data.state;
+
+    // Only required for active games
+    if (!state.startedAt || state.endedAt)
+      return;
+
+    // Not required for practice games
+    if (state.isPracticeGame)
+      return;
+
+    // Only the current player may need it in rated games
+    if (state.rated && playerId !== state.currentTeam.playerId)
+      return;
+
+    const currentTurnId = gameData.state?.currentTurnId;
+
+    // Only needed when changing the current turn
+    if (currentTurnId === undefined)
+      return;
+
+    // Provide the turns that lead back to the last actionable turn
+    const team = state.getTeamForPlayer(playerId);
+    const minTurnId = state.getTeamFirstTurnId(team);
+    const teams = state.teams;
+    const turns = [];
+    for (let turnId = currentTurnId - 1; turnId >= minTurnId; turnId--) {
+      const turn = state.getTurnData(turnId);
+      turns.unshift(turn);
+
+      if (teams[turn.teamId].playerId !== playerId)
+        continue;
+      if (turn.actions.length === 1 && turn.actions[0].type === 'endTurn' && turn.actions[0].forced)
+        continue;
+      break;
+    }
+
+    gameData.recentTurns = {
+      units: turns[0].units,
+      turns: turns.map(t => ({
+        turnId: t.id,
+        teamId: t.teamId,
+        startedAt: t.startedAt,
+        timeLimit: t.timeLimit ?? null,
+        actions: t.actions,
+      })),
+    };
+
+    delete gameData.state.units;
   }
 };
 
