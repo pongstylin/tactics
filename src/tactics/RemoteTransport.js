@@ -8,8 +8,6 @@ export default class RemoteTransport extends Transport {
   constructor(gameId, gameData) {
     super({
       playerStatus: new Map(),
-
-      _recentTurns: [],
     });
 
     gameClient
@@ -66,30 +64,16 @@ export default class RemoteTransport extends Transport {
    * Returns a promise that resolves to the method result, if any.
    */
   async getTurnData(turnId) {
-    const state = this._data.state;
-    if (turnId === state.currentTurnId)
-      return {
-        id: turnId,
-        teamId: state.currentTeamId,
-        startedAt: state.turnStartedAt,
-        units: state.units,
-        actions: state.actions,
-      };
-    else if (turnId > state.currentTurnId)
-      return null;
-    else if (turnId >= state.currentTurnId - this._recentTurns.length)
-      return this._recentTurns[turnId - state.currentTurnId + this._recentTurns.length];
+    const turnData = this.getRecentTurnData(turnId);
+    if (turnData)
+      return turnData;
 
     return gameClient.getTurnData(this._data.id, turnId);
   }
-  getTurnActions(turnId) {
-    const state = this._data.state;
-    if (turnId === state.currentTurnId)
-      return state.actions;
-    else if (turnId > state.currentTurnId)
-      return null;
-    else if (turnId >= state.currentTurnId - this._recentTurns.length)
-      return this._recentTurns[turnId - state.currentTurnId + this._recentTurns.length].actions;
+  async getTurnActions(turnId) {
+    const turnData = this.getRecentTurnData(turnId);
+    if (turnData)
+      return turnData.actions;
 
     return gameClient.getTurnActions(this._data.id, turnId);
   }
@@ -192,14 +176,6 @@ export default class RemoteTransport extends Transport {
     });
   }
 
-  _onSync(event) {
-    const sync = event.data;
-
-    if (sync.state?.currentTurnId !== undefined)
-      this._recentTurns.length = 0;
-
-    return super._onSync(event);
-  }
   _onStartTurn(event) {
     // Clear a player's rejected requests when their turn starts.
     if (this._data.playerRequest) {
@@ -214,17 +190,6 @@ export default class RemoteTransport extends Transport {
           this._data.playerRequest = null;
       }
     }
-
-    const state = this._data.state;
-    this._recentTurns.push({
-      id: state.currentTurnId,
-      teamId: state.currentTeamId,
-      startedAt: state.turnStartedAt,
-      units: state.units,
-      actions: state.actions,
-    });
-    if (this._recentTurns.length === 11)
-      this._recentTurns.shift();
 
     return super._onStartTurn(event);
   }
