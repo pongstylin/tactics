@@ -1027,6 +1027,8 @@ export default class GameState {
     if (pointer === false && !approved)
       return false;
 
+    const isPracticeGame = this.isPracticeGame;
+
     /*
      * The pointer tells us how far back we can undo without approval.
      * But we may want to undo less than that.
@@ -1046,7 +1048,7 @@ export default class GameState {
       ) continue;
 
       // Not an actionable turn if it isn't the team's turn
-      if (turn.teamId !== team.id)
+      if (!isPracticeGame && turn.teamId !== team.id)
         continue;
 
       if (pointer && pointer.turnId === turnId)
