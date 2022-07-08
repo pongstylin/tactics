@@ -442,7 +442,8 @@ export default class GameState {
     if (playerId === this.currentTeam.playerId)
       return data;
 
-    const isOpponent = this.teams.findIndex(t => t.playerId === playerId) > -1;
+    const teams = this.teams;
+    const isOpponent = teams.findIndex(t => t.playerId === playerId) > -1;
     let pointer = this.getUndoPointer();
 
     if (isOpponent) {
