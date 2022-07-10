@@ -34,11 +34,7 @@ export default class LocalTransport extends Transport {
     return this._call('join', arguments);
   }
   restart() {
-    this.whenReady = new Promise();
-    this.whenStarted = new Promise();
-    this.whenTurnStarted = new Promise();
-    this._data.state.endedAt = null;
-    this._data.state.winnerId = null;
+    super.restart();
 
     this._post({ type:'restart' });
   }
@@ -85,9 +81,12 @@ export default class LocalTransport extends Transport {
 
     if (type === 'init')
       this._makeReady({ state:data });
-    else if (type === 'event')
+    else if (type === 'event') {
+      if (data.type === 'sync')
+        return;
+
       this._emit(data);
-    else if (type === 'reply') {
+    } else if (type === 'reply') {
       const resolvers = this._resolvers;
 
       const promise = resolvers.get(data.id);

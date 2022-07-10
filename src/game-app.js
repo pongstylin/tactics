@@ -229,9 +229,9 @@ var buttons = {
         ],
         margin: '16px',
       });
-    else if (game.isFork)
+    else if (!game.state.rated)
       popup({
-        message: `Do you surrender?  Since this is a fork game, it won't affect your Win/Lose/Draw stats.`,
+        message: `Do you surrender?  This is not a rated game so it won't affect your Win/Lose/Draw stats.`,
         buttons: [
           {
             label: 'Yes',
@@ -696,6 +696,11 @@ $(window).on('resize', () => {
 });
 
 async function initGame() {
+  // Authenticate first, if possible, so that the server knows what information to return.
+  await authClient.whenReady;
+  if (authClient.token)
+    await gameClient.whenAuthorized;
+
   return getGameData(gameId)
     .then(async gameData => {
       gameType = await gameClient.getGameType(gameData.state.type);
@@ -1026,9 +1031,15 @@ async function showPrivateIntro(gameData) {
   renderShareLink(gameData, document.querySelector('#private .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
+  const vs =
+    gameData.state.strictUndo && gameData.state.strictFork && gameData.state.autoSurrender ? 'Tournament' :
+    gameData.state.rated ? 'Private' : 'Unrated';
+
   let $greeting = $('#private .greeting');
+  let $subText = $greeting.next();
   let myTeam = gameData.state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
+  $subText.text($subText.text().replace('{vs}', vs));
 
   let transport = await loadTransport(gameData.id);
 
@@ -1152,7 +1163,7 @@ async function showPracticeIntro(gameData) {
   const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
 
   details.innerHTML = `
-    <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+    <DIV>The game style is <I>${gameType.name}</I>.</DIV>
     <DIV>The first team to move is ${person}.</DIV>
     <DIV>The blocking system is ${blocking}.</DIV>
   `;
@@ -1270,7 +1281,7 @@ async function showJoinFork(gameData) {
 
   details.innerHTML = `
     <DIV>This is a fork of <A href="${forkOfURL}" target="_blank">this ${of} and turn</A>.</DIV>
-    <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+    <DIV>The game style is <I>${gameType.name}</I>.</DIV>
     <DIV>The turn time limit is set to ${turnLimit}.</DIV>
     <DIV>The next person to move is ${person}.</DIV>
     <DIV>The blocking system is ${blocking}.</DIV>
@@ -1398,6 +1409,18 @@ async function showJoinIntro(gameData) {
     }
     challenge.innerHTML = message.join('  ');
 
+    let vs;
+    if (gameData.collection === 'public')
+      vs = 'a Public';
+    else if (gameData.collection)
+      vs = 'a Lobby';
+    else if (gameData.state.strictUndo && gameData.state.strictFork && gameData.state.autoSurrender)
+      vs = 'a Tournament';
+    else if (!gameData.state.rated)
+      vs = 'an Unrated';
+    else
+      vs = 'a Private';
+
     let turnLimit;
     switch (gameData.state.turnTimeLimit) {
       case 604800:
@@ -1424,7 +1447,8 @@ async function showJoinIntro(gameData) {
     const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
 
     details.innerHTML = `
-      <DIV>This is a <I>${gameType.name}</I> game.</DIV>
+      <DIV>This is ${vs} game.</DIV>
+      <DIV>The game style is <I>${gameType.name}</I>.</DIV>
       <DIV>The turn time limit is set to ${turnLimit}.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
       <DIV>The blocking system is ${blocking}.</DIV>
@@ -1561,19 +1585,18 @@ function setTurnTimeoutClock() {
   clearTimeout(turnTimeout);
   turnTimeout = null;
 
-  if (game.inReplay || game.state.turnTimeLimit === null || game.state.endedAt) {
+  if (game.inReplay || game.currentTurnTimeLimit === null) {
     $('.clock').css({ display:'none' });
     return;
   } else
     $('.clock').css({ display:'' });
 
   let timeout = game.turnTimeRemaining;
-  let state = game.state;
   let timeoutClass;
   let removeClass;
   let timeoutText;
   if (timeout > 0) {
-    let timeLimit = state.turnTimeLimit;
+    let timeLimit = game.turnTimeLimit;
     timeoutClass = timeout < timeLimit*1000 * 0.2 ? 'short' : 'long';
     removeClass = timeout < timeLimit*1000 * 0.2 ? 'long' : 'short';
     removeClass += ' expired';
@@ -1651,7 +1674,7 @@ async function startGame() {
     .on('state-change', event => {
       $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
       toggleUndoButton();
-      if (game.state.endedAt && !game.isLocalGame && !game.state.forkOf)
+      if (game.state.endedAt && game.state.rated)
         $('BUTTON[name=undo]').hide();
       toggleReplayButtons();
     })
@@ -1741,10 +1764,10 @@ async function startGame() {
         timeoutPopup.close();
     })
     .on('resetTimeout', () => setTurnTimeoutClock())
-    .on('playerRequest', ({ data:request }) => updatePlayerRequestPopup(request.status === 'pending'))
-    .on('playerRequest:accept', () => updatePlayerRequestPopup())
-    .on('playerRequest:reject', () => updatePlayerRequestPopup())
-    .on('playerRequest:cancel', () => updatePlayerRequestPopup())
+    .on('playerRequest', ({ data:request }) => updatePlayerRequestPopup('request', request.status === 'pending'))
+    .on('playerRequest:accept', () => updatePlayerRequestPopup('accept'))
+    .on('playerRequest:reject', () => updatePlayerRequestPopup('reject'))
+    .on('playerRequest:cancel', () => updatePlayerRequestPopup('cancel'))
     .on('playerRequest:complete', hidePlayerRequestPopup)
     .on('startSync', () => {
       $('BUTTON[name=play]').hide();
@@ -1803,15 +1826,15 @@ async function startGame() {
     game.play(-1);
 }
 
-function updatePlayerRequestPopup(createIfNeeded = false) {
+function updatePlayerRequestPopup(eventType, createIfNeeded = false) {
   if (game.isViewOnly)
     return;
 
-  if (!playerRequestPopup && !createIfNeeded) {
-    // When a request is rejected, the undo button becomes disabled.
+  if (eventType !== 'accept')
     toggleUndoButton();
+
+  if (!playerRequestPopup && !createIfNeeded)
     return;
-  }
 
   const playerRequest = game.state.playerRequest;
   // Was undo cancelled before we got an update?
@@ -1826,10 +1849,6 @@ function updatePlayerRequestPopup(createIfNeeded = false) {
   const popupData = {
     buttons: [],
     onClose: () => {
-      // When a request is rejected, the undo button becomes disabled.
-      if (playerRequest.type === 'undo')
-        toggleUndoButton();
-
       playerRequestPopup = null;
       $('#app').removeClass('with-playerRequest');
     },
@@ -1932,8 +1951,13 @@ let undoTimeout = null;
 function toggleUndoButton() {
   clearTimeout(undoTimeout);
 
+  const playerRequest = game.state.playerRequest;
+  if (playerRequest?.status === 'pending')
+    return $('BUTTON[name=undo]').prop('disabled', true).removeClass('request');
+
   const canUndo = game.canUndo();
   $('BUTTON[name=undo]').prop('disabled', !canUndo);
+  $('BUTTON[name=undo]').toggleClass('request', canUndo === 'approve');
 
   // If we are only able to undo for a limited time, set a timer to disable it.
   if (canUndo && typeof canUndo === 'number')
@@ -1952,7 +1976,7 @@ function toggleReplayButtons() {
 
   $('BUTTON[name=forward]').prop('disabled', atCurrent);
   $('BUTTON[name=end]').prop('disabled', atCurrent);
-  $('BUTTON[name=fork]').prop('disabled', atEnd);
+  $('BUTTON[name=fork]').prop('disabled', (game.state.strictUndo && !game.state.endedAt) || atEnd);
 }
 
 function setCursorAlert() {

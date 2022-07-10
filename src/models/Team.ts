@@ -80,7 +80,7 @@ export default class Team {
     useRandom: boolean
     randomState: Random
     turnTimeBuffer: number
-    set: any[] | boolean
+    set: any[] | string | boolean
     bot: any
     usedUndo: boolean
     usedSim: boolean
@@ -125,7 +125,7 @@ export default class Team {
       randomState: undefined,
 
       // The number of seconds accumulated in the turn time limit buffer.
-      turnTimeBuffer: undefined,
+      turnTimeBuffer: 0,
 
       // The set the team used at start of game.
       set: undefined,
@@ -160,7 +160,7 @@ export default class Team {
       } else
         throw new ServerError(400, 'Unrecognized set option value');
     } else if (typeof data.set === 'string') {
-      let firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt)[0];
+      const firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt)[0];
 
       if (data.set === 'same') {
         if (game.state.teams.length !== 2)
@@ -260,6 +260,12 @@ export default class Team {
   get bot() {
     return this.data.bot;
   }
+  /*
+   * Used to set bot to 'false' in the Chaos hallenge
+   */
+  set bot(bot) {
+    this.data.bot = bot;
+  }
   get usedUndo() {
     return this.data.usedUndo === true;
   }
@@ -341,6 +347,7 @@ export default class Team {
 
     delete json.checkoutAt;
     delete json.randomState;
+    delete json.turnTimeBuffer;
 
     return json;
   }
@@ -349,7 +356,12 @@ export default class Team {
    * This method is used to persist the team for storage.
    */
   toJSON() {
-    return { ...this.data };
+    const json = { ...this.data };
+
+    if (json.turnTimeBuffer === 0)
+      delete json.turnTimeBuffer;
+
+    return json;
   }
 }
 

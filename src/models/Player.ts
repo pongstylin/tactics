@@ -17,7 +17,8 @@ import ServerError from 'server/Error.js';
  * Other restrictions are imposed by the validatePlayerName() method.
  */
 XRegExp.install('astral');
-const rUnicodeLimit = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
+const rUnicodeWhitelist = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
+const rUnicodeBlacklist = XRegExp('[\\u3164]');
 
 export default class Player extends ActiveModel {
   protected data: {
@@ -75,7 +76,9 @@ export default class Player extends ActiveModel {
     if (width > 110)
       throw new ServerError(403, 'Player name visual length is too long');
 
-    if (!rUnicodeLimit.test(name))
+    if (!rUnicodeWhitelist.test(name))
+      throw new ServerError(403, 'Name contains forbidden characters');
+    if (rUnicodeBlacklist.test(name))
       throw new ServerError(403, 'Name contains forbidden characters');
     if (name.startsWith(' '))
       throw new ServerError(403, 'Name may not start with a space');

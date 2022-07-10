@@ -29,24 +29,35 @@ export default class StoneGolem extends Unit {
     };
   }
   getBreakFocusResult(flatten = false) {
-    let result = {
+    const result = {
       unit: this,
       changes: { focusing:false },
     };
-    let subResults = this.focusing.map(tUnit => ({
-      unit: tUnit,
-      changes: {
-        mArmor: tUnit.mArmor - 30,
-        armored: tUnit.armored.length === 1
-          ? false
-          : tUnit.armored.filter(t => t !== this),
-      },
-    }));
+    const subResults = [];
+
+    for (const tUnit of this.focusing) {
+      const subResult = {
+        unit: tUnit,
+        changes: {
+          mArmor: tUnit.mArmor - 30,
+          armored: tUnit.armored.length === 1
+            ? false
+            : tUnit.armored.filter(t => t !== this),
+        },
+      };
+
+      if (tUnit === this)
+        result.changes.merge(subResult.changes);
+      else
+        subResults.push(subResult);
+    }
 
     if (flatten)
-      return [result, ...subResults];
+      return [ result, ...subResults ];
+    else if (subResults.length)
+      return { ...result, results:subResults };
     else
-      return {...result, results:subResults};
+      return result;
   }
 }
 

@@ -941,32 +941,34 @@ export default class Setup {
     return positions;
   }
   _getAvailableUnitCounts() {
-    let gameType = this.gameType;
-    let anyCount = gameType.getMaxUnits();
-    let unitCounts = new Map();
-    let counts = new Map();
+    const gameType = this.gameType;
+    const unitCounts = new Map();
+    const counts = new Map();
+    let unitsRemaining = gameType.getMaxUnits();
 
     this._team.units.forEach(unit => {
       if (unit.mHealth === -unit.health) return;
 
-      let unitCount = unitCounts.get(unit.type) || 0;
-      let unitSize = gameType.getUnitSize(unit.type);
+      const unitCount = unitCounts.get(unit.type) || 0;
+      const unitSize = gameType.getUnitSize(unit.type);
 
-      anyCount -= unitSize;
+      unitsRemaining -= unitSize;
       unitCounts.set(unit.type, unitCount + 1);
     });
 
-    counts.set('any', anyCount);
+    counts.set('any', false);
 
     gameType.getUnitTypes().forEach(unitType => {
-      let unitCount = unitCounts.get(unitType) || 0;
-      let unitSize = gameType.getUnitSize(unitType);
-      let unitMaxCount = gameType.getUnitMaxCount(unitType);
+      const unitCount = unitCounts.get(unitType) || 0;
+      const unitSize = gameType.getUnitSize(unitType);
+      const unitMaxCount = gameType.getUnitMaxCount(unitType);
 
-      if (anyCount < unitSize)
+      if (unitsRemaining < unitSize)
         counts.set(unitType, 0);
-      else
+      else {
+        counts.set('any', true);
         counts.set(unitType, unitMaxCount - unitCount);
+      }
     });
 
     return counts;
@@ -1048,11 +1050,11 @@ export default class Setup {
     return { places, noplaces };
   }
   _drawPicks() {
-    let counts = this._getAvailableUnitCounts();
+    const counts = this._getAvailableUnitCounts();
 
     this._countsContainer.removeChildren();
 
-    let board = this._board;
+    const board = this._board;
     this._picksTeam.units.forEach(unit => {
       let count = counts.get(unit.type);
 
@@ -1066,8 +1068,7 @@ export default class Setup {
 
         unit.assignment.set_interactive(false);
         unit.showFocus(0.8);
-      }
-      else {
+      } else {
         unit.assignment.set_interactive(true);
 
         if (board.focused === unit || board.selected === unit)
@@ -1081,13 +1082,12 @@ export default class Setup {
       if (count === 0) {
         textColor = 0x888888;
         text = 'x';
-      }
-      else {
+      } else {
         textColor = 0xFFFFFF;
         text = count;
       }
 
-      let countText = new PIXI.Text(text, {
+      const countText = new PIXI.Text(text, {
         fontFamily:      'Arial',
         fontSize:        '16px',
         stroke:          0,

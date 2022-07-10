@@ -1,7 +1,7 @@
 import pkg from '../package.json' assert { type: 'json' };
 import gameTypes from 'data/files/game/game_types.json' assert { type: 'json' };
 
-const gameTypeIds = gameTypes.map(gt => gt[0]);
+const gameTypeIds = gameTypes.filter(gt => !gt[1].archived).map(gt => gt[0]);
 
 export default {
   version: pkg.version,
@@ -54,6 +54,7 @@ export default {
                 defaults: {
                   strictUndo: false,
                   autoSurrender: false,
+                  rated: true,
                 },
                 schema: {
                   strictUndo: 'const(false)',
@@ -67,8 +68,9 @@ export default {
               gameOptions: {
                 defaults: {
                   randomFirstTurn: true,
-                  strictUndo: true,
+                  strictUndo: false,
                   autoSurrender: true,
+                  rated: true,
                   turnTimeLimit: 'standard',
                 },
                 schema: {

@@ -156,8 +156,11 @@ export default class Game {
   get whenStarted() {
     return this.state.whenStarted;
   }
+  get currentTurnTimeLimit() {
+    return this.state.currentTurnTimeLimit;
+  }
   get turnTimeLimit() {
-    return this.state.getTurnTimeLimit();
+    return this.state.turnTimeLimit;
   }
   get turnTimeRemaining() {
     return this.state.getTurnTimeRemaining();
@@ -646,8 +649,7 @@ export default class Game {
       // This triggers the removal of location.hash
       this._isSynced = true;
       this._emit({ type:'startSync' });
-    }
-    else {
+    } else {
       const turnId = this.isMyTurn && !this.isLocalGame ? -this._teams.length : -1;
 
       this.play(turnId, 0, 'back');
@@ -706,8 +708,9 @@ export default class Game {
       if (movement === 'back')
         // The undo button can cause the next action to be a previous one
         this.setState();
-      else if (movement === 'forward')
+      else if (movement === 'forward') {
         await this._performAction(cursor.thisAction);
+      }
 
       if (whilePlaying.state === 'interrupt')
         return stopPlaying();
@@ -750,9 +753,9 @@ export default class Game {
       this._emit({ type:'endSync' });
     }
   }
-  async showTurn(turnId = this.turnId, actionId = 0, skipPassedTurns) {
+  async showTurn(turnId = this.turnId, actionId = 0, skipAutoPassedTurns) {
     await this.pause();
-    await this.cursor.set(turnId, actionId, skipPassedTurns);
+    await this.cursor.set(turnId, actionId, skipAutoPassedTurns);
     this.setState();
 
     if (this.cursor.atEnd)
@@ -1101,12 +1104,15 @@ export default class Game {
     return this;
   }
 
-  delayNotice(notice) {
+  delayNotice(notice, priority = false) {
     const delay = 200;
 
     this.notice = null;
     this._noticeTimeout = setTimeout(() => {
-      this.notice = notice;
+      if (priority)
+        this.drawCard(null, notice);
+      else
+        this.notice = notice;
     }, delay);
   }
 
@@ -1144,7 +1150,7 @@ export default class Game {
     const locked = this.locked;
 
     this.notice = null;
-    this.delayNotice('Sending order...');
+    this.delayNotice('Sending order...', true);
 
     this.lock();
     return this.state.submitAction(this._board.encodeAction(action))
@@ -1624,7 +1630,7 @@ export default class Game {
   }
 
   _startTurn() {
-    let team = this.currentTeam;
+    const team = this.currentTeam;
     let teamMoniker;
 
     if (team.name && this.teams.filter(t => t.name === team.name).length === 1)
@@ -1636,13 +1642,11 @@ export default class Game {
       if (this.hasOneLocalTeam()) {
         this.notice = 'Your Turn!';
         Tactics.playSound('newturn');
-      }
-      else
+      } else
         this.notice = `Go ${teamMoniker}!`;
 
       this.unlock();
-    }
-    else {
+    } else {
       this.delayNotice(`Go ${teamMoniker}!`);
 
       this.lock('readonly');
@@ -1703,6 +1707,23 @@ export default class Game {
       }
 
     this._applyChangeResults(action.results);
+
+    // Pretend the next turn started even if delayed
+    const teams = this.teams;
+
+    if (this.state.rated && this.isMyTeam(action.teamId)) {
+      const nextTeamId = (action.teamId + 1) % teams.length;
+      const nextTeam = teams[nextTeamId];
+
+      let teamMoniker;
+      if (nextTeam.name && teams.filter(t => t.name === nextTeam.name).length === 1)
+        teamMoniker = nextTeam.name;
+      else
+        teamMoniker = nextTeam.colorId;
+
+      this.delayNotice(`Go ${teamMoniker}!`);
+      this.lock('readonly');
+    }
 
     return this;
   }
@@ -1784,20 +1805,18 @@ export default class Game {
   }
 
   /*
-   * Turns won't time out if an action was performed within the last 10 seconds.
-   *
    * _turnTimeout is true when a timeout has been triggered.
    * _turnTimeout is a number when a timeout has been set, but not reached.
-   * _turnTimeout is null when a timout is not necessary.
+   * _turnTimeout is null when a timeout is not necessary.
    */
   _setTurnTimeout() {
-    let state = this.state;
+    const state = this.state;
     if (!state.turnTimeLimit)
       return;
 
     this._emit({ type:'resetTimeout' });
 
-    if (state.endedAt) {
+    if (state.currentTurnTimeLimit === null) {
       clearTimeout(this._turnTimeout);
       this._turnTimeout = null;
       return;
@@ -1825,13 +1844,12 @@ export default class Game {
       // Value must be less than a 32-bit signed integer.
       if (timeout < 0x80000000)
         this._turnTimeout = setTimeout(() => {
-          if (state.endedAt) return;
+          if (state.currentTurnTimeLimit === null) return;
 
           this._turnTimeout = true;
           this._emit({ type:'timeout' });
         }, timeout);
-    }
-    else {
+    } else {
       if (this._turnTimeout !== true) {
         this._turnTimeout = true;
         this._emit({ type:'timeout' });

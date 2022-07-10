@@ -1367,11 +1367,11 @@ export default class Board {
         }
         else
           encoded.unit = encoded.unit.id;
-      if ('assignment' in encoded)
+      if (encoded.assignment !== undefined)
         encoded.assignment = this.getTileRotation(encoded.assignment, degree).coords;
-      if ('target' in encoded)
+      if (encoded.target !== undefined)
         encoded.target = this.getTileRotation(encoded.target, degree).coords;
-      if ('direction' in encoded)
+      if (encoded.direction !== undefined)
         encoded.direction = this.getRotation(encoded.direction, degree);
       if (encoded.focusing)
         encoded.focusing = encoded.focusing.map(u => u.id);
@@ -1416,11 +1416,11 @@ export default class Board {
         else
           decoded.unit = units.find(u => u.id === decoded.unit);
       }
-      if ('assignment' in decoded)
+      if (decoded.assignment !== undefined)
         decoded.assignment = this.getTileRotation(decoded.assignment, degree);
-      if ('target' in decoded)
+      if (decoded.target !== undefined)
         decoded.target = this.getTileRotation(decoded.target, degree);
-      if ('direction' in decoded)
+      if (decoded.direction !== undefined)
         decoded.direction = this.getRotation(decoded.direction, degree);
       if (decoded.focusing)
         decoded.focusing = decoded.focusing.map(uId => units.find(u => u.id === uId));

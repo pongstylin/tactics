@@ -403,6 +403,14 @@ migrationMap.set('game', [
 
     return json;
   },
+  json => {
+    const state = json.$data.state;
+    const playerIds = new Set(state.teams.map(t => t?.playerId));
+    if (state.rated === undefined)
+      state.rated = !json.$data.forkOf && playerIds.size > 1;
+
+    return json;
+  },
 ]);
 
 migrationMap.set('sets', [

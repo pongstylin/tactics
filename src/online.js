@@ -43,6 +43,7 @@ const groups = new Map([
 let myPlayerId = null;
 const state = {
   audioEnabled: false,
+  activeGameId: null,
   // Indicates the currently selected tab
   currentTab: null,
   tabContent: {
@@ -322,9 +323,9 @@ function loadTAO(){
     location.hash = '#' + tab;
   });
 
-  let getShareGameMessage = async gameId => {
-    let gameData = await gameClient.getGameData(gameId);
-    let gameType = await gameClient.getGameType(gameData.state.type);
+  const getShareGameMessage = async gameId => {
+    const gameData = await gameClient.getGameData(gameId);
+    const gameType = await gameClient.getGameType(gameData.state.type);
 
     let message = `Want to play a ${gameType.name} game`;
     if (gameData.state.turnTimeLimit === 120)
@@ -337,16 +338,16 @@ function loadTAO(){
 
     return message;
   };
-  let gameClickHandler = async event => {
-    let divGame = event.target.closest('.game');
+  const gameClickHandler = async event => {
+    const divGame = event.target.closest('.game');
     if (!divGame) return;
 
-    let gameId = divGame.id;
-    let link = location.origin + '/game.html?' + gameId;
+    const gameId = divGame.id;
+    const link = location.origin + '/game.html?' + gameId;
 
-    let spnCopy = event.target.closest('.copy');
+    const spnCopy = event.target.closest('.copy');
     if (spnCopy) {
-      let message = await getShareGameMessage(gameId);
+      const message = await getShareGameMessage(gameId);
 
       copy(`${message} ${link}`);
       popup({
@@ -356,9 +357,9 @@ function loadTAO(){
       return;
     }
 
-    let spnShare = event.target.closest('.share');
+    const spnShare = event.target.closest('.share');
     if (spnShare) {
-      let message = await getShareGameMessage(gameId);
+      const message = await getShareGameMessage(gameId);
 
       share({
         title: 'Tactics',
@@ -471,6 +472,15 @@ async function register(name) {
 }
 
 function setYourLobbyGame(gameSummary, skipRender = false) {
+  if (state.activeGameId === gameSummary.id && gameSummary.startedAt) {
+    const newGame = avatars.getSound('newgame').howl;
+    newGame.once('end', () => {
+      location.href = `/game.html?${gameSummary.id}`;
+    });
+    newGame.play();
+    return;
+  }
+
   const yourContent = state.tabContent.yourGames;
   const lobbyContent = state.tabContent.lobby;
   const lobbyGame = yourContent.lobbyGame;
@@ -493,8 +503,6 @@ function setYourLobbyGame(gameSummary, skipRender = false) {
         },
       ],
     });
-  else if (lobbyGame?.id === gameSummary.id && !lobbyGame.startedAt && gameSummary.startedAt)
-    startGame();
 }
 function unsetYourLobbyGame(gameSummary, skipRender = false) {
   const lobbyGame = state.tabContent.yourGames.lobbyGame;
@@ -744,6 +752,7 @@ async function createGame(divArena) {
           onClick: () => createBlocking = 'noluck',
         },
       ],
+      closeOnCancel: false,
     }).whenClosed;
   if (createTimeLimit === 'ask')
     await popup({
@@ -758,10 +767,11 @@ async function createGame(divArena) {
           onClick: () => createTimeLimit = 'blitz',
         },
       ],
+      closeOnCancel: false,
     }).whenClosed;
 
   try {
-    await gameClient.createGame(tabContent.selectedStyleId, {
+    state.activeGameId = await gameClient.createGame(tabContent.selectedStyleId, {
       collection: `lobby/${tabContent.selectedStyleId}`,
       randomHitChance: createBlocking === 'luck',
       turnTimeLimit: createTimeLimit,
@@ -803,6 +813,7 @@ async function cancelGame() {
 
   try {
     await gameClient.cancelGame(myLobbyGame.id);
+    state.activeGameId = null;
     return true;
   } catch (e) {
     if (e.code !== 404 && e.code !== 409) {
@@ -863,12 +874,15 @@ async function joinGame(arena) {
   }
 
   try {
+    state.activeGameId = arena.id;
     await gameClient.joinGame(arena.id, {
       playerId: authClient.playerId,
       set: { name:'default' },
     });
     return true;
   } catch (e) {
+    state.activeGameId = null;
+
     // A 404 means the game was cancelled right before we tried to join
     // A 409 means someone else joined the game first.
     if (e.code !== 404 && e.code !== 409) {
@@ -877,15 +891,6 @@ async function joinGame(arena) {
     }
     return false;
   }
-}
-function startGame() {
-  const gameId = state.tabContent.yourGames.lobbyGame.id;
-
-  const newGame = avatars.getSound('newgame').howl;
-  newGame.once('end', () => {
-    location.href = `/game.html?${gameId}`;
-  });
-  newGame.play();
 }
 
 function renderPN(reg) {
@@ -1694,6 +1699,9 @@ function renderYourGames() {
     // Exclude games where it is someone else's turn
     if (game.teams[game.currentTeamId].playerId !== myPlayerId)
       continue;
+    // Exclude games where it is my turn, but it ended
+    if (game.turnEndedAt)
+      continue;
     // Exclude practice games
     if (!game.teams.find(t => t.playerId !== myPlayerId))
       continue;
@@ -1716,8 +1724,8 @@ function renderYourGames() {
    */
   const theirTurnGames = [];
   for (const game of activeGames) {
-    // Exclude games where it is my turn
-    if (game.teams[game.currentTeamId].playerId === myPlayerId)
+    // Exclude games where it is my turn and the turn hasn't ended
+    if (game.teams[game.currentTeamId].playerId === myPlayerId && !game.turnEndedAt)
       continue;
     // Exclude practice games
     if (!game.teams.find(t => t.playerId !== myPlayerId))
@@ -1840,6 +1848,8 @@ function renderGame(game) {
   if (game.endedAt) {
     if (game.isFork)
       left += ', <SPAN>Fork</SPAN>';
+    else if (!game.rated)
+      left += ', <SPAN>Unrated</SPAN>';
     else if (game.collection?.startsWith('lobby/'))
       left += ', <SPAN>Lobby</SPAN>';
 
@@ -1860,6 +1870,8 @@ function renderGame(game) {
 
     if (game.isFork)
       labels.push('Fork');
+    else if (!game.rated)
+      labels.push('Unrated');
     else if (game.collection?.startsWith('lobby/'))
       labels.push('Lobby');
 
@@ -1896,6 +1908,8 @@ function renderGame(game) {
 
     if (game.isFork)
       labels.push('Fork');
+    else if (!game.rated)
+      labels.push('Unrated');
     else if (game.collection?.startsWith('lobby/'))
       labels.push('Lobby');
 
@@ -2142,7 +2156,7 @@ async function fetchGames(tabName) {
   const yourContent = state.tabContent.yourGames;
   if (!yourContent.isSynced) {
     const query = [
-      {
+      { // Waiting Games (except Lobby games)
         filter: {
           collection: { '!':{ '~':/^lobby\// } },
           startedAt: null,
@@ -2150,7 +2164,7 @@ async function fetchGames(tabName) {
         sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
-      {
+      { // Active Games (except Lobby games)
         filter: {
           collection: { '!':{ '~':/^lobby\// } },
           startedAt: { '!':null },
@@ -2159,12 +2173,12 @@ async function fetchGames(tabName) {
         sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
-      {
+      { // Completed Games
         filter: { endedAt:{ '!':null } },
         sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
-      {
+      { // Waiting and Active Lobby games
         filter: {
           collection: { '~':/^lobby\// },
           endedAt: null,

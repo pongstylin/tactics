@@ -59,7 +59,6 @@ export default class GameStateCursor {
 
   /*
    * Append any additional actions to the current turn
-   * Also replace local actions with server actions.
    */
   sync() {
     const current = this.state.cursor;
@@ -69,38 +68,20 @@ export default class GameStateCursor {
     // Only sync if the turn started at the same time.
     if (+current.startedAt !== +this.startedAt)
       return;
-    // Only sync if existing actions still exist.
-    if (current.nextActionId < this.nextActionId)
+    // Only sync if there are more actions than before
+    if (current.nextActionId <= this.nextActionId)
       return;
-
-    let needSync = current.nextActionId > this.nextActionId;
 
     // Only sync if existing actions haven't changed.
     for (let i = 0; i < this.nextActionId; i++) {
       const stateAction = current.actions[i];
       const thisAction = this.actions[i];
 
-      if (thisAction.isLocal && !stateAction.isLocal) {
-        // Determine if the actions are the same even if locality and create dates differ.
-        if (thisAction.type !== stateAction.type)
-          return;
-        if (thisAction.unit !== stateAction.unit)
-          return;
-        if (thisAction.assignment?.join() !== stateAction.assignment?.join())
-          return;
-        if (thisAction.target?.join() !== stateAction.target?.join())
-          return;
-        if (thisAction.direction !== stateAction.direction)
-          return;
-        if (JSON.stringify(thisAction.results) !== JSON.stringify(stateAction.results))
-          return;
-        needSync = true;
-      } else if (+stateAction.createdAt !== +thisAction.createdAt)
+      if (+stateAction.createdAt !== +thisAction.createdAt)
         return;
     }
 
-    if (needSync)
-      this.actions = current.actions;
+    this.actions = current.actions;
   }
   setToCurrent() {
     if (this.atCurrent) return;
@@ -109,8 +90,8 @@ export default class GameStateCursor {
     this._emit({ type:'change' });
   }
 
-  async set(turnId = this.turnId, nextActionId = 0, skipPassedTurns = false) {
-    const cursorData = await this._getCursorData(turnId, nextActionId, skipPassedTurns);
+  async set(turnId = this.turnId, nextActionId = 0, skipAutoPassedTurns = false) {
+    const cursorData = await this._getCursorData(turnId, nextActionId, skipAutoPassedTurns);
     const hasChanged = !this.equals(cursorData);
 
     // Assign even if cursor hasn't changed since actions may have changed.
@@ -198,7 +179,7 @@ export default class GameStateCursor {
   /*
    * Pains are taken to request as little data as possible.
    */
-  async _getCursorData(turnId, nextActionId, skipPassedTurns = false, skipTurnData) {
+  async _getCursorData(turnId, nextActionId, skipAutoPassedTurns = false, skipTurnData) {
     const state = this.state;
     const stateTurnId = state.currentTurnId;
     let turnData;
@@ -259,14 +240,15 @@ export default class GameStateCursor {
       turnData = await state.getTurnData(turnId);
 
     if (
-      skipPassedTurns &&
+      skipAutoPassedTurns &&
       turnData.actions.length === 1 &&
-      turnData.actions[0].type === 'endTurn'
+      turnData.actions[0].type === 'endTurn' &&
+      turnData.actions[0].forced
     ) {
-      if (skipPassedTurns === 'back' && turnData.id > 0)
-        return this._getCursorData(turnData.id - 1, nextActionId, skipPassedTurns);
-      else if (skipPassedTurns === 'forward' && turnData.id < state.currentTurnId)
-        return this._getCursorData(turnData.id + 1, nextActionId, skipPassedTurns, turnData);
+      if (skipAutoPassedTurns === 'back' && turnData.id > 0)
+        return this._getCursorData(turnData.id - 1, nextActionId, skipAutoPassedTurns);
+      else if (skipAutoPassedTurns === 'forward' && turnData.id < state.currentTurnId)
+        return this._getCursorData(turnData.id + 1, nextActionId, skipAutoPassedTurns, turnData);
     }
 
     if (nextActionId < 0)

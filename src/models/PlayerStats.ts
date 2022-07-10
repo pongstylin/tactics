@@ -100,18 +100,13 @@ export default class PlayerStats extends ActiveModel {
       throw new Error('Game has not started yet');
     if (!game.state.endedAt)
       throw new Error('Game has not ended');
-    // No WLD stats for fork games.
-    if (game.isFork)
+    // WLD stats are only for rated games.
+    if (!game.state.rated)
       return;
 
     const myTeams = game.state.teams.filter(t => t.playerId === this.data.playerId);
     if (myTeams.length === 0)
       throw new Error(`Game was not played by ${this.data.playerId}`);
-
-    // No stats for practice games.
-    const numTeams = game.state.teams.length;
-    if (myTeams.length === numTeams)
-      return;
 
     /*
      * Determine which players played a turn.

@@ -40,9 +40,12 @@ export default class GameSummary {
       randomFirstTurn: game.state.randomFirstTurn,
       randomHitChance: game.state.randomHitChance,
       turnStartedAt,
+      // This value is only non-null for 5 seconds after a rated game turn ends
+      turnEndedAt: actions.last?.type === 'endTurn' ? actions.last.createdAt : null,
       turnTimeLimit: game.state.turnTimeLimit,
-      currentTimeLimit: game.state.getTurnTimeLimit(),
+      currentTurnTimeLimit: game.state.currentTurnTimeLimit,
       isFork: game.isFork,
+      rated: game.state.rated,
       teams: teams.map(t => t && {
         createdAt: t.createdAt,
         joinedAt: t.joinedAt,
@@ -78,11 +81,17 @@ export default class GameSummary {
   get randomHitChance() {
     return this.data.randomHitChance;
   }
+  get turnEndedAt() {
+    return this.data.turnEndedAt;
+  }
   get turnTimeLimit() {
     return this.data.turnTimeLimit;
   }
   get isFork() {
     return this.data.isFork;
+  }
+  get rated() {
+    return this.data.rated;
   }
   get teams() {
     return this.data.teams;
@@ -128,7 +137,7 @@ export default class GameSummary {
     if (!this.data.turnTimeLimit)
       return Infinity;
 
-    const turnTimeLimit = this.data.currentTimeLimit;
+    const turnTimeLimit = this.data.currentTurnTimeLimit;
     const turnTimeout = (+this.data.turnStartedAt + turnTimeLimit*1000) - now;
     const actionTimeLimit = 10000;
     const actionTimeout = (+this.data.updatedAt + actionTimeLimit) - now;
@@ -147,7 +156,7 @@ serializer.addType({
   schema: {
     type: 'object',
     required: [
-      'id', 'type', 'typeName', 'isFork', 'randomFirstTurn',
+      'id', 'type', 'typeName', 'isFork', 'rated', 'randomFirstTurn',
       'randomHitChance', 'turnTimeLimit', 'startedAt', 'turnStartedAt',
       'endedAt', 'teams', 'createdBy', 'createdAt', 'updatedAt',
     ],
@@ -157,6 +166,7 @@ serializer.addType({
       typeName: { type:'string' },
       collection: { type:'string' },
       isFork: { type:'boolean' },
+      rated: { type:'boolean' },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
       turnTimeLimit: { type:[ 'number', 'null' ] },

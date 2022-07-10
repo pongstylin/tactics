@@ -2,11 +2,10 @@ import Unit from 'tactics/Unit.js';
 
 export default class PoisonWisp extends Unit {
   getAttackResult(action, unit) {
-    return {
+    const result = {
       unit,
       damage: this.power,
       changes: {
-        mHealth: Math.max(-unit.health + 1, unit.mHealth - this.power),
         poisoned: [...(unit.poisoned || []), this],
       },
       results: [{
@@ -16,6 +15,11 @@ export default class PoisonWisp extends Unit {
         },
       }],
     };
+
+    if ((unit.health + unit.mHealth) > 1)
+      result.changes.mHealth = Math.max(-unit.health + 1, unit.mHealth - this.power);
+
+    return result;
   }
   getBreakFocusResult(flatten = false) {
     let result = {

@@ -91,6 +91,16 @@
       border-color: #CCFFFF;
       color: #CCFFFF;
     }
+
+    UL.vs-info {
+      list-style-type: none;
+      margin: 0;
+      padding: 8px 16px 0;
+    }
+
+    UL.vs-info LI {
+      margin-bottom: 8px;
+    }
   </STYLE>
 </HEAD>
 <BODY>
@@ -124,10 +134,12 @@
         </DIV>
       </DIV>
       <DIV>
-        <DIV>Who would you like to play?</DIV>
+        <DIV>Who would you like to play?<SPAN class="fa fa-info vs"></SPAN></DIV>
         <UL class="choices">
           <LI><LABEL><INPUT type="radio" name="vs" value="public" checked> Anybody (Public)</Label></LI>
           <LI><LABEL><INPUT type="radio" name="vs" value="private"> Invite Only (Private)</Label></LI>
+          <LI><LABEL><INPUT type="radio" name="vs" value="tournament"> Invite a Pro (Tournament)</Label></LI>
+          <LI><LABEL><INPUT type="radio" name="vs" value="unrated"> Invite a Friend (Unrated)</Label></LI>
           <LI><LABEL><INPUT type="radio" name="vs" value="you"> Yourself (Practice)</Label></LI>
         </UL>
       </DIV>
@@ -149,7 +161,7 @@
         </DIV>
       </DIV>
       <DIV>
-        <DIV>Choose a blocking system.<SPAN class="fa fa-info"></SPAN></DIV>
+        <DIV>Choose a blocking system.<SPAN class="fa fa-info randomHitChance"></SPAN></DIV>
         <DIV class="indent">
           <LABEL><INPUT type="radio" name="randomHitChance" value="true" checked> I'm feeling lucky.</LABEL>
           <LABEL><INPUT type="radio" name="randomHitChance" value="false"> I like chess.</LABEL>

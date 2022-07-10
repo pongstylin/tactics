@@ -92,7 +92,7 @@ const schema = {
           properties: {
             service: { type:'string' },
             group: { type:'string' },
-            params: { type:'object' },
+            params: { },
           },
           required: ['service','group'],
           additionalProperties: false,
@@ -344,18 +344,23 @@ function purgeAcknowledgedMessages(session, message) {
   }
 }
 
-function sendEvent(serviceName, { userId, body }) {
+function sendEvent(serviceName, { clientId, userId, body }) {
   const messageBody = { service:serviceName, ...body };
 
   const groupId = [serviceName, body.group].join(':');
   const group = groups.get(groupId);
   if (!group) return;
 
-  for (const [ sessionId, user ] of group) {
-    if (userId && userId !== user.id)
-      continue;
+  if (clientId) {
+    if (group.has(clientId))
+      enqueue(sessions.get(clientId), 'event', messageBody);
+  } else {
+    for (const [ sessionId, user ] of group) {
+      if (userId && userId !== user.id)
+        continue;
 
-    enqueue(sessions.get(sessionId), 'event', messageBody);
+      enqueue(sessions.get(sessionId), 'event', messageBody);
+    }
   }
 }
 

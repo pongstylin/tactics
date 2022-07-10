@@ -361,6 +361,10 @@
       BUTTON[name=pause] {
         display: none;
       }
+
+      BUTTON[name=undo].request {
+        color: red;
+      }
     }
   }
 
