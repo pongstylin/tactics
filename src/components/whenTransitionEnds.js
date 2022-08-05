@@ -25,7 +25,7 @@ export default (element, trigger) => new Promise((resolve, reject) => {
   attach();
 
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    trigger();
+    if (trigger) trigger();
 
     /*
      * If the transition isn't running after DOM reflow, then bail.

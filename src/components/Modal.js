@@ -1,14 +1,22 @@
 import 'components/Modal.scss';
 import whenDOMReady from 'components/whenDOMReady.js';
+import trapFocus from 'components/trapFocus.js';
 import emitter from 'utils/emitter.js';
 
 export default class Modal {
   constructor(options, data = {}) {
     Object.assign(this, {
-      el: null,
       options: null,
       data,
-      whenClosed: new Promise(),
+      whenHidden: null,
+      whenClosed: null,
+
+      _els: {
+        root: null,
+        modal: null,
+        title: null,
+        content: null,
+      },
     });
     if (options)
       this.setOptions(options);
@@ -17,11 +25,29 @@ export default class Modal {
       this.open();
   }
 
+  get el() {
+    return this._els.root;
+  }
   get isOpen() {
-    return !!this.el;
+    return !!this._els.root;
   }
   get isVisible() {
-    return this.el.classList.contains('show');
+    return this._els.root.classList.contains('show');
+  }
+
+  get title() {
+    return this.options.title;
+  }
+  set title(title = null) {
+    if (this.options.title === title && this._els.title)
+      return;
+
+    if (this._els.title === null)
+      this._els.modal.insertBefore(this._els.title = this.makeTitle(title), this._els.content);
+    else
+      this._els.title.innerHTML = title;
+
+    this.options.title = title;
   }
 
   setOptions(options) {
@@ -37,10 +63,10 @@ export default class Modal {
     }, options);
   }
 
-  makeTitle() {
+  makeTitle(title) {
     const divTitle = document.createElement('DIV');
     divTitle.classList.add('title');
-    divTitle.innerHTML = this.options.title;
+    divTitle.innerHTML = title;
     return divTitle;
   }
 
@@ -60,32 +86,25 @@ export default class Modal {
       else if (options.closeOnCancel)
         this.close();
     });
+    this._els.root = divOverlay;
 
     const divModal = document.createElement('DIV');
     divModal.classList.add('modal');
     divOverlay.appendChild(divModal);
-
-    if (options.title)
-      divModal.appendChild(this.makeTitle());
+    this._els.modal = divModal;
 
     const divContent = document.createElement('DIV');
     divContent.classList.add('content');
     divContent.innerHTML = options.content;
     divModal.appendChild(divContent);
+    this._els.content = divContent;
+
+    if (options.title !== undefined && options.title !== null)
+      this.title = options.title;
+
+    trapFocus(divOverlay);
 
     return divOverlay;
-  }
-  renderTitle(title = null) {
-    if (this.options.title !== null && title !== null) {
-      this.options.title = title;
-      this.el.querySelector('.modal > .title').innerHTML = title;
-    } else if (this.options.title !== null && title === null) {
-      this.options.title = title;
-      this.el.querySelector('.modal > .title').remove();
-    } else if (this.options.title === null && title !== null) {
-      this.options.title = title;
-      this.el.querySelector('.modal').prepend(this.makeTitle());
-    }
   }
   renderContent(content) {
     this.options.content = content;
@@ -96,32 +115,48 @@ export default class Modal {
     if (this.isOpen)
       throw new TypeError('Already open');
 
-    this.el = this.render();
-    whenDOMReady.then(() => document.body.appendChild(this.el));
+    this._els.root = this.render();
+    if (this.options.appendTo) {
+      this.options.appendTo.appendChild(this.el);
+      this._emit({ type:'attach' });
+    } else
+      whenDOMReady.then(() => {
+        document.body.appendChild(this.el)
+        this._emit({ type:'attach' });
+      });
 
     if (this.options.autoShow === true)
       this.show();
+
+    this.whenClosed = new Promise();
+    return this.whenClosed;
   }
 
   hide() {
-    this.el.classList.remove('show');
+    this._els.root.classList.remove('show');
+    this.whenHidden.resolve(this);
+    this.whenHidden = null;
   }
-  show() {
-    this.el.classList.add('show');
+  show(onShow) {
+    this._els.root.classList.add('show');
+    if (onShow) onShow();
+    this.whenHidden = new Promise();
+    return this.whenHidden;
   }
   close() {
     if (!this.isOpen) return;
 
     if (this.options.onClose)
       this.options.onClose();
-    this.whenClosed.resolve();
+    this.whenClosed.resolve(this);
+    this.whenClosed = null;
 
     this.destroy();
   }
 
   destroy() {
-    this.el.remove();
-    this.el = null;
+    this._els.root.remove();
+    this._els.root = null;
   }
 }
 

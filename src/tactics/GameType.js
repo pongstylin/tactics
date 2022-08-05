@@ -12,11 +12,14 @@ export default class GameType {
   get name() {
     return this.config.name;
   }
+  get description() {
+    return this.config.description;
+  }
   get isCustomizable() {
     return this.config.customizable;
   }
   get hasFixedPositions() {
-    return this.isCustomizable && this.config.limits.fixedPositions;
+    return !this.isCustomizable || this.config.limits.fixedPositions;
   }
 
   getUnitTypes() {
@@ -30,22 +33,18 @@ export default class GameType {
   getDefaultSet() {
     return this.applySetUnitState(this.config.sets[0]);
   }
-  getMaxUnits() {
-    return this.config.limits.units.max;
+  getPoints() {
+    return this.config.limits.points;
   }
-  getUnitSize(unitType) {
-    let unitSize = this.config.limits.units.types.get(unitType).size;
-    if (unitSize === undefined)
-      unitSize = 1;
-
-    return unitSize;
+  getUnitPoints(unitType) {
+    return this.config.limits.units.types.get(unitType).points ?? 1;
   }
   getUnitMaxCount(unitType) {
     return this.config.limits.units.types.get(unitType).max;
   }
   getAvailableTiles(board, unitType) {
-    let limits = this.config.limits;
-    let tiles = this._getTileLimit(board, limits.tiles);
+    const limits = this.config.limits;
+    const tiles = this._getTileLimit(board, limits.tiles);
 
     if (unitType)
       return tiles.intersect(
@@ -92,9 +91,13 @@ export default class GameType {
       throw new ServerError(429, 'You need at least one unit that is not a ward.');
   }
   validateSetIsNotOverFull(units) {
-    let limits = this.config.limits;
-    if (units.length > limits.units.max)
-      throw new ServerError(403, 'You have exceed the max allowed units');
+    const limits = this.config.limits;
+    if (limits.units.max && units.length > limits.units.max)
+      throw new ServerError(403, 'You have exceeded the max allowed units');
+
+    const sum = units.reduce((s,u) => s + (limits.units.types.get(u.type).points ?? 1), 0);
+    if (sum > limits.points)
+      throw new ServerError(403, 'You have exceeded the max allowed points');
   }
   validateSetUnitPlacements(board, units) {
     let limits = this.config.limits;
@@ -187,6 +190,7 @@ export default class GameType {
   }
   cleanSet(set) {
     for (let propName of Object.keys(set)) {
+      if (propName === 'id') continue;
       if (propName === 'name') continue;
       if (propName === 'units') continue;
 
@@ -220,8 +224,8 @@ export default class GameType {
     board.setState([set.units], [team]);
 
     this.validateSetIsNotEmpty(team.units);
-    this.validateSetIsNotOverFull(team.units);
     this.validateSetUnitPlacements(board, team.units);
+    this.validateSetIsNotOverFull(team.units);
     this.cleanSet(set);
 
     return set;
@@ -235,19 +239,19 @@ export default class GameType {
     if (!tileLimit)
       return new Set([...Object.values(board.tiles)]);
 
-    let degree = board.getDegree(board.rotation, 'N');
-    let tiles = new Set();
+    const degree = board.getDegree('N', board.rotation);
+    const tiles = new Set();
 
     if (!Array.isArray(tileLimit))
       tileLimit = [tileLimit];
 
     for (let i = 0; i < tileLimit.length; i++) {
-      let limit = tileLimit[i];
+      const limit = tileLimit[i];
 
       if (limit.start && limit.end) {
         for (let x = limit.start[0]; x <= limit.end[0]; x++) {
           for (let y = limit.start[1]; y <= limit.end[1]; y++) {
-            let tile = board.getTileRotation([x, y], degree);
+            const tile = board.getTileRotation([x, y], degree);
             if (!tile) continue;
 
             tiles.add(tile);
@@ -259,23 +263,23 @@ export default class GameType {
         if (typeof adjacentTo === 'string')
           adjacentTo = { type:adjacentTo };
 
-        let adjacentLimit = this._getTileLimit(board, adjacentTo.tiles);
-        let units = board.teamsUnits[0].filter(u => u.type === adjacentTo.type);
+        const adjacentLimit = this._getTileLimit(board, adjacentTo.tiles);
+        const units = board.teamsUnits[0].filter(u => u.type === adjacentTo.type);
         for (let j = 0; j < units.length; j++) {
-          let unit = units[j];
+          const unit = units[j];
           if (unit.mHealth === -unit.health) continue;
 
-          let context = unit.assignment;
+          const context = unit.assignment;
           if (!adjacentLimit.has(context)) continue;
 
-          for (let direction of ['N','E','S','W']) {
+          for (const direction of ['N','E','S','W']) {
             if (context[direction])
               tiles.add(context[direction]);
           }
         }
       }
       else if (Array.isArray(limit)) {
-        let tile = board.getTileRotation(limit, degree);
+        const tile = board.getTileRotation(limit, degree);
         if (!tile) continue;
 
         tiles.add(tile);
@@ -308,12 +312,13 @@ serializer.addType({
           },
           limits: {
             type: 'object',
-            required: [ 'tiles', 'units' ],
+            required: [ 'tiles', 'points', 'units' ],
             properties: {
               tiles: { $ref:'#/definitions/tileRange' },
+              points: { type:'number', minimum:1 },
               units: {
                 type: 'object',
-                required: [ 'max', 'types' ],
+                required: [ 'types' ],
                 properties: {
                   max: { type:'number', minimum:1 },
                   types: {
@@ -327,8 +332,8 @@ serializer.addType({
                           type: 'object',
                           required: [ 'max' ],
                           properties: {
-                            max: { type:'number' },
-                            size: { type:'number', minimum:1, default:1 },
+                            max: { type:'number', minimum:1 },
+                            points: { type:'number', minimum:1, default:1 },
                             rules: {
                               type: 'object',
                               properties: {

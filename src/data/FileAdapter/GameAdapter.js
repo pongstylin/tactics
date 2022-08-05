@@ -12,6 +12,7 @@ import GameSummary from 'models/GameSummary.js';
 import GameSummaryList from 'models/GameSummaryList.js';
 import PlayerStats from 'models/PlayerStats.js';
 import PlayerSets from 'models/PlayerSets.js';
+import PlayerAvatars from 'models/PlayerAvatars.js';
 import ServerError from 'server/Error.js';
 
 export default class extends FileAdapter {
@@ -32,6 +33,11 @@ export default class extends FileAdapter {
         [
           'playerSets', {
             saver: '_savePlayerSets',
+          },
+        ],
+        [
+          'playerAvatars', {
+            saver: '_savePlayerAvatars',
           },
         ],
         [
@@ -186,11 +192,15 @@ export default class extends FileAdapter {
 
     const playerSets = await this._getPlayerSets(playerId);
     this.cache.get('playerSets').open(playerId, playerSets);
+
+    const playerAvatars = await this._getPlayerAvatars(playerId);
+    this.cache.get('playerAvatars').open(playerId, playerAvatars);
   }
   closePlayer(playerId) {
     this.cache.get('playerStats').close(playerId);
     this.cache.get('playerGames').close(playerId);
     this.cache.get('playerSets').close(playerId);
+    this.cache.get('playerAvatars').close(playerId);
   }
 
   async openPlayerGames(playerId) {
@@ -254,42 +264,62 @@ export default class extends FileAdapter {
     return this.cache.get('game').getOpen(gameId);
   }
 
-  async hasCustomPlayerSet(playerId, gameTypeId, setName) {
+  async getPlayerSets(playerId, gameType) {
+    if (typeof gameType === 'string')
+      gameType = this._gameTypes.get(gameType);
+
     const playerSets = await this._getPlayerSets(playerId);
-    return playerSets.hasDefault(gameTypeId, setName);
+    return playerSets.list(gameType);
+  }
+  async hasCustomPlayerSet(playerId, gameTypeId, setId) {
+    const playerSets = await this._getPlayerSets(playerId);
+    return playerSets.hasCustom(gameTypeId, setId);
   }
   /*
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getPlayerSet(playerId, gameType, setName) {
+  async getPlayerSet(playerId, gameType, setId) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
     const playerSets = await this._getPlayerSets(playerId);
-    return playerSets.getDefault(gameType, setName);
+    return playerSets.get(gameType, setId);
   }
   /*
    * Setting the default set for a game type involves REPLACING the first set
    * for a given game type.
    */
-  async setPlayerSet(playerId, gameType, setName, set) {
+  async setPlayerSet(playerId, gameType, set) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
     const playerSets = await this._getPlayerSets(playerId);
-    playerSets.setDefault(gameType, setName, set);
+    playerSets.set(gameType, set);
+  }
+  async unsetPlayerSet(playerId, gameType, setId) {
+    if (typeof gameType === 'string')
+      gameType = this._gameTypes.get(gameType);
+
+    const playerSets = await this._getPlayerSets(playerId);
+    return playerSets.unset(gameType, setId);
+  }
+
+  async getPlayerAvatars(playerId) {
+    const playerAvatars = await this._getPlayerAvatars(playerId);
+    return this.cache.get('playerAvatars').add(playerId, playerAvatars);
   }
 
   async searchPlayerGames(player, query) {
     const playerGames = await this._getPlayerGames(player.id);
-    const data = [...playerGames.values()];
+    const data = [ ...playerGames.values() ];
 
     return this._search(data, query);
   }
   async searchGameCollection(player, group, query) {
     const collection = await this._getGameCollection(group);
     const blockedBy = player.listBlockedBy();
+    const playerIds = new Set();
     const data = serializer.clone([ ...collection.values() ])
       .filter(gs => {
         gs.creatorACL = player.getPlayerACL(gs.createdBy);
@@ -672,6 +702,37 @@ export default class extends FileAdapter {
       data.version = getLatestVersionNumber('sets');
 
       playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
+      return data;
+    });
+  }
+
+  /*
+   * Player Avatars Management
+   */
+  async _getPlayerAvatars(playerId) {
+    if (this.cache.get('playerAvatars').has(playerId))
+      return this.cache.get('playerAvatars').get(playerId);
+    else if (this.buffer.get('playerAvatars').has(playerId))
+      return this.buffer.get('playerAvatars').get(playerId);
+
+    return this.getFile(`player_${playerId}_avatars`, data => {
+      const playerAvatars = data === undefined
+        ? PlayerAvatars.create(playerId)
+        : serializer.normalize(migrate('avatars', data, { playerId }));
+
+      this.buffer.get('playerAvatars').add(playerId, playerAvatars);
+      playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
+      return playerAvatars;
+    });
+  }
+  async _savePlayerAvatars(playerAvatars) {
+    const playerId = playerAvatars.playerId;
+
+    await this.putFile(`player_${playerId}_avatars`, () => {
+      const data = serializer.transform(playerAvatars);
+      data.version = getLatestVersionNumber('avatars');
+
+      playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
       return data;
     });
   }

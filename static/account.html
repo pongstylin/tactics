@@ -24,7 +24,7 @@
 
   <LINK href="/manifest.json" rel="manifest">
   <LINK href="/favicon.ico" rel="icon" sizes="16x16">
-  <LINK href="https://use.fontawesome.com/releases/v5.15.4/css/all.css" rel="stylesheet" integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" crossorigin="anonymous">
+  <LINK href="https://use.fontawesome.com/releases/v6.1.1/css/all.css" rel="stylesheet" crossorigin="anonymous">
   <LINK href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" crossorigin="anonymous">
 
   <SCRIPT src="/jquery-1.12.4.min.js" crossorigin="anonymous"></SCRIPT>
@@ -245,12 +245,15 @@
         be used as the <U>default</U> name when creating or joining games.
       </DIV>
       <DIV class="inputTextAutosave is-saved">
-        <INPUT
-          type="text"
-          name="name"
-          maxLength=20
-          spellcheck="false"
-        />
+        <DIV class="input">
+          <SPAN></SPAN>
+          <INPUT
+            type="text"
+            name="name"
+            maxLength=20
+            spellcheck="false"
+          />
+        </DIV>
         <DIV class="icons">
           <SPAN class="saved">
             <SPAN class="fa fa-spinner fa-pulse"></SPAN>

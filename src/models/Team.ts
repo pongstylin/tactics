@@ -81,6 +81,7 @@ export default class Team {
     randomState: Random
     turnTimeBuffer: number
     set: any[] | string | boolean
+    randomSide: boolean
     bot: any
     usedUndo: boolean
     usedSim: boolean
@@ -130,6 +131,9 @@ export default class Team {
       // The set the team used at start of game.
       set: undefined,
 
+      // Whether to randomize the side the set is placed on at game start
+      randomSide: false,
+
       // The current state of units for the team
       units: null,
 
@@ -147,18 +151,13 @@ export default class Team {
 
   static validateSet(data, game, gameType) {
     if (typeof data.set === 'object') {
-      if (data.set.units) {
-        if (!gameType.isCustomizable)
-          throw new ServerError(403, 'May not define a set in this game type');
+      if (!gameType.isCustomizable)
+        throw new ServerError(403, 'May not define a custom set in this game type');
 
+      if (data.set.units)
         data.set = gameType.applySetUnitState(gameType.validateSet(data.set));
-      } else if (data.set.name) {
-        if (!gameType.isCustomizable && data.set.name !== 'default')
-          throw new ServerError(403, `Must use the 'default' set for fixed set styles`);
-
-        data.set = { name:data.set.name };
-      } else
-        throw new ServerError(400, 'Unrecognized set option value');
+      else
+        throw new ServerError(400, 'Required set units');
     } else if (typeof data.set === 'string') {
       const firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt)[0];
 
@@ -179,9 +178,15 @@ export default class Team {
           throw new ServerError(403, `May not use the 'mirror' set option for opp-side game styles`);
         if (!gameType.isCustomizable)
           throw new ServerError(403, `May not use the 'mirror' set option for fixed set styles`);
-      } else
-        throw new ServerError(400, 'Unrecognized set option value');
+      } else if (!gameType.isCustomizable) {
+        if (data.set !== 'random' && data.set !== 'default')
+          throw new ServerError(403, `Must use the 'default' set for fixed set styles`);
+        data.set = null;
+      }
     }
+
+    if (data.randomSide && gameType.hasFixedPositions)
+      throw new ServerError(403, 'May not randomize side in this game type');
 
     return data.set;
   }
@@ -229,6 +234,9 @@ export default class Team {
   }
   set set(set) {
     this.data.set = set;
+  }
+  get randomSide() {
+    return this.data.randomSide;
   }
   get position() {
     return this.data.position;
@@ -314,13 +322,13 @@ export default class Team {
       if (this.data.forkOf)
         throw new ServerError(403, 'May not assign a set to a forked team');
       data.set = Team.validateSet(data, game, gameType);
-    } else
-      data.set = null;
+    }
 
     this.data.joinedAt = new Date();
     this.data.playerId = clientPara.playerId;
     this.data.name = data.name ?? clientPara.name;
-    this.data.set = data.set ?? this.data.set;
+    this.data.set = data.set ?? this.data.set ?? null;
+    this.data.randomSide = data.randomSide ?? this.data.randomSide;
 
     return this;
   }
@@ -348,6 +356,7 @@ export default class Team {
     delete json.checkoutAt;
     delete json.randomState;
     delete json.turnTimeBuffer;
+    delete json.randomSide;
 
     return json;
   }
@@ -358,8 +367,12 @@ export default class Team {
   toJSON() {
     const json = { ...this.data };
 
+    if (json.useRandom === true)
+      delete json.useRandom;
     if (json.turnTimeBuffer === 0)
       delete json.turnTimeBuffer;
+    if (json.randomSide === false)
+      delete json.randomSide;
 
     return json;
   }
@@ -386,7 +399,7 @@ serializer.addType({
   constructor: Team,
   schema: {
     type: 'object',
-    required: [ 'id', 'slot', 'name', 'position', 'useRandom', 'joinedAt', 'checkoutAt', 'createdAt' ],
+    required: [ 'id', 'slot', 'name', 'position', 'joinedAt', 'checkoutAt', 'createdAt' ],
     properties: {
       id: { type:'number' },
       slot: { type:'number' },
@@ -407,6 +420,7 @@ serializer.addType({
         required: [ 'units' ],
         additionalProperties: false,
       },
+      randomSide: { type:'boolean' },
       bot: { type:'boolean' },
       colorId: { type:'number' },
       position: { type:[ 'string', 'null' ], enum:['N','S','E','W','C'] },

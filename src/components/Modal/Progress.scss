@@ -1,0 +1,34 @@
+/*
+ * General Look & Feel for the splash screen.
+ */
+.modal.progress {
+  justify-content: center;
+  align-items: center;
+  background-color: black !important;
+  border: 0 none !important;
+  width: 100%;
+  height: 100%;
+
+  .content {
+    flex: 0 0 auto !important;
+    text-align: center;
+
+    .bar {
+      margin: 10px auto;
+      border: 1px solid #808080;
+      width: 100px;
+      height: 7px;
+
+      .percent {
+        background-color: #D4611F;
+        width: 0;
+        height: 7px;
+      }
+    }
+
+    &.buttonMode {
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+  }
+}

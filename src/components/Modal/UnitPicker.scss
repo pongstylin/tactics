@@ -1,0 +1,179 @@
+.modal.unitPicker {
+  .content {
+    display: flex;
+    flex-direction: column;
+    max-width: 728px;
+    background-color: black;
+
+    .tabs {
+      position: relative;
+      user-select: none;
+
+      UL {
+        display: flex;
+        margin: 0;
+        padding: 0;
+        border-bottom: 1px solid #DED8D5;
+        width: 100%;
+        border-bottom-color: #804a00;
+
+        LI {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          border-top-left-radius: 12px;
+          border-top-right-radius: 12px;
+          padding: 0.4em 0.8em;
+          border-bottom: 1px solid transparent;
+          margin-bottom: -1px;
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+
+          .label {
+            border-bottom-color: #DED8D5;
+            text-align: center;
+            padding: 0;
+          }
+        }
+        LI.selected {
+          background: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
+          border-bottom-color: #DED8D5;
+          cursor: default;
+
+          .label {
+            color: white;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+          }
+        }
+      }
+    }
+
+    .tabContent {
+      overflow: hidden auto;
+
+      & > * {
+        &:not(.show) {
+          display: none;
+        }
+      }
+
+      .info {
+        padding: 0.4em 0.8em;
+      }
+
+      .units {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-evenly;
+
+        margin-top: 8px;
+      }
+      .quick .units {
+        // Hacky fix for unwanted scrollbars due to Knight image overflow
+        padding-bottom: 6px;
+      }
+      .rules {
+        margin-top: 8px;
+      }
+    }
+
+    .unit {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      cursor: pointer;
+
+      .image {
+        position: relative;
+        width: 120px;
+        height: 122px;
+
+        IMG {
+          position: absolute;
+          transform: translate(60px, 94px);
+        }
+
+        LABEL {
+          position: relative;
+          display: block;
+          padding: 2px;
+          text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+          text-align: center;
+        }
+      }
+
+      .details {
+        display: grid;
+        grid-template-columns: auto auto;
+        width: 100px;
+
+        & > * {
+          display: contents;
+
+          DIV:nth-child(2n) {
+            text-align: right;
+          }
+        }
+      }
+    }
+
+    .details .unit {
+      width: 240px;
+
+      &.available {
+        .available {
+          color: #00FF00;
+        }
+      }
+      &:not(.available) {
+        cursor: default;
+
+        IMG {
+          filter: brightness(0.5);
+        }
+        .alert {
+          color: #FF0000;
+        }
+      }
+    }
+
+    .rules {
+      padding: 0 0.8em;
+    }
+  }
+}
+
+/*
+ * Narrow Layout
+ *   240 * 2 + 56 - 1 = 535
+ */
+@media (max-width: 535px) {
+  .modal.unitPicker .content {
+    .tabs {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .details .unit {
+      width: 100%;
+      justify-content: space-evenly;
+
+      .details {
+        width: 120px;
+      }
+    }
+  }
+}
+
+@media (hover:hover) {
+  .modal.unitPicker .content {
+    .tabs LI:hover {
+      color: #00FFFF;
+    }
+
+    .unit.available:hover .image IMG {
+      filter: brightness(1.5);
+    }
+  }
+}

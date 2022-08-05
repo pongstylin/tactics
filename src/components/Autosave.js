@@ -14,6 +14,7 @@ export default class Autosave {
     this.props = Object.assign({
       icons: new Map(),
       autoFocus: false,
+      hideIcons: false,
       // Normally, a user must press Enter to submit the field.
       // Set this to true to also submit on change/blur.
       submitOnChange: false,
@@ -33,7 +34,12 @@ export default class Autosave {
       value: this.props.value,
       icons: new Map(),
     };
+    this._root = null;
     this.whenSaved = Promise.resolve();
+  }
+
+  get root() {
+    return this._root;
   }
 
   get defaultValue() {
@@ -48,10 +54,21 @@ export default class Autosave {
   }
   set value(value) {
     const divAutosave = this._root;
+    const spnInput = divAutosave.querySelector('.input SPAN');
     divAutosave.classList.remove('is-saving');
     divAutosave.classList.add('is-saved');
 
+    spnInput.textContent = value;
+
     return this._input.value = this.data.value = value;
+  }
+
+  get disabled() {
+    return this._input.disabled;
+  }
+  set disabled(disabled) {
+    this._root.classList.toggle('disabled', disabled);
+    this._input.disabled = disabled;
   }
 
   get error() {
@@ -87,20 +104,30 @@ export default class Autosave {
     divAutosave.classList.add('inputTextAutosave');
     divAutosave.classList.toggle('is-saved', !this.props.isRequired || this.data.value !== null);
 
+    const divInput = document.createElement('DIV');
+    divInput.classList.add('input');
+    divAutosave.appendChild(divInput);
+
+    const spnInput = document.createElement('SPAN');
+    divInput.appendChild(spnInput);
+
     const input = document.createElement('INPUT');
     input.type = 'text';
     if (typeof props.name === 'string')
       input.name = props.name;
     if (typeof this.data.value === 'string')
-      input.value = this.data.value;
+      spnInput.textContent = input.value = this.data.value;
     if (typeof props.placeholder === 'string')
-      input.placeholder = props.placeholder;
+      spnInput.textContent = input.placeholder = props.placeholder;
     if (typeof props.maxLength === 'number')
       input.maxLength = props.maxLength;
     input.spellcheck = false;
+    divInput.appendChild(input);
 
     const divIcons = document.createElement('DIV');
     divIcons.classList.add('icons');
+    if (props.hideIcons)
+      divIcons.classList.add('hide');
     for (const [ iconName, icon ] of props.icons) {
       const spnIcon = document.createElement('SPAN');
       spnIcon.classList.add(iconName, 'fa', `fa-${icon.name}`);
@@ -151,7 +178,6 @@ export default class Autosave {
     `;
     divIcons.appendChild(divSaved);
 
-    divAutosave.appendChild(input);
     divAutosave.appendChild(divIcons);
 
     const divError = document.createElement('DIV');
@@ -166,7 +192,8 @@ export default class Autosave {
   attach(divAutosave) {
     this._root = divAutosave;
     const divError = this._error = divAutosave.nextElementSibling;
-    const input = this._input = divAutosave.querySelector('INPUT');
+    const divInput = divAutosave.querySelector('.input');
+    const input = this._input = divInput.querySelector('INPUT');
     this.data.value = input.value.trim().length ? input.value.trim() : null;
 
     const submit = () => {
@@ -180,9 +207,12 @@ export default class Autosave {
       };
 
       const newValue = this.inputValue;
-      if (newValue === this.data.value)
+      if (newValue === this.data.value) {
+        input.blur();
+
         // Just in case the value was trimmed.
         return this.value = newValue;
+      }
 
       this._emit({ type:'submit', data:newValue, waitUntil });
 
@@ -192,9 +222,14 @@ export default class Autosave {
         this.whenSaved = Promise.all(promises)
           .then(() => {
             this.value = newValue;
+            this._emit({ type:'change', data:newValue });
             input.blur();
           })
           .catch(error => this.error = error.toString());
+      } else {
+        this.value = newValue;
+        this._emit({ type:'change', data:newValue });
+        input.blur();
       }
     };
 
@@ -202,11 +237,14 @@ export default class Autosave {
       const target = event.target;
       if (event.keyCode === 13)
         submit();
-      event.stopPropagation();
+      // Allow trap focus to work
+      if (event.keyCode !== 9)
+        event.stopPropagation();
     });
     input.addEventListener('input', event => {
       divAutosave.classList.remove('is-saved');
       divAutosave.classList.remove('is-saving');
+      divInput.querySelector('SPAN').textContent = input.value;
       divError.textContent = '';
     });
     input.addEventListener('change', event => {

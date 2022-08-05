@@ -24,7 +24,7 @@
 
   <LINK href="/manifest.json" rel="manifest">
   <LINK href="/favicon.ico" rel="icon" sizes="16x16">
-  <LINK href="https://use.fontawesome.com/releases/v5.15.4/css/all.css" rel="stylesheet" integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" crossorigin="anonymous">
+  <LINK href="https://use.fontawesome.com/releases/v6.1.1/css/all.css" rel="stylesheet" crossorigin="anonymous">
   <LINK href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" crossorigin="anonymous">
 
   <SCRIPT src="/jquery-1.12.4.min.js" crossorigin="anonymous"></SCRIPT>
@@ -40,6 +40,10 @@
       box-sizing: border-box;
       width: 190px;
       padding: 1px 0;
+    }
+
+    .configure {
+      overflow: unset;
     }
 
     .configure DIV {
@@ -114,7 +118,7 @@
     </DIV>
     <DIV class="row gameSetup">
       <DIV>
-        <DIV>What game style do you want to play?</DIV>
+        <DIV>What game style do you want to play?<SPAN class="fa fa-info style"></SPAN></DIV>
         <DIV class="indent">
           <SELECT name="type">
             <OPTION value="classic">Classic</OPTION>
@@ -133,8 +137,7 @@
             <OPTION value="jenkinsRush">Jenkins Jamboree</OPTION>
             <OPTION value="tao100">TAO 100</OPTION>
             <OPTION value="faceoff">Faceoff</OPTION>
-          </SELECT>
-          <A href="javascript:void(0)" class="change" style="display:none">Change Set</A>
+          </SELECT><SPAN class="fa fa-info selected-style"></SPAN>
         </DIV>
       </DIV>
       <DIV>
@@ -146,6 +149,18 @@
           <LI><LABEL><INPUT type="radio" name="vs" value="unrated"> Invite a Friend (Unrated)</Label></LI>
           <LI><LABEL><INPUT type="radio" name="vs" value="you"> Yourself (Practice)</Label></LI>
         </UL>
+      </DIV>
+      <DIV class="set">
+        <DIV>Choose set: <A href="javascript:void(0)" class="change">View Set</A><SPAN class="fa fa-info set"></SPAN></DIV>
+        <DIV class="indent">
+          <SELECT name="set">
+            <OPTION value="default">Default</OPTION>
+            <OPTION value="alt1">Alternate 1</OPTION>
+            <OPTION value="alt2">Alternate 2</OPTION>
+            <OPTION value="alt3">Alternate 3</OPTION>
+            <OPTION value="random">Random</OPTION>
+          </SELECT>
+        </DIV>
       </DIV>
       <DIV>
         <DIV>Choose turn time limit:</DIV>

@@ -1,15 +1,22 @@
 import Polygon from 'utils/Polygon.js';
 import emitter from 'utils/emitter.js';
-import { reverseColorMap } from 'tactics/colorMap.js';
+import { numifyColorFilter, reverseColorMap } from 'tactics/colorMap.js';
 
 const HALF_TILE_WIDTH  = 44;
 const HALF_TILE_HEIGHT = 28;
 
 export default class Unit {
   constructor(data, board) {
+    if (!data.type)
+      throw new Error('Required type');
+
     Object.assign(this, data, {
       data: data,
       board: board,
+      spriteSource: data.type,
+      spriteName: null,
+      trimSprite: 'trim',
+      shadowSprite: 'shadow',
       sprite: null,
 
       // These properties are initialized externally
@@ -507,7 +514,7 @@ export default class Unit {
     delete this.pixi.data.position;
   }
   getStyles() {
-    return { trim:{ rgb:this.color } };
+    return { [ this.trimSprite ]:{ rgb:this.color } };
   }
   /*
    * A hook for changing a frame before it is rendered.
@@ -528,53 +535,72 @@ export default class Unit {
 
     return this.drawStand();
   }
-  drawAvatar(direction = 'S', forCanvas = true) {
+  drawAvatar(options) {
     if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.type);
+      this._sprite = Tactics.getSprite(this.spriteSource);
 
-    /*
-     * Most avatars have the same direction and trim color.
-     * So caching the avatar can be useful.
-     */
-    if (
-      forCanvas &&
-      this._avatar &&
-      this._avatar.direction === direction &&
-      // Cheating.  Should make sure all styles are the same instead
-      this._avatar.color === this.color
-    ) return this._avatar.avatar.clone();
+    options = Object.assign({
+      renderer: Tactics.game?.renderer,
+      direction: 'S',
+      withFocus: false,
+      withShadow: false,
+      as: 'frame',
+    }, options);
 
-    let frame = this._sprite.renderFrame({
+    const frame = this._sprite.renderFrame({
+      spriteName: this.spriteName,
       actionName: 'stand',
-      direction,
-      styles: Object.assign(this.getStyles(), {
-        shadow: { alpha:0 },
-      }),
+      direction: options.direction,
+      styles: this.getStyles(),
       fixup: this.fixupFrame.bind(this),
     }).container;
 
     frame.filters = this.board.unitsContainer.filters;
 
-    if (!forCanvas) return frame;
+    const shadowContainer = this.getContainerByName(this.shadowSprite, frame);
+    if (!options.withShadow)
+      shadowContainer.alpha = 0;
 
-    let bounds = frame.getLocalBounds();
-    frame.position.x = -bounds.x;
-    frame.position.y = -bounds.y;
+    if (options.withFocus) {
+      const core = Tactics.getSprite('core');
+      const focusContainer = core.renderFrame({ spriteName:'Focus' }).container;
+      if (typeof this.color === 'number')
+        focusContainer.children[0].tint = this.color;
+      else
+        focusContainer.children[0].tint = numifyColorFilter(this.color);
 
-    let frameContainer = new PIXI.Container();
-    frameContainer.addChild(frame);
+      shadowContainer.parent.addChildAt(focusContainer, shadowContainer.parent.getChildIndex(shadowContainer));
+    }
 
-    let avatarCanvas = Tactics.game.renderer.plugins.extract.canvas(frameContainer);
-    let avatar = PIXI.Sprite.from(avatarCanvas);
-    avatar.x = bounds.x;
-    avatar.y = bounds.y;
+    let avatar;
+    if (options.as === 'image') {
+      const bounds = frame.getLocalBounds();
+      const avatarCanvas = options.renderer.plugins.extract.canvas(frame);
+      avatar = {
+        x: bounds.x,
+        y: bounds.y,
+        src: avatarCanvas.toDataURL('image/png'),
+      };
+    } else if (options.as === 'sprite') {
+      const bounds = frame.getLocalBounds();
+      frame.position.x = -bounds.x;
+      frame.position.y = -bounds.y;
 
-    this._avatar = { direction, color:this.color, avatar };
-    return avatar.clone();
+      const frameContainer = new PIXI.Container();
+      frameContainer.addChild(frame);
+
+      const avatarCanvas = options.renderer.plugins.extract.canvas(frameContainer);
+      avatar = PIXI.Sprite.from(avatarCanvas);
+      avatar.x = bounds.x;
+      avatar.y = bounds.y;
+    } else
+      avatar = frame;
+
+    return avatar;
   }
   drawFrame(actionName, direction = this.direction, frameId) {
     if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.type);
+      this._sprite = Tactics.getSprite(this.spriteSource);
 
     let frame = this._sprite.renderFrame({
       actionName,
@@ -586,7 +612,7 @@ export default class Unit {
 
     let focusContainer = this.getContainerByName('Focus');
     if (focusContainer) {
-      let shadowContainer = this.getContainerByName('shadow', frame.container);
+      let shadowContainer = this.getContainerByName(this.shadowSprite, frame.container);
       shadowContainer.addChild(focusContainer);
     }
 
@@ -909,7 +935,7 @@ export default class Unit {
       let core = Tactics.getSprite('core');
       focusContainer = core.renderFrame({ spriteName:'Focus' }).container;
 
-      let shadowContainer = this.getContainerByName('shadow');
+      let shadowContainer = this.getContainerByName(this.shadowSprite);
       shadowContainer.addChild(focusContainer);
     }
 
@@ -1436,7 +1462,7 @@ export default class Unit {
       if (focusContainer) {
         anim.splice(0, {
           script: () => {
-            let shadowContainer = this.getContainerByName('shadow');
+            let shadowContainer = this.getContainerByName(this.shadowSprite);
             shadowContainer.addChild(focusContainer);
           },
           repeat: anim.frames.length,
@@ -1537,7 +1563,7 @@ export default class Unit {
       );
 
       // Place the shape above the shadow, but below the unit
-      let shadowContainer = this.getContainerByName('shadow');
+      let shadowContainer = this.getContainerByName(this.shadowSprite);
       shadowContainer.addChild(container);
     });
 

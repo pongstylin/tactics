@@ -55,7 +55,7 @@ export default class GameState {
     else if (stateData.teams.length !== 2 && stateData.teams.length !== 4)
       throw new TypeError('Required 2 or 4 teams');
 
-    let teamsData = stateData.teams;
+    const teamsData = stateData.teams;
     delete stateData.teams;
 
     stateData = Object.assign(
@@ -79,7 +79,7 @@ export default class GameState {
       }
     );
 
-    let gameState = new GameState(stateData);
+    const gameState = new GameState(stateData);
 
     teamsData.forEach((teamData, slot) => {
       if (teamData)
@@ -282,11 +282,15 @@ export default class GameState {
 
       // Place the units according to team position.
       this.units = teams.map(team => {
-        return team.set.units.map(unitSetData => {
-          let degree = board.getDegree('N', team.position);
-          let tile   = board.getTileRotation(unitSetData.assignment, degree);
+        const degree = board.getDegree('N', team.position);
+        const flipSide = team.randomSide && Math.random() < 0.5;
 
-          let unitState = {
+        return team.set.units.map(unitSetData => {
+          const tile = flipSide === false || unitSetData.assignment[0] === 5
+            ? board.getTileRotation(unitSetData.assignment, degree)
+            : board.getTileRotation([ 10 - unitSetData.assignment[0], unitSetData.assignment[1] ], degree);
+
+          const unitState = {
             id: unitId++,
             ...unitSetData,
             assignment: [tile.x, tile.y],
@@ -716,7 +720,7 @@ export default class GameState {
    * Keep ending turns until a team is capable of making their turn.
    * ...or the game ends due to draw.
    */
-  autoPass() {
+  autoPass(startNextTurn = false) {
     let {
       passedTurnLimit,
       passedTurnCount,
@@ -754,6 +758,9 @@ export default class GameState {
         attackTurnCount++;
       }
     }
+
+    if (startNextTurn && this._actions.last?.type === 'endTurn')
+      this._pushHistory();
   }
 
   calcDrawCounts() {
@@ -891,8 +898,6 @@ export default class GameState {
   getUndoPointer(team = this.currentTeam) {
     if (!this.startedAt)
       return null;
-    if (this.endedAt)
-      return this.rated ? null : false;
 
     const currentTurnId = this.currentTurnId;
     const actions = this._actions;
@@ -904,6 +909,9 @@ export default class GameState {
         return null;
       return { turnId:firstTurnId, actionId:0 };
     }
+
+    if (this.endedAt)
+      return this.rated ? null : false;
 
     const firstTurnId = this.getTeamFirstTurnId(team);
 
@@ -967,7 +975,7 @@ export default class GameState {
         // ... unless auto pass made it a continuation of your previous turn.
         // Since a continuation is not delayed, the current turn check ensures
         // this validates the true end of a player's turn.
-        if (rated && turnId === currentTurnId && action.type === 'endTurn' && Date.now() - action.createdAt > 5000)
+        if (rated && turnId === currentTurnId && action.type === 'endTurn' && Date.now() - action.createdAt >= 5000)
           return rated ? pointer || null : pointer;
 
         // Skip forced endTurn actions and evaluate the previous action.
@@ -980,7 +988,7 @@ export default class GameState {
             return pointer;
 
           // Preserve old action
-          if (Date.now() - action.createdAt > 5000)
+          if (Date.now() - action.createdAt >= 5000)
             return pointer;
 
           // Preserve previous action

@@ -34,6 +34,3 @@ export default class Scout extends Unit {
     return anim;
   }
 }
-
-// Dynamically add unit data properties to the class.
-Scout.prototype.type = 'Scout';

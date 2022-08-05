@@ -1,3 +1,4 @@
+import { gameConfig } from 'config/client.js';
 import Autosave from 'components/Autosave.js';
 import popup from 'components/popup.js';
 
@@ -45,20 +46,66 @@ window.addEventListener('DOMContentLoaded', () => {
     divConfigure.classList.add('show');
   });
 
-  let selGameType = document.querySelector('SELECT[name=type]');
-  let aChangeLink = document.querySelector('.change');
-  aChangeLink.addEventListener('click', async event => {
-    let gameTypeId = selGameType.querySelector(':checked').value;
+  const selGameType = document.querySelector('SELECT[name=type]');
+  const selSet = document.querySelector('SELECT[name=set]');
+  const aChangeLink = document.querySelector('.change');
+  const state = {};
 
-    divConfigure.classList.remove('show');
-    await Tactics.setup(gameTypeId, 'default');
-    divConfigure.classList.add('show');
+  aChangeLink.addEventListener('click', async event => {
+    const setOption = selSet.querySelector(':checked');
+    const setId = setOption.value;
+    const setIndex = state.sets.findIndex(s => s.id === setId);
+    const setBuilder = await Tactics.editSet({
+      gameType: state.gameType,
+      set: state.sets[setIndex],
+    });
+    const newSet = setBuilder.set;
+
+    if (newSet) {
+      state.sets[setIndex] = newSet;
+      setOption.textContent = state.sets[setIndex].name;
+    } else {
+      state.sets.splice(setIndex, 1);
+      setOption.style.display = 'none';
+      selSet.selectedIndex = 0;
+
+      if (state.sets.length === 1)
+        selSet.disabled = true;
+    }
   });
   selGameType.addEventListener('change', async event => {
-    let gameTypeId = selGameType.querySelector(':checked').value;
-    let gameType = await gameClient.getGameType(gameTypeId);
+    selSet.disabled = true;
+    selSet.selectedIndex = 0;
+    selSet.options[0].textContent = 'Default';
 
-    aChangeLink.style.display = gameType.isCustomizable ? '' : 'none';
+    const gameTypeId = selGameType.querySelector(':checked').value;
+    const [ gameType, sets ] = await Promise.all([
+      gameClient.getGameType(gameTypeId),
+      gameClient.getPlayerSets(gameTypeId),
+    ]);
+    state.gameType = gameType;
+    state.sets = sets;
+
+    if (gameType.isCustomizable)
+      aChangeLink.textContent = 'Change Set';
+    else
+      aChangeLink.textContent = 'View Set';
+
+    if (sets.length > 1) {
+      for (const setId of gameConfig.setsById.keys()) {
+        const setOption = selSet.querySelector(`OPTION[value="${setId}"]`);
+        const set = sets.find(s => s.id === setId);
+        if (set) {
+          setOption.style.display = '';
+          setOption.textContent = set.name;
+        } else
+          setOption.style.display = 'none';
+      }
+
+      if (gameConfig.set === 'random')
+        selSet.selectedIndex = 4;
+      selSet.disabled = false;
+    }
   });
   // setTimeout() seemed to be necessary in Chrome to detect auto-fill of
   // dropdown after hitting the browser back button.
@@ -71,6 +118,26 @@ window.addEventListener('DOMContentLoaded', () => {
     );
   });
 
+  document.querySelector('.fa.fa-info.style').addEventListener('click', event => {
+    popup({
+      title: 'Choosing Your Style',
+      message: `
+        Every style has different requirements on what sets you may use when
+        playing a game in that style.  The word "set" is used to describe what
+        units are on your team and where they are placed at the beginning of a
+        game.  Some styles like "Classic" may not allow you to customize your
+        set while most styles allow customization with various restrictions.
+      `,
+      maxWidth: '500px',
+    });
+  });
+  document.querySelector('.fa.fa-info.selected-style').addEventListener('click', event => {
+    popup({
+      title: `${state.gameType.name} Style`,
+      message: state.gameType.description,
+      maxWidth: '500px',
+    });
+  });
   document.querySelector('.fa.fa-info.vs').addEventListener('click', event => {
     popup({
       title: 'Choosing Your Opponent',
@@ -96,6 +163,21 @@ window.addEventListener('DOMContentLoaded', () => {
           sharing your screen.  If possible, you are given the opportunity to
           choose what set you wish to play against.</LI>
         </UL>
+      `,
+      maxWidth: '500px',
+    });
+  });
+  document.querySelector('.fa.fa-info.set').addEventListener('click', event => {
+    popup({
+      title: 'Choosing Your Set(up)',
+      message: `
+        Most game styles let you define up to 4 sets where you can customize
+        what units are placed where.  You can do that by clicking the
+        <B>Setup</B> button after choosing the style of interest in the lobby.
+        Once you do, all of your sets for the selected game style will appear in
+        the list.  Until then, you may still change the <B>Default</B> set via
+        the <B>Change Set</B> link.  If you only see a <B>View Set</B> link, the
+        selected game style does not allow custom sets.
       `,
       maxWidth: '500px',
     });
@@ -134,27 +216,29 @@ window.addEventListener('DOMContentLoaded', () => {
     divConfigure.classList.remove('show');
     divWaiting.classList.add('show');
 
-    let gameTypeId = document.querySelector('SELECT[name=type] OPTION:checked').value;
-    let vs = document.querySelector('INPUT[name=vs]:checked').value;
-    let turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
-    let turnLimit = document.querySelector('INPUT[name=turnLimit]:checked').value;
-    let randomHitChance = document.querySelector('INPUT[name=randomHitChance]:checked').value;
-    let gameOptions = {
+    const gameTypeId = document.querySelector('SELECT[name=type] OPTION:checked').value;
+    const vs = document.querySelector('INPUT[name=vs]:checked').value;
+    const set = document.querySelector('SELECT[name=set] OPTION:checked').value;
+    const turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
+    const turnLimit = document.querySelector('INPUT[name=turnLimit]:checked').value;
+    const randomHitChance = document.querySelector('INPUT[name=randomHitChance]:checked').value;
+    const gameOptions = {
       randomFirstTurn: turnOrder === 'random',
       collection: vs === 'public' ? 'public' : undefined,
       randomHitChance: randomHitChance === 'true',
-      teams: [null, null],
+      teams: [ null, null ],
     };
 
-    let youSlot = turnOrder === '2nd' ? 1 : 0;
-
-    gameOptions.teams[youSlot] = {
+    const youSlot = turnOrder === '2nd' ? 1 : 0;
+    const youTeam = gameOptions.teams[youSlot] = {
       playerId: authClient.playerId,
-      set: { name:'default' },
+      set,
     };
 
     if (vs !== 'you') {
       gameOptions.turnTimeLimit = isNaN(turnLimit) ? turnLimit : parseInt(turnLimit);
+      if (!state.gameType.hasFixedPositions)
+        youTeam.randomSide = gameConfig.randomSide;
 
       if (vs !== 'unrated')
         gameOptions.rated = true;
@@ -166,7 +250,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let matchingGameQuery;
     let joinQuery;
     if (gameOptions.collection) {
-      let excludedPlayerIds = new Set();
+      const excludedPlayerIds = new Set();
 
       if (authClient.playerId) {
         // Do not join my own waiting games.
@@ -174,7 +258,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         try {
           // Do not join waiting games against players we are already playing.
-          let games = await gameClient.searchMyGames({
+          const games = await gameClient.searchMyGames({
             filter: {
               // Game type must match player preference.
               type: gameTypeId,
@@ -186,7 +270,7 @@ window.addEventListener('DOMContentLoaded', () => {
           });
 
           games.hits.forEach(g => {
-            let team = g.teams.find(t => t.playerId !== authClient.playerId);
+            const team = g.teams.find(t => t.playerId !== authClient.playerId);
             if (team)
               excludedPlayerIds.add(team.playerId);
           });
@@ -254,7 +338,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     Promise.resolve()
       .then(async () => {
-        let gameId = await joinOpenGame(joinQuery);
+        let gameId = await joinOpenGame(joinQuery, youTeam);
         if (gameId) return gameId;
 
         gameId = await findMyGame(myGameQuery, matchingGameQuery);
@@ -305,8 +389,10 @@ async function findMyGame(myGameQuery, matchingGameQuery) {
   gameClient.cancelGame(result.hits[0].id);
 }
 
-async function joinOpenGame(query) {
+async function joinOpenGame(query, youTeam) {
   if (!query) return;
+
+  let gameSummary;
 
   try {
     const result = await gameClient.searchGameCollection('public', query);
@@ -315,14 +401,21 @@ async function joinOpenGame(query) {
     const hits = result.hits.filter(h => h.creatorACL?.type !== 'blocked');
     if (!hits.length) return;
 
-    const gameSummary = hits[0];
-    return gameClient.joinGame(gameSummary.id, { set:{ name:'default' }})
-      .then(() => gameSummary.id);
-  }
-  catch (error) {
-    // If somebody else beat us to joining the game, try again.
+    gameSummary = hits[0];
+    await gameClient.joinGame(gameSummary.id, {
+      set: youTeam.set,
+      randomSide: youTeam.randomSide,
+    });
+
+    return gameSummary.id;
+  } catch (error) {
     if (error.code === 409)
-      return joinOpenGame(query);
+      if (error.message === 'Already joined this game')
+        // Open the already joined game (shouldn't happen)
+        return gameSummary.id;
+      else
+        // Try again when somebody else beats us to joining the game
+        return joinOpenGame(query, youTeam);
 
     // On any other error, bail out to create the game.
     console.warn('Failed to join open game', error);

@@ -3,23 +3,29 @@ import 'plugins/pixi.js';
 import { Loader } from '@pixi/loaders';
 import { Rectangle } from '@pixi/math';
 
-import config from 'config/client.js';
+import config, { gameConfig } from 'config/client.js';
 import ServerError from 'server/Error.js';
 import clientFactory from 'client/clientFactory.js';
-import RemoteTransport from 'tactics/RemoteTransport.js';
-import LocalTransport from 'tactics/LocalTransport.js';
-import popup from 'components/popup.js';
-import Progress from 'components/Progress.js';
+import Board from 'tactics/Board.js';
 import Game from 'tactics/Game.js';
-import Setup from 'components/Setup.js';
+import Unit from 'tactics/Unit.js';
 import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
+import unitFactory from 'tactics/unitFactory.js';
 import AnimatedSprite from 'tactics/AnimatedSprite.js';
+import LocalTransport from 'tactics/LocalTransport.js';
+import RemoteTransport from 'tactics/RemoteTransport.js';
+import popup from 'components/popup.js';
+import Progress from 'components/Modal/Progress.js';
+import SetBuilder from 'components/Modal/SetBuilder.js';
+import { colorFilterMap } from 'tactics/colorMap.js';
 import sleep from 'utils/sleep.js';
 
 const authClient = clientFactory('auth');
 const gameClient = clientFactory('game');
 const chatClient = clientFactory('chat');
 const pushClient = clientFactory('push');
+
+Howler.mute(!gameConfig.audio);
 
 window.Tactics = (function () {
   var self = {};
@@ -37,9 +43,9 @@ window.Tactics = (function () {
     Progress: Progress,
     RemoteTransport: RemoteTransport,
     Game: Game,
+    SetBuilder,
     ServerError: ServerError,
-    loadedUnitTypes: new Set(),
-    _setupMap: new Map(),
+    _avatars: { cache:new Map() },
 
     load: async function (unitTypes, cb = () => {}) {
       if (!Array.isArray(unitTypes))
@@ -157,99 +163,76 @@ window.Tactics = (function () {
       AnimatedSprite.get('core').getSound(name).howl.play();
     },
     /*
-     * This is a shared interface for launching and handling the result of game
-     * type setup.  It is only appropriate for online use.
+     * This is a shared interface for launching the set builder.
+     * It is only appropriate for online use.
      */
-    setup: async function (gameTypeId, setName) {
-      let gameType;
-      if (typeof gameTypeId !== 'string') {
-        gameType = gameTypeId;
-        gameTypeId = gameType.id;
-      }
-
+    editSet: async function (data) {
       const progress = new Progress();
-      const setup = this._setupMap.get(gameTypeId) ?? {};
-      setup.whenComplete = new Promise();
 
-      if (!setup.component) {
-        progress.percent = 0;
-        progress.message = 'Loading set...';
-        progress.show();
+      progress.percent = 0;
+      progress.message = 'Loading set...';
+      progress.show();
 
-        // Allow the message to show
-        await sleep(200);
+      // Allow the message to show
+      await sleep(200);
 
-        if (!gameType)
-          gameType = await gameClient.getGameType(gameTypeId);
-
-        await Tactics.load(
-          gameType.getUnitTypes(),
-          percent => progress.percent = percent,
+      const promises = [];
+      if (typeof data.gameType === 'string')
+        promises.push(
+          gameClient.getGameType(data.gameType).then(v => data.gameType = v),
+        );
+      if (typeof data.set === 'string')
+        promises.push(
+          gameClient.getPlayerSet(data.set).then(v => data.set = v),
         );
 
-        progress.message = 'One moment...';
-        // Allow the message to show
-        await sleep(200);
+      await Promise.all(promises);
+      await Tactics.load(
+        data.gameType.getUnitTypes(),
+        percent => progress.percent = percent,
+      );
 
-        const set = await gameClient.getPlayerSet(gameType.id, setName);
-        setup.component = new Setup({ colorId:'Red', set }, gameType)
-          .on('back', () => {
-            setup.whenComplete.resolve(false);
-            setup.component.reset();
-          })
-          .on('save', ({ data:set }) => {
-            let notice = popup({
-              message: 'Saving to server...',
-              buttons: [],
-              closeOnCancel: false,
-              autoOpen: 1000, // open after one second
-            });
+      progress.message = 'One moment...';
 
-            setup.component.set = set;
+      // Allow the message to show
+      await sleep(200);
 
-            gameClient.savePlayerSet(gameType.id, setName, set).then(() => {
-              notice.close();
+      progress.close();
 
-              setup.whenComplete.resolve(true);
-            });
-          });
-
-        this._setupMap.set(gameTypeId, setup);
-
-        progress.hide();
-      }
-
-      setup.component.show();
-
-      return setup.whenComplete;
+      return new SetBuilder(data).show();
     },
     draw: function (data) {
-      var types = {C:'Container',G:'Graphics',T:'Text'};
-      var elements = {};
-      var context = data.context;
+      const types = new Map([
+        [ 'C', 'Container' ],
+        [ 'G', 'Graphics' ],
+        [ 'T', 'Text' ],
+      ]);
+      const elements = {};
+      const context = data.context;
 
       if (!data.children) return;
 
-      for (let [name, pData] of Object.entries(data.children)) {
-        let cls = types[pData.type];
+      for (const [ name, pData ] of Object.entries(data.children)) {
+        const cls = types.get(pData.type);
         let pixi;
 
-        if (cls == 'Text')
-          pixi = new PIXI[cls](
-            pData.text || '',
-            Object.assign({}, data.textStyle, pData.style),
-          );
-        else
+        if (cls == 'Text') {
+          const style = Object.assign({}, data.textStyle, pData.style);
+
+          if ('w' in pData) {
+            style.wordWrap = true;
+            style.wordWrapWidth = pData.w;
+          }
+
+          pixi = new PIXI[cls](pData.text ?? '', style);
+        } else
           pixi = new PIXI[cls]();
 
         if ('x'        in pData) pixi.position.x = pData.x;
         if ('y'        in pData) pixi.position.y = pData.y;
         if ('visible'  in pData) pixi.visible = pData.visible;
         if ('anchor'   in pData) {
-          for (let key in pData['anchor']) {
-            if (pData['anchor'].hasOwnProperty(key))
-              pixi['anchor'][key] = pData['anchor'][key];
-          }
+          Object.assign(pixi.anchor, pData.anchor);
         }
         if ('onSelect' in pData) {
           pixi.interactive = pixi.buttonMode = true;
@@ -313,6 +296,60 @@ window.Tactics = (function () {
           {src:'death.png',pos:{x:-0.5,y:-50  },scale:{x:0.791,y:2.752},alpha:0.35}
         ],
       ],
+    },
+    drawAvatar(avatar, options) {
+      options = Object.assign({
+        as: 'image',
+        direction: 'S',
+        withFocus: false,
+        withShadow: false,
+      }, options);
+
+      const unitKey = avatar instanceof Unit
+        ? avatar.color === null ? `${avatar.type}:null` : `${avatar.type}:${avatar.team.colorId}`
+        : `${avatar.unitType}:${avatar.colorId}`;
+      const cacheKey = `${unitKey}:${options.as}:${options.direction}:${options.withFocus}:${options.withShadow}`;
+      const cache = this._avatars.cache;
+
+      if (!cache.has(cacheKey)) {
+        let unit;
+        if (avatar instanceof Unit)
+          unit = avatar;
+        else if (Tactics.game) {
+          unit = unitFactory(avatar.unitType, Tactics.game.board);
+          unit.color = colorFilterMap.get(avatar.colorId);
+        } else {
+          if (!this._avatars.renderer) {
+            this._avatars.board = new Board().draw();
+            this._avatars.renderer = new PIXI.Renderer();
+          }
+
+          unit = unitFactory(avatar.unitType, this._avatars.board);
+          unit.color = colorFilterMap.get(avatar.colorId);
+
+          const spriteName = unit.baseSprite ?? unit.type;
+          const superSpriteName = unit.type === 'DragonspeakerMage' ? 'Pyromancer' : spriteName;
+          unit.spriteSource = 'avatars';
+          unit.spriteName = spriteName;
+          unit.trimSprite = `${superSpriteName}Trim`;
+          unit.shadowSprite = `${superSpriteName}Shadow`;
+
+          options.renderer = this._avatars.renderer;
+        }
+
+        cache.set(cacheKey, unit.drawAvatar(options));
+      }
+
+      return options.as === 'sprite' ? cache.get(cacheKey).clone() : cache.get(cacheKey);
+    },
+    getAvatarImage(avatar, options) {
+      const avatarImageData = this.drawAvatar(avatar, Object.assign({ withFocus:true }, options));
+      const imgAvatar = document.createElement('IMG');
+      imgAvatar.style.top = `${avatarImageData.y}px`;
+      imgAvatar.style.left = `${avatarImageData.x}px`;
+      imgAvatar.src = avatarImageData.src;
+
+      return imgAvatar;
     },
   });
 

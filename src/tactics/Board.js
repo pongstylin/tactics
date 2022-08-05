@@ -1,7 +1,7 @@
 import Tile from 'tactics/Tile.js';
 import Unit from 'tactics/Unit.js';
 import unitFactory from 'tactics/unitFactory.js';
-import colorMap from 'tactics/colorMap.js';
+import { colorFilterMap } from 'tactics/colorMap.js';
 import emitter from 'utils/emitter.js';
 
 export const TILE_WIDTH        = 88;
@@ -112,15 +112,16 @@ export default class Board {
     card.stage.hitArea = new PIXI.Polygon([0,0, 175,0, 175,99, 0,99]);
     card.stage.interactive = card.stage.buttonMode = true;
     card.stage.pointertap = () => {
-      let els = card.elements;
+      const els = card.elements;
 
       if (els.layer1.visible) {
         els.layer1.visible = !(els.layer2.visible = true);
         return card.render();
-      }
-      else if (els.layer2.visible) {
+      } else if (els.layer2.visible) {
         els.layer2.visible = !(els.layer3.visible = true);
         return card.render();
+      } else if (els.layer4.visible) {
+        return this._emit({ type:'card-tap' });
       }
 
       this.eraseCard();
@@ -206,8 +207,8 @@ export default class Board {
               },
             },
             layer2: {
-              type:'C',
-              visible:false,
+              type: 'C',
+              visible: false,
               children: {
                 yLabel   :{type:'T',x: 0,y: 0,text:'Ability'},
                 ability  :{type:'T',x:55,y: 0},
@@ -216,15 +217,23 @@ export default class Board {
               },
             },
             layer3: {
-              type:'C',
-              visible:false,
+              type: 'C',
+              visible: false,
               children: {
                 recovery:{type:'T',x: 0,y: 0},
                 notice1 :{type:'T',x:88,y: 0},
                 notice2 :{type:'T',x: 0,y:16},
                 notice3 :{type:'T',x:88,y:16},
               },
-            }
+            },
+            layer4: {
+              type: 'C',
+              visible: false,
+              children: {
+                // Exclude padding from the width
+                noticeBody: { type:'T', x:0, y:0, w:176 - 8 * 2 },
+              },
+            },
           }
         }
       }
@@ -510,14 +519,15 @@ export default class Board {
   /*
    * Get the degree difference between direction and rotation.
    *
-   * Example: getDegree('N', 'E') =  90 degrees
-   * Example: getDegree('N', 'W') = 270 degrees
-   * Example: getDegree('S', 'E') = -90 degrees
+   * Example: getDegree('N', 'E') = (2 - 0) * 45 =   90 degrees
+   * Example: getDegree('N', 'W') = (6 - 0) * 45 =  270 degrees
+   * Example: getDegree('W', 'N') = (0 - 6) * 45 = -270 degrees
+   * Example: getDegree('S', 'E') = (2 - 4) * 45 =  -90 degrees
    */
   getDegree(direction, rotation) {
     if (direction === 'C' || rotation === 'C') return 0;
 
-    var directions = ['N','NE','E','SE','S','SW','W','NW'];
+    const directions = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
 
     return (directions.indexOf(rotation) - directions.indexOf(direction)) * 45;
   }
@@ -709,7 +719,7 @@ export default class Board {
     let unitsContainer = this.unitsContainer = new PIXI.Container();
     unitsContainer.position = new PIXI.Point(1, -1);
     unitsContainer.interactiveChildren = false;
-    unitsContainer.filters = [lightFilter];
+    unitsContainer.filters = [ lightFilter ];
 
     pixi.addChild(unitsContainer);
 
@@ -847,8 +857,8 @@ export default class Board {
   // Make sure units overlap naturally.
   sortUnits() {
     this.unitsContainer.children.sort((a, b) => {
-      let ay = a.data && a.data.position ? a.data.position.y : a.position.y;
-      let by = b.data && b.data.position ? b.data.position.y : b.position.y;
+      const ay = a.data && a.data.position ? a.data.position.y : a.position.y;
+      const by = b.data && b.data.position ? b.data.position.y : b.position.y;
 
       return ay - by;
     });
@@ -894,8 +904,7 @@ export default class Board {
           notice = 'Hatched!';
         else
           notice = 'Dead!';
-      }
-      else {
+      } else {
         notice = unit.notice;
       }
 
@@ -960,13 +969,11 @@ export default class Board {
 
           els.block.updateText();
           els.mBlock.position.x = els.block.position.x + els.block.width;
-        }
-        else {
+        } else {
           els.block.text = unit.blocking+'%';
           els.mBlock.text = '';
         }
-      }
-      else {
+      } else {
         els.block.text = '—';
         els.mBlock.text = '';
       }
@@ -977,16 +984,14 @@ export default class Board {
         if (unit.mPower > 0) {
           els.mPower.text = '+'+unit.mPower;
           els.mPower.style.fill = '#00CC00';
-        }
-        else {
+        } else {
           els.mPower.text = unit.mPower;
           els.mPower.style.fill = '#FF4444';
         }
 
         els.power.updateText();
         els.mPower.position.x = els.power.position.x + els.power.width;
-      }
-      else {
+      } else {
         els.mPower.text = '';
       }
 
@@ -996,16 +1001,14 @@ export default class Board {
         if (unit.mArmor > 0) {
           els.mArmor.text = '+'+Math.min(100 - unit.armor, unit.mArmor);
           els.mArmor.style.fill = '#00FF00';
-        }
-        else {
+        } else {
           els.mArmor.text = unit.mArmor;
           els.mArmor.style.fill = '#FF0000';
         }
 
         els.armor.updateText();
         els.mArmor.position.x = els.armor.position.x + els.armor.width;
-      }
-      else {
+      } else {
         els.mArmor.text = '';
       }
 
@@ -1026,8 +1029,12 @@ export default class Board {
       els.notice1.text = notices.length ? notices.shift() : '—';
       els.notice2.text = notices.length ? notices.shift() : '—';
       els.notice3.text = notices.length ? notices.shift() : '—';
-    }
-    else if (defaultNotice) {
+
+      els.layer4.visible = false;
+    } else if (defaultNotice) {
+      if (typeof defaultNotice === 'string')
+        defaultNotice = { title:defaultNotice, body:null };
+
       unit = this._trophy;
 
       //
@@ -1039,7 +1046,8 @@ export default class Board {
       els.notice.y = 28;
       els.notice.anchor.x = 0.5;
       els.notice.style.fontSize = '12px';
-      els.notice.text = defaultNotice;
+      els.notice.text = defaultNotice.title;
+      els.noticeBody.text = defaultNotice.body;
 
       if (els.healthBar.children.length)
         els.healthBar.removeChildren();
@@ -1050,15 +1058,15 @@ export default class Board {
       els.layer1.visible = false;
       els.layer2.visible = false;
       els.layer3.visible = false;
-    }
-    else
+      els.layer4.visible = typeof defaultNotice.body === 'string';
+    } else
       this.eraseCard();
 
     if (unit) {
       let mask = new PIXI.Graphics();
       mask.drawRect(0, 0, 150, 60);
 
-      let avatar = unit.drawAvatar();
+      let avatar = Tactics.drawAvatar(unit, { as:'sprite' });
       avatar.y += Math.min(76, Math.max(54, -avatar.y));
       avatar.mask = mask;
 
@@ -1118,7 +1126,7 @@ export default class Board {
   makeUnit(unitState) {
     let unit = unitFactory(unitState.type, this);
     if (unitState.colorId)
-      unit.color = colorMap.get(unitState.colorId);
+      unit.color = colorFilterMap.get(unitState.colorId);
     else if (unitState.color)
       unit.color = unitState.color;
     unit.direction = unit.directional === false ? 'S' : unitState.direction;
@@ -1140,7 +1148,7 @@ export default class Board {
 
     unit.team = team;
     if (unit.color === null)
-      unit.color = colorMap.get(team.colorId);
+      unit.color = colorFilterMap.get(team.colorId);
     unit.stand();
 
     this.assign(unit, unit.assignment);
@@ -1219,7 +1227,7 @@ export default class Board {
       if (action.direction)
         unit.direction = action.direction;
       if (action.colorId)
-        unit.color = colorMap.get(action.colorId);
+        unit.color = colorFilterMap.get(action.colorId);
     }
 
     this.applyActionResults(action.results);
@@ -1284,23 +1292,23 @@ export default class Board {
   */
   rotate(rotation) {
     // Get unit positions normalized to server board north.
-    let state = this.getState().flat();
+    const state = this.getState().flat();
 
     // Numeric rotation is relative to current rotation.
     if (typeof rotation === 'number')
       rotation = this.getRotation(this.rotation, rotation);
 
-    let degree    = this.getDegree('N', rotation);
-    let activated = this.viewed || this.selected;
+    const degree    = this.getDegree('N', rotation);
+    const activated = this.viewed || this.selected;
 
     if (activated) this.hideMode();
 
-    this.teamsUnits.flat().forEach(unit => {
-      let unitData = state.find(u => u.id === unit.id);
+    for (const [ unitId, unit ] of this.teamsUnits.flat().entries()) {
+      const unitData = state[unitId];
 
       this.assign(unit, this.getTileRotation(unitData.assignment, degree));
       unit.stand(this.getRotation(unitData.direction, degree));
-    });
+    }
 
     if (this.target)
       this.target = this.getTileRotation(
@@ -1311,6 +1319,34 @@ export default class Board {
     if (activated) this.showMode();
 
     this.rotation = rotation;
+
+    return this;
+  }
+  flip() {
+    // Get unit positions normalized to server board north.
+    const state = this.getState().flat();
+
+    const degree    = this.getDegree('N', this.rotation);
+    const activated = this.viewed || this.selected;
+
+    if (activated) this.hideMode();
+
+    for (const [ unitId, unit ] of this.teamsUnits.flat().entries()) {
+      const unitData = state[unitId];
+
+      /*
+       * If the unit is not in the center column, reassign him to other side
+       */
+      if (unitData.assignment[0] !== 5)
+        this.assign(unit, this.getTileRotation([ 10 - unitData.assignment[0], unitData.assignment[1] ], degree));
+
+      if (unitData.direction === 'W')
+        unit.stand('E');
+      else if (unitData.direction === 'E')
+        unit.stand('W');
+    }
+
+    if (activated) this.showMode();
 
     return this;
   }

@@ -3,9 +3,11 @@
     "classic",
     {
       "name": "Classic",
+      "description": "This style requires both players to use the same default gray set used in the original game.",
       "customizable": false,
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[2, 1], "type":"DarkMagicWitch" },
@@ -25,27 +27,28 @@
     "droplessGray",
     {
       "name": "Dropless Gray",
+      "description": "This style only lets you use the free (Gray) units from the original game.  It does not let you use the premium (Gold) units.  It also doesn't let you use extra copies of Gray units (drops) that you could earn by winning games at specific times.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
-            ["Cleric",         { "max":1  }],
-            ["Knight",         { "max":3  }],
-            ["Pyromancer",     { "max":2  }],
-            ["Enchantress",    { "max":1  }],
-            ["Scout",          { "max":1  }],
-            ["Assassin",       { "max":1  }],
-            ["BarrierWard",    { "max":1  }],
-            ["DarkMagicWitch", { "max":1  }],
-            ["LightningWard",  { "max":1  }]
+            ["Cleric",         { "max":1 }],
+            ["Knight",         { "max":3 }],
+            ["Pyromancer",     { "max":2 }],
+            ["Enchantress",    { "max":1 }],
+            ["Scout",          { "max":1 }],
+            ["Assassin",       { "max":1 }],
+            ["BarrierWard",    { "max":1 }],
+            ["DarkMagicWitch", { "max":1 }],
+            ["LightningWard",  { "max":1 }]
           ]
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[2, 1], "type":"DarkMagicWitch" },
@@ -65,12 +68,12 @@
     "fpsGray",
     {
       "name": "FPS Gray",
+      "description": "This style lets you use the maximum units and duplicates that you could earn as a free player on the original game commercial site (FPS, a.k.a. Flash Player Studios).",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Cleric",         { "max":10 }],
             ["Knight",         { "max":3  }],
@@ -85,7 +88,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[2, 1], "type":"DarkMagicWitch" },
@@ -105,12 +109,12 @@
     "legendsGray",
     {
       "name": "Legends Gray",
+      "description": "This style lets you use the maximum units and duplicates that you could earn as a free player on the original game development site (Legends).  The Legends server differed from the commercial servers (FPS) in that it allowed you to earn 4 more units by winning games at the right times.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Cleric",         { "max":10 }],
             ["Knight",         { "max":3  }],
@@ -129,7 +133,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[2, 1], "type":"DarkMagicWitch" },
@@ -149,12 +154,12 @@
     "delta",
     {
       "name": "Delta Force",
+      "description": "This is a little known style that players invented in the original game that only allows you to choose 4 units in your team.  It is notable that Clerics, dragons, and Scouts are not allowed.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 4,
         "units": {
-          "max": 4,
-
           "types": [
             ["Assassin",       { "max":1 }],
             ["Knight",         { "max":1 }],
@@ -174,7 +179,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"PoisonWisp" },
           { "assignment":[4, 1], "type":"MudGolem" },
@@ -188,13 +194,13 @@
     "legendsTurtle",
     {
       "name": "Legends Turtle",
+      "description": "Turtle styles have an emphasis on defense.  Legends styles are famous for only allowing one Scout.  This style requires the players to create their sets on opposite sides of the board.  The Scout must not be placed on the front row.  A Stone Golem is required and must be placed on the back row, 2nd row corner, or next to a Cleric that is placed in the back row or 2nd row corner.  You must also place 4 units in immediate stoning range of Stone Golem.",
       "customizable": true,
       "limits": {
         "fixedPositions": true,
         "tiles": { "start":[0,0], "end":[5,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             [
               "Scout",
@@ -218,7 +224,7 @@
             ["Enchantress",       { "max":1  }],
             ["PoisonWisp",        { "max":1  }],
             ["MudGolem",          { "max":1  }],
-            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
             ["FrostGolem",        { "max":1  }],
             [
               "StoneGolem",
@@ -247,7 +253,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[2, 0], "type":"FrostGolem" },
           { "assignment":[1, 1], "type":"Cleric" },
@@ -266,15 +273,15 @@
     "alphaTurtle",
     {
       "name": "Alpha Turtle",
+      "description": "Turtle styles have an emphasis on defense.  Scouts and dragons must not be placed on the front row.  Dragonspeaker Mage, Pyromancers, and Dark Magic Witches must not be placed on the front 2 rows.  A Stone Golem is required and must be placed on the back row or 2nd row corner.  You must also place 4 units in immediate stoning range of Stone Golem.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
         "rules": {
           "oneSide": 6
         },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Assassin",          { "max":10 }],
             ["Knight",            { "max":3  }],
@@ -323,7 +330,7 @@
               "DragonTyrant",
               {
                 "max": 1,
-                "size": 2,
+                "points": 2,
                 "tiles": { "start":[0,0], "end":[10,3] }
               }
             ],
@@ -350,7 +357,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[4, 0], "type":"StoneGolem" },
@@ -369,12 +377,12 @@
     "legendsGold",
     {
       "name": "Legends Gold",
+      "description": "Legends styles are famous for only allowing one Scout.  This style only lets you use the units you can get by buying premium (Gold) units with no extra copies (drops) on the original game development server (Legends).",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Scout",             { "max":1  }],
             ["Assassin",          { "max":1  }],
@@ -389,7 +397,7 @@
             ["MudGolem",          { "max":1  }],
             ["PoisonWisp",        { "max":1  }],
             ["FrostGolem",        { "max":1  }],
-            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
             ["Furgon",            { "max":1  }],
             ["DragonspeakerMage", { "max":1  }],
             ["BeastRider",        { "max":1  }],
@@ -399,7 +407,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[2, 0], "type":"Cleric" },
           { "assignment":[2, 1], "type":"DragonTyrant", "mPower":-12 },
@@ -418,12 +427,12 @@
     "legendsGoldNoDSM",
     {
       "name": "Legends Gold (no DSM)",
+      "description": "Legends styles are famous for only allowing one Scout.  This style only lets you use the units you can get by buying premium (Gold) units with no extra copies (drops) on the original game development server (Legends)... with one exception.  You may not use the Dragonspeaker Mage unit.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Assassin",       { "max":1 }],
             ["Knight",         { "max":3 }],
@@ -437,7 +446,7 @@
             ["MudGolem",       { "max":1 }],
             ["PoisonWisp",     { "max":1 }],
             ["FrostGolem",     { "max":1 }],
-            ["DragonTyrant",   { "max":1, "size":2 }],
+            ["DragonTyrant",   { "max":1, "points":2 }],
             ["Furgon",         { "max":1 }],
             ["StoneGolem",     { "max":1 }],
             ["BeastRider",     { "max":1 }],
@@ -447,7 +456,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[8, 0], "type":"Cleric" },
           { "assignment":[9, 1], "type":"FrostGolem" },
@@ -466,12 +476,12 @@
     "fpsGold",
     {
       "name": "FPS Gold",
+      "description": "This style only lets you use the units you can get by buying premium (Gold) units with no extra copies (drops) on the original game commercial site (FPS).",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Scout",             { "max":2  }],
             ["Assassin",          { "max":1  }],
@@ -486,7 +496,7 @@
             ["MudGolem",          { "max":1  }],
             ["PoisonWisp",        { "max":1  }],
             ["FrostGolem",        { "max":1  }],
-            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
             ["Furgon",            { "max":1  }],
             ["DragonspeakerMage", { "max":1  }],
             ["BeastRider",        { "max":1  }],
@@ -496,7 +506,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
@@ -515,12 +526,12 @@
     "freestyle",
     {
       "name": "Freestyle",
+      "description": "This style lets you use all the units you could buy including the extra copies (drops) you could earn on the original game commercial site (FPS) without restriction.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Scout",             { "max":2  }],
             ["Assassin",          { "max":10 }],
@@ -535,7 +546,7 @@
             ["MudGolem",          { "max":10 }],
             ["PoisonWisp",        { "max":1  }],
             ["FrostGolem",        { "max":10 }],
-            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
             ["Furgon",            { "max":1  }],
             ["DragonspeakerMage", { "max":1  }],
             ["BeastRider",        { "max":10 }],
@@ -545,7 +556,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
@@ -564,12 +576,12 @@
     "moderator",
     {
       "name": "Moderator",
+      "description": "Moderators in the original game were granted unlimited units.  The only restriction is that you only have 10 points to spend on your team.  Want to enjoy the coveted forbidden powers of the Moderator?",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Scout",             { "max":10 }],
             ["Assassin",          { "max":10 }],
@@ -584,7 +596,7 @@
             ["MudGolem",          { "max":10 }],
             ["PoisonWisp",        { "max":10 }],
             ["FrostGolem",        { "max":10 }],
-            ["DragonTyrant",      { "max":5, "size":2 }],
+            ["DragonTyrant",      { "max":5, "points":2 }],
             ["Furgon",            { "max":10 }],
             ["DragonspeakerMage", { "max":10 }],
             ["BeastRider",        { "max":10 }],
@@ -594,7 +606,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[3, 1], "type":"DragonTyrant", "mPower":-28 },
@@ -616,9 +629,8 @@
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["StoneGolem",        { "max":5 }],
             ["MudGolem",          { "max":5 }],
@@ -655,9 +667,8 @@
         "rules": {
           "oneSide": 6
         },
+        "points": 12,
         "units": {
-          "max": 12,
-
           "types": [
             ["Assassin",          { "max":10 }],
             ["Knight",            { "max":3  }],
@@ -758,8 +769,8 @@
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,3] },
+        "points": 20,
         "units": {
-          "max": 20,
           "types": [
             ["Scout",             { "max":1 }],
             ["Assassin",          { "max":1 }],
@@ -813,15 +824,15 @@
     "alphaScout",
     {
       "name": "Ninja Turtles",
+      "description": "This custom style invented by Midnight is based on Alpha Turtle, but you can use more Scouts and fewer other units.  A minimum of 4 Scouts is required.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
         "rules": {
           "oneSide": 6
         },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             [
               "Cleric",
@@ -913,12 +924,12 @@
     "jenkinsRush",
     {
       "name": "Jenkins Jamboree",
+      "description": "This custom style invented by Leeroy Jenkins is the ultimate rush style.  All units are allowed but they must be placed on the front row.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,4], "end":[10,4] },
+        "points": 10,
         "units": {
-          "max": 10,
-
           "types": [
             ["Scout",             { "max":10 }],
             ["Assassin",          { "max":10 }],
@@ -958,30 +969,31 @@
     "tao100",
     {
       "name": "TAO 100",
+      "description": "This custom style invented by Pepeg gives you 100 points to spend on units for your set.  You are only allowed one copy of each unit type.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 100,
         "units": {
-          "max": 100,
           "types": [
             ["BarrierWard",       { "max":1, "size":6 }],
             ["Enchantress",       { "max":1, "size":6 }],
-            ["Pyromancer",        { "max":1, "size":6 }],
             ["Assassin",          { "max":1, "size":8 }],
-            ["DarkMagicWitch",    { "max":1, "size":8 }],
             ["Berserker",         { "max":1, "size":8 }],
-            ["LightningWard",     { "max":1, "size":10 }],
+            ["LightningWard",     { "max":1, "size":8 }],
+            ["Pyromancer",        { "max":1, "size":10 }],
+            ["DarkMagicWitch",    { "max":1, "size":10 }],
             ["Furgon",            { "max":1, "size":10 }],
+            ["Knight",            { "max":1, "size":10 }],
+            ["Cleric",            { "max":1, "size":10 }],
             ["Scout",             { "max":1, "size":12 }],
-            ["Knight",            { "max":1, "size":12 }],
             ["BeastRider",        { "max":1, "size":12 }],
-            ["Cleric",            { "max":1, "size":12 }],
+            ["FrostGolem",        { "max":1, "size":14 }],
             ["GolemAmbusher",     { "max":1, "size":14 }],
             ["PoisonWisp",        { "max":1, "size":14 }],
-            ["FrostGolem",        { "max":1, "size":14 }],
             ["MudGolem",          { "max":1, "size":14 }],
             ["StoneGolem",        { "max":1, "size":14 }],
-            ["DragonspeakerMage", { "max":1, "size":16 }],
+            ["DragonspeakerMage", { "max":1, "size":18 }],
             ["DragonTyrant",      { "max":1, "size":24 }]
           ]
         }
@@ -1005,6 +1017,7 @@
     "faceoff",
     {
       "name": "Faceoff",
+      "description": "This custom style requested by 0xSean is based on the AI challenge by the same name.",
       "customizable": false,
       "sets": [{
         "name":"Default",
@@ -1012,6 +1025,48 @@
           { "assignment":[4, 2], "type":"Knight" },
           { "assignment":[5, 2], "type":"Knight" },
           { "assignment":[6, 2], "type":"Knight" }
+        ]
+      }]
+    }
+  ],
+  [
+    "droplessGrayWisp",
+    {
+      "name": "Dropwisp Gway",
+      "description": "This custom style requested by KAP is based on Dropless Gray... but it includes a wisp.",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
+        "units": {
+          "types": [
+            ["Cleric",         { "max":1 }],
+            ["Knight",         { "max":3 }],
+            ["Pyromancer",     { "max":2 }],
+            ["Enchantress",    { "max":1 }],
+            ["Scout",          { "max":1 }],
+            ["Assassin",       { "max":1 }],
+            ["BarrierWard",    { "max":1 }],
+            ["DarkMagicWitch", { "max":1 }],
+            ["LightningWard",  { "max":1 }],
+            ["PoisonWisp",     { "max":1 }]
+          ]
+        }
+      },
+      "sets": [{
+        "id": "default",
+        "name": "Default",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[2, 1], "type":"DarkMagicWitch" },
+          { "assignment":[3, 1], "type":"Pyromancer" },
+          { "assignment":[7, 1], "type":"PoisonWisp" },
+          { "assignment":[8, 1], "type":"Enchantress" },
+          { "assignment":[1, 2], "type":"Assassin" },
+          { "assignment":[4, 2], "type":"Knight" },
+          { "assignment":[5, 2], "type":"Knight" },
+          { "assignment":[6, 2], "type":"Knight" },
+          { "assignment":[9, 2], "type":"Scout" }
         ]
       }]
     }

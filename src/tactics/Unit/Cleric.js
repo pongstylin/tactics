@@ -55,6 +55,3 @@ export default class Cleric extends Unit {
     return results;
   }
 }
-
-// Dynamically add unit data properties to the class.
-Cleric.prototype.type = 'Cleric';
