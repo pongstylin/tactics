@@ -640,7 +640,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[8, 0], "type":"StoneGolem" },
           { "assignment":[7, 0], "type":"StoneGolem" },
@@ -717,7 +718,7 @@
               "DragonTyrant",
               {
                 "max": 1,
-                "size": 2,
+                "points": 2,
                 "tiles": { "start":[0,0], "end":[10,3] }
               }
             ],
@@ -744,7 +745,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"FrostGolem" },
           { "assignment":[4, 0], "type":"StoneGolem" },
@@ -785,7 +787,7 @@
             ["MudGolem",          { "max":1 }],
             ["PoisonWisp",        { "max":1 }],
             ["FrostGolem",        { "max":1 }],
-            ["DragonTyrant",      { "max":1, "size":2 }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
             ["Furgon",            { "max":1 }],
             ["DragonspeakerMage", { "max":1 }],
             ["BeastRider",        { "max":1 }],
@@ -795,7 +797,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
             { "assignment":[5, 0], "type":"Cleric" },
             { "assignment":[2, 1], "type":"DarkMagicWitch" },
@@ -861,7 +864,7 @@
               {
                 "required": 1,
                 "max": 1,
-                "size": 2,
+                "points": 2,
                 "tiles": { "start":[0,0], "end":[10,3] }
               }
             ],
@@ -905,7 +908,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[4, 0], "type":"StoneGolem" },
           { "assignment":[3, 0], "type":"Cleric" },
@@ -941,7 +945,7 @@
             ["MudGolem",          { "max":10 }],
             ["PoisonWisp",        { "max":10 }],
             ["FrostGolem",        { "max":10 }],
-            ["DragonTyrant",      { "max":5, "size":2 }],
+            ["DragonTyrant",      { "max":5, "points":2 }],
             ["DragonspeakerMage", { "max":10 }],
             ["BeastRider",        { "max":10 }],
             ["GolemAmbusher",     { "max":10 }],
@@ -950,7 +954,8 @@
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[1, 4], "type":"Scout" },
           { "assignment":[2, 4], "type":"Pyromancer", "mPower":12 },
@@ -976,37 +981,38 @@
         "points": 100,
         "units": {
           "types": [
-            ["BarrierWard",       { "max":1, "size":6 }],
-            ["Enchantress",       { "max":1, "size":6 }],
-            ["Assassin",          { "max":1, "size":8 }],
-            ["Berserker",         { "max":1, "size":8 }],
-            ["LightningWard",     { "max":1, "size":8 }],
-            ["Pyromancer",        { "max":1, "size":10 }],
-            ["DarkMagicWitch",    { "max":1, "size":10 }],
-            ["Furgon",            { "max":1, "size":10 }],
-            ["Knight",            { "max":1, "size":10 }],
-            ["Cleric",            { "max":1, "size":10 }],
-            ["Scout",             { "max":1, "size":12 }],
-            ["BeastRider",        { "max":1, "size":12 }],
-            ["FrostGolem",        { "max":1, "size":14 }],
-            ["GolemAmbusher",     { "max":1, "size":14 }],
-            ["PoisonWisp",        { "max":1, "size":14 }],
-            ["MudGolem",          { "max":1, "size":14 }],
-            ["StoneGolem",        { "max":1, "size":14 }],
-            ["DragonspeakerMage", { "max":1, "size":18 }],
-            ["DragonTyrant",      { "max":1, "size":24 }]
+            ["BarrierWard",       { "max":1, "points":6 }],
+            ["Enchantress",       { "max":1, "points":6 }],
+            ["Assassin",          { "max":1, "points":8 }],
+            ["Berserker",         { "max":1, "points":8 }],
+            ["LightningWard",     { "max":1, "points":8 }],
+            ["Pyromancer",        { "max":1, "points":10 }],
+            ["DarkMagicWitch",    { "max":1, "points":10 }],
+            ["Furgon",            { "max":1, "points":10 }],
+            ["Knight",            { "max":1, "points":10 }],
+            ["Cleric",            { "max":1, "points":10 }],
+            ["Scout",             { "max":1, "points":12 }],
+            ["BeastRider",        { "max":1, "points":12 }],
+            ["FrostGolem",        { "max":1, "points":14 }],
+            ["GolemAmbusher",     { "max":1, "points":14 }],
+            ["PoisonWisp",        { "max":1, "points":14 }],
+            ["MudGolem",          { "max":1, "points":14 }],
+            ["StoneGolem",        { "max":1, "points":14 }],
+            ["DragonspeakerMage", { "max":1, "points":18 }],
+            ["DragonTyrant",      { "max":1, "points":24 }]
           ]
         }
       },
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[5, 2], "type":"DragonTyrant" },
           { "assignment":[1, 4], "type":"Scout" },
           { "assignment":[2, 4], "type":"Knight" },
-          { "assignment":[4, 4], "type":"MudGolem" },
-          { "assignment":[6, 4], "type":"Pyromancer" },
+          { "assignment":[5, 3], "type":"MudGolem" },
+          { "assignment":[5, 4], "type":"LightningWard" },
           { "assignment":[8, 4], "type":"BeastRider" },
           { "assignment":[9, 4], "type":"Berserker" }
         ]
@@ -1020,7 +1026,8 @@
       "description": "This custom style requested by 0xSean is based on the AI challenge by the same name.",
       "customizable": false,
       "sets": [{
-        "name":"Default",
+        "id": "default",
+        "name": "Default",
         "units": [
           { "assignment":[4, 2], "type":"Knight" },
           { "assignment":[5, 2], "type":"Knight" },

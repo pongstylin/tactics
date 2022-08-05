@@ -33,6 +33,7 @@ const styles = new Map([
   [ 'jenkinsRush',      'Jenkins Jamboree' ],
   [ 'tao100',           'TAO 100' ],
   [ 'faceoff',          'Faceoff' ],
+  [ 'droplessGrayWisp', 'Dropwisp Gway' ],
 ]);
 
 const groups = new Map([
