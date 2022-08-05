@@ -1,13 +1,206 @@
 .view.setup {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  max-height: 100%;
-  max-width: calc(100% - 16px);
+  flex-direction: row;
+  justify-content: space-evenly;
+  position: relative;
+  overflow: visible;
+  padding: 8px;
+
+  .sets {
+    display: grid;
+    grid-template-columns: auto auto;
+    flex: 1 1 auto;
+    max-width: 548px;
+
+    cursor: pointer;
+
+    LABEL {
+      position: absolute;
+
+      font-style: italic;
+      font-weight: bold;
+      color: #b08d57;
+    }
+    &.rotation-N {
+      LABEL { bottom:15%; right:5%; }
+    }
+    &.rotation-S {
+      LABEL { top:15%; left:5%; }
+    }
+    &.rotation-E {
+      LABEL { bottom:15%; left:5%; }
+    }
+    &.rotation-W {
+      LABEL { top:15%; right:5%; }
+    }
+
+    .set {
+      position: relative;
+
+      .image {
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: contain;
+
+        padding-bottom: 67%;
+        width: 100%;
+      }
+    }
+  }
+  .sets:not(.isCustomizable) {
+    display: flex;
+
+    .set {
+      width: 100%;
+
+      LABEL::after {
+        content: '(Not Customizable)';
+        margin-left: 8px;
+      }
+    }
+    .set:not(:first-child) {
+      display: none;
+    }
+  }
+
+  .selectors {
+    display: flex;
+    flex-direction: column;
+    justify-content: start;
+    align-items: center;
+
+    & > * {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+
+      LABEL {
+        z-index: 1;
+        padding: 2px;
+        text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+      }
+    }
+  }
+
+  .avatar {
+    min-width: 120px;
+
+    .container {
+      position: relative;
+      margin-top: 68px;
+      margin-bottom: 32px;
+
+      IMG {
+        position: absolute;
+        cursor: pointer;
+
+        &:hover {
+          filter: brightness(1.5);
+        }
+      }
+    }
+  }
+
+  .color {
+    width: 80px;
+    height: 120px;
+  }
+
+  .teams {
+    flex: 1 1 auto;
+
+    width: 100%;
+    min-width: 84px;
+
+    .image {
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: contain;
+      filter: brightness(1.2);
+      margin-top: 8px;
+      padding-bottom: 66%;
+      width: 100%;
+      cursor: pointer;
+
+      .positions {
+        position: absolute;
+        top: 0.5px;
+        width: 100%;
+        height: 100%;
+
+        .position {
+          position: absolute;
+          background-image: url(/arenaSide.svg);
+          background-repeat: no-repeat;
+          background-size: contain;
+          width: 100%;
+          height: 100%;
+        }
+        .position:not(.selected) {
+          opacity: 0.2;
+        }
+
+        .E {
+          transform: scaleX(-1);
+        }
+        .S {
+          transform: scale(-1);
+        }
+        .W {
+          transform: scaleY(-1);
+        }
+
+        .Black { filter:invert(39%) sepia(1%) saturate(0%) hue-rotate(231deg) brightness(98%) contrast(84%); }
+        .White { filter:invert(100%) sepia(17%) saturate(2724%) hue-rotate(194deg) brightness(119%) contrast(59%); }
+        .Red { filter:invert(23%) sepia(77%) saturate(1353%) hue-rotate(333deg) brightness(88%) contrast(90%) }
+        .Pink { filter:invert(65%) sepia(31%) saturate(701%) hue-rotate(308deg) brightness(87%) contrast(80%); }
+        .Purple { filter:invert(42%) sepia(11%) saturate(1455%) hue-rotate(220deg) brightness(89%) contrast(80%); }
+        .Orange { filter:invert(42%) sepia(19%) saturate(4870%) hue-rotate(20deg) brightness(105%) contrast(99%); }
+        .Brown { filter:invert(31%) sepia(3%) saturate(4780%) hue-rotate(345deg) brightness(102%) contrast(91%); }
+        .Yellow { filter:invert(74%) sepia(83%) saturate(347%) hue-rotate(6deg) brightness(90%) contrast(85%) }
+        .Green { filter:invert(47%) sepia(70%) saturate(287%) hue-rotate(46deg) brightness(99%) contrast(93%) }
+        .Teal { filter:invert(41%) sepia(87%) saturate(461%) hue-rotate(131deg) brightness(100%) contrast(84%); }
+        .Blue { filter:invert(42%) sepia(14%) saturate(1820%) hue-rotate(176deg) brightness(89%) contrast(85%) }
+      }
+    }
+  }
+
+  HEADER {
+    flex: 1 0 auto;
+
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    flex-wrap: wrap;
+
+    .name {
+      .inputTextAutosave {
+        border-bottom-color: #b08d57;
+      }
+
+      INPUT {
+        font-style: italic;
+        font-weight: bold;
+        font-size: 1.2em;
+        color: #b08d57;
+      }
+    }
+
+    .style {
+      padding-top: 4px;
+      padding-left: 4px;
+
+      font-style: italic;
+      font-weight: bold;
+      font-size: 1.2em;
+      color: #b08d57;
+    }
+  }
 
   .field {
+    flex: 1 1 auto;
+
     position: relative;
-    height: calc(100% - 38px);
     max-width: 100%;
     // let the field shrink despite large canvas
     overflow: hidden;
@@ -18,32 +211,47 @@
     }
 
     .card {
+      display: flex;
+      justify-content: center;
+      align-items: center;
       position: absolute;
-      top: 0;
-      left: 0;
-      // Only present to fix a bug in Edge.
-      width: 176px;
+      width: 45%;
+      height: 45%;
 
       // The card must show above the board when they overlap.
       z-index: 1;
 
-      background: #000000;
-      border-radius: 16px;
-      box-shadow: 4px 4px 12px #444444;
-      padding: 0 0 4px 0;
-
-      // Fade out the card, somewhat slowly.
-      transition: opacity 600ms linear;
-      opacity: 0;
       pointer-events: none;
 
-      &.show {
-        // Fade in the card, somewhat quickly.
-        transition: opacity 400ms linear;
-        opacity: 1;
-        pointer-events: auto;
+      CANVAS {
+        // Only present to fix a bug in Edge.
+        width: 176px;
+
+        // Fade out the card, somewhat slowly.
+        transition: opacity 600ms linear;
+        opacity: 0;
+
+        &.show {
+          // Fade in the card, somewhat quickly.
+          transition: opacity 400ms linear;
+          opacity: 1;
+          pointer-events: auto;
+        }
       }
     }
+  }
+
+  &.rotation-N {
+    .card { bottom:-8px; right:-8px; }
+  }
+  &.rotation-S {
+    .card { top:0; left:-4px; }
+  }
+  &.rotation-E {
+    .card { bottom:-8px; left:-4px; }
+  }
+  &.rotation-W {
+    .card { top:0; right:-8px; }
   }
 
   .menubar {
@@ -79,37 +287,46 @@
   }
 }
 
-@media (max-width: 835px) and (max-aspect-ratio: 2/3), (max-width: 440px) {
+/*
+ * Narrow Layout
+ */
+@media (max-width: 667px) {
   .view.setup {
-    .field {
-      // No longer place the card in the top-left corner of #field.
-      // Rather, horizontally center the card at the top of #field.
-      .card {
-        position: relative;
-        top: auto;
-        box-shadow: 0 0 12px #888888;
-        margin: 6px auto 12px;
-      }
+    flex-direction: column;
+    align-items: center;
+
+    .sets {
+      width: 100%;
     }
-  }
-}
 
-@media (max-width: 812px) and (min-aspect-ratio: 5/3) {
-  .view.setup {
-    width: 100%;
-
-    .field {
+    .selectors {
+      flex-direction: row;
+      justify-content: center;
+      align-items: start;
+      order: -1;
       width: 100%;
 
-      .board {
-        margin-left: auto;
+      .teams {
+        max-width: 100px;
       }
     }
   }
 }
 
-@media (max-width: 660px) and (min-aspect-ratio: 5/3) {
+/*
+ * Very Narrow Layout
+ */
+@media (max-width: 563px) {
   .view.setup {
-    height: 100%;
+    .sets {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+
+      .set {
+        width: 100%;
+      }
+    }
   }
 }

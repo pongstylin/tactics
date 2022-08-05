@@ -77,7 +77,7 @@ export default class Tile {
   getTop() {
     if (this.top) return this.top;
 
-    let position = this.pixi.position;
+    const position = this.pixi.position;
 
     return this.top = new PIXI.Point(
       Math.floor(position.x + TILE_WIDTH/2),
@@ -87,17 +87,27 @@ export default class Tile {
   getLeft() {
     if (this.left) return this.left;
 
-    let position = this.pixi.position;
+    const position = this.pixi.position;
 
     return this.left = new PIXI.Point(
       Math.floor(position.x),
       Math.floor(position.y + TILE_HEIGHT/2),
     );
   }
+  getRight() {
+    if (this.right) return this.right;
+
+    const position = this.pixi.position;
+
+    return this.right = new PIXI.Point(
+      Math.floor(position.x + TILE_WIDTH),
+      Math.floor(position.y + TILE_HEIGHT/2),
+    );
+  }
   getBottom() {
     if (this.bottom) return this.bottom;
 
-    let position = this.pixi.position;
+    const position = this.pixi.position;
 
     return this.bottom = new PIXI.Point(
       Math.floor(position.x + TILE_WIDTH/2),
@@ -107,7 +117,7 @@ export default class Tile {
   getCenter() {
     if (this.center) return this.center;
 
-    let position = this.pixi.position;
+    const position = this.pixi.position;
 
     return this.center = new PIXI.Point(
       Math.floor(position.x + TILE_WIDTH/2),

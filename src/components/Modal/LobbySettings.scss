@@ -14,7 +14,8 @@
     HEADER:not(:first-child) {
       margin-top: 12px;
     }
-    .audio LABEL:last-child, .labels LABEL:last-child {
+    .audio LABEL:last-child,
+    .barPosition LABEL:last-child {
       grid-column: span 2;
     }
     .audio.broken {
@@ -30,6 +31,9 @@
         text-shadow: 0 0 red;
       }
     }
+    .barPosition {
+      display: none;
+    }
     .row {
       display: contents;
 
@@ -38,6 +42,16 @@
       }
       .label, LABEL {
         white-space: nowrap;
+      }
+    }
+  }
+}
+
+@media (max-height: 440px) and (min-aspect-ratio: 5/3) {
+  .modal.lobbySettings {
+    .content {
+      .barPosition {
+        display: contents;
       }
     }
   }

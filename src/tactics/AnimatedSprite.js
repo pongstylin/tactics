@@ -245,7 +245,7 @@ export default class AnimatedSprite {
     let sprites = this._data.sprites;
 
     let sprite;
-    if (options.spriteName === undefined)
+    if (options.spriteName === undefined || options.spriteName === null)
       sprite = sprites[0];
     else {
       sprite = sprites.find(s => s.name === options.spriteName);
@@ -332,7 +332,7 @@ export default class AnimatedSprite {
     let sprites = this._compile();
 
     let sprite;
-    if (options.spriteName === undefined)
+    if (options.spriteName === undefined || options.spriteName === null)
       sprite = sprites[0];
     else {
       sprite = sprites.find(s => s.name === options.spriteName);
@@ -1048,8 +1048,7 @@ export default class AnimatedSprite {
               subFrameId,
               options,
             );
-          }
-          else {
+          } else {
             let importSpriteName = layerData.spriteId.replace(/\/.+$/, '');
             let importSprite = AnimatedSprite.get(importSpriteName);
             let subSprite = AnimatedSprite.get(layerData.spriteId);
@@ -1066,15 +1065,15 @@ export default class AnimatedSprite {
 
           scripts.push(...spriteFrame.scripts);
           layer = spriteFrame.container;
+          let style = options.styles[layer.name];
 
           if (layerData.transform)
             applyTransform(layer, mergeTransforms(subFrameData.transform, layerData.transform));
-          if (layerData.color)
+          if (layerData.color && !style?.color)
             applyColor(layer, mergeColors(subFrameData.color, layerData.color));
           if (layerData.effects)
             applyEffects(layer, layerData.effects);
-        }
-        else if (layerData.type === 'image') {
+        } else if (layerData.type === 'image') {
           layer = PIXI.Sprite.from(this._data.images[layerData.imageId].texture);
 
           if (layerData.name !== undefined)
@@ -1085,8 +1084,7 @@ export default class AnimatedSprite {
             applyColor(layer, layerData.color);
           if (layerData.effects)
             applyEffects(layer, layerData.effects);
-        }
-        else if (layerData.type === 'button') {
+        } else if (layerData.type === 'button') {
           let button = this._data.buttons[layerData.buttonId];
           let buttonUpFrame = this._renderFrame(
             sprites,
@@ -1161,8 +1159,7 @@ export default class AnimatedSprite {
             applyColor(layer, layerData.color);
           if (layerData.effects)
             applyEffects(layer, layerData.effects);
-        }
-        else
+        } else
           throw `Unsupported layer type: ${layerData.type}`;
 
         if (layerData.visible !== undefined)
@@ -1374,8 +1371,7 @@ function applyColor(displayObject, color) {
     filter.matrix[18] = color[7];
 
     setFilter(displayObject, 'color', 0, filter);
-  }
-  else
+  } else
     clearFilter(displayObject, 'color');
 }
 function applyEffects(displayObject, effects) {
@@ -1390,8 +1386,7 @@ function applyEffects(displayObject, effects) {
     }
 
     setFilter(displayObject, 'effects', 1, filter);
-  }
-  else
+  } else
     clearFilter(displayObject, 'effects');
 }
 

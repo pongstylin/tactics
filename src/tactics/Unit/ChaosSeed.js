@@ -531,6 +531,3 @@ export default class ChaosSeed extends Unit {
     return true;
   }
 }
-
-// Dynamically add unit data properties to the class.
-ChaosSeed.prototype.type = 'ChaosSeed';

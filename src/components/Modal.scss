@@ -1,7 +1,8 @@
 .overlay {
-  display: none; /* flex */
+  display: flex;
   align-items: center;
   justify-content: center;
+  visibility: hidden;
 
   position: absolute;
   top: 0;
@@ -16,25 +17,27 @@
     flex-direction: column;
     background-color: rgba(0, 0, 0, 0.65);
     box-shadow: 6px 8px 10px #000;
-    margin: 16px;
     border: 1px solid #AA9977;
     border-radius: 4px;
+    max-width: calc(100% - 16px);
+    max-height: calc(100% - 16px);
 
-    .title {
+    & > .title {
       background: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
-      padding: 4px;
+      padding: 4px 8px;
 
       color: white;
       text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     }
 
     .content {
+      flex: 1 1 auto;
       padding: 16px;
       overflow: auto;
     }
   }
 
   &.show {
-    display: flex;
+    visibility: visible;
   }
 }

@@ -188,8 +188,6 @@ export default class Transport {
   getUndoPointer(team = this.currentTeam) {
     if (!this.startedAt)
       return null;
-    if (this.endedAt)
-      return this.rated ? null : false;
 
     const currentTurnId = this.currentTurnId;
     const actions = this._data.state.actions;
@@ -201,6 +199,9 @@ export default class Transport {
         return null;
       return { turnId:firstTurnId, actionId:0 };
     }
+
+    if (this.endedAt)
+      return this.rated ? null : false;
 
     const firstTurnId = this.getTeamFirstTurnId(team);
 

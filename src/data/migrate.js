@@ -426,6 +426,37 @@ migrationMap.set('sets', [
       $data: json.data,
     };
   },
+  json => {
+    const sets = json.$data.sets;
+    const setsByType = new Map();
+
+    for (const set of sets) {
+      const typeSets = setsByType.get(set.type) ?? [];
+
+      if (typeSets.length === 0) {
+        set.id = 'default';
+        set.name = 'Default';
+      } else if (typeSets.length === 1) {
+        set.id = 'alt1';
+        set.name = 'Alternate 1';
+      } else if (typeSets.length === 2) {
+        set.id = 'alt2';
+        set.name = 'Alternate 2';
+      } else if (typeSets.length === 3) {
+        set.id = 'alt3';
+        set.name = 'Alternate 3';
+      } else
+        continue;
+
+      typeSets.push(set);
+
+      setsByType.set(set.type, typeSets);
+    }
+
+    json.$data.sets = [ ...setsByType.values() ].flat();
+
+    return json;
+  },
 ]);
 
 migrationMap.set('stats', [

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="152px" height="100px" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <use width="152" height="100" xlink:href="#shape0"/>
+  </g>
+  <defs>
+    <g id="shape0" transform="matrix(1.0, 0.0, 0.0, 1.0, 4.0, 4.0)">
+      <path d="M56.0 0.0 L72.0 10.2  64.0 15.3  72.0 20.4  64.0 25.5  72.0 30.6  48.0 45.9  40.0 40.8  32.0 45.9  24.0 40.8  16.0 45.9  0.0 35.7" fill="#000000" fill-rule="evenodd" stroke="none"/>
+    </g>
+  </defs>
+</svg>

@@ -25,9 +25,18 @@ export const colorFilterMap = new Map([
   ['Brown',  [1.05, 0.80, 0.60]],
   ['Yellow', [1.99, 1.85, 0.70]],
   ['Green',  [1.10, 1.45, 0.70]],
-  ['Aqua',   [0.70, 1.50, 1.50]],
+  ['Teal',   [0.70, 1.50, 1.50]],
   ['Blue',   [0.65, 0.85, 1.35]],
 ]);
+
+export const numifyColorFilter = rgb => {
+  const scale = Math.max(1, ...rgb);
+  const r = Math.round(rgb[0] / scale * 0xFF);
+  const g = Math.round(rgb[1] / scale * 0xFF);
+  const b = Math.round(rgb[2] / scale * 0xFF);
+
+  return r * 0x010000 + g * 0x000100 + b;
+};
 
 // Map unit names to IDs until we get rid of the IDs.
 const colorMap = new Map();

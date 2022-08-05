@@ -1,3 +1,4 @@
+import { gameConfig } from 'config/client.js';
 import Autosave from 'components/Autosave.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
@@ -6,6 +7,7 @@ import GameSettingsModal from 'components/Modal/GameSettings.js';
 import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
 import PlayerInfoModal from 'components/Modal/PlayerInfo.js';
 import ForkModal from 'components/Modal/Fork.js';
+import sleep from 'utils/sleep.js';
 
 const ServerError = Tactics.ServerError;
 const authClient = Tactics.authClient;
@@ -762,10 +764,10 @@ async function initGame() {
           }
         }
 
-        let groupId = `/rooms/${gameId}`;
-        let playerId = authClient.playerId;
+        const groupId = `/rooms/${gameId}`;
+        const playerId = authClient.playerId;
 
-        let opponentName = game.teams.find(t => t.playerId !== playerId).name;
+        const opponentName = game.teams.find(t => t.playerId !== playerId).name;
         document.title = `Tactics vs ${opponentName}`;
 
         /*
@@ -776,12 +778,12 @@ async function initGame() {
           .on('open', async ({ data }) => {
             if (data.reason === 'resume') return;
 
-            let resume = {
+            const resume = {
               id: chatMessages.length ? chatMessages.last.id : null,
             };
 
             try {
-              let { events } = await chatClient.joinChat(gameId, resume);
+              const { events } = await chatClient.joinChat(gameId, resume);
 
               appendMessages(events.filter(e => e.type === 'message'));
             } catch (error) {
@@ -813,8 +815,7 @@ async function initGame() {
 
         resetChatStatus();
         initMessages(events.filter(e => e.type === 'message'));
-      }
-      else {
+      } else {
         $('#app').addClass('for-practice');
         document.title = `Tactics Practice`;
       }
@@ -845,11 +846,11 @@ async function initGame() {
 async function getGameData(gameId) {
   return gameClient.getGameData(gameId);
 }
-async function joinGame(gameId, set) {
+async function joinGame(gameId, set, randomSide) {
   if (!authClient.token)
     await authClient.register({ name:'Noob' });
 
-  return gameClient.joinGame(gameId, { set }).catch(error => {
+  return gameClient.joinGame(gameId, { set, randomSide }).catch(error => {
     if (error.code !== 409) throw error;
 
     return new Promise(resolve => {
@@ -870,7 +871,7 @@ async function loadTransportAndGame(gameId, gameData) {
 }
 // Must be authorized first or the game already ended
 async function loadTransport(gameId, gameData) {
-  let transport = new Tactics.RemoteTransport(gameId, gameData);
+  const transport = new Tactics.RemoteTransport(gameId, gameData);
   await transport.whenReady;
 
   return transport;
@@ -881,16 +882,16 @@ async function loadGame(transport) {
   return new Tactics.Game(transport, authClient.playerId);
 }
 async function loadResources(gameState) {
-  let unitTypes = gameType.getUnitTypes();
+  const unitTypes = gameType.getUnitTypes();
 
   // If the user will see the game immediately after the resources are loaded,
   // then require a tap to make sure sound effects work.
-  let requireTap = gameState.endedAt || authClient.token && gameState.startedAt;
+  const requireTap = gameState.endedAt || authClient.token && gameState.startedAt;
 
   return new Promise(resolve => {
     progress
       .on('complete', () => {
-        let core = Tactics.getSprite('core');
+        const core = Tactics.getSprite('core');
 
         $('BUTTON[name=select][value=move]')
           .css({ backgroundImage:`url('${core.getImage('move').src}')` });
@@ -905,16 +906,18 @@ async function loadResources(gameState) {
 
         if (!requireTap) return resolve();
 
-        let tapHandler = () => {
+        const tapHandler = async () => {
           wakelock.toggle(!gameState.endedAt && !location.hash);
 
           progress.disableButtonMode(tapHandler);
           progress.message = 'One moment...';
+          await sleep(200);
+
           resolve();
         };
         progress.enableButtonMode(tapHandler);
 
-        let action = pointer === 'mouse' ? 'Click' : 'Tap';
+        const action = pointer === 'mouse' ? 'Click' : 'Tap';
         if (gameState.endedAt)
           progress.message = `${action} here to view!`;
         else if (gameState.teams.find(t => t.playerId === authClient.playerId))
@@ -1171,25 +1174,82 @@ async function showPracticeIntro(gameData) {
   $('#practice .set').show();
   $('#practice .mirror').toggle(!gameType.hasFixedPositions);
 
-  const hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id, 'practice');
-  if (hasCustomSet)
-    $('#practice INPUT[name=set][value=practice]').prop('checked', true);
-  else
-    $('#practice INPUT[name=set][value=same]').prop('checked', true);
+  const $mySet = $('#practice INPUT[name=setChoice][value=mySet]');
+  const $practice = $('#practice INPUT[name=setChoice][value=practice]');
+  const $same = $('#practice INPUT[name=setChoice][value=same]');
+  const $sets = $('#practice .mySet SELECT');
+  const sets = await gameClient.getPlayerSets(gameType.id);
 
-  $('#practice .set A').on('click', async () => {
-    $('#practice').hide();
+  if (sets.length > 1) {
+    $sets.on('change', () => $mySet.prop('checked', true));
 
-    if (await Tactics.setup(gameType, 'practice'))
-      $('#practice INPUT[name=set][value=practice]').prop('checked', true);
-    $('#practice').show();
+    $('#practice .mySet A').on('click', async () => {
+      const setOption = $sets.find(`OPTION:checked`)[0];
+      const setId = setOption.value;
+      const setIndex = sets.findIndex(s => s.id === setId);
+      const setBuilder = await Tactics.editSet({
+        gameType,
+        set: sets[setIndex],
+        rotation: gameConfig.oppRotation,
+        colorId: gameConfig.oppColorId,
+      });
+      const newSet = setBuilder.set;
+
+      if (newSet) {
+        sets[setIndex] = newSet;
+        setOption.textContent = sets[setIndex].name;
+        $mySet.prop('checked', true);
+      } else {
+        sets.splice(setIndex, 1);
+        setOption.style.display = 'none';
+        $sets.val('default');
+      }
+    });
+
+    for (const setId of gameConfig.setsById.keys()) {
+      const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
+      const set = sets.find(s => s.id === setId);
+      if (set) {
+        setOption.style.display = '';
+        setOption.textContent = set.name;
+      } else
+        setOption.style.display = 'none';
+    }
+  } else
+    $('#practice .mySet').hide();
+
+  let practiceSet;
+  $('#practice  .practice A').on('click', async () => {
+    const setBuilder = await Tactics.editSet({
+      gameType,
+      set: practiceSet,
+      rotation: gameConfig.oppRotation,
+      colorId: gameConfig.oppColorId,
+    });
+    practiceSet = setBuilder.set;
+
+    if (practiceSet)
+      $practice
+        .prop('disabled', false)
+        .prop('checked', true)
+        .closest('LABEL').removeClass('disabled');
+    else {
+      if ($practice.is(':checked'))
+        $same.prop('checked', true);
+
+      $practice
+        .prop('disabled', true)
+        .closest('LABEL').addClass('disabled');
+    }
   });
 
   return new Promise((resolve, reject) => {
     btnStart.addEventListener('click', async event => {
-      let set = $('#practice INPUT[name=set]:checked').val();
-      if (set === 'practice')
-        set = { name:set };
+      let set = $('#practice INPUT[name=setChoice]:checked').val();
+      if (set === 'mySet')
+        set = $sets.val();
+      else if (set === 'practice')
+        set = practiceSet;
 
       $('#practice').hide();
       progress.message = 'Starting game...';
@@ -1454,38 +1514,89 @@ async function showJoinIntro(gameData) {
       <DIV>The blocking system is ${blocking}.</DIV>
     `;
 
+    const $sets = $('#join .mySet SELECT');
+
     if (gameType.isCustomizable) {
       $('#join .set').show();
       $('#join .mirror').toggle(!gameType.hasFixedPositions);
 
-      const hasCustomSet = authClient.token && await gameClient.hasCustomPlayerSet(gameType.id, 'default');
-      if (hasCustomSet)
-        $('#join INPUT[name=set][value=default]').prop('checked', true);
-      else
-        $('#join INPUT[name=set][value=same]').prop('checked', true);
+      const $mySet = $('#join INPUT[name=setChoice][value=mySet]');
+      const $same = $('#join INPUT[name=setChoice][value=same]');
+      let sets;
+
+      if (authClient.token) {
+        const hasCustomSet = await gameClient.hasCustomPlayerSet(gameType.id, 'default');
+        if (hasCustomSet)
+          $mySet.prop('checked', true);
+        else
+          $same.prop('checked', true);
+
+        sets = await gameClient.getPlayerSets(gameType.id);
+
+        if (sets.length > 1) {
+          $sets.on('change', () => $mySet.prop('checked', true));
+
+          for (const setId of gameConfig.setsById.keys()) {
+            const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
+            const set = sets.find(s => s.id === setId);
+            if (set) {
+              setOption.style.display = '';
+              setOption.textContent = set.name;
+            } else
+              setOption.style.display = 'none';
+          }
+
+          if (gameConfig.set === 'random')
+            $sets.val('random');
+        } else
+          $('#join .mySet > div:nth-child(2)').hide();
+      } else {
+        $same.prop('checked', true);
+        $('#join .mySet > div:nth-child(2)').hide();
+      }
 
       $('#join .set A').on('click', async () => {
         $('#join').hide();
 
-        if (!authClient.token)
-          await authClient.register({ name:'Noob' })
-            .catch(error => popup({
+        if (!authClient.token) {
+          try {
+            await authClient.register({ name:playerName.value });
+            sets = await gameClient.getPlayerSets(gameType.id);
+          } catch (error) {
+            popup({
               message: 'There was an error while loading your set.',
               buttons: [],
               closeOnCancel: false,
-            }));
+            });
+            throw error;
+          }
+        }
 
-        if (await Tactics.setup(gameType, 'default'))
-          $('#join INPUT[name=set][value=default]').prop('checked', true);
+        const setOption = $sets.find(`OPTION:checked`)[0];
+        const setId = setOption.value;
+        const setIndex = sets.findIndex(s => s.id === setId);
+        const setBuilder = await Tactics.editSet({
+          gameType,
+          set: sets[setIndex],
+        });
+        const newSet = setBuilder.set;
+
+        if (newSet) {
+          sets[setIndex] = newSet;
+          setOption.textContent = sets[setIndex].name;
+          $mySet.prop('checked', true);
+        } else {
+          sets.splice(setIndex, 1);
+          setOption.style.display = 'none';
+          $sets.val('default');
+        }
         $('#join').show();
       });
     }
 
     return new Promise((resolve, reject) => {
       btnJoin.addEventListener('click', async event => {
-        let set = $('#join INPUT[name=set]:checked').val();
-        if (set === 'default')
-          set = { name:set };
+        const set = $sets.val();
 
         $('#join').hide();
         progress.message = 'Joining game...';
@@ -1493,7 +1604,7 @@ async function showJoinIntro(gameData) {
 
         try {
           await playerName.whenSaved;
-          await joinGame(gameData.id, set);
+          await joinGame(gameData.id, set, !gameType.hasFixedPositions && gameConfig.randomSide);
           progress.message = 'Loading game...';
           resolve(
             await loadTransportAndGame(gameData.id, gameData)

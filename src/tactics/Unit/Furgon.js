@@ -259,6 +259,3 @@ export default class Furgon extends Unit {
     );
   }
 }
-
-// Dynamically add unit data properties to the class.
-Furgon.prototype.type = 'Furgon';

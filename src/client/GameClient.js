@@ -147,27 +147,76 @@ export default class GameClient extends Client {
       });
   }
 
-  hasCustomPlayerSet(gameTypeId, setName) {
-    return this._server.requestAuthorized(this.name, 'hasCustomPlayerSet', [gameTypeId, setName])
+  getPlayerSets(gameTypeId) {
+    return this._server.requestAuthorized(this.name, 'getPlayerSets', [ gameTypeId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.hasCustomPlayerSet(gameTypeId, setName);
+          return this.getPlayerSets(gameTypeId);
         throw error;
       });
   }
-  getPlayerSet(gameTypeId, setName) {
-    return this._server.requestAuthorized(this.name, 'getPlayerSet', [gameTypeId, setName])
+  hasCustomPlayerSet(gameTypeId, setId) {
+    return this._server.requestAuthorized(this.name, 'hasCustomPlayerSet', [ gameTypeId, setId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getPlayerSet(gameTypeId, setName);
+          return this.hasCustomPlayerSet(gameTypeId, setId);
         throw error;
       });
   }
-  savePlayerSet(gameTypeId, setName, set) {
-    return this._server.requestAuthorized(this.name, 'savePlayerSet', [gameTypeId, setName, set])
+  getPlayerSet(gameTypeId, setId) {
+    return this._server.requestAuthorized(this.name, 'getPlayerSet', [ gameTypeId, setId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.savePlayerSet(gameTypeId, setName, set);
+          return this.getPlayerSet(gameTypeId, setId);
+        throw error;
+      });
+  }
+  savePlayerSet(gameTypeId, set) {
+    return this._server.requestAuthorized(this.name, 'savePlayerSet', [ gameTypeId, set ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.savePlayerSet(gameTypeId, set);
+        throw error;
+      });
+  }
+  deletePlayerSet(gameTypeId, setId) {
+    return this._server.requestAuthorized(this.name, 'deletePlayerSet', [ gameTypeId, setId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.deletePlayerSet(gameTypeId, setId);
+        throw error;
+      });
+  }
+
+  getMyAvatar() {
+    return this._server.requestAuthorized(this.name, 'getMyAvatar')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getMyAvatar();
+        throw error;
+      });
+  }
+  saveMyAvatar(avatar) {
+    return this._server.requestAuthorized(this.name, 'saveMyAvatar', [ avatar ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.saveMyAvatar(avatar);
+        throw error;
+      });
+  }
+  getMyAvatarList() {
+    return this._server.requestAuthorized(this.name, 'getMyAvatarList')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getMyAvatarList();
+        throw error;
+      });
+  }
+  getPlayersAvatar(playerIds) {
+    return this._server.requestAuthorized(this.name, 'getPlayersAvatar', [ playerIds ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getPlayersAvatar(playerIds);
         throw error;
       });
   }

@@ -70,6 +70,3 @@ export default class Assassin extends Unit {
     });
   }
 }
-
-// Dynamically add unit data properties to the class.
-Assassin.prototype.type = 'Assassin';

@@ -24,7 +24,7 @@
 
   <LINK href="/manifest.json" rel="manifest">
   <LINK href="/favicon.ico" rel="icon" sizes="16x16">
-  <LINK href="https://use.fontawesome.com/releases/v5.15.4/css/all.css" rel="stylesheet" integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" crossorigin="anonymous">
+  <LINK href="https://use.fontawesome.com/releases/v6.1.1/css/all.css" rel="stylesheet" crossorigin="anonymous">
   <LINK href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" crossorigin="anonymous">
 
   <SCRIPT src="/jquery-1.12.4.min.js" crossorigin="anonymous"></SCRIPT>
@@ -113,10 +113,11 @@
       color: #000;
     }
 
-    .tabs {
+    .page > .tabs {
       margin-top: 8px;
+      user-select: none;
     }
-    .tabs UL {
+    .page > .tabs UL {
       display: flex;
       margin: 0;
       padding: 0;
@@ -125,7 +126,7 @@
       border-bottom-color: #804a00;
       justify-content: center;
     }
-    .tabs LI {
+    .page > .tabs LI {
       display: flex;
       flex-direction: row;
       align-items: center;
@@ -137,48 +138,48 @@
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
-    .tabs LI.is-active {
+    .page > .tabs LI.is-active {
       background: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
       border-bottom-color: #DED8D5;
       cursor: default;
     }
-    .tabs .label {
+    .page > .tabs .label {
       border-bottom-color: #DED8D5;
       text-align: center;
       padding: 0;
     }
-    .tabs LI.is-active .label {
+    .page > .tabs LI.is-active .label {
       color: white;
       text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     }
-    .tabs LI .badge {
+    .page > .tabs LI .badge {
       flex: 0 0 auto;
       height: 15px;
       margin-left: 0.5em;
       line-height: 100%;
     }
-    .tabs LI .badge:empty {
+    .page > .tabs LI .badge:empty {
       display: none;
     }
 
-    .tabContent {
+    .page > .tabContent {
       position: relative;
       display: flex;
       flex-direction: column;
       flex: 1 1 auto;
       overflow: hidden;
     }
-    .tabContent > DIV {
+    .page > .tabContent > DIV {
       height: 100%;
       opacity: 1;
       transition-property: opacity;
       transition-duration: 1s;
       transition-delay: 250ms;
     }
-    .tabContent > DIV:not(.is-active) {
+    .page > .tabContent > DIV:not(.is-active) {
       display: none;
     }
-    .tabContent > DIV.hide {
+    .page > .tabContent > DIV.hide {
       opacity: 0;
       transition-duration: 0.5s;
       transition-delay: 0s;
@@ -267,7 +268,7 @@
         color: #CCFFFF;
       }
 
-      .tabs LI:hover {
+      .page > .tabs LI:hover {
         color: #00FFFF;
       }
 
@@ -292,35 +293,35 @@
       color: #FFCC00;
     }
 
-    .tabContent .enterLobby {
+    .page > .tabContent .enterLobby {
       display: flex;
       justify-content: center;
       align-items: center;
     }
-    .tabContent .lobby {
+    .page > .tabContent .lobby {
       display: flex;
       flex-direction: column;
       position: relative;
     }
-    .tabContent .lobby.show {
+    .page > .tabContent .lobby.show {
       transition-duration: 1.28s;
     }
-    .tabContent .lobby.disabled {
+    .page > .tabContent .lobby.disabled {
       pointer-events: none;
     }
-    .tabContent .lobby HEADER {
+    .page > .tabContent .lobby HEADER {
       padding: 0 8px;
     }
-    .tabContent .gameList {
+    .page > .tabContent .gameList {
       padding: 0 8px;
     }
-    .tabContent .gameList:empty::before {
+    .page > .tabContent .gameList:empty::before {
       display: block;
       text-align: center;
       padding: 8px;
       content: 'No games!';
     }
-    .tabContent .loading {
+    .page > .tabContent .loading {
       display: flex;
       justify-content: center;
       align-items: center;
@@ -331,37 +332,39 @@
       height: 100%;
       background-color: rgba(0, 0, 0, 0.5);
     }
-    .tabContent .lobby.show {
+    .page > .tabContent .lobby.show {
       transition-duration: 1s;
     }
-    .tabContent .lobby.hide {
+    .page > .tabContent .lobby.hide {
       transition-duration: 0.5s;
     }
-    .tabContent .loading .spinner {
+    .page > .tabContent .loading .spinner {
       color: transparent;
       font-size: 48px;
       transform: scale(4);
     }
-    .tabContent .loading .spinner .fa {
+    .page > .tabContent .loading .spinner .fa {
       background-image: radial-gradient(rgba(80, 128, 0, 0) 47%, #804a00 52%, 55%, #b08d57 57.5%, 60%, #804a00 63%, rgba(80, 128, 0, 0) 66%);
       -webkit-background-clip: text;
     }
-    .tabContent .loading .label {
+    .page > .tabContent .loading .label {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
 
-      border-radius: 60px;
+      box-sizing: border-box;
+      border-radius: 50%;
       padding-left: 20px;
-      width: 120px;
-      height: 120px;
+      width: 160px;
+      height: 160px;
 
       display: flex;
       justify-content: center;
       align-items: center;
 
       background-color: black;
+      box-shadow: 0 0 5px 10px #000;
       color: #b08d57;
       font-size: 1.5em;
       font-weight: bold;
@@ -398,6 +401,20 @@
       width: 22px;
       height: 22px;
       margin-right: 4px;
+    }
+    .setup, .arenas {
+      opacity: 0;
+      transition-property: opacity;
+      transition-duration: 0.3s;
+    }
+    .setup:not(.show), .arenas:not(.show) {
+      pointer-events: none;
+    }
+    .setup.hide, .arenas.hide {
+      display: none;
+    }
+    .setup.show, .arenas.show {
+      opacity: 1;
     }
     .arenas {
       display: flex;
@@ -649,10 +666,10 @@
         width: 820px;
         height: 600px;
       }
-      .tabContent > DIV {
+      .page > .tabContent > DIV {
         overflow-y: auto;
       }
-      .tabContent > DIV.lobby .content {
+      .page > .tabContent > DIV.lobby .content {
         flex: 1 1 auto;
         overflow-y: auto;
       }
@@ -693,7 +710,7 @@
         display: none;
       }
 
-      .tabContent > DIV.loading {
+      .page > .tabContent > DIV.loading {
         position: fixed;
       }
     }
@@ -731,10 +748,10 @@
       <DIV class="lobby"></DIV>
       <DIV class="gameList publicGames"></DIV>
       <DIV class="loading">
+        <DIV class="label">Please<br>wait...</DIV>
         <DIV class="spinner">
           <I class="fa fa-spinner fa-pulse"></I>
         </DIV>
-        <DIV class="label">Please<br>wait...</DIV>
       </DIV>
     </DIV>
   </DIV>

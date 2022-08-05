@@ -13,6 +13,3 @@ export default class Berserker extends Unit {
     return result;
   }
 }
-
-// Dynamically add unit data properties to the class.
-Berserker.prototype.type = 'Berserker';

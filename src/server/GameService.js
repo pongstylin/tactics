@@ -1,6 +1,7 @@
 import uaparser from 'ua-parser-js';
 import util from 'util';
 
+import setsById from 'config/sets.js';
 import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
@@ -71,9 +72,16 @@ export default class GameService extends Service {
         searchGameCollection: [ 'string', 'any' ],
         searchMyGames: [ 'any' ],
 
+        getPlayerSets: [ 'string' ],
         hasCustomPlayerSet: [ 'string', 'string' ],
         getPlayerSet: [ 'string', 'string' ],
-        savePlayerSet: [ 'string', 'string', 'game:set' ],
+        savePlayerSet: [ 'string', 'game:set' ],
+        deletePlayerSet: [ 'string', 'string' ],
+
+        getMyAvatar: [],
+        saveMyAvatar: [ 'game:avatar' ],
+        getMyAvatarList: [],
+        getPlayersAvatar: [ 'uuid[]' ],
       },
       events: {
         'playerRequest:accept': [ 'game:group', 'Date' ],
@@ -90,12 +98,16 @@ export default class GameService extends Service {
           'direction?': 'game:direction',
         },
         set: {
+          id: 'string',
+          name: 'string',
+          units: 'game:newUnit[]',
+        },
+        tempSet: {
           units: 'game:newUnit[]',
         },
         setOption: unionType(
-          'game:set',
-          { name:'string' },
-          `enum([ 'same', 'mirror' ])`,
+          'game:tempSet',
+          `enum([ 'same', 'mirror', 'random', '${[ ...setsById.keys() ].join("','")}' ])`,
         ),
         newTeam: unionType(
           'null',
@@ -103,12 +115,13 @@ export default class GameService extends Service {
             'playerId?': 'uuid',
             'name?': 'string',
             'set?': 'game:setOption',
+            'randomSide?': 'boolean',
           },
         ),
         joinTeam: {
-          'playerId?': 'uuid',
           'name?': 'string',
           'set?': 'game:setOption',
+          'randomSide?': 'boolean',
           'slot?': 'integer(0,4)',
         },
         tags: `dict('string | number | boolean')`,
@@ -164,6 +177,10 @@ export default class GameService extends Service {
             'teamId?': 'integer(0,3)',
           },
         ),
+        avatar: {
+          unitType: 'string',
+          colorId: 'string',
+        },
       },
     });
 
@@ -608,20 +625,54 @@ export default class GameService extends Service {
     return this.data.getGameType(gameTypeId);
   }
 
-  async onHasCustomPlayerSetRequest(client, gameTypeId, setName) {
+  async onGetPlayerSetsRequest(client, gameTypeId) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.hasCustomPlayerSet(clientPara.playerId, gameTypeId, setName);
+    return this.data.getPlayerSets(clientPara.playerId, gameTypeId);
   }
-  async onGetPlayerSetRequest(client, gameTypeId, setName) {
+  async onHasCustomPlayerSetRequest(client, gameTypeId, setId) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.getPlayerSet(clientPara.playerId, gameTypeId, setName);
+    return this.data.hasCustomPlayerSet(clientPara.playerId, gameTypeId, setId);
   }
-  async onSavePlayerSetRequest(client, gameTypeId, setName, set) {
+  async onGetPlayerSetRequest(client, gameTypeId, setId) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.setPlayerSet(clientPara.playerId, gameTypeId, setName, set);
+    return this.data.getPlayerSet(clientPara.playerId, gameTypeId, setId);
+  }
+  async onSavePlayerSetRequest(client, gameTypeId, set) {
+    const clientPara = this.clientPara.get(client.id);
+
+    return this.data.setPlayerSet(clientPara.playerId, gameTypeId, set);
+  }
+  async onDeletePlayerSetRequest(client, gameTypeId, setId) {
+    const clientPara = this.clientPara.get(client.id);
+
+    return this.data.unsetPlayerSet(clientPara.playerId, gameTypeId, setId);
+  }
+
+  async onGetMyAvatarRequest(client) {
+    const clientPara = this.clientPara.get(client.id);
+    const playerAvatars = await this.data.getPlayerAvatars(clientPara.playerId);
+
+    return playerAvatars.avatar;
+  }
+  async onSaveMyAvatarRequest(client, avatar) {
+    const clientPara = this.clientPara.get(client.id);
+    const playerAvatars = await this.data.getPlayerAvatars(clientPara.playerId);
+
+    playerAvatars.avatar = avatar;
+  }
+  async onGetMyAvatarListRequest(client) {
+    const clientPara = this.clientPara.get(client.id);
+    const playerAvatars = await this.data.getPlayerAvatars(clientPara.playerId);
+
+    return playerAvatars.list;
+  }
+  async onGetPlayersAvatarRequest(client, playerIds) {
+    const playersAvatar = await Promise.all(playerIds.map(pId => this.data.getPlayerAvatars(pId)));
+
+    return playersAvatar.map(pa => pa.avatar);
   }
 
   async onGetGameRequest(client, gameId) {
@@ -1376,9 +1427,6 @@ export default class GameService extends Service {
       if (!gameType.isCustomizable || team.set === null) {
         const set = gameType.getDefaultSet();
         team.set = { units:set.units };
-      } else if (team.set?.name !== undefined) {
-        const set = await this.data.getPlayerSet(team.playerId, gameType, team.set.name);
-        team.set = { units:set.units };
       } else if (team.set === 'same') {
         team.set = {
           via: 'same',
@@ -1398,6 +1446,15 @@ export default class GameService extends Service {
             return unit;
           }),
         };
+      } else if (team.set === 'random') {
+        const set = (await this.data.getPlayerSets(team.playerId, gameType)).random();
+        team.set = {
+          via: 'random',
+          units: set.units,
+        };
+      } else if (typeof team.set === 'string') {
+        const set = await this.data.getPlayerSet(team.playerId, gameType, team.set);
+        team.set = { units:set.units };
       }
     };
 

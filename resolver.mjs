@@ -22,13 +22,13 @@ baseURL.pathname = `${basePath}/`;
 
 export function resolve(specifier, context, defaultResolve) {
   defaultResolve = defaultResolve.bind(this, specifier, context, defaultResolve);
-  let parentURL = context.parentURL || baseURL.href;
+  const parentURL = context.parentURL || baseURL.href;
 
   if (builtins.includes(specifier))
     return defaultResolve();
 
-  let parts = specifier.split(/\//);
-  let firstPart = parts[0];
+  const parts = specifier.split(/\//);
+  const firstPart = parts[0];
   let resolved;
 
   // Resolve aliased directories
@@ -36,21 +36,18 @@ export function resolve(specifier, context, defaultResolve) {
     let fullRelativePath = specifier.replace(firstPart, ALIASES.get(firstPart));
 
     resolved = new URL(fullRelativePath, baseURL);
-  }
   // Make root paths relative to nodejs root.
   // Except for the entry point: src/server.js
-  else if (/^\/(?:!.+\/src\/server\.js)$/.test(specifier))
+  } else if (/^\/(?:!.+\/src\/server\.js)$/.test(specifier))
     resolved = new URL(specifier.slice(1), baseURL);
-  // Matches specifiers that don't look like a path (node_modules)
   else if (!/^\.{0,2}[/]/.test(specifier) && !specifier.startsWith('file:')) {
+    // Matches specifiers that don't look like a path (node_modules)
     return moduleResolve(`${basePath}/node_modules`, specifier, defaultResolve);
-  }
-  // Matches path specifiers called from node modules
-  else if (parentURL.startsWith(`${baseURL}node_modules`)) {
+  } else if (parentURL.startsWith(`${baseURL}node_modules`)) {
+    // Matches path specifiers called from node modules
     const parentModulePath = path.normalize(path.dirname(parentURL)).replace(/^file:\\?/, '');
     return moduleResolve(parentModulePath, specifier, defaultResolve);
-  }
-  else
+  } else
     resolved = new URL(specifier, parentURL);
 
   const ext = path.extname(resolved.pathname);
