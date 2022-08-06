@@ -1,6 +1,6 @@
 import Polygon from 'utils/Polygon.js';
 import emitter from 'utils/emitter.js';
-import { numifyColorFilter, reverseColorMap } from 'tactics/colorMap.js';
+import { numifyColor, reverseColorMap } from 'tactics/colorMap.js';
 
 const HALF_TILE_WIDTH  = 44;
 const HALF_TILE_HEIGHT = 28;
@@ -564,10 +564,7 @@ export default class Unit {
     if (options.withFocus) {
       const core = Tactics.getSprite('core');
       const focusContainer = core.renderFrame({ spriteName:'Focus' }).container;
-      if (typeof this.color === 'number')
-        focusContainer.children[0].tint = this.color;
-      else
-        focusContainer.children[0].tint = numifyColorFilter(this.color);
+      focusContainer.children[0].tint = numifyColor(this.color);
 
       shadowContainer.parent.addChildAt(focusContainer, shadowContainer.parent.getChildIndex(shadowContainer));
     }
@@ -939,10 +936,7 @@ export default class Unit {
       shadowContainer.addChild(focusContainer);
     }
 
-    if (typeof color === 'number')
-      focusContainer.children[0].tint = color;
-    else
-      focusContainer.children[0].tint = numifyColorFilter(color);
+    focusContainer.children[0].tint = numifyColor(color);
     focusContainer.alpha = alpha;
 
     return this;
@@ -967,7 +961,7 @@ export default class Unit {
       container.addChild(barrier.renderFrame({
         actionName: 'show',
         styles: {
-          Barrier: { rgb:this.color },
+          Barrier: { rgb:numifyColor(this.color) },
         },
       }).container);
     }
