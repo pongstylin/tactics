@@ -113,13 +113,16 @@
     min-width: 84px;
 
     .image {
+      position: relative;
+
+      margin-top: 8px;
+      padding-bottom: 66%;
+      width: 100%;
+
       background-position: center;
       background-repeat: no-repeat;
       background-size: contain;
       filter: brightness(1.2);
-      margin-top: 8px;
-      padding-bottom: 66%;
-      width: 100%;
       cursor: pointer;
 
       .positions {
