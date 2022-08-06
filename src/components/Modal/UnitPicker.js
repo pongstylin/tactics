@@ -181,7 +181,7 @@ export default class UnitPicker extends Modal {
     else
       this._els.quickInfo.textContent = `You may place up to ${stats.available} more units.`;
 
-    if (stats.points.remaining)
+    if (stats.points.remaining === 1)
       this._els.detailsInfo.textContent = `You have one point remaining.`;
     else
       this._els.detailsInfo.textContent = `You have ${stats.points.remaining} points remaining.`;
