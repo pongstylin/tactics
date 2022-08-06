@@ -143,18 +143,7 @@ var buttons = {
       popup({ message:'Copied the game link.  Paste the link to share using your app of choice.' });
     }
   },
-  rotate: $button => {
-    let classesToToggle;
-    if ($button.hasClass('fa-rotate-90'))
-      classesToToggle = 'fa-rotate-90 fa-rotate-180';
-    else if ($button.hasClass('fa-rotate-180'))
-      classesToToggle = 'fa-rotate-180 fa-rotate-270';
-    else if ($button.hasClass('fa-rotate-270'))
-      classesToToggle = 'fa-rotate-270';
-    else
-      classesToToggle = 'fa-rotate-90';
-
-    $button.toggleClass(classesToToggle);
+  rotate: () => {
     game.rotateBoard(90);
 
     resetPlayerBanners();
@@ -1697,6 +1686,11 @@ function resetPlayerBanners() {
   });
 
   setTurnTimeoutClock();
+
+  $('#game BUTTON[name=rotate]')
+    .toggleClass('fa-rotate-90', board.rotation === 'S')
+    .toggleClass('fa-rotate-180', board.rotation === 'W')
+    .toggleClass('fa-rotate-270', board.rotation === 'N');
 }
 function setTurnTimeoutClock() {
   clearTimeout(turnTimeout);
