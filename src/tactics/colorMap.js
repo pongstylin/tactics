@@ -38,6 +38,15 @@ export const numifyColorFilter = rgb => {
   return r * 0x010000 + g * 0x000100 + b;
 };
 
+export const numifyColor = color => {
+  if (typeof color === 'number')
+    return color;
+  else if (typeof color === 'string')
+    return numifyColorFilter(colorFilterMap.get(color));
+  else
+    return numifyColorFilter(color);
+};
+
 // Map unit names to IDs until we get rid of the IDs.
 const colorMap = new Map();
 export default colorMap;

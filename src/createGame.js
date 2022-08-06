@@ -51,32 +51,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const aChangeLink = document.querySelector('.change');
   const state = {};
 
-  aChangeLink.addEventListener('click', async event => {
-    const setOption = selSet.querySelector(':checked');
-    const setId = setOption.value;
-    const setIndex = state.sets.findIndex(s => s.id === setId);
-    const setBuilder = await Tactics.editSet({
-      gameType: state.gameType,
-      set: state.sets[setIndex],
-    });
-    const newSet = setBuilder.set;
-
-    if (newSet) {
-      state.sets[setIndex] = newSet;
-      setOption.textContent = state.sets[setIndex].name;
-    } else {
-      state.sets.splice(setIndex, 1);
-      setOption.style.display = 'none';
-      selSet.selectedIndex = 0;
-
-      if (state.sets.length === 1)
-        selSet.disabled = true;
-    }
-  });
   selGameType.addEventListener('change', async event => {
     selSet.disabled = true;
     selSet.selectedIndex = 0;
     selSet.options[0].textContent = 'Default';
+    aChangeLink.style.display = '';
 
     const gameTypeId = selGameType.querySelector(':checked').value;
     const [ gameType, sets ] = await Promise.all([
@@ -102,9 +81,36 @@ window.addEventListener('DOMContentLoaded', () => {
           setOption.style.display = 'none';
       }
 
-      if (gameConfig.set === 'random')
+      if (gameConfig.set === 'random') {
         selSet.selectedIndex = 4;
+        aChangeLink.style.display = 'none';
+      }
       selSet.disabled = false;
+    }
+  });
+  selSet.addEventListener('change', event => {
+    aChangeLink.style.display = selSet.selectedIndex === 4 ? 'none' : '';
+  });
+  aChangeLink.addEventListener('click', async event => {
+    const setOption = selSet.querySelector(':checked');
+    const setId = setOption.value;
+    const setIndex = state.sets.findIndex(s => s.id === setId);
+    const setBuilder = await Tactics.editSet({
+      gameType: state.gameType,
+      set: state.sets[setIndex],
+    });
+    const newSet = setBuilder.set;
+
+    if (newSet) {
+      state.sets[setIndex] = newSet;
+      setOption.textContent = state.sets[setIndex].name;
+    } else {
+      state.sets.splice(setIndex, 1);
+      setOption.style.display = 'none';
+      selSet.selectedIndex = 0;
+
+      if (state.sets.length === 1)
+        selSet.disabled = true;
     }
   });
   // setTimeout() seemed to be necessary in Chrome to detect auto-fill of

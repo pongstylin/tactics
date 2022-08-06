@@ -1521,6 +1521,7 @@ async function showJoinIntro(gameData) {
       $('#join .mirror').toggle(!gameType.hasFixedPositions);
 
       const $mySet = $('#join INPUT[name=setChoice][value=mySet]');
+      const $editSet = $('#join .set A');
       const $same = $('#join INPUT[name=setChoice][value=same]');
       let sets;
 
@@ -1534,7 +1535,10 @@ async function showJoinIntro(gameData) {
         sets = await gameClient.getPlayerSets(gameType.id);
 
         if (sets.length > 1) {
-          $sets.on('change', () => $mySet.prop('checked', true));
+          $sets.on('change', () => {
+            $mySet.prop('checked', true);
+            $editSet.toggle($sets.val() !== 'random');
+          });
 
           for (const setId of gameConfig.setsById.keys()) {
             const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
@@ -1546,8 +1550,10 @@ async function showJoinIntro(gameData) {
               setOption.style.display = 'none';
           }
 
-          if (gameConfig.set === 'random')
+          if (gameConfig.set === 'random') {
             $sets.val('random');
+            $editSet.hide();
+          }
         } else
           $('#join .mySet > div:nth-child(2)').hide();
       } else {
@@ -1555,7 +1561,7 @@ async function showJoinIntro(gameData) {
         $('#join .mySet > div:nth-child(2)').hide();
       }
 
-      $('#join .set A').on('click', async () => {
+      $editSet.on('click', async () => {
         $('#join').hide();
 
         if (!authClient.token) {

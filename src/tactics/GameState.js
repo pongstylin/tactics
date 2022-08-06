@@ -14,6 +14,7 @@ export default class GameState {
    */
   constructor(stateData) {
     const board = new Board();
+    board.useLegacyColors = stateData.type === 'chaos';
 
     // Clone the stateData since we'll be modifying it.
     stateData = Object.assign({}, stateData);
