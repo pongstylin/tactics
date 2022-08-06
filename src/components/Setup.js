@@ -86,7 +86,6 @@ export default class Setup {
     const colorPicker = this._colorPicker = new ColorPicker();
     colorPicker.on('change', ({ data:color }) => {
       this.setColorId(teamIds.indexOf(this.selectedTeamId), color);
-      gameConfig.teamColorId = this.colorIds;
     });
     this.els.color.appendChild(colorPicker.root);
 
@@ -191,8 +190,12 @@ export default class Setup {
       colorIds[newIndex] = newColorId;
     }
 
-    if (newIndex === 2 || oldIndex === 2)
+    gameConfig.teamColorIds = this.colorIds;
+
+    if (newIndex === 2 || oldIndex === 2) {
+      this._setBuilder.colorId = this.colorIds[2];
       this.renderSets();
+    }
   }
 
   onAvatarChange(avatar) {

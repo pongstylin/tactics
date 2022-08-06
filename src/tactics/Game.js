@@ -2,6 +2,7 @@ import { Renderer } from '@pixi/core';
 import { Container } from '@pixi/display';
 import emitter from 'utils/emitter.js';
 
+import { gameConfig } from 'config/client.js';
 import Cursor from 'tactics/GameStateCursor.js';
 import PanZoom from 'utils/panzoom.js';
 import sleep from 'utils/sleep.js';
@@ -35,6 +36,7 @@ export default class Game {
     renderer.plugins.interaction.useSystemTicker = false;
 
     const board = new Board();
+    board.useLegacyColors = state.type === 'chaos';
     board.initCard();
     board.draw();
     board
@@ -562,18 +564,19 @@ export default class Game {
     /*
      * Apply team colors based on the team's (rotated?) position.
      */
+    const teamColorIds = gameConfig.teamColorIds;
     const colorIds = new Map([
-      ['N', 'Blue'  ],
-      ['E', 'Yellow'],
-      ['S', 'Red'   ],
-      ['W', 'Green' ],
+      ['N', teamColorIds[0] ],
+      ['E', teamColorIds[1] ],
+      ['S', teamColorIds[2] ],
+      ['W', teamColorIds[3] ],
       ['C', 'White' ], // Chaos starts in a center position
     ]);
 
     teams.forEach(team => {
       const position = board.getRotation(team.position, degree);
 
-      team.colorId = colorIds.get(position);
+      team.colorId ??= colorIds.get(position);
     });
 
     // Wait until the game and first turn starts, if it hasn't already started.

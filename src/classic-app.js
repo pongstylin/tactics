@@ -25,16 +25,7 @@ var set = {
   ],
 };
 var gameStateData = {
-  teams: [
-    {
-      colorId: 'Blue',
-      set: set,
-    },
-    {
-      colorId: 'Red',
-      set: set,
-    },
-  ],
+  teams: [ { set }, { set } ],
 };
 
 var buttons = {

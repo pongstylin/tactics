@@ -18,13 +18,11 @@ var gameStateData = {
   teams: [
     {
       name: 'Bot',
-      colorId: 'Blue',
       bot: true,
       set: set,
     },
     {
       name: null,
-      colorId: 'Red',
       bot: false,
       set: set,
     },
