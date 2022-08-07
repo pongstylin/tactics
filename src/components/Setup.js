@@ -210,7 +210,7 @@ export default class Setup {
 
     const rotationHasChanged = !this.els.sets.classList.contains(`rotation-${rotation}`);
     if (rotationHasChanged)
-      return this._onSetCancel(rotation);
+      return this.onSetCancel(rotation);
 
     const image = this._setBuilder.getImage();
     this.els[`set${set.id.toUpperCase('first')}Label`].textContent = set.name;
