@@ -537,7 +537,7 @@ export default class Game {
     // Clone teams since board.setState() applies a units property to each.
     const teams = this._teams = state.teams.map(team => ({...team}));
 
-    // Rotate the board such that my first local team is south/red.
+    // Rotate the board such that my first local team is in the configured location.
     const myTeams = this.teams.filter(t => this.isMyTeam(t));
     let myTeam;
     if (myTeams.length === 1)
@@ -545,25 +545,21 @@ export default class Game {
     else if (myTeams.length > 1) {
       if (state.forkOf) {
         const myOldTeams = myTeams.filter(t => t.forkOf.playerId === this.playerId);
-        if (myOldTeams.length === 0)
-          myTeam = myTeams.sort((a,b) => a.slot - b.slot)[0];
-        else if (myOldTeams.length === 1)
+        if (myOldTeams.length === 1)
           myTeam = myOldTeams[0];
-        else
-          myTeam = myOldTeams.sort((a,b) => a.slot - b.slot)[0];
+        else if (myOldTeams.length > 1)
+          myTeam = myOldTeams.sort((a,b) => a.joinedAt - b.joinedAt)[0];
       } else
-        myTeam = myTeams.sort((a,b) => a.slot - b.slot)[0];
+        myTeam = myTeams.sort((a,b) => a.joinedAt - b.joinedAt)[0];
     }
 
-    let degree = 0;
-    if (myTeam) {
-      degree = board.getDegree(myTeam.position, gameConfig.rotation);
-      board.rotate(degree);
-    }
+    if (myTeam)
+      board.rotate(board.getDegree(myTeam.position, gameConfig.rotation));
 
     /*
-     * Apply team colors based on the team's (rotated?) position.
+     * Apply teams' color based on their position.
      */
+    const degree = board.getDegree('S', myTeam ? myTeam.position : 'S');
     const teamColorIds = gameConfig.teamColorIds;
     const colorIds = new Map([
       ['N', teamColorIds[0] ],
