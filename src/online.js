@@ -1230,6 +1230,9 @@ function renderFloors() {
     liFloor.addEventListener('click', async () => {
       if (liFloor.classList.contains('selected'))
         return;
+      // Do not load this floor if still loading another floor.
+      if (tabContent.isLoading)
+        return;
 
       avatars.getSound('select').howl.play();
 
@@ -1524,13 +1527,16 @@ async function renderLobbyGames() {
         playerIdSet.add(team.playerId);
     }
   }
-  const playerIds = [ ...playerIdSet ];
-  const avatars = await gameClient.getPlayersAvatar(playerIds);
-  for (let i = 0; i < playerIds.length; i++) {
-    state.avatars.set(playerIds[i], { ...avatars[i], imageData:new Map() });
 
-    if (playerIds[i] === myPlayerId)
-      tabContent.setup.avatar = state.avatars.get(myPlayerId);
+  if (playerIdSet.size) {
+    const playerIds = [ ...playerIdSet ];
+    const avatars = await gameClient.getPlayersAvatar(playerIds);
+    for (let i = 0; i < playerIds.length; i++) {
+      state.avatars.set(playerIds[i], { ...avatars[i], imageData:new Map() });
+
+      if (playerIds[i] === myPlayerId)
+        tabContent.setup.avatar = state.avatars.get(myPlayerId);
+    }
   }
 
   while (divArenaList.length < arenas.length) {
@@ -2274,10 +2280,6 @@ async function fetchGames(tabName) {
 
     const join = styleId =>
       gameClient.joinCollectionGroup(`lobby/${styleId}`, { query }).then(rsp => {
-        if (tabContent.selectedStyleId !== styleId)
-          return gameClient.leaveCollectionGroup(`lobby/${styleId}`)
-            .then(() => tabContent.whenSynced);
-
         tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
       });

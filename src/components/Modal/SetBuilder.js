@@ -386,8 +386,9 @@ export default class SetBuilder extends Modal {
     });
   }
   hide() {
-    this._trash.alpha = 0;
     this.selected = null;
+
+    this._trash.alpha = 0;
 
     return super.hide();
   }
@@ -845,7 +846,6 @@ export default class SetBuilder extends Modal {
     const emitCancel = () => {
       this._onReset(event);
       this.hide();
-      this._emit({ type:'cancel' });
     };
 
     if (this._hasChangedSet()) {
@@ -911,14 +911,12 @@ export default class SetBuilder extends Modal {
       const defaultSet = await Tactics.gameClient.deletePlayerSet(this.data.gameType.id, this.data.set.id);
       if (defaultSet)
         this.set = defaultSet;
-      this._emit({ type:'save', data:this.set });
     }
     this.hide();
   }
   async _emitSave(set) {
     if (set.id) {
       await Tactics.gameClient.savePlayerSet(this.data.gameType.id, set);
-      this._emit({ type:'save', data:set });
     }
     this.hide();
   }
