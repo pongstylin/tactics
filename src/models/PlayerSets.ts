@@ -74,11 +74,10 @@ export default class PlayerSets extends ActiveModel {
   }
   unset(gameType, setId) {
     const index = this.data.sets.findIndex(s => s.type === gameType.id && s.id === setId);
-    if (index === -1)
-      return;
-
-    this.data.sets.splice(index, 1);
-    this.emit('change:unset');
+    if (index > -1) {
+      this.data.sets.splice(index, 1);
+      this.emit('change:unset');
+    }
 
     if (setId === 'default')
       return gameType.getDefaultSet();
