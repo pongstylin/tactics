@@ -1519,13 +1519,16 @@ async function renderLobbyGames() {
         playerIdSet.add(team.playerId);
     }
   }
-  const playerIds = [ ...playerIdSet ];
-  const avatars = await gameClient.getPlayersAvatar(playerIds);
-  for (let i = 0; i < playerIds.length; i++) {
-    state.avatars.set(playerIds[i], { ...avatars[i], imageData:new Map() });
 
-    if (playerIds[i] === myPlayerId)
-      tabContent.setup.avatar = state.avatars.get(myPlayerId);
+  if (playerIdSet.size) {
+    const playerIds = [ ...playerIdSet ];
+    const avatars = await gameClient.getPlayersAvatar(playerIds);
+    for (let i = 0; i < playerIds.length; i++) {
+      state.avatars.set(playerIds[i], { ...avatars[i], imageData:new Map() });
+
+      if (playerIds[i] === myPlayerId)
+        tabContent.setup.avatar = state.avatars.get(myPlayerId);
+    }
   }
 
   while (divArenaList.length < arenas.length) {
