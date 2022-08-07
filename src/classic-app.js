@@ -26,7 +26,6 @@ var set = {
   ],
 };
 var gameStateData = {
-  randomFirstTurn: false,
   teams: [ { set }, { set } ],
 };
 

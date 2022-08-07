@@ -101,7 +101,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
     const newSet = setBuilder.set;
 
-    if (newSet) {
+    if (newSet.units.length > 0) {
       state.sets[setIndex] = newSet;
       setOption.textContent = state.sets[setIndex].name;
     } else {

@@ -1185,7 +1185,7 @@ async function showPracticeIntro(gameData) {
       });
       const newSet = setBuilder.set;
 
-      if (newSet) {
+      if (newSet.units.length) {
         sets[setIndex] = newSet;
         setOption.textContent = sets[setIndex].name;
         $mySet.prop('checked', true);
@@ -1218,7 +1218,7 @@ async function showPracticeIntro(gameData) {
     });
     practiceSet = setBuilder.set;
 
-    if (practiceSet)
+    if (practiceSet.units.length > 0)
       $practice
         .prop('disabled', false)
         .prop('checked', true)
