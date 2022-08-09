@@ -201,6 +201,8 @@ export default class UnitPicker extends Modal {
     const divUnit = document.createElement('DIV');
     divUnit.classList.add('unit');
     divUnit.classList.toggle('available', unitStats.available > 0);
+    if (unitStats.available)
+      divUnit.tabIndex = 0;
     divUnit.dataset.unitType = unitStats.type;
 
     const divImage = document.createElement('DIV');

@@ -17,3 +17,12 @@ export default text => {
   document.execCommand('copy', false);
   input.remove();
 };
+
+export const copyBlob = blob => new Promise((resolve, reject) => {
+  if (navigator.clipboard === undefined)
+    return reject('No Clipboard API');
+
+  const item = new ClipboardItem({ [blob.type]:blob });
+
+  navigator.clipboard.write([ item ]).then(resolve, reject);
+});

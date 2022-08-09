@@ -52,11 +52,6 @@
 
     .set {
       width: 100%;
-
-      LABEL::after {
-        content: '(Not Customizable)';
-        margin-left: 8px;
-      }
     }
     .set:not(:first-child) {
       display: none;
