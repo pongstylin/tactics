@@ -52,8 +52,8 @@
       flex: 0 0 auto;
 
       BUTTON {
+        background-image: none;
         background-color: transparent;
-        margin-top: 4px;
         border: 0 solid white;
         width: 26px;
         height: 26px;
@@ -72,5 +72,9 @@
     flex: 1 1 auto;
     padding: 16px;
     overflow: auto;
+  }
+
+  &:focus-visible {
+    outline: none;
   }
 }
