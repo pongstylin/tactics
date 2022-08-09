@@ -211,7 +211,7 @@ export default class Setup {
       return this.onSetCancel(rotation);
 
     const image = this._setBuilder.getImage();
-    this.els[`set${set.id.toUpperCase('first')}Label`].textContent = set.name;
+    this.els[`set${set.id.toUpperCase('first')}Label`].textContent = this.gameType.isCustomizable ? set.name : '(Not Customizable)';
     this.els[`set${set.id.toUpperCase('first')}Image`].style.backgroundImage = `url(${image.src})`;
   }
   onSetCancel(rotation) {
@@ -264,7 +264,7 @@ export default class Setup {
     this._setBuilder.set = set;
     const image = this._setBuilder.getImage();
 
-    this.els[`set${id.toUpperCase('first')}Label`].textContent = set.name;
+    this.els[`set${id.toUpperCase('first')}Label`].textContent = this.gameType.isCustomizable ? set.name : '(Not Customizable)';
     this.els[`set${id.toUpperCase('first')}Image`].style.backgroundImage = `url(${image.src})`;
   }
   renderColorIds() {

@@ -39,12 +39,10 @@ export default class Modal {
     return this.options.title;
   }
   set title(title = null) {
-    if (this.options.title === title && this._els.title)
+    if (this.options.title === title)
       return;
 
-    if (this._els.title === null)
-      this._els.modal.insertBefore(this._els.title = this.makeTitle(title), this._els.content);
-    else
+    if (this._els.title)
       this._els.title.innerHTML = title;
 
     this.options.title = title;
@@ -60,14 +58,8 @@ export default class Modal {
       autoShow: true,
       closeOnCancel: true,
       hideOnCancel: false,
+      withHeader: options.title !== undefined && options.title !== null,
     }, options);
-  }
-
-  makeTitle(title) {
-    const divTitle = document.createElement('DIV');
-    divTitle.classList.add('title');
-    divTitle.innerHTML = title;
-    return divTitle;
   }
 
   render() {
@@ -78,20 +70,29 @@ export default class Modal {
     if (options.zIndex)
       divOverlay.style.zIndex = options.zIndex;
     divOverlay.addEventListener('click', event => {
-      // Ignore clicks that bubbled from the popup.
-      if (event.target !== divOverlay) return;
+      // Clicking outside the popup triggers a cancel
+      if (event.target === divOverlay)
+        return this._emitCancel(divOverlay);
 
-      if (options.hideOnCancel)
-        this.hide();
-      else if (options.closeOnCancel)
-        this.close();
+      // Clicking a cancel button triggers a cancel
+      const btnCancel = event.target.closest('BUTTON[name=cancel]');
+      if (btnCancel)
+        this._emitCancel(btnCancel);
     });
     this._els.root = divOverlay;
 
     const divModal = document.createElement('DIV');
     divModal.classList.add('modal');
+    divModal.tabIndex = -1;
     divOverlay.appendChild(divModal);
     this._els.modal = divModal;
+
+    if (options.withHeader) {
+      const header = this.renderHeader();
+      divModal.appendChild(header);
+      this._els.header = header;
+      this._els.title = header.querySelector('.title');
+    }
 
     const divContent = document.createElement('DIV');
     divContent.classList.add('content');
@@ -99,12 +100,28 @@ export default class Modal {
     divModal.appendChild(divContent);
     this._els.content = divContent;
 
-    if (options.title !== undefined && options.title !== null)
-      this.title = options.title;
-
-    trapFocus(divOverlay);
-
     return divOverlay;
+  }
+  renderHeader() {
+    const header = document.createElement('HEADER');
+
+    const divTitle = document.createElement('DIV');
+    divTitle.classList.add('title');
+    divTitle.innerHTML = this.options.title ?? '&nbsp;';
+    header.appendChild(divTitle);
+
+    const divButtons = document.createElement('DIV');
+    divButtons.classList.add('buttons');
+    header.appendChild(divButtons);
+
+    const btnCancel = document.createElement('BUTTON');
+    btnCancel.classList.add('fa');
+    btnCancel.classList.add('fa-xmark');
+    btnCancel.name = 'cancel';
+    btnCancel.title = 'Close';
+    divButtons.appendChild(btnCancel);
+
+    return header;
   }
   renderContent(content) {
     this.options.content = content;
@@ -115,7 +132,7 @@ export default class Modal {
     if (this.isOpen)
       throw new TypeError('Already open');
 
-    this._els.root = this.render();
+    this.render();
     if (this.options.appendTo) {
       this.options.appendTo.appendChild(this.el);
       this._emit({ type:'attach' });
@@ -138,7 +155,9 @@ export default class Modal {
     this.whenHidden = null;
   }
   show(onShow) {
+    trapFocus(this._els.root);
     this._els.root.classList.add('show');
+    this._els.modal.focus();
     if (onShow) onShow();
     this.whenHidden = new Promise();
     return this.whenHidden;
@@ -152,6 +171,25 @@ export default class Modal {
     this.whenClosed = null;
 
     this.destroy();
+  }
+
+  _emitCancel(target) {
+    const options = this.options;
+    let doDefault = true;
+    const preventDefault = () => doDefault = false;
+
+    this._emit({
+      type: 'cancel',
+      target,
+      preventDefault,
+    });
+
+    if (doDefault) {
+      if (options.hideOnCancel)
+        this.hide();
+      else if (options.closeOnCancel)
+        this.close();
+    }
   }
 
   destroy() {

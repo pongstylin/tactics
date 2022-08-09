@@ -1,33 +1,27 @@
 .modal.setBuilder {
-  .content {
-    display: flex;
-    position: relative;
-    flex-direction: column;
-    max-height: 100%;
-    max-width: 100%;
-    padding: 8px !important;
-    background-color: black;
-  }
+  background-color: black;
 
   HEADER {
-    margin: -4px 0 0 0;
-
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    flex-wrap: wrap;
     font-size: 1em;
+
+    background-image: none;
+    color: #b08d57;
+
+    .title {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
 
     .name {
       flex: 0 0 auto;
-      z-index: 1;
+      margin-right: auto;
 
       .inputTextAutosave {
         min-width: unset;
 
-        &:not(.disabled) {
-          border-bottom-color: #b08d57;
-        }
+        border-bottom-color: #b08d57;
 
         .input {
           padding-right: 6px;
@@ -44,13 +38,25 @@
 
     .style {
       flex: 0 0 auto;
-      padding-top: 4px;
-      padding-left: 4px;
+      padding: 4px 0 4px 4px;
 
       font-style: italic;
       font-weight: bold;
-      color: #b08d57;
     }
+  }
+  &:not(.isCustomizable) {
+    HEADER .name {
+      display: none;
+    }
+  }
+
+  .content {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    max-height: 100%;
+    max-width: 100%;
+    padding: 0 8px 8px;
   }
 
   .field {
@@ -111,7 +117,7 @@
     .card { top:0; right:-8px; }
   }
 
-  .buttons {
+  .content > .buttons {
     display: flex;
     flex-direction: row;
     justify-content: flex-end;
@@ -158,14 +164,7 @@
   .modal.setBuilder {
     height: 100%;
 
-    .content {
-      padding: 4px 0 8px !important;
-    }
-
     HEADER {
-      margin: 0 8px;
-      width: calc(100% - 16px);
-
       .name {
         width: 100%;
 
@@ -173,6 +172,10 @@
           width: 100%;
         }
       }
+    }
+
+    .content {
+      padding: 4px 0 8px !important;
     }
 
     .field {
@@ -188,7 +191,7 @@
       }
     }
 
-    .buttons {
+    .content > .buttons {
       padding: 0 8px;
     }
   }
@@ -203,7 +206,7 @@
 
     HEADER {
       position: absolute;
-      width: calc(100% - 16px);
+      z-index: 1;
     }
 
     &.rotation-S {
@@ -213,7 +216,7 @@
       .card { top:16px; }
     }
 
-    .buttons {
+    .content > .buttons {
       position: absolute;
       bottom: 8px;
       flex-direction: column;
@@ -239,7 +242,7 @@
 }
 
 @media (hover:hover) {
-  .modal.setBuilder .buttons BUTTON:not(.selected):enabled:hover {
+  .modal.setBuilder .content > .buttons BUTTON:not(.selected):enabled:hover {
     margin: 2px;
     border-width: 1px;
 

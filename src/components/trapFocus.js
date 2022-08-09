@@ -25,10 +25,9 @@ const trapListener = function (focusTargets, e) {
         i = numFocusTargets - 1;
 
       const target = focusTargets[i];
-      if (target.disabled === false || target.disabled === undefined) {
-        target.focus();
+      target.focus();
+      if (document.activeElement === target)
         break;
-      }
     }
   } else {
     if (index === -1) {
@@ -44,10 +43,9 @@ const trapListener = function (focusTargets, e) {
         i = 0;
 
       const target = focusTargets[i];
-      if (target.disabled === false || target.disabled === undefined) {
-        target.focus();
+      target.focus();
+      if (document.activeElement === target)
         break;
-      }
     }
   }
 };

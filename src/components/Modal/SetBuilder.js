@@ -2,10 +2,11 @@ import { Container } from '@pixi/display';
 import { Renderer } from '@pixi/core';
 
 import { gameConfig } from 'config/client.js';
-import trapFocus from 'components/trapFocus.js';
 import Modal from 'components/Modal.js';
-import UnitPicker from 'components/Modal/UnitPicker.js';
 import Autosave from 'components/Autosave.js';
+import { copyBlob } from 'components/copy.js';
+import { shareBlob } from 'components/share.js';
+import UnitPicker from 'components/Modal/UnitPicker.js';
 import ServerError from 'server/Error.js';
 import Unit from 'tactics/Unit.js';
 import unitDataMap from 'tactics/unitData.js';
@@ -18,21 +19,21 @@ import Board, {
   FOCUS_TILE_COLOR,
 } from 'tactics/Board.js';
 
+const title = `
+  <DIV class="name"></DIV>
+  <DIV class="style"></DIV>
+`;
 const template = `
-  <HEADER>
-    <DIV class="name"></DIV>
-    <DIV class="style"></DIV>
-  </HEADER>
   <DIV class="field">
     <DIV class="card"></DIV>
   </DIV>
   <DIV class="buttons">
-    <BUTTON type="button" name="save"   title="Save"       tabIndex="1" class="fa fa-check"></BUTTON>
-    <BUTTON type="button" name="cancel" title="Cancel"     tabIndex="2" class="fa fa-xmark"></BUTTON>
-    <BUTTON type="button" name="clear"  title="Clear"      tabIndex="3" class="fa fa-trash"></BUTTON>
-    <BUTTON type="button" name="reset"  title="Reset"      tabIndex="4" class="fa fa-undo"></BUTTON>
-    <BUTTON type="button" name="rotate" title="Rotate"     tabIndex="5" class="fa fa-location-arrow"></BUTTON>
-    <BUTTON type="button" name="flip"   title="Flip Sides" tabIndex="6" class="fa fa-arrow-right-arrow-left"></BUTTON>
+    <BUTTON type="button" name="save"   title="Save"       class="fa fa-check"></BUTTON>
+    <BUTTON type="button" name="clear"  title="Clear"      class="fa fa-trash"></BUTTON>
+    <BUTTON type="button" name="reset"  title="Reset"      class="fa fa-undo"></BUTTON>
+    <BUTTON type="button" name="rotate" title="Rotate"     class="fa fa-location-arrow"></BUTTON>
+    <BUTTON type="button" name="flip"   title="Flip Sides" class="fa fa-arrow-right-arrow-left"></BUTTON>
+    <BUTTON type="button" name="share"  title="Share"      class="fa fa-share"></BUTTON>
   </DIV>
 `;
 
@@ -40,7 +41,8 @@ export default class SetBuilder extends Modal {
   constructor(data = {}, options = {}) {
     options.content = template;
     options.autoShow = false;
-    options.closeOnCancel = false;
+    options.hideOnCancel = true;
+    options.title = title;
 
     super(options, Object.assign({
       gameType: null,
@@ -54,34 +56,24 @@ export default class SetBuilder extends Modal {
       _unitPicker: null,
     });
     Object.assign(this._els, {
-      name: this._els.content.querySelector('HEADER .name'),
-      style: this._els.content.querySelector('HEADER .style'),
       field: this._els.content.querySelector('.field'),
       card: this._els.content.querySelector('.card'),
       save: this._els.content.querySelector('BUTTON[name=save]'),
-      cancel: this._els.content.querySelector('BUTTON[name=cancel'),
       clear: this._els.content.querySelector('BUTTON[name=clear]'),
       reset: this._els.content.querySelector('BUTTON[name=reset]'),
       rotate: this._els.content.querySelector('BUTTON[name=rotate]'),
       flip: this._els.content.querySelector('BUTTON[name=flip]'),
+      share: this._els.content.querySelector('BUTTON[name=share]'),
     });
     this._els.modal.classList.add('setBuilder');
     this._els.save.addEventListener('click', this._onSave.bind(this));
-    this._els.cancel.addEventListener('click', this._onCancel.bind(this));
     this._els.clear.addEventListener('click', this._onClear.bind(this));
     this._els.reset.addEventListener('click', this._onReset.bind(this));
     this._els.rotate.addEventListener('click', this._onRotate.bind(this));
     this._els.flip.addEventListener('click', this._onFlip.bind(this));
+    this._els.share.addEventListener('click', this._onShare.bind(this));
 
-    const name = new Autosave({
-      submitOnChange: true,
-      defaultValue: false,
-      value: this.data.set?.name ?? '',
-      maxLength: 20,
-      hideIcons: true,
-    })
-      .on('change', () => this._renderButtons())
-      .appendTo(this._els.name);
+    this.on('cancel', this._onCancel.bind(this));
 
     const width = Tactics.width - TILE_WIDTH*2;
     const height = Tactics.height - TILE_HEIGHT*2;
@@ -221,8 +213,6 @@ export default class SetBuilder extends Modal {
       // reflect the last pointer type to fire an event on the board.
       pointerType: 'ontouchstart' in window ? 'touch' : 'mouse',
 
-      _name: name,
-
       _renderer: renderer,
       _rendering: false,
       _canvas: renderer.view,
@@ -254,9 +244,6 @@ export default class SetBuilder extends Modal {
       window.addEventListener('resize', this._resizeListener);
     });
 
-    // Make sure the set name is included
-    trapFocus(this._els.root);
-
     // Allow the Animation class to render frames.
     Tactics.game = this;
 
@@ -276,6 +263,7 @@ export default class SetBuilder extends Modal {
     return this.data.gameType;
   }
   set gameType(gameType) {
+    this._els.modal.classList.toggle('isCustomizable', gameType.isCustomizable);
     this._els.style.textContent = gameType.name;
     this.data.gameType = gameType;
 
@@ -312,7 +300,7 @@ export default class SetBuilder extends Modal {
     this._team = { colorId:this.data.colorId, set };
     this._unitPicker.team = this._team;
     this._name.value = set.name;
-    this._name.disabled = !this.data.gameType.isCustomizable || !set.id;
+    this._name.disabled = !set.id;
     this.reset();
     this._renderButtons();
   }
@@ -532,6 +520,24 @@ export default class SetBuilder extends Modal {
         canvas.style.height = height + 'px';
   }
 
+  renderHeader() {
+    const header = super.renderHeader();
+
+    this._els.name = header.querySelector('.name');
+    this._els.style = header.querySelector('.style');
+
+    this._name = new Autosave({
+      submitOnChange: true,
+      defaultValue: false,
+      value: this.data.set?.name ?? '',
+      maxLength: 20,
+      hideIcons: true,
+    })
+      .on('change', () => this._renderButtons())
+      .appendTo(this._els.name);
+
+    return header;
+  }
   /*
    * Most games have a "render loop" that refreshes all display objects on the
    * stage every time the screen refreshes - about 60 frames per second.  The
@@ -839,25 +845,24 @@ export default class SetBuilder extends Modal {
       this._emitSave(set);
   }
   _onCancel(event) {
-    this._els.cancel.blur();
-
     const board = this._board;
-
-    const emitCancel = () => {
+    const cancel = () => {
       this._onReset(event);
       this.hide();
     };
 
-    if (this._hasChangedSet()) {
-      popup({
-        message: 'The changes you made will be lost.  Are you sure?',
-        buttons: [
-          { label:'Yes', onClick:emitCancel },
-          { label:'No' },
-        ],
-      });
-    } else
-      emitCancel();
+    if (!this._hasChangedSet())
+      return;
+
+    event.preventDefault();
+
+    popup({
+      message: 'The changes you made will be lost.  Are you sure?',
+      buttons: [
+        { label:'Yes', onClick:cancel },
+        { label:'No' },
+      ],
+    });
   }
   async _onClear(event) {
     this._els.clear.blur();
@@ -884,6 +889,53 @@ export default class SetBuilder extends Modal {
     this.renderBoard();
     this._renderButtons();
   }
+  async _onShare(event) {
+    this._els.share.disabled = true;
+
+    const title = this.gameType.isCustomizable
+      ? `${this.gameType.name} - ${this._name.value}`
+      : this.gameType.name;
+    const trash = this._trash;
+    const trashAlpha = trash.alpha;
+
+    trash.alpha = 0;
+    this._renderer.render(this._stage);
+
+    const blob = await new Promise(resolve => this._canvas.toBlob(resolve));
+
+    trash.alpha = trashAlpha;
+    this._renderer.render(this._stage);
+
+    shareBlob({
+      blob,
+      name: title,
+      title,
+    })
+      .then(() => {
+        this._els.share.disabled = false;
+      })
+      .catch(error1 => {
+        copyBlob(blob)
+          .then(() => {
+            this._els.share.disabled = false;
+
+            popup('An image of your set has been copied!');
+            if (error1 instanceof Error)
+              report({
+                type: 'Unable to share canvas',
+                error: [ getErrorData(error1) ],
+              });
+          })
+          .catch(error2 => {
+            popup('Sorry!  Unable to share or copy an image of your set.');
+            report({
+              type: 'Unable to share canvas',
+              errors: [ getErrorData(error1), getErrorData(error2) ],
+            });
+          });
+      });
+
+  }
   _renderButtons() {
     const board = this._board;
     const setIsFixed = this._hasFixedSet();
@@ -894,7 +946,6 @@ export default class SetBuilder extends Modal {
 
     this._els.save.disabled = !setHasChanged;
     this._els.save.classList.toggle('alert', !setIsFull || setIsEmpty || !setIsValid);
-    this._els.cancel.classList.toggle('alert', setHasChanged);
     this._els.clear.disabled = setIsFixed || setIsEmpty;
     this._els.reset.disabled = !setHasChanged;
     this._els.rotate.classList.toggle('fa-rotate-90', board.rotation === 'S');
@@ -975,6 +1026,9 @@ export default class SetBuilder extends Modal {
    * So, track mouse position to see if it is dragged before release.
    */
   _onDragStart(event) {
+    if (!this.gameType.isCustomizable)
+      return;
+
     const unit = event.targetUnit;
 
     this._dragSource = event;
@@ -1156,6 +1210,7 @@ export default class SetBuilder extends Modal {
     const board = this._board;
     board.clearHighlight();
 
+    const allTiles = this._getAvailableTiles();
     const tiles = this._getAvailableTiles(unit && unit.type);
     const hasFullSet = this._hasFullSet();
     const places = [];
@@ -1165,6 +1220,7 @@ export default class SetBuilder extends Modal {
       for (let y = 0; y < 11; y++) {
         const tile = board.getTile(x, y);
         if (!tile) continue;
+        if (!allTiles.has(tile)) continue;
 
         if (tiles.has(tile)) {
           if (unit && (!tile.assigned || dragMode))

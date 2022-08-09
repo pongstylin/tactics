@@ -80,6 +80,9 @@ catch (e) {
 }
 
 function getErrorData(error) {
+  if (!(error instanceof Error))
+    return { message:error };
+
   let stack = error.stack;
   if (typeof stack === 'string') {
     stack = stack.split('\n');
@@ -148,3 +151,4 @@ function sendReport(data) {
 
 window.report = report;
 window.reportError = reportError;
+window.getErrorData = getErrorData;
