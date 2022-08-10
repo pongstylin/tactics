@@ -440,7 +440,7 @@ function unsetYourLobbyGame(gameSummary, skipRender = false) {
 
   if (!skipRender && state.currentTab === 'lobby')
     if (state.tabContent.lobby.selectedStyleId === styleId)
-      renderLobbyGames();
+      unsetLobbyGame(gameSummary);
 }
 function setYourGame(gameSummary) {
   const yourGames = state.tabContent.yourGames.games;
