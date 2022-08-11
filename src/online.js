@@ -5,6 +5,7 @@ import ScrollButton from 'components/ScrollButton.js';
 import sleep from 'utils/sleep.js';
 import Autosave from 'components/Autosave.js';
 import Setup from 'components/Setup.js';
+import whenDOMReady from 'components/whenDOMReady.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
 import LobbySettingsModal from 'components/Modal/LobbySettings.js';
 
@@ -130,6 +131,7 @@ const avatarsPromise = Tactics.load([ 'avatars' ]).then(() => {
     click: avatars.getSound('select').howl,
   };
 
+  await whenDOMReady;
   renderLobby();
 });
 
