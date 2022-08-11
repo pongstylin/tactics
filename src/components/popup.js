@@ -134,8 +134,7 @@ class Popup {
 
               if (!button.closeOnClick)
                 this.show();
-            }
-            else
+            } else
               closeEvent.value = value;
           } catch (error) {
             if (waitingPopup)
@@ -233,8 +232,10 @@ class Popup {
       this.options.onClose(event);
     if (event.error)
       this.whenClosed.reject(event.error);
-    else
+    else if (event.value !== undefined)
       this.whenClosed.resolve(event.value);
+    else
+      this.whenClosed.resolve(event.button?.value);
 
     this.el.remove();
     this.el = null;

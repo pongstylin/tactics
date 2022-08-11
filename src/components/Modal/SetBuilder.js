@@ -906,38 +906,53 @@ export default class SetBuilder extends Modal {
     trash.alpha = trashAlpha;
     this._renderer.render(this._stage);
 
-    shareBlob({
+    let shareResult = await shareBlob({
       blob,
       name: title,
       title,
     })
-      .then(() => {
-        this._els.share.disabled = false;
-      })
-      .catch(error1 => {
-        copyBlob(blob)
-          .then(() => {
-            this._els.share.disabled = false;
+      .then(() => 'complete')
+      .catch(error => {
+        if (error.message === 'Share canceled' || error.message === 'Share cancelled')
+          return 'cancelled';
 
-            popup('An image of your set has been copied!');
-            if (error1 instanceof Error)
-              report({
-                type: 'Unable to share canvas',
-                error: [ getErrorData(error1) ],
-              });
-          })
-          .catch(error2 => {
-            if (error2 === 'Clipboard Item API disabled')
-              return this._els.share.disabled = false;
-
-            popup('Sorry!  Unable to share or copy an image of your set.');
-            report({
-              type: 'Unable to share canvas',
-              errors: [ getErrorData(error1), getErrorData(error2) ],
-            });
+        if (error instanceof Error)
+          report({
+            type: 'Unable to share canvas',
+            error: getErrorData(error),
           });
+        return 'failed';
       });
 
+    if (shareResult === 'cancelled')
+      shareResult = await popup({
+        message: `Looks like sharing was cancelled.  Would you like to copy the image instead?`,
+        buttons: [
+          { label:'Yes', value:'failed' },
+          { label:'No', value:'complete' },
+        ],
+        maxWidth: '220px',
+      }).whenClosed;
+
+    if (shareResult === 'failed')
+      copyBlob(blob)
+        .then(() => {
+          this._els.share.disabled = false;
+
+          popup('An image of your set has been copied!');
+        })
+        .catch(error => {
+          if (error === 'Clipboard Item API disabled')
+            return this._els.share.disabled = false;
+
+          popup('Sorry!  Unable to share or copy an image of your set.');
+          report({
+            type: 'Unable to share canvas',
+            error: getErrorData(error),
+          });
+        });
+    else
+      this._els.share.disabled = false;
   }
   _renderButtons() {
     const board = this._board;
