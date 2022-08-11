@@ -50,12 +50,15 @@ window.addEventListener('DOMContentLoaded', () => {
   const selSet = document.querySelector('SELECT[name=set]');
   const aChangeLink = document.querySelector('.change');
   const state = {};
+  let untilStateReady = new Promise();
 
   selGameType.addEventListener('change', async event => {
     selSet.disabled = true;
     selSet.selectedIndex = 0;
     selSet.options[0].textContent = 'Default';
     aChangeLink.style.display = '';
+    if (untilStateReady.isResolved)
+      untilStateReady = new Promise();
 
     const gameTypeId = selGameType.querySelector(':checked').value;
     const [ gameType, sets ] = await Promise.all([
@@ -64,6 +67,7 @@ window.addEventListener('DOMContentLoaded', () => {
     ]);
     state.gameType = gameType;
     state.sets = sets;
+    untilStateReady.resolve();
 
     if (gameType.isCustomizable)
       aChangeLink.textContent = 'Change Set';
@@ -92,6 +96,11 @@ window.addEventListener('DOMContentLoaded', () => {
     aChangeLink.style.display = selSet.selectedIndex === 4 ? 'none' : '';
   });
   aChangeLink.addEventListener('click', async event => {
+    if (state.changeInProgress)
+      return;
+    state.changeInProgress = true;
+    await untilStateReady;
+
     const setOption = selSet.querySelector(':checked');
     const setId = setOption.value;
     const setIndex = state.sets.findIndex(s => s.id === setId);
@@ -112,6 +121,8 @@ window.addEventListener('DOMContentLoaded', () => {
       if (state.sets.length === 1)
         selSet.disabled = true;
     }
+
+    state.changeInProgress = false;
   });
   // setTimeout() seemed to be necessary in Chrome to detect auto-fill of
   // dropdown after hitting the browser back button.
@@ -137,12 +148,19 @@ window.addEventListener('DOMContentLoaded', () => {
       maxWidth: '500px',
     });
   });
-  document.querySelector('.fa.fa-info.selected-style').addEventListener('click', event => {
+  document.querySelector('.fa.fa-info.selected-style').addEventListener('click', async event => {
+    if (state.infoInProgress)
+      return;
+    state.infoInProgress = true;
+    await untilStateReady;
+
     popup({
       title: `${state.gameType.name} Style`,
       message: state.gameType.description,
       maxWidth: '500px',
     });
+
+    state.infoInProgress = false;
   });
   document.querySelector('.fa.fa-info.vs').addEventListener('click', event => {
     popup({
@@ -219,6 +237,11 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   btnCreate.addEventListener('click', async () => {
+    if (state.createInProgress)
+      return;
+    state.createInProgress = true;
+    await untilStateReady;
+
     divConfigure.classList.remove('show');
     divWaiting.classList.add('show');
 
@@ -374,6 +397,7 @@ window.addEventListener('DOMContentLoaded', () => {
         divWaiting.classList.remove('show');
         divConfigure.classList.add('show');
 
+        state.createInProgress = false;
         // Log the error
         throw error;
       });
