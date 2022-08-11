@@ -111,7 +111,7 @@ const pushPublicKey = Uint8Array.from(
 
 let avatars;
 let arena;
-const avatarsPromise = Tactics.load([ 'avatars' ]).then(() => {
+const avatarsPromise = Tactics.load([ 'avatars' ]).then(async () => {
   if (Howler.ctx.state === 'running')
     state.audioEnabled = true;
   else {
