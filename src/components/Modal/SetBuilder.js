@@ -927,6 +927,9 @@ export default class SetBuilder extends Modal {
               });
           })
           .catch(error2 => {
+            if (error2 === 'Clipboard Item API disabled')
+              return this._els.share.disabled = false;
+
             popup('Sorry!  Unable to share or copy an image of your set.');
             report({
               type: 'Unable to share canvas',
