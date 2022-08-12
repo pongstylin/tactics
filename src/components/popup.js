@@ -47,9 +47,9 @@ class Popup {
   }
 
   render() {
-    let options = this.options;
+    const options = this.options;
 
-    let divOverlay = document.createElement('DIV');
+    const divOverlay = document.createElement('DIV');
     divOverlay.classList.add('overlay');
     if (options.className)
       divOverlay.classList.add(options.className);
@@ -70,7 +70,7 @@ class Popup {
       });
     });
 
-    let divPopup = document.createElement('DIV');
+    const divPopup = document.createElement('DIV');
     divPopup.classList.add('popup');
     if (options.minWidth)
       divPopup.style.minWidth = options.minWidth;
@@ -81,36 +81,46 @@ class Popup {
     divOverlay.appendChild(divPopup);
 
     if (options.title) {
-      let divTitle = document.createElement('DIV');
+      const divTitle = document.createElement('DIV');
       divTitle.classList.add('title');
       divTitle.innerHTML = options.title;
       divPopup.appendChild(divTitle);
     }
 
-    let divMessage = document.createElement('DIV');
+    const divMessage = document.createElement('DIV');
     divMessage.classList.add('message');
-    divMessage.innerHTML = options.message;
+    if (typeof options.message === 'string')
+      divMessage.innerHTML = options.message;
+    else {
+      const elements = Array.isArray(options.message) ? options.message : [ options.message ];
+      for (const el of elements) {
+        if (typeof el === 'string')
+          divMessage.appendChild(document.createTextNode(el));
+        else
+          divMessage.appendChild(el);
+      }
+    }
     divPopup.appendChild(divMessage);
 
-    let divButtons = document.createElement('DIV');
+    const divButtons = document.createElement('DIV');
     divButtons.classList.add('buttons');
     divButtons.setAttribute('autocomplete', 'off');
     divPopup.appendChild(divButtons);
 
     options.buttons.forEach(button => {
-      let btn = document.createElement('BUTTON');
+      const btn = document.createElement('BUTTON');
       btn.setAttribute('type', 'button');
       if ('name' in button)
         btn.setAttribute('name', button.name);
       btn.textContent = button.label;
       btn.addEventListener('click', async event => {
-        let closeEvent = { button };
+        const closeEvent = { button };
 
         if (button.onClick) {
           let waitingPopup;
 
           try {
-            let value = button.onClick(event, button);
+            const value = button.onClick(event, button);
             if (value instanceof Promise) {
               this.hide();
 
@@ -127,8 +137,7 @@ class Popup {
             }
             else
               closeEvent.value = value;
-          }
-          catch (error) {
+          } catch (error) {
             if (waitingPopup)
               waitingPopup.close();
 
