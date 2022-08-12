@@ -618,8 +618,13 @@ export default class Game extends ActiveModel {
     if (currentTurnId === undefined)
       return;
 
-    // Provide the turns that lead back to the last actionable turn
     const team = state.getTeamForPlayer(playerId);
+
+    // Not needed for observers
+    if (team === null)
+      return;
+
+    // Provide the turns that lead back to the last actionable turn
     const minTurnId = state.getTeamFirstTurnId(team);
     const teams = state.teams;
     const turns = [];
