@@ -1,4 +1,4 @@
-export default options => new Promise((resolve, reject) => {
+export const share = options => new Promise((resolve, reject) => {
   navigator.share(options).then(resolve).catch(error => {
     // Differentiate between user 'AbortError' and internal errors.
     // E.g. Internal error: could not connect to Web Share interface.
@@ -23,3 +23,26 @@ export default options => new Promise((resolve, reject) => {
 
   window.addEventListener('focus', cancel);
 });
+
+export const shareBlob = ({ blob, name, ...options }) => new Promise((resolve, reject) => {
+  if (!navigator.share || !navigator.canShare)
+    return reject(new Error('No Web Share API'));
+  if (navigator.platform.startsWith('Win'))
+    return reject('Decline windows');
+  if (blob.type !== 'image/png')
+    return reject(new Error('Expected PNG blob type'));
+
+  options.files = [
+    new File([ blob ], `${name ?? 'image'}.png`, {
+      type: blob.type,
+      lastModified: new Date().getTime(),
+    }),
+  ];
+
+  if (!navigator.canShare(options))
+    reject(new Error('Share options unsupported'));
+
+  share(options).then(resolve, reject);
+});
+
+export default share;

@@ -12,32 +12,65 @@
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 100;
 
-  .modal {
+  &.show {
+    visibility: visible;
+  }
+}
+
+.modal {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #AA9977;
+  border-radius: 4px;
+  max-width: calc(100% - 16px);
+  max-height: calc(100% - 16px);
+
+  background-color: rgba(0, 0, 0, 0.65);
+  box-shadow: 6px 8px 10px #000;
+
+  HEADER {
     display: flex;
-    flex-direction: column;
-    background-color: rgba(0, 0, 0, 0.65);
-    box-shadow: 6px 8px 10px #000;
-    border: 1px solid #AA9977;
-    border-radius: 4px;
-    max-width: calc(100% - 16px);
-    max-height: calc(100% - 16px);
+    flex-direction: row;
 
-    & > .title {
-      background: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
+    margin: 0;
+
+    background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
+    color: white;
+    font-weight: unset;
+    font-style: unset;
+    font-size: unset;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+
+    .title {
+      flex: 1 1 auto;
       padding: 4px 8px;
-
-      color: white;
-      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     }
 
-    .content {
-      flex: 1 1 auto;
-      padding: 16px;
-      overflow: auto;
+    .buttons {
+      flex: 0 0 auto;
+
+      BUTTON {
+        background-color: transparent;
+        margin-top: 4px;
+        border: 0 solid white;
+        width: 26px;
+        height: 26px;
+      }
+      BUTTON:focus, BUTTON:hover {
+        border-width: 1px;
+        color: white;
+      }
+      BUTTON:focus-visible {
+        outline: none;
+      }
     }
   }
 
-  &.show {
-    visibility: visible;
+  .content {
+    flex: 1 1 auto;
+    padding: 16px;
+    overflow: auto;
   }
 }
