@@ -1225,6 +1225,9 @@ function renderFloors() {
     liFloor.addEventListener('click', async () => {
       if (liFloor.classList.contains('selected'))
         return;
+      // Do not load this floor if still loading another floor.
+      if (tabContent.isLoading)
+        return;
 
       avatars.getSound('select').howl.play();
 
@@ -2272,10 +2275,6 @@ async function fetchGames(tabName) {
 
     const join = styleId =>
       gameClient.joinCollectionGroup(`lobby/${styleId}`, { query }).then(rsp => {
-        if (tabContent.selectedStyleId !== styleId)
-          return gameClient.leaveCollectionGroup(`lobby/${styleId}`)
-            .then(() => tabContent.whenSynced);
-
         tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
       });
