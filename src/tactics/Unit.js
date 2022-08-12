@@ -932,14 +932,17 @@ export default class Unit {
   showFocus(alpha = 1, color = this.color) {
     let focusContainer = this.getContainerByName('Focus');
     if (!focusContainer) {
-      let core = Tactics.getSprite('core');
+      const core = Tactics.getSprite('core');
       focusContainer = core.renderFrame({ spriteName:'Focus' }).container;
 
-      let shadowContainer = this.getContainerByName(this.shadowSprite);
+      const shadowContainer = this.getContainerByName(this.shadowSprite);
       shadowContainer.addChild(focusContainer);
     }
 
-    focusContainer.children[0].tint = color;
+    if (typeof color === 'number')
+      focusContainer.children[0].tint = color;
+    else
+      focusContainer.children[0].tint = numifyColorFilter(color);
     focusContainer.alpha = alpha;
 
     return this;
