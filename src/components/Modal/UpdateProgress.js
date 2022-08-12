@@ -77,6 +77,20 @@ export default class UpdateProgress extends Modal {
       const reg = this.data.reg;
       const worker = reg.installing || reg.waiting || reg.active;
 
+      /*
+       * This can be null and I'm trying to figure out the context
+       */
+      if (worker === null) {
+        const testReg = await navigator.serviceWorker.getRegistration();
+        const testWorker = reg.installing || reg.waiting || reg.active;
+        report({
+          error: 'Unexpected service worker registration state',
+          version: this.data.version,
+          canRecover: testWorker !== null,
+          hasController: navigator.serviceWorker.controller !== null,
+        });
+      }
+
       if (this.data.version.isCompatibleWith(await getWorkerVersion(worker))) {
         reg.removeEventListener('updatefound', this.data.listener);
         worker.addEventListener('statechange', this.data.listener);

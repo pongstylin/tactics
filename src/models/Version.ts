@@ -23,6 +23,8 @@ export default class Version {
    * they share the same major and minor version.
    */
   isCompatibleWith(version) {
+    if (version === null)
+      return false;
     if (typeof version === 'string')
       version = new Version(version);
 
