@@ -7,7 +7,6 @@ import Modal from 'components/Modal.js';
 import UnitPicker from 'components/Modal/UnitPicker.js';
 import Autosave from 'components/Autosave.js';
 import ServerError from 'server/Error.js';
-import { colorFilterMap } from 'tactics/colorMap.js';
 import Unit from 'tactics/Unit.js';
 import unitDataMap from 'tactics/unitData.js';
 
@@ -316,6 +315,13 @@ export default class SetBuilder extends Modal {
     this._name.disabled = !this.data.gameType.isCustomizable || !set.id;
     this.reset();
     this._renderButtons();
+  }
+
+  get colorId() {
+    return this.data.colorId;
+  }
+  set colorId(colorId) {
+    this.data.colorId = colorId;
   }
 
   get renderer() {
