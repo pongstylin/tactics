@@ -1516,15 +1516,18 @@ async function showJoinIntro(gameData) {
       let sets;
 
       if (authClient.token) {
-        const hasCustomSet = await gameClient.hasCustomPlayerSet(gameType.id, 'default');
-        if (hasCustomSet)
-          $mySet.prop('checked', true);
-        else
-          $same.prop('checked', true);
-
         sets = await gameClient.getPlayerSets(gameType.id);
 
-        if (sets.length > 1) {
+        if (sets.length === 1) {
+          const hasCustomSet = await gameClient.hasCustomPlayerSet(gameType.id, 'default');
+          if (hasCustomSet)
+            $mySet.prop('checked', true);
+          else
+            $same.prop('checked', true);
+
+          $('#join .mySet > div:nth-child(2)').hide();
+        } else {
+          $mySet.prop('checked', true);
           $sets.on('change', () => {
             $mySet.prop('checked', true);
             $editSet.toggle($sets.val() !== 'random');
@@ -1544,8 +1547,7 @@ async function showJoinIntro(gameData) {
             $sets.val('random');
             $editSet.hide();
           }
-        } else
-          $('#join .mySet > div:nth-child(2)').hide();
+        }
       } else {
         $same.prop('checked', true);
         $('#join .mySet > div:nth-child(2)').hide();
