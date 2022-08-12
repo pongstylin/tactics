@@ -96,6 +96,3 @@ export default class DragonspeakerMage extends Pyromancer {
     addResults(results.filter(r => r.unit.mPower !== r.changes.mPower));
   }
 }
-
-// Dynamically add unit data properties to the class.
-DragonspeakerMage.prototype.type = 'DragonspeakerMage';

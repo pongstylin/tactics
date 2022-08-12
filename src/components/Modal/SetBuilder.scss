@@ -1,0 +1,251 @@
+.modal.setBuilder {
+  .content {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    max-height: 100%;
+    max-width: 100%;
+    padding: 8px !important;
+    background-color: black;
+  }
+
+  HEADER {
+    margin: -4px 0 0 0;
+
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    font-size: 1em;
+
+    .name {
+      flex: 0 0 auto;
+      z-index: 1;
+
+      .inputTextAutosave {
+        min-width: unset;
+
+        &:not(.disabled) {
+          border-bottom-color: #b08d57;
+        }
+
+        .input {
+          padding-right: 6px;
+
+          INPUT, SPAN {
+            font-style: italic;
+            font-weight: bold;
+            color: #b08d57;
+            background-color: transparent;
+          }
+        }
+      }
+    }
+
+    .style {
+      flex: 0 0 auto;
+      padding-top: 4px;
+      padding-left: 4px;
+
+      font-style: italic;
+      font-weight: bold;
+      color: #b08d57;
+    }
+  }
+
+  .field {
+    flex: 1 1 auto;
+
+    position: relative;
+    max-width: 100%;
+    // let the field shrink despite large canvas
+    overflow: hidden;
+
+    CANVAS {
+      display: block;
+      margin: auto;
+      user-select: none;
+    }
+
+    .card {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: absolute;
+      width: 45%;
+      height: 45%;
+
+      // The card must show above the board when they overlap.
+      z-index: 1;
+
+      pointer-events: none;
+
+      CANVAS {
+        // Only present to fix a bug in Edge.
+        width: 176px;
+
+        // Fade out the card, somewhat slowly.
+        transition: opacity 600ms linear;
+        opacity: 0;
+
+        &.show {
+          // Fade in the card, somewhat quickly.
+          transition: opacity 400ms linear;
+          opacity: 1;
+          pointer-events: auto;
+        }
+      }
+    }
+  }
+
+  &.rotation-N {
+    .card { bottom:-8px; right:-8px; }
+  }
+  &.rotation-S {
+    .card { top:0; left:-4px; }
+  }
+  &.rotation-E {
+    .card { bottom:-8px; left:-4px; }
+  }
+  &.rotation-W {
+    .card { top:0; right:-8px; }
+  }
+
+  .buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: right;
+    user-select: none;
+
+    BUTTON {
+      display: block; /* collapse whitespace */
+      flex: 0 0 auto;
+
+      box-sizing: content-box;
+      margin: 3px;
+      border: 0 solid #DED8D5;
+      padding: 0;
+      width: 34px;
+      height: 34px;
+
+      background: none no-repeat center transparent;
+      color: #b08d57;
+      font-size: 18px;
+      line-height: 34px;
+      text-align: center;
+      vertical-align: bottom;  /* removes bottom spacing */
+      -webkit-tap-highlight-color: transparent;
+
+      &:focus {
+        margin: 2px;
+        color: #DED8D5;
+        outline: 0 none;
+        border-color: #DED8D5;
+        border-width: 1px;
+      }
+      &.alert:not(:disabled) {
+        color: #FF0000;
+        border-color: #FF0000;
+      }
+    }
+  }
+}
+
+/*
+ * Portrait Layout
+ */
+@media (max-width: 440px) and (max-aspect-ratio: 2/3) {
+  .modal.setBuilder {
+    height: 100%;
+
+    .content {
+      padding: 4px 0 8px !important;
+    }
+
+    HEADER {
+      margin: 0 8px;
+      width: calc(100% - 16px);
+
+      .name {
+        width: 100%;
+
+        .inputTextAutosave {
+          width: 100%;
+        }
+      }
+    }
+
+    .field {
+      // No longer place the card in the top-left corner of #field.
+      // Rather, horizontally center the card at the top of #field.
+      .card {
+        position: relative;
+        top: auto;
+        right: auto;
+        bottom: auto;
+        left: auto;
+        margin: 6px auto 12px;
+      }
+    }
+
+    .buttons {
+      padding: 0 8px;
+    }
+  }
+}
+
+/*
+ * Landscape Layout
+ */
+@media (max-height: 440px) and (min-aspect-ratio: 5/3) {
+  .modal.setBuilder {
+    width: 100%;
+
+    HEADER {
+      position: absolute;
+      width: calc(100% - 16px);
+    }
+
+    &.rotation-S {
+      .card { top:16px; }
+    }
+    &.rotation-W {
+      .card { top:16px; }
+    }
+
+    .buttons {
+      position: absolute;
+      bottom: 8px;
+      flex-direction: column;
+    }
+
+    &.right {
+      .field {
+        margin-right: 40px;
+      }
+      .buttons {
+        right: 8px;
+      }
+    }
+    &.left {
+      .field {
+        margin-left: 40px;
+      }
+      .buttons {
+        left: 8px;
+      }
+    }
+  }
+}
+
+@media (hover:hover) {
+  .modal.setBuilder .buttons BUTTON:not(.selected):enabled:hover {
+    margin: 2px;
+    border-width: 1px;
+
+    &:not(.alert) {
+      color: #DED8D5;
+      border-color: #DED8D5;
+    }
+  }
+}

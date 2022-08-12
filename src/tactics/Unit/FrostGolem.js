@@ -35,6 +35,3 @@ export default class FrostGolem extends Unit {
       return {...result, results:subResults};
   }
 }
-
-// Dynamically add unit data properties to the class.
-FrostGolem.prototype.type = 'FrostGolem';

@@ -1,4 +1,5 @@
 import 'components/Modal/LobbySettings.scss';
+import { gameConfig } from 'config/client.js';
 import Modal from 'components/Modal.js';
 
 export default class LobbySettings extends Modal {
@@ -9,6 +10,11 @@ export default class LobbySettings extends Modal {
         <DIV class="label">Audio</DIV>
         <LABEL><INPUT type="radio" name="audio" value="on"> On</LABEL>
         <LABEL><INPUT type="radio" name="audio" value="off"> Off</LABEL>
+      </DIV>
+      <DIV class="row barPosition">
+        <DIV class="label">Bar Position</DIV>
+        <LABEL><INPUT type="radio" name="barPosition" value="left"> Left</LABEL>
+        <LABEL><INPUT type="radio" name="barPosition" value="right"> Right</LABEL>
       </DIV>
       <DIV class="row createBlocking">
         <DIV class="label">Blocking</DIV>
@@ -22,6 +28,17 @@ export default class LobbySettings extends Modal {
         <LABEL><INPUT type="radio" name="createTimeLimit" value="standard"> Standard</LABEL>
         <LABEL><INPUT type="radio" name="createTimeLimit" value="blitz"> Blitz</LABEL>
       </DIV>
+      <DIV class="row set">
+        <DIV class="label">Set</DIV>
+        <LABEL><INPUT type="radio" name="set" value="ask"> Ask</LABEL>
+        <LABEL><INPUT type="radio" name="set" value="default"> Default</LABEL>
+        <LABEL><INPUT type="radio" name="set" value="random"> Random</LABEL>
+      </DIV>
+      <DIV class="row randomSide">
+        <DIV class="label">Random Side</DIV>
+        <LABEL><INPUT type="radio" name="randomSide" value="on"> On</LABEL>
+        <LABEL><INPUT type="radio" name="randomSide" value="off"> Off</LABEL>
+      </DIV>
     `;
 
     super(options);
@@ -29,8 +46,6 @@ export default class LobbySettings extends Modal {
     this.els = {
       modal: this.el.querySelector('.modal'),
       audio: this.el.querySelector('.audio'),
-      createBlocking: this.el.querySelector('.createBlocking'),
-      createTimeLimit: this.el.querySelector('.createTimeLimit'),
     };
     this.els.modal.classList.add('lobbySettings');
 
@@ -39,14 +54,20 @@ export default class LobbySettings extends Modal {
         case 'audio':
           this.toggleAudio();
           break;
-        case 'labels':
-          this.toggleLabels();
+        case 'barPosition':
+          this.toggleBarPosition();
           break;
         case 'createBlocking':
           this.setCreateBlocking(event.target.value);
           break;
         case 'createTimeLimit':
           this.setCreateTimeLimit(event.target.value);
+          break;
+        case 'set':
+          this.setSet(event.target.value);
+          break;
+        case 'randomSide':
+          this.toggleRandomSide();
           break;
       }
     }, true);
@@ -77,53 +98,53 @@ export default class LobbySettings extends Modal {
     else
       this.el.querySelector('INPUT[name=audio][value=off]').checked = true;
 
+    this.el.querySelector(`INPUT[name=barPosition][value=${settings.barPosition}]`).checked = true;
     this.el.querySelector(`INPUT[name=createBlocking][value=${settings.createBlocking}]`).checked = true;
     this.el.querySelector(`INPUT[name=createTimeLimit][value=${settings.createTimeLimit}]`).checked = true;
+    this.el.querySelector(`INPUT[name=set][value=${settings.set}]`).checked = true;
+
+    if (settings.randomSide)
+      this.el.querySelector('INPUT[name=randomSide][value=on]').checked = true;
+    else
+      this.el.querySelector('INPUT[name=randomSide][value=off]').checked = true;
   }
 
   toggleAudio() {
     this.data.settings.audio = !this.data.settings.audio;
-    this.save();
-
+    gameConfig.audio = this.data.settings.audio;
     Howler.mute(!this.data.settings.audio);
   }
-  toggleLabels() {
-    this.data.settings.labels = !this.data.settings.labels;
-    this.save();
+  toggleBarPosition() {
+    this.data.settings.barPosition = this.data.settings.barPosition === 'left' ? 'right' : 'left';
+    gameConfig.barPosition = this.data.settings.barPosition;
   }
 
   setCreateBlocking(value) {
     this.data.settings.createBlocking = value;
-    this.save();
+    gameConfig.blockingSystem = value;
   }
   setCreateTimeLimit(value) {
     this.data.settings.createTimeLimit = value;
-    this.save();
+    gameConfig.turnTimeLimit = value;
+  }
+  setSet(value) {
+    this.data.settings.set = value;
+    gameConfig.set = value;
   }
 
-  save() {
-    const thisSettings = this.data.settings;
-    const settings = Object.assign(JSON.parse(localStorage.getItem('settings') ?? '{}'), {
-      audio: thisSettings.audio,
-      arenaLabels: thisSettings.labels,
-      blockingSystem: thisSettings.createBlocking,
-      turnTimeLimit: thisSettings.createTimeLimit,
-    });
-
-    localStorage.setItem('settings', JSON.stringify(settings));
+  toggleRandomSide() {
+    this.data.settings.randomSide = !this.data.settings.randomSide;
+    gameConfig.randomSide = this.data.settings.randomSide;
   }
+
   restore() {
-    const settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
-
     this.data.settings = {
-      audio: settings.audio ?? !Howler._muted,
-      labels: settings.arenaLabels ?? false,
-      createBlocking: settings.blockingSystem ?? 'luck',
-      createTimeLimit: settings.turnTimeLimit ?? 'standard',
-      filterBlocking: 'any',
-      filterTimeLimit: 'any',
+      audio: gameConfig.audio,
+      barPosition: gameConfig.barPosition,
+      createBlocking: gameConfig.blockingSystem,
+      createTimeLimit: gameConfig.turnTimeLimit,
+      set: gameConfig.set,
+      randomSide: gameConfig.randomSide,
     };
-
-    Howler.mute(!this.data.settings.audio);
   }
 }

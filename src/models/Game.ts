@@ -340,7 +340,7 @@ export default class Game extends ActiveModel {
      * If necessary, roll back to the previous playable turn.
      */
     forkGameData.state.revert(turnId);
-    forkGameData.state.autoPass();
+    forkGameData.state.autoPass(true);
 
     while (turnId > 0) {
       if (forkGameData.state.winningTeams.length < 2) {
@@ -357,6 +357,7 @@ export default class Game extends ActiveModel {
       break;
     }
 
+    forkGameData.createdBy = clientPara.playerId;
     forkGameData.createdAt = new Date();
     forkGameData.id = uuid();
     forkGameData.forkOf = { gameId:this.data.id, turnId:forkGameData.state.currentTurnId };
@@ -632,6 +633,9 @@ export default class Game extends ActiveModel {
         continue;
       break;
     }
+
+    if (turns.length === 0)
+      return;
 
     gameData.recentTurns = {
       units: turns[0].units,

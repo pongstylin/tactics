@@ -3,10 +3,8 @@ import copy from 'components/copy.js';
 import share from 'components/share.js';
 import ScrollButton from 'components/ScrollButton.js';
 import sleep from 'utils/sleep.js';
-import unitDataMap from 'tactics/unitData.js';
-import { colorFilterMap } from 'tactics/colorMap.js';
-import unitFactory from 'tactics/unitFactory.js';
 import Autosave from 'components/Autosave.js';
+import Setup from 'components/Setup.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
 import LobbySettingsModal from 'components/Modal/LobbySettings.js';
 
@@ -75,6 +73,7 @@ const state = {
       isLoading: false,
       selectedStyleId: null,
       selectedGroupId: 'lobby',
+      sets: null,
     },
     publicGames: {
       isOpen: false,
@@ -85,6 +84,7 @@ const state = {
     },
   },
   settings: null,
+  avatars: new Map(),
 };
 const fillArenaQueueMap = new Map();
 
@@ -103,10 +103,6 @@ const pushPublicKey = Uint8Array.from(
   chr => chr.charCodeAt(0),
 );
 
-const lightFilter = new PIXI.filters.ColorMatrixFilter();
-lightFilter.brightness(1.25);
-
-const avatarsById = new Map();
 let avatars;
 let arena;
 const avatarsPromise = Tactics.load([ 'avatars' ]).then(() => {
@@ -137,60 +133,11 @@ const avatarsPromise = Tactics.load([ 'avatars' ]).then(() => {
   renderLobby();
 });
 
-const renderer = new PIXI.Renderer();
-const randomAvatarName = () => [ ...unitDataMap.keys() ].random();
-const randomAvatarColor = () => [ ...colorFilterMap.keys() ].random();
+const getAvatar = (playerId, direction) => {
+  const avatar = state.avatars.get(playerId);
 
-const randomAvatars = new Map();
-const getAvatar = (team, direction = 'S') => {
-  if (team.avatar === undefined) {
-    if (!randomAvatars.has(team.playerId))
-      randomAvatars.set(team.playerId, { avatar:randomAvatarName(), color:randomAvatarColor() });
-    Object.assign(team, randomAvatars.get(team.playerId));
-  }
-
-  const avatarId = [ team.avatar, team.color, direction ].join(':');
-  if (avatarsById.has(avatarId))
-    return avatarsById.get(avatarId);
-
-  const unit = unitFactory(team.avatar);
-  const spriteName = unit.baseSprite ?? team.avatar;
-  const trim = team.avatar === 'DragonspeakerMage' ? 'PyromancerTrim' : `${spriteName}Trim`;
-
-  const frame = avatars.renderFrame({
-    spriteName,
-    actionName: 'stand',
-    direction,
-    styles: { [ trim ]:{ rgb:colorFilterMap.get(team.color) } },
-  }).container;
-
-  if (team.avatar === 'ChaosDragon') {
-    const unitContainer = unit.getContainerByName(`${spriteName}Unit`, frame);
-    // This heuristic skips empty frames (while dragon flies)
-    if (unitContainer.children.length === 1) return;
-    const trimContainer = unit.getContainerByName(`${spriteName}Trim`, frame);
-    const filter = new PIXI.filters.ColorMatrixFilter();
-    filter.matrix[0] = 2;
-    filter.matrix[6] = 2;
-    filter.matrix[12] = 2;
-
-    unitContainer.children[0].filters = [filter];
-    trimContainer.children[0].filters = [filter];
-  }
-  frame.filters = [ lightFilter ];
-
-  const bounds = frame.getLocalBounds();
-  const avatarCanvas = renderer.plugins.extract.canvas(frame);
-  const avatar = {
-    x: bounds.x,
-    y: bounds.y,
-    src: avatarCanvas.toDataURL('image/png'),
-  };
-  avatarsById.set(avatarId, avatar);
-
-  return avatar;
+  return Tactics.drawAvatar(avatar, { direction, withShadow:true });
 };
-state.getAvatar = getAvatar;
 
 gameClient
   .on('event', ({ body }) => {
@@ -712,7 +659,7 @@ async function createGame(divArena) {
     return;
 
   const tabContent = state.tabContent.lobby;
-  let { createBlocking, createTimeLimit } = state.settings;
+  let { createBlocking, createTimeLimit, set, randomSide } = state.settings;
   if (createBlocking === 'ask')
     await popup({
       message: 'Choose blocking system.',
@@ -743,19 +690,32 @@ async function createGame(divArena) {
       ],
       closeOnCancel: false,
     }).whenClosed;
+  if (set === 'ask' && tabContent.sets.length === 1)
+    set = tabContent.sets[0].id;
+  else if (set === 'ask')
+    await popup({
+      message: 'Choose set.',
+      buttons: tabContent.sets.map(s => (
+        {
+          label: s.name,
+          onClick: () => set = s.id,
+        }
+      )),
+      closeOnCancel: false,
+    }).whenClosed;
+
+  const myTeam = {
+    playerId: authClient.playerId,
+    set,
+    randomSide: randomSide && !tabContent.gameType.hasFixedPositions,
+  };
 
   try {
     state.activeGameId = await gameClient.createGame(tabContent.selectedStyleId, {
       collection: `lobby/${tabContent.selectedStyleId}`,
       randomHitChance: createBlocking === 'luck',
       turnTimeLimit: createTimeLimit,
-      teams: [
-        {
-          playerId: authClient.playerId,
-          set: { name:'default' },
-        },
-        null,
-      ],
+      teams: [ myTeam, null ],
       tags: {
         arenaIndex: parseInt(divArena.dataset.index),
       },
@@ -847,11 +807,27 @@ async function joinGame(arena) {
       return false;
   }
 
+  const tabContent = state.tabContent.lobby;
+  let { set, randomSide } = state.settings;
+  if (set === 'ask' && tabContent.sets.length === 1)
+    set = tabContent.sets[0].id;
+  else if (set === 'ask')
+    await popup({
+      message: 'Choose set.',
+      buttons: tabContent.sets.map(s => (
+        {
+          label: s.name,
+          onClick: () => set = s.id,
+        }
+      )),
+      closeOnCancel: false,
+    }).whenClosed;
+
   try {
     state.activeGameId = arena.id;
     await gameClient.joinGame(arena.id, {
-      playerId: authClient.playerId,
-      set: { name:'default' },
+      set,
+      randomSide: randomSide && !tabContent.gameType.hasFixedPositions,
     });
     return true;
   } catch (e) {
@@ -1075,6 +1051,7 @@ function renderStats(scope = 'all') {
 }
 
 function renderLobby() {
+  const lobbyState = state.tabContent.lobby;
   const liLobby = document.querySelector('.tabContent .lobby');
 
   /*
@@ -1102,9 +1079,7 @@ function renderLobby() {
 
   const btnSetup = document.createElement('BUTTON');
   btnSetup.textContent = 'Setup';
-  btnSetup.addEventListener('click', event => {
-    popup('Sorry!  Setup is not yet available.');
-  });
+  btnSetup.addEventListener('click', () => toggleSetup(btnSetup, lobbyState));
   divControls.appendChild(btnSetup);
 
   const btnSettings = document.createElement('BUTTON');
@@ -1118,36 +1093,39 @@ function renderLobby() {
   divControls.appendChild(btnSettings);
 
   /*****************************************************************************
-   * Arenas
+   * Content
    */
   const divContent = document.createElement('DIV');
   divContent.classList.add('content');
   liLobby.appendChild(divContent);
 
-  const divArenas = document.createElement('DIV');
-  divArenas.classList.add('arenas');
-  divContent.appendChild(divArenas);
+  lobbyState.setup = new Setup();
+  lobbyState.setup.on('change:avatar', async ({ data:avatar }) => {
+    state.avatars.set(myPlayerId, { ...avatar, imageData:new Map() });
 
-  divArenas.appendChild(renderFloors());
-  divArenas.appendChild(renderGroups());
+    if (state.tabContent.lobby.lobbyGame)
+      resetLobbyGames();
 
-  for (let i = 0; i < 14; i++) {
-    divArenas.appendChild(renderArena(i));
-  }
+    gameClient.saveMyAvatar(avatar);
+  });
 
-  /*
-   * Lobby Selection
+  const divSetup = lobbyState.setup.el;
+  divSetup.classList.add('hide');
+  divContent.appendChild(divSetup);
+
+  const divArenas = renderArenas(divContent);
+
+  /*****************************************************************************
+   * Footer
    */
   const footer = document.createElement('FOOTER');
   const groupIds = [ ...groups.keys() ];
 
   const btnScrollLeft = new ScrollButton('left').render();
-  btnScrollLeft.addEventListener('click', async () => {
-    const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
+  btnScrollLeft.addEventListener('click', () => {
     const groupIndex = groupIds.indexOf(state.tabContent.lobby.selectedGroupId);
     selectGroup(groupIds[groupIndex - 1]);
-    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
-    renderLobbyGames();
+    resetLobbyGames();
   });
   footer.appendChild(btnScrollLeft);
 
@@ -1158,15 +1136,71 @@ function renderLobby() {
 
   const btnScrollRight = new ScrollButton('right').render();
   btnScrollRight.addEventListener('click', async () => {
-    const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
     const groupIndex = groupIds.indexOf(state.tabContent.lobby.selectedGroupId);
     selectGroup(groupIds[groupIndex + 1]);
-    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
-    renderLobbyGames();
+    resetLobbyGames();
   });
   footer.appendChild(btnScrollRight);
 
   liLobby.appendChild(footer);
+}
+async function toggleSetup(btnSetup, lobbyState) {
+  const divLoading = document.querySelector(`.tabContent .loading`);
+  const divSetup = lobbyState.setup.el;
+  const divArenas = document.querySelector('.lobby .arenas');
+  const footer = document.querySelector('.lobby FOOTER');
+  btnSetup.disabled = true;
+
+  if (btnSetup.textContent === 'Setup') {
+    btnSetup.textContent = 'Lobby';
+    footer.style.display = 'none';
+
+    divLoading.classList.add('is-active');
+    divLoading.classList.add('hide');
+    whenTransitionEnds(divLoading, () => {
+      divLoading.classList.remove('hide');
+    });
+
+    const untilReady = lobbyState.setup.setGameType(lobbyState.gameType, lobbyState.sets);
+
+    divArenas.classList.remove('show');
+    await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+    await untilReady;
+
+    divSetup.classList.remove('hide');
+    await sleep();
+    divLoading.classList.remove('is-active');
+    divSetup.classList.add('show');
+    await whenTransitionEnds(divSetup);
+  } else {
+    btnSetup.textContent = 'Setup';
+    footer.style.display = '';
+
+    divSetup.classList.remove('show');
+    await whenTransitionEnds(divSetup, () => divSetup.classList.add('hide'));
+
+    divArenas.classList.remove('hide');
+    await sleep();
+    divArenas.classList.add('show');
+    await whenTransitionEnds(divArenas);
+  }
+
+  btnSetup.disabled = false;
+}
+function renderArenas(divContent) {
+  const divArenas = document.createElement('DIV');
+  divArenas.classList.add('arenas');
+  divArenas.classList.add('show');
+  divContent.appendChild(divArenas);
+
+  divArenas.appendChild(renderFloors());
+  divArenas.appendChild(renderGroups());
+
+  for (let i = 0; i < 14; i++) {
+    divArenas.appendChild(renderArena(i));
+  }
+
+  return divArenas;
 }
 function renderFloors() {
   const tabContent = state.tabContent.lobby;
@@ -1269,9 +1303,7 @@ function renderGroups() {
       avatars.getSound('select').howl.play();
 
       selectGroup(groupId);
-      const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
-      await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
-      renderLobbyGames();
+      resetLobbyGames();
     });
     liGroup.textContent = groupName;
     ulGroupList.appendChild(liGroup);
@@ -1281,21 +1313,17 @@ function renderGroups() {
   const groupIds = [ ...groups.keys() ];
   const btnScrollUp = new ScrollButton('up').render();
   btnScrollUp.addEventListener('click', async () => {
-    const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
     const groupIndex = groupIds.indexOf(tabContent.selectedGroupId);
     selectGroup(groupIds[groupIndex - 1]);
-    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
-    renderLobbyGames();
+    resetLobbyGames();
   });
   divGroupList.appendChild(btnScrollUp);
 
   const btnScrollDown = new ScrollButton('down').render();
   btnScrollDown.addEventListener('click', async () => {
-    const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
     const groupIndex = groupIds.indexOf(tabContent.selectedGroupId);
     selectGroup(groupIds[groupIndex + 1]);
-    await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
-    renderLobbyGames();
+    resetLobbyGames();
   });
   divGroupList.appendChild(btnScrollDown);
 
@@ -1474,6 +1502,32 @@ async function renderLobbyGames() {
   else if (tabContent.selectedGroupId === 'complete')
     arenas.push(...tabContent.games[2].values());
 
+  /*
+   * Cache the avatars for all the players we're about to see
+   */
+  const playerIdSet = new Set();
+  if (!state.avatars.has(myPlayerId))
+    playerIdSet.add(myPlayerId);
+
+  for (const arena of arenas) {
+    if (!arena) continue;
+
+    for (const team of arena.teams) {
+      if (!team) continue;
+
+      if (team.playerId && !state.avatars.has(team.playerId))
+        playerIdSet.add(team.playerId);
+    }
+  }
+  const playerIds = [ ...playerIdSet ];
+  const avatars = await gameClient.getPlayersAvatar(playerIds);
+  for (let i = 0; i < playerIds.length; i++) {
+    state.avatars.set(playerIds[i], { ...avatars[i], imageData:new Map() });
+
+    if (playerIds[i] === myPlayerId)
+      tabContent.setup.avatar = state.avatars.get(myPlayerId);
+  }
+
   while (divArenaList.length < arenas.length) {
     const divArena = renderArena(divArenaList.length);
     divArenas.appendChild(divArena);
@@ -1486,6 +1540,11 @@ async function renderLobbyGames() {
 
     queueFillArena(divArena, arena);
   }
+}
+async function resetLobbyGames() {
+  const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
+  await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
+  renderLobbyGames();
 }
 function hideArena(divArena) {
   if (divArena.classList.contains('hide'))
@@ -1587,7 +1646,7 @@ async function fillTeam(divArena, slot, arena, oldArena) {
   }
 
   if (team) {
-    const avatar = getAvatar(team, slot === 'top' ? 'S' : 'N');
+    const avatar = getAvatar(team.playerId, slot === 'top' ? 'S' : 'N');
     spnName.textContent = team.name;
     imgUnit.classList.toggle('loser', !isWinner);
     imgUnit.style.top = `${avatar.y}px`;
@@ -2219,6 +2278,14 @@ async function fetchGames(tabName) {
       });
     const leave = styleId =>
       gameClient.leaveCollectionGroup(`lobby/${styleId}`);
+    const fetchGameType = styleId =>
+      gameClient.getGameType(styleId).then(rsp => {
+        tabContent.gameType = rsp;
+      });
+    const fetchPlayerSets = styleId =>
+      gameClient.getPlayerSets(styleId).then(rsp => {
+        tabContent.sets = rsp;
+      });
 
     if (tabContent.selectedStyleId === null) {
       await Promise.all([ avatarsPromise, yourContent.whenSynced ]);
@@ -2228,13 +2295,15 @@ async function fetchGames(tabName) {
     }
 
     const styleId = tabContent.selectedStyleId;
+    const promises = [
+      join(styleId),
+      fetchPlayerSets(styleId),
+      fetchGameType(styleId),
+    ];
     if (tabContent.whenSynced.styleId)
-      tabContent.whenSynced = Promise.all([
-        leave(tabContent.whenSynced.styleId),
-        join(styleId),
-      ]);
-    else
-      tabContent.whenSynced = join(styleId);
+      promises.unshift(leave(tabContent.whenSynced.styleId));
+
+    await Promise.all(promises);
     tabContent.whenSynced.styleId = styleId;
 
     promises.push(tabContent.whenSynced);

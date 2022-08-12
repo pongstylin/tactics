@@ -1,7 +1,8 @@
 .overlay {
-  display: none; /* flex */
+  display: flex;
   align-items: center;
   justify-content: center;
+  visibility: hidden;
 
   position: absolute;
   top: 0;
@@ -12,15 +13,22 @@
   z-index: 200;
 
   .popup {
-    background-color: rgba(0, 0, 0, 0.65);
-    box-shadow: 6px 8px 10px #000;
-    margin: 32px;
+    display: flex;
+    flex-direction: column;
+
+    box-sizing: border-box;
+    margin: 16px;
     border: 1px solid #AA9977;
     border-radius: 4px;
+    max-width: calc(100% - 32px);
+    max-height: calc(100% - 32px);
+
+    background-color: rgba(0, 0, 0, 0.65);
+    box-shadow: 6px 8px 10px #000;
 
     .title {
       background: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
-      padding: 4px;
+      padding: 4px 8px;
 
       color: white;
       text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
@@ -28,6 +36,7 @@
 
     .message {
       padding: 12px 8px;
+      overflow: hidden auto;
     }
 
     .buttons {
@@ -48,6 +57,6 @@
   }
 
   &.show {
-    display: flex;
+    visibility: visible;
   }
 }

@@ -82,6 +82,3 @@ export default class BarrierWard extends Unit {
     return this;
   }
 }
-
-// Dynamically add unit data properties to the class.
-BarrierWard.prototype.type = 'BarrierWard';

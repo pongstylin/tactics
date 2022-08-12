@@ -1,4 +1,5 @@
 import 'components/Modal/GameSettings.scss';
+import { gameConfig } from 'config/client.js';
 import Modal from 'components/Modal.js';
 import popup from 'components/popup.js';
 import fullscreen from 'components/fullscreen.js';
@@ -8,7 +9,7 @@ export default class GameSettings extends Modal {
     const forkOf = data.game.state.forkOf;
     let fork = '';
     if (forkOf) {
-      let of = game.ofPracticeGame ? 'practice game' : 'game';
+      const of = game.ofPracticeGame ? 'practice game' : 'game';
 
       fork = `
         <DIV class="fork">
@@ -104,10 +105,8 @@ export default class GameSettings extends Modal {
   }
 
   detectSettings() {
-    let app = document.querySelector('#app');
-    let settings = this.data.settings;
-
-    settings.fullscreen = fullscreen.isEnabled();
+    const app = document.querySelector('#app');
+    const settings = this.data.settings;
 
     if (settings.audio)
       this.el.querySelector('INPUT[name=audio][value=on]').checked = true;
@@ -132,8 +131,7 @@ export default class GameSettings extends Modal {
 
   toggleAudio() {
     this.data.settings.audio = !this.data.settings.audio;
-    this.save();
-
+    gameConfig.audio = this.data.settings.audio;
     Howler.mute(!this.data.settings.audio);
   }
 
@@ -142,7 +140,7 @@ export default class GameSettings extends Modal {
       gameSpeed = parseInt(gameSpeed);
 
     this.data.settings.gameSpeed = gameSpeed;
-    this.save();
+    gameConfig.gameSpeed = gameSpeed;
 
     this.data.game.speed = gameSpeed;
   }
@@ -155,55 +153,31 @@ export default class GameSettings extends Modal {
 
   toggleBarPosition() {
     this.data.settings.barPosition = this.data.settings.barPosition === 'left' ? 'right' : 'left';
-    this.save();
+    gameConfig.barPosition = this.data.settings.barPosition;
 
-    let app = document.querySelector('#app');
+    const app = document.querySelector('#app');
     app.classList.toggle('left');
     app.classList.toggle('right');
   }
 
-  save() {
-    const thisSettings = this.data.settings;
-    const settings = Object.assign(JSON.parse(localStorage.getItem('settings') ?? '{}'), {
-      audio: thisSettings.audio,
-      gameSpeed: thisSettings.gameSpeed,
-      barPosition: thisSettings.barPosition,
-    });
-
-    localStorage.setItem('settings', JSON.stringify(settings));
-  }
   restore() {
-    let settings = localStorage.getItem('settings');
+    this.data.settings = {
+      audio: gameConfig.audio,
+      gameSpeed: gameConfig.gameSpeed,
+      barPosition: gameConfig.barPosition,
+      fullscreen: fullscreen.isEnabled(),
+    };
 
-    if (settings) {
-      settings = JSON.parse(settings);
+    this.data.game.speed = this.data.settings.gameSpeed;
 
-      Howler.mute(!settings.audio);
-
-      if (!settings.gameSpeed)
-        settings.gameSpeed = 'auto';
-      // TODO: Delete this temporary migration
-      if (settings.gameSpeed === '2')
-        settings.gameSpeed = parseInt(settings.gameSpeed);
-      this.data.game.speed = settings.gameSpeed;
-
-      let app = document.querySelector('#app');
-      if (settings.barPosition === 'left') {
-        app.classList.remove('left');
-        app.classList.add('right');
-      } else {
-        app.classList.remove('right');
-        app.classList.add('left');
-      }
+    const app = document.querySelector('#app');
+    if (this.data.settings.barPosition === 'left') {
+      app.classList.remove('left');
+      app.classList.add('right');
     } else {
-      settings = {
-        audio: !Howler._muted,
-        gameSpeed: 'auto',
-        barPosition: app.classList.contains('left') ? 'right' : 'left',
-      };
+      app.classList.remove('right');
+      app.classList.add('left');
     }
-
-    this.data.settings = settings;
   }
 
   destroy() {

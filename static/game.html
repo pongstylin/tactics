@@ -24,7 +24,7 @@
 
   <LINK href="/manifest.json" rel="manifest">
   <LINK href="/favicon.ico" rel="icon" sizes="16x16">
-  <LINK href="https://use.fontawesome.com/releases/v5.15.4/css/all.css" rel="stylesheet" integrity="sha384-DyZ88mC6Up2uqS4h/KRgHuoeGwBcD4Ng9SiP4dIRy0EXTlnuz47vAwmeGwVChigm" crossorigin="anonymous">
+  <LINK href="https://use.fontawesome.com/releases/v6.1.1/css/all.css" rel="stylesheet" crossorigin="anonymous">
   <LINK href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet" crossorigin="anonymous">
 
   <SCRIPT src="/jquery-1.12.4.min.js" crossorigin="anonymous"></SCRIPT>
@@ -117,6 +117,19 @@
       text-align: center;
     }
 
+    .mySet {
+      flex-direction: column;
+      align-items: start !important;
+    }
+    .mySet > div:nth-child(1) {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+    .mySet > div:nth-child(2) {
+      margin-left: 18px;
+    }
+
     #error {
       color: #ff0000;
     }
@@ -139,20 +152,36 @@
       </DIV>
       <DIV class="details"></DIV>
       <DIV class="set" style="display:none">
+        <DIV>Choose opponent set:</DIV>
         <UL class="choices">
-          <LI>
-            <LABEL><INPUT type="radio" name="set" value="practice">Practice Set</LABEL>
-            <span class="sep"></span>
-            <A href="javascript:void(0)">Change Set</A>
+          <LI class="mySet">
+            <DIV>
+              <LABEL><INPUT type="radio" name="setChoice" value="mySet"> My Set</LABEL>
+              <SPAN class="sep"></SPAN>
+              <A href="javascript:void(0)">Change Set</A>
+            </DIV>
+            <DIV>
+              <SELECT name="set">
+                <OPTION value="default">Default</OPTION>
+                <OPTION value="alt1">Alternate 1</OPTION>
+                <OPTION value="alt2">Alternate 2</OPTION>
+                <OPTION value="alt3">Alternate 3</OPTION>
+              </SELECT>
+            </DIV>
+          </LI>
+          <LI class="practice">
+            <LABEL class="disabled"><INPUT type="radio" name="setChoice" value="practice" disabled>Practice Set</LABEL>
+            <SPAN class="sep"></SPAN>
+            <A href="javascript:void(0)">Build Set</A>
           </LI>
           <LI>
-            <LABEL><INPUT type="radio" name="set" value="same">My Set</LABEL>
-            <span class="sep"></span>
+            <LABEL><INPUT type="radio" name="setChoice" value="same" checked>Same Set</LABEL>
+            <SPAN class="sep"></SPAN>
             Opposite side for corner sets
           </LI>
           <LI class="mirror">
-            <LABEL><INPUT type="radio" name="set" value="mirror">Mirror My Set</LABEL>
-            <span class="sep"></span>
+            <LABEL><INPUT type="radio" name="setChoice" value="mirror">Mirror Set</LABEL>
+            <SPAN class="sep"></SPAN>
             Same side for corner sets
           </LI>
         </UL>
@@ -192,19 +221,31 @@
       </DIV>
       <DIV class="details"></DIV>
       <DIV class="set" style="display:none">
+        <DIV>Choose set:</DIV>
         <UL class="choices">
-          <LI>
-            <LABEL><INPUT type="radio" name="set" value="default">My Set</LABEL>
-            <span class="sep"></span>
-            <A href="javascript:void(0)">Change Set</A>
+          <LI class="mySet">
+            <DIV>
+              <LABEL><INPUT type="radio" name="setChoice" value="mySet"> My Set</LABEL>
+              <SPAN class="sep"></SPAN>
+              <A href="javascript:void(0)">Change Set</A>
+            </DIV>
+            <DIV>
+              <SELECT name="set">
+                <OPTION value="default">Default</OPTION>
+                <OPTION value="alt1">Alternate 1</OPTION>
+                <OPTION value="alt2">Alternate 2</OPTION>
+                <OPTION value="alt3">Alternate 3</OPTION>
+                <OPTION value="random">Random</OPTION>
+              </SELECT>
+            </DIV>
           </LI>
           <LI>
-            <LABEL><INPUT type="radio" name="set" value="same">Same Set</LABEL>
+            <LABEL><INPUT type="radio" name="setChoice" value="same">Same Set</LABEL>
             <span class="sep"></span>
             Opposite side for corner sets
           </LI>
           <LI class="mirror">
-            <LABEL><INPUT type="radio" name="set" value="mirror">Mirror Set</LABEL>
+            <LABEL><INPUT type="radio" name="setChoice" value="mirror">Mirror Set</LABEL>
             <span class="sep"></span>
             Same side for corner sets
           </LI>

@@ -5,7 +5,7 @@ const dataAdapter = new GameAdapter();
 await dataAdapter.bootstrap();
 
 dataAdapter.listAllGameIds().then(gameIds => {
-  let promise = gameIds.reduce(
+  const promise = gameIds.reduce(
     (promise, gameId) => promise.then(() => syncGame(gameId)),
     Promise.resolve(),
   );

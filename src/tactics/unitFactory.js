@@ -46,12 +46,12 @@ export default function (unitType, board) {
   let UnitClass = unitClassMap.get(unitType);
   let unit;
 
+  unitData.type = unitType;
+
   if (UnitClass)
     unit = new UnitClass(unitData, board);
-  else {
-    unitData.type = unitType;
+  else
     unit = new Unit(unitData, board);
-  }
 
   return unit;
 };

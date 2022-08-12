@@ -78,7 +78,7 @@ unitDataMap.set('BarrierWard', {
   aFocus: true,
   aRange: [0, 6],
   directional: false,
-  tier: 1,
+  tier: 5,
 });
 
 unitDataMap.set('LightningWard', {
@@ -95,7 +95,7 @@ unitDataMap.set('LightningWard', {
   aType: 'magic',
   aRange: [0, 3],
   directional: false,
-  tier: 1,
+  tier: 5,
 });
 
 unitDataMap.set('DarkMagicWitch', {
@@ -195,7 +195,7 @@ unitDataMap.set('StoneGolem', {
   aType: 'armor',
   aFocus: true,
   aRange: [0, 1],
-  tier: 3,
+  tier: 4,
 });
 
 unitDataMap.set('DragonTyrant', {
@@ -341,7 +341,7 @@ unitDataMap.set('Shrub', {
   mPass: false,
   aType: false,
   directional: false,
-  tier: 4,
+  tier: 5,
 });
 
 unitDataMap.set('Trophy', {
