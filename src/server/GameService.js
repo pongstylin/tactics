@@ -1421,8 +1421,10 @@ export default class GameService extends Service {
    */
   async _resolveTeamsSets(game, gameType) {
     const joinedTeams = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt);
-    const firstTeam = joinedTeams[0];
+    if (joinedTeams.length === 0)
+      return;
 
+    const firstTeam = joinedTeams[0];
     const resolve = async team => {
       if (!gameType.isCustomizable || team.set === null) {
         const set = gameType.getDefaultSet();
