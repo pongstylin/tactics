@@ -132,8 +132,6 @@ export default class Setup {
 
     if (!this._setBuilder) {
       this._setBuilder = new Tactics.SetBuilder({ gameType });
-      this._setBuilder.on('save', ({ data:set }) => this.onSetSave(this._setBuilder.board.rotation, set));
-      this._setBuilder.on('cancel', () => this.onSetCancel(this._setBuilder.board.rotation));
       this.els.sets.classList.add(`rotation-${this._setBuilder.board.rotation}`);
       this.colorIds = gameConfig.teamColorIds;
       this.renderColorIds();
@@ -283,9 +281,17 @@ export default class Setup {
     this.selectTeam(this.selectedTeamId);
   }
 
-  editSet(id) {
-    this._setBuilder.set = this.sets.get(id) ?? { id, units:[] };
-    this._setBuilder.show();
+  async editSet(id) {
+    const setBuilder = this._setBuilder;
+    setBuilder.set = this.sets.get(id) ?? { id, units:[] };
+    await setBuilder.show();
+
+    const rotation = setBuilder.board.rotation;
+    const newSet = setBuilder.set;
+    if (newSet.units.length === 0)
+      this.onSetCancel(rotation);
+    else
+      this.onSetSave(rotation, newSet);
   }
 };
 
