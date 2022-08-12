@@ -1883,13 +1883,14 @@ async function renderPublicGames() {
 
 function renderGame(game) {
   const teams = game.teams;
+  const gameIsPractice = teams.filter(t => t?.playerId === myPlayerId).length === teams.length;
 
   let left = `${game.typeName}`;
   // Completed Games
   if (game.endedAt) {
     if (game.isFork)
       left += ', <SPAN>Fork</SPAN>';
-    else if (!game.rated)
+    else if (!game.rated && !gameIsPractice)
       left += ', <SPAN>Unrated</SPAN>';
     else if (game.collection?.startsWith('lobby/'))
       left += ', <SPAN>Lobby</SPAN>';
@@ -1911,7 +1912,7 @@ function renderGame(game) {
 
     if (game.isFork)
       labels.push('Fork');
-    else if (!game.rated)
+    else if (!game.rated && !gameIsPractice)
       labels.push('Unrated');
     else if (game.collection?.startsWith('lobby/'))
       labels.push('Lobby');
@@ -1949,7 +1950,7 @@ function renderGame(game) {
 
     if (game.isFork)
       labels.push('Fork');
-    else if (!game.rated)
+    else if (!game.rated && !gameIsPractice)
       labels.push('Unrated');
     else if (game.collection?.startsWith('lobby/'))
       labels.push('Lobby');
@@ -1959,7 +1960,6 @@ function renderGame(game) {
   }
 
   const gameIsEmpty = teams.filter(t => !!t?.joinedAt).length === 0;
-  const gameIsPractice = teams.filter(t => t?.playerId === myPlayerId).length === teams.length;
   let middle;
 
   if (gameIsEmpty) {
