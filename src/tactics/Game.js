@@ -557,7 +557,7 @@ export default class Game {
 
     let degree = 0;
     if (myTeam) {
-      degree = board.getDegree(myTeam.position, 'S');
+      degree = board.getDegree(myTeam.position, gameConfig.rotation);
       board.rotate(degree);
     }
 
