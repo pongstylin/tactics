@@ -1,3 +1,4 @@
+import { gameConfig } from 'config/client.js';
 import popup from 'components/popup.js';
 import GameSettingsModal from 'components/Modal/GameSettings.js';
 
@@ -25,6 +26,7 @@ var set = {
   ],
 };
 var gameStateData = {
+  randomFirstTurn: false,
   teams: [ { set }, { set } ],
 };
 
@@ -50,19 +52,9 @@ var buttons = {
     $button.toggleClass('fa-rotate-270 fa-rotate-90');
   },
   rotate: function ($button) {
-    let classesToToggle;
-
-    if ($button.hasClass('fa-rotate-90'))
-      classesToToggle = 'fa-rotate-90 fa-rotate-180';
-    else if ($button.hasClass('fa-rotate-180'))
-      classesToToggle = 'fa-rotate-180 fa-rotate-270';
-    else if ($button.hasClass('fa-rotate-270'))
-      classesToToggle = 'fa-rotate-270';
-    else
-      classesToToggle = 'fa-rotate-90';
-
-    $button.toggleClass(classesToToggle);
     game.rotateBoard(90);
+
+    updateRotateButton();
   },
   undo: function () {
     game.undo();
@@ -235,6 +227,19 @@ async function loadResources() {
   });
 }
 
+function updateRotateButton() {
+  const board = game.board;
+  const myColorId = gameConfig.myColorId;
+  const myTeam = game.teams.find(t => t.colorId === myColorId);
+  const degree = board.getDegree('N', board.rotation);
+  const position = board.getRotation(myTeam.position, degree);
+
+  $('#game BUTTON[name=rotate]')
+    .toggleClass('fa-rotate-90', position === 'S')
+    .toggleClass('fa-rotate-180', position === 'W')
+    .toggleClass('fa-rotate-270', position === 'N');
+}
+
 async function startGame() {
   let $card = $(game.card.canvas)
     .attr('id', 'card')
@@ -319,6 +324,7 @@ async function startGame() {
 
   await game.start();
 
+  updateRotateButton();
   progress.hide();
   $('#app').addClass('show');
 

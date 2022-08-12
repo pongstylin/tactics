@@ -146,6 +146,7 @@ var buttons = {
   rotate: () => {
     game.rotateBoard(90);
 
+    updateRotateButton();
     resetPlayerBanners();
   },
   undo: () => {
@@ -1630,8 +1631,7 @@ function updateChatButton() {
 
       chatClient.seen(gameId, lastSeenEventId);
     }
-  }
-  else {
+  } else {
     if (chatMessages.last.player.id !== playerId)
       $button.attr('badge', '+');
     else
@@ -1639,6 +1639,18 @@ function updateChatButton() {
 
     $button.toggleClass('ready', chatMessages.last.id > lastSeenEventId);
   }
+}
+function updateRotateButton() {
+  const board = game.board;
+  const myColorId = gameConfig.myColorId;
+  const myTeam = game.teams.find(t => t.colorId === myColorId);
+  const degree = board.getDegree('N', board.rotation);
+  const position = board.getRotation(myTeam.position, degree);
+
+  $('#game BUTTON[name=rotate]')
+    .toggleClass('fa-rotate-90', position === 'S')
+    .toggleClass('fa-rotate-180', position === 'W')
+    .toggleClass('fa-rotate-270', position === 'N');
 }
 function resetPlayerBanners() {
   const board = game.board;
@@ -1686,11 +1698,6 @@ function resetPlayerBanners() {
   });
 
   setTurnTimeoutClock();
-
-  $('#game BUTTON[name=rotate]')
-    .toggleClass('fa-rotate-90', board.rotation === 'S')
-    .toggleClass('fa-rotate-180', board.rotation === 'W')
-    .toggleClass('fa-rotate-270', board.rotation === 'N');
 }
 function setTurnTimeoutClock() {
   clearTimeout(turnTimeout);
@@ -1923,6 +1930,7 @@ async function startGame() {
 
   resetPlayerBanners();
   updateChatButton();
+  updateRotateButton();
   progress.hide();
   $('#app').addClass('show');
 
