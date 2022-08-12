@@ -931,9 +931,15 @@ export default class GameState {
     const currentTeamId = this.currentTeamId;
     const rated = this.rated;
 
-    // If it is not your turn, you may not undo without approval in rated games
-    if (currentTeamId !== team.id && rated)
-      return null;
+    // 5 seconds after your turn ends, you may not undo in rated games
+    if (rated) {
+      if (currentTeamId !== team.id)
+        return null;
+
+      const lastAction = actions.last;
+      if (lastAction?.type === 'endTurn' && Date.now() - lastAction.createdAt >= 5000)
+        return null;
+    }
 
     const strictUndo = this.strictUndo;
     const minTurnId = firstTurnId - 1;
@@ -971,13 +977,6 @@ export default class GameState {
         // Preserve counter-attacks
         if (action.unit !== undefined && action.unit !== selectedUnitId)
           return pointer;
-
-        // Undoing 5 seconds after your turn ends isn't allowed in rated games.
-        // ... unless auto pass made it a continuation of your previous turn.
-        // Since a continuation is not delayed, the current turn check ensures
-        // this validates the true end of a player's turn.
-        if (rated && turnId === currentTurnId && action.type === 'endTurn' && Date.now() - action.createdAt >= 5000)
-          return rated ? pointer || null : pointer;
 
         // Skip forced endTurn actions and evaluate the previous action.
         if (action.type === 'endTurn' && action.forced)
