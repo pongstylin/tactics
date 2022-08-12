@@ -298,7 +298,7 @@ export default class SetBuilder extends Modal {
     }
     set.units = this._board.getState()[0];
 
-    return set.units.length === 0 ? null : set;
+    return set;
   }
   set set(set) {
     if (!set)
@@ -796,7 +796,7 @@ export default class SetBuilder extends Modal {
 
     const set = this.set;
 
-    if (!set) {
+    if (set.units.length === 0) {
       if (this.data.set.id === undefined)
         return this._emitDelete();
 
@@ -907,19 +907,20 @@ export default class SetBuilder extends Modal {
   }
 
   async _emitDelete() {
-    this.hide();
     if (this.data.set.id) {
       const defaultSet = await Tactics.gameClient.deletePlayerSet(this.data.gameType.id, this.data.set.id);
-      this.set = defaultSet;
-      this._emit({ type:'save', data:defaultSet });
+      if (defaultSet)
+        this.set = defaultSet;
+      this._emit({ type:'save', data:this.set });
     }
+    this.hide();
   }
   async _emitSave(set) {
-    this.hide();
     if (set.id) {
       await Tactics.gameClient.savePlayerSet(this.data.gameType.id, set);
       this._emit({ type:'save', data:set });
     }
+    this.hide();
   }
 
   _hasFixedSet() {
