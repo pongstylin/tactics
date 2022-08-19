@@ -35,15 +35,14 @@ export default class UpdateProgress extends Modal {
       'Installed.',
     ];
 
-    this.els = {
-      modal: this.el.querySelector('.modal'),
-      preamble: this.el.querySelector('.preamble'),
-      label: this.el.querySelector('.label'),
-      indicator: this.el.querySelector('.indicator'),
-      reload: this.el.querySelector('BUTTON[name=reload]'),
-    };
-    this.els.modal.classList.add('updateProgress');
-    this.els.reload.addEventListener('click', () => this.reload());
+    Object.assign(this._els, {
+      preamble: this.root.querySelector('.preamble'),
+      label: this.root.querySelector('.label'),
+      indicator: this.root.querySelector('.indicator'),
+      reload: this.root.querySelector('BUTTON[name=reload]'),
+    });
+    this.root.classList.add('updateProgress');
+    this._els.reload.addEventListener('click', () => this.reload());
 
     this.init();
   }
@@ -57,7 +56,7 @@ export default class UpdateProgress extends Modal {
       const step = document.createElement('SPAN');
       step.classList.add('step');
 
-      this.els.indicator.appendChild(step);
+      this._els.indicator.appendChild(step);
     }
 
     this.checkStatus();
@@ -114,7 +113,7 @@ export default class UpdateProgress extends Modal {
       return this.setFailed();
   }
   setStep(stepId) {
-    const indicator = this.els.indicator;
+    const indicator = this._els.indicator;
     if (indicator.children[stepId].classList.contains('lit')) {
       if (stepId === 2) {
         this.data.history.push({
@@ -138,26 +137,26 @@ export default class UpdateProgress extends Modal {
       });
 
     const stepLabel = this.data.steps[stepId];
-    this.els.label.textContent = stepLabel;
+    this._els.label.textContent = stepLabel;
 
     for (let i = 0; i <= stepId; i++) {
       indicator.children[i].classList.add('lit');
     }
   }
   setComplete() {
-    this.els.preamble.textContent = 'A new update is ready for activation.';
-    this.els.reload.textContent = 'Activate';
+    this._els.preamble.textContent = 'A new update is ready for activation.';
+    this._els.reload.textContent = 'Activate';
     this.setStep(4);
 
     this.cleanup();
   }
   setFailed() {
-    this.els.preamble.textContent = [
+    this._els.preamble.textContent = [
       'A new update failed to install.',
       'You can try reloading or coming back later.',
     ].join('  ');
-    this.els.label.textContent = 'Failed.';
-    this.els.indicator.classList.add('error');
+    this._els.label.textContent = 'Failed.';
+    this._els.indicator.classList.add('error');
 
     this.data.history.push({
       createdAt: new Date(),
@@ -167,7 +166,7 @@ export default class UpdateProgress extends Modal {
   }
 
   reload() {
-    this.els.preamble.textContent = 'Reloading, please wait...';
+    this._els.preamble.textContent = 'Reloading, please wait...';
 
     this.cleanup();
     setTimeout(() => location.reload());

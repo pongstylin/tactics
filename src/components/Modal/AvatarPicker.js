@@ -27,7 +27,7 @@ export default class AvatarPicker extends Modal {
       color: this._els.content.querySelector('.color'),
     });
 
-    this._els.modal.classList.add('avatarPicker');
+    this.root.classList.add('avatarPicker');
 
     const colorPicker = this._colorPicker = new ColorPicker({ colorId:this.data.avatar.colorId });
     colorPicker.on('change', ({ data:colorId }) => this.onColorChange(colorId));

@@ -81,20 +81,19 @@ export default class Fork extends Modal {
 
     super(options, data);
 
-    this.els = {
-      modal: this.el.querySelector('.modal'),
-      as: this.el.querySelectorAll('INPUT[name=as]'),
-      fork: this.el.querySelector('BUTTON[name=fork]'),
-      done: this.el.querySelector('BUTTON[name=done]'),
-    };
-    this.els.modal.classList.add('fork');
+    Object.assign(this._els, {
+      as: this.root.querySelectorAll('INPUT[name=as]'),
+      fork: this.root.querySelector('BUTTON[name=fork]'),
+      done: this.root.querySelector('BUTTON[name=done]'),
+    });
+    this.root.classList.add('fork');
 
-    this.el.addEventListener('change', event => {
+    this.root.addEventListener('change', event => {
       switch (event.target.name) {
         case 'vs':
           this.data.vs = event.target.value;
 
-          for (let asRadio of this.els.as) {
+          for (let asRadio of this._els.as) {
             asRadio.disabled = this.data.vs === 'you';
           }
           break;
@@ -104,8 +103,8 @@ export default class Fork extends Modal {
       }
     }, true);
 
-    this.els.fork.addEventListener('click', async event => {
-      this.els.fork.disabled = true;
+    this._els.fork.addEventListener('click', async event => {
+      this._els.fork.disabled = true;
 
       try {
         const { game, vs, as } = this.data;
@@ -117,10 +116,10 @@ export default class Fork extends Modal {
         });
 
         target.location.href = `/game.html?${newGameId}`;
-        this.els.fork.disabled = false;
+        this._els.fork.disabled = false;
       } catch (error) {
         fork.close();
-        this.els.fork.disabled = false;
+        this._els.fork.disabled = false;
 
         if (error.code === 403)
           popup({ message:error.message });
@@ -130,7 +129,7 @@ export default class Fork extends Modal {
         }
       }
     });
-    this.els.done.addEventListener('click', event => {
+    this._els.done.addEventListener('click', event => {
       this.close();
     });
   }

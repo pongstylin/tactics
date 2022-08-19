@@ -50,7 +50,7 @@ export default class UnitPicker extends Modal {
       rules: this._els.content.querySelector('.rules'),
     });
 
-    this._els.modal.classList.add('unitPicker');
+    this.root.classList.add('unitPicker');
 
     this._els.content.addEventListener('click', event => {
       const divUnit = event.target.closest('.unit.available');

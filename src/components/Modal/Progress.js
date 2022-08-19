@@ -16,7 +16,7 @@ export default class Progress extends Modal {
 
     super(options);
 
-    this._els.modal.classList.add('progress');
+    this.root.classList.add('progress');
 
     Object.assign(this, {
       whenComplete: new Promise(),

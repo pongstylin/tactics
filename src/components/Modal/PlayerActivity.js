@@ -12,12 +12,9 @@ export default class PlayerActivity extends Modal {
 
     super(options, data);
 
-    this.els = {
-      modal: this.el.querySelector('.modal'),
-    };
-    this.els.modal.classList.add('playerActivity');
+    this.root.classList.add('playerActivity');
 
-    this.els.modal.addEventListener('click', event => {
+    this.root.addEventListener('click', event => {
       const target = event.target;
       if (target.tagName !== 'BUTTON') return;
 
@@ -46,7 +43,7 @@ export default class PlayerActivity extends Modal {
     data.request = gameClient.getPlayerActivity(data.game.id, data.team.playerId)
       .then(activity => {
         // Just in case the modal was closed before the request completed.
-        if (!this.el) return;
+        if (!this.root) return;
 
         this.renderActivity(activity);
         data.timeout = setTimeout(() => this.getPlayerActivity(), 5000);

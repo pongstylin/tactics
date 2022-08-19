@@ -1,9 +1,11 @@
 import 'components/popup.scss';
 
+import Overlay from 'components/overlay.js';
+
 class Popup {
   constructor(options) {
     Object.assign(this, {
-      el: null,
+      overlay: null,
       options: null,
       whenClosed: new Promise(),
 
@@ -18,7 +20,7 @@ class Popup {
   }
 
   get isVisible() {
-    return this.el.classList.contains('show');
+    return this.overlay.isVisible;
   }
 
   setOptions(options) {
@@ -49,15 +51,10 @@ class Popup {
   render() {
     const options = this.options;
 
-    const divOverlay = document.createElement('DIV');
-    divOverlay.classList.add('overlay');
-    if (options.className)
-      divOverlay.classList.add(options.className);
-    if (options.zIndex)
-      divOverlay.style.zIndex = options.zIndex;
-    divOverlay.addEventListener('click', event => {
-      // Ignore clicks that bubbled from the popup.
-      if (event.target !== divOverlay) return;
+    const overlay = new Overlay({
+      className: options.className,
+      zIndex: options.zIndex ?? 200,
+    }).on('click', event => {
       if (options.closeOnCancel === false) return;
 
       let value;
@@ -78,7 +75,7 @@ class Popup {
       divPopup.style.maxWidth = options.maxWidth;
     if (options.margin)
       divPopup.style.margin = options.margin;
-    divOverlay.appendChild(divPopup);
+    overlay.root.appendChild(divPopup);
 
     if (options.title) {
       const divTitle = document.createElement('DIV');
@@ -161,30 +158,30 @@ class Popup {
       divButtons.appendChild(btn);
     });
 
-    return divOverlay;
+    return overlay;
   }
 
   open() {
     if (this.isOpen)
       throw new TypeError('Already open');
 
-    this.el = this.render();
+    this.overlay = this.render();
 
-    let options = this.options;
+    const options = this.options;
     if (options.before) {
-      let sibling = typeof options.before === 'string'
+      const sibling = typeof options.before === 'string'
         ? document.querySelector(options.before)
         : options.before;
-      let container = sibling.parentNode;
+      const container = sibling.parentNode;
 
-      container.insertBefore(this.el, sibling);
+      container.insertBefore(this.overlay.root, sibling);
     }
     else {
-      let container = typeof options.container === 'string'
+      const container = typeof options.container === 'string'
         ? document.querySelector(options.container)
         : options.container;
 
-      container.appendChild(this.el);
+      container.appendChild(this.overlay.root);
     }
 
     if (this.options.autoShow === true)
@@ -197,21 +194,21 @@ class Popup {
 
     this.setOptions(options);
 
-    let isVisible = this.isVisible;
-    let oldEl = this.el;
-    let newEl = this.render();
+    const isVisible = this.isVisible;
+    const oldEl = this.overlay.root;
+    const newEl = (this.overlay = this.render()).root;
 
-    oldEl.parentNode.replaceChild(this.el = newEl, oldEl);
+    oldEl.parentNode.replaceChild(newEl, oldEl);
 
     if (isVisible)
       this.show();
   }
 
   hide() {
-    this.el.classList.remove('show');
+    this.overlay.hide();
   }
   show() {
-    this.el.classList.add('show');
+    this.overlay.show();
   }
   close(event) {
     event = Object.assign({
@@ -237,12 +234,12 @@ class Popup {
     else
       this.whenClosed.resolve(event.button?.value);
 
-    this.el.remove();
-    this.el = null;
+    this.overlay.root.remove();
+    this.overlay = null;
   }
 
   get isOpen() {
-    return !!this.el;
+    return !!this.overlay;
   }
 }
 

@@ -1,22 +1,3 @@
-.overlay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  visibility: hidden;
-
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 100;
-
-  &.show {
-    visibility: visible;
-  }
-}
-
 .modal {
   position: relative;
 
@@ -52,11 +33,14 @@
       flex: 0 0 auto;
 
       BUTTON {
-        background-image: none;
-        background-color: transparent;
+        margin-right: 4px;
         border: 0 solid white;
         width: 26px;
         height: 26px;
+
+        background-image: none;
+        background-color: transparent;
+        color: inherit;
       }
       BUTTON:focus, BUTTON:hover {
         border-width: 1px;
