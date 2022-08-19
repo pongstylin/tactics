@@ -162,6 +162,9 @@ gameClient
         renderStats('collections');
       }
     } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
+      if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
+        return;
+
       if (body.type === 'add' || body.type === 'change')
         setLobbyGame(body.data);
       else if (body.type === 'remove')
@@ -437,7 +440,7 @@ function unsetYourLobbyGame(gameSummary, skipRender = false) {
 
   if (!skipRender && state.currentTab === 'lobby')
     if (state.tabContent.lobby.selectedStyleId === styleId)
-      unsetLobbyGame(gameSummary);
+      renderLobbyGames();
 }
 function setYourGame(gameSummary) {
   const yourGames = state.tabContent.yourGames.games;
