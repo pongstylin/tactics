@@ -1105,14 +1105,18 @@ function renderLobby() {
   liLobby.appendChild(divContent);
 
   lobbyState.setup = new Setup();
-  lobbyState.setup.on('change:avatar', async ({ data:avatar }) => {
-    state.avatars.set(myPlayerId, { ...avatar, imageData:new Map() });
+  lobbyState.setup
+    .on('change:avatar', async ({ data:avatar }) => {
+      state.avatars.set(myPlayerId, { ...avatar, imageData:new Map() });
 
-    if (state.tabContent.lobby.lobbyGame)
-      resetLobbyGames();
+      if (state.tabContent.lobby.lobbyGame)
+        resetLobbyGames();
 
-    gameClient.saveMyAvatar(avatar);
-  });
+      gameClient.saveMyAvatar(avatar);
+    })
+    .on('change:sets', ({ data:sets }) => {
+      lobbyState.sets = sets;
+    });
 
   const divSetup = lobbyState.setup.el;
   divSetup.classList.add('hide');
