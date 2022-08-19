@@ -65,7 +65,7 @@ export default class SetBuilder extends Modal {
       flip: this._els.content.querySelector('BUTTON[name=flip]'),
       share: this._els.content.querySelector('BUTTON[name=share]'),
     });
-    this._els.modal.classList.add('setBuilder');
+    this.root.classList.add('setBuilder');
     this._els.save.addEventListener('click', this._onSave.bind(this));
     this._els.clear.addEventListener('click', this._onClear.bind(this));
     this._els.reset.addEventListener('click', this._onReset.bind(this));
@@ -263,7 +263,7 @@ export default class SetBuilder extends Modal {
     return this.data.gameType;
   }
   set gameType(gameType) {
-    this._els.modal.classList.toggle('isCustomizable', gameType.isCustomizable);
+    this.root.classList.toggle('isCustomizable', gameType.isCustomizable);
     this._els.style.textContent = gameType.name;
     this.data.gameType = gameType;
 
@@ -366,8 +366,8 @@ export default class SetBuilder extends Modal {
     this._trash.alpha = 0.6;
     this._renderer.render(this._stage);
 
-    this._els.modal.classList.toggle('left', gameConfig.barPosition === 'left');
-    this._els.modal.classList.toggle('right', gameConfig.barPosition === 'right');
+    this.root.classList.toggle('left', gameConfig.barPosition === 'left');
+    this.root.classList.toggle('right', gameConfig.barPosition === 'right');
 
     return super.show(() => {
       this.drawCard();
@@ -625,9 +625,10 @@ export default class SetBuilder extends Modal {
     const stage = this._stage;
     const trash = this._trash;
 
-    this._els.modal.classList.remove(`rotation-${board.rotation}`);
+    this.root.classList.remove(`rotation-${board.rotation}`);
     board.rotate(rotation);
-    this._els.modal.classList.add(`rotation-${board.rotation}`);
+    board.sortUnits();
+    this.root.classList.add(`rotation-${board.rotation}`);
 
     if (board.rotation === 'N') {
       stage.position.set(0, 0);

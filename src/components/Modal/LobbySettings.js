@@ -43,13 +43,12 @@ export default class LobbySettings extends Modal {
 
     super(options);
 
-    this.els = {
-      modal: this.el.querySelector('.modal'),
-      audio: this.el.querySelector('.audio'),
-    };
-    this.els.modal.classList.add('lobbySettings');
+    Object.assign(this._els, {
+      audio: this.root.querySelector('.audio'),
+    });
+    this.root.classList.add('lobbySettings');
 
-    this.el.addEventListener('change', event => {
+    this.root.addEventListener('change', event => {
       switch (event.target.name) {
         case 'audio':
           this.toggleAudio();
@@ -73,7 +72,7 @@ export default class LobbySettings extends Modal {
     }, true);
 
     if (Howler.noAudio)
-      this.els.audio.style.display = 'none';
+      this._els.audio.style.display = 'none';
 
     this.restore();
     this.detectSettings();
@@ -85,7 +84,7 @@ export default class LobbySettings extends Modal {
 
   show() {
     if (Tactics.audioBroken)
-      this.els.audio.classList.add('broken');
+      this._els.audio.classList.add('broken');
 
     super.show();
   }
@@ -94,19 +93,19 @@ export default class LobbySettings extends Modal {
     const settings = this.data.settings;
 
     if (settings.audio)
-      this.el.querySelector('INPUT[name=audio][value=on]').checked = true;
+      this.root.querySelector('INPUT[name=audio][value=on]').checked = true;
     else
-      this.el.querySelector('INPUT[name=audio][value=off]').checked = true;
+      this.root.querySelector('INPUT[name=audio][value=off]').checked = true;
 
-    this.el.querySelector(`INPUT[name=barPosition][value=${settings.barPosition}]`).checked = true;
-    this.el.querySelector(`INPUT[name=createBlocking][value=${settings.createBlocking}]`).checked = true;
-    this.el.querySelector(`INPUT[name=createTimeLimit][value=${settings.createTimeLimit}]`).checked = true;
-    this.el.querySelector(`INPUT[name=set][value=${settings.set}]`).checked = true;
+    this.root.querySelector(`INPUT[name=barPosition][value=${settings.barPosition}]`).checked = true;
+    this.root.querySelector(`INPUT[name=createBlocking][value=${settings.createBlocking}]`).checked = true;
+    this.root.querySelector(`INPUT[name=createTimeLimit][value=${settings.createTimeLimit}]`).checked = true;
+    this.root.querySelector(`INPUT[name=set][value=${settings.set}]`).checked = true;
 
     if (settings.randomSide)
-      this.el.querySelector('INPUT[name=randomSide][value=on]').checked = true;
+      this.root.querySelector('INPUT[name=randomSide][value=on]').checked = true;
     else
-      this.el.querySelector('INPUT[name=randomSide][value=off]').checked = true;
+      this.root.querySelector('INPUT[name=randomSide][value=off]').checked = true;
   }
 
   toggleAudio() {

@@ -59,16 +59,15 @@ export default class GameSettings extends Modal {
 
     super(options, data);
 
-    this.els = {
-      modal: this.el.querySelector('.modal'),
-      audio: this.el.querySelector('.audio'),
-      gameSpeed: this.el.querySelector('.gameSpeed'),
-      fullscreen: this.el.querySelector('.fullscreen'),
-      barPosition: this.el.querySelector('.barPosition'),
-    };
-    this.els.modal.classList.add('gameSettings');
+    Object.assign(this._els, {
+      audio: this.root.querySelector('.audio'),
+      gameSpeed: this.root.querySelector('.gameSpeed'),
+      fullscreen: this.root.querySelector('.fullscreen'),
+      barPosition: this.root.querySelector('.barPosition'),
+    });
+    this.root.classList.add('gameSettings');
 
-    this.el.addEventListener('change', event => {
+    this.root.addEventListener('change', event => {
       switch (event.target.name) {
         case 'audio':
           this.toggleAudio();
@@ -86,9 +85,9 @@ export default class GameSettings extends Modal {
     }, true);
 
     if (Howler.noAudio)
-      this.els.audio.style.display = 'none';
+      this._els.audio.style.display = 'none';
     if (!fullscreen.isAvailable())
-      this.els.fullscreen.style.display = 'none';
+      this._els.fullscreen.style.display = 'none';
 
     this.restore();
     this.detectSettings();
@@ -99,7 +98,7 @@ export default class GameSettings extends Modal {
 
   show() {
     if (Tactics.audioBroken)
-      this.els.audio.classList.add('broken');
+      this._els.audio.classList.add('broken');
 
     super.show();
   }
@@ -109,24 +108,24 @@ export default class GameSettings extends Modal {
     const settings = this.data.settings;
 
     if (settings.audio)
-      this.el.querySelector('INPUT[name=audio][value=on]').checked = true;
+      this.root.querySelector('INPUT[name=audio][value=on]').checked = true;
     else
-      this.el.querySelector('INPUT[name=audio][value=off]').checked = true;
+      this.root.querySelector('INPUT[name=audio][value=off]').checked = true;
 
     if (settings.gameSpeed === 'auto')
-      this.el.querySelector('INPUT[name=gameSpeed][value=auto]').checked = true;
+      this.root.querySelector('INPUT[name=gameSpeed][value=auto]').checked = true;
     else
-      this.el.querySelector('INPUT[name=gameSpeed][value="2"]').checked = true;
+      this.root.querySelector('INPUT[name=gameSpeed][value="2"]').checked = true;
 
     if (settings.fullscreen)
-      this.el.querySelector('INPUT[name=fullscreen][value=on]').checked = true;
+      this.root.querySelector('INPUT[name=fullscreen][value=on]').checked = true;
     else
-      this.el.querySelector('INPUT[name=fullscreen][value=off]').checked = true;
+      this.root.querySelector('INPUT[name=fullscreen][value=off]').checked = true;
 
     if (settings.barPosition === 'left')
-      this.el.querySelector('INPUT[name=barPosition][value=left]').checked = true;
+      this.root.querySelector('INPUT[name=barPosition][value=left]').checked = true;
     else
-      this.el.querySelector('INPUT[name=barPosition][value=right]').checked = true;
+      this.root.querySelector('INPUT[name=barPosition][value=right]').checked = true;
   }
 
   toggleAudio() {

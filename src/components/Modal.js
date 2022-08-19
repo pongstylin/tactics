@@ -1,6 +1,7 @@
 import 'components/Modal.scss';
-import whenDOMReady from 'components/whenDOMReady.js';
+import Overlay from 'components/overlay.js';
 import trapFocus from 'components/trapFocus.js';
+import whenDOMReady from 'components/whenDOMReady.js';
 import emitter from 'utils/emitter.js';
 
 export default class Modal {
@@ -11,8 +12,8 @@ export default class Modal {
       whenHidden: null,
       whenClosed: null,
 
+      _overlay: null,
       _els: {
-        root: null,
         modal: null,
         title: null,
         content: null,
@@ -25,14 +26,15 @@ export default class Modal {
       this.open();
   }
 
-  get el() {
-    return this._els.root;
+  get root() {
+    return this._els.modal;
   }
+
   get isOpen() {
-    return !!this._els.root;
+    return !!this._overlay;
   }
   get isVisible() {
-    return this._els.root.classList.contains('show');
+    return this.isOpen && this._overlay.isVisible;
   }
 
   get title() {
@@ -65,42 +67,34 @@ export default class Modal {
   render() {
     const options = this.options;
 
-    const divOverlay = document.createElement('DIV');
-    divOverlay.classList.add('overlay');
-    if (options.zIndex)
-      divOverlay.style.zIndex = options.zIndex;
-    divOverlay.addEventListener('click', event => {
-      // Clicking outside the popup triggers a cancel
-      if (event.target === divOverlay)
-        return this._emitCancel(divOverlay);
+    const overlay = this._overlay = new Overlay({
+      zIndex: options.zIndex ?? 100,
+    }).on('click', event => this._emitCancel(overlay.root));
 
+    const divModal = this._els.modal = document.createElement('DIV');
+    divModal.classList.add('modal');
+    divModal.tabIndex = -1;
+    divModal.addEventListener('click', event => {
       // Clicking a cancel button triggers a cancel
       const btnCancel = event.target.closest('BUTTON[name=cancel]');
       if (btnCancel)
         this._emitCancel(btnCancel);
     });
-    this._els.root = divOverlay;
-
-    const divModal = document.createElement('DIV');
-    divModal.classList.add('modal');
-    divModal.tabIndex = -1;
-    divOverlay.appendChild(divModal);
-    this._els.modal = divModal;
+    overlay.root.appendChild(divModal);
 
     if (options.withHeader) {
-      const header = this.renderHeader();
+      const header = this._els.header = this.renderHeader();
       divModal.appendChild(header);
-      this._els.header = header;
+
       this._els.title = header.querySelector('.title');
     }
 
-    const divContent = document.createElement('DIV');
+    const divContent = this._els.content = document.createElement('DIV');
     divContent.classList.add('content');
     divContent.innerHTML = options.content;
     divModal.appendChild(divContent);
-    this._els.content = divContent;
 
-    return divOverlay;
+    return overlay.root;
   }
   renderHeader() {
     const header = document.createElement('HEADER');
@@ -125,7 +119,7 @@ export default class Modal {
   }
   renderContent(content) {
     this.options.content = content;
-    this.el.querySelector('.modal > .content').innerHTML = content;
+    this._els.content.innerHTML = content;
   }
 
   open() {
@@ -134,11 +128,11 @@ export default class Modal {
 
     this.render();
     if (this.options.appendTo) {
-      this.options.appendTo.appendChild(this.el);
+      this.options.appendTo.appendChild(this._overlay.root);
       this._emit({ type:'attach' });
     } else
       whenDOMReady.then(() => {
-        document.body.appendChild(this.el)
+        document.body.appendChild(this._overlay.root);
         this._emit({ type:'attach' });
       });
 
@@ -150,13 +144,13 @@ export default class Modal {
   }
 
   hide() {
-    this._els.root.classList.remove('show');
+    this._overlay.hide();
     this.whenHidden.resolve(this);
     this.whenHidden = null;
   }
   show(onShow) {
-    trapFocus(this._els.root);
-    this._els.root.classList.add('show');
+    trapFocus(this._els.modal);
+    this._overlay.show();
     this._els.modal.focus();
     if (onShow) onShow();
     this.whenHidden = new Promise();
@@ -193,8 +187,8 @@ export default class Modal {
   }
 
   destroy() {
-    this._els.root.remove();
-    this._els.root = null;
+    this._overlay.root.remove();
+    this._overlay = null;
   }
 }
 

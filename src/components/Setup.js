@@ -204,27 +204,26 @@ export default class Setup {
     }});
   }
   onSetSave(rotation, set) {
-    this.sets.set(set.id, set);
+    if (set.units.length)
+      this.sets.set(set.id, set);
+    else
+      this.sets.delete(set.id);
+
+    this._emit({
+      type: 'change:sets',
+      data: [ ...this.sets.values() ],
+    });
 
     const rotationHasChanged = !this.els.sets.classList.contains(`rotation-${rotation}`);
-    if (rotationHasChanged)
-      return this.onSetCancel(rotation);
-
-    const image = this._setBuilder.getImage();
-    this.els[`set${set.id.toUpperCase('first')}Label`].textContent = this.gameType.isCustomizable ? set.name : '(Not Customizable)';
-    this.els[`set${set.id.toUpperCase('first')}Image`].style.backgroundImage = `url(${image.src})`;
-  }
-  onSetCancel(rotation) {
-    const rotationHasChanged = !this.els.sets.classList.contains(`rotation-${rotation}`);
-    if (!rotationHasChanged)
-      return;
-
-    this.els.sets.classList.toggle('rotation-N', rotation === 'N');
-    this.els.sets.classList.toggle('rotation-E', rotation === 'E');
-    this.els.sets.classList.toggle('rotation-S', rotation === 'S');
-    this.els.sets.classList.toggle('rotation-W', rotation === 'W');
-    this.renderSets();
-    this.renderColorIds();
+    if (rotationHasChanged) {
+      this.els.sets.classList.toggle('rotation-N', rotation === 'N');
+      this.els.sets.classList.toggle('rotation-E', rotation === 'E');
+      this.els.sets.classList.toggle('rotation-S', rotation === 'S');
+      this.els.sets.classList.toggle('rotation-W', rotation === 'W');
+      this.renderSets();
+      this.renderColorIds();
+    } else
+      this.renderSet(set.id);
   }
   selectTeam(newTeamId) {
     const board = this._setBuilder.board;
@@ -286,12 +285,7 @@ export default class Setup {
     setBuilder.set = this.sets.get(id) ?? { id, units:[] };
     await setBuilder.show();
 
-    const rotation = setBuilder.board.rotation;
-    const newSet = setBuilder.set;
-    if (newSet.units.length === 0)
-      this.onSetCancel(rotation);
-    else
-      this.onSetSave(rotation, newSet);
+    this.onSetSave(setBuilder.board.rotation, setBuilder.set);
   }
 };
 

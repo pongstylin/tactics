@@ -15,12 +15,9 @@ export default class PlayerInfo extends Modal {
 
     super(options, data);
 
-    this.els = {
-      modal: this.el.querySelector('.modal'),
-    };
-    this.els.modal.classList.add('playerInfo');
+    this.root.classList.add('playerInfo');
 
-    this.els.modal.addEventListener('click', event => {
+    this.root.addEventListener('click', event => {
       const target = event.target;
       if (target.tagName !== 'BUTTON') return;
 
@@ -65,7 +62,7 @@ export default class PlayerInfo extends Modal {
     return gameClient.getPlayerInfo(data.game.id, data.team.playerId)
       .then(info => {
         // Just in case the modal was closed before the request completed.
-        if (!this.el) return;
+        if (!this.root) return;
 
         this.data.info = info;
         this.renderInfo();
@@ -317,7 +314,7 @@ export default class PlayerInfo extends Modal {
         icon.active = iconName === info.acl.type;
       }
     }));
-    playerACLName.appendTo(this.el.querySelector('.playerACLName'));
+    playerACLName.appendTo(this.root.querySelector('.playerACLName'));
   }
 
   rename(newName) {

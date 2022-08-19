@@ -167,6 +167,9 @@ gameClient
         renderStats('collections');
       }
     } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
+      if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
+        return;
+
       if (body.type === 'add' || body.type === 'change')
         setLobbyGame(body.data);
       else if (body.type === 'remove')
@@ -442,7 +445,7 @@ function unsetYourLobbyGame(gameSummary, skipRender = false) {
 
   if (!skipRender && state.currentTab === 'lobby')
     if (state.tabContent.lobby.selectedStyleId === styleId)
-      unsetLobbyGame(gameSummary);
+      renderLobbyGames();
 }
 function setYourGame(gameSummary) {
   const yourGames = state.tabContent.yourGames.games;
@@ -1107,14 +1110,18 @@ function renderLobby() {
   liLobby.appendChild(divContent);
 
   lobbyState.setup = new Setup();
-  lobbyState.setup.on('change:avatar', async ({ data:avatar }) => {
-    state.avatars.set(myPlayerId, { ...avatar, imageData:new Map() });
+  lobbyState.setup
+    .on('change:avatar', async ({ data:avatar }) => {
+      state.avatars.set(myPlayerId, { ...avatar, imageData:new Map() });
 
-    if (state.tabContent.lobby.lobbyGame)
-      resetLobbyGames();
+      if (state.tabContent.lobby.lobbyGame)
+        resetLobbyGames();
 
-    gameClient.saveMyAvatar(avatar);
-  });
+      gameClient.saveMyAvatar(avatar);
+    })
+    .on('change:sets', ({ data:sets }) => {
+      lobbyState.sets = sets;
+    });
 
   const divSetup = lobbyState.setup.el;
   divSetup.classList.add('hide');
@@ -1888,13 +1895,14 @@ async function renderPublicGames() {
 
 function renderGame(game) {
   const teams = game.teams;
+  const gameIsPractice = teams.filter(t => t?.playerId === myPlayerId).length === teams.length;
 
   let left = `${game.typeName}`;
   // Completed Games
   if (game.endedAt) {
     if (game.isFork)
       left += ', <SPAN>Fork</SPAN>';
-    else if (!game.rated)
+    else if (!game.rated && !gameIsPractice)
       left += ', <SPAN>Unrated</SPAN>';
     else if (game.collection?.startsWith('lobby/'))
       left += ', <SPAN>Lobby</SPAN>';
@@ -1916,7 +1924,7 @@ function renderGame(game) {
 
     if (game.isFork)
       labels.push('Fork');
-    else if (!game.rated)
+    else if (!game.rated && !gameIsPractice)
       labels.push('Unrated');
     else if (game.collection?.startsWith('lobby/'))
       labels.push('Lobby');
@@ -1954,7 +1962,7 @@ function renderGame(game) {
 
     if (game.isFork)
       labels.push('Fork');
-    else if (!game.rated)
+    else if (!game.rated && !gameIsPractice)
       labels.push('Unrated');
     else if (game.collection?.startsWith('lobby/'))
       labels.push('Lobby');
@@ -1964,7 +1972,6 @@ function renderGame(game) {
   }
 
   const gameIsEmpty = teams.filter(t => !!t?.joinedAt).length === 0;
-  const gameIsPractice = teams.filter(t => t?.playerId === myPlayerId).length === teams.length;
   let middle;
 
   if (gameIsEmpty) {
