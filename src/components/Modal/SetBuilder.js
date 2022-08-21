@@ -145,6 +145,9 @@ export default class SetBuilder extends Modal {
         this.selected = unit === board.selected ? null : unit;
       })
       .on('altSelect', ({ target:tile }) => {
+        if (!this.gameType.isCustomizable)
+          return;
+
         const unit = tile.assigned;
         if (!unit) return;
 
