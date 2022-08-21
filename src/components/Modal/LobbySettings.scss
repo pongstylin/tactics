@@ -31,9 +31,6 @@
         text-shadow: 0 0 red;
       }
     }
-    .barPosition {
-      display: none;
-    }
     .row {
       display: contents;
 
@@ -43,6 +40,9 @@
       .label, LABEL {
         white-space: nowrap;
       }
+    }
+    .barPosition {
+      display: none;
     }
   }
 }
