@@ -427,6 +427,7 @@ function send(client, message) {
 
   client.send(JSON.stringify(message), error => {
     if (error) {
+      // Example: "write EPIPE" (client is disconnecting)
       debug(`${message.type}-out: client=${client.id}; send-error=${error.message}`);
       return;
     }

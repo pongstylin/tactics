@@ -145,6 +145,9 @@ export default class SetBuilder extends Modal {
         this.selected = unit === board.selected ? null : unit;
       })
       .on('altSelect', ({ target:tile }) => {
+        if (!this.gameType.isCustomizable)
+          return;
+
         const unit = tile.assigned;
         if (!unit) return;
 
@@ -914,14 +917,15 @@ export default class SetBuilder extends Modal {
     })
       .then(() => 'complete')
       .catch(error => {
-        if (error.message === 'Share canceled' || error.message === 'Share cancelled')
+        if (typeof error === 'string')
+          return 'failed';
+        if (error.name === 'AbortError' && !error.isInternalError)
           return 'cancelled';
 
-        if (error instanceof Error)
-          report({
-            type: 'Unable to share canvas',
-            error: getErrorData(error),
-          });
+        report({
+          type: 'Unable to share canvas',
+          error: getErrorData(error),
+        });
         return 'failed';
       });
 

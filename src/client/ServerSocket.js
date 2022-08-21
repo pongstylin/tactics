@@ -376,7 +376,7 @@ export default class ServerSocket {
         throw error;
       });
   }
-  _enqueue(messageType, body, dropIfNotConnected = false) {
+  _enqueue(messageType, body) {
     const session = this._session;
     const message = {
       id: ++session.clientMessageId,
