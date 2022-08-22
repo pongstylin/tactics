@@ -1,7 +1,7 @@
 import Tile from 'tactics/Tile.js';
 import Unit from 'tactics/Unit.js';
 import unitFactory from 'tactics/unitFactory.js';
-import colorMap, { colorFilterMap } from 'tactics/colorMap.js';
+import { colorFilterMap } from 'tactics/colorMap.js';
 import emitter from 'utils/emitter.js';
 
 export const TILE_WIDTH        = 88;
@@ -70,8 +70,6 @@ export default class Board {
 
       teams: [],
       teamsUnits: [], // 2-dimensional array of the units for each team.
-
-      useLegacyColors: false,
 
       /*
        * Private properties
@@ -1128,7 +1126,7 @@ export default class Board {
   makeUnit(unitState) {
     let unit = unitFactory(unitState.type, this);
     if (unitState.colorId)
-      unit.color = this.useLegacyColors ? colorMap.get(unitState.colorId) : colorFilterMap.get(unitState.colorId);
+      unit.color = colorFilterMap.get(unitState.colorId);
     else if (unitState.color)
       unit.color = unitState.color;
     unit.direction = unit.directional === false ? 'S' : unitState.direction;
@@ -1150,7 +1148,7 @@ export default class Board {
 
     unit.team = team;
     if (unit.color === null)
-      unit.color = this.useLegacyColors ? colorMap.get(team.colorId) : colorFilterMap.get(team.colorId);
+      unit.color = colorFilterMap.get(team.colorId);
     unit.stand();
 
     this.assign(unit, unit.assignment);
