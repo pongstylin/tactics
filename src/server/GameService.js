@@ -1603,7 +1603,7 @@ export default class GameService extends Service {
   }
   _getPlayerGameIdle(playerId, game) {
     const team = game.state.teams.find(t => t.playerId === playerId);
-    const gameIdle = Math.floor((new Date() - (team.checkoutAt ?? game.state.startedAt)) / 1000);
+    const gameIdle = Math.floor((new Date() - (team.checkoutAt ?? team.joinedAt)) / 1000);
 
     const playerPara = this.playerPara.get(playerId);
     if (playerPara && playerPara.joinedGameGroups.has(game.id)) {
