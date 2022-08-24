@@ -8,12 +8,12 @@ killAll() {
 }
 
 WEBPACK='node_modules/.bin/webpack'
+NODE='node'
 
-if command -v winpty &> /dev/null; then
-  NODE='winpty node'
-else
-  NODE='node'
-fi
+# Uncomment this if you have trouble using Ctrl+C to shutdown server on windows.
+#if command -v winpty &> /dev/null; then
+#  NODE='winpty node'
+#fi
 
 STAMP=$(date "+%Y.%m.%d-%H.%M.%S")
 # Wait for the node server to terminate

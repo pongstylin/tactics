@@ -1,20 +1,3 @@
-const colorsData = [
-  0xFFFFFF,
-  0,
-  0xFF0000,
-  0,
-  0,
-  0,
-  0,
-  0xFFEE00,
-  0x88FF00,
-  0,
-  0x0088FF
-];
-
-/*
- * These are the actual color multipliers from the original game.
- */
 export const colorFilterMap = new Map([
   ['Black',  [1.00, 1.00, 1.00]],
   ['White',  [1.99, 1.99, 1.99]],
@@ -46,15 +29,3 @@ export const numifyColor = color => {
   else
     return numifyColorFilter(color);
 };
-
-// Map unit names to IDs until we get rid of the IDs.
-const colorMap = new Map();
-export default colorMap;
-
-colorMap.set('White',  colorsData[0]);
-colorMap.set('Red',    colorsData[2]);
-colorMap.set('Yellow', colorsData[7]);
-colorMap.set('Green',  colorsData[8]);
-colorMap.set('Blue',   colorsData[10]);
-
-export const reverseColorMap = new Map([...colorMap].map(kv => kv.reverse()));

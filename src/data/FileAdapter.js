@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import DebugLogger from 'debug';
 
 import config from 'config/server.js';
@@ -92,6 +92,8 @@ export default class {
     Object.assign(this, {
       debug: DebugLogger(`data:${props.name}`),
       fileTypes: new Map(),
+      hasState: false,
+      state: null,
       cache: new Map(),
       buffer: new Map(),
       queue: new Map(),
@@ -143,19 +145,54 @@ export default class {
   }
 
   async bootstrap() {
+    if (this.hasState) {
+      /*
+       * This check is for detecting a graceless shutdown.  Graceful shutdowns
+       * protect against lost data.  Without this check, we might not notice if
+       * a server did not gracefully shut down.  This might result in games not
+       * auto surrendering when they should or even become stuck - the next turn
+       * never starting.
+       *
+       * TODO: Create a script that allows us to safely recover from a graceless
+       *       shutdown.
+       */
+      try {
+        await this._createJSONFile(`${this.name}.lock`, { startupAt:new Date() });
+      } catch (error) {
+        if (error.code === 'EEXIST')
+          throw new Error('Lock file exists.  Try `npm run start-force`.');
+        throw error;
+      }
+
+      /*
+       * Do not try to bootstrap state from nothing.  This helps people migrate
+       * to state files and detect when a server isn't cleanly shut down.
+       */
+      this.state = await this._readJSONFile(this.name, {});
+
+      if (this.state === false)
+        throw new Error('');
+    }
+
     return this;
   }
 
   async cleanup() {
     const promises = [];
 
-    for (const [ fileType, fileConfig ] of this.fileTypes) {
-      for (const item of this.buffer.get(fileType).clear()) {
+    for (const [ fileType, fileConfig ] of this.fileTypes)
+      for (const item of this.buffer.get(fileType).clear())
         promises.push(this[fileConfig.saver](item));
-      }
+
+    await Promise.all(promises);
+
+    if (this.hasState) {
+      await this._putJSONFile(this.name, this.state);
+
+      await this._deleteJSONFile(`${this.name}.lock`);
     }
 
-    return Promise.all(promises);
+    return this;
   }
 
   /*
@@ -267,83 +304,99 @@ export default class {
   _createFile(name, data, transform) {
     const fqName = `${this.filesDir}/${name}.json`;
 
-    return new Promise((resolve, reject) => {
-      fs.writeFile(fqName, JSON.stringify(transform(data)), { flag:'wx' }, error => {
-        if (error) {
-          console.log('createFile', error);
-          reject(new ServerError(500, 'Create failed'));
-        } else {
-          resolve(data);
-        }
-      });
+    return fs.writeFile(fqName, JSON.stringify(transform(data)), { flag:'wx' }).catch(error => {
+      console.log('createFile', error);
+      throw new ServerError(500, 'Create failed');
     });
   }
   _getFile(name, initialValue, transform) {
     const fqName = `${this.filesDir}/${name}.json`;
 
-    return new Promise((resolve, reject) => {
-      fs.readFile(fqName, 'utf8', (error, data) => {
-        if (error)
-          reject(error);
-        else
-          resolve(transform(JSON.parse(data)));
-      });
-    }).catch(error => {
-      if (error.code === 'ENOENT') {
-        const data = transform(initialValue);
-        if (data === undefined)
-          error = new ServerError(404, 'Not found');
-        else
-          return data;
-      }
+    return fs.readFile(fqName, { encoding:'utf8' })
+      .then(data => transform(JSON.parse(data)))
+      .catch(error => {
+        if (error.code === 'ENOENT') {
+          const data = transform(initialValue);
+          if (data === undefined)
+            error = new ServerError(404, 'Not found');
+          else
+            return data;
+        }
 
-      throw error;
-    });
+        throw error;
+      });
   }
   async _putFile(name, data, transform) {
     const parts = name.split('/');
     const dirPart = parts.slice(0, -1).join('/');
     const filePart = parts.last;
-
     const fqDir = dirPart.length ? `${this.filesDir}/${dirPart}` : this.filesDir;
-    const exists = await new Promise((resolve, reject) =>
-      fs.access(fqDir, err => resolve(!err)));
-    if (!exists)
-      await new Promise((resolve, reject) =>
-        fs.mkdir(fqDir, { recursive:true }, err => err ? reject(err) : resolve()));
+
+    try {
+      await fs.access(fqDir);
+    } catch (error) {
+      await fs.mkdir(fqDir, { recursive:true });
+    }
 
     const fqNameTemp = `${fqDir}/.${filePart}.json`;
     const fqName = `${fqDir}/${filePart}.json`;
 
-    return new Promise((resolve, reject) => {
-      fs.writeFile(fqNameTemp, JSON.stringify(transform(data)), error => {
-        if (error) {
-          console.log('writeFile', error);
-          reject(new ServerError(500, 'Save failed'));
-        } else
-          resolve();
-      });
-    }).then(() => new Promise((resolve, reject) => {
-      fs.rename(fqNameTemp, fqName, error => {
-        if (error) {
-          console.log('rename', error);
-          reject(new ServerError(500, 'Save failed'));
-        } else
-          resolve();
-      });
-    }));
+    await fs.writeFile(fqNameTemp, JSON.stringify(transform(data))).catch(error => {
+      console.log('writeFile', error);
+      throw new ServerError(500, 'Save failed');
+    });
+
+    await fs.rename(fqNameTemp, fqName).catch(error => {
+      console.log('rename', error);
+      throw new ServerError(500, 'Save failed');
+    });
   }
   _deleteFile(name) {
     const fqName = `${this.filesDir}/${name}.json`;
 
-    return new Promise((resolve, reject) => {
-      fs.unlink(fqName, error => {
-        if (error) {
-          console.log('deleteFile', error);
-          reject(new ServerError(500, 'Delete failed'));
-        } else
-          resolve();
-      });
+    return fs.unlink(fqName).catch(error => {
+      console.log('deleteFile', error);
+      throw new ServerError(500, 'Delete failed');
+    });
+  }
+
+  /*
+   * These methods are for internal use for THIS class.
+   */
+  _hasJSONFile(name) {
+    return fs.stat(`${FILES_DIR}/${name}.json`).then(stats => {
+      return stats.isFile();
+    }).catch(error => {
+      if (error.code === 'ENOENT')
+        return false;
+
+      throw error;
+    });
+  }
+  _readJSONFile(name, initial) {
+    return fs.readFile(`${FILES_DIR}/${name}.json`, { encoding:'utf8' }).then(data => {
+      return serializer.parse(data);
+    }).catch(error => {
+      if (error.code === 'ENOENT' && initial !== undefined)
+        return initial;
+
+      throw error;
+    });
+  }
+  _createJSONFile(name, data) {
+    return fs.writeFile(`${FILES_DIR}/${name}.json`, serializer.stringify(data), { flag:'wx' });
+  }
+  _putJSONFile(name, data) {
+    return fs.writeFile(`${FILES_DIR}/${name}.json`, serializer.stringify(data));
+  }
+  _deleteJSONFile(name) {
+    return fs.unlink(`${FILES_DIR}/${name}.json`).then(() => {
+      return true;
+    }).catch(error => {
+      if (error.code === 'ENOENT')
+        return false;
+
+      throw error;
     });
   }
 

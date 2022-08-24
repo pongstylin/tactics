@@ -48,6 +48,9 @@ const servicesReady = Promise.all(
       serviceA[serviceName] = serviceB;
     }
   }
+}).catch(error => {
+  console.error(error);
+  process.exit(1);
 });
 
 export default services;

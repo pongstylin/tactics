@@ -1,6 +1,6 @@
 import Polygon from 'utils/Polygon.js';
 import emitter from 'utils/emitter.js';
-import { numifyColor, reverseColorMap } from 'tactics/colorMap.js';
+import { numifyColor, colorFilterMap } from 'tactics/colorMap.js';
 
 const HALF_TILE_WIDTH  = 44;
 const HALF_TILE_HEIGHT = 28;
@@ -802,22 +802,19 @@ export default class Unit {
     return this;
   }
   whiten(intensity) {
-    let name = 'whiten';
-    let matrix;
+    const name = 'whiten';
 
     if (!intensity) {
       this._setFilter(name, undefined);
-    }
-    else {
-      matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
+    } else {
+      const matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
       matrix[3] = matrix[8] = matrix[13] = intensity;
     }
 
     return this;
   }
   tint(color) {
-    let name = 'tint';
-    let matrix;
+    const name = 'tint';
 
     if (typeof color === 'number')
       color = [
@@ -828,9 +825,8 @@ export default class Unit {
 
     if (color === null || color.join() === '1,1,1') {
       this._setFilter(name, undefined);
-    }
-    else {
-      matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
+    } else {
+      const matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
       matrix[0]  = color[0];
       matrix[6]  = color[1];
       matrix[12] = color[2];
@@ -844,8 +840,7 @@ export default class Unit {
    *   this.colorize(0xFF0000, 0.5);
    */
   colorize(color, lightness) {
-    let name = 'colorize';
-    let matrix;
+    const name = 'colorize';
 
     if (typeof color === 'number')
       color = [
@@ -859,9 +854,8 @@ export default class Unit {
 
     if (color === null || lightness === 0) {
       this._setFilter(name, undefined);
-    }
-    else {
-      matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
+    } else {
+      const matrix = this._setFilter(name, 'ColorMatrixFilter').matrix;
       matrix[4]  = color[0];
       matrix[9]  = color[1];
       matrix[14] = color[2];
@@ -1909,10 +1903,11 @@ export default class Unit {
     if (this.directional !== false)
       state.direction = this.direction;
 
-    if (this.team) {
-      const colorId = reverseColorMap.get(this.color);
-      if (colorId !== this.team.colorId)
-        state.colorId = colorId;
+    if (this.team?.colorId && this.color) {
+      const teamColor = colorFilterMap.get(this.team.colorId).join();
+      const myColor = this.color.join();
+      if (myColor !== teamColor)
+        state.color = this.color;
     }
 
     const properties = [

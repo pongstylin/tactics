@@ -1200,6 +1200,9 @@ const serializer = {
     return JSON.stringify(serializer.transform(data));
   },
   normalize(serialized) {
+    if (typeof serialized !== 'object' || serialized === null)
+      return serialized;
+
     if (serialized.$type) {
       const type = classTypeMap.get(serialized.$type);
       return type.normalize(serialized.$data);

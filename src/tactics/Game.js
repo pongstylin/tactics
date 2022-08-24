@@ -12,7 +12,7 @@ import Board, {
   MOVE_TILE_COLOR,
   ATTACK_TILE_COLOR,
 } from 'tactics/Board.js';
-import colorMap from 'tactics/colorMap.js';
+import { colorFilterMap } from 'tactics/colorMap.js';
 
 export default class Game {
   /*
@@ -36,7 +36,6 @@ export default class Game {
     renderer.plugins.interaction.useSystemTicker = false;
 
     const board = new Board();
-    board.useLegacyColors = state.type === 'chaos';
     board.initCard();
     board.draw();
     board
@@ -1856,8 +1855,8 @@ export default class Game {
     }
   }
   _applyAction(action) {
-    let board = this._board;
-    let unit = action.unit;
+    const board = this._board;
+    const unit = action.unit;
 
     if (unit) {
       if (action.assignment)
@@ -1865,7 +1864,7 @@ export default class Game {
       if (action.direction)
         unit.stand(action.direction);
       if (action.colorId)
-        unit.color = colorMap.get(action.colorId);
+        unit.color = colorFilterMap.get(action.colorId);
     }
 
     this._applyChangeResults(action.results, true);

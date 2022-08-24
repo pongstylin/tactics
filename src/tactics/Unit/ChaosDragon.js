@@ -1,5 +1,5 @@
 import Unit from 'tactics/Unit.js';
-import colorMap from 'tactics/colorMap.js';
+import { colorFilterMap } from 'tactics/colorMap.js';
 
 export default class ChaosDragon extends Unit {
   constructor(data, board) {
@@ -38,11 +38,11 @@ export default class ChaosDragon extends Unit {
     return this.drawFrame(hatchFrame[0], this.direction, hatchFrame[1]);
   }
   getPhaseAction(attacker, result) {
-    let banned = this.banned.slice();
+    const banned = this.banned.slice();
     if (attacker)
       banned.push(attacker.team.id);
 
-    let board = this.board;
+    const board = this.board;
     let teamsData = board.getWinningTeams().reverse();
     let colorId = 'White';
 
@@ -53,12 +53,12 @@ export default class ChaosDragon extends Unit {
         colorId = board.teams[teamsData[0].id].colorId;
     }
 
-    if (colorMap.get(colorId) === this.color)
+    if (colorFilterMap.get(colorId).join() === this.color.join())
       return;
 
-    let phaseAction = {
-      type:    'phase',
-      unit:    this,
+    const phaseAction = {
+      type: 'phase',
+      unit: this,
       colorId: colorId,
     };
 
@@ -74,9 +74,9 @@ export default class ChaosDragon extends Unit {
     return this.animPhase(action.colorId).play();
   }
   animPhase(colorId) {
-    let old_color = this.color;
-    let new_color = colorMap.get(colorId);
-    let trim = this.getContainerByName('trim');
+    const old_color = this.color;
+    const new_color = colorFilterMap.get(colorId);
+    const trim = this.getContainerByName('trim');
     let tint;
 
     if (trim.filters)
@@ -90,10 +90,10 @@ export default class ChaosDragon extends Unit {
         script: ({ repeat_index }) => {
           repeat_index++;
 
-          let color = Tactics.utils.getColorStop(old_color, new_color, repeat_index / 12);
-          tint.matrix[0]  = (color & 0xFF0000) / 0xFF0000;
-          tint.matrix[6]  = (color & 0x00FF00) / 0x00FF00;
-          tint.matrix[12] = (color & 0x0000FF) / 0x0000FF;
+          const color = Tactics.utils.getColorFilterStop(old_color, new_color, repeat_index / 12);
+          tint.matrix[0]  = color[0];
+          tint.matrix[6]  = color[1];
+          tint.matrix[12] = color[2];
 
           this.change({ color });
         },
@@ -345,7 +345,7 @@ export default class ChaosDragon extends Unit {
     return this.mHealth !== -this.health;
   }
   getCounterAction(attacker, result) {
-    if (attacker !== this && attacker.color === this.color)
+    if (attacker !== this && attacker.color.join() === this.color.join())
       return this.getPhaseAction(attacker, result);
   }
 

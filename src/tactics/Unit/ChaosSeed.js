@@ -1,6 +1,6 @@
 import Unit from 'tactics/Unit.js';
 import { unitDataMap } from 'tactics/unitData.js';
-import colorMap from 'tactics/colorMap.js';
+import { colorFilterMap } from 'tactics/colorMap.js';
 
 export default class ChaosSeed extends Unit {
   constructor(data, board) {
@@ -30,14 +30,14 @@ export default class ChaosSeed extends Unit {
     return this;
   }
   getPhaseAction() {
-    let board = this.board;
-    let teamsData = board.getWinningTeams().reverse();
+    const board = this.board;
+    const teamsData = board.getWinningTeams().reverse();
     let colorId = 'White';
 
     if (teamsData.length > 1)
       colorId = board.teams[teamsData[0].id].colorId;
 
-    if (colorMap.get(colorId) === this.color)
+    if (colorFilterMap.get(colorId).join() === this.color.join())
       return;
 
     return {
@@ -50,9 +50,9 @@ export default class ChaosSeed extends Unit {
     return this.animPhase(action.colorId).play();
   }
   animPhase(colorId) {
-    let old_color = this.color;
-    let new_color = colorMap.get(colorId);
-    let trim = this.getContainerByName('trim');
+    const old_color = this.color;
+    const new_color = colorFilterMap.get(colorId);
+    const trim = this.getContainerByName('trim');
     let tint;
 
     if (trim.filters)
@@ -66,10 +66,10 @@ export default class ChaosSeed extends Unit {
         script: ({ repeat_index }) => {
           repeat_index++;
 
-          let color = Tactics.utils.getColorStop(old_color, new_color, repeat_index / 12);
-          tint.matrix[0]  = (color & 0xFF0000) / 0xFF0000;
-          tint.matrix[6]  = (color & 0x00FF00) / 0x00FF00;
-          tint.matrix[12] = (color & 0x0000FF) / 0x0000FF;
+          const color = Tactics.utils.getColorFilterStop(old_color, new_color, repeat_index / 12);
+          tint.matrix[0]  = color[0];
+          tint.matrix[6]  = color[1];
+          tint.matrix[12] = color[2];
 
           this.change({ color });
         },
@@ -83,11 +83,12 @@ export default class ChaosSeed extends Unit {
     if (result.miss) {
       // Blocked
       let units;
-      if (attacker.color === this.color)
+      if (attacker.color.join() === this.color.join())
         units = attacker.team.units;
       else {
+        const thisColor = this.color.join();
         units = board.teamsUnits.find((units, teamId) =>
-          teamId !== this.team.id && units.length && units[0].color === this.color
+          teamId !== this.team.id && units.length && units[0].color.join() === thisColor
         );
 
         if (!units) return;
@@ -114,7 +115,7 @@ export default class ChaosSeed extends Unit {
       if (result.changes.mHealth > -this.health) {
         // Cracked
         let units;
-        if (attacker.color === this.color) {
+        if (attacker.color.join() === this.color.join()) {
           let teamsData = board.getWinningTeams()
             // Don't count the team that just attacked.
             .filter(teamData => teamData.id !== attacker.team.id);
@@ -166,9 +167,9 @@ export default class ChaosSeed extends Unit {
     }
   }
   attack(action) {
-    let anim   = new Tactics.Animation();
+    let anim = new Tactics.Animation();
     let wind = this.sounds.wind.howl;
-    let winds  = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
+    let winds = ['wind1','wind2','wind3','wind4','wind5'].shuffle();
     let shadow = this.getContainerByName('shadow');
     let unit = this.getContainerByName('unit');
 
@@ -178,7 +179,7 @@ export default class ChaosSeed extends Unit {
           script: frame => {
             let step = frame.repeat_index + 1;
             this.brightness(1 + (step * 0.2));
-            this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
+            this.tint(Tactics.utils.getColorFilterStop([ 1, 1, 1 ], this.color, step / 12));
 
             let factor = 3;
             unit.position.y -= factor;
@@ -192,7 +193,7 @@ export default class ChaosSeed extends Unit {
             let step = 11 - frame.repeat_index;
             this.brightness(1 + (step * 0.2));
             step = 1 + frame.repeat_index;
-            this.tint(Tactics.utils.getColorStop(this.color, 0xFFFFFF, step / 12));
+            this.tint(Tactics.utils.getColorFilterStop(this.color, [ 1, 1, 1 ], step / 12));
           },
           repeat: 6,
         },
@@ -200,7 +201,7 @@ export default class ChaosSeed extends Unit {
           script: frame => {
             let step = 7 + frame.repeat_index;
             this.brightness(1 + (step * 0.2), (step - 6) * 0.6);
-            this.tint(Tactics.utils.getColorStop(this.color, 0xFFFFFF, step / 12));
+            this.tint(Tactics.utils.getColorFilterStop(this.color, [ 1, 1, 1 ], step / 12));
           },
           repeat: 6,
         }
@@ -212,7 +213,7 @@ export default class ChaosSeed extends Unit {
             let step = 11 - frame.repeat_index;
             this.brightness(1 + (step * 0.2), (step - 6) * 0.6);
             step = 1 + frame.repeat_index;
-            this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
+            this.tint(Tactics.utils.getColorFilterStop([ 1, 1, 1 ], this.color, step / 12));
           },
           repeat: 6,
         },
@@ -220,7 +221,7 @@ export default class ChaosSeed extends Unit {
           script: frame => {
             let step = 7 + frame.repeat_index;
             this.brightness(1 + (step * 0.2));
-            this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
+            this.tint(Tactics.utils.getColorFilterStop([ 1, 1, 1 ], this.color, step / 12));
           },
           repeat: 6,
         },
@@ -229,7 +230,7 @@ export default class ChaosSeed extends Unit {
             let step = 11 - frame.repeat_index;
             this.brightness(1 + (step * 0.2));
             step = frame.repeat_index + 1;
-            this.tint(Tactics.utils.getColorStop(this.color, 0xFFFFFF, step / 12));
+            this.tint(Tactics.utils.getColorFilterStop(this.color, [ 1, 1, 1 ], step / 12));
 
             let factor = 3;
             unit.position.y += factor;
@@ -263,7 +264,7 @@ export default class ChaosSeed extends Unit {
           let step = 1 + frame.repeat_index;
 
           this.brightness(1 + (step * 0.2));
-          this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
+          this.tint(Tactics.utils.getColorFilterStop([ 1, 1, 1 ], this.color, step / 12));
 
           if (step === 8) this.sounds.heal.howl.play();
         },
@@ -279,7 +280,7 @@ export default class ChaosSeed extends Unit {
           let step = 11 - frame.repeat_index;
 
           this.brightness(1 + (step * 0.2));
-          this.tint(Tactics.utils.getColorStop(0xFFFFFF, this.color, step / 12));
+          this.tint(Tactics.utils.getColorFilterStop([ 1, 1, 1 ], this.color, step / 12));
         },
         repeat: 12,
       });
@@ -375,10 +376,10 @@ export default class ChaosSeed extends Unit {
           if (repeat_index === 1) this.sounds.phase.howl.play();
           this.whiten(repeat_index / 12);
 
-          let color = Tactics.utils.getColorStop(startColor, 0xFFFFFF, repeat_index / 12);
-          tint.matrix[0]  = (color & 0xFF0000) / 0xFF0000;
-          tint.matrix[6]  = (color & 0x00FF00) / 0x00FF00;
-          tint.matrix[12] = (color & 0x0000FF) / 0x0000FF;
+          let color = Tactics.utils.getColorFilterStop(startColor, [ 1, 1, 1 ], repeat_index / 12);
+          tint.matrix[0]  = color[0];
+          tint.matrix[6]  = color[1];
+          tint.matrix[12] = color[2];
 
           this.change({ color });
         },
@@ -464,10 +465,10 @@ export default class ChaosSeed extends Unit {
           else
             trim.filters = [dragonTint = new PIXI.filters.ColorMatrixFilter()];
 
-          let color = Tactics.utils.getColorStop(0xFFFFFF, startColor, repeat_index / 12);
-          dragonTint.matrix[0]  = (color & 0xFF0000) / 0xFF0000;
-          dragonTint.matrix[6]  = (color & 0x00FF00) / 0x00FF00;
-          dragonTint.matrix[12] = (color & 0x0000FF) / 0x0000FF;
+          let color = Tactics.utils.getColorFilterStop([ 1, 1, 1 ], startColor, repeat_index / 12);
+          dragonTint.matrix[0]  = color[0];
+          dragonTint.matrix[6]  = color[1];
+          dragonTint.matrix[12] = color[2];
 
           dragon.change({ color });
         },

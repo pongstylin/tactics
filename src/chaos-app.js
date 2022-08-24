@@ -8,7 +8,7 @@ var progress;
 var pointer;
 var readySpecial;
 
-var set = {
+const set = {
   units: [
     { assignment:[4, 1], direction:'S', type:'Knight' },
     { assignment:[5, 1], direction:'S', type:'Knight' },
@@ -19,33 +19,34 @@ var set = {
  * The player team MUST be in the 3rd position.
  * This ensures that the Game object doesn't recolor teams.
  */
-var gameStateData = {
+const teamColorIds = gameConfig.teamColorIds;
+const gameStateData = {
   type: 'chaos',
   teams: [
     {
-      colorId: 'Blue',
+      colorId: teamColorIds[0],
       bot: true,
       set: set,
     },
     {
-      colorId: 'Yellow',
+      colorId: teamColorIds[1],
       bot: true,
       set: set,
     },
     {
-      colorId: 'Red',
+      colorId: teamColorIds[2],
       bot: false,
       set: set,
     },
     {
-      colorId: 'Green',
+      colorId: teamColorIds[3],
       bot: true,
       set: set,
     },
   ],
 };
 
-var buttons = {
+const buttons = {
   home: () => {
     location.href = '/';
   },
