@@ -19,6 +19,7 @@ export default class extends FileAdapter {
   constructor() {
     super({
       name: 'game',
+      hasState: true,
       fileTypes: new Map([
         [
           'game', {
@@ -53,22 +54,15 @@ export default class extends FileAdapter {
       ]),
 
       _gameTypes: null,
-      _autoSurrender: null,
 
       _dirtyGames: new Map(),
       _syncingPlayerGames: new Map(),
-
-      _willSync: new Timeout('gameSync'),
-    });
-
-    this._willSync.on('expire', async ({ data:items }) => {
-      for (const game of items.values()) {
-        game.state.sync({ type:'timeout' });
-      }
     });
   }
 
   async bootstrap() {
+    const state = (await super.bootstrap()).state;
+
     this._gameTypes = await this.getFile('game_types', data => {
       const gameTypes = new Map();
       for (const [ id, config ] of data) {
@@ -81,23 +75,29 @@ export default class extends FileAdapter {
       return gameTypes;
     });
 
-    const autoSurrender = await this.getFile(`timeout/autoSurrender`, data => {
-      if (data === undefined)
-        return {
-          timeout: new Timeout(`${this.name}AutoSurrender`),
-          shutdownAt: new Date(),
-        };
-      else
-        return serializer.normalize(data);
+    if (!state.willSync)
+      state.willSync = new Timeout(`${this.name}WillSync`);
+    state.willSync.on('expire', async ({ data:items }) => {
+      const games = await Promise.all(
+        [ ...items.keys() ].map(gameId => this._getGame(gameId)),
+      );
+      for (const game of games) {
+        if (game.state.endedAt || game.state.actions.last?.type !== 'endTurn')
+          continue;
+
+        game.state.sync({ type:'timeout' });
+      }
     });
 
-    this._autoSurrender = autoSurrender.timeout.on('expire', async ({ data:items }) => {
+    if (!state.autoSurrender)
+      state.autoSurrender = new Timeout(`${this.name}AutoSurrender`);
+    state.autoSurrender.on('expire', async ({ data:items }) => {
       const games = await Promise.all(
-        [ ...items.values() ].map(({ id:gameId }) => this._getGame(gameId)),
+        [ ...items.keys() ].map(gameId => this._getGame(gameId)),
       );
       for (const game of games) {
         // Just in case they finished their turn at the very last moment.
-        if (game.state.getTurnTimeRemaining() > 0)
+        if (game.state.endedAt || game.state.getTurnTimeRemaining() > 0)
           continue;
 
         if (game.state.actions.length === 0)
@@ -113,32 +113,39 @@ export default class extends FileAdapter {
       }
     });
 
-    /*
-     * If the server was shut down for more than 30 seconds, end real-time
-     * games in a truce.
-     */
-    if (Date.now() - autoSurrender.shutdownAt > 30000) {
-      autoSurrender.timeout.pause();
+    if (state.shutdownAt) {
+      /*
+       * If the server was shut down for more than 30 seconds, end real-time
+       * games in a truce.
+       */
+      if (Date.now() - state.shutdownAt > 30000) {
+        state.autoSurrender.pause();
 
-      const games = await Promise.all(
-        autoSurrender.timeout.values()
-          .filter(({ turnTimeBuffer }) => !!turnTimeBuffer)
-          .map(({ id:gameId }) => this._getGame(gameId)),
-      );
+        const games = await Promise.all(
+          state.autoSurrender.values()
+            .filter(({ turnTimeBuffer }) => !!turnTimeBuffer)
+            .map(({ id:gameId }) => this._getGame(gameId)),
+        );
 
-      for (const game of games) {
-        game.state.end('truce');
-        game.emit('change:cleanup');
+        for (const game of games) {
+          game.state.end('truce');
+          game.emit('change:cleanup');
+        }
+
+        state.autoSurrender.resume();
       }
 
-      autoSurrender.timeout.resume();
+      delete state.shutdownAt;
     }
 
-    return super.bootstrap();
+    return this;
   }
 
   async cleanup() {
-    const autoSurrender = this._autoSurrender.pause();
+    const state = this.state;
+    const autoSurrender = state.autoSurrender.pause();
+    state.willSync.pause();
+    state.shutdownAt = new Date();
 
     /*
      * In the hopes that the server will restart quickly, set team turn time
@@ -156,13 +163,6 @@ export default class extends FileAdapter {
       }
       game.emit('change:cleanup');
     }
-
-    await this.putFile(`timeout/autoSurrender`, () =>
-      serializer.transform({
-        timeout: this._autoSurrender,
-        shutdownAt: new Date(),
-      })
-    );
 
     return super.cleanup();
   }
@@ -413,10 +413,10 @@ export default class extends FileAdapter {
       game.state.once('endGame', event => this._recordGameStats(game));
   }
   _onGameWillSync(game, expireIn) {
-    this._willSync.add(game.id, game, expireIn);
+    this.state.willSync.add(game.id, game.id, expireIn);
   }
   _onGameSync(game) {
-    this._willSync.delete(game.id);
+    this.state.willSync.delete(game.id);
   }
   _onGameChange(game) {
     if (!this.buffer.get('game').has(game.id))
@@ -603,10 +603,9 @@ export default class extends FileAdapter {
       return;
 
     if (game.state.endedAt)
-      this._autoSurrender.delete(game.id);
+      this.state.autoSurrender.delete(game.id);
     else
-      this._autoSurrender.add(game.id, {
-        id: game.id,
+      this.state.autoSurrender.add(game.id, {
         turnTimeBuffer: game.state.turnTimeBuffer,
       }, game.state.getTurnTimeRemaining());
   }
