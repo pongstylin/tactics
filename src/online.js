@@ -404,19 +404,7 @@ function setYourLobbyGame(gameSummary, skipRender = false) {
       location.href = `/game.html?${gameSummary.id}`;
     });
     newGame.play();
-    return;
-  }
-
-  const yourContent = state.tabContent.yourGames;
-  const lobbyContent = state.tabContent.lobby;
-  const lobbyGame = yourContent.lobbyGame;
-  const styleId = gameSummary.collection.slice(6);
-  yourContent.lobbyGame = gameSummary;
-
-  if (!skipRender && state.currentTab === 'lobby' && lobbyContent.selectedStyleId === styleId)
-    renderLobbyGames();
-
-  if (!lobbyGame && gameSummary.startedAt)
+  } else if (!state.activeGameId && gameSummary.startedAt)
     popup({
       message: 'You have an active lobby game!',
       buttons: [
@@ -429,6 +417,13 @@ function setYourLobbyGame(gameSummary, skipRender = false) {
         },
       ],
     });
+
+  state.tabContent.yourGames.lobbyGame = gameSummary;
+
+  const lobbyContent = state.tabContent.lobby;
+  const styleId = gameSummary.collection.slice(6);
+  if (!skipRender && state.currentTab === 'lobby' && lobbyContent.selectedStyleId === styleId)
+    renderLobbyGames();
 }
 function unsetYourLobbyGame(gameSummary, skipRender = false) {
   const lobbyGame = state.tabContent.yourGames.lobbyGame;
