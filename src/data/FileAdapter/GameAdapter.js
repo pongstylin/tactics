@@ -606,6 +606,7 @@ export default class extends FileAdapter {
       this.state.autoSurrender.delete(game.id);
     else
       this.state.autoSurrender.add(game.id, {
+        id: game.id,
         turnTimeBuffer: game.state.turnTimeBuffer,
       }, game.state.getTurnTimeRemaining());
   }
