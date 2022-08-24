@@ -315,10 +315,7 @@ window.Tactics = (function () {
         let unit;
         if (avatar instanceof Unit)
           unit = avatar;
-        else if (Tactics.game) {
-          unit = unitFactory(avatar.unitType, Tactics.game.board);
-          unit.color = colorFilterMap.get(avatar.colorId);
-        } else {
+        else if (AnimatedSprite.has('avatars')) {
           if (!this._avatars.renderer) {
             this._avatars.board = new Board().draw();
             this._avatars.renderer = new PIXI.Renderer();
@@ -335,7 +332,11 @@ window.Tactics = (function () {
           unit.shadowSprite = `${superSpriteName}Shadow`;
 
           options.renderer = this._avatars.renderer;
-        }
+        } else if (Tactics.game) {
+          unit = unitFactory(avatar.unitType, Tactics.game.board);
+          unit.color = colorFilterMap.get(avatar.colorId);
+        } else
+          throw new Error('Unable to render avatar');
 
         cache.set(cacheKey, unit.drawAvatar(options));
       }
