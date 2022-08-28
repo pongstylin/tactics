@@ -418,12 +418,12 @@ function setYourLobbyGame(gameSummary, skipRender = false) {
       ],
     });
 
+  const styleId = gameSummary.collection.slice(6);
   state.tabContent.yourGames.lobbyGame = gameSummary;
 
-  const lobbyContent = state.tabContent.lobby;
-  const styleId = gameSummary.collection.slice(6);
-  if (!skipRender && state.currentTab === 'lobby' && lobbyContent.selectedStyleId === styleId)
-    renderLobbyGames();
+  if (!skipRender && state.currentTab === 'lobby')
+    if (state.tabContent.lobby.selectedStyleId === styleId)
+      renderLobbyGames();
 }
 function unsetYourLobbyGame(gameSummary, skipRender = false) {
   const lobbyGame = state.tabContent.yourGames.lobbyGame;
@@ -1491,6 +1491,11 @@ async function renderLobbyGames() {
   const tabContent = state.tabContent.lobby;
   const arenas = [];
 
+  // Just in case the lobby games haven't loaded yet
+  // ... possible if "myGames" was joined first and a lobby game has changed
+  if (!tabContent.games)
+    return;
+
   if (!tabContent.selectedStyleId) {
     const lobbyGame = state.tabContent.yourGames.lobbyGame;
     if (lobbyGame)
@@ -1837,7 +1842,7 @@ function renderYourGames() {
   tabContent.renderTimeout = setTimeout(renderYourGames, 30000);
 }
 
-async function renderPublicGames() {
+function renderPublicGames() {
   const tabContent = state.tabContent.publicGames;
   const divTabContent = document.querySelector('.tabContent .publicGames');
   divTabContent.innerHTML = '';
@@ -2106,11 +2111,8 @@ async function syncTab() {
     }
 
     if (state.currentTab === 'lobby') {
-      renderLobbyGames();
+      await renderLobbyGames();
 
-      // Check for a running state directly in case the state property
-      // hasn't updated yet.
-      await sleep();
       if (Howler.ctx.state === 'running' || state.audioEnabled)
         showLobby();
       else
