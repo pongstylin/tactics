@@ -253,14 +253,18 @@ async function startGame() {
   $(window).trigger('resize');
 
   game
+    .on('state-change', event => {
+      $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
+      toggleUndoButton();
+    })
     .on('selectMode-change', event => {
-      let panzoom     = game.panzoom;
-      let old_mode    = event.ovalue;
-      let new_mode    = event.nvalue;
-      let can_move    = game.canSelectMove();
-      let can_attack  = game.canSelectAttack();
-      let can_special = game.canSelectSpecial();
-      let can_undo    = game.canUndo();
+      const panzoom     = game.panzoom;
+      const old_mode    = event.ovalue;
+      const new_mode    = event.nvalue;
+      const can_move    = game.canSelectMove();
+      const can_attack  = game.canSelectAttack();
+      const can_turn    = game.canSelectTurn();
+      const can_special = game.canSelectSpecial();
 
       $('BUTTON[name=select]').removeClass('selected');
       $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
@@ -277,12 +281,12 @@ async function startGame() {
 
       $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
       $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
-      $('BUTTON[name=undo]').prop('disabled', !can_undo);
+      $('BUTTON[name=select][value=turn]').prop('disabled', !can_turn);
 
       if (new_mode === 'attack' && can_special)
-        $('BUTton[name=select][value=attack]').addClass('ready');
+        $('BUTTON[name=select][value=attack]').addClass('ready');
       else
-        $('BUTton[name=select][value=attack]').removeClass('ready');
+        $('BUTTON[name=select][value=attack]').removeClass('ready');
 
       if (new_mode === 'turn' && panzoom.canZoom() && game.selected && !game.viewed)
         $('BUTTON[name=select][value=turn]').addClass('ready');
@@ -323,4 +327,9 @@ async function startGame() {
   $('#app').addClass('show');
 
   game.play(-1);
+}
+
+function toggleUndoButton() {
+  const canUndo = game.canUndo();
+  $('BUTTON[name=undo]').prop('disabled', !canUndo);
 }
