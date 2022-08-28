@@ -1236,7 +1236,7 @@ function renderFloors() {
       avatars.getSound('select').howl.play();
 
       selectStyle(styleId);
-      const divArenaList = Array.from(document.querySelectorAll('.arenas .arena'));
+      const divArenaList = Array.from(document.querySelectorAll('.arenas .arena:not(.hide)'));
       await Promise.all(divArenaList.map(d =>
         queueFillArena(d, tabContent.selectedGroupId === 'lobby'))
       );
