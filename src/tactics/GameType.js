@@ -31,7 +31,23 @@ export default class GameType {
       return [...new Set(config.sets[0].units.map(u => u.type))];
   }
   getDefaultSet() {
-    return this.applySetUnitState(this.config.sets[0]);
+    const set = this.config.sets.random().clone();
+    set.id = 'default';
+    set.name ??= 'Default';
+
+    if (!this.hasFixedPositions && Math.random() < 0.5) {
+      for (const unit of set.units) {
+        if (unit.assignment[0] !== 5)
+          unit.assignment[0] = 10 - unit.assignment[0];
+
+        if (unit.direction === 'W')
+          unit.direction = 'E';
+        else if (unit.direction === 'E')
+          unit.direction = 'W';
+      }
+    }
+
+    return this.applySetUnitState(set);
   }
   getPoints() {
     return this.config.limits.points;

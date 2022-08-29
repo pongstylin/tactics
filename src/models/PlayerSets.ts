@@ -44,16 +44,26 @@ export default class PlayerSets extends ActiveModel {
     return list;
   }
   get(gameType, setId) {
+    if (!setsById.has(setId))
+      throw new ServerError(400, 'Unrecognized or missing set id');
+    if (!gameType.isCustomizable) {
+      if (setId !== 'default')
+        throw new ServerError(400, 'Only the default set is available for this game type.');
+      return gameType.getDefaultSet();
+    }
+
     const set = this.data.sets.find(s => s.type === gameType.id && s.id === setId);
     if (set) return gameType.applySetUnitState(set);
 
     if (setId === 'default')
-      return gameType.getDefaultSet();
+      return this.set(gameType, gameType.getDefaultSet());
     return null;
   }
   set(gameType, set) {
     if (!setsById.has(set.id))
       throw new ServerError(400, 'Unrecognized or missing set id');
+    if (!gameType.isCustomizable)
+      throw new ServerError(400, 'May not create sets for this game type.');
 
     gameType.validateSet(set);
 
@@ -68,6 +78,8 @@ export default class PlayerSets extends ActiveModel {
       this.data.sets[index] = set;
 
     this.emit('change:set');
+
+    return set;
   }
   unset(gameType, setId) {
     const index = this.data.sets.findIndex(s => s.type === gameType.id && s.id === setId);
@@ -76,9 +88,7 @@ export default class PlayerSets extends ActiveModel {
       this.emit('change:unset');
     }
 
-    if (setId === 'default')
-      return gameType.getDefaultSet();
-    return null;
+    return this.get(gameType, setId);
   }
 };
 
