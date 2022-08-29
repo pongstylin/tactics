@@ -179,10 +179,6 @@ window.addEventListener('DOMContentLoaded', () => {
           until the game ends.  Also, if your time runs out, you will surrender
           automatically.</LI>
 
-          <LI><B>Unrated</B> games are for friendly matches that won't affect
-          your stats.  These are great for training games since you may use undo
-          freely and in full view of your opponent.</LI>
-
           <LI><B>Practice</B> games are played against yourself or someone
           sharing your screen.  If possible, you are given the opportunity to
           choose what set you wish to play against.</LI>
@@ -220,12 +216,34 @@ window.addEventListener('DOMContentLoaded', () => {
       maxWidth: '500px',
     });
   });
+  document.querySelector('.fa.fa-info.rated').addEventListener('click', event => {
+    popup({
+      title: 'To Be Rated, or Not To Be',
+      message: `<P>Yes there are stats, but not like those in the original game.
+        You can see how many times you have won, lost, or drawn against somebody
+        by tapping their name in an active or completed game.  But, it only
+        counts rated games.  It does not count unrated or fork games.</P>
+        <P>In rated games, your opponent cannot see what you do until you are no
+        longer able to undo without approval.  You can undo without approval if
+        the undo button is enabled and white (not red).  Observers also can't
+        see the last 2 turns to make it harder for them to assist.</P>
+        <P>Unrated (and fork) games are similar to practice games in that you
+        may undo previous turns or even after the game ends, but only with your
+        opponent's approval.  Opponents and observers see everything.</P>`,
+      maxWidth: '500px',
+    });
+  });
 
   document.querySelectorAll('INPUT[name=vs]').forEach(vsRadio => {
     vsRadio.addEventListener('change', event => {
       document.querySelectorAll('INPUT[name=turnLimit]').forEach(turnLimitRadio => {
         turnLimitRadio.disabled = vsRadio.value === 'you';
       });
+      document.querySelectorAll('INPUT[name=rated]').forEach(ratedRadio => {
+        ratedRadio.disabled = vsRadio.value === 'you';
+      });
+      if (vsRadio.value === 'you')
+        document.querySelector('INPUT[name=rated][value=false]').checked = true;
 
       if (vsRadio.value === 'you')
         btnCreate.textContent = 'Start Playing';
@@ -251,10 +269,12 @@ window.addEventListener('DOMContentLoaded', () => {
     const turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
     const turnLimit = document.querySelector('INPUT[name=turnLimit]:checked').value;
     const randomHitChance = document.querySelector('INPUT[name=randomHitChance]:checked').value;
+    const rated = document.querySelector('INPUT[name=rated]:checked').value;
     const gameOptions = {
       randomFirstTurn: turnOrder === 'random',
       collection: vs === 'public' ? 'public' : undefined,
       randomHitChance: randomHitChance === 'true',
+      rated: rated === 'true',
       teams: [ null, null ],
     };
 
@@ -268,9 +288,6 @@ window.addEventListener('DOMContentLoaded', () => {
       gameOptions.turnTimeLimit = isNaN(turnLimit) ? turnLimit : parseInt(turnLimit);
       if (!state.gameType.hasFixedPositions)
         youTeam.randomSide = gameConfig.randomSide;
-
-      if (vs !== 'unrated')
-        gameOptions.rated = true;
     }
     if (vs === 'tournament')
       gameOptions.strictUndo = gameOptions.strictFork = gameOptions.autoSurrender = true;

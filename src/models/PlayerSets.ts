@@ -43,9 +43,6 @@ export default class PlayerSets extends ActiveModel {
 
     return list;
   }
-  hasCustom(gameTypeId, setId) {
-    return this.data.sets.findIndex(s => s.type === gameTypeId && s.id === setId) > -1;
-  }
   get(gameType, setId) {
     const set = this.data.sets.find(s => s.type === gameType.id && s.id === setId);
     if (set) return gameType.applySetUnitState(set);

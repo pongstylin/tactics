@@ -75,8 +75,9 @@ export default {
                 },
                 schema: {
                   randomFirstTurn: 'const(true)',
-                  strictUndo: 'const(true)',
+                  strictUndo: 'const(false)',
                   autoSurrender: 'const(true)',
+                  rated: 'const(true)',
                   turnTimeLimit: `enum([ 'blitz', 'standard' ])`,
                 },
               },

@@ -1006,11 +1006,15 @@ async function showPublicIntro(gameData) {
   renderShareLink(gameData, document.querySelector('#public .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#public .cancelButton'));
 
-  let $greeting = $('#public .greeting');
-  let myTeam = gameData.state.teams.find(t => t?.playerId === authClient.playerId);
+  const rated = gameData.state.rated ? 'rated' : 'unrated';
+  const vs = gameData.collection === 'public' ? 'Public' : 'Lobby';
+  const $greeting = $('#public .greeting');
+  const $subText = $greeting.next();
+  const myTeam = gameData.state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
+  $subText.text($subText.text().replace('{vs}', `${rated} ${vs}`));
 
-  let transport = await loadTransport(gameData.id);
+  const transport = await loadTransport(gameData.id);
 
   progress.hide();
   $('#public').show();
@@ -1024,17 +1028,16 @@ async function showPrivateIntro(gameData) {
   renderShareLink(gameData, document.querySelector('#private .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
-  const vs =
-    gameData.state.strictUndo && gameData.state.strictFork && gameData.state.autoSurrender ? 'Tournament' :
-    gameData.state.rated ? 'Private' : 'Unrated';
-
-  let $greeting = $('#private .greeting');
-  let $subText = $greeting.next();
-  let myTeam = gameData.state.teams.find(t => t?.playerId === authClient.playerId);
+  const state = gameData.state;
+  const rated = state.rated ? 'rated' : 'unrated';
+  const vs = state.strictUndo && state.strictFork && state.autoSurrender ? 'Tournament' : 'Private';
+  const $greeting = $('#private .greeting');
+  const $subText = $greeting.next();
+  const myTeam = state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
-  $subText.text($subText.text().replace('{vs}', vs));
+  $subText.text($subText.text().replace('{vs}', `${rated} ${vs}`));
 
-  let transport = await loadTransport(gameData.id);
+  const transport = await loadTransport(gameData.id);
 
   progress.hide();
   $('#private').show();
@@ -1166,9 +1169,10 @@ async function showPracticeIntro(gameData) {
 
   const $mySet = $('#practice INPUT[name=setChoice][value=mySet]');
   const $practice = $('#practice INPUT[name=setChoice][value=practice]');
-  const $same = $('#practice INPUT[name=setChoice][value=same]');
   const $sets = $('#practice .mySet SELECT');
   const sets = await gameClient.getPlayerSets(gameType.id);
+
+  $mySet.prop('checked', true);
 
   if (sets.length > 1) {
     $sets.on('change', () => $mySet.prop('checked', true));
@@ -1225,7 +1229,7 @@ async function showPracticeIntro(gameData) {
         .closest('LABEL').removeClass('disabled');
     else {
       if ($practice.is(':checked'))
-        $same.prop('checked', true);
+        $mySet.prop('checked', true);
 
       $practice
         .prop('disabled', true)
@@ -1466,8 +1470,6 @@ async function showJoinIntro(gameData) {
       vs = 'a Lobby';
     else if (gameData.state.strictUndo && gameData.state.strictFork && gameData.state.autoSurrender)
       vs = 'a Tournament';
-    else if (!gameData.state.rated)
-      vs = 'an Unrated';
     else
       vs = 'a Private';
 
@@ -1495,6 +1497,7 @@ async function showJoinIntro(gameData) {
       person = creatorTeam.name;
 
     const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
+    const rated = gameData.state.rated ? 'rated' : 'unrated';
 
     details.innerHTML = `
       <DIV>This is ${vs} game.</DIV>
@@ -1502,32 +1505,27 @@ async function showJoinIntro(gameData) {
       <DIV>The turn time limit is set to ${turnLimit}.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
       <DIV>The blocking system is ${blocking}.</DIV>
+      <DIV>The game is ${rated}.</DIV>
     `;
 
+    const $mySet = $('#join INPUT[name=setChoice][value=mySet]');
     const $sets = $('#join .mySet SELECT');
+
+    $mySet.prop('checked', true);
 
     if (gameType.isCustomizable) {
       $('#join .set').show();
       $('#join .mirror').toggle(!gameType.hasFixedPositions);
 
-      const $mySet = $('#join INPUT[name=setChoice][value=mySet]');
       const $editSet = $('#join .set A');
-      const $same = $('#join INPUT[name=setChoice][value=same]');
       let sets;
 
       if (authClient.token) {
         sets = await gameClient.getPlayerSets(gameType.id);
 
-        if (sets.length === 1) {
-          const hasCustomSet = await gameClient.hasCustomPlayerSet(gameType.id, 'default');
-          if (hasCustomSet)
-            $mySet.prop('checked', true);
-          else
-            $same.prop('checked', true);
-
+        if (sets.length === 1)
           $('#join .mySet > div:nth-child(2)').hide();
-        } else {
-          $mySet.prop('checked', true);
+        else {
           $sets.on('change', () => {
             $mySet.prop('checked', true);
             $editSet.toggle($sets.val() !== 'random');
@@ -1548,10 +1546,8 @@ async function showJoinIntro(gameData) {
             $editSet.hide();
           }
         }
-      } else {
-        $same.prop('checked', true);
+      } else
         $('#join .mySet > div:nth-child(2)').hide();
-      }
 
       $editSet.on('click', async () => {
         $('#join').hide();
@@ -1591,6 +1587,9 @@ async function showJoinIntro(gameData) {
         $('#join').show();
       });
     }
+
+    if (gameData.state.rated)
+      $('#join .mirror, #join .same').hide();
 
     return new Promise((resolve, reject) => {
       btnJoin.addEventListener('click', async event => {

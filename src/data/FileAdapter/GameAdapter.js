@@ -271,10 +271,6 @@ export default class extends FileAdapter {
     const playerSets = await this._getPlayerSets(playerId);
     return playerSets.list(gameType);
   }
-  async hasCustomPlayerSet(playerId, gameTypeId, setId) {
-    const playerSets = await this._getPlayerSets(playerId);
-    return playerSets.hasCustom(gameTypeId, setId);
-  }
   /*
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.

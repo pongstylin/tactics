@@ -961,7 +961,7 @@ export default class GameState {
         return rated ? pointer || null : pointer;
 
       // Preserve a turn if the time has run out.
-      if (this.rated && this.getTurnTimeRemaining(turnId) === 0)
+      if (rated && this.getTurnTimeRemaining(turnId) === 0)
         return pointer;
 
       const selectedUnitId = actions[0].unit;
