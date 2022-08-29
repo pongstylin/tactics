@@ -48,13 +48,13 @@ The HTML files in the `static` directory can serve as an example of how to publi
 $ npm run dist
 ```
 
-Be aware that no license currently exists for distributing this game as-is for public use since rights have not been acquired for the image and audio resources used by it.  It is probably safe to use them, however, during development of this project or a fork of it.  You are also encouraged to create your own image and audio resources and integrate them with this source code and publish the work for public use.
+Be aware that no license currently exists for distributing this game as-is for public use since rights have not been acquired for the image and audio resources used by it.  It is probably safe to use them, however, during development of this project or a fork of it.  You are also encouraged to create your own image and audio resources and integrate them with this source code.
 
 ## License
 All content under the `src` directory fall under the following license:
 [Unlicense](https://choosealicense.com/licenses/unlicense/)
 
-No license is available for audio and iamges resources contained in JSON files downloaded from the tactics.taorankings.com site ([No License](https://choosealicense.com/no-permission/)).
+No license is available for audio and images resources contained in JSON files downloaded from the tactics.taorankings.com site ([No License](https://choosealicense.com/no-permission/)).
 
 ## Credits
 [<img src="https://user-images.githubusercontent.com/8408196/68429603-675de280-017c-11ea-9dba-a736d34dace3.png" alt="Browser Stack Logo" width="200">](https://www.browserstack.com/)
