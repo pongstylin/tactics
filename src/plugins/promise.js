@@ -92,11 +92,17 @@ if (!self.Promise.isEnhanced) {
   }
 
   const enhancedFetch = function (resource, init) {
-    return EnhancedPromise.wrap(nativeFetch(resource, init), {
-      resource,
-      init,
-      online: navigator.onLine,
-    });
+    return EnhancedPromise.wrap(
+      nativeFetch(resource, init).catch(error => {
+        error.fileName = resource.toString();
+        throw error;
+      }),
+      {
+        resource,
+        init,
+        online: navigator.onLine,
+      },
+    );
   };
 
   self.NativePromise = NativePromise;

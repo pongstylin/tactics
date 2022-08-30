@@ -449,12 +449,19 @@ export default class Game {
   get isFork() {
     return !!this.state.forkOf;
   }
+  get isPracticeGame() {
+    if (this.playerId === null) return false;
+
+    const myTeams = this.state.teams.filter(t => t.playerId === this.playerId);
+
+    return myTeams.length === this.state.teams.length;
+  }
   get ofPracticeGame() {
     if (!this.state.forkOf) return false;
 
-    const playerIds = new Set(this.state.teams.map(t => t.forkOf.playerId));
+    const myTeams = this.state.teams.filter(t => t.forkOf.playerId === this.playerId);
 
-    return playerIds.size === 1;
+    return myTeams.length === this.state.teams.length;
   }
 
   get turnId() {

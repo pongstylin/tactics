@@ -921,6 +921,8 @@ export default class SetBuilder extends Modal {
           return 'failed';
         if (error.name === 'AbortError' && !error.isInternalError)
           return 'cancelled';
+        if (error.name === 'ShareTimeout')
+          return 'cancelled';
 
         report({
           type: 'Unable to share canvas',

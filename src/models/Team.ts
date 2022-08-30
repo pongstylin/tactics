@@ -162,6 +162,8 @@ export default class Team {
       const firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt)[0];
 
       if (data.set === 'same') {
+        if (game.state.rated)
+          throw new ServerError(403, `May not use same set for rated games.`);
         if (game.state.teams.length !== 2)
           throw new ServerError(403, `May only use the 'same' set option for 2-player games`);
         if (!firstTeam || firstTeam.slot === data.slot)
@@ -170,6 +172,8 @@ export default class Team {
         if (!gameType.isCustomizable)
           data.set = null;
       } else if (data.set === 'mirror') {
+        if (game.state.rated)
+          throw new ServerError(403, `May not use mirror set for rated games.`);
         if (game.state.teams.length !== 2)
           throw new ServerError(403, `May only use the 'mirror' set option for 2-player games`);
         if (!firstTeam || firstTeam.slot === data.slot)

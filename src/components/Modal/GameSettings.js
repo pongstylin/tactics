@@ -7,15 +7,32 @@ import fullscreen from 'components/fullscreen.js';
 export default class GameSettings extends Modal {
   constructor(data, options = {}) {
     const forkOf = data.game.state.forkOf;
-    let fork = '';
+    let identity;
     if (forkOf) {
       const of = game.ofPracticeGame ? 'practice game' : 'game';
 
-      fork = `
-        <DIV class="fork">
-          This game is a fork of <A href="/game.html?${forkOf.gameId}#c=${forkOf.turnId},0" target="_blank">that ${of}</A>.
-        </DIV>
+      identity = `
+        This game is a fork of <A href="/game.html?${forkOf.gameId}#c=${forkOf.turnId},0" target="_blank">that ${of}</A>.
       `;
+    } else if (data.game.isBotGame) {
+      identity = `This is an AI challenge.`;
+    } else if (data.game.isPracticeGame) {
+      identity = `This is a practice game.`;
+    } else if (data.game.isLocalGame) {
+      identity = `This is a local game.`;
+    } else {
+      const rated = data.game.state.rated ? 'a rated' : 'an unrated';
+      let vs;
+      if (data.game.collection === 'public')
+        vs = 'Public';
+      else if (data.game.collection)
+        vs = 'Lobby';
+      else if (data.game.state.strictUndo && data.game.state.strictFork && data.game.state.autoSurrender)
+        vs = 'Tournament';
+      else
+        vs = 'Private';
+
+      identity = `This is ${rated} ${vs} game.`;
     }
 
     const timeLimit = data.game.state.turnTimeLimit;
@@ -27,11 +44,13 @@ export default class GameSettings extends Modal {
 
     options.title = 'Game Settings';
     options.content = `
-      ${fork}
+      <DIV class="identity">
+        ${identity}
+      </DIV>
       <DIV class="info">
         <DIV>Game Style: ${data.gameType.name}</DIV>
-        <DIV>Blocking System: ${data.game.state.randomHitChance ? 'Random (Luck)' : 'Predictable (No Luck)'}</DIV>
         <DIV>Turn Time Limit: ${timeLimitLabel}</DIV>
+        <DIV>Blocking System: ${data.game.state.randomHitChance ? 'Random (Luck)' : 'Predictable (No Luck)'}</DIV>
       </DIV>
       <DIV class="settings">
         <DIV class="row audio">

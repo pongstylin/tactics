@@ -73,7 +73,6 @@ export default class GameService extends Service {
         searchMyGames: [ 'any' ],
 
         getPlayerSets: [ 'string' ],
-        hasCustomPlayerSet: [ 'string', 'string' ],
         getPlayerSet: [ 'string', 'string' ],
         savePlayerSet: [ 'string', 'game:set' ],
         deletePlayerSet: [ 'string', 'string' ],
@@ -428,9 +427,6 @@ export default class GameService extends Service {
     if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
       throw new ServerError(400, 'You must join games that you create');
 
-    if (!gameOptions.rated && gameOptions.strictUndo)
-      throw new ServerError(400, 'Strict undo may only be enabled in rated games');
-
     const isMultiplayer = gameOptions.teams.findIndex(t => t?.playerId !== playerId) > -1;
     if (gameOptions.rated && !isMultiplayer)
       throw new ServerError(400, 'Practice games can\'t be rated');
@@ -629,11 +625,6 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
 
     return this.data.getPlayerSets(clientPara.playerId, gameTypeId);
-  }
-  async onHasCustomPlayerSetRequest(client, gameTypeId, setId) {
-    const clientPara = this.clientPara.get(client.id);
-
-    return this.data.hasCustomPlayerSet(clientPara.playerId, gameTypeId, setId);
   }
   async onGetPlayerSetRequest(client, gameTypeId, setId) {
     const clientPara = this.clientPara.get(client.id);

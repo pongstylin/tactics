@@ -155,14 +155,6 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  hasCustomPlayerSet(gameTypeId, setId) {
-    return this._server.requestAuthorized(this.name, 'hasCustomPlayerSet', [ gameTypeId, setId ])
-      .catch(error => {
-        if (error === 'Connection reset')
-          return this.hasCustomPlayerSet(gameTypeId, setId);
-        throw error;
-      });
-  }
   getPlayerSet(gameTypeId, setId) {
     return this._server.requestAuthorized(this.name, 'getPlayerSet', [ gameTypeId, setId ])
       .catch(error => {

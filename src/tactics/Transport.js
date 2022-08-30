@@ -321,7 +321,7 @@ export default class Transport {
     // If a rated game, indicate when we will no longer be able to freely undo
     const turnStartedAt = this._data.state.turnStartedAt;
     const actions = this._data.state.actions;
-    if (this.rated && (this.strictUndo || actions.last?.type === 'endTurn')) {
+    if (this.strictUndo || (this.rated && actions.last?.type === 'endTurn')) {
       const actionTimeout = Math.max(0, 5000 - (this.now - (actions.last?.createdAt ?? turnStartedAt)));
       const turnTimeout = this.getTurnTimeRemaining();
 
