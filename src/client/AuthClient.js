@@ -56,17 +56,19 @@ export default class AuthClient extends Client {
     return this.whenReady.then(() => {
       let token = this.token;
       if (token)
-        return this.saveProfile({ name:newName });
-
-      return this.register({ name:newName });
-    });
-  }
+{        return this.saveProfile({ name:newName });
+    }
+    })}
 
   register(profile) {
     return this._server.request(this.name, 'register', [profile])
       .then(token => this._setToken(token));
   }
-
+onSyncToken(id){
+  // call server request to read session scoped token from oauth
+  // call will also create user or find one where token matches returning an internal token
+  return this._server.request(this.name,'synctoken', [id]).then(token=>{this._setToken(token)});
+}
   saveProfile(profile) {
     return this._server.requestAuthorized(this.name, 'saveProfile', [profile])
       .then(token => this._setToken(token));
@@ -89,6 +91,9 @@ export default class AuthClient extends Client {
 
   getDevices() {
     return this._server.requestAuthorized(this.name, 'getDevices');
+  }
+  getFederated() {
+    return this._server.requestAuthorized(this.name, 'getFederated');
   }
   addDevice(identityToken) {
     let promise;

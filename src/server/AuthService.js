@@ -6,7 +6,9 @@ import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import Player from 'models/Player.js';
-
+import zlib from 'zlib';
+import AuthAdapter from '../data/DataAdapter/AuthAdapter.js';
+import serializer from 'utils/serializer.js'
 export default class AuthService extends Service {
   constructor(props) {
     super({
@@ -21,13 +23,14 @@ export default class AuthService extends Service {
         register: [ 'auth:profile' ],
         saveProfile: [ 'auth:profile' ],
         refreshToken: `tuple([ 'AccessToken({ ignoreExpiration:true })' ], 0)`,
-
+        synctoken: ['string'],
         createIdentityToken: [],
         getIdentityToken: [],
         revokeIdentityToken: [],
 
         addDevice: [ IdentityToken ],
         getDevices: [],
+        getFederated:[],
         setDeviceName: [ 'uuid', 'string | null' ],
         removeDevice: [ 'uuid' ],
 
@@ -108,7 +111,29 @@ export default class AuthService extends Service {
 
     this.clientPara.set(client.id, clientPara);
   }
+async onFBAuthorization(client,{fbUserData}){
+  //get the player id
+  
+ let player = await this.data.getPlayerID({fbid:fbUserData});
+ if(player){
+  const devl = player.addDevice(client);
+  return player.createAccessToken(devl.id);
+ }
+// if no player is found but we are logged in then link the accounts
 
+ return null;
+}
+async onDiscordAuthorization(client,{dcUserData}){
+  //get the player id
+  
+ const player = await this.data.getPlayerID({discordid:dcUserData});
+ if(player){
+  const devl = player.addDevice(client);
+  return player.createAccessToken(devl.id);
+ }
+
+ return null;
+}
   async onRegisterRequest(client, playerData) {
     // An authorized player cannot register an account.
     if (this.clientPara.has(client.id))
@@ -124,11 +149,24 @@ export default class AuthService extends Service {
     this.throttle(client.address, 'register', 1, 30);
 
     const device = player.addDevice(client);
+    
     await this.data.createPlayer(player);
 
     return player.getAccessToken(device.id);
   }
+async onSynctokenRequest(client, id){
 
+  id =  Buffer.from(id, 'hex');
+   
+  id = serializer.normalize(JSON.parse(zlib.gunzipSync(id)));
+
+  
+  const { player, device } = await this._validateAccessToken(client, id);
+   this.throttle(client.address, 'syncToken', 1, 30);
+  return player.getAccessToken(device.id);   
+    
+  
+}
   async onCreateIdentityTokenRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
@@ -157,7 +195,11 @@ export default class AuthService extends Service {
 
     return player.getIdentityToken();
   }
-
+onGetFederatedRequest(client){
+  const clientPara = this.clientPara.get(client.id);
+  const player = this.data.getOpenPlayer(clientPara.playerId);
+  return {facebook: player.fbid ? true:false, discord: player.discordid ? true:false};
+}
   onGetDevicesRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');

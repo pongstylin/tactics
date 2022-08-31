@@ -38,14 +38,14 @@ export default {
       'auth',
       {
         module: 'server/AuthService.js',
-        dataAdapterModule: 'data/FileAdapter/AuthAdapter.js',
+        dataAdapterModule: 'data/DataAdapter/AuthAdapter.js',
       },
     ],
     [
       'game',
       {
         module: 'server/GameService.js',
-        dataAdapterModule: 'data/FileAdapter/GameAdapter.js',
+        dataAdapterModule: 'data/DataAdapter/GameAdapter.js',
         config: {
           collections: [
             {

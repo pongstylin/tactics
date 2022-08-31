@@ -187,7 +187,12 @@
       display: none;
       width: 50px;
     }
-
+    .fb-login-button{
+      background:url('facebook.png') no-repeat;
+      height:34px;
+      display:block;
+      width:200px;
+    }
     @media only screen and (max-width: 400px) {
       .address .lastSeenAt .short {
         display: block;
@@ -273,6 +278,7 @@
       Account Security
     </DIV>
     <DIV class="row">
+      <div class="localsecurity">
       <DIV class="intro">
         Your account is tied to this device and browser.  But, you can lose your
         account if you clear local storage or lose your device.  To protect your
@@ -280,7 +286,12 @@
         is like a very long password.  It can only be used once and expires
         after 30 days.  Keep it someplace safe.
       </DIV>
-      <DIV class="manageLink"></DIV>
+      <DIV class="manageLink"></DIV></div>
+      <div class="federateddiv">
+        <DIV class="intro">
+          Linking your local account to a provider listed below will let you use your account on more than one device. Give it a whirl!
+        </DIV>
+        <DIV class="facebook"><span class="fb-login-button"></span></DIV></div>
     </DIV>
     <DIV class="section">
       Device List
