@@ -665,8 +665,7 @@ export default class GameState {
     try {
       endTurn = this._pushActions(actions);
     } catch(error) {
-      if (this._newActions.length)
-        this.revert(this.currentTurnId, this._actions.length - this._newActions.length, true);
+      this.revert(this.currentTurnId, this._actions.length - this._newActions.length, true);
 
       throw error;
     }

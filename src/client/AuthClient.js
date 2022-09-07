@@ -73,7 +73,12 @@ export default class AuthClient extends Client {
   }
 
   getIdentityToken() {
-    return this._server.requestAuthorized(this.name, 'getIdentityToken');
+    return this._server.requestAuthorized(this.name, 'getIdentityToken')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getIdentityToken();
+        throw error;
+      });
   }
   createIdentityToken() {
     return this._server.requestAuthorized(this.name, 'createIdentityToken');
@@ -115,7 +120,12 @@ export default class AuthClient extends Client {
   }
 
   getACL() {
-    return this._server.requestAuthorized(this.name, 'getACL');
+    return this._server.requestAuthorized(this.name, 'getACL')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getACL();
+        throw error;
+      });
   }
   getPlayerACL(playerId) {
     return this._server.requestAuthorized(this.name, 'getPlayerACL', [ playerId ])
