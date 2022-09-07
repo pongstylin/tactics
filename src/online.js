@@ -1,14 +1,16 @@
 import config from 'config/client.js';
-import copy from 'components/copy.js';
-import share from 'components/share.js';
-import ScrollButton from 'components/ScrollButton.js';
-import sleep from 'utils/sleep.js';
 import Autosave from 'components/Autosave.js';
+import copy from 'components/copy.js';
+import LobbySettingsModal from 'components/Modal/LobbySettings.js';
 import Setup from 'components/Setup.js';
+import ScrollButton from 'components/ScrollButton.js';
+import share from 'components/share.js';
 import whenDOMReady from 'components/whenDOMReady.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
-import LobbySettingsModal from 'components/Modal/LobbySettings.js';
-import * as PIXI from 'pixi.js';
+import unitDataMap from 'tactics/unitData.js';
+import { colorFilterMap } from 'tactics/colorMap.js';
+import unitFactory from 'tactics/unitFactory.js';
+import sleep from 'utils/sleep.js';
 
 // We will be fetching the updates games list from the server on this interval
 const GAMES_FETCH_INTERVAL = 5 * 1000;
@@ -41,7 +43,13 @@ const groups = new Map([
 
 let myPlayerId = null;
 const state = {
-  audioEnabled: false,
+  /*
+   * Set to false at first, it means we won't wait for audio to be enabled
+   * before showing the lobby.  Rather, we'll display an "Enter Lobby" button so
+   * that audio may be enabled with a click.  Once clicked, either the value
+   * will be set to true or a promise that will resolve once audio is enabled.
+   */
+  whenAudioEnabled: false,
   activeGameId: null,
   // Indicates the currently selected tab
   currentTab: null,
@@ -88,6 +96,25 @@ const state = {
   settings: null,
   avatars: new Map(),
 };
+
+const onceClick = () => {
+  if (Howler.ctx.state === 'running')
+    state.whenAudioEnabled = true;
+  else
+    state.whenAudioEnabled = new Promise(resolve => {
+      const stateChangeListener = () => {
+        if (Howler.ctx.state !== 'running')
+          return;
+
+        Howler.ctx.removeEventListener('statechange', stateChangeListener);
+        resolve(true);
+      };
+      Howler.ctx.addEventListener('statechange', stateChangeListener);
+    });
+  window.removeEventListener('click', onceClick, { passive:true, capture:true });
+};
+window.addEventListener('click', onceClick, { passive:true, capture:true });
+
 const fillArenaQueueMap = new Map();
 
 const settings = new LobbySettingsModal({
@@ -108,19 +135,6 @@ const pushPublicKey = Uint8Array.from(
 let avatars;
 let arena;
 const avatarsPromise = Tactics.load([ 'avatars' ]).then(async () => {
-  if (Howler.ctx.state === 'running')
-    state.audioEnabled = true;
-  else {
-    const stateChangeListener = () => {
-      if (Howler.ctx.state !== 'running')
-        return;
-
-      Howler.ctx.removeEventListener('statechange', stateChangeListener);
-      state.audioEnabled = true;
-    };
-    Howler.ctx.addEventListener('statechange', stateChangeListener);
-  }
-
   avatars = Tactics.getSprite('avatars');
   arena = avatars.getImage('arena');
   ScrollButton.config.icons = {
@@ -195,61 +209,24 @@ gameClient
     syncTab();
   })
   .on('close', ({ data:{ reopen } }) => {
+    if (state.currentTab === null)
+      return;
+
     const divLoading = document.querySelector('.tabContent .loading');
     if (reopen)
       divLoading.classList.add('is-active');
   });
 
-window.addEventListener('DOMContentLoaded', () => {
-  const divGreeting = document.querySelector('.greeting');
-  const divNotice = document.querySelector('#notice');  
-  const params = new Proxy(new URLSearchParams(window.location.search), {
-    get: (searchParams, prop) => searchParams.get(prop),
-  });
-  const showGreeting = ()=>{
-    
-    divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
-      divGreeting.style.display = '';
-  
-      if (navigator.onLine === false)
-        divNotice.textContent = 'Your games will be loaded once you are online.';
-      else
-        divNotice.textContent = 'Loading your games...';
-     
-  }
-  if(params.id!==null){
-    
-    authClient.onSyncToken(params.id).then(()=>{showGreeting(); openTab(); divNotice.textContent = '';
-    document.querySelector('.tabs').style.display = '';
-    loadTAO();
-  });
-  } 
- else if (authClient.token) {
-   showGreeting();
-   loadTAO();
-  } 
-  
-  else
- {
-    showRegister();
-    loadTAO();
-   
-}
- 
-});
-function loadTAO(){
-  const divGreeting = document.querySelector('.greeting');
-  const divNotice = document.querySelector('#notice');  
-  authClient.whenReady.then(async () => {
-    myPlayerId = authClient.playerId;
+whenDOMReady.then(() => {
+  document.querySelector('#notice').textContent = 'Please wait...';
 
-    if (myPlayerId) {
-      divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
-      await openTab();
-      divNotice.textContent = '';
-      document.querySelector('.tabs').style.display = '';
-    } else
-      showRegister();
+  authClient.whenReady.then(async () => {
+    if (!authClient.token)
+      return config.auth ? showAuth() : showIdentify();
+    else if (authClient.token.confirmPlayerName)
+      return showIdentify();
+
+    showTabs();
   });
 
   if (navigator.serviceWorker)
@@ -359,69 +336,163 @@ function loadTAO(){
 
   window.addEventListener('resize', () => resize(dynamicStyle.sheet));
   resize(dynamicStyle.sheet);
+});
 
-}
-function showRegister() {
-  const divRegister = document.querySelector('#register');
-  if (divRegister.style.display === '')
+function showAuth() {
+  const divAuth = document.querySelector('#auth');
+  if (divAuth.style.display === '')
     return;
 
-  const divGreeting = document.querySelector('.greeting');
+  divAuth.querySelector('.discord').style.display = config.auth.discord ? '' : 'none';
+  divAuth.querySelector('.facebook').style.display = config.auth.facebook ? '' : 'none';
+
   const divNotice = document.querySelector('#notice');
 
-  divGreeting.textContent = `Welcome!`;
-  divGreeting.style.display = '';
-  divNotice.textContent = [
-    'Never seen you before!',
-    'By what name are you known?',
-  ].map(s => s.replace(/ /g, '\u00A0')).join('  ');
+  divNotice.innerHTML = [
+    'Login with Discord (preferred) or Facebook.',
+    'This way you won\'t accidentally lose your account.',
+  ].map(s => s.replace(/ /g, '\u00A0')).join('<BR>');
+
+  divAuth.querySelector('UL').addEventListener('click', event => {
+    const li = event.target.closest('LI');
+    if (!li)
+      return;
+
+    if (li.classList.contains('discord'))
+      authClient.openAuthProvider('discord');
+    else if (li.classList.contains('facebook'))
+      authClient.openAuthProvider('facebook');
+    else if (li.classList.contains('skipAuth')) {
+      divAuth.style.display = 'none';
+
+      showIdentify();
+    }
+  });
+
+  divAuth.style.display = '';
+}
+async function showIdentify() {
+  const divIdentify = document.querySelector('#identify');
+  if (divIdentify.style.display === '')
+    return;
+
+  const divNotice = document.querySelector('#notice');
+
+  if (!authClient.token)
+    divNotice.textContent = [
+      'You are about to create a new account.',
+      'What name would you like to use?',
+    ].map(s => s.replace(/ /g, '\u00A0')).join('  ');
+  else
+    divNotice.textContent = [
+      'Please confirm the name you would like to use.',
+    ].join('  ');
 
   const btnEnter = document.createElement('BUTTON');
   btnEnter.textContent = 'Enter Lobby';
   btnEnter.addEventListener('click', async () => {
     if (!btnEnter.classList.contains('disabled'))
       try {
-        await register(autosave.inputValue);
+        await identify(autosave.inputValue);
       } catch(error) {
         btnEnter.classList.add('disabled');
         autosave.error = error.toString();
       }
   });
-  btnEnter.classList.add('disabled');
+  btnEnter.classList.toggle('disabled', !authClient.token);
 
   const autosave = new Autosave({
     isRequired: true,
     autoFocus: true,
     maxLength: 20,
+    value: authClient.token ? authClient.playerName : null,
   }).on('submit', event => {
-    event.waitUntil(register(event.data)).catch(error => {
+    event.waitUntil(identify(event.data)).catch(error => {
       btnEnter.classList.add('disabled');
     });
   }).on('change', ({ data:name }) => {
     btnEnter.classList.toggle('disabled', name === null);
   });
 
-  autosave.appendTo(divRegister);
-  divRegister.appendChild(btnEnter);
-  divRegister.style.display = '';
+  autosave.appendTo(divIdentify);
+  divIdentify.appendChild(btnEnter);
+  divIdentify.style.display = '';
 }
-async function register(name) {
-  const divNotice = document.querySelector('#notice');
-  const divRegister = document.querySelector('#register');
-  const divGreeting = document.querySelector('.greeting');
+async function identify(name) {
+  await authClient.setAccountName(name);
 
-  await authClient.register({ name });
+  return showTabs();
+}
+async function showTabs() {
+  const page = document.querySelector('.page');
+  const divNotice = page.querySelector('#notice');
+  const divIdentify = page.querySelector('#identify');
+  const header = page.querySelector('HEADER');
+  const divPN = page.querySelector('#pn');
+  const btnAccount = header.querySelector('.account BUTTON');
+  const spnName = btnAccount.querySelector('.account BUTTON .name');
+  const divAvatar = header.querySelector('.account .avatar .image');
 
   myPlayerId = authClient.playerId;
+  spnName.textContent = authClient.playerName;
+  btnAccount.addEventListener('click', () => popup({
+    className: 'account',
+    title: 'Account',
+    buttons: [
+      {
+        label: 'Profile',
+        onClick: () => location.href = '/profile.html',
+      },
+      {
+        label: '<SPAN class="warning">!!</SPAN>Security',
+        onClick: () => location.href = '/security.html',
+      },
+      {
+        label: 'Logout',
+        onClick: async () => {
+          await authClient.logout();
+          location.reload();
+        },
+      },
+    ],
+  }));
+
+  const isAccountAtRisk = await authClient.isAccountAtRisk();
+  const avatar = (await gameClient.getPlayersAvatar([ myPlayerId ]))[0];
+
+  document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
+
+  await avatarsPromise;
+  setMyAvatar(avatar);
+  state.tabContent.lobby.setup.avatar = avatar;
+
   divNotice.textContent = '';
-  divRegister.style.display = 'none';
-  divGreeting.textContent = `Welcome, ${authClient.playerName}!`;
+  divIdentify.style.display = 'none';
+  header.style.display = '';
+  divPN.style.display = '';
 
   history.replaceState(null, null, '#lobby');
   await openTab();
   document.querySelector('.tabs').style.display = '';
 }
 
+function setMyAvatar(avatar) {
+  const divAvatar = document.querySelector('.account .avatar .image');
+
+  state.avatars.set(myPlayerId, avatar);
+
+  const imgAvatar = Tactics.getAvatarImage(avatar, { withFocus:false });
+  const avatarData = JSON.parse(imgAvatar.dataset.avatar);
+  const originY = avatarData.y > -80
+    ? avatarData.y / 2
+    : avatarData.y + Math.min(32, -avatarData.y / 2);
+  imgAvatar.style.top = `${originY}px`;
+  imgAvatar.style.left = `${avatarData.x}px`;
+  imgAvatar.style.transformOrigin = `${-avatarData.x}px ${-originY}px`;
+
+  divAvatar.innerHTML = '';
+  divAvatar.appendChild(imgAvatar);
+}
 function setYourLobbyGame(gameSummary, skipRender = false) {
   if (state.activeGameId === gameSummary.id && gameSummary.startedAt) {
     const newGame = avatars.getSound('newgame').howl;
@@ -973,7 +1044,7 @@ function subscribePN() {
             ].join(''),
             maxWidth: '300px',
           });
-          const divCopy = bravePopup.el.querySelector('.copy.brave');
+          const divCopy = bravePopup.root.querySelector('.copy.brave');
 
           divCopy.addEventListener('click', event => {
             if (window.getComputedStyle(event.target).cursor !== 'pointer')
@@ -1127,7 +1198,7 @@ function renderLobby() {
   lobbyState.setup = new Setup();
   lobbyState.setup
     .on('change:avatar', async ({ data:avatar }) => {
-      state.avatars.set(myPlayerId, { ...avatar, imageData:new Map() });
+      setMyAvatar(avatar);
 
       if (state.tabContent.lobby.lobbyGame)
         resetLobbyGames();
@@ -1543,8 +1614,6 @@ async function renderLobbyGames() {
    * Cache the avatars for all the players we're about to see
    */
   const playerIdSet = new Set();
-  if (!state.avatars.has(myPlayerId))
-    playerIdSet.add(myPlayerId);
 
   for (const arena of arenas) {
     if (!arena) continue;
@@ -1561,10 +1630,7 @@ async function renderLobbyGames() {
     const playerIds = [ ...playerIdSet ];
     const avatars = await gameClient.getPlayersAvatar(playerIds);
     for (let i = 0; i < playerIds.length; i++) {
-      state.avatars.set(playerIds[i], { ...avatars[i], imageData:new Map() });
-
-      if (playerIds[i] === myPlayerId)
-        tabContent.setup.avatar = state.avatars.get(myPlayerId);
+      state.avatars.set(playerIds[i], avatars[i]);
     }
   }
 
@@ -2138,7 +2204,8 @@ async function syncTab() {
     if (state.currentTab === 'lobby') {
       await renderLobbyGames();
 
-      if (Howler.ctx.state === 'running' || state.audioEnabled)
+      // If audio isn't enabled, make it enabled with a click.
+      if (await state.whenAudioEnabled)
         showLobby();
       else
         showEnterLobby();
@@ -2321,7 +2388,7 @@ async function fetchGames(tabName) {
       });
 
     if (tabContent.selectedStyleId === null) {
-      await Promise.all([ avatarsPromise, yourContent.whenSynced ]);
+      await yourContent.whenSynced;
       const styleId = yourContent.lobbyGame?.collection.slice(6) ?? 'freestyle';
       selectStyle(styleId);
       selectGroup('lobby');

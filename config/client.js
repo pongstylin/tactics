@@ -1,13 +1,51 @@
 import setsById from 'config/sets.js';
 
-export default {
+const local = {
+  secure: process.env.LOCAL_SECURE === 'true',
+  host: process.env.LOCAL_HOST,
+  port: process.env.LOCAL_PORT ?? 80,
+  // The optional path part of API and WS endpoints.  Must not end with /
+  path: process.env.LOCAL_PATH,
+
+  // URLs constructed below
+  origin: null,
+  apiEndpoint: null,
+  wsEndpoint: null,
+};
+
+if (local.secure) {
+  local.origin = `https://`;
+  local.wsEndpoint = `wss://`;
+} else {
+  local.origin = `http://`;
+  local.wsEndpoint = `ws://`;
+}
+local.origin += local.host;
+local.wsEndpoint += local.host;
+
+if (local.port !== 80) {
+  local.origin += `:${local.port}`;
+  local.wsEndpoint += `:${local.port}`;
+}
+local.apiEndpoint = local.origin;
+
+if (local.path) {
+  local.apiEndpoint += local.path;
+  local.wsEndpoint += local.path;
+}
+
+const config = {
   version: VERSION,
-  apiPrefix: process.env.API_PREFIX ?? '',
+  local,
   publicKey: process.env.PUBLIC_KEY,
-  authEndpoint: process.env.AUTH_ENDPOINT,
-  gameEndpoint: process.env.GAME_ENDPOINT,
-  chatEndpoint: process.env.CHAT_ENDPOINT,
-  pushEndpoint: process.env.PUSH_ENDPOINT,
+  auth: {
+    discord: !!process.env.DISCORD_CLIENT_ID,
+    facebook: !!process.env.FACEBOOK_CLIENT_ID,
+  },
+  authEndpoint: process.env.AUTH_ENDPOINT ?? local.wsEndpoint,
+  gameEndpoint: process.env.GAME_ENDPOINT ?? local.wsEndpoint,
+  chatEndpoint: process.env.CHAT_ENDPOINT ?? local.wsEndpoint,
+  pushEndpoint: process.env.PUSH_ENDPOINT ?? local.wsEndpoint,
   pushPublicKey: process.env.PN_PUBLIC_KEY,
 };
 
@@ -91,3 +129,7 @@ if (typeof localStorage !== 'undefined') {
     localStorage.removeItem('settings');
   }
 }
+if (!Object.values(config.auth).find(b => b === true))
+  config.auth = false;
+
+export default config;

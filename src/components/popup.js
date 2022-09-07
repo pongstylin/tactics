@@ -5,6 +5,7 @@ import Overlay from 'components/overlay.js';
 class Popup {
   constructor(options) {
     Object.assign(this, {
+      root: null,
       overlay: null,
       options: null,
       whenClosed: new Promise(),
@@ -52,7 +53,6 @@ class Popup {
     const options = this.options;
 
     const overlay = new Overlay({
-      className: options.className,
       zIndex: options.zIndex ?? 200,
     }).on('click', event => {
       if (options.closeOnCancel === false) return;
@@ -67,8 +67,10 @@ class Popup {
       });
     });
 
-    const divPopup = document.createElement('DIV');
+    const divPopup = this.root = document.createElement('DIV');
     divPopup.classList.add('popup');
+    if (options.className)
+      divPopup.classList.add(options.className);
     if (options.minWidth)
       divPopup.style.minWidth = options.minWidth;
     if (options.maxWidth)
@@ -84,20 +86,22 @@ class Popup {
       divPopup.appendChild(divTitle);
     }
 
-    const divMessage = document.createElement('DIV');
-    divMessage.classList.add('message');
-    if (typeof options.message === 'string')
-      divMessage.innerHTML = options.message;
-    else {
-      const elements = Array.isArray(options.message) ? options.message : [ options.message ];
-      for (const el of elements) {
-        if (typeof el === 'string')
-          divMessage.appendChild(document.createTextNode(el));
-        else
-          divMessage.appendChild(el);
+    if (options.message !== undefined) {
+      const divMessage = document.createElement('DIV');
+      divMessage.classList.add('message');
+      if (typeof options.message === 'string')
+        divMessage.innerHTML = options.message;
+      else {
+        const elements = Array.isArray(options.message) ? options.message : [ options.message ];
+        for (const el of elements) {
+          if (typeof el === 'string')
+            divMessage.appendChild(document.createTextNode(el));
+          else
+            divMessage.appendChild(el);
+        }
       }
+      divPopup.appendChild(divMessage);
     }
-    divPopup.appendChild(divMessage);
 
     const divButtons = document.createElement('DIV');
     divButtons.classList.add('buttons');
@@ -109,7 +113,7 @@ class Popup {
       btn.setAttribute('type', 'button');
       if ('name' in button)
         btn.setAttribute('name', button.name);
-      btn.textContent = button.label;
+      btn.innerHTML = button.label;
       btn.addEventListener('click', async event => {
         const closeEvent = { button };
 

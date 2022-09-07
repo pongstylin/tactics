@@ -4,6 +4,7 @@ import serializer from 'utils/serializer.js';
 import FileAdapter from 'data/FileAdapter.js';
 import migrate, { getLatestVersionNumber } from 'data/migrate.js';
 import Player from 'models/Player.js';
+import AuthMembers from 'models/AuthMembers.js';
 
 export default class extends FileAdapter {
   constructor() {
@@ -15,6 +16,11 @@ export default class extends FileAdapter {
             saver: '_savePlayer',
           },
         ],
+        [
+          'authMembers', {
+            saver: '_saveAuthMembers',
+          },
+        ],
       ]),
     });
   }
@@ -23,8 +29,12 @@ export default class extends FileAdapter {
    * Public Interface
    ****************************************************************************/
   async createPlayer(player) {
+    if (!(player instanceof Player))
+      player = Player.create(player);
+
     await this._createPlayer(player);
     this.cache.get('player').add(player.id, player);
+    return player;
   }
   async openNewPlayer(player) {
     await this._createPlayer(player);
@@ -43,6 +53,37 @@ export default class extends FileAdapter {
   }
   getOpenPlayer(playerId) {
     return this.cache.get('player').getOpen(playerId);
+  }
+
+  async linkAuthPlayerId(provider, memberId, playerId) {
+    const members = await this._getAuthMembers(provider);
+    this.cache.get('authMembers').add(provider, members);
+    members.setPlayerId(memberId, playerId);
+  }
+  async getAuthPlayerId(provider, memberId) {
+    const members = await this._getAuthMembers(provider);
+    this.cache.get('authMembers').add(provider, members);
+    return members.getPlayerId(memberId);
+  }
+  async unlinkAuthProviders(playerId, providers) {
+    for (const provider of providers) {
+      const members = await this._getAuthMembers(provider);
+      this.cache.get('authMembers').add(provider, members);
+
+      members.deleteMemberId(playerId);
+    }
+  }
+  async hasAuthProviderLinks(playerId, providers) {
+    const authLinks = new Map();
+
+    for (const provider of providers) {
+      const members = await this._getAuthMembers(provider);
+      this.cache.get('authMembers').add(provider, members);
+
+      authLinks.set(provider, members.hasMemberId(playerId));
+    }
+
+    return authLinks;
   }
 
   /*****************************************************************************
@@ -69,6 +110,8 @@ export default class extends FileAdapter {
       return buffer.get(playerId);
 
     return this.getFile(`player_${playerId}`, data => {
+      if (data === undefined) return;
+
       const player = serializer.normalize(migrate('player', data));
 
       player.once('change', () => buffer.add(playerId, player));
@@ -83,6 +126,43 @@ export default class extends FileAdapter {
       data.version = getLatestVersionNumber('player');
 
       player.once('change', () => buffer.add(player.id, player));
+      return data;
+    });
+  }
+
+  async _getAuthMembers(provider) {
+    const cache = this.cache.get('authMembers');
+    const buffer = this.buffer.get('authMembers');
+
+    if (cache.has(provider))
+      return cache.get(provider);
+    else if (buffer.has(provider))
+      return buffer.get(provider);
+
+    return this.getFile(`${provider}_members`, data => {
+      const members = data === undefined
+        ? AuthMembers.create(provider)
+        : serializer.normalize(data);
+
+      members.once('change', () => buffer.add(provider, members));
+      members.on('change:link', async ({ data }) => {
+        const player = await this.getPlayer(data.playerId);
+        player.log('link', data);
+      });
+      members.on('change:unlink', async ({ data }) => {
+        const player = await this.getPlayer(data.playerId);
+        player.log('unlink', data);
+      });
+      return members;
+    });
+  }
+  async _saveAuthMembers(members) {
+    const buffer = this.buffer.get('authMembers');
+
+    await this.putFile(`${members.provider}_members`, () => {
+      const data = serializer.transform(members);
+
+      members.once('change', () => buffer.add(members.provider, members));
       return data;
     });
   }

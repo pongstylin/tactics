@@ -1,15 +1,83 @@
+import crypto from 'crypto';
+
 import pkg from '../package.json' assert { type:'json' };
 import gameTypes from 'data/files/game/game_types.json' assert { type:'json' };
 
-const gameTypeIds = gameTypes.filter(gt => !gt[1].archived).map(gt => gt[0]);
+const authAlg = 'aes256';
+const authKey = crypto.randomBytes(32);
+const authIV = crypto.randomBytes(16);
 
-export default {
+const gameTypeIds = gameTypes.filter(gt => !gt[1].archived).map(gt => gt[0]);
+const config = {
   version: pkg.version,
+
+  auth: {
+    // Automatically enable if any providers have credentials.
+    enabled: 'auto',
+    encryptState: state => {
+      const authCipher = crypto.createCipheriv(authAlg, authKey, authIV);
+      return authCipher.update(state, 'utf-8', 'base64') + authCipher.final('base64');
+    },
+    decryptState: state => {
+      const authDecipher = crypto.createDecipheriv(authAlg, authKey, authIV);
+      return authDecipher.update(state, 'base64', 'utf-8') + authDecipher.final('utf-8');
+    },
+    // Providers without client credentials are automatically ignored.
+    providers: {
+      discord: {
+        issuer: {
+          authorization_endpoint: 'https://discord.com/oauth2/authorize',
+          token_endpoint: 'https://discord.com/api/oauth2/token',
+          userinfo_endpoint: 'https://discord.com/api/users/@me',
+        },
+        client: {
+          client_id: process.env.DISCORD_CLIENT_ID,
+          client_secret: process.env.DISCORD_CLIENT_SECRET,
+        },
+        authorization: {
+          response_type: 'code',
+          // Automatically prefixed below with the local path, if any
+          redirect_uri: '/auth/callback',
+          //scope: [ 'activities.write', 'guilds.members.read', 'identify' ],
+          scope: 'identify guilds.members.read',
+          code_challenge_method: 'S256',
+        },
+      },
+      facebook: {
+        openId: 'https://www.facebook.com',
+        issuer: {
+          token_endpoint: 'https://graph.facebook.com/v15.0/oauth/access_token',
+          userinfo_endpoint: 'https://graph.facebook.com/v15.0/me',
+        },
+        client: {
+          client_id: process.env.FACEBOOK_CLIENT_ID,
+          client_secret: process.env.FACEBOOK_CLIENT_SECRET,
+        },
+        authorization: {
+          response_type: 'code',
+          // Automatically prefixed below with the local path, if any
+          redirect_uri: '/auth/callback',
+          code_challenge_method: 'S256',
+        },
+      },
+    },
+  },
 
   /*
    * Global Configuration
    */
-  apiPrefix: process.env.API_PREFIX ?? '',
+  local: {
+    secure: process.env.LOCAL_SECURE === 'true',
+    host: process.env.LOCAL_HOST,
+    port: process.env.LOCAL_PORT ?? 80,
+    // The optional path part of API and WS endpoints.  Must not end with /
+    path: process.env.LOCAL_PATH,
+
+    // URLs constructed below
+    origin: null,
+    apiEndpoint: null,
+    wsEndpoint: null,
+  },
   publicKey: process.env.PUBLIC_KEY,
   privateKey: process.env.PRIVATE_KEY,
 
@@ -38,14 +106,14 @@ export default {
       'auth',
       {
         module: 'server/AuthService.js',
-        dataAdapterModule: 'data/DataAdapter/AuthAdapter.js',
+        dataAdapterModule: 'data/FileAdapter/AuthAdapter.js',
       },
     ],
     [
       'game',
       {
         module: 'server/GameService.js',
-        dataAdapterModule: 'data/DataAdapter/GameAdapter.js',
+        dataAdapterModule: 'data/FileAdapter/GameAdapter.js',
         config: {
           collections: [
             {
@@ -119,3 +187,41 @@ export default {
     ],
   ]),
 };
+
+const local = config.local;
+if (local.secure) {
+  local.origin = `https://`;
+  local.wsEndpoint = `wss://`;
+} else {
+  local.origin = `http://`;
+  local.wsEndpoint = `ws://`;
+}
+local.origin += local.host;
+local.wsEndpoint += local.host;
+
+if (local.port !== 80) {
+  local.origin += `:${local.port}`;
+  local.wsEndpoint += `:${local.port}`;
+}
+local.apiEndpoint = local.origin;
+
+if (local.path) {
+  local.apiEndpoint += local.path;
+  local.wsEndpoint += local.path;
+}
+
+/*
+ * Prune auth providers that are not configured.
+ */
+for (const provider of Object.keys(config.auth.providers)) {
+  const providerConfig = config.auth.providers[provider];
+  if (!providerConfig.client.client_id)
+    delete config.auth.providers[provider];
+
+  if (providerConfig.authorization.redirect_uri.startsWith('/'))
+    providerConfig.authorization.redirect_uri = local.apiEndpoint + providerConfig.authorization.redirect_uri;
+}
+if (config.auth.enabled === 'auto')
+  config.auth.enabled = Object.keys(config.auth.providers).length > 0;
+
+export default config;

@@ -20,26 +20,34 @@ XRegExp.install('astral');
 const rUnicodeWhitelist = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 const rUnicodeBlacklist = XRegExp('[\\u3164]');
 
+interface LogEntry {
+  type: string,
+  data: object,
+  createdAt: Date,
+}
+
 export default class Player extends ActiveModel {
   protected data: {
     id: string
     name: string
+    confirmName: boolean
     devices: Map<string, any>
     identityToken: IdentityToken | null
     acl: Map<string, any>
     reverseACL: Map<string, any>
+    log: LogEntry[],
     checkoutAt: Date
     createdAt: Date
-    fbid: string
-    discordid: string
   }
 
   constructor(data) {
     super();
     this.data = {
+      confirmName: false,
       identityToken: null,
       acl: new Map(),
       reverseACL: new Map(),
+      log: [],
 
       ...data,
     };
@@ -55,8 +63,7 @@ export default class Player extends ActiveModel {
     data.createdAt = new Date();
     data.checkoutAt = data.createdAt;
     data.devices = new Map();
-    data.fbid = data.fbid || '';
-    data.discordid  = data.discordid || '';
+
     return new Player(data);
   }
   static fromJSON(data) {
@@ -107,14 +114,8 @@ export default class Player extends ActiveModel {
   get identityToken() {
     return this.data.identityToken;
   }
-  get fbid() {
-    return this.data.fbid;
-  }
   get checkoutAt() {
     return this.data.checkoutAt;
-  }
-  get isFBConnected(){
-    return this.data.fbid ? true : false;
   }
   get createdAt() {
     return this.data.createdAt;
@@ -126,11 +127,14 @@ export default class Player extends ActiveModel {
     Object.keys(profile).forEach(property => {
       const oldValue = this[property];
       const newValue = profile[property];
-      if (oldValue === newValue) return;
 
       if (property === 'name') {
+        if (oldValue === newValue && this.data.confirmName === false)
+          return;
+
         Player.validatePlayerName(profile.name);
         this.data.name = profile.name;
+        this.data.confirmName = false;
 
         // Create new access token(s) with the new name
         for (let [deviceId, device] of this.data.devices)
@@ -183,10 +187,11 @@ export default class Player extends ActiveModel {
 
     return true;
   }
-  checkout(client) {
+  checkout(client, deviceId) {
     const checkoutAt = new Date(Date.now() - client.session.idle * 1000);
     if (checkoutAt > this.data.checkoutAt) {
       this.data.checkoutAt = checkoutAt;
+      this.data.devices.get(deviceId).checkoutAt = checkoutAt;
       this.emit('change:checkout');
     }
   }
@@ -210,9 +215,20 @@ export default class Player extends ActiveModel {
         client.agent,
         new Map([[client.address, now]]),
       ]]),
+      createdAt: now,
+      checkoutAt: now,
     };
-
     this.data.devices.set(deviceId, device);
+
+    /*
+     * Only maintain the 10 most recently used devices
+     */
+    if (this.data.devices.size > 10) {
+      const devices = [ ...this.data.devices.values() ].sort((a,b) => a.checkoutAt - b.checkoutAt);
+      while (devices.length > 10)
+        this.data.devices.delete(devices.shift().id);
+    }
+
     this.emit('change:addDevice');
 
     return device;
@@ -339,12 +355,17 @@ export default class Player extends ActiveModel {
    * An access token allows a device to access resources.
    */
   createAccessToken(deviceId) {
-    return AccessToken.create({
+    const payload:any = {
       subject: this.data.id,
       expiresIn: config.ACCESS_TOKEN_TTL || '1h',
       name: this.data.name,
       deviceId,
-    });
+    };
+
+    if (this.data.confirmName)
+      payload.confirmName = true;
+
+    return AccessToken.create(payload);
   }
   getAccessToken(deviceId) {
     const device = this.data.devices.get(deviceId);
@@ -378,11 +399,19 @@ export default class Player extends ActiveModel {
     this.emit('change:clearIdentityToken');
   }
 
+  log(type, data) {
+    this.data.log.push({ type, data, createdAt:new Date() });
+    this.emit('change:log');
+  }
+
   toJSON() {
     const json = super.toJSON();
 
     // Convert the devices map to an array.
     json.devices = [ ...json.devices.values() ];
+
+    if (json.confirmName === false)
+      delete json.confirmName;
 
     return json;
   }
@@ -405,6 +434,7 @@ serializer.addType({
           properties: {
             id: { type:'string', format:'uuid' },
             name: { type:[ 'string', 'null' ] },
+            confirmName: { type:'boolean' },
             token: { $ref:'AccessToken' },
             nextToken: {
               oneOf: [
@@ -435,6 +465,8 @@ serializer.addType({
                 additionalItems: false,
               },
             },
+            createdAt: { type:'string', subType:'Date' },
+            checkoutAt: { type:'string', subType:'Date' },
           },
           additionalProperties: false,
         },
@@ -478,9 +510,19 @@ serializer.addType({
           { $ref:'IdentityToken' },
         ],
       },
+      log: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            type: { type:'string' },
+            data: {},
+            createdAt: { type:'string', subType:'Date' },
+          },
+        },
+      },
       createdAt: { type:'string', subType:'Date' },
       checkoutAt: { type:'string', subType:'Date' },
-      fbid: {type:'string'}
     },
     additionalProperties: false,
     definitions: {

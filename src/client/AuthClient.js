@@ -56,19 +56,17 @@ export default class AuthClient extends Client {
     return this.whenReady.then(() => {
       let token = this.token;
       if (token)
-{        return this.saveProfile({ name:newName });
-    }
-    })}
+        return this.saveProfile({ name:newName });
+
+      return this.register({ name:newName });
+    });
+  }
 
   register(profile) {
     return this._server.request(this.name, 'register', [profile])
       .then(token => this._setToken(token));
   }
-onSyncToken(id){
-  // call server request to read session scoped token from oauth
-  // call will also create user or find one where token matches returning an internal token
-  return this._server.request(this.name,'synctoken', [id]).then(token=>{this._setToken(token)});
-}
+
   saveProfile(profile) {
     return this._server.requestAuthorized(this.name, 'saveProfile', [profile])
       .then(token => this._setToken(token));
@@ -89,11 +87,73 @@ onSyncToken(id){
     return this._server.requestAuthorized(this.name, 'revokeIdentityToken');
   }
 
+  /*
+   * In standalone (PWA) mode, authentication is done via a new window.
+   * Otherwise, redirect to the auth page.
+   */
+  async openAuthProvider(provider) {
+    if (!window.matchMedia('(display-mode: standalone)').matches) {
+      location.href = await this.makeAuthProviderURL({
+        provider,
+        redirectURL: location.href,
+      });
+      return;
+    }
+
+    const authProviderURL = await this.makeAuthProviderURL({ provider });
+    const authLink = await new Promise((resolve, reject) => {
+      const listener = event => {
+        if (event.origin !== location.origin || event.data.type !== 'callback')
+          return;
+
+        window.removeEventListener('message', listener);
+        window.focus();
+        event.source.close();
+
+        resolve(event.data.link);
+      };
+      window.addEventListener('message', listener);
+      window.open(authProviderURL, '_blank');
+    });
+
+    return this.linkAuthProvider(authLink);
+  }
+  makeAuthProviderURL(state) {
+    return this._server.request(this.name, 'makeAuthProviderURL', [ state ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.makeAuthProviderURL(state);
+        throw error;
+      });
+  }
+  linkAuthProvider(link) {
+    return this._server.request(this.name, 'linkAuthProvider', [ link ])
+      .then(token => token && this._setToken(token))
+      .then(() => true)
+      .catch(error => {
+        if (error.code === 401)
+          return false;
+        throw error;
+      });
+  }
+  unlinkAuthProviders() {
+    return this._server.requestAuthorized(this.name, 'unlinkAuthProviders')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.unlinkAuthProviders();
+        throw error;
+      });
+  }
+  hasAuthProviderLinks() {
+    return this._server.requestAuthorized(this.name, 'hasAuthProviderLinks')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.hasAuthProviderLinks();
+        throw error;
+      });
+  }
   getDevices() {
     return this._server.requestAuthorized(this.name, 'getDevices');
-  }
-  getFederated() {
-    return this._server.requestAuthorized(this.name, 'getFederated');
   }
   addDevice(identityToken) {
     let promise;
@@ -103,12 +163,12 @@ onSyncToken(id){
       promise = Promise.resolve();
 
     return promise.then(() =>
-      this._server.request(this.name, 'addDevice', [identityToken])
+      this._server.request(this.name, 'addDevice', [ identityToken ])
         .then(token => this._setToken(token))
     );
   }
   setDeviceName(deviceId, deviceName) {
-    return this._server.requestAuthorized(this.name, 'setDeviceName', [deviceId, deviceName])
+    return this._server.requestAuthorized(this.name, 'setDeviceName', [ deviceId, deviceName ])
       .catch(error => {
         if (error === 'Connection reset')
           return this.setDeviceName(playerId, playerName);
@@ -116,10 +176,30 @@ onSyncToken(id){
       });
   }
   removeDevice(deviceId) {
-    return this._server.requestAuthorized(this.name, 'removeDevice', [deviceId])
+    return this._server.requestAuthorized(this.name, 'removeDevice', [ deviceId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.removeDevice(playerId, playerName);
+          return this.removeDevice(deviceId);
+        throw error;
+      });
+  }
+  logout() {
+    return this._server.request(this.name, 'logout')
+      .catch(error => {
+        // A connection reset is expected as a result of logging out
+        if (error === 'Connection reset')
+          return;
+        throw error;
+      })
+      .then(() => this._purgeToken())
+      .then(() => this._purgeCachedToken());
+  }
+
+  isAccountAtRisk() {
+    return this._server.requestAuthorized(this.name, 'isAccountAtRisk')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.isAccountAtRisk();
         throw error;
       });
   }
@@ -158,11 +238,10 @@ onSyncToken(id){
   }
 
   async _onOpen({ data }) {
-    // On iOS (iPhone, iPad), the localStorage data is not shared between Safari
-    // and a PWA added to the home screen.  However, the Cache API in a service
-    // worker IS shared.  When opening a new connection, e.g. opening a page in
-    // Safari or opening the PWA, restore the token from cache to make sure both
-    // contexts use the same account and always have the most recent token.
+    // In older versions of iOS, the localStorage data is not shared between PWA
+    // and in-browser contexts, but the Cache API in a service worker IS shared.
+    // So, tokens are cached and, if the cached token is newer than one found in
+    // local storage, then it is restored.
     if (!this.whenReady.isResolved) {
       const token = await this._restoreToken();
       if (token)
@@ -177,8 +256,24 @@ onSyncToken(id){
         await this._refreshToken();
     }
 
-    if (data.reason === 'new')
+    if (data.reason === 'new') {
+      /*
+       * Auth callbacks may pass a link to the page.
+       */
+      const params = new URLSearchParams(location.search.slice(1));
+      const authLink = params.get('link');
+      if (authLink) {
+        history.replaceState(null, '', location.origin + location.pathname);
+
+        try {
+          await this.linkAuthProvider(authLink);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
       this.whenReady.resolve();
+    }
   }
   _onClose() {
     this._clearRefreshTimeout();
@@ -190,8 +285,6 @@ onSyncToken(id){
 
     if (cachedToken) {
       if (!token)
-        this._storeToken(token = cachedToken);
-      else if (token.playerId !== cachedToken.playerId)
         this._storeToken(token = cachedToken);
       else if (token.createdAt < cachedToken.createdAt)
         this._storeToken(token = cachedToken);
@@ -229,6 +322,9 @@ onSyncToken(id){
   _storeToken(token) {
     localStorage.setItem('token', token.value);
   }
+  _purgeToken() {
+    localStorage.removeItem('token');
+  }
   async _fetchCachedToken() {
     // The local endpoint is handled by the service worker.
     let sw = navigator.serviceWorker;
@@ -261,6 +357,19 @@ onSyncToken(id){
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ token }),
+    });
+  }
+  async _purgeCachedToken() {
+    // The local endpoint is handled by the service worker.
+    let sw = navigator.serviceWorker;
+    if (!sw || !sw.controller)
+      return;
+
+    return fetch(LOCAL_ENDPOINT, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
   }
   async _setToken(token) {

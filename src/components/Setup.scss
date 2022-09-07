@@ -12,8 +12,6 @@
     flex: 1 1 auto;
     max-width: 548px;
 
-    cursor: pointer;
-
     LABEL {
       position: absolute;
 
@@ -36,6 +34,7 @@
 
     .set {
       position: relative;
+      cursor: pointer;
 
       .image {
         background-position: center;
@@ -45,6 +44,9 @@
         padding-bottom: 67%;
         width: 100%;
       }
+    }
+    .set:hover LABEL {
+      color: #FFCC00;
     }
   }
   .sets:not(.isCustomizable) {

@@ -5,7 +5,7 @@ import 'plugins/array.js';
 import 'plugins/set.js';
 import 'plugins/map.js';
 import 'plugins/string.js';
-import AuthAdapter from 'data/DataAdapter/AuthAdapter.js';
+import AuthAdapter from 'data/FileAdapter/AuthAdapter.js';
 
 const dataAdapter = new AuthAdapter();
 

@@ -1,14 +1,15 @@
+import 'isomorphic-fetch';
 import uuid from 'uuid/v4';
 import uaparser from 'ua-parser-js';
+import { Issuer, generators } from 'openid-client';
 
+import config from 'config/server.js';
 import IdentityToken from 'server/IdentityToken.js';
 import AccessToken from 'server/AccessToken.js';
 import Service from 'server/Service.js';
 import ServerError from 'server/Error.js';
 import Player from 'models/Player.js';
-import zlib from 'zlib';
-import AuthAdapter from '../data/DataAdapter/AuthAdapter.js';
-import serializer from 'utils/serializer.js'
+
 export default class AuthService extends Service {
   constructor(props) {
     super({
@@ -23,16 +24,23 @@ export default class AuthService extends Service {
         register: [ 'auth:profile' ],
         saveProfile: [ 'auth:profile' ],
         refreshToken: `tuple([ 'AccessToken({ ignoreExpiration:true })' ], 0)`,
-        synctoken: ['string'],
+
         createIdentityToken: [],
         getIdentityToken: [],
         revokeIdentityToken: [],
 
+        makeAuthProviderURL: [ { provider:'auth:provider', 'redirectURL?':'string' } ],
+        linkAuthProvider: [ 'string' ],
+        unlinkAuthProviders: [],
+        hasAuthProviderLinks: [],
+
         addDevice: [ IdentityToken ],
         getDevices: [],
-        getFederated:[],
         setDeviceName: [ 'uuid', 'string | null' ],
         removeDevice: [ 'uuid' ],
+        logout: [],
+
+        isAccountAtRisk: [],
 
         getACL: [],
         getPlayerACL: [ 'uuid' ],
@@ -43,6 +51,7 @@ export default class AuthService extends Service {
         profile: {
           name: 'string',
         },
+        provider: `enum([ ${Object.keys(config.auth.providers).map(p => `'${p}'`)} ])`,
         acl: {
           type: `enum([ 'friended', 'muted', 'blocked' ])`,
           name: 'string',
@@ -66,7 +75,7 @@ export default class AuthService extends Service {
     if (!clientPara) return;
 
     const player = this.data.getOpenPlayer(clientPara.playerId);
-    player.checkout(client);
+    player.checkout(client, clientPara.device.id);
     this.data.closePlayer(player.id);
 
     this.clientPara.delete(client.id);
@@ -111,29 +120,7 @@ export default class AuthService extends Service {
 
     this.clientPara.set(client.id, clientPara);
   }
-async onFBAuthorization(client,{fbUserData}){
-  //get the player id
-  
- let player = await this.data.getPlayerID({fbid:fbUserData});
- if(player){
-  const devl = player.addDevice(client);
-  return player.createAccessToken(devl.id);
- }
-// if no player is found but we are logged in then link the accounts
 
- return null;
-}
-async onDiscordAuthorization(client,{dcUserData}){
-  //get the player id
-  
- const player = await this.data.getPlayerID({discordid:dcUserData});
- if(player){
-  const devl = player.addDevice(client);
-  return player.createAccessToken(devl.id);
- }
-
- return null;
-}
   async onRegisterRequest(client, playerData) {
     // An authorized player cannot register an account.
     if (this.clientPara.has(client.id))
@@ -149,24 +136,12 @@ async onDiscordAuthorization(client,{dcUserData}){
     this.throttle(client.address, 'register', 1, 30);
 
     const device = player.addDevice(client);
-    
+
     await this.data.createPlayer(player);
 
     return player.getAccessToken(device.id);
   }
-async onSynctokenRequest(client, id){
 
-  id =  Buffer.from(id, 'hex');
-   
-  id = serializer.normalize(JSON.parse(zlib.gunzipSync(id)));
-
-  
-  const { player, device } = await this._validateAccessToken(client, id);
-   this.throttle(client.address, 'syncToken', 1, 30);
-  return player.getAccessToken(device.id);   
-    
-  
-}
   async onCreateIdentityTokenRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
@@ -186,6 +161,126 @@ async onSynctokenRequest(client, id){
     player.clearIdentityToken();
   }
 
+  async onMakeAuthProviderURLRequest(client, state) {
+    if (!config.auth.enabled)
+      throw new ServerError(501, 'Not Implemented');
+
+    const providerConfig = config.auth.providers[state.provider];
+    const issuer = typeof providerConfig.openId === 'string'
+      ? await Issuer.discover(providerConfig.openId)
+      : new Issuer();
+    Object.assign(issuer, providerConfig.issuer);
+
+    const iClient = new issuer.Client(providerConfig.client);
+    Object.assign(state, {
+      playerId: this.clientPara.get(client.id)?.playerId,
+      expiresAt: Date.now() + 60000,
+      codeVerifier: generators.codeVerifier(),
+    });
+
+    return iClient.authorizationUrl(Object.assign({}, providerConfig.authorization, {
+      state: config.auth.encryptState(JSON.stringify(state)),
+      code_challenge: generators.codeChallenge(state.codeVerifier),
+    }));
+  }
+  async onLinkAuthProviderRequest(client, link) {
+    const playerId = this.clientPara.get(client.id)?.playerId;
+    const params = JSON.parse(config.auth.decryptState(link));
+    const state = JSON.parse(config.auth.decryptState(params.state));
+    if (state.expiresAt < Date.now())
+      throw new ServerError(401, 'Auth request has expired');
+    if (state.playerId && playerId && state.playerId !== playerId)
+      throw new ServerError(401, 'Mismatched auth request');
+
+    const providerConfig = config.auth.providers[state.provider];
+    const issuer = typeof providerConfig.openId === 'string'
+      ? await Issuer.discover(providerConfig.openId)
+      : new Issuer();
+    Object.assign(issuer, providerConfig.issuer);
+
+    const iClient = new issuer.Client(providerConfig.client);
+    const callback = typeof providerConfig.openId === 'string' ? 'callback' : 'oauthCallback';
+    const tokenSet = await iClient[callback](providerConfig.authorization.redirect_uri, params, {
+      response_type: providerConfig.authorization.response_type,
+      state: params.state,
+      code_verifier: state.codeVerifier,
+    }).catch(error => {
+      if (error.name === 'OPError')
+        throw new ServerError(401, 'Authorization not granted');
+
+      throw error;
+    });
+    if (tokenSet === false)
+      return;
+
+    const userinfo = await iClient.userinfo(tokenSet.access_token);
+
+    if (state.playerId) {
+      await this.data.linkAuthPlayerId(state.provider, userinfo.id, state.playerId);
+      return;
+    }
+
+    let name;
+
+    if (state.provider === 'discord') {
+      const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
+
+      try {
+        const rsp = await fetch(`http://discord.com/api/users/@me/guilds/${DISCORD_GUILD_ID}/member`, {
+          headers: {
+            Authorization: `Bearer ${tokenSet.access_token}`,
+          },
+        });
+
+        if (rsp.status === 200)
+          userinfo.guild = await rsp.json();
+        else if (rsp.status !== 404)
+          throw new ServerError(rsp.status, rsp.statusText);
+
+        name = userinfo.guild.nick ?? userinfo.username;
+      } catch (error) {
+        console.log('Error while fetching guild:', error);
+        name = userinfo.username;
+      }
+    } else if (state.provider === 'facebook')
+      name = userinfo.name;
+
+    try {
+      Player.validatePlayerName(name);
+    } catch (error) {
+      name = 'Noob';
+    }
+
+    const oldPlayerId = await this.data.getAuthPlayerId(state.provider, userinfo.id);
+    const player = oldPlayerId
+      ? await this.data.getPlayer(oldPlayerId)
+      : await this.data.createPlayer({ name, confirmName:true });
+    const token = player.addDevice(client).token;
+    await this.data.linkAuthPlayerId(state.provider, userinfo.id, player.id);
+
+    return token;
+  }
+  onUnlinkAuthProvidersRequest(client) {
+    if (!config.auth.enabled)
+      throw new ServerError(501, 'Not Implemented');
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+
+    return this.data.unlinkAuthProviders(clientPara.playerId, Object.keys(config.auth.providers));
+  }
+  onHasAuthProviderLinksRequest(client) {
+    if (!config.auth.enabled)
+      throw new ServerError(501, 'Not Implemented');
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+
+    return this.data.hasAuthProviderLinks(clientPara.playerId, Object.keys(config.auth.providers));
+  }
+
   async onGetIdentityTokenRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
@@ -195,11 +290,6 @@ async onSynctokenRequest(client, id){
 
     return player.getIdentityToken();
   }
-onGetFederatedRequest(client){
-  const clientPara = this.clientPara.get(client.id);
-  const player = this.data.getOpenPlayer(clientPara.playerId);
-  return {facebook: player.fbid ? true:false, discord: player.discordid ? true:false};
-}
   onGetDevicesRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
@@ -231,6 +321,7 @@ onGetFederatedRequest(client){
           })),
         }
       }),
+      checkoutAt: device.checkoutAt,
     }));
   }
   onGetACLRequest(client) {
@@ -264,10 +355,61 @@ onGetFederatedRequest(client){
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
+    if (deviceId === clientPara.device.id)
+      throw new ServerError(403, 'To remove current device, logout');
+
     const player = this.data.getOpenPlayer(clientPara.playerId);
-    player.removeDevice(deviceId);
 
     this.push.clearPushSubscription(player.id, deviceId);
+
+    player.removeDevice(deviceId);
+  }
+  async onLogoutRequest(client) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const { playerId, device } = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(playerId);
+
+    this.push.clearPushSubscription(player.id, device.id);
+    this._emit({
+      type: 'logout',
+      clientId: client.id,
+    });
+
+    player.removeDevice(device.id);
+  }
+
+  async onIsAccountAtRiskRequest(client) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+
+    // Not at risk if they (assumedly) saved an active identity token somewhere.
+    if (player.getIdentityToken())
+      return false;
+
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    for (const device of player.devices.values()) {
+      if (device.id === clientPara.device.id)
+        continue;
+
+      // Not at risk if another device has been used in the past 7 days.
+      if (device.checkoutAt > oneWeekAgo)
+        return false;
+    }
+
+    const authLinks = await this.data.hasAuthProviderLinks(player.id, Object.keys(config.auth.providers));
+    for (const isLinked of authLinks.values()) {
+      // Not at risk if an auth provider was linked
+      if (isLinked)
+        return false;
+    }
+
+    return true;
   }
 
   /*

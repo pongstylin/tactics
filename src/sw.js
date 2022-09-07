@@ -21,13 +21,14 @@ const APP_FILES = [
   '/install.min.js',
   '/tactics.min.js',
   '/check.min.js',
-'/login.html',  
   '/online.html',
   '/online.min.js',
   '/createGame.html',
   '/createGame.min.js',
-  '/account.html',
-  '/account.min.js',
+  '/profile.html',
+  '/profile.min.js',
+  '/security.html',
+  '/security.min.js',
   '/addDevice.html',
   '/addDevice.min.js',
   '/game.html',
@@ -62,7 +63,7 @@ const INSTALL_CACHE_NAME = 'app' + SUFFIX;
 //   1) A minor change to a file has taken place (e.g. changing an image)
 //   2) A file is moved from the fetch cache to the install cache.
 //   3) One or more files are no longer used by a new app version.
-const FETCH_CACHE_NAME = 'dynamic-20220805';
+const FETCH_CACHE_NAME = 'dynamic-20220930';
 const LOCAL_CACHE_NAME = 'local';
 
 const ACTIVE_CACHE_NAMES = [
@@ -126,10 +127,8 @@ function getCache(url) {
 /*
  * This is the only way to share data between the browser and PWA on iOS.
  */
-const LOCAL_ENDPOINT = self.registration.scope + 'local.json';
-const API_ENDPOINT = config.apiPrefix
-  ? self.registration.scope + config.apiPrefix
-  : self.registration.scope.slice(0, -1);
+const LOCAL_ENDPOINT = config.local.origin + '/local.json';
+const API_ENDPOINT = config.local.apiEndpoint;
 const TEST_NO_STORE = /\bno-store\b/;
 
 async function routeLocalRequest(request) {
@@ -168,58 +167,54 @@ async function routeLocalRequest(request) {
 
 self.addEventListener('fetch', event => {
   const request = event.request;
+  const url = new URL(request.url);
+  const baseURL = url.origin + url.pathname;
+
+  // The local endpoint gets special treatment.
+  if (baseURL === LOCAL_ENDPOINT)
+    return event.respondWith(routeLocalRequest(request));
+
   // Do the default thing for non HTTP(S) requests.
   // Example: chrome-extension://...
-  if (!request.url.startsWith('http'))
+  if (!/https?:/.test(url.protocol))
     return;
+  // Do not interfere with the auth callback.
+  if (baseURL === `${API_ENDPOINT}/auth/callback`)
+    return;
+  // Only handle GET requests.
+  // Note: This placement ensures POST/DELETE to the LOCAL_ENDPOINT work.
+  if (request.method !== 'GET')
+    return;
+
   /*
    * Do not handle requests to domains relating to google translation
    * TODO: Use a whitelist, instead.
    */
-  let discordPattern = /discord/i;
-  
-  if(discordPattern.test(request.url))
+  if (url.origin === 'https://translate.google.com')
     return;
-  if (request.url.startsWith('https://translate.google.com/'))
+  if (url.origin === 'https://www.gstatic.com')
     return;
-  if (request.url.startsWith('https://www.gstatic.com/'))
+  if (url.origin === 'https://ssl.gstatic.com')
     return;
-  if (request.url.startsWith('https://ssl.gstatic.com/'))
-    return;
-
-  // Ignore the query string since it does not affect the response.
-  const url = request.url.replace(/\?.+$/, '');
-
-  if (url === LOCAL_ENDPOINT)
-    return event.respondWith(routeLocalRequest(request));
 
   /*
-   * Do not handle non-GET requests.
-   * Note: This placement ensures POST/DELETE to the LOCAL_ENDPOINT work.
+   * Use the baseURL to fetch the resource since parameters may bloat caching
+   * and are meant to be used client-side only.
    */
-  if (request.method !== 'GET')
-    return;
-  
-    
   event.respondWith(
-    getCache(url).then(([cache, cachedResponse]) => {
+    getCache(baseURL).then(([cache, cachedResponse]) => {
       // Return cached response (unless it is a localhost URL)
-      
+      if (cachedResponse && (ENVIRONMENT !== 'development' || url.hostname !== 'localhost'))
+        return cachedResponse;
 
       let fetchPromise;
-      
-      
-      let gstaticPattern = /gstatic/i;
-      let googlePattern = /googleapis/i;
-      
-      const getFresh = googlePattern.test(url)||gstaticPattern.test(url);
-      if (cachedResponse && (ENVIRONMENT !== 'development' || !url.startsWith('http://localhost:')) && !getFresh)
-        return cachedResponse;
       // Google Fonts API disallows CORS requests.
-      else if (getFresh)
+      if (baseURL.startsWith('https://fonts.googleapis.com/css'))
+        fetchPromise = fetch(request);
+      else if (url.origin === 'https://fonts.gstatic.com')
         fetchPromise = fetch(request);
       else
-        fetchPromise = fetch(url, OPTIONS);
+        fetchPromise = fetch(baseURL, OPTIONS);
 
       // Cache miss or localhost URL.  Fetch response and cache it.
       return fetchPromise
@@ -232,14 +227,14 @@ self.addEventListener('fetch', event => {
            * Do not cache GET API requests that request no-store.
            */
           const headers = response.headers;
-          if (url.startsWith(API_ENDPOINT) && headers.has('Cache-Control')) {
+          if (baseURL.startsWith(API_ENDPOINT) && headers.has('Cache-Control')) {
             const cacheControl = headers.get('Cache-Control');
             if (TEST_NO_STORE.test(cacheControl))
               return response;
           }
 
           // Clone the response before the body is consumed.
-          cache.put(url, response.clone());
+          cache.put(baseURL, response.clone());
 
           return response;
         })
@@ -249,7 +244,7 @@ self.addEventListener('fetch', event => {
             return cachedResponse;
 
           // Hijack the fileName field to report the URL that failed to fetch.
-          error.fileName = url;
+          error.fileName = baseURL;
           throw error;
         });
     })
@@ -307,7 +302,7 @@ async function showNotification(event) {
     const endpoint = `${API_ENDPOINT}/notifications/${data.type}`;
 
     try {
-      const localRsp = await routeLocalRequest({method:'GET'});
+      const localRsp = await routeLocalRequest({ method:'GET' });
       const localData = await localRsp.json();
       const token = localData.token;
       const rsp = await fetch(endpoint, Object.assign({

@@ -25,7 +25,6 @@ class Overlay {
   setOptions(options) {
     this.options = Object.assign({
       autoShow: true,
-      className: null,
       zIndex: null,
     }, options);
   }
@@ -35,8 +34,6 @@ class Overlay {
     const divOverlay = document.createElement('DIV');
     divOverlay.classList.add('overlay');
 
-    if (options.className)
-      divOverlay.classList.add(options.className);
     if (options.zIndex)
       divOverlay.style.zIndex = options.zIndex;
     divOverlay.addEventListener('click', event => {

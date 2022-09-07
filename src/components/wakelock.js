@@ -1,6 +1,6 @@
+import NoSleep from 'nosleep.js';
 
-
-const noSleep = {enabled:false,enable:()=>{},disable:()=>{}};
+const noSleep = new NoSleep();
 const KEEP_AWAKE = 15 * 60 * 1000;
 
 let timeout = null;
