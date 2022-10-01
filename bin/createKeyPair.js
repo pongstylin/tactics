@@ -9,7 +9,7 @@
 import crypto from 'crypto';
 import webpush from 'web-push';
 
-let keys = crypto.generateKeyPairSync('rsa', {
+const keys = crypto.generateKeyPairSync('rsa', {
   modulusLength: 1024,
   publicKeyEncoding: {
     type: 'spki',
@@ -21,9 +21,9 @@ let keys = crypto.generateKeyPairSync('rsa', {
   }
 });
 
-let vapidKeys = webpush.generateVAPIDKeys();
+const vapidKeys = webpush.generateVAPIDKeys();
 
-let config = {
+const config = {
   publicKey: keys.publicKey,
   privateKey: keys.privateKey,
   push: {

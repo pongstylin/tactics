@@ -6,6 +6,7 @@
 import {
   Renderer, BatchRenderer,
   BaseTexture, Texture,
+  extensions
 } from '@pixi/core';
 import { InteractionManager } from '@pixi/interaction';
 import { Container } from '@pixi/display';
@@ -22,12 +23,12 @@ import '@pixi/canvas-display';
 import '@pixi/canvas-text';
 import { Extract } from '@pixi/extract';
 
-Renderer.registerPlugin('extract', Extract);
-Renderer.registerPlugin('batch', BatchRenderer);
-Renderer.registerPlugin('interaction', InteractionManager);
-CanvasRenderer.registerPlugin('sprite', CanvasSpriteRenderer);
-CanvasRenderer.registerPlugin('graphics', CanvasGraphicsRenderer);
-CanvasRenderer.registerPlugin('interaction', InteractionManager);
+extensions.add(Extract);
+extensions.add(BatchRenderer);
+extensions.add(InteractionManager);
+extensions.add(CanvasSpriteRenderer);
+extensions.add(CanvasGraphicsRenderer);
+extensions.add(InteractionManager);
 
 window.PIXI = {
   Renderer,

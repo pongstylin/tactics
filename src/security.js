@@ -1,15 +1,14 @@
 import 'plugins/index.js';
+import config from 'config/client.js';
 import clientFactory from 'client/clientFactory.js';
 import Autosave from 'components/Autosave.js';
 import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 
 const authClient = clientFactory('auth')
-let accountNameAutosave;
 let identityToken;
 let devices;
-let acl;
-
+let hasAuthProviderLinks;
 window.addEventListener('DOMContentLoaded', () => {
   let notice;
   if (navigator.onLine === false)
@@ -25,17 +24,6 @@ window.addEventListener('DOMContentLoaded', () => {
       closeOnCancel: false,
       autoOpen: 1000, // open after one second
     });
-
-  accountNameAutosave = new Autosave({
-    submitOnChange: true,
-    defaultValue: false,
-    maxLength: 20,
-  }).on('submit', event => event.waitUntil(
-    authClient.setAccountName(event.data),
-  ));
-  accountNameAutosave.attach(
-    document.querySelector('.accountName .inputTextAutosave'),
-  );
 
   authClient.whenReady.then(() => {
     if (notice)
@@ -55,166 +43,115 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function renderPage() {
-  accountNameAutosave.value = accountNameAutosave.defaultValue = authClient.playerName;
-
-  Promise.all([
+  const promises = [
     authClient.getIdentityToken().then(data => {
       identityToken = data;
     }),
     authClient.getDevices().then(data => {
       devices = data;
     }),
-    authClient.getACL().then(data => {
-      acl = data;
-      for (const playerACL of acl.values()) {
-        delete playerACL.createdAt;
-      }
-    }),
-  ]).then(() => {
-    renderACL();
+  ];
+
+  if (config.auth)
+    promises.push(
+      authClient.hasAuthProviderLinks().then(data => {
+        hasAuthProviderLinks = data;
+      }),
+    );
+
+  Promise.all(promises).then(() => {
+    renderAccountAtRisk();
+    renderAuthProviders();
     renderManageLink();
     renderDeviceList();
+
+    document.querySelector('BUTTON[name=unlink]').addEventListener('click', async event => {
+      await authClient.unlinkAuthProviders();
+      for (const provider of hasAuthProviderLinks.keys()) {
+        document.querySelector(`.${provider}`).classList.remove('linked');
+        hasAuthProviderLinks.set(provider, false);
+      }
+      renderAccountAtRisk();
+      renderManageLink();
+    });
 
     document.querySelector('.page').style.display = '';
   });
 }
 
-function renderACL() {
-  const content = [];
-  const aclTypes = [ 'muted', 'blocked' ];
-  const sortedACL = [ ...acl ].sort((a,b) =>
-    aclTypes.indexOf(a[1].type) - aclTypes.indexOf(b[1].type) ||
-    a[1].name.localeCompare(b[1].name)
-  );
-  const divACL = document.querySelector('.acl');
+function renderAccountAtRisk() {
+  const isAccountAtRisk = () => {
+    // Not at risk if they (assumedly) saved an active identity token somewhere.
+    if (identityToken)
+      return false;
 
-  for (const [ playerId, playerACL ] of acl) {
-    const divPlayer = document.createElement('DIV');
-    divPlayer.id = `playerACL-${playerId}`;
-    divPlayer.classList.add('playerACL');
-    divACL.appendChild(divPlayer);
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-    const divName = document.createElement('DIV');
-    divName.classList.add('name');
-    divPlayer.appendChild(divName);
+    for (const device of devices) {
+      if (device.id === authClient.deviceId)
+        continue;
 
-    const autosave = new Autosave({
-      submitOnChange: true,
-      defaultValue: false,
-      value: playerACL.name,
-      maxLength: 20,
-      icons: new Map([
-        [ 'friended', {
-          name: 'user-friends',
-          title: 'Friend',
-          active: playerACL.type === 'friended',
-          onClick: async friendIcon => {
-            if (friendIcon.active) {
-              await authClient.clearPlayerACL(playerId);
-              friendIcon.active = false;
-            } else {
-              playerACL.type = 'friended';
-              await authClient.setPlayerACL(playerId, playerACL);
-              friendIcon.active = true;
-              autosave.icons.get('muted').active = false;
-              autosave.icons.get('blocked').active = false;
-            }
-          },
-        }],
-        [ 'muted', {
-          name: 'microphone-slash',
-          title: 'Mute',
-          active: playerACL.type === 'muted',
-          onClick: async muteIcon => {
-            if (muteIcon.active) {
-              await authClient.clearPlayerACL(playerId);
-              muteIcon.active = false;
-            } else {
-              popup({
-                title: `Mute <I>${playerACL.name}</I>?`,
-                message: [
-                  `<DIV>If you mute this player, you will:</DIV>`,
-                  `<UL>`,
-                    `<LI>Disable chat in all games against them.</LI>`,
-                    `<LI>Hide chat in all games against them.</LI>`,
-                  `</UL>`,
-                  `<DIV>You can see a list of all muted players on your account page.</DIV>`,
-                ].join('  '),
-                buttons: [
-                  {
-                    label: 'Mute',
-                    onClick: async () => {
-                      playerACL.type = 'muted';
-                      await authClient.setPlayerACL(playerId, playerACL);
-                      muteIcon.active = true;
-                      autosave.icons.get('friended').active = false;
-                      autosave.icons.get('blocked').active = false;
-                    }
-                  },
-                  { label:'Cancel' },
-                ],
-              });
-            }
-          },
-        }],
-        [ 'blocked', {
-          name: 'ban',
-          title: 'Block',
-          active: playerACL.type === 'blocked',
-          onClick: async blockIcon => {
-            if (blockIcon.active) {
-              await authClient.clearPlayerACL(playerId);
-              blockIcon.active = true;
-            } else {
-              popup({
-                title: `Block <I>${playerACL.name}</I>?`,
-                message: [
-                  `<DIV>If you block this player, you will:</DIV>`,
-                  `<UL>`,
-                    `<LI>Disable chat in all games against them.</LI>`,
-                    `<LI>Hide chat in all games against them.</LI>`,
-                    `<LI>Surrender all active games against them.</LI>`,
-                    `<LI>Avoid getting auto matched with them in public games.</LI>`,
-                    `<LI>Prevent them from seeing your waiting games.</LI>`,
-                    `<LI>Prevent them from joining your shared game links.</LI>`,
-                  `</UL>`,
-                  `<DIV>You can see a list of all blocked players on your account page.</DIV>`,
-                ].join(''),
-                buttons: [
-                  {
-                    label: 'Block',
-                    onClick: async () => {
-                      playerACL.type = 'blocked';
-                      await authClient.setPlayerACL(playerId, playerACL);
-                      blockIcon.active = true;
-                      autosave.icons.get('friended').active = false;
-                      autosave.icons.get('muted').active = false;
-                    }
-                  },
-                  { label:'Cancel' },
-                ],
-              });
-            }
-          },
-        }],
-      ]),
-    }).on('submit', event => event.waitUntil(() => {
-      playerACL.name = event.data;
-      return authClient.setPlayerACL(playerId, playerACL);
-    }));
-    autosave.appendTo(divName);
-  }
+      // Not at risk if another device has been used in the past 7 days.
+      if (device.checkoutAt > oneWeekAgo)
+        return false;
+    }
+
+    if (config.auth) {
+      for (const isLinked of hasAuthProviderLinks.values()) {
+        // Not at risk if an auth provider was linked
+        if (isLinked)
+          return false;
+      }
+    }
+
+    return true;
+  };
+
+  document.body.classList.toggle('account-is-at-risk', isAccountAtRisk());
 }
+function renderAuthProviders() {
+  if (!config.auth)
+    return;
 
+  const divAuth = document.querySelector('.auth');
+
+  for (const provider of Object.keys(config.auth)) {
+    const liProvider = document.querySelector(`.${provider}`);
+    if (!config.auth[provider]) {
+      liProvider.style.display = 'none';
+      continue;
+    }
+
+    liProvider.classList.toggle('linked', hasAuthProviderLinks.get(provider));
+
+    const btnLink = liProvider.querySelector('BUTTON');
+    btnLink.addEventListener('click', () => {
+      if (!liProvider.classList.contains('linked'))
+        authClient.openAuthProvider(provider);
+    });
+  }
+
+  divAuth.style.display = '';
+}
 function renderManageLink() {
+  const subSection = document.querySelector('.security .link');
+  const isAuthorized = config.auth && new Set([ ...hasAuthProviderLinks.values() ]).has(true);
+  subSection.style.display = isAuthorized ? 'none' : '';
+  document.querySelector('.security .unlink').style.display = isAuthorized ? '' : 'none';
+
+  if (isAuthorized)
+    return;
+
+  subSection.style.display = '';
+
   /*
    * See if an identity token is already associated with the account.
    */
-  let manageLink = document.querySelector('.manageLink');
+  const manageLink = subSection.querySelector('.manageLink');
 
   if (identityToken) {
-    let link = location.origin + '/addDevice.html?' + identityToken;
-    let days = Math.floor((identityToken.expiresAt - new Date()) / 86400000);
+    const link = location.origin + '/addDevice.html?' + identityToken;
+    const days = Math.floor((identityToken.expiresAt - new Date()) / 86400000);
 
     manageLink.innerHTML = `
       <DIV class="manage">
@@ -233,18 +170,18 @@ function renderManageLink() {
       </DIV>
     `;
 
-    document.querySelector('.link').addEventListener('click', event => {
+    subSection.querySelector('.link').addEventListener('click', event => {
       copy(link);
       popup('The link was copied');
     });
-    document.querySelector('BUTTON[name=revoke]').addEventListener('click', event => {
+    subSection.querySelector('BUTTON[name=revoke]').addEventListener('click', event => {
       authClient.revokeIdentityToken().then(() => {
         identityToken = null;
+        renderAccountAtRisk();
         renderManageLink();
       });
     });
-  }
-  else {
+  } else
     manageLink.innerHTML = `
       <DIV class="manage">
         <DIV>
@@ -252,11 +189,11 @@ function renderManageLink() {
         </DIV>
       </DIV>
     `;
-  }
 
-  document.querySelector('BUTTON[name=create]').addEventListener('click', event => {
+  subSection.querySelector('BUTTON[name=create]').addEventListener('click', event => {
     authClient.createIdentityToken().then(token => {
       identityToken = token;
+      renderAccountAtRisk();
       renderManageLink();
     });
   });
@@ -336,6 +273,8 @@ function renderDeviceList() {
                   label: 'Yes',
                   onClick: () => authClient.removeDevice(device.id).then(() => {
                     divDevice.remove();
+                    devices = devices.filter(d => d.id !== device.id);
+                    renderAccountAtRisk();
                   }),
                 },
                 { label: 'No' },

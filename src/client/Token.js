@@ -17,6 +17,9 @@ export default class Token {
   get playerName() {
     return this.claims.name;
   }
+  get confirmPlayerName() {
+    return this.claims.confirmName;
+  }
   get deviceId() {
     return this.claims.deviceId;
   }

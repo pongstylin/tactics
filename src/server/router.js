@@ -20,6 +20,7 @@ const CLOSE_ABNORMAL       = 1006;
 const CLOSE_CLIENT_TIMEOUT  = 4000;
 const CLOSE_SERVER_SHUTDOWN = 4001;
 const CLOSE_REPLACED        = 4002;
+const CLOSE_CLIENT_LOGOUT   = 4003;
 
 // Proprietary codes used by client
 const CLOSE_SERVER_TIMEOUT = 4100;
@@ -231,6 +232,7 @@ servicesReady.then(() => {
     service.on('leaveGroup', event => leaveGroup(service.name, event));
     service.on('closeGroup', event => closeGroup(service.name, event));
     service.on('event', event => sendEvent(service.name, event));
+    service.on('logout', event => logout(service.name, event));
   }
 });
 
@@ -329,6 +331,12 @@ function closeGroup(serviceName, { body }) {
       group: body.group,
     });
   }
+}
+
+function logout(serviceName, { clientId }) {
+  const client = sessions.get(clientId).client;
+
+  closeClient(client, CLOSE_CLIENT_LOGOUT);
 }
 
 /*******************************************************************************
@@ -535,7 +543,7 @@ function closeClient(client, code, reason) {
 
   let session = client.session;
   if (session)
-    if (code === CLOSE_GOING_AWAY || code === CLOSE_SERVER_SHUTDOWN || code > CLOSE_SERVER_TIMEOUT)
+    if (code === CLOSE_GOING_AWAY || code === CLOSE_SERVER_SHUTDOWN || code === CLOSE_CLIENT_LOGOUT || code > CLOSE_SERVER_TIMEOUT)
       deleteSession(session, code);
     else if (code !== CLOSE_REPLACED)
       closedSessionTimeout.add(session.id, session);

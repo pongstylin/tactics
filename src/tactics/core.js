@@ -346,8 +346,10 @@ window.Tactics = (function () {
     getAvatarImage(avatar, options) {
       const avatarImageData = this.drawAvatar(avatar, Object.assign({ withFocus:true }, options));
       const imgAvatar = document.createElement('IMG');
+      imgAvatar.dataset.avatar = JSON.stringify(avatarImageData);
       imgAvatar.style.top = `${avatarImageData.y}px`;
       imgAvatar.style.left = `${avatarImageData.x}px`;
+      imgAvatar.style.transformOrigin = `${-avatarImageData.x}px ${-avatarImageData.y}px`;
       imgAvatar.src = avatarImageData.src;
 
       return imgAvatar;
