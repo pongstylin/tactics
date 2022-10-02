@@ -819,9 +819,11 @@ async function initGame() {
       if (error.code === 403 || error.code === 409)
         $('#error').text(error.message);
       else if (error.code === 404)
-        $('#error').text("The game doesn't exist");
+        $('#error').text('The game doesn\'t exist');
+      else if (error.code === 422)
+        $('#error').text('Invalid game link');
       else if (error.code === 429)
-        $('#error').text("Loading games too quickly");
+        $('#error').text('Loading games too quickly');
 
       progress.hide();
       $('#join').hide();
