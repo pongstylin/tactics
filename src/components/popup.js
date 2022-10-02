@@ -27,12 +27,18 @@ class Popup {
   setOptions(options) {
     if (typeof options === 'string')
       options = { message:options };
-    if (options.buttons)
-      options.buttons = options.buttons.map(b => Object.assign({
-        closeOnClick: true,
-        closeOnError: true,
-        showError: false,
-      }, b));
+    else if (options.buttons)
+      options.buttons = options.buttons.map(button => {
+        if (typeof button === 'string')
+          button = { label:button };
+
+        return Object.assign({
+          closeOnClick: true,
+          closeOnError: true,
+          showError: false,
+          value: button.label,
+        }, button);
+      });
 
     this.options = Object.assign({
       container: document.body,
@@ -235,8 +241,10 @@ class Popup {
       this.whenClosed.reject(event.error);
     else if (event.value !== undefined)
       this.whenClosed.resolve(event.value);
+    else if (event.button)
+      this.whenClosed.resolve(event.button.value);
     else
-      this.whenClosed.resolve(event.button?.value);
+      this.whenClosed.resolve();
 
     this.overlay.root.remove();
     this.overlay = null;

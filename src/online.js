@@ -432,6 +432,7 @@ async function showTabs() {
   const btnAccount = header.querySelector('.account BUTTON');
   const spnName = btnAccount.querySelector('.account BUTTON .name');
   const divAvatar = header.querySelector('.account .avatar .image');
+  const isAccountAtRisk = await authClient.isAccountAtRisk();
 
   myPlayerId = authClient.playerId;
   spnName.textContent = authClient.playerName;
@@ -450,6 +451,16 @@ async function showTabs() {
       {
         label: 'Logout',
         onClick: async () => {
+          if (isAccountAtRisk) {
+            const answer = await popup({
+              message: 'You are at risk of losing your account.  Are you sure you want to logout?',
+              buttons: [ 'Yes', 'No' ],
+              maxWidth: '250px',
+            }).whenClosed;
+            console.log('answer', answer);
+            if (answer !== 'Yes')
+              return;
+          }
           await authClient.logout();
           location.reload();
         },
@@ -457,7 +468,6 @@ async function showTabs() {
     ],
   }));
 
-  const isAccountAtRisk = await authClient.isAccountAtRisk();
   const avatar = (await gameClient.getPlayersAvatar([ myPlayerId ]))[0];
 
   document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
@@ -757,46 +767,29 @@ async function createGame(divArena) {
   const tabContent = state.tabContent.lobby;
   let { createBlocking, createTimeLimit, set, randomSide } = state.settings;
   if (createBlocking === 'ask')
-    await popup({
+    createBlocking = await popup({
       message: 'Choose blocking system.',
       buttons: [
-        {
-          label: 'Luck',
-          onClick: () => createBlocking = 'luck',
-        },
-        {
-          label: 'No Luck',
-          onClick: () => createBlocking = 'noluck',
-        },
+        { label:'Luck',    value:'luck' },
+        { label:'No Luck', value:'noluck' },
       ],
       closeOnCancel: false,
     }).whenClosed;
   if (createTimeLimit === 'ask')
-    await popup({
+    createTimeLimit = await popup({
       message: 'Choose turn time limit.',
       buttons: [
-        {
-          label: 'Standard',
-          onClick: () => createTimeLimit = 'standard',
-        },
-        {
-          label: 'Blitz',
-          onClick: () => createTimeLimit = 'blitz',
-        },
+        { label:'Standard', value:'standard' },
+        { label:'Blitz',    value:'blitz' },
       ],
       closeOnCancel: false,
     }).whenClosed;
   if (set === 'ask' && tabContent.sets.length === 1)
     set = tabContent.sets[0].id;
   else if (set === 'ask')
-    await popup({
+    set = await popup({
       message: 'Choose set.',
-      buttons: tabContent.sets.map(s => (
-        {
-          label: s.name,
-          onClick: () => set = s.id,
-        }
-      )),
+      buttons: tabContent.sets.map(s => ({ label:s.name, value:s.id })),
       closeOnCancel: false,
     }).whenClosed;
 
@@ -885,17 +878,11 @@ async function joinGame(arena) {
     }
 
     if (proceed === false)
-      proceed = await popup({
+      proceed = !!await popup({
         message,
         buttons: [
-          {
-            label: joinLabel,
-            onClick: () => true,
-          },
-          {
-            label: 'Cancel',
-            onClick: () => false,
-          },
+          { label:joinLabel, value:true },
+          { label:'Cancel' },
         ],
         maxWidth: '300px',
       }).whenClosed;
@@ -908,14 +895,9 @@ async function joinGame(arena) {
   if (set === 'ask' && tabContent.sets.length === 1)
     set = tabContent.sets[0].id;
   else if (set === 'ask')
-    await popup({
+    set = await popup({
       message: 'Choose set.',
-      buttons: tabContent.sets.map(s => (
-        {
-          label: s.name,
-          onClick: () => set = s.id,
-        }
-      )),
+      buttons: tabContent.sets.map(s => ({ label:s.name, value:s.id })),
       closeOnCancel: false,
     }).whenClosed;
 
