@@ -289,7 +289,7 @@ export default class SetBuilder extends Modal {
     }
     set.units = this._board.getState()[0];
 
-    return set;
+    return this.data.gameType.cleanSet(set);
   }
   set set(set) {
     if (!set)
