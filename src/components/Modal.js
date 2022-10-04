@@ -144,6 +144,8 @@ export default class Modal {
   }
 
   hide() {
+    if (this.whenHidden === null) return;
+
     this._overlay.hide();
     this.whenHidden.resolve(this);
     this.whenHidden = null;
