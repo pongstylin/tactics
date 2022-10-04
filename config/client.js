@@ -3,7 +3,7 @@ import setsById from 'config/sets.js';
 const local = {
   secure: process.env.LOCAL_SECURE === 'true',
   host: process.env.LOCAL_HOST,
-  port: process.env.LOCAL_PORT ?? 80,
+  port: process.env.LOCAL_PORT ? parseInt(process.env.LOCAL_PORT) : null,
   // The optional path part of API and WS endpoints.  Must not end with /
   path: process.env.LOCAL_PATH,
 
