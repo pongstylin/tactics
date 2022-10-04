@@ -512,7 +512,11 @@ export default class AuthService extends Service {
   }
 
   async _validateAccessToken(client, token) {
-    const player = await this.data.getPlayer(token.playerId);
+    const player = await this.data.getPlayer(token.playerId).catch(error => {
+      if (error.code === 404)
+        throw new ServerError(401, 'Player deleted');
+      throw error;
+    });
     const device = player.getDevice(token.deviceId);
 
     if (!device)

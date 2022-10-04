@@ -36,12 +36,19 @@ window.addEventListener('DOMContentLoaded', () => {
       autoOpen: 1000, // open after one second
     });
 
-  authClient.whenReady.then(() => {
+  authClient.whenReady.then(async () => {
     if (notice)
       notice.close();
 
-    if (authClient.token)
-      autosave.value = authClient.playerName;
+    if (!authClient.playerId)
+      await authClient.register({ name:'Noob' })
+        .catch(error => popup({
+          message: 'There was an error while loading your account.',
+          buttons: [],
+          closeOnCancel: false,
+        }));
+
+    autosave.value = authClient.playerName;
 
     divConfigure.classList.add('show');
   });
