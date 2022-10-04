@@ -1,3 +1,5 @@
+import sleep from 'utils/sleep.js';
+
 /*
  * The primary purpose of extending and replacing native promises is so that we
  * can track when and where a promise was created for use in logging of any
@@ -92,8 +94,18 @@ if (!self.Promise.isEnhanced) {
   }
 
   const enhancedFetch = function (resource, init) {
+    const fetchInit = { ...init };
+    delete fetchInit.retry;
+
+    const startedAt = Date.now();
+
     return EnhancedPromise.wrap(
-      nativeFetch(resource, init).catch(error => {
+      nativeFetch(resource, init).catch(async error => {
+        if (init.retry) {
+          await sleep(1000 - (Date.now() - startedAt));
+          return enhancedFetch(resource, init);
+        }
+
         error.fileName = resource.toString();
         throw error;
       }),

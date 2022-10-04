@@ -70,7 +70,7 @@ window.Tactics = (function () {
           spriteName = unitType;
 
         const spriteURL = new URL(`${spriteName}.json`, baseSpriteURL);
-        const rsp = await fetch(spriteURL);
+        const rsp = await fetch(spriteURL, { retry:true });
         const spriteData = await rsp.json();
 
         spriteData.name = unitType;
@@ -115,7 +115,7 @@ window.Tactics = (function () {
 
       const effectsData = await Promise.all(effectTypes.map(async effectType => {
         const spriteURL = new URL(`${effectType}.json`, baseSpriteURL);
-        const rsp = await fetch(spriteURL);
+        const rsp = await fetch(spriteURL, { retry:true });
         const spriteData = await rsp.json();
 
         spriteData.name = effectType;
