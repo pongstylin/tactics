@@ -25,6 +25,9 @@ export default class PlayerActivity extends Modal {
     this.getPlayerActivity();
 
     this.data.trigger = ({ data }) => {
+      if (game.endedAt)
+        return;
+
       if (!Array.isArray(data))
         data = [data];
 
@@ -32,6 +35,7 @@ export default class PlayerActivity extends Modal {
         this.getPlayerActivity();
     };
     game.state.on('playerStatus', this.data.trigger);
+    game.state.on('endGame', event => this.close());
   }
 
   getPlayerActivity() {
@@ -50,6 +54,8 @@ export default class PlayerActivity extends Modal {
         data.request = null;
       })
       .catch(error => {
+        if (error.message === 'May not get player activity for an ended game.')
+          return;
         this.renderContent('Failed to load player activity.');
         throw error;
       });

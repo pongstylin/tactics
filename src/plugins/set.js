@@ -1,9 +1,3 @@
-Object.defineProperty(Set.prototype, 'toJSON', {
-  value: function () {
-    return [...this];
-  },
-});
-
 Object.defineProperty(Set.prototype, 'intersect', {
   value: function (...sets) {
     let intersection = new Set();

@@ -1,6 +1,5 @@
 import 'plugins/array.js';
 import 'plugins/set.js';
-import 'plugins/map.js';
-import 'plugins/regexp.js';
 import 'plugins/string.js';
 import 'plugins/merge.js';
+import 'plugins/json.js';

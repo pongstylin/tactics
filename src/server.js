@@ -1,53 +1,30 @@
-import uuid from 'uuid/v4';
-import http from 'http';
-import express from 'express';
-import morgan from 'morgan';
 import { WebSocketServer } from 'ws';
 import util from 'util';
 import DebugLogger from 'debug';
-
 import 'plugins/index.js';
 
 import config from 'config/server.js';
+import AccessToken from 'server/AccessToken.js';
+import createApp from 'server/createApp.js';
+import createServer from 'server/createServer.js';
+import ServerError from 'server/Error.js';
 import { onConnect, onShutdown } from 'server/router.js';
 import services, { servicesReady } from 'server/services.js';
 import Timeout from 'server/Timeout.js';
-import ServerError from 'server/Error.js';
-import AccessToken from 'server/AccessToken.js';
+import useAuth from 'server/useAuth.js';
 
-const PORT     = process.env.PORT;
-const app      = express();
-const server   = http.createServer(app);
-const wss      = new WebSocketServer({server});
-const request  = DebugLogger('server:request');
-const response = DebugLogger('server:response');
-const report   = DebugLogger('server:report');
+const app    = createApp();
+const server = createServer(app);
+const wss    = new WebSocketServer({ server });
+const report = DebugLogger('server:report');
 
 app.enable('trust proxy');
 
-let requestId = 1;
-app.use((req, res, next) => {
-  req.id = requestId++;
-  next();
-});
+useAuth(app);
 
-morgan.token('id', req => req.id);
+const PATH = config.local.path;
 
-app.use(morgan('[:id] ip=:remote-addr; ":method :url HTTP/:http-version"; agent=":user-agent"', {
-  immediate: true,
-  stream: { write: msg => request(msg.slice(0, -1)) },
-}));
-
-app.use(morgan('[:id] status=:status; delay=:response-time ms', {
-  immediate: false,
-  stream: { write: msg => response(msg.slice(0, -1)) },
-}));
-
-app.use(express.json());
-
-const API_PREFIX = config.apiPrefix;
-
-app.get(API_PREFIX + '/status', (req, res, next) => {
+app.get(`${PATH}/status`, (req, res, next) => {
   Promise.all([ ...services ].map(([ n, s ]) => s.getStatus().then(st => [ n, st ])))
     .then(servicesStatus => {
       const connections = Timeout.timeouts.get('inboundClient').size;
@@ -68,11 +45,12 @@ app.get(API_PREFIX + '/status', (req, res, next) => {
     })
     .catch(error => next(error));
 });
-app.post(API_PREFIX + '/errors', (req, res) => {
+
+app.post(`${PATH}/errors`, (req, res) => {
   report(util.inspect(req.body, false, null));
   res.send(true);
 });
-app.post(API_PREFIX + '/report', (req, res) => {
+app.post(`${PATH}/report`, (req, res) => {
   report(util.inspect(req.body, false, null));
   res.send(true);
 });
@@ -96,11 +74,9 @@ async function getYourTurnNotification(req, res) {
 
   res.send(notification);
 }
-app.get(API_PREFIX + '/notifications/yourTurn', (req, res, next) => {
+app.get(`${PATH}/notifications/yourTurn`, (req, res, next) => {
   getYourTurnNotification(req, res).catch(error => next(error));
 });
-
-app.use(express.static('static'));
 
 app.use((error, req, res, next) => {
   if (error instanceof ServerError)
@@ -115,8 +91,8 @@ app.use((error, req, res, next) => {
 
 // Don't start listening for connections until services are ready.
 servicesReady.then(() => {
-  server.listen(PORT, () => {
-    console.log('Tactics now running at URL: http://localhost:'+PORT);
+  server.listen(config.local.port, () => {
+    console.log(`Tactics now running at URL: ${config.local.origin}`);
     console.log('');
 
     wss.on('connection', onConnect);

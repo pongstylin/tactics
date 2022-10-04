@@ -138,7 +138,7 @@ function sendReport(data) {
 
   $.ajax({
     method: 'POST',
-    url: (config.apiPrefix || '') + '/report',
+    url: config.local.apiEndpoint + '/report',
     contentType: 'application/json',
     data: data
   }).done(function () {

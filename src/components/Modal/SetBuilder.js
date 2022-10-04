@@ -289,7 +289,7 @@ export default class SetBuilder extends Modal {
     }
     set.units = this._board.getState()[0];
 
-    return set;
+    return this.data.gameType.cleanSet(set);
   }
   set set(set) {
     if (!set)
@@ -951,6 +951,8 @@ export default class SetBuilder extends Modal {
         .catch(error => {
           if (error === 'Clipboard Item API disabled')
             return this._els.share.disabled = false;
+          if (error === 'No Clipboard API')
+            return popup('Sorry!  Your browser is too old to share an image of your set.');
 
           popup('Sorry!  Unable to share or copy an image of your set.');
           report({
