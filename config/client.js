@@ -16,14 +16,17 @@ const local = {
 if (local.secure) {
   local.origin = `https://`;
   local.wsEndpoint = `wss://`;
+  local.defaultPort = 443;
 } else {
   local.origin = `http://`;
   local.wsEndpoint = `ws://`;
+  local.defaultPort = 80;
 }
 local.origin += local.host;
 local.wsEndpoint += local.host;
+local.port ??= local.defaultPort;
 
-if (local.port !== 80) {
+if (local.port !== local.defaultPort) {
   local.origin += `:${local.port}`;
   local.wsEndpoint += `:${local.port}`;
 }
