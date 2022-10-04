@@ -69,7 +69,7 @@ const config = {
   local: {
     secure: process.env.LOCAL_SECURE === 'true',
     host: process.env.LOCAL_HOST,
-    port: process.env.LOCAL_PORT ?? 80,
+    port: process.env.LOCAL_PORT ? parseInt(process.env.LOCAL_PORT) : null,
     // The optional path part of API and WS endpoints.  Must not end with /
     path: process.env.LOCAL_PATH,
 
@@ -192,14 +192,17 @@ const local = config.local;
 if (local.secure) {
   local.origin = `https://`;
   local.wsEndpoint = `wss://`;
+  local.defaultPort = 443;
 } else {
   local.origin = `http://`;
   local.wsEndpoint = `ws://`;
+  local.defaultPort = 80;
 }
 local.origin += local.host;
 local.wsEndpoint += local.host;
+local.port ??= local.defaultPort;
 
-if (local.port !== 80) {
+if (local.port !== local.defaultPort) {
   local.origin += `:${local.port}`;
   local.wsEndpoint += `:${local.port}`;
 }
