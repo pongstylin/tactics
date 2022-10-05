@@ -55,6 +55,16 @@ const state = {
    * will be set to true or a promise that will resolve once audio is enabled.
    */
   whenAudioEnabled: false,
+  /*
+   * This is set to a game ID when you create a lobby game.  Once the game
+   * starts, you will automatically redirect to the game.
+   *
+   * This is set to `true` and you are shown a popup if you have an active lobby
+   * game.  The true value prevents additional popups or redirects.
+   *
+   * This is set to `false` if you select ignore in the popup.  The false value
+   * also prevents additional popups or redirects.
+   */
   activeGameId: null,
   // Indicates the currently selected tab
   currentTab: null,
@@ -515,7 +525,8 @@ function setYourLobbyGame(gameSummary, skipRender = false) {
       location.href = `/game.html?${gameSummary.id}`;
     });
     newGame.play();
-  } else if (!state.activeGameId && gameSummary.startedAt)
+  } else if (state.activeGameId === null && gameSummary.startedAt) {
+    state.activeGameId = true;
     popup({
       message: 'You have an active lobby game!',
       buttons: [
@@ -525,9 +536,11 @@ function setYourLobbyGame(gameSummary, skipRender = false) {
         },
         {
           label: 'Ignore',
+          onClick: () => state.activeGameId = false,
         },
       ],
     });
+  }
 
   const styleId = gameSummary.collection.slice(6);
   state.tabContent.yourGames.lobbyGame = gameSummary;
@@ -543,6 +556,7 @@ function unsetYourLobbyGame(gameSummary, skipRender = false) {
 
   const styleId = lobbyGame.collection.slice(6);
   state.tabContent.yourGames.lobbyGame = null;
+  state.activeGameId = null;
 
   if (!skipRender && state.currentTab === 'lobby')
     if (state.tabContent.lobby.selectedStyleId === styleId)
