@@ -18,6 +18,9 @@ const server = createServer(app);
 const wss    = new WebSocketServer({ server });
 const report = DebugLogger('server:report');
 
+if (config.proxy.host)
+  app.enable('trust proxy');
+
 useAuth(app);
 
 const PATH = config.local.path;
