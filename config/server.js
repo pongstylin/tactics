@@ -73,8 +73,9 @@ const config = {
     // The optional path part of API and WS endpoints.  Must not end with /
     path: process.env.LOCAL_PATH,
 
-    // URL constructed below
+    // URLs constructed below
     origin: null,
+    apiEndpoint: null,
   },
   proxy: {
     secure: process.env.PROXY_SECURE === 'true',
@@ -202,11 +203,17 @@ if (context.secure) {
   local.origin = `http://`;
 }
 local.origin += context.host;
+local.apiEndpoint += context.host;
 local.port ??= local.defaultPort = local.secure ? 443 : 80;
 proxy.port ??= proxy.defaultPort = proxy.secure ? 443 : 80;
 
 if (context.port !== context.defaultPort) {
   local.origin += `:${context.port}`;
+  local.apiEndpoint += `:${context.port}`;
+}
+
+if (context.path) {
+  local.apiEndpoint += context.path;
 }
 
 /*
