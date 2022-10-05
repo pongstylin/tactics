@@ -147,11 +147,11 @@ export default class extends FileAdapter {
       members.once('change', () => buffer.add(provider, members));
       members.on('change:link', async ({ data }) => {
         const player = await this.getPlayer(data.playerId);
-        player.log('link', data);
+        player.log('link', { provider, ...data });
       });
       members.on('change:unlink', async ({ data }) => {
         const player = await this.getPlayer(data.playerId);
-        player.log('unlink', data);
+        player.log('unlink', { provider, ...data });
       });
       return members;
     });
