@@ -203,7 +203,6 @@ if (context.secure) {
   local.origin = `http://`;
 }
 local.origin += context.host;
-local.apiEndpoint += context.host;
 local.port ??= local.defaultPort = local.secure ? 443 : 80;
 proxy.port ??= proxy.defaultPort = proxy.secure ? 443 : 80;
 
@@ -211,6 +210,7 @@ if (context.port !== context.defaultPort) {
   local.origin += `:${context.port}`;
   local.apiEndpoint += `:${context.port}`;
 }
+local.apiEndpoint = local.origin;
 
 if (context.path) {
   local.apiEndpoint += context.path;
