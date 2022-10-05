@@ -23,7 +23,6 @@ export default class GameSettings extends Modal {
     } else {
       const rated = data.game.state.rated ? 'a rated' : 'an unrated';
       let vs;
-      console.log('data.game.collection', data.game, data.game.collection, data.game.state.collection);
       if (data.game.collection === 'public')
         vs = 'Public';
       else if (data.game.collection)

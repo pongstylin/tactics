@@ -37,8 +37,6 @@ class Overlay {
     if (options.zIndex)
       divOverlay.style.zIndex = options.zIndex;
     divOverlay.addEventListener('click', event => {
-      event.stopPropagation();
-
       // Do not react to clicks that bubble from descendents
       if (event.target === divOverlay)
         this._emit(event);
