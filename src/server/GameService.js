@@ -1647,10 +1647,11 @@ export default class GameService extends Service {
     for (const { game } of activeGamesInfo) {
       if (game.id === fromGameId) continue;
 
-      const playerIds = new Set(game.state.teams.map(t => t.playerId));
-      const isPracticeGame = playerIds.size === 1;
-      if (isPracticeGame) continue;
+      // Only collect public or lobby games
+      if (!game.collection)
+        continue;
 
+      // Only collect games where all participants are active
       const inactivePlayerId = [...playerIds].find(pId =>
         pId !== inPlayerId &&
         this._getPlayerGameIdle(pId, game) > ACTIVE_LIMIT
