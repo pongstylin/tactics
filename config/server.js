@@ -73,10 +73,15 @@ const config = {
     // The optional path part of API and WS endpoints.  Must not end with /
     path: process.env.LOCAL_PATH,
 
-    // URLs constructed below
+    // URL constructed below
     origin: null,
-    apiEndpoint: null,
-    wsEndpoint: null,
+  },
+  proxy: {
+    secure: process.env.PROXY_SECURE === 'true',
+    host: process.env.PROXY_HOST,
+    port: process.env.PROXY_PORT ? parseInt(process.env.PROXY_PORT) : null,
+    // The optional path part of API and WS endpoints.  Must not end with /
+    path: process.env.PROXY_PATH,
   },
   publicKey: process.env.PUBLIC_KEY,
   privateKey: process.env.PRIVATE_KEY,
@@ -189,28 +194,19 @@ const config = {
 };
 
 const local = config.local;
-if (local.secure) {
+const proxy = config.proxy;
+const context = config.proxy.host ? config.proxy : config.local;
+if (context.secure) {
   local.origin = `https://`;
-  local.wsEndpoint = `wss://`;
-  local.defaultPort = 443;
 } else {
   local.origin = `http://`;
-  local.wsEndpoint = `ws://`;
-  local.defaultPort = 80;
 }
-local.origin += local.host;
-local.wsEndpoint += local.host;
-local.port ??= local.defaultPort;
+local.origin += context.host;
+local.port ??= local.defaultPort = local.secure ? 443 : 80;
+proxy.port ??= proxy.defaultPort = proxy.secure ? 443 : 80;
 
-if (local.port !== local.defaultPort) {
-  local.origin += `:${local.port}`;
-  local.wsEndpoint += `:${local.port}`;
-}
-local.apiEndpoint = local.origin;
-
-if (local.path) {
-  local.apiEndpoint += local.path;
-  local.wsEndpoint += local.path;
+if (context.port !== context.defaultPort) {
+  local.origin += `:${context.port}`;
 }
 
 /*
