@@ -421,6 +421,7 @@ async function showIdentify() {
 async function identify(name) {
   await authClient.setAccountName(name);
 
+  history.replaceState(null, null, '#lobby');
   return showTabs();
 }
 async function showTabs() {
@@ -481,7 +482,6 @@ async function showTabs() {
   header.style.display = '';
   divPN.style.display = '';
 
-  history.replaceState(null, null, '#lobby');
   await openTab();
   document.querySelector('.tabs').style.display = '';
 }

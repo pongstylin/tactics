@@ -31,7 +31,7 @@ export default class AuthService extends Service {
         getIdentityToken: [],
         revokeIdentityToken: [],
 
-        makeAuthProviderURL: [ { provider:'auth:provider', 'redirectURL?':'string' } ],
+        makeAuthProviderURL: [ { provider:'auth:provider', redirectURL:'string' } ],
         linkAuthProvider: [ 'string' ],
         unlinkAuthProviders: [],
         hasAuthProviderLinks: [],

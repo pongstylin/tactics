@@ -87,36 +87,11 @@ export default class AuthClient extends Client {
     return this._server.requestAuthorized(this.name, 'revokeIdentityToken');
   }
 
-  /*
-   * In standalone (PWA) mode, authentication is done via a new window.
-   * Otherwise, redirect to the auth page.
-   */
   async openAuthProvider(provider) {
-    if (!window.matchMedia('(display-mode: standalone)').matches) {
-      location.href = await this.makeAuthProviderURL({
-        provider,
-        redirectURL: location.href,
-      });
-      return;
-    }
-
-    const authProviderURL = await this.makeAuthProviderURL({ provider });
-    const authLink = await new Promise((resolve, reject) => {
-      const listener = event => {
-        if (event.origin !== location.origin || event.data.type !== 'callback')
-          return;
-
-        window.removeEventListener('message', listener);
-        window.focus();
-        event.source.close();
-
-        resolve(event.data.link);
-      };
-      window.addEventListener('message', listener);
-      window.open(authProviderURL, '_blank');
+    location.href = await this.makeAuthProviderURL({
+      provider,
+      redirectURL: location.href,
     });
-
-    return this.linkAuthProvider(authLink);
   }
   makeAuthProviderURL(state) {
     return this._server.request(this.name, 'makeAuthProviderURL', [ state ])
