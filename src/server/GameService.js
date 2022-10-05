@@ -1634,8 +1634,6 @@ export default class GameService extends Service {
     };
 
     for (const { game } of openGamesInfo) {
-      const isPracticeGame = new Set(game.state.teams.map(t => t.playerId)).size === 1;
-      if (!isPracticeGame) continue;
       if (game.forkOf?.gameId !== game.id) continue;
 
       activity.forkGameId = game.id;
@@ -1652,6 +1650,7 @@ export default class GameService extends Service {
         continue;
 
       // Only collect games where all participants are active
+      const playerIds = new Set(game.state.teams.map(t => t.playerId));
       const inactivePlayerId = [...playerIds].find(pId =>
         pId !== inPlayerId &&
         this._getPlayerGameIdle(pId, game) > ACTIVE_LIMIT
