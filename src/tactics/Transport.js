@@ -41,11 +41,14 @@ export default class Transport {
    * Game Data Properties
    * These are cached and kept in sync for arbitrary access.
    */
-  get type() {
-    return this._getStateData('type');
+  get collection() {
+    return this._getData('collection');
   }
   get forkOf() {
     return this._getData('forkOf');
+  }
+  get type() {
+    return this._getStateData('type');
   }
   get teams() {
     return this._getStateData('teams');

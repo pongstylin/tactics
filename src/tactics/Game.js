@@ -154,6 +154,9 @@ export default class Game {
   /*****************************************************************************
    * Public Properties
    ****************************************************************************/
+  get collection() {
+    return this.state.collection;
+  }
   get whenStarted() {
     return this.state.whenStarted;
   }
