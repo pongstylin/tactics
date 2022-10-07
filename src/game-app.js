@@ -628,10 +628,18 @@ $(() => {
       const $newMessage = $chat.find('.new-message');
 
       if ($newMessage.data('submit')) {
-        $newMessage.removeData('submit');
+        const value = $newMessage.val().trim();
 
-        await chatClient.postMessage(gameId, $newMessage.val().trim());
-        $newMessage.val('');
+        await chatClient.postMessage(gameId, value);
+        $newMessage.val('').removeData('submit');
+      } else if ($newMessage.val().includes('\n')) {
+        const value = $newMessage.val().trim().replace(/\n/g, '');
+
+        if (value.length) {
+          await chatClient.postMessage(gameId, value);
+          $newMessage.val('');
+        } else
+          $newMessage.val(value);
       }
 
       const newMessage = $newMessage.get(0);
@@ -644,8 +652,7 @@ $(() => {
         height -= paddingHeight;
         // The initial height can be computed as zero in some cases (flexbox?)
         height = Math.max(height, 18);
-      }
-      else {
+      } else {
         // The initial height can be computed as zero in some cases (flexbox?)
         height = Math.max(height, 18 + paddingHeight);
       }
