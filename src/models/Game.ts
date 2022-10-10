@@ -341,6 +341,7 @@ export default class Game extends ActiveModel {
      */
     forkGameData.state.revert(turnId);
     forkGameData.state.autoPass(true);
+    forkGameData.state.lockedTurnId = forkGameData.state.getFirstTurnId() - 1;
 
     while (turnId > 0) {
       if (forkGameData.state.winningTeams.length < 2) {
