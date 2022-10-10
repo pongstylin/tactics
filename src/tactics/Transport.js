@@ -189,51 +189,54 @@ export default class Transport {
    * May return false if the player may not undo without approval.
    */
   getUndoPointer(team = this.currentTeam) {
-    if (!this.startedAt)
+    const state = this._data.state;
+    if (!state.startedAt)
       return null;
 
-    const currentTurnId = this.currentTurnId;
-    const actions = this._data.state.actions;
+    const numTeams = state.teams.length;
+    const currentTurnId = state.currentTurnId;
+    const contextTurnId = currentTurnId - ((numTeams + state.currentTeamId - team.id) % numTeams);
+    const previousTurnId = contextTurnId - numTeams;
+    const lockedTurnId = state.lockedTurnId;
+    const minTurnId = lockedTurnId + 1;
+    const actions = state.actions;
 
     // Practice games can always undo if there is something to undo.
     if (this.isPracticeGame) {
-      const firstTurnId = this.getFirstTurnId();
-      if (currentTurnId === firstTurnId && actions.length === 0)
+      if (currentTurnId === minTurnId && actions.length === 0)
         return null;
-      return { turnId:firstTurnId, actionId:0 };
+      return { turnId:minTurnId, actionId:0 };
     }
 
-    if (this.endedAt)
-      return this.rated ? null : false;
+    const rated = state.rated;
 
-    const firstTurnId = this.getTeamFirstTurnId(team);
+    if (state.endedAt)
+      return rated ? null : false;
 
-    // Can't undo if the team hasn't had a turn yet
-    if (currentTurnId < firstTurnId)
+    // Can't undo if the team's last turn is locked or doesn't exist
+    if (contextTurnId < minTurnId)
       return null;
 
-    // Can't undo if the team hasn't made an action yet
-    if (currentTurnId === firstTurnId && actions.length === 0)
+    // The current turn doesn't count if it is empty.  Evaluate previous turn.
+    if (contextTurnId === currentTurnId && actions.length === 0 && previousTurnId < minTurnId)
       return null;
 
-    const currentTeamId = this.currentTeamId;
-    const rated = this.rated;
+    const currentTeamId = state.currentTeamId;
 
-    // 5 seconds after your turn ends, you may not undo in rated games
+    // 5 seconds after your turn ends, you need permission to undo in rated games
     if (rated) {
       if (currentTeamId !== team.id)
-        return null;
+        return false;
 
       const lastAction = actions.last;
       if (lastAction?.type === 'endTurn' && Date.now() - lastAction.createdAt >= 5000)
-        return null;
+        return false;
     }
 
-    const strictUndo = this.strictUndo;
-    const minTurnId = firstTurnId - 1;
+    const strictUndo = state.strictUndo;
     let pointer = false;
 
-    for (let turnId = currentTurnId; turnId > minTurnId; turnId--) {
+    for (let turnId = currentTurnId; turnId > lockedTurnId; turnId--) {
       /*
        * Recent turns are only provided if they tell us we can freely undo.
        * If absent in rated games, can't go back to a previous turn.
@@ -241,7 +244,7 @@ export default class Transport {
        */
       const turnData = this.getRecentTurnData(turnId);
       if (!turnData)
-        return pointer || (rated ? null : false);
+        return pointer;
       const actions = turnData.actions;
 
       // Skip empty turns and evaluate the previous turn.
@@ -252,12 +255,12 @@ export default class Transport {
       if (actions.length === 1 && actions[0].type === 'endTurn' && actions[0].forced)
         continue;
 
-      // Preserve the opponent's last turn
+      // Undoing an opponent's turn requires permission.
       if (turnData.teamId !== team.id)
-        return rated ? pointer || null : pointer;
+        return pointer;
 
-      // Preserve a turn if the time has run out.
-      if (this.rated && this.getTurnTimeRemaining(turnId, Date.now()) === 0)
+      // Undoing after your time runs out requires permission in rated games.
+      if (rated && this.getTurnTimeRemaining(turnId, Date.now()) === 0)
         return pointer;
 
       const selectedUnitId = actions[0].unit;
@@ -438,6 +441,10 @@ export default class Transport {
     if (recentTurns.length > 10)
       recentTurns.shift();
 
+    const lastCycleTurnId = state.currentTurnId - state.teams.length;
+    if (state.rated)
+      state.lockedTurnId = Math.max(state.lockedTurnId, lastCycleTurnId);
+
     Object.assign(state, {
       currentTurnId: data.turnId,
       currentTeamId: data.teamId,
@@ -446,6 +453,7 @@ export default class Transport {
       units: board.getState(),
       actions: [],
     });
+
     this.whenTurnStarted.resolve();
     this._emit({ type:'change' });
   }

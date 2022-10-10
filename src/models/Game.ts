@@ -510,6 +510,7 @@ export default class Game extends ActiveModel {
     const toActionsAt = turn.actions.map(a => a.createdAt.toISOString());
 
     // Whether fromTurnId is old or current, we aren't changing it yet
+    delete state.lockedTurnId;
     delete state.currentTurnId;
     delete state.currentTeamId;
 

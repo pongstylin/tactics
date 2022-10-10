@@ -240,11 +240,7 @@ export default class AuthClient extends Client {
       if (authLink) {
         history.replaceState(null, '', location.origin + location.pathname);
 
-        try {
-          await this.linkAuthProvider(authLink);
-        } catch (error) {
-          console.error(error);
-        }
+        await this.linkAuthProvider(authLink);
       }
 
       this.whenReady.resolve();
