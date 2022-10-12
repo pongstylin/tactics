@@ -1089,12 +1089,17 @@ function renderStats(scope = 'all') {
     let numYourTurn = 0;
 
     for (const game of yourGames[1].values()) {
+      // Exclude games where it is someone else's turn
+      if (game.teams[game.currentTeamId].playerId !== myPlayerId)
+        continue;
+      // Exclude games where it is my turn, but it ended
+      if (game.turnEndedAt)
+        continue;
       // Exclude practice games
       if (!game.teams.find(t => t.playerId !== myPlayerId))
         continue;
 
-      if (game.teams[game.currentTeamId].playerId === myPlayerId)
-        numYourTurn++;
+      numYourTurn++;
     }
 
     document.querySelector('.tabs .yourGames .badge').textContent = numYourTurn || '';
