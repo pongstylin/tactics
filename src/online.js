@@ -865,7 +865,7 @@ async function joinGame(arena) {
     return false;
 
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
-  if (arena.creatorACL) {
+  if (arena.creatorACL?.type) {
     let proceed = false;
     let message;
     let joinLabel = 'Join Game';
@@ -892,11 +892,11 @@ async function joinGame(arena) {
     }
 
     if (proceed === false)
-      proceed = !!await popup({
+      proceed = await popup({
         message,
         buttons: [
           { label:joinLabel, value:true },
-          { label:'Cancel' },
+          { label:'Cancel', value:false },
         ],
         maxWidth: '300px',
       }).whenClosed;
