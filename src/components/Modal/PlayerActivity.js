@@ -35,7 +35,10 @@ export default class PlayerActivity extends Modal {
         this.getPlayerActivity();
     };
     game.state.on('playerStatus', this.data.trigger);
-    game.state.on('endGame', event => this.close());
+    game.state.on('endGame', event => {
+      clearTimeout(this.data.timeout);
+      this.close();
+    });
   }
 
   getPlayerActivity() {
