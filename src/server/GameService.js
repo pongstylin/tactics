@@ -1169,13 +1169,13 @@ export default class GameService extends Service {
   }
   _emitCollectionChange(collectionGroup, collection, event) {
     const collectionPara = this.collectionPara.get(collection.id);
-    const gameSummary = event.data.gameSummary ?? event.data.oldSummary;
+    const gameSummary = serializer.clone(event.data.gameSummary ?? event.data.oldSummary);
     const eventType = event.type === 'change:delete'
       ? 'remove'
       : event.data.oldSummary ? 'change' : 'add';
-    const emitChange = userId => this._emit({
+    const emitChange = playerId => this._emit({
       type: 'event',
-      userId,
+      userId: playerId,
       body: {
         group: collectionGroup,
         type: eventType,
@@ -1186,6 +1186,8 @@ export default class GameService extends Service {
     for (const player of collectionPara.stats.keys()) {
       if (!gameSummary.startedAt && player.isBlockedBy(gameSummary.createdBy))
         continue;
+
+      gameSummary.creatorACL = player.getPlayerACL(gameSummary.createdBy);
 
       emitChange(player.id);
     }
