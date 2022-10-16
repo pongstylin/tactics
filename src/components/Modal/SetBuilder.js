@@ -1237,7 +1237,6 @@ export default class SetBuilder extends Modal {
     const board = this._board;
     board.clearHighlight();
 
-    const allTiles = this._getAvailableTiles();
     const tiles = this._getAvailableTiles(unit && unit.type);
     const hasFullSet = this._hasFullSet();
     const places = [];
@@ -1247,7 +1246,6 @@ export default class SetBuilder extends Modal {
       for (let y = 0; y < 11; y++) {
         const tile = board.getTile(x, y);
         if (!tile) continue;
-        if (!allTiles.has(tile)) continue;
 
         if (tiles.has(tile)) {
           if (unit && (!tile.assigned || dragMode))
