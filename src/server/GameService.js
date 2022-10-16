@@ -832,7 +832,7 @@ export default class GameService extends Service {
     const game = await this.data.openGame(gameId);
     // Abort if the client is no longer connected.
     if (client.closed) {
-      this.data.closeGame(game);
+      this.data.closeGame(gameId);
       return;
     }
 
