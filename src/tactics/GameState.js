@@ -892,8 +892,8 @@ export default class GameState {
   }
 
   /*
-   * Return a pointer to the earliest turnId and actionId to which the current
-   * player may undo without approval.
+   * Return a pointer to the earliest turnId and actionId to which the provided
+   * team may undo without approval.
    *
    * May return null if undo is impossible or not allowed
    * May return false if the player may not undo without approval.
@@ -1002,6 +1002,59 @@ export default class GameState {
     return pointer;
   }
   /*
+   * Assuming undo is allowed, return the turn id to which a player may undo.
+   * In a multi-cycle turn, return the first turn ID by default.
+   * Otherwise, return the previous turn ID.
+   */
+  getUndoTurnId(teamId, findFirstTurnId = true) {
+    const numTeams = this.teams.length;
+    const currentTurnId = this.currentTurnId;
+    const contextTurnId = currentTurnId - ((numTeams + this.currentTeamId - teamId) % numTeams);
+    const lockedTurnId = this.lockedTurnId;
+    let undoTurnId = null;
+
+    /*
+     * Practice games get special handling since all teams are on the same "team"
+     */
+    if (this.isPracticeGame) {
+      const firstTurnId = lockedTurnId + 1;
+      if (findFirstTurnId)
+        return firstTurnId;
+      if (this.actions.length)
+        return currentTurnId;
+      return Math.max(firstTurnId, currentTurnId - 1);
+    }
+
+    for (let turnId = currentTurnId; turnId > lockedTurnId; turnId--) {
+      const turn = this.getTurnData(turnId);
+
+      // Current turn not actionable if no actions were made by opponent yet.
+      if (turn.actions.length === 0)
+        continue;
+
+      // Not an actionable turn if the turn was forced to pass.
+      if (
+        turn.actions.length === 1 &&
+        turn.actions[0].type === 'endTurn' &&
+        turn.actions[0].forced
+      ) continue;
+
+      // If it isn't the team's turn, then we either need to stop here or undo it
+      if (turn.teamId !== teamId) {
+        if (undoTurnId)
+          break;
+        else
+          continue;
+      }
+
+      undoTurnId = turnId;
+      if (findFirstTurnId === false)
+        break;
+    }
+
+    return undoTurnId;
+  }
+  /*
    * Determine if provided team may request an undo.
    * Also indicate if approval should be required of opponents.
    */
@@ -1035,36 +1088,14 @@ export default class GameState {
     if (pointer === false && !approved)
       return false;
 
-    const isPracticeGame = this.isPracticeGame;
+    const undoTurnId = this.getUndoTurnId(team.id, approved);
 
-    /*
-     * The pointer tells us how far back we can undo without approval.
-     * But we may want to undo less than that.
-     */
-    for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
-      const turn = this.getTurnData(turnId);
+    if (pointer && pointer.turnId === undoTurnId)
+      this.revert(undoTurnId, pointer.actionId, true, approved);
+    else
+      this.revert(undoTurnId, 0, true, approved);
 
-      // Current turn not actionable if no actions were made by opponent yet.
-      if (turn.actions.length === 0)
-        continue;
-
-      // Not an actionable turn if the turn was forced to pass.
-      if (
-        turn.actions.length === 1 &&
-        turn.actions[0].type === 'endTurn' &&
-        turn.actions[0].forced
-      ) continue;
-
-      // Not an actionable turn if it isn't the team's turn
-      if (!isPracticeGame && turn.teamId !== team.id)
-        continue;
-
-      if (pointer && pointer.turnId === turnId)
-        this.revert(turnId, pointer.actionId, true);
-      else
-        this.revert(turnId, 0, true);
-      return true;
-    }
+    return true;
   }
   startTurn() {
     if (this._actions.length)
@@ -1121,7 +1152,7 @@ export default class GameState {
     if (turnTimeout || actionTimeout)
       this._emit({ type:'willSync', data:Math.min(actionTimeout, turnTimeout) });
   }
-  revert(turnId, actionId = 0, isUndo = false) {
+  revert(turnId, actionId = 0, isUndo = false, resetStartDate) {
     const previousTurnId = this.currentTurnId;
 
     const board = this._board;
@@ -1129,7 +1160,7 @@ export default class GameState {
     if (turnId === previousTurnId)
       actions = this._resetTurn();
     else
-      actions = this._popHistory(turnId).actions.slice(0, -1);
+      actions = this._popHistory(turnId, resetStartDate).actions.slice(0, -1);
 
     if (actionId)
       for (let i = 0; i < actionId; i++) {
@@ -1433,10 +1464,12 @@ export default class GameState {
   }
   _pushHistory(nextTurnStartsAt = new Date()) {
     const turn = this.currentTurn;
-    const lastCycleTurnId = this.currentTurnId - this.teams.length;
 
-    if (this.rated)
-      this.lockedTurnId = Math.max(this.lockedTurnId, lastCycleTurnId);
+    if (this.rated) {
+      const undoTurnIds = this.teams.map(t => this.getUndoTurnId(t.id)).filter(tId => tId !== null);
+      if (undoTurnIds.length)
+        this.lockedTurnId = Math.min(...undoTurnIds) - 1;
+    }
 
     if (this.turnTimeBuffer && (turn.actions.length > 1 || !turn.actions.last.forced)) {
       const turnStartedAt = turn.startedAt;
@@ -1466,7 +1499,7 @@ export default class GameState {
    * By default, reverts game state to the beginning of the previous turn.
    * 'turnId' can be used to revert to any previous turn by ID.
    */
-  _popHistory(turnId) {
+  _popHistory(turnId, resetStartDate = false) {
     const turns = this.turns;
     if (turns.length === 0) return;
 
@@ -1479,7 +1512,7 @@ export default class GameState {
     turns.length = turnId;
 
     Object.assign(this, {
-      turnStartedAt: new Date(),
+      turnStartedAt: resetStartDate ? new Date() : turnData.startedAt,
       units: turnData.units,
       _actions: [],
     });
