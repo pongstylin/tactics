@@ -610,10 +610,6 @@ export default class Game extends ActiveModel {
     if (state.isPracticeGame)
       return;
 
-    // Only the current player may need it in rated games
-    if (state.rated && playerId !== state.currentTeam.playerId)
-      return;
-
     const currentTurnId = gameData.state?.currentTurnId;
 
     // Only needed when changing the current turn

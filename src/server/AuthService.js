@@ -239,7 +239,7 @@ export default class AuthService extends Service {
         else if (rsp.status !== 404)
           throw new ServerError(rsp.status, rsp.statusText);
 
-        name = userinfo.guild.nick ?? userinfo.username;
+        name = userinfo.guild?.nick ?? userinfo.username;
       } catch (error) {
         console.log('Error while fetching guild:', error);
         name = userinfo.username;

@@ -301,6 +301,60 @@ export default class Transport {
     return pointer;
   }
   /*
+   * Assuming undo is allowed, return the turn id to which a player may undo.
+   */
+  getUndoTurnId(teamId, findFirstTurnId = true) {
+    const state = this._data.state;
+    const numTeams = state.teams.length;
+    const currentTurnId = state.currentTurnId;
+    const contextTurnId = currentTurnId - ((numTeams + state.currentTeamId - teamId) % numTeams);
+    const lockedTurnId = state.lockedTurnId;
+    let undoTurnId = null;
+
+    /*
+     * Practice games get special handling since all teams are on the same "team"
+     */
+    if (this.isPracticeGame) {
+      const firstTurnId = lockedTurnId + 1;
+      if (findFirstTurnId)
+        return firstTurnId;
+      if (state.actions.length)
+        return currentTurnId;
+      return Math.max(firstTurnId, currentTurnId - 1);
+    }
+
+    for (let turnId = currentTurnId; turnId > lockedTurnId; turnId--) {
+      const turn = this.getRecentTurnData(turnId);
+      if (!turn)
+        break;
+
+      // Current turn not actionable if no actions were made by opponent yet.
+      if (turn.actions.length === 0)
+        continue;
+
+      // Not an actionable turn if the turn was forced to pass.
+      if (
+        turn.actions.length === 1 &&
+        turn.actions[0].type === 'endTurn' &&
+        turn.actions[0].forced
+      ) continue;
+
+      // If it isn't the team's turn, then we either need to stop here or undo it
+      if (turn.teamId !== teamId) {
+        if (undoTurnId)
+          break;
+        else
+          continue;
+      }
+
+      undoTurnId = turnId;
+      if (findFirstTurnId === false)
+        break;
+    }
+
+    return undoTurnId;
+  }
+  /*
    * Other public methods that imitate GameState.
    */
   canUndo(team = this.currentTeam) {
@@ -431,6 +485,12 @@ export default class Transport {
     const state = this._data.state;
     const recentTurns = this._recentTurns;
 
+    if (state.rated) {
+      const undoTurnIds = state.teams.map(t => this.getUndoTurnId(t.id)).filter(tId => tId !== null);
+      if (undoTurnIds.length)
+        state.lockedTurnId = Math.min(...undoTurnIds) - 1;
+    }
+
     recentTurns.push({
       id: state.currentTurnId,
       teamId: state.currentTeamId,
@@ -440,10 +500,6 @@ export default class Transport {
     });
     if (recentTurns.length > 10)
       recentTurns.shift();
-
-    const lastCycleTurnId = state.currentTurnId - state.teams.length;
-    if (state.rated)
-      state.lockedTurnId = Math.max(state.lockedTurnId, lastCycleTurnId);
 
     Object.assign(state, {
       currentTurnId: data.turnId,

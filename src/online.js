@@ -233,9 +233,16 @@ gameClient
   });
 
 whenDOMReady.then(() => {
-  document.querySelector('#notice').textContent = 'Please wait...';
+  const divLoading = document.querySelector(`.tabContent .loading`);
+  divLoading.classList.add('is-active');
+  divLoading.classList.add('hide');
+  whenTransitionEnds(divLoading, () => {
+    divLoading.classList.remove('hide');
+  });
 
   authClient.whenReady.then(async () => {
+    divLoading.classList.remove('is-active');
+
     if (!authClient.token)
       return config.auth ? showAuth() : showIdentify();
     else if (authClient.token.confirmPlayerName)
@@ -2146,7 +2153,7 @@ async function openTab() {
 
   document.querySelector(`.tabs .${state.currentTab}`).classList.add('is-active');
 
-  syncTab();
+  return syncTab();
 }
 function closeTab() {
   if (!state.currentTab)

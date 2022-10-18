@@ -1192,6 +1192,7 @@ export default class Game {
     const board = this._board;
     let selected = this.selected;
     const actionType = action.type;
+    const speed = this.speed;
 
     action = board.decodeAction(action);
 
@@ -1205,7 +1206,7 @@ export default class Game {
       if (doShowDirection) {
         // Show the direction the unit turned for 2 seconds.
         board.showDirection(selected);
-        await sleep(2000);
+        await sleep(2000 / speed);
       }
 
       return this._playEndTurn(action);
@@ -1213,7 +1214,6 @@ export default class Game {
       return this._playSurrender(action);
 
     const actor = action.unit;
-    const speed = this.speed;
 
     // Select the unit that is about to act.
     if (action.type === 'select') {
