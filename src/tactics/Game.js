@@ -434,7 +434,7 @@ export default class Game {
     return this._teams[this.state.currentTeamId];
   }
   get isBotGame() {
-    return !!this.state.teams.find(t => !!t.bot);
+    return !!this.state.teams.find(t => !!t?.bot);
   }
   get isLocalGame() {
     const myTeams = this.state.teams.filter(t => this.isMyTeam(t));
@@ -455,7 +455,7 @@ export default class Game {
   get isPracticeGame() {
     if (this.playerId === null) return false;
 
-    const myTeams = this.state.teams.filter(t => t.playerId === this.playerId);
+    const myTeams = this.state.teams.filter(t => t?.playerId === this.playerId);
 
     return myTeams.length === this.state.teams.length;
   }
@@ -497,6 +497,8 @@ export default class Game {
   isMyTeam(team) {
     if (team === undefined)
       throw new TypeError('Required team argument');
+    if (team === null)
+      return false;
 
     if (typeof team === 'number')
       team = this.teams[team];
