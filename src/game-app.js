@@ -1574,9 +1574,10 @@ async function showJoinIntro(gameData) {
       $editSet.on('click', async () => {
         $('#join').hide();
 
-        if (!authClient.token) {
+        if (!sets) {
           try {
-            await authClient.register({ name:playerName.value });
+            if (!authClient.token)
+              await authClient.register({ name:playerName.value });
             sets = await gameClient.getPlayerSets(gameType.id);
           } catch (error) {
             popup({
