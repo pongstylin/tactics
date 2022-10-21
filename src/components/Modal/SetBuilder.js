@@ -352,8 +352,7 @@ export default class SetBuilder extends Modal {
       this._highlightPlaces();
 
       this._disableTrash();
-    }
-    else
+    } else
       return;
 
     this.renderBoard();
@@ -441,31 +440,31 @@ export default class SetBuilder extends Modal {
     this.killUnits();
   }
   async killUnits(units) {
+    const board = this._board;
     const animDeath = new Tactics.Animation();
     const deadUnits = [];
+    const killUnit = unit => {
+      if (unit.mHealth === -unit.health)
+        return;
+      if (unit === board.selected)
+        this.selected = null;
+
+      unit.change({ mHealth:-unit.health });
+      unit.assignment.set_interactive(false);
+      deadUnits.push(unit);
+      animDeath.splice(0, unit.animDie());
+    };
 
     if (units) {
       if (!Array.isArray(units))
         units = [ units ];
 
-      for (const unit of units) {
-        unit.change({ mHealth:-unit.health });
-        unit.assignment.set_interactive(false);
-        deadUnits.push(unit);
-        animDeath.splice(0, unit.animDie());
-      }
+      units.forEach(killUnit);
     }
 
-    const board = this._board;
     let auditUnits;
-    while (auditUnits = this._auditUnitPlaces()) {
-      auditUnits.forEach(unit => {
-        unit.change({ mHealth:-unit.health });
-        unit.assignment.set_interactive(false);
-        deadUnits.push(unit);
-        animDeath.splice(0, unit.animDie());
-      });
-    }
+    while (auditUnits = this._auditUnitPlaces())
+      auditUnits.forEach(killUnit);
 
     if (animDeath.frames.length) {
       await animDeath.play();
