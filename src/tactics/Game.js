@@ -434,7 +434,7 @@ export default class Game {
     return this._teams[this.state.currentTeamId];
   }
   get isBotGame() {
-    return !!this.state.teams.find(t => !!t.bot);
+    return !!this.state.teams.find(t => !!t?.bot);
   }
   get isLocalGame() {
     const myTeams = this.state.teams.filter(t => this.isMyTeam(t));
@@ -455,7 +455,7 @@ export default class Game {
   get isPracticeGame() {
     if (this.playerId === null) return false;
 
-    const myTeams = this.state.teams.filter(t => t.playerId === this.playerId);
+    const myTeams = this.state.teams.filter(t => t?.playerId === this.playerId);
 
     return myTeams.length === this.state.teams.length;
   }
@@ -497,6 +497,8 @@ export default class Game {
   isMyTeam(team) {
     if (team === undefined)
       throw new TypeError('Required team argument');
+    if (team === null)
+      return false;
 
     if (typeof team === 'number')
       team = this.teams[team];
@@ -736,7 +738,9 @@ export default class Game {
     } else if (!this._inReplay)
       if (!cursor.actions.length)
         this._startTurn();
-      else if (cursor.actions.last.type !== 'endTurn')
+      else if (cursor.actions.last.type === 'endTurn')
+        this._endTurn();
+      else
         this._resumeTurn();
   }
   async pause(showActions = false) {
@@ -1656,11 +1660,29 @@ export default class Game {
       this.unlock();
     } else {
       this.delayNotice(`Go ${teamMoniker}!`);
-
       this.lock('readonly');
     }
 
     this.selectMode = 'move';
+  }
+  _endTurn() {
+    // Pretend the next turn started even if delayed
+    const teams = this.teams;
+    const team = this.currentTeam;
+
+    if (this.isMyTeam(team)) {
+      const nextTeamId = (team.id + 1) % teams.length;
+      const nextTeam = teams[nextTeamId];
+
+      let teamMoniker;
+      if (nextTeam.name && teams.filter(t => t.name === nextTeam.name).length === 1)
+        teamMoniker = nextTeam.name;
+      else
+        teamMoniker = nextTeam.colorId;
+
+      this.delayNotice(`Go ${teamMoniker}!`);
+      this.lock('readonly');
+    }
   }
   _resumeTurn() {
     this.selectMode = this._pickSelectMode();
@@ -1715,23 +1737,6 @@ export default class Game {
       }
 
     this._applyChangeResults(action.results);
-
-    // Pretend the next turn started even if delayed
-    const teams = this.teams;
-
-    if (this.state.rated && this.isMyTeam(action.teamId)) {
-      const nextTeamId = (action.teamId + 1) % teams.length;
-      const nextTeam = teams[nextTeamId];
-
-      let teamMoniker;
-      if (nextTeam.name && teams.filter(t => t.name === nextTeam.name).length === 1)
-        teamMoniker = nextTeam.name;
-      else
-        teamMoniker = nextTeam.colorId;
-
-      this.delayNotice(`Go ${teamMoniker}!`);
-      this.lock('readonly');
-    }
 
     return this;
   }

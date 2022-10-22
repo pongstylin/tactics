@@ -852,17 +852,30 @@ async function joinGame(gameId, set, randomSide) {
   return gameClient.joinGame(gameId, { set, randomSide }).catch(error => {
     if (error.code !== 409) throw error;
 
-    return new Promise(resolve => {
-      popup({
-        message: 'Oops!  Somebody else joined the game first.',
-        buttons: [
-          { label:'Back', closeOnClick:false, onClick:() => history.back() },
-          { label:'Watch', onClick:resolve },
-        ],
-        maxWidth: '250px',
-        closeOnCancel: false,
+    if (error.message === 'Too many pending games for this collection')
+      return new Promise(resolve => {
+        popup({
+          message: 'Sorry!  You have too many open games.',
+          buttons: [
+            { label:'Back', closeOnClick:false, onClick:() => history.back() },
+            { label:'Reload', closeOnClick:false, onClick:() => location.reload() },
+          ],
+          maxWidth: '250px',
+          closeOnCancel: false,
+        });
       });
-    });
+    else
+      return new Promise(resolve => {
+        popup({
+          message: 'Oops!  Somebody else joined the game first.',
+          buttons: [
+            { label:'Back', closeOnClick:false, onClick:() => history.back() },
+            { label:'Watch', onClick:resolve },
+          ],
+          maxWidth: '250px',
+          closeOnCancel: false,
+        });
+      });
   });
 }
 async function loadTransportAndGame(gameId, gameData) {
@@ -1561,9 +1574,10 @@ async function showJoinIntro(gameData) {
       $editSet.on('click', async () => {
         $('#join').hide();
 
-        if (!authClient.token) {
+        if (!sets) {
           try {
-            await authClient.register({ name:playerName.value });
+            if (!authClient.token)
+              await authClient.register({ name:playerName.value });
             sets = await gameClient.getPlayerSets(gameType.id);
           } catch (error) {
             popup({

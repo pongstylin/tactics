@@ -329,7 +329,7 @@ export default class GameState {
       // First turn must be passed, but at least recovery drops.
       // The second turn might be passed, too, if all units are in recovery.
       // Even after auto passing, the game and next turn starts at the same time.
-      this.autoPass();
+      this.autoPass(true);
 
       this._emit({
         type: 'startGame',
