@@ -1695,6 +1695,8 @@ export default class GameService extends Service {
     if (notification.gameCount === 0)
       return;
 
-    this.push.pushNotification(playerId, notification);
+    const urgency = game.state.rated === true && game.state.turnTimeLimit < 86400 ? 'high' : 'normal';
+
+    this.push.pushNotification(playerId, notification, urgency);
   }
 }
