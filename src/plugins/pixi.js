@@ -22,6 +22,9 @@ import { CanvasGraphicsRenderer } from '@pixi/canvas-graphics';
 import '@pixi/canvas-display';
 import '@pixi/canvas-text';
 import { Extract } from '@pixi/extract';
+import { settings } from '@pixi/settings';
+
+settings.CAN_UPLOAD_SAME_BUFFER = false;
 
 extensions.add(Extract);
 extensions.add(BatchRenderer);
