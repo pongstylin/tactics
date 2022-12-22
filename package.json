@@ -71,7 +71,7 @@
     "howler": "^2.2.3",
     "impetus": "^0.8.8",
     "isomorphic-fetch": "^3.0.0",
-    "jsonwebtoken": "^8.5.1",
+    "jsonwebtoken": "^9.0.0",
     "morgan": "^1.9.1",
     "nosleep.js": "github:pongstylin/nosleep.js",
     "openid-client": "^5.1.9",
