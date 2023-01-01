@@ -896,8 +896,9 @@ export default class GameService extends Service {
       },
     });
 
-    const isPlayer = game.state.teams.findIndex(t => t?.playerId === playerId) > -1;
-    if (isPlayer) {
+    const team = game.getTeamForPlayer(playerId);
+    if (team) {
+      game.checkin(team);
       this._setGamePlayersStatus(gameId);
       this._watchClientIdleForGame(gameId, client);
     } else if (firstJoined)
@@ -1252,14 +1253,15 @@ export default class GameService extends Service {
     else
       watchingClientIds.delete(client.id);
 
-    const isPlayer = game.state.teams.findIndex(t => t?.playerId === playerId) > -1;
-    if (isPlayer) {
+    const team = game.getTeamForPlayer(playerId);
+    if (team) {
       // If the client is closed, hold off on updating status.
       if (!client.closed && gamePara.clients.size > 0)
         this._setGamePlayersStatus(gameId);
 
-      const checkoutAt = new Date(Date.now() - client.session.idle * 1000);
-      game.checkout(playerId, checkoutAt);
+      const checkoutAt = new Date();
+      const lastActiveAt = new Date(checkoutAt - client.session.idle * 1000);
+      game.checkout(team, checkoutAt, lastActiveAt);
 
       this._unwatchClientIdleForGame(gameId, client);
     }
@@ -1571,6 +1573,7 @@ export default class GameService extends Service {
     return {
       status: idle > ACTIVE_LIMIT ? 'online' : 'active',
       deviceType,
+      isOpen: true,
     };
   }
   /*
@@ -1596,7 +1599,7 @@ export default class GameService extends Service {
   }
   _getPlayerGameIdle(playerId, game) {
     const team = game.state.teams.find(t => t.playerId === playerId);
-    const gameIdle = Math.floor((new Date() - (team.checkoutAt ?? team.joinedAt)) / 1000);
+    const gameIdle = Math.floor((new Date() - (team.lastActiveAt ?? team.joinedAt)) / 1000);
 
     const playerPara = this.playerPara.get(playerId);
     if (playerPara && playerPara.joinedGameGroups.has(game.id)) {

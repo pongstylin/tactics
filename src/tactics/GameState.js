@@ -423,11 +423,13 @@ export default class GameState {
 
     return teams[teamId];
   }
+  /*
+   * Return the most recent team owned by the player, if any.
+   */
   getTeamForPlayer(playerId) {
-    const teams = this.teams;
-    const currentTeamId = this.currentTeamId;
+    const numTeams = this.teams.length;
 
-    for (let i = 0; i < teams.length; i++) {
+    for (let i = 0; i < numTeams; i++) {
       const team = this.getPreviousTeam(i);
       if (team.playerId === playerId)
         return team;
@@ -892,13 +894,20 @@ export default class GameState {
   }
 
   /*
+   * Has any other team checked in since the given date?
+   */
+  seen(team, date) {
+    return this.teams.findIndex(t => t.id !== team.id && t.seen(date)) > -1;
+  }
+
+  /*
    * Return a pointer to the earliest turnId and actionId to which the provided
    * team may undo without approval.
    *
    * May return null if undo is impossible or not allowed
    * May return false if the player may not undo without approval.
    */
-  getUndoPointer(team = this.currentTeam) {
+  getUndoPointer(team = this.currentTeam, useSeen = false) {
     if (!this.startedAt)
       return null;
 
@@ -917,8 +926,11 @@ export default class GameState {
       return { turnId:minTurnId, actionId:0 };
     }
 
+    const rated = this.rated;
+    const strictUndo = this.strictUndo;
+
     if (this.endedAt)
-      return this.rated ? null : false;
+      return rated ? null : false;
 
     // Can't undo if the team's last turn is locked or doesn't exist
     if (contextTurnId < minTurnId)
@@ -928,20 +940,27 @@ export default class GameState {
     if (contextTurnId === currentTurnId && actions.length === 0 && previousTurnId < minTurnId)
       return null;
 
-    const currentTeamId = this.currentTeamId;
-    const rated = this.rated;
-
     // 5 seconds after your turn ends, you need permission to undo in rated games
+    // ... unless your opponent hasn't seen your move yet.
     if (rated) {
-      if (currentTeamId !== team.id)
-        return false;
+      const currentTeamId = this.currentTeamId;
+      const previousTeamId = (numTeams + currentTeamId - 1) % numTeams;
 
-      const lastAction = actions.last;
-      if (lastAction?.type === 'endTurn' && Date.now() - lastAction.createdAt >= 5000)
+      if (team.id === currentTeamId) {
+        const lastAction = actions.last;
+        if (lastAction?.type === 'endTurn') {
+          const turnStartedAt = lastAction.createdAt.getTime() + 5000;
+          if (Date.now() >= turnStartedAt)
+            if (strictUndo === true || useSeen === false || this.seen(team, turnStartedAt))
+              return false;
+        }
+      } else if (team.id === previousTeamId) {
+        if (strictUndo === true || useSeen === false || this.seen(team, this.turnStartedAt))
+          return false;
+      } else
         return false;
     }
 
-    const strictUndo = this.strictUndo;
     let pointer = false;
 
     for (let turnId = currentTurnId; turnId > lockedTurnId; turnId--) {
@@ -1059,7 +1078,7 @@ export default class GameState {
    * Also indicate if approval should be required of opponents.
    */
   canUndo(team = this.currentTeam) {
-    const pointer = this.getUndoPointer(team);
+    const pointer = this.getUndoPointer(team, true);
 
     // If undo is impossible or not allowed, return false
     if (pointer === null)
@@ -1082,7 +1101,7 @@ export default class GameState {
    * Initiate an undo action by provided team (defaults to current turn's team)
    */
   undo(team = this.currentTeam, approved = false) {
-    const pointer = this.getUndoPointer(team);
+    const pointer = this.getUndoPointer(team, true);
     if (pointer === null)
       return false;
     if (pointer === false && !approved)

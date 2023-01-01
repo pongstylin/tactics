@@ -735,7 +735,11 @@ async function initGame() {
     .then(async g => {
       game = g;
       game.id = gameId;
-      game.state.on('playerStatus', resetPlayerBanners);
+      game.state.on('playerStatus', () => {
+        resetPlayerBanners();
+        // An opponent opening the game may mean no longer being able to undo without approval.
+        toggleUndoButton();
+      });
 
       settings = new GameSettingsModal(
         { game, gameType },

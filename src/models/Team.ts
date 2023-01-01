@@ -72,7 +72,9 @@ export default class Team {
     slot: number
     createdAt: Date
     joinedAt: Date | null
+    checkinAt: Date | null
     checkoutAt: Date | null
+    lastActiveAt: Date | null
     playerId: string
     name: string
     position: string
@@ -103,8 +105,14 @@ export default class Team {
       // The date the player joined the team
       joinedAt: null,
 
-      // The date the player last viewed the game.
+      // The date the player last opened the game
+      checkinAt: null,
+
+      // The date the player last closed the game.
       checkoutAt: null,
+
+      // The date the player last actively viewed the game.
+      lastActiveAt: null,
 
       // The account ID associated with the team, if any
       playerId: undefined,
@@ -290,11 +298,35 @@ export default class Team {
   get joinedAt() {
     return this.data.joinedAt;
   }
+  get checkinAt() {
+    return this.data.checkinAt;
+  }
+  set checkinAt(checkinAt) {
+    this.data.checkinAt = checkinAt;
+  }
   get checkoutAt() {
     return this.data.checkoutAt;
   }
   set checkoutAt(checkoutAt) {
     this.data.checkoutAt = checkoutAt;
+  }
+  get lastActiveAt() {
+    return this.data.lastActiveAt;
+  }
+  set lastActiveAt(lastActiveAt) {
+    this.data.lastActiveAt = lastActiveAt;
+  }
+
+  /*
+   * Check a date to see if the team has checked in since then.
+   */
+  seen(date) {
+    // If checked out right now, date is seen if checked out after
+    if (this.checkoutAt > this.checkinAt)
+      return this.checkoutAt > date;
+
+    // If checked in right now, date is seen
+    return true;
   }
 
   setUsedUndo() {
@@ -357,7 +389,7 @@ export default class Team {
     if (!withSet)
       json.set = !!json.set;
 
-    delete json.checkoutAt;
+    delete json.lastActiveAt;
     delete json.randomState;
     delete json.turnTimeBuffer;
     delete json.randomSide;
@@ -377,6 +409,13 @@ export default class Team {
       delete json.turnTimeBuffer;
     if (json.randomSide === false)
       delete json.randomSide;
+
+    if (json.checkinAt === null)
+      delete json.checkinAt;
+    if (json.checkoutAt === null)
+      delete json.checkoutAt;
+    if (json.lastActiveAt === null)
+      delete json.lastActiveAt;
 
     return json;
   }
@@ -403,7 +442,7 @@ serializer.addType({
   constructor: Team,
   schema: {
     type: 'object',
-    required: [ 'id', 'slot', 'name', 'position', 'joinedAt', 'checkoutAt', 'createdAt' ],
+    required: [ 'id', 'slot', 'name', 'position', 'joinedAt', 'createdAt' ],
     properties: {
       id: { type:'number' },
       slot: { type:'number' },
@@ -433,7 +472,9 @@ serializer.addType({
       usedUndo: { type:'boolean', const:true },
       usedSim: { type:'boolean', const:true },
       joinedAt: { type:[ 'string', 'null' ], subType:'Date' },
+      checkinAt: { type:[ 'string', 'null' ], subType:'Date' },
       checkoutAt: { type:[ 'string', 'null' ], subType:'Date' },
+      lastActiveAt: { type:[ 'string', 'null' ], subType:'Date' },
       createdAt: { type:'string', subType:'Date' },
     },
     additionalProperties: false,

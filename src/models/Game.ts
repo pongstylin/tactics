@@ -144,14 +144,28 @@ export default class Game extends ActiveModel {
     return changed;
   }
 
-  checkout(playerId, checkoutAt) {
+  checkin(team, checkinAt = new Date()) {
     let changed = false;
 
-    for (const team of this.data.state.teams) {
-      if (team?.playerId === playerId && team.checkoutAt < checkoutAt) {
-        team.checkoutAt = checkoutAt;
-        changed = true;
-      }
+    if (team.checkinAt < checkinAt) {
+      team.checkinAt = checkinAt;
+      changed = true;
+    }
+
+    if (changed)
+      this.emit('change:checkin');
+    return changed;
+  }
+  checkout(team, checkoutAt, lastActiveAt) {
+    let changed = false;
+
+    if (team.checkoutAt < checkoutAt) {
+      team.checkoutAt = checkoutAt;
+      changed = true;
+    }
+    if (team.lastActiveAt < lastActiveAt) {
+      team.lastActiveAt = lastActiveAt;
+      changed = true;
     }
 
     if (changed)
