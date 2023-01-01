@@ -2,6 +2,7 @@ import { gameConfig } from 'config/client.js';
 import Autosave from 'components/Autosave.js';
 import copy from 'components/copy.js';
 import share from 'components/share.js';
+import tappable from 'components/tappable.js';
 import wakelock from 'components/wakelock.js';
 import GameSettingsModal from 'components/Modal/GameSettings.js';
 import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
@@ -447,6 +448,8 @@ $(() => {
   progress.message = 'Loading game...';
   progress.show();
 
+  tappable('BUTTON');
+
   if ('ontouchstart' in window)
     $('body').addClass(pointer = 'touch');
   else
@@ -470,26 +473,16 @@ $(() => {
      *   1) The unit is enraged and selected in attack mode. (selector)
      *   2) The attack button is pressed for 2 seconds and released.
      */
-    .on('mousedown touchstart', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
-      // Ignore mouse events on touch devices
-      if (pointer === 'touch' && event.type === 'mousedown')
-        return;
-      // Ignore repeated mousedown/touchstart before mouseup/touchend
-      if (readySpecial)
-        return;
+    .on('press', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
       readySpecial = game.readySpecial();
+    })
+    .on('release', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
+      if (event.detail.outside)
+        readySpecial.cancel();
+      else
+        readySpecial.release();
 
-      const button = event.target;
-      const eventType = event.type === 'touchstart' ? 'touchend' : 'mouseup';
-
-      $(document).one(eventType, event => {
-        if (event.target === button)
-          readySpecial.release();
-        else
-          readySpecial.cancel();
-
-        readySpecial = null;
-      });
+      readySpecial = null;
     })
     .on('mouseover', '#app BUTTON:enabled', event => {
       const $button = $(event.target);
@@ -1235,8 +1228,10 @@ async function showPracticeIntro(gameData) {
       } else
         setOption.style.display = 'none';
     }
-  } else
+  } else {
     $('#practice .mySet').hide();
+    $('#practice INPUT[name=setChoice][value=same]').prop('checked', true);
+  }
 
   let practiceSet;
   $('#practice  .practice A').on('click', async () => {

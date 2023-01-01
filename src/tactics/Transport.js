@@ -243,7 +243,6 @@ export default class Transport {
               return false;
         }
       } else if (team.id === previousTeamId) {
-        console.log('test', strictUndo, useSeen, this.seen(team, state.turnStartedAt));
         if (strictUndo === true || useSeen === false || this.seen(team, state.turnStartedAt))
           return false;
       } else
