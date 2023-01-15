@@ -181,6 +181,13 @@ export default class Transport {
   }
 
   /*
+   * Has any other team checked in since the given date?
+   */
+  seen(team, date) {
+    return this._data.state.teams.findIndex(t => t.id !== team.id && new Team(t).seen(date)) > -1;
+  }
+
+  /*
    * Like GameState->getUndoPointer();
    * Return a pointer to the earliest turnId and actionId to which the current
    * player may undo without approval.
@@ -188,7 +195,7 @@ export default class Transport {
    * May return null if undo is impossible or not allowed
    * May return false if the player may not undo without approval.
    */
-  getUndoPointer(team = this.currentTeam) {
+  getUndoPointer(team = this.currentTeam, useSeen = false) {
     const state = this._data.state;
     if (!state.startedAt)
       return null;
@@ -209,6 +216,7 @@ export default class Transport {
     }
 
     const rated = state.rated;
+    const strictUndo = state.strictUndo;
 
     if (state.endedAt)
       return rated ? null : false;
@@ -221,19 +229,26 @@ export default class Transport {
     if (contextTurnId === currentTurnId && actions.length === 0 && previousTurnId < minTurnId)
       return null;
 
-    const currentTeamId = state.currentTeamId;
-
     // 5 seconds after your turn ends, you need permission to undo in rated games
     if (rated) {
-      if (currentTeamId !== team.id)
-        return false;
+      const currentTeamId = state.currentTeamId;
+      const previousTeamId = (numTeams + currentTeamId - 1) % numTeams;
 
-      const lastAction = actions.last;
-      if (lastAction?.type === 'endTurn' && Date.now() - lastAction.createdAt >= 5000)
+      if (team.id === currentTeamId) {
+        const lastAction = actions.last;
+        if (lastAction?.type === 'endTurn') {
+          const turnStartedAt = lastAction.createdAt.getTime() + 5000;
+          if (Date.now() >= turnStartedAt)
+            if (strictUndo === true || useSeen === false || this.seen(team, turnStartedAt))
+              return false;
+        }
+      } else if (team.id === previousTeamId) {
+        if (strictUndo === true || useSeen === false || this.seen(team, state.turnStartedAt))
+          return false;
+      } else
         return false;
     }
 
-    const strictUndo = state.strictUndo;
     let pointer = false;
 
     for (let turnId = currentTurnId; turnId > lockedTurnId; turnId--) {
@@ -358,7 +373,7 @@ export default class Transport {
    * Other public methods that imitate GameState.
    */
   canUndo(team = this.currentTeam) {
-    const pointer = this.getUndoPointer(team);
+    const pointer = this.getUndoPointer(team, true);
 
     // If undo is impossible or not allowed, return false
     if (pointer === null)
@@ -384,8 +399,9 @@ export default class Transport {
     if (this.strictUndo || (this.rated && actions.last?.type === 'endTurn')) {
       const actionTimeout = Math.max(0, 5000 - (this.now - (actions.last?.createdAt ?? turnStartedAt)));
       const turnTimeout = this.getTurnTimeRemaining();
+      const refreshTimeout = Math.min(actionTimeout, turnTimeout);
 
-      return Math.min(actionTimeout, turnTimeout);
+      return refreshTimeout === 0 ? true : refreshTimeout;
     }
 
     return true;

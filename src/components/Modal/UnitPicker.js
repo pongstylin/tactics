@@ -1,5 +1,4 @@
 import Modal from 'components/Modal.js';
-import ColorPicker from 'components/ColorPicker.js';
 import unitDataMap from 'tactics/unitData.js';
 
 import 'components/Modal/UnitPicker.scss';

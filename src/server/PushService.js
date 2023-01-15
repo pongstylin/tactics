@@ -24,11 +24,11 @@ export default class PushService extends Service {
   hasPushSubscription(playerId) {
     return this.data.hasPushSubscription(playerId);
   }
-  async pushNotification(playerId, notification) {
+  async pushNotification(playerId, notification, urgency = 'normal') {
     const subscriptions = await this.data.getAllPushSubscriptions(playerId);
     if (subscriptions.size === 0) return;
 
-    this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}`);
+    this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}; urgency=${urgency}`);
 
     const payload = JSON.stringify(notification);
 
@@ -39,7 +39,11 @@ export default class PushService extends Service {
     );
 
     return Promise.all([...subscriptions].map(([deviceId, subscription]) =>
-      webpush.sendNotification(subscription, payload).catch(error => {
+      webpush.sendNotification(subscription, payload, {
+        headers: {
+          'Urgency': urgency,
+        },
+      }).catch(error => {
         // [403] invalid push subscription endpoint.
         // [410] push subscription has unsubscribed or expired.
         if (error.statusCode === 403 || error.statusCode === 410)

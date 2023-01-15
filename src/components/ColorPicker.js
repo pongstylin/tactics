@@ -2,17 +2,17 @@ import 'components/ColorPicker.scss';
 import emitter from 'utils/emitter.js';
 
 const template = `
-  <BUTTON class="colorOption" data-value="Blue"></BUTTON>
-  <BUTTON class="colorOption" data-value="Teal"></BUTTON>
-  <BUTTON class="colorOption" data-value="Green"></BUTTON>
-  <BUTTON class="colorOption" data-value="Orange"></BUTTON>
-  <BUTTON class="colorOption" data-value="Brown"></BUTTON>
-  <BUTTON class="colorOption" data-value="Yellow"></BUTTON>
-  <BUTTON class="colorOption" data-value="Red"></BUTTON>
-  <BUTTON class="colorOption" data-value="Pink"></BUTTON>
-  <BUTTON class="colorOption" data-value="Purple"></BUTTON>
-  <BUTTON class="colorOption" data-value="Black"></BUTTON>
-  <BUTTON class="colorOption" data-value="White"></BUTTON>
+  <BUTTON class="colorOption" data-value="Blue"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Teal"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Green"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Orange"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Brown"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Yellow"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Red"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Pink"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Purple"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="Black"><DIV class="image"></DIV></BUTTON>
+  <BUTTON class="colorOption" data-value="White"><DIV class="image"></DIV></BUTTON>
 `;
 
 export default class ColorPicker {

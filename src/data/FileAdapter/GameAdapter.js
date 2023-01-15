@@ -499,9 +499,12 @@ export default class extends FileAdapter {
     if (game.collection)
       promises.push(
         this._getGameCollection(game.collection).then(collection => {
-          if (game.state.endedAt && game.state.currentTurnId < 4) {
-            collection.delete(game.id);
-            return;
+          if (game.state.endedAt) {
+            const minTurnId = game.state.getFirstTurnId() + 3;
+            if (game.state.currentTurnId < minTurnId) {
+              collection.delete(game.id);
+              return;
+            }
           }
 
           return collection;

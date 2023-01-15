@@ -125,6 +125,8 @@ BUTTON {
   font-weight: bold;
   text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
   cursor: pointer;
+
+  -webkit-touch-callout: none;
 }
 BUTTON.styled, BUTTON.link {
   display: inline-flex;
@@ -139,6 +141,7 @@ BUTTON.styled, BUTTON.link {
   background-repeat: no-repeat;
   color: inherit;
   font-weight: normal;
+  user-select: none;
 }
 BUTTON.link {
   text-decoration: underline;

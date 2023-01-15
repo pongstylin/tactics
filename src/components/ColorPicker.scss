@@ -11,84 +11,99 @@
     position: relative;
     box-sizing: content-box;
     margin: 2px;
-    border-width: 1px;
-    border-style: solid;
-    padding: 0;
+    border: 0 none;
+    border-radius: unset;
+    padding: 1px;
     width: 14px;
     height: 14px;
-    overflow: hidden;
+    background-color: transparent;
     background-image: none;
 
-    &::before {
-      position: absolute;
-      top: 0;
-      left: -4.75px;
-      width: 20px;
-      height: 20px;
+    /*
+     * The purpose of the .image element is to simulate a border using the
+     * background-color of the .colorOption element.  The reason we can't just
+     * add a border to the .colorOption element is due to an apparent bug in
+     * Chrome where extra space appears between the border and the clipped
+     * gradient image in the pseudo element.  This extra space only appeared on
+     * Android and zoomed viewports on Windows.
+     */
+    .image {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
 
-      content: "";
+      &::before {
+        position: absolute;
+        top: 0;
+        left: -4.75px;
+        width: 20px;
+        height: 20px;
+
+        content: "";
+      }
     }
 
     &[data-value=Blue] {
-      border-color: #24364f;
-      &:hover { border-color: #6ba1ed; }
-      &::before { background-image: radial-gradient(at 0 0, #b2ffff, #243751 65.49019607843137%, #476b9e); }
+      background-color: #24364f;
+      &:hover { background-color: #6ba1ed; }
+      .image::before { background-image: radial-gradient(at 0 0, #b2ffff, #243751 65.49019607843137%, #476b9e) };
     }
     &[data-value=Teal] {
-      border-color: #0a4d4d;
-      &:hover { border-color: #1ee6e6; }
-      &::before { background-image: radial-gradient(at 0 0, #33ffff, #0a4e4e 65.49019607843137%, #149999); }
+      background-color: #0a4d4d;
+      &:hover { background-color: #1ee6e6; }
+      .image::before { background-image: radial-gradient(at 0 0, #33ffff, #0a4e4e 65.49019607843137%, #149999) };
     }
     &[data-value=Green] {
-      border-color: #384a24;
-      &:hover { border-color: #ade6b9; }
-      &::before { background-image: radial-gradient(at 0 0, #ffffb2, #394b24 65.49019607843137%, #709447); }
+      background-color: #384a24;
+      &:hover { background-color: #ade6b9; }
+      .image::before { background-image: radial-gradient(at 0 0, #ffffb2, #394b24 65.49019607843137%, #709447) };
     }
     &[data-value=Orange] {
-      border-color: #653d01;
-      &:hover { border-color: #ffb702; }
-      &::before { background-image: radial-gradient(at 0 0, #ffff03, #673e01 65.49019607843137%, #cb7a01); }
+      background-color: #653d01;
+      &:hover { background-color: #ffb702; }
+      .image::before { background-image: radial-gradient(at 0 0, #ffff03, #673e01 65.49019607843137%, #cb7a01) };
     }
     &[data-value=Brown] {
-      border-color: #36291f;
-      &:hover { border-color: #a17b5c; }
-      &::before { background-image: radial-gradient(at 0 0, #ffcc99, #372a1f 65.49019607843137%, #6b523d); }
+      background-color: #36291f;
+      &:hover { background-color: #a17b5c; }
+      .image::before { background-image: radial-gradient(at 0 0, #ffcc99, #372a1f 65.49019607843137%, #6b523d) };
     }
     &[data-value=Yellow] {
-      border-color: #655e24;
-      &:hover { border-color: #ffff6b; }
-      &::before { background-image: radial-gradient(at 0 0, #ffffb2, #676024 65.49019607843137%, #cbbd47); }
+      background-color: #655e24;
+      &:hover { background-color: #ffff6b; }
+      .image::before { background-image: radial-gradient(at 0 0, #ffffb2, #676024 65.49019607843137%, #cbbd47) };
     }
     &[data-value=Red] {
-      border-color: #4d1a17;
-      &:hover { border-color: #e64d45; }
-      &::before { background-image: radial-gradient(at 0 0, #ff8073, #4e1a17 65.49019607843137%, #99332e); }
+      background-color: #4d1a17;
+      &:hover { background-color: #e64d45; }
+      .image::before { background-image: radial-gradient(at 0 0, #ff8073, #4e1a17 65.49019607843137%, #99332e) };
     }
     &[data-value=Pink] {
-      border-color: #654042;
-      &:hover { border-color: #ffbfc7; }
-      &::before { background-image: radial-gradient(at 0 0, #ffffff, #674144 65.49019607843137%, #cb8085); }
+      background-color: #654042;
+      &:hover { background-color: #ffbfc7; }
+      .image::before { background-image: radial-gradient(at 0 0, #ffffff, #674144 65.49019607843137%, #cb8085) };
     }
     &[data-value=Purple] {
-      border-color: #383045;
-      &:hover { border-color: #a91cf9; }
-      &::before { background-image: radial-gradient(at 0 0, #fff2ff, #393146 65.49019607843137%, #70618a); }
+      background-color: #383045;
+      &:hover { background-color: #a91cf9; }
+      .image::before { background-image: radial-gradient(at 0 0, #fff2ff, #393146 65.49019607843137%, #70618a) };
     }
     &[data-value=Black] {
-      border-color: #333333;
-      &:hover { border-color: #999999; }
-      &::before { background-image: radial-gradient(at 0 0, #ffffff, #343434 65.49019607843137%, #666666); }
+      background-color: #333333;
+      &:hover { background-color: #999999; }
+      .image::before { background-image: radial-gradient(at 0 0, #ffffff, #343434 65.49019607843137%, #666666) };
     }
     &[data-value=White] {
-      border-color: #656565;
-      &:hover { border-color: #ffffff; }
-      &::before { background-image: radial-gradient(at 0 0, #ffffff, #676767 65.49019607843137%, #cbcbcb); }
+      background-color: #656565;
+      &:hover { background-color: #ffffff; }
+      .image::before { background-image: radial-gradient(at 0 0, #ffffff, #676767 65.49019607843137%, #cbcbcb) };
     }
 
     &.selected {
       margin: 1px;
-      border-color: #FFCC00 !important;
-      border-width: 2px;
+      background-color: #FFCC00 !important;
+      padding: 2px;
       cursor: default;
     }
   }

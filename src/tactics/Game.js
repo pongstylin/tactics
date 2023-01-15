@@ -453,11 +453,7 @@ export default class Game {
     return !!this.state.forkOf;
   }
   get isPracticeGame() {
-    if (this.playerId === null) return false;
-
-    const myTeams = this.state.teams.filter(t => t?.playerId === this.playerId);
-
-    return myTeams.length === this.state.teams.length;
+    return this.state.isPracticeGame
   }
   get ofPracticeGame() {
     if (!this.state.forkOf) return false;

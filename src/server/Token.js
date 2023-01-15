@@ -24,6 +24,7 @@ export default class Token {
 
     return new this(jwt.sign(data, config.privateKey, {
       algorithm: 'RS512',
+      allowInsecureKeySizes: true,
       expiresIn: claims.expiresIn,
       subject: claims.subject,
     }));
