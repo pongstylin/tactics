@@ -989,15 +989,15 @@
         "id": "default",
         "name": "Default",
         "units": [
-          { "assignment":[1, 4], "type":"Scout" },
-          { "assignment":[2, 4], "type":"Pyromancer", "mPower":12 },
-          { "assignment":[3, 4], "type":"Knight" },
-          { "assignment":[4, 4], "type":"DragonTyrant", "mPower":-24 },
-          { "assignment":[5, 4], "type":"Knight" },
-          { "assignment":[6, 4], "type":"MudGolem" },
-          { "assignment":[7, 4], "type":"Knight" },
-          { "assignment":[8, 4], "type":"DragonspeakerMage", "mPower":12 },
-          { "assignment":[9, 4], "type":"Scout" }
+          { "assignment":[ 0, 4], "type":"Scout" },
+          { "assignment":[ 2, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[ 3, 4], "type":"Knight" },
+          { "assignment":[ 4, 4], "type":"DragonTyrant", "mPower":-24 },
+          { "assignment":[ 5, 4], "type":"Knight" },
+          { "assignment":[ 6, 4], "type":"MudGolem" },
+          { "assignment":[ 7, 4], "type":"Knight" },
+          { "assignment":[ 8, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[10, 4], "type":"Scout" }
         ]
       }]
     }
@@ -1014,24 +1014,24 @@
         "units": {
           "types": [
             ["BarrierWard",       { "max":1, "points":6 }],
-            ["Enchantress",       { "max":1, "points":6 }],
-            ["Assassin",          { "max":1, "points":8 }],
-            ["Berserker",         { "max":1, "points":8 }],
-            ["LightningWard",     { "max":1, "points":8 }],
-            ["Pyromancer",        { "max":1, "points":10 }],
-            ["DarkMagicWitch",    { "max":1, "points":10 }],
-            ["Furgon",            { "max":1, "points":10 }],
-            ["Knight",            { "max":1, "points":10 }],
-            ["Cleric",            { "max":1, "points":10 }],
-            ["Scout",             { "max":1, "points":12 }],
-            ["BeastRider",        { "max":1, "points":12 }],
-            ["FrostGolem",        { "max":1, "points":14 }],
-            ["GolemAmbusher",     { "max":1, "points":14 }],
-            ["PoisonWisp",        { "max":1, "points":14 }],
-            ["MudGolem",          { "max":1, "points":14 }],
-            ["StoneGolem",        { "max":1, "points":14 }],
-            ["DragonspeakerMage", { "max":1, "points":18 }],
-            ["DragonTyrant",      { "max":1, "points":24 }]
+            ["Enchantress",       { "max":1, "points":6,  "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["Assassin",          { "max":1, "points":8,  "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["Berserker",         { "max":1, "points":8,  "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["Pyromancer",        { "max":1, "points":8,  "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["DarkMagicWitch",    { "max":1, "points":8,  "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["LightningWard",     { "max":1, "points":10 }],
+            ["Furgon",            { "max":1, "points":10, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["Knight",            { "max":1, "points":10, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["BeastRider",        { "max":1, "points":10, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["Scout",             { "max":1, "points":12, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["GolemAmbusher",     { "max":1, "points":12, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["FrostGolem",        { "max":1, "points":14, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["PoisonWisp",        { "max":1, "points":14, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["MudGolem",          { "max":1, "points":14, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["Cleric",            { "max":1, "points":14, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["StoneGolem",        { "max":1, "points":16, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["DragonspeakerMage", { "max":1, "points":20, "tiles": { "start":[0,0], "end":[10,3] }}],
+            ["DragonTyrant",      { "max":1, "points":22, "tiles": { "start":[0,0], "end":[10,3] }}]
           ]
         }
       },
@@ -1041,12 +1041,62 @@
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[5, 2], "type":"DragonTyrant" },
-          { "assignment":[1, 4], "type":"Scout" },
-          { "assignment":[2, 4], "type":"Knight" },
+          { "assignment":[1, 3], "type":"Scout" },
+          { "assignment":[2, 3], "type":"Knight" },
           { "assignment":[5, 3], "type":"MudGolem" },
           { "assignment":[5, 4], "type":"LightningWard" },
-          { "assignment":[8, 4], "type":"BeastRider" },
-          { "assignment":[9, 4], "type":"Berserker" }
+          { "assignment":[8, 3], "type":"BeastRider" },
+          { "assignment":[9, 3], "type":"Berserker" }
+        ]
+      }]
+    }
+  ],
+  [
+    "wasps",
+    {
+      "name": "Wasps",
+      "description": "This custom style owned by Muffin Man requires you to be good at using Poison Wisps (Wasps).  A minimum of 6 Poison Wisps are required.  No Clerics.  Dragon Tyrant costs only 1 point.",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
+        "units": {
+          "types": [
+            ["BarrierWard",       { "max":1, "points":1 }],
+            ["Enchantress",       { "max":1, "points":1 }],
+            ["Assassin",          { "max":1, "points":1 }],
+            ["Berserker",         { "max":1, "points":1 }],
+            ["LightningWard",     { "max":1, "points":1 }],
+            ["Pyromancer",        { "max":1, "points":1 }],
+            ["DarkMagicWitch",    { "max":1, "points":1 }],
+            ["Furgon",            { "max":1, "points":1 }],
+            ["Knight",            { "max":1, "points":1 }],
+            ["Scout",             { "max":2, "points":1 }],
+            ["BeastRider",        { "max":1, "points":1 }],
+            ["FrostGolem",        { "max":1, "points":1 }],
+            ["GolemAmbusher",     { "max":1, "points":1 }],
+            ["PoisonWisp",        { "max":9, "points":1, "required":6 }],
+            ["MudGolem",          { "max":1, "points":1 }],
+            ["StoneGolem",        { "max":1, "points":1 }],
+            ["DragonspeakerMage", { "max":1, "points":1 }],
+            ["DragonTyrant",      { "max":1, "points":1 }]
+          ]
+        }
+      },
+      "sets": [{
+        "id": "default",
+        "name": "Default",
+        "units": [
+          { "assignment":[5, 0], "type":"MudGolem" },
+          { "assignment":[2, 1], "type":"Scout" },
+          { "assignment":[8, 1], "type":"Scout" },
+          { "assignment":[1, 4], "type":"PoisonWisp" },
+          { "assignment":[2, 4], "type":"PoisonWisp" },
+          { "assignment":[4, 4], "type":"PoisonWisp" },
+          { "assignment":[5, 4], "type":"Knight" },
+          { "assignment":[6, 4], "type":"PoisonWisp" },
+          { "assignment":[8, 4], "type":"PoisonWisp" },
+          { "assignment":[9, 4], "type":"PoisonWisp" }
         ]
       }]
     }

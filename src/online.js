@@ -38,6 +38,7 @@ const styles = new Map([
   [ 'tao100',           'TAO 100' ],
   [ 'faceoff',          'Faceoff' ],
   [ 'droplessGrayWisp', 'Dropwisp Gway' ],
+  [ 'wasps',            'Wasps' ],
 ]);
 
 const groups = new Map([
