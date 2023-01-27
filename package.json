@@ -78,7 +78,7 @@
     "seedrandom": "^3.0.5",
     "string-pixel-width": "^1.10.0",
     "touch-pinch": "^1.0.1",
-    "ua-parser-js": "^0.7.28",
+    "ua-parser-js": "^0.7.33",
     "utf-8-validate": "^5.0.2",
     "uuid": "^3.3.2",
     "web-push": "^3.5.0",
