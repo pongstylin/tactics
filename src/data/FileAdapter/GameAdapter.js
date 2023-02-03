@@ -264,6 +264,20 @@ export default class extends FileAdapter {
     return this.cache.get('game').getOpen(gameId);
   }
 
+  getOpenPlayerSets(playerId, gameType) {
+    const playerSets = this.cache.get('playerSets').get(playerId);
+    if (playerSets === undefined)
+      throw new Error(`Player's sets are not cached`);
+
+    return playerSets.list(gameType);
+  }
+  getOpenPlayerSet(playerId, gameType, setId) {
+    const playerSets = this.cache.get('playerSets').get(playerId);
+    if (playerSets === undefined)
+      throw new Error(`Player's sets are not cached`);
+
+    return playerSets.get(gameType, setId);
+  }
   async getPlayerSets(playerId, gameType) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);

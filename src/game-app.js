@@ -847,9 +847,21 @@ async function joinGame(gameId, set, randomSide) {
     await authClient.register({ name:'Noob' });
 
   return gameClient.joinGame(gameId, { set, randomSide }).catch(error => {
-    if (error.code !== 409) throw error;
+    if (error.code !== 409 && error.code !== 412) throw error;
 
-    if (error.message === 'Too many pending games for this collection')
+    if (error.code === 412)
+      return new Promise(resolve => {
+        popup({
+          message: error.message,
+          buttons: [
+            { label:'Back', closeOnClick:false, onClick:() => history.back() },
+            { label:'Reload', closeOnClick:false, onClick:() => location.reload() },
+          ],
+          maxWidth: '250px',
+          closeOnCancel: false,
+        });
+      });
+    else if (error.message === 'Too many pending games for this collection')
       return new Promise(resolve => {
         popup({
           message: 'Sorry!  You have too many open games.',

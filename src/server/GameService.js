@@ -1408,64 +1408,46 @@ export default class GameService extends Service {
       return this.auth.getPlayer(playerId);
   }
 
-  /*
-   * Designed to be run against the same game multiple times.  This is necessary
-   * since sets may need to be resolved every time somebody joins the game.  This
-   * ensures that sets are what the player expects at the time the game is created
-   * and is not affected by further changing of their sets before game starts.
-   */
-  async _resolveTeamsSets(game, gameType) {
-    const joinedTeams = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt);
-    if (joinedTeams.length === 0)
-      return;
-
-    const firstTeam = joinedTeams[0];
-    const resolve = async team => {
-      if (!gameType.isCustomizable || team.set === null) {
-        const set = gameType.getDefaultSet();
-        team.set = { units:set.units };
-      } else if (team.set === 'same') {
-        team.set = {
-          via: 'same',
-          ...firstTeam.set,
-        };
-      } else if (team.set === 'mirror') {
-        team.set = {
-          via: 'mirror',
-          units: firstTeam.set.units.map(u => {
-            const unit = { ...u };
-            unit.assignment = [ ...unit.assignment ];
-            unit.assignment[0] = 10 - unit.assignment[0];
-            if (unit.direction === 'W')
-              unit.direction = 'E';
-            else if (unit.direction === 'E')
-              unit.direction = 'W';
-            return unit;
-          }),
-        };
-      } else if (team.set === 'random') {
-        const set = (await this.data.getPlayerSets(team.playerId, gameType)).random();
-        team.set = {
-          via: 'random',
-          units: set.units,
-        };
-      } else if (typeof team.set === 'string') {
-        const set = await this.data.getPlayerSet(team.playerId, gameType, team.set);
-        team.set = { units:set.units };
-      }
-    };
-
-    /*
-     * Resolve the first team set first since this is used to resolve 'same' and
-     * 'mirror' sets after.
-     */
-    await resolve(firstTeam);
-    await Promise.all(joinedTeams.slice(1).map(t => resolve(t)));
+  _resolveTeamSet(gameType, team) {
+    if (!gameType.isCustomizable || team.set === null) {
+      const set = gameType.getDefaultSet();
+      team.set = { units:set.units };
+    } else if (team.set === 'same') {
+      team.set = {
+        via: 'same',
+        ...firstTeam.set,
+      };
+    } else if (team.set === 'mirror') {
+      team.set = {
+        via: 'mirror',
+        units: firstTeam.set.units.map(u => {
+          const unit = { ...u };
+          unit.assignment = [ ...unit.assignment ];
+          unit.assignment[0] = 10 - unit.assignment[0];
+          if (unit.direction === 'W')
+            unit.direction = 'E';
+          else if (unit.direction === 'E')
+            unit.direction = 'W';
+          return unit;
+        }),
+      };
+    } else if (team.set === 'random') {
+      const set = this.data.getOpenPlayerSets(team.playerId, gameType).random();
+      team.set = {
+        via: 'random',
+        units: set.units,
+      };
+    } else if (typeof team.set === 'string') {
+      const set = this.data.getOpenPlayerSet(team.playerId, gameType, team.set);
+      if (set === null)
+        throw new ServerError(412, 'Sorry!  Looks like the selected set no longer exists.');
+      team.set = { units:set.units };
+    }
   }
   async _joinGame(game, gameType, team) {
-    game.state.join(team);
+    this._resolveTeamSet(gameType, team);
 
-    await this._resolveTeamsSets(game, gameType);
+    game.state.join(team);
 
     /*
      * If no open slots remain, start the game.
