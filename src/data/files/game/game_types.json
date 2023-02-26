@@ -156,8 +156,8 @@
       "sets": [{
         "name":"Brutal Anti",
         "units":[
-          {"type":"Scout","assignment":[0,3]},
-          {"type":"BeastRider","assignment":[1,3]},
+          {"type":"BeastRider","assignment":[0,3]},
+          {"type":"Scout","assignment":[1,3]},
           {"type":"Knight","assignment":[2,4]},
           {"type":"Knight","assignment":[3,4]},
           {"type":"Knight","assignment":[4,4]},
@@ -236,6 +236,13 @@
           "types": [
             [
               "Scout",
+              {
+                "max": 1,
+                "tiles": { "start":[0,0], "end":[5,3] }
+              }
+            ],
+            [
+              "GolemAmbusher",
               {
                 "max": 1,
                 "tiles": { "start":[0,0], "end":[5,3] }
@@ -601,6 +608,19 @@
           {"type":"FrostGolem","assignment":[8,1]},
           {"type":"Cleric","assignment":[8,0]},
           {"type":"Scout","assignment":[6,1]}
+        ]
+      },{
+        "name": "Double D",
+        "units": [
+          {"type":"Cleric","assignment":[8,0]},
+          {"type":"Knight","assignment":[8,1]},
+          {"type":"Scout","assignment":[1,4]},
+          {"type":"MudGolem","assignment":[3,4]},
+          {"type":"PoisonWisp","assignment":[4,4]},
+          {"type":"Scout","assignment":[6,4]},
+          {"type":"DragonspeakerMage","assignment":[7,4]},
+          {"type":"Knight","assignment":[8,4]},
+          {"type":"DragonTyrant","assignment":[10,4]}
         ]
       }]
     }
