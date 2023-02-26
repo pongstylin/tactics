@@ -306,13 +306,20 @@
         "points": 10,
         "units": {
           "types": [
-            ["Assassin",          { "max":10 }],
-            ["Knight",            { "max":3  }],
-            ["Cleric",            { "max":10 }],
+            ["Assassin",          { "max":1 }],
+            ["Knight",            { "max":3 }],
+            ["Cleric",            { "max":1 }],
             [
               "Scout",
               {
                 "max": 2,
+                "tiles": { "start":[0,0], "end":[10,3] }
+              }
+            ],
+            [
+              "GolemAmbusher",
+              {
+                "max": 1,
                 "tiles": { "start":[0,0], "end":[10,3] }
               }
             ],
@@ -323,11 +330,11 @@
                 "tiles": { "start":[0,0], "end":[10,2] }
               }
             ],
-            ["BarrierWard",       { "max":9  }],
+            ["BarrierWard",       { "max":1  }],
             [
               "Pyromancer",
               {
-                "max": 10,
+                "max": 2,
                 "tiles": { "start":[0,0], "end":[10,2] }
               }
             ],
@@ -335,13 +342,13 @@
             [
               "DarkMagicWitch",
               {
-                "max": 10,
+                "max": 1,
                 "tiles": { "start":[0,0], "end":[10,2] }
               }
             ],
-            ["Enchantress",       { "max":10 }],
-            ["PoisonWisp",        { "max":1  }],
-            ["MudGolem",          { "max":10 }],
+            ["Enchantress",       { "max":1 }],
+            ["PoisonWisp",        { "max":1 }],
+            ["MudGolem",          { "max":1 }],
             [
               "DragonTyrant",
               {
@@ -350,7 +357,7 @@
                 "tiles": { "start":[0,0], "end":[10,3] }
               }
             ],
-            ["FrostGolem",        { "max":10 }],
+            ["FrostGolem",        { "max":1 }],
             [
               "StoneGolem",
               {
@@ -366,9 +373,15 @@
                 ]
               }
             ],
-            ["Furgon",            { "max":1  }],
-            ["Berserker",         { "max":1  }],
-            ["BeastRider",        { "max":10 }]
+            ["Furgon",            { "max":1 }],
+            ["Berserker",         { "max":1 }],
+            [
+              "BeastRider",
+              {
+                "max": 1,
+                "tiles": { "start":[0,0], "end":[10,3] }
+              }
+            ]
           ]
         }
       },
