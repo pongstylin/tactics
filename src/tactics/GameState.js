@@ -431,7 +431,7 @@ export default class GameState {
 
     for (let i = 0; i < numTeams; i++) {
       const team = this.getPreviousTeam(i);
-      if (team.playerId === playerId)
+      if (team?.playerId === playerId)
         return team;
     }
 
