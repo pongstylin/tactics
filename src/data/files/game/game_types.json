@@ -1205,6 +1205,13 @@
                 "tiles": { "start":[0,0], "end":[5,3] }
               }
             ],
+            [
+              "DragonspeakerMage",
+              {
+                "max": 1,
+                "tiles": { "start":[0,0], "end":[5,2] }
+              }
+            ],
             ["BarrierWard",       { "max":1  }],
             ["Knight",            { "max":3  }],
             ["LightningWard",     { "max":1  }],
