@@ -1178,5 +1178,158 @@
         ]
       }]
     }
+  ],
+  [
+    "doubleTurtle",
+    {
+      "name": "Double Turtle",
+      "description": "This custom style invented by simplewizard is based on Legends Turtle except it requires the use of 2 Stone Golems and allows 2 Scouts.  Stone Golems may also be placed in the 3rd corner.",
+      "customizable": true,
+      "limits": {
+        "fixedPositions": true,
+        "tiles": { "start":[0,0], "end":[5,4] },
+        "points": 10,
+        "units": {
+          "types": [
+            [
+              "Scout",
+              {
+                "max": 1,
+                "tiles": { "start":[0,0], "end":[5,3] }
+              }
+            ],
+            [
+              "GolemAmbusher",
+              {
+                "max": 1,
+                "tiles": { "start":[0,0], "end":[5,3] }
+              }
+            ],
+            ["BarrierWard",       { "max":1  }],
+            ["Knight",            { "max":3  }],
+            ["LightningWard",     { "max":1  }],
+            ["Cleric",            { "max":1  }],
+            ["Assassin",          { "max":1  }],
+            ["Enchantress",       { "max":1  }],
+            ["PoisonWisp",        { "max":1  }],
+            ["MudGolem",          { "max":1  }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
+            ["FrostGolem",        { "max":1  }],
+            [
+              "StoneGolem",
+              {
+                "max": 2,
+                "required": 2,
+                "rules": {
+                  "maxStone": true
+                },
+                "tiles": [
+                  { "start":[0,0], "end":[5,0] },
+                  [1,1],
+                  [0,2],
+                  {
+                    "adjacentTo": {
+                      "type": "Cleric",
+                      "tiles": [ [2,0], [1,1] ]
+                    }
+                  }
+                ]
+              }
+            ],
+            ["Furgon",            { "max":1  }],
+            ["Berserker",         { "max":1  }],
+            ["BeastRider",        { "max":1  }]
+          ]
+        }
+      },
+      "sets": [
+        {
+          "name": "Default",
+          "units": [
+            { "assignment":[2, 0], "type":"StoneGolem" },
+            { "assignment":[3, 0], "type":"StoneGolem" },
+            { "assignment":[4, 0], "type":"Cleric" },
+            { "assignment":[1, 1], "type":"GolemAmbusher" },
+            { "assignment":[2, 1], "type":"PoisonWisp" },
+            { "assignment":[3, 1], "type":"DragonTyrant" },
+            { "assignment":[4, 1], "type":"MudGolem" },
+            { "assignment":[2, 2], "type":"BeastRider" },
+            { "assignment":[3, 2], "type":"Scout" }
+          ]
+        },
+        {
+          "name": "Default",
+          "units": [
+            { "assignment":[2, 0], "type":"StoneGolem" },
+            { "assignment":[3, 0], "type":"StoneGolem" },
+            { "assignment":[4, 0], "type":"Cleric" },
+            { "assignment":[1, 1], "type":"FrostGolem" },
+            { "assignment":[2, 1], "type":"Scout" },
+            { "assignment":[3, 1], "type":"DragonspeakerMage" },
+            { "assignment":[4, 1], "type":"DragonTyrant" },
+            { "assignment":[2, 2], "type":"Furgon" },
+            { "assignment":[3, 2], "type":"Knight" }
+          ]
+        },
+        {
+          "name": "Default",
+          "units": [
+            { "assignment":[2, 0], "type":"StoneGolem" },
+            { "assignment":[3, 0], "type":"StoneGolem" },
+            { "assignment":[4, 0], "type":"Cleric" },
+            { "assignment":[1, 1], "type":"Knight" },
+            { "assignment":[2, 1], "type":"PoisonWisp" },
+            { "assignment":[3, 1], "type":"DragonTyrant" },
+            { "assignment":[4, 1], "type":"MudGolem" },
+            { "assignment":[2, 2], "type":"Furgon" },
+            { "assignment":[3, 2], "type":"Scout" }
+          ]
+        },
+        {
+          "name": "Default",
+          "units": [
+            { "assignment":[2, 0], "type":"StoneGolem" },
+            { "assignment":[3, 0], "type":"StoneGolem" },
+            { "assignment":[4, 0], "type":"Cleric" },
+            { "assignment":[1, 1], "type":"Knight" },
+            { "assignment":[2, 1], "type":"PoisonWisp" },
+            { "assignment":[3, 1], "type":"DragonTyrant" },
+            { "assignment":[4, 1], "type":"MudGolem" },
+            { "assignment":[2, 2], "type":"BeastRider" },
+            { "assignment":[3, 2], "type":"Scout" }
+          ]
+        },
+        {
+          "name": "Default",
+          "units": [
+            { "assignment":[2, 0], "type":"Cleric" },
+            { "assignment":[1, 1], "type":"PoisonWisp" },
+            { "assignment":[2, 1], "type":"StoneGolem" },
+            { "assignment":[3, 1], "type":"Scout" },
+            { "assignment":[0, 2], "type":"StoneGolem" },
+            { "assignment":[1, 2], "type":"GolemAmbusher" },
+            { "assignment":[2, 2], "type":"MudGolem" },
+            { "assignment":[3, 2], "type":"Furgon" },
+            { "assignment":[1, 3], "type":"BeastRider" },
+            { "assignment":[2, 3], "type":"Knight" }
+          ]
+        },
+        {
+          "name": "Default",
+          "units": [
+            { "assignment":[3, 0], "type":"StoneGolem" },
+            { "assignment":[1, 1], "type":"StoneGolem" },
+            { "assignment":[2, 1], "type":"PoisonWisp" },
+            { "assignment":[3, 1], "type":"Scout" },
+            { "assignment":[4, 1], "type":"MudGolem" },
+            { "assignment":[0, 2], "type":"Cleric" },
+            { "assignment":[1, 2], "type":"BeastRider" },
+            { "assignment":[2, 2], "type":"GolemAmbusher" },
+            { "assignment":[3, 2], "type":"Knight" },
+            { "assignment":[1, 3], "type":"Furgon" }
+          ]
+        }
+      ]
+    }
   ]
 ]

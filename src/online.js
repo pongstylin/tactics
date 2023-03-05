@@ -39,6 +39,7 @@ const styles = new Map([
   [ 'faceoff',          'Faceoff' ],
   [ 'droplessGrayWisp', 'Dropwisp Gway' ],
   [ 'wasps',            'Wasps' ],
+  [ 'doubleTurtle',     'Double Turtle' ],
 ]);
 
 const groups = new Map([
