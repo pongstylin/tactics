@@ -1206,6 +1206,13 @@
               }
             ],
             [
+              "Pyromancer",
+              {
+                "max": 2,
+                "tiles": { "start":[0,0], "end":[5,2] }
+              }
+            ],
+            [
               "DragonspeakerMage",
               {
                 "max": 1,
