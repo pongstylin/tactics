@@ -1183,7 +1183,7 @@
     "doubleTurtle",
     {
       "name": "Double Turtle",
-      "description": "This custom style invented by simplewizard is based on Legends Turtle except it requires the use of 2 Stone Golems and allows 2 Scouts.  Stone Golems may also be placed in the 3rd corner.",
+      "description": "This custom style invented by simplewizard is based on Legends Turtle except it requires the use of 2 Stone Golems.  Stone Golems may also be placed in the 3rd corner.",
       "customizable": true,
       "limits": {
         "fixedPositions": true,
