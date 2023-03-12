@@ -1408,7 +1408,9 @@ export default class GameService extends Service {
       return this.auth.getPlayer(playerId);
   }
 
-  _resolveTeamSet(gameType, team) {
+  _resolveTeamSet(gameType, game, team) {
+    const firstTeam = game.state.teams.find(t => t?.playerId === game.createdBy);
+
     if (!gameType.isCustomizable || team.set === null) {
       const set = gameType.getDefaultSet();
       team.set = { units:set.units };
@@ -1445,7 +1447,7 @@ export default class GameService extends Service {
     }
   }
   async _joinGame(game, gameType, team) {
-    this._resolveTeamSet(gameType, team);
+    this._resolveTeamSet(gameType, game, team);
 
     game.state.join(team);
 
