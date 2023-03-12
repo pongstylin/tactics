@@ -210,7 +210,7 @@ export default class RemoteTransport extends Transport {
           this.playerStatus.set(ps.playerId, ps);
 
           for (const team of teams) {
-            if (team.playerId === ps.playerId)
+            if (team?.playerId === ps.playerId)
               if (ps.isOpen && team.checkoutAt > team.checkinAt)
                 team.checkinAt = new Date();
               else if (!ps.isOpen && team.checkinAt > team.checkoutAt)

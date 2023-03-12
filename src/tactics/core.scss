@@ -7,6 +7,50 @@
   }
 }
 
+@media (orientation: landscape) {
+  @keyframes critical {
+    0% {
+      box-shadow: inset 0 0 6vh red;
+    }
+    50% {
+      box-shadow: inset 0 0 18vh red;
+    }
+    100% {
+      box-shadow: inset 0 0 6vh red;
+    }
+  }
+}
+
+@media (orientation: portrait) {
+  @keyframes critical {
+    0% {
+      box-shadow: inset 0 0 6vw red;
+    }
+    50% {
+      box-shadow: inset 0 0 18vw red;
+    }
+    100% {
+      box-shadow: inset 0 0 6vw red;
+    }
+  }
+}
+
+.critical {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+
+  &.show {
+    display: block;
+    animation: critical 1.1s linear infinite;
+    pointer-events: none;
+    z-index: 100;
+  }
+}
+
 #app {
   display: flex;
   flex-direction: column;
@@ -189,7 +233,7 @@
           }
 
           &.bronze {
-            background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%, black 102%);
+            background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%, transparent 102%);
           }
         }
         &.right {
@@ -380,7 +424,6 @@
 
     flex: 0 0 auto;
     padding: 8px;
-    background-color: black;
 
     #messages {
       display: flex;
@@ -441,7 +484,14 @@
   }
 
   &.chat-opening, &.chat-open, &.chat-closing {
-    #chat { justify-content: flex-end }
+    #game > .buttons {
+      // Don't show chat behind the buttons.
+      background-color: black;
+    }
+    #chat {
+      justify-content: flex-end;
+      background-color: black;
+    }
   }
 }
 
@@ -729,8 +779,6 @@
       // No longer place the buttons in the top-right corner of #app.
       // Rather, it will be placed under the #field.
       & > .buttons {
-        // Don't show chat behind the buttons.
-        background-color: black;
         z-index: 30;
 
         position: relative;

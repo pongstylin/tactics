@@ -1740,6 +1740,7 @@ function setTurnTimeoutClock() {
 
   if (game.inReplay || game.currentTurnTimeLimit === null) {
     $('.clock').css({ display:'none' });
+    $('.critical').removeClass('show');
     return;
   } else
     $('.clock').css({ display:'' });
@@ -1750,8 +1751,8 @@ function setTurnTimeoutClock() {
   let timeoutText;
   if (timeout > 0) {
     let timeLimit = game.turnTimeLimit;
-    timeoutClass = timeout < timeLimit*1000 * 0.2 ? 'short' : 'long';
-    removeClass = timeout < timeLimit*1000 * 0.2 ? 'long' : 'short';
+    timeoutClass = timeout < timeLimit*1000 * 0.3 ? 'short' : 'long';
+    removeClass = timeout < timeLimit*1000 * 0.3 ? 'long' : 'short';
     removeClass += ' expired';
 
     let tick;
@@ -1793,12 +1794,13 @@ function setTurnTimeoutClock() {
     let ePlayerId = 'player-'+position.toLowerCase();
     let $clock = $(`#${ePlayerId} .clock`);
 
-    if (team === game.currentTeam)
+    if (team === game.currentTeam) {
       $clock
         .removeClass(removeClass)
         .addClass(timeoutClass)
         .html(timeoutText);
-    else
+      $('.critical').toggleClass('show', game.isMyTeam(team) && timeoutClass !== 'long');
+    } else
       $clock
         .removeClass('expired short long')
         .empty();
@@ -2033,6 +2035,9 @@ function updatePlayerRequestPopup(eventType, createIfNeeded = false) {
       popupData.message = `Request rejected by ${rejector.name}.`;
     } else if (playerRequest.status === 'cancelled')
       popupData.message = `The request was cancelled.`;
+    else if (playerRequest.status === 'completed')
+      // The playerRequest:completed event is never sent if we were offline.
+      popupData.message = `The request was accepted.`;
 
     popupData.buttons.push({ label:'Ok' });
   } else {
