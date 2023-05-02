@@ -91,7 +91,12 @@ export default class Modal {
 
     const divContent = this._els.content = document.createElement('DIV');
     divContent.classList.add('content');
-    divContent.innerHTML = options.content;
+    if (options.content === undefined)
+      divContent.innerHTML = '';
+    else if (typeof options.content === 'string')
+      divContent.innerHTML = options.content;
+    else
+      divContent.appendChild(options.content);
     divModal.appendChild(divContent);
 
     return overlay.root;
@@ -119,7 +124,14 @@ export default class Modal {
   }
   renderContent(content) {
     this.options.content = content;
-    this._els.content.innerHTML = content;
+    if (typeof content === 'string')
+      this._els.content.innerHTML = content;
+    else {
+      this._els.content.innerHTML = '';
+      this._els.content.appendChild(content);
+    }
+
+    return this._els.content;
   }
 
   open() {
@@ -155,7 +167,7 @@ export default class Modal {
     this._overlay.show();
     this._els.modal.focus();
     if (onShow) onShow();
-    this.whenHidden = new Promise();
+    if (!this.whenHidden) this.whenHidden = new Promise();
     return this.whenHidden;
   }
   close() {

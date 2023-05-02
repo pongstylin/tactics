@@ -701,9 +701,8 @@ async function initGame() {
       if (gameData.state.endedAt)
         return loadTransportAndGame(gameId, gameData);
 
-      // No account?  Provide a name before joining/watching!
-      if (!authClient.token)
-        return showJoinIntro(gameData);
+      // An account is required before joining or watching an active game.
+      await authClient.requireAuth();
 
       // Account exists and game started?  Immediately start watching!
       if (gameData.state.startedAt)
@@ -842,11 +841,8 @@ async function initGame() {
 async function getGameData(gameId) {
   return gameClient.getGameData(gameId);
 }
-async function joinGame(gameId, set, randomSide) {
-  if (!authClient.token)
-    await authClient.register({ name:'Noob' });
-
-  return gameClient.joinGame(gameId, { set, randomSide }).catch(error => {
+async function joinGame(gameId, name, set, randomSide) {
+  return gameClient.joinGame(gameId, { name, set, randomSide }).catch(error => {
     if (error.code !== 409 && error.code !== 412) throw error;
 
     if (error.code === 412)
@@ -1166,14 +1162,12 @@ async function showPracticeIntro(gameData) {
   const challenge = root.querySelector('.challenge');
   const btnStart = root.querySelector('BUTTON[name=start]');
 
-  let teamName = authClient.playerName;
-  const playerName = new Autosave({
+  const teamName = new Autosave({
     submitOnChange: true,
     defaultValue: false,
     value: authClient.playerName,
     maxLength: 20,
-  }).on('submit', event => teamName = event.data)
-    .appendTo(root.querySelector('.playerName'));
+  }).appendTo(root.querySelector('.teamName'));
 
   const creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
 
@@ -1309,14 +1303,12 @@ async function showJoinFork(gameData) {
   const challenge = root.querySelector('.challenge');
   const btnJoin = root.querySelector('BUTTON[name=join]');
 
-  const playerName = new Autosave({
+  const teamName = new Autosave({
     submitOnChange: true,
     defaultValue: false,
-    value: authClient.token ? authClient.playerName : 'Noob',
+    value: authClient.playerName,
     maxLength: 20,
-  }).on('submit', event => event.waitUntil(
-    authClient.setAccountName(event.data),
-  )).appendTo(root.querySelector('.playerName'));
+  }).appendTo(root.querySelector('.teamName'));
 
   const creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
   const opponentTeam = gameData.state.teams.find(t => !t.joinedAt);
@@ -1381,8 +1373,7 @@ async function showJoinFork(gameData) {
       progress.show();
 
       try {
-        await playerName.whenSaved;
-        await joinGame(gameData.id);
+        await joinGame(gameData.id, teamName.value);
         progress.message = 'Loading game...';
         resolve(
           await loadTransportAndGame(gameData.id, gameData)
@@ -1402,14 +1393,12 @@ async function showJoinIntro(gameData) {
   const challenge = root.querySelector('.challenge');
   const btnJoin = root.querySelector('BUTTON[name=join]');
 
-  const playerName = new Autosave({
+  const teamName = new Autosave({
     submitOnChange: true,
     defaultValue: false,
-    value: authClient.token ? authClient.playerName : 'Noob',
+    value: authClient.playerName,
     maxLength: 20,
-  }).on('submit', event => event.waitUntil(
-    authClient.setAccountName(event.data),
-  )).appendTo(root.querySelector('.playerName'));
+  }).appendTo(root.querySelector('.teamName'));
 
   if (gameData.state.startedAt) {
     btnJoin.textContent = 'Watch Game';
@@ -1421,10 +1410,6 @@ async function showJoinIntro(gameData) {
         progress.show();
 
         try {
-          if (authClient.token)
-            await playerName.whenSaved;
-          else
-            await authClient.register({ name:'Noob' });
           resolve(
             await loadTransportAndGame(gameData.id, gameData)
           );
@@ -1441,7 +1426,7 @@ async function showJoinIntro(gameData) {
     const openSlot = gameData.state.teams.findIndex(t => {
       if (!t?.playerId)
         return true;
-      return !!authClient.token && authClient.playerId === t.playerId;
+      return authClient.playerId === t.playerId;
     });
     if (openSlot === -1) {
       popup({
@@ -1456,7 +1441,7 @@ async function showJoinIntro(gameData) {
     }
 
     const creatorTeam = gameData.state.teams.find(t => !!t?.joinedAt);
-    const playerACL = authClient.token && await authClient.getPlayerACL(creatorTeam.playerId);
+    const playerACL = await authClient.getPlayerACL(creatorTeam.playerId);
 
     if (playerACL?.reverseType === 'blocked') {
       challenge.innerHTML = `Sorry!  <I>${creatorTeam.name}</I> blocked you from joining their games.`;
@@ -1551,54 +1536,34 @@ async function showJoinIntro(gameData) {
       $('#join .mirror').toggle(!gameType.hasFixedPositions);
 
       const $editSet = $('#join .set A');
-      let sets;
+      const sets = await gameClient.getPlayerSets(gameType.id);
 
-      if (authClient.token) {
-        sets = await gameClient.getPlayerSets(gameType.id);
-
-        if (sets.length === 1)
-          $('#join .mySet > div:nth-child(2)').hide();
-        else {
-          $sets.on('change', () => {
-            $mySet.prop('checked', true);
-            $editSet.toggle($sets.val() !== 'random');
-          });
-
-          for (const setId of gameConfig.setsById.keys()) {
-            const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
-            const set = sets.find(s => s.id === setId);
-            if (set) {
-              setOption.style.display = '';
-              setOption.textContent = set.name;
-            } else
-              setOption.style.display = 'none';
-          }
-
-          if (gameConfig.set === 'random') {
-            $sets.val('random');
-            $editSet.hide();
-          }
-        }
-      } else
+      if (sets.length === 1)
         $('#join .mySet > div:nth-child(2)').hide();
+      else {
+        $sets.on('change', () => {
+          $mySet.prop('checked', true);
+          $editSet.toggle($sets.val() !== 'random');
+        });
+
+        for (const setId of gameConfig.setsById.keys()) {
+          const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
+          const set = sets.find(s => s.id === setId);
+          if (set) {
+            setOption.style.display = '';
+            setOption.textContent = set.name;
+          } else
+            setOption.style.display = 'none';
+        }
+
+        if (gameConfig.set === 'random') {
+          $sets.val('random');
+          $editSet.hide();
+        }
+      }
 
       $editSet.on('click', async () => {
         $('#join').hide();
-
-        if (!sets) {
-          try {
-            if (!authClient.token)
-              await authClient.register({ name:playerName.value });
-            sets = await gameClient.getPlayerSets(gameType.id);
-          } catch (error) {
-            popup({
-              message: 'There was an error while loading your set.',
-              buttons: [],
-              closeOnCancel: false,
-            });
-            throw error;
-          }
-        }
 
         const setOption = $sets.find(`OPTION:checked`)[0];
         const setId = setOption.value;
@@ -1634,8 +1599,7 @@ async function showJoinIntro(gameData) {
         progress.show();
 
         try {
-          await playerName.whenSaved;
-          await joinGame(gameData.id, set, !gameType.hasFixedPositions && gameConfig.randomSide);
+          await joinGame(gameData.id, teamName.value, set, !gameType.hasFixedPositions && gameConfig.randomSide);
           progress.message = 'Loading game...';
           resolve(
             await loadTransportAndGame(gameData.id, gameData)

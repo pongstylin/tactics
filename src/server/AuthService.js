@@ -31,7 +31,11 @@ export default class AuthService extends Service {
         getIdentityToken: [],
         revokeIdentityToken: [],
 
-        makeAuthProviderURL: [ { provider:'auth:provider', redirectURL:'string' } ],
+        makeAuthProviderURL: [ {
+          provider: 'auth:provider',
+          redirectURL: 'string',
+          'deviceId?': 'string',
+        } ],
         linkAuthProvider: [ 'string' ],
         unlinkAuthProviders: [],
         hasAuthProviderLinks: [],
@@ -176,7 +180,7 @@ export default class AuthService extends Service {
     const iClient = new issuer.Client(providerConfig.client);
     Object.assign(state, {
       playerId: this.clientPara.get(client.id)?.playerId,
-      expiresAt: Date.now() + 60000,
+      expiresAt: Date.now() + 300000, // 15min
       codeVerifier: generators.codeVerifier(),
     });
 
@@ -257,10 +261,10 @@ export default class AuthService extends Service {
     const player = oldPlayerId
       ? await this.data.getPlayer(oldPlayerId)
       : await this.data.createPlayer({ name, confirmName:true });
-    const token = player.addDevice(client).token;
+    const device = player.getDevice(state.deviceId) ?? player.addDevice(client);
     await this.data.linkAuthPlayerId(state.provider, userinfo.id, player.id);
 
-    return token;
+    return device.token;
   }
   onUnlinkAuthProvidersRequest(client) {
     if (!config.auth.enabled)
@@ -362,9 +366,7 @@ export default class AuthService extends Service {
 
     const player = this.data.getOpenPlayer(clientPara.playerId);
 
-    this.push.clearPushSubscription(player.id, deviceId);
-
-    player.removeDevice(deviceId);
+    this.removeDevice(player, deviceId);
   }
   async onLogoutRequest(client) {
     if (!this.clientPara.has(client.id))
@@ -373,13 +375,23 @@ export default class AuthService extends Service {
     const { playerId, device } = this.clientPara.get(client.id);
     const player = this.data.getOpenPlayer(playerId);
 
-    this.push.clearPushSubscription(player.id, device.id);
-    this._emit({
-      type: 'logout',
-      clientId: client.id,
-    });
+    this.removeDevice(player, device.id);
+  }
+  removeDevice(player, deviceId) {
+    this.push.clearPushSubscription(player.id, deviceId);
 
-    player.removeDevice(device.id);
+    /*
+     * Logout all clients on this device.
+     */
+    for (const [ clientId, { device } ] of this.clientPara.entries()) {
+      if (device.id === deviceId)
+        this._emit({
+          type: 'logout',
+          clientId,
+        });
+    }
+
+    player.removeDevice(deviceId);
   }
 
   async onIsAccountAtRiskRequest(client) {
@@ -530,7 +542,7 @@ export default class AuthService extends Service {
     } else {
       // This should never happen unless tokens are leaked and used without permission.
       this.debug(`Revoked token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
-      throw new ServerError(409, 'Token revoked');
+      throw new ServerError(401, 'Token revoked');
     }
 
     return { player, device };

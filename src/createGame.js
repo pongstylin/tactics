@@ -4,6 +4,12 @@ import popup from 'components/popup.js';
 
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
+const teamName = new Autosave({
+  submitOnChange: true,
+  defaultValue: false,
+  value: 'Noob',
+  maxLength: 20,
+});
 
 window.addEventListener('DOMContentLoaded', () => {
   const divPlayerSetup = document.querySelector('.playerSetup .indent');
@@ -12,14 +18,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const divWaiting = document.querySelector('.waiting');
   const divError = document.querySelector('.view.configure .row.error');
 
-  const autosave = new Autosave({
-    submitOnChange: true,
-    defaultValue: false,
-    value: 'Noob',
-    maxLength: 20,
-  }).on('submit', event => event.waitUntil(
-    authClient.setAccountName(event.data),
-  )).appendTo(divPlayerSetup);
+  teamName.appendTo(divPlayerSetup);
 
   let notice;
   if (navigator.onLine === false)
@@ -40,15 +39,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (notice)
       notice.close();
 
-    if (!authClient.playerId)
-      await authClient.register({ name:'Noob' })
-        .catch(error => popup({
-          message: 'There was an error while loading your account.',
-          buttons: [],
-          closeOnCancel: false,
-        }));
+    await authClient.requireAuth();
 
-    autosave.value = authClient.playerName;
+    teamName.value = authClient.playerName;
 
     divConfigure.classList.add('show');
   });
@@ -287,6 +280,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const youSlot = turnOrder === '2nd' ? 1 : 0;
     const youTeam = gameOptions.teams[youSlot] = {
       playerId: authClient.playerId,
+      name: teamName.value,
       set,
     };
 
@@ -456,6 +450,7 @@ async function joinOpenGame(query, youTeam) {
 
     gameSummary = hits[0];
     await gameClient.joinGame(gameSummary.id, {
+      name: teamName.value,
       set: youTeam.set,
       randomSide: youTeam.randomSide,
     });

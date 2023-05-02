@@ -85,22 +85,30 @@ const OPTIONS = {
 };
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(INSTALL_CACHE_NAME)
-      .then(cache =>
-        Promise.all(
-          APP_FILES.map(url =>
-            fetch(url, OPTIONS).then(response => {
-              if (!response.ok)
-                throw new Error(`Response is not ok: [${response.status}] ${url}`);
+  event.waitUntil(new Promise(async (resolve, reject) => {
+    try {
+      const cache = await caches.open(INSTALL_CACHE_NAME);
 
-              return cache.put(url, response);
-            })
-          )
-        )
-      )
-      .then(() => self.skipWaiting())
-  )
+      await Promise.all(APP_FILES.map(async url => {
+        try {
+          const rsp = await fetch(url, OPTIONS);
+          if (!rsp.ok)
+            throw new Error(`Response is not ok: [${response.status}]`);
+
+          await cache.put(url, rsp);
+        } catch (e) {
+          e.fileName = url;
+          throw e;
+        }
+      }));
+
+      await self.skipWaiting();
+      resolve();
+    } catch (e) {
+      e.context = 'install';
+      reject(e);
+    }
+  }));
 });
 
 /*
@@ -145,7 +153,17 @@ async function routeLocalRequest(request) {
   if (request.method === 'POST') {
     const data = await request.json();
 
-    await cache.put(LOCAL_ENDPOINT, new Response(JSON.stringify(data), responseMeta));
+    try {
+      await cache.put(LOCAL_ENDPOINT, new Response(JSON.stringify(data), responseMeta));
+    } catch (e) {
+      e.context = 'routeLocalRequest';
+      if (e.name === 'QuotaExceededError')
+        return new Response(null, {
+          status: 200,
+          statusText: 'Ok',
+        });
+      throw e;
+    }
 
     return new Response(null, {
       status: 201,
@@ -234,7 +252,7 @@ self.addEventListener('fetch', event => {
           }
 
           // Clone the response before the body is consumed.
-          cache.put(baseURL, response.clone());
+          cache.put(baseURL, response.clone()).catch(() => {});
 
           return response;
         })
@@ -244,6 +262,7 @@ self.addEventListener('fetch', event => {
             return cachedResponse;
 
           // Hijack the fileName field to report the URL that failed to fetch.
+          error.context = 'fetch';
           error.fileName = baseURL;
           throw error;
         });
@@ -477,6 +496,7 @@ function getErrorData(error) {
     name: error.name,
     code: error.code,
     message: error.message,
+    context: error.context,
     fileName: error.fileName,
     lineNumber: error.lineNumber,
     columnNumber: error.columnNumber,

@@ -216,6 +216,8 @@ if (context.path) {
   local.apiEndpoint += context.path;
 }
 
+config.origin = config.proxy.origin ?? config.local.origin;
+
 /*
  * Prune auth providers that are not configured.
  */

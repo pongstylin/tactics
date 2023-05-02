@@ -1,3 +1,4 @@
+import { CLOSE_CLIENT_LOGOUT } from 'client/ServerSocket.js';
 import config from 'config/client.js';
 import Autosave from 'components/Autosave.js';
 import copy from 'components/copy.js';
@@ -166,6 +167,17 @@ const getAvatar = (playerId, direction) => {
   return Tactics.drawAvatar(avatar, { direction, withShadow:true });
 };
 
+authClient
+  .on('login', () => {
+    showTabs();
+  })
+  .on('name-change', () => {
+    setMyName();
+  })
+  .on('logout', () => {
+    hideTabs();
+  });
+
 gameClient
   .on('event', ({ body }) => {
     const statsContent = state.tabContent.stats;
@@ -203,28 +215,25 @@ gameClient
   })
   .on('open', async ({ data:{ reason } }) => {
     if (state.currentTab === null || reason === 'resume')
-      return;
-
-    /*
-     * Now that the connection is open, sync the current tab.  This is always
-     * required regardless of whether the page has never finished loading any
-     * data or if tabs have changed while offline or if a tab was in the middle
-     * of being loaded.  But just in case any tabs were synced at the time we
-     * lost connection, mark them as no longer synced.
-     */
-    for (const tabContent of Object.values(state.tabContent)) {
-      tabContent.isSynced = false;
-      tabContent.whenSynced = Promise.resolve();
+      document.querySelector('.tabContent .loading').classList.remove('is-active');
+    else {
+      /*
+       * Now that the connection is open, sync the current tab.  This is always
+       * required regardless of whether the page has never finished loading any
+       * data or if tabs have changed while offline or if a tab was in the middle
+       * of being loaded.  But just in case any tabs were synced at the time we
+       * lost connection, mark them as no longer synced.
+       */
+      for (const tabContent of Object.values(state.tabContent)) {
+        tabContent.isSynced = false;
+        tabContent.whenSynced = Promise.resolve();
+      }
+      syncTab();
     }
-    syncTab();
   })
   .on('close', ({ data:{ reopen } }) => {
-    if (state.currentTab === null)
-      return;
-
-    const divLoading = document.querySelector('.tabContent .loading');
     if (reopen)
-      divLoading.classList.add('is-active');
+      document.querySelector('.tabContent .loading').classList.add('is-active');
   });
 
 whenDOMReady.then(() => {
@@ -238,13 +247,43 @@ whenDOMReady.then(() => {
   authClient.whenReady.then(async () => {
     divLoading.classList.remove('is-active');
 
-    if (!authClient.token)
-      return config.auth ? showAuth() : showIdentify();
-    else if (authClient.token.confirmPlayerName)
-      return showIdentify();
-
-    showTabs();
+    if (await authClient.requireAuth())
+      history.replaceState(null, null, '#lobby');
   });
+
+  const page = document.querySelector('.page');
+  const divPN = page.querySelector('#pn');
+  const btnAccount = page.querySelector('HEADER .account BUTTON');
+
+  btnAccount.addEventListener('click', () => popup({
+    className: 'account',
+    title: 'Account',
+    buttons: [
+      {
+        label: 'Profile',
+        onClick: () => location.href = '/profile.html',
+      },
+      {
+        label: '<SPAN class="warning">!!</SPAN>Security',
+        onClick: () => location.href = '/security.html',
+      },
+      {
+        label: 'Logout',
+        onClick: async () => {
+          if (document.body.classList.contains('account-is-at-risk')) {
+            const answer = await popup({
+              message: 'You are at risk of losing your account.  Are you sure you want to logout?',
+              buttons: [ 'Yes', 'No' ],
+              maxWidth: '250px',
+            }).whenClosed;
+            if (answer !== 'Yes')
+              return;
+          }
+          await authClient.logout();
+        },
+      },
+    ],
+  }));
 
   if (navigator.serviceWorker)
     navigator.serviceWorker.ready
@@ -256,7 +295,7 @@ whenDOMReady.then(() => {
       })
       .then(renderPN);
   else
-    document.querySelector('#pn').innerHTML = 'Your browser does not support push notifications.';
+    divPN.innerHTML = 'Your browser does not support push notifications.';
 
   document.querySelector('.tabs UL').addEventListener('click', event => {
     const liTab = event.target.closest('LI:not(.is-active)');
@@ -355,136 +394,14 @@ whenDOMReady.then(() => {
   resize(dynamicStyle.sheet);
 });
 
-function showAuth() {
-  const divAuth = document.querySelector('#auth');
-  if (divAuth.style.display === '')
-    return;
-
-  divAuth.querySelector('.discord').style.display = config.auth.discord ? '' : 'none';
-  divAuth.querySelector('.facebook').style.display = config.auth.facebook ? '' : 'none';
-
-  const divNotice = document.querySelector('#notice');
-
-  divNotice.innerHTML = [
-    'Login with Discord (preferred) or Facebook.',
-    'This way you won\'t accidentally lose your account.',
-  ].map(s => s.replace(/ /g, '\u00A0')).join('<BR>');
-
-  divAuth.querySelector('UL').addEventListener('click', event => {
-    const li = event.target.closest('LI');
-    if (!li)
-      return;
-
-    if (li.classList.contains('discord'))
-      authClient.openAuthProvider('discord');
-    else if (li.classList.contains('facebook'))
-      authClient.openAuthProvider('facebook');
-    else if (li.classList.contains('skipAuth')) {
-      divAuth.style.display = 'none';
-
-      showIdentify();
-    }
-  });
-
-  divAuth.style.display = '';
-}
-async function showIdentify() {
-  const divIdentify = document.querySelector('#identify');
-  if (divIdentify.style.display === '')
-    return;
-
-  const divNotice = document.querySelector('#notice');
-
-  if (!authClient.token)
-    divNotice.textContent = [
-      'You are about to create a new account.',
-      'What name would you like to use?',
-    ].map(s => s.replace(/ /g, '\u00A0')).join('  ');
-  else
-    divNotice.textContent = [
-      'Please confirm the name you would like to use.',
-    ].join('  ');
-
-  const btnEnter = document.createElement('BUTTON');
-  btnEnter.textContent = 'Enter Lobby';
-  btnEnter.addEventListener('click', async () => {
-    if (!btnEnter.classList.contains('disabled'))
-      try {
-        await identify(autosave.inputValue);
-      } catch(error) {
-        btnEnter.classList.add('disabled');
-        autosave.error = error.toString();
-      }
-  });
-  btnEnter.classList.toggle('disabled', !authClient.token);
-
-  const autosave = new Autosave({
-    isRequired: true,
-    autoFocus: true,
-    maxLength: 20,
-    value: authClient.token ? authClient.playerName : null,
-  }).on('submit', event => {
-    event.waitUntil(identify(event.data)).catch(error => {
-      btnEnter.classList.add('disabled');
-    });
-  }).on('change', ({ data:name }) => {
-    btnEnter.classList.toggle('disabled', name === null);
-  });
-
-  autosave.appendTo(divIdentify);
-  divIdentify.appendChild(btnEnter);
-  divIdentify.style.display = '';
-}
-async function identify(name) {
-  await authClient.setAccountName(name);
-
-  history.replaceState(null, null, '#lobby');
-  return showTabs();
-}
 async function showTabs() {
   const page = document.querySelector('.page');
-  const divNotice = page.querySelector('#notice');
-  const divIdentify = page.querySelector('#identify');
   const header = page.querySelector('HEADER');
   const divPN = page.querySelector('#pn');
-  const btnAccount = header.querySelector('.account BUTTON');
-  const spnName = btnAccount.querySelector('.account BUTTON .name');
-  const divAvatar = header.querySelector('.account .avatar .image');
   const isAccountAtRisk = await authClient.isAccountAtRisk();
 
   myPlayerId = authClient.playerId;
-  spnName.textContent = authClient.playerName;
-  btnAccount.addEventListener('click', () => popup({
-    className: 'account',
-    title: 'Account',
-    buttons: [
-      {
-        label: 'Profile',
-        onClick: () => location.href = '/profile.html',
-      },
-      {
-        label: '<SPAN class="warning">!!</SPAN>Security',
-        onClick: () => location.href = '/security.html',
-      },
-      {
-        label: 'Logout',
-        onClick: async () => {
-          if (isAccountAtRisk) {
-            const answer = await popup({
-              message: 'You are at risk of losing your account.  Are you sure you want to logout?',
-              buttons: [ 'Yes', 'No' ],
-              maxWidth: '250px',
-            }).whenClosed;
-            console.log('answer', answer);
-            if (answer !== 'Yes')
-              return;
-          }
-          await authClient.logout();
-          location.reload();
-        },
-      },
-    ],
-  }));
+  setMyName();
 
   const avatar = (await gameClient.getPlayersAvatar([ myPlayerId ]))[0];
 
@@ -494,17 +411,33 @@ async function showTabs() {
   setMyAvatar(avatar);
   state.tabContent.lobby.setup.avatar = avatar;
 
-  divNotice.textContent = '';
-  divIdentify.style.display = 'none';
   header.style.display = '';
   divPN.style.display = '';
 
   await openTab();
   document.querySelector('.tabs').style.display = '';
 }
+function hideTabs() {
+  const page = document.querySelector('.page');
+  const header = page.querySelector('HEADER');
+  const divPN = page.querySelector('#pn');
 
+  closeTab();
+
+  header.style.display = 'none';
+  divPN.style.display = 'none';
+
+  document.querySelector('.tabs').style.display = 'none';
+  document.querySelector('.tabContent .loading').classList.remove('is-active');
+}
+
+function setMyName() {
+  const spnName = document.querySelector('.page HEADER .account BUTTON .name');
+
+  spnName.textContent = authClient.playerName;
+}
 function setMyAvatar(avatar) {
-  const divAvatar = document.querySelector('.account .avatar .image');
+  const divAvatar = document.querySelector('.page HEADER .account .avatar .image');
 
   state.avatars.set(myPlayerId, avatar);
 
@@ -2179,6 +2112,8 @@ function closeTab() {
 
     tabContent.isOpen = false;
   }
+
+  state.currentTab = null;
 }
 
 async function syncTab() {

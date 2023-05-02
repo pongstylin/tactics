@@ -10,7 +10,7 @@ import serializer from 'utils/serializer.js';
 const CLOSE_GOING_AWAY = 1001;
 
 const CLOSE_CLIENT_TIMEOUT = 4000;
-const CLOSE_CLIENT_LOGOUT  = 4003;
+export const CLOSE_CLIENT_LOGOUT  = 4003;
 
 // Proprietary codes used by client
 export const CLOSE_SERVER_TIMEOUT  = 4100;
@@ -162,7 +162,7 @@ export default class ServerSocket {
      *      A session may or may not be open.
      */
     const socket = this._socket;
-    const reopen = code !== CLOSE_GOING_AWAY && code !== CLOSE_CLIENT_LOGOUT && code < CLOSE_CLIENT_SHUTDOWN;
+    const reopen = code !== CLOSE_GOING_AWAY && code < CLOSE_CLIENT_SHUTDOWN;
 
     if (socket) {
       // Close the socket if closing was initiated by the client.
@@ -192,6 +192,9 @@ export default class ServerSocket {
      */
     if (reopen) {
       console.warn(`Connection closed: [${code}] ${reason}`);
+
+      if (code === CLOSE_CLIENT_LOGOUT)
+        this._resetSession();
 
       // Try to reconnect and resume the session without major interruption.
       this.open();

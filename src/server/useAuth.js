@@ -15,11 +15,19 @@ export default app => {
     if (!req.query.state)
       throw new ServerError(400, 'Missing state parameter');
 
-    const state = JSON.parse(config.auth.decryptState(req.query.state));
-    const link = config.auth.encryptState(JSON.stringify(req.query));
+    try {
+      const state = JSON.parse(config.auth.decryptState(req.query.state));
+      const link = config.auth.encryptState(JSON.stringify(req.query));
 
-    const redirectURL = new URL(state.redirectURL);
-    redirectURL.search = (redirectURL.search ? `${redirectURL.search}&` : '') + `link=${encodeURIComponent(link)}`;
-    res.redirect(redirectURL);
+      const redirectURL = new URL(state.redirectURL);
+      redirectURL.search = (redirectURL.search ? `${redirectURL.search}&` : '') + `link=${encodeURIComponent(link)}`;
+      res.redirect(redirectURL);
+    } catch (e) {
+      // Since encryption keys are ephemeral, we can fail to decrypt the state
+      // if server is restarted after authorization started and before it ended.
+      const redirectURL = new URL(`${config.origin}/online.html`);
+      redirectURL.search = (redirectURL.search ? `${redirectURL.search}&` : '') + `link=failed`;
+      res.redirect(redirectURL);
+    }
   });
 };
