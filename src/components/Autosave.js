@@ -98,6 +98,10 @@ export default class Autosave {
     return this.data.icons;
   }
 
+  focus() {
+    this._input.focus();
+  }
+
   appendTo(parent) {
     const props = this.props;
     const divAutosave = document.createElement('DIV');

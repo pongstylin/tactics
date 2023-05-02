@@ -1,9 +1,8 @@
-import 'plugins/index.js';
-import clientFactory from 'client/clientFactory.js';
 import Autosave from 'components/Autosave.js';
-import popup from 'components/popup.js';
 
-const authClient = clientFactory('auth');
+const authClient = Tactics.authClient;
+const popup = Tactics.popup;
+
 let accountNameAutosave;
 let acl;
 window.addEventListener('DOMContentLoaded', () => {
@@ -33,20 +32,13 @@ window.addEventListener('DOMContentLoaded', () => {
     document.querySelector('.accountName .inputTextAutosave'),
   );
 
-  authClient.whenReady.then(() => {
+  authClient.whenReady.then(async () => {
     if (notice)
       notice.close();
 
-    if (!authClient.playerId)
-      authClient.register({ name:'Noob' })
-        .then(renderPage)
-        .catch(error => popup({
-          message: 'There was an error while loading your account.',
-          buttons: [],
-          closeOnCancel: false,
-        }));
-    else
-      renderPage();
+    await authClient.requireAuth();
+
+    renderPage();
   });
 });
 

@@ -1,11 +1,10 @@
-import 'plugins/index.js';
 import config from 'config/client.js';
-import clientFactory from 'client/clientFactory.js';
 import Autosave from 'components/Autosave.js';
-import popup from 'components/popup.js';
 import copy from 'components/copy.js';
 
-const authClient = clientFactory('auth')
+const authClient = Tactics.authClient;
+const popup = Tactics.popup;
+
 let identityToken;
 let devices;
 let hasAuthProviderLinks;
@@ -25,20 +24,13 @@ window.addEventListener('DOMContentLoaded', () => {
       autoOpen: 1000, // open after one second
     });
 
-  authClient.whenReady.then(() => {
+  authClient.whenReady.then(async () => {
     if (notice)
       notice.close();
 
-    if (!authClient.playerId)
-      authClient.register({ name:'Noob' })
-        .then(renderPage)
-        .catch(error => popup({
-          message: 'There was an error while loading your account.',
-          buttons: [],
-          closeOnCancel: false,
-        }));
-    else
-      renderPage();
+    await authClient.requireAuth();
+
+    renderPage();
   });
 });
 
