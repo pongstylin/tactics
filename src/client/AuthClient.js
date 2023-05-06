@@ -117,7 +117,7 @@ export default class AuthClient extends Client {
   }
   linkAuthProvider(link) {
     return this._server.request(this.name, 'linkAuthProvider', [ link ])
-      .then(token => token && this._storeToken(token, true))
+      .then(token => this._storeToken(token ?? this.token, true))
       .then(() => true)
       .catch(error => {
         if (error.code === 401)
