@@ -1278,7 +1278,7 @@ async function showPracticeIntro(gameData) {
 
       try {
         await gameClient.joinGame(gameData.id, {
-          name: teamName,
+          name: teamName.value,
           set,
         });
         progress.message = 'Loading game...';
