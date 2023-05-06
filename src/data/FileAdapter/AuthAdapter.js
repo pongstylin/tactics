@@ -65,11 +65,15 @@ export default class extends FileAdapter {
     this.cache.get('authMembers').add(provider, members);
     return members.getPlayerId(memberId);
   }
+  async unlinkAuthProvider(provider, memberId) {
+    const members = await this._getAuthMembers(provider);
+    this.cache.get('authMembers').add(provider, members);
+    members.deletePlayerId(memberId);
+  }
   async unlinkAuthProviders(playerId, providers) {
     for (const provider of providers) {
       const members = await this._getAuthMembers(provider);
       this.cache.get('authMembers').add(provider, members);
-
       members.deleteMemberId(playerId);
     }
   }

@@ -75,6 +75,9 @@ export default class AuthService extends Service {
   getPlayer(playerId) {
     return this.data.getPlayer(playerId);
   }
+  unlinkAuthProvider(provider, userId) {
+    return this.data.unlinkAuthProvider(provider, userId);
+  }
 
   dropClient(client) {
     const clientPara = this.clientPara.get(client.id);

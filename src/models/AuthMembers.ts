@@ -28,6 +28,17 @@ export default class AuthMembers extends ActiveModel {
   hasMemberId(playerId) {
     return this.reverseLinks.has(playerId);
   }
+  deletePlayerId(memberId) {
+    const playerId = this.data.links.get(memberId);
+    if (!playerId)
+      return false;
+
+    this.data.links.delete(memberId);
+    this.reverseLinks.delete(playerId);
+    this.emit({ type:'change:unlink', data:{ playerId, memberId } });
+
+    return true;
+  }
   deleteMemberId(playerId) {
     const memberId = this.reverseLinks.get(playerId);
     if (!memberId)

@@ -1,11 +1,35 @@
+import crypto from 'crypto';
+import express from 'express';
+
 import config from 'config/server.js';
 import ServerError from 'server/Error.js';
+import services from 'server/services.js';
 
 const PATH = config.local.path;
+
+function parseSignedRequest(signedRequest) {
+  const [ encodedSig, payload ] = signedRequest.split('.');
+  const secret = config.auth.providers.facebook.client.secret;
+
+  // decode the data
+  sig = atob(encodedSig);
+  data = JSON.parse(atob(payload));
+
+  // confirm the signature
+  hmac = crypto.createHmac('sha256', secret);
+  hmac.update(payload);
+  expectedSig = hmac.digest('base64');
+  if (sig !== expectedSig)
+    throw ServerError(400, 'Signature mismatch');
+
+  return data;
+}
 
 export default app => {
   if (config.auth.enabled === false)
     return;
+
+  app.use(express.urlencoded({ extended:false }));
 
   /*
    * If a redirect URL is present, then repackage oauth params and pass along.
@@ -29,5 +53,25 @@ export default app => {
       redirectURL.search = (redirectURL.search ? `${redirectURL.search}&` : '') + `link=failed`;
       res.redirect(redirectURL);
     }
+  });
+
+  /*
+   * Facebook-related data deletion
+   */
+  app.get(`${PATH}/delete/facebook/callback`, (req, res, next) => {
+    const signedRequest = req.body.signed_request;
+    const data = parseSignedRequest(signedRequest);
+    const userId = data.user_id;
+    const statusUrl = `${config.origin}${PATH}/delete/facebook/status`;
+    const confirmationCode = crypto.randomBytes(10).toString('hex');
+
+    services.get('auth').unlinkAuthProvider('facebook', userId).then(() => {
+      res.type('json');
+      res.send(JSON.stringify({ url:statusUrl, confirmation_code:confirmationCode }));
+    }).catch(error => next(error));
+  });
+
+  app.get(`${PATH}/delete/facebook/status`, (req, res, next) => {
+    res.send('Facebook account unlinked.  No facebook data has been retained.');
   });
 };
