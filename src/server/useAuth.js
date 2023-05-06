@@ -9,20 +9,24 @@ const PATH = config.local.path;
 
 function parseSignedRequest(signedRequest) {
   const [ encodedSig, payload ] = signedRequest.split('.');
-  const secret = config.auth.providers.facebook.client.secret;
+  const secret = config.auth.providers.facebook.client.client_secret;
 
   // decode the data
-  sig = atob(encodedSig);
-  data = JSON.parse(atob(payload));
+  const sig = urlDecode(encodedSig);
+  const data = JSON.parse(atob(urlDecode(payload)));
 
   // confirm the signature
-  hmac = crypto.createHmac('sha256', secret);
+  const hmac = crypto.createHmac('sha256', secret);
   hmac.update(payload);
-  expectedSig = hmac.digest('base64');
-  if (sig !== expectedSig)
-    throw ServerError(400, 'Signature mismatch');
+  const expectedSig = hmac.digest('base64');
+  if (atob(sig) !== atob(expectedSig))
+    throw new ServerError(400, 'Signature mismatch');
 
   return data;
+}
+
+function urlDecode(input) {
+  return input.replace(/-/g, '+').replace(/_/g, '/');
 }
 
 export default app => {
@@ -58,7 +62,7 @@ export default app => {
   /*
    * Facebook-related data deletion
    */
-  app.get(`${PATH}/delete/facebook/callback`, (req, res, next) => {
+  app.post(`${PATH}/delete/facebook/callback`, (req, res, next) => {
     const signedRequest = req.body.signed_request;
     const data = parseSignedRequest(signedRequest);
     const userId = data.user_id;
