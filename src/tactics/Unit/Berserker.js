@@ -8,7 +8,12 @@ export default class Berserker extends Unit {
     let result = super.getAttackResult(action, unit, cUnit);
 
     if (!result.miss)
-      result.changes.mRecovery = result.unit.mRecovery + 1;
+      if (unit.team != cUnit.team) {
+        result.changes.mRecovery = result.unit.mRecovery + 1;
+      } else {
+        // If the berserker attacks an ally, increase wait by 2 to account for wait decrement at end of turn.
+        result.changes.mRecovery = result.unit.mRecovery + 2;
+      }
 
     return result;
   }
