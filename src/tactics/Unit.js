@@ -265,7 +265,7 @@ export default class Unit {
       // Armor reduces magic damage.
       calc.damage = Math.round(power * (100 - armor) / 100);
 
-      if (targetUnit.paralyzed || targetUnit.focusing)
+      if (targetUnit.paralyzed || targetUnit.focusing || !targetUnit.canBlock())
         calc.chance = 100;
       else if (targetUnit.directional === false) {
         // Wards have 100% blocking from all directions.
@@ -1882,6 +1882,9 @@ export default class Unit {
       !this.poisoned &&
       this.mPass !== false
     );
+  }
+  canBlock() {
+    return true;
   }
 
   clone() {

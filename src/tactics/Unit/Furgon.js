@@ -66,6 +66,13 @@ export default class Furgon extends Unit {
       }]);
   }
 
+  /*
+   * Furgon cannot block when exhausted
+   */
+  canBlock() {
+    return this.disposition !== 'exhausted';
+  }
+
   getAttackTiles(start = this.assignment) {
     if (this.canSpecial())
       return [this.assignment];
