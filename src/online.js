@@ -34,6 +34,7 @@ const styles = new Map([
   [ 'legendsGoldNoDSM', 'Legends Gold (no DSM)' ],
   [ 'delta',            'Delta Force' ],
   [ 'moderator',        'Moderator' ],
+  [ 'mob',              'Mob' ],
   [ 'alphaScout',       'Ninja Turtles' ],
   [ 'jenkinsRush',      'Jenkins Jamboree' ],
   [ 'tao100',           'TAO 100' ],

@@ -818,7 +818,7 @@
     "mob",
     {
       "name": "Mob",
-      "archived": true,
+      "description": "This custom style invented by Pepeg and owned by steve12 lets you use all units at the same time.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,3] },
