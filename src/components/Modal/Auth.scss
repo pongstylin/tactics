@@ -1,0 +1,53 @@
+.modal.auth {
+  .notice {
+    margin: 16px 0;
+    text-align: center;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .auth {
+    UL {
+      margin: 0;
+      padding: 0;
+    }
+    LI {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      list-style: none;
+      margin: 8px auto;
+      width: 250px;
+      height: 48px;
+    }
+    LI.box {
+      border: 1px solid #444444;
+    }
+    LI.box BUTTON {
+      width: 100%;
+      height: 100%;
+    }
+    .discord BUTTON:hover, #auth .facebook BUTTON:hover {
+      color: #CCFFFF;
+    }
+  }
+
+  .identify {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    & > * {
+      margin-top: 16px;
+    }
+    .error {
+      color: red;
+    }
+    .error:empty {
+      display: none;
+    }
+  }
+}
