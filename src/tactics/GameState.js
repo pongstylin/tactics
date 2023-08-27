@@ -811,6 +811,8 @@ export default class GameState {
             const result = action.results[k];
             // This check ignores summoned units, e.g. shrubs
             if (typeof result.unit !== 'number') continue;
+            // Ignore immune attacks
+            if (result.miss === 'immune') continue;
 
             let defenderTeamId;
             for (let t = 0; t < teamsUnits.length; t++) {
