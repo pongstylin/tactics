@@ -81,6 +81,14 @@ export default class GameClient extends Client {
   /*
    * Authorization not required for these read operations
    */
+  getGameTypes() {
+    return this._server.request(this.name, 'getGameTypes')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getGameTypes();
+        throw error;
+      });
+  }
   getGameType(gameTypeId) {
     return this._server.request(this.name, 'getGameTypeConfig', [gameTypeId])
       .catch(error => {

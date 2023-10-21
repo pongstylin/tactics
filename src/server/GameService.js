@@ -57,6 +57,7 @@ export default class GameService extends Service {
         cancelGame: [ 'uuid' ],
         joinGame: `tuple([ 'uuid', 'game:joinTeam' ], 1)`,
 
+        getGameTypes: [],
         getGameTypeConfig: [ 'string' ],
         getGame: [ 'uuid' ],
         getTurnData: [ 'uuid', 'integer(0)' ],
@@ -201,6 +202,7 @@ export default class GameService extends Service {
     if (body.method === 'getTurnData') return true;
     if (body.method === 'getTurnActions') return true;
     if (body.method === 'getGameTypeConfig') return true;
+    if (body.method === 'getGameTypes') return true;
 
     // Authorization required
     const clientPara = this.clientPara.get(client.id);
@@ -615,6 +617,10 @@ export default class GameService extends Service {
     }
 
     game.cancel();
+  }
+
+  async onGetGameTypesRequest(client) {
+    return this.data.getGameTypes();
   }
 
   async onGetGameTypeConfigRequest(client, gameTypeId) {
