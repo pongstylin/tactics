@@ -48,7 +48,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const gameTypes = gameClient.getGameTypes().then((gameTypes) => {
     const gameTypesHTML = gameTypes.map((gameType) => {
-      return `<OPTION value="${gameType[0]}">${gameType[1]}</OPTION>`
+      return `<OPTION value="${gameType.id}">${gameType.name}</OPTION>`
     })
     const selGameType = document.querySelector('SELECT[name=type]')
     selGameType.innerHTML = gameTypesHTML.join('')

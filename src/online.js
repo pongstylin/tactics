@@ -130,7 +130,7 @@ const pushPublicKey = Uint8Array.from(
 );
 
 const setGameTypesState = (gameTypes) => {
-   state.tabContent.lobby.styles = new Map(gameTypes);
+   state.tabContent.lobby.styles = gameTypes;
 }
 
 let avatars;
@@ -148,13 +148,9 @@ const handleAvatarsData = async () => {
   };
 }
 
-const dataServices = [
-  gameClient.getGameTypes(),
-  Tactics.load(['avatars'])
-]
-
-const getDataFromService = () => Promise.all(dataServices)
-  .then(async ([gameTypesData, avatarsData]) => {
+const getDataFromService = Tactics.load(['avatars'])
+  .then(async () => {
+    const gameTypesData = await gameClient.getGameTypes()
     setGameTypesState(gameTypesData);
     await handleAvatarsData();
     await whenDOMReady;
@@ -407,7 +403,7 @@ async function showTabs() {
 
   document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
 
-  await getDataFromService();
+  await getDataFromService;
   setMyAvatar(avatar);
   state.tabContent.lobby.setup.avatar = avatar;
 
@@ -664,7 +660,7 @@ function selectStyle(styleId) {
   ulFloorList.querySelector(`[data-style-id=${styleId}]`).classList.add('selected');
 
   const styles = state.tabContent.lobby.styles;
-  spnStyle.textContent = styles.get(styleId);
+  spnStyle.textContent = styles.find(style => style.id === styleId).name;
   tabContent.selectedStyleId = styleId;
 }
 async function selectGroup(groupId) {
@@ -1257,7 +1253,7 @@ function renderFloors() {
   const ulFloorList = document.createElement('UL');
 
   const styles = state.tabContent.lobby.styles;
-  for (const [ styleId, styleName ] of styles) {
+  for (const { id: styleId, name: styleName } of styles) {
     const liFloor = document.createElement('LI');
     liFloor.dataset.styleId = styleId;
     liFloor.addEventListener('mouseenter', () => {

@@ -175,10 +175,10 @@ export default class extends FileAdapter {
   }
   getGameTypes() {
     return [...this._gameTypes.values()]
-      .map(({ id, config }) => ([
-        id, 
-        config.name,
-      ]));
+      .map(({ id, config }) => ({
+        id: id, 
+        name: config.name,
+    }));
   }
   getGameType(gameTypeId) {
     const gameTypes = this._gameTypes;
