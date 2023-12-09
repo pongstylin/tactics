@@ -21,21 +21,6 @@ const gameClient = Tactics.gameClient;
 const pushClient = Tactics.pushClient;
 const popup = Tactics.popup;
 
-const styles = new Map([
-  [ 'freestyle',        'Freestyle' ],
-  [ 'classic',          'Classic' ],
-  [ 'droplessGray',     'Dropless Gray' ],
-  [ 'fpsGray',          'FPS Gray' ],
-  [ 'legendsGray',      'Legends Gray' ],
-  [ 'alphaTurtle',      'Alpha Turtle' ],
-  [ 'legendsTurtle',    'Legends Turtle' ],
-  [ 'fpsGold',          'FPS Gold' ],
-  [ 'legendsGold',      'Legends Gold' ],
-  [ 'legendsGoldNoDSM', 'Legends Gold (no DSM)' ],
-  [ 'delta',            'Delta Force' ],
-  [ 'moderator',        'Moderator' ],
-]);
-
 const groups = new Map([
   [ 'lobby',    'Lobby' ],
   [ 'active',   'Active Games' ],
@@ -95,6 +80,7 @@ const state = {
       selectedStyleId: null,
       selectedGroupId: 'lobby',
       sets: null,
+      styles: null,
     },
     publicGames: {
       isOpen: false,
@@ -143,9 +129,13 @@ const pushPublicKey = Uint8Array.from(
   chr => chr.charCodeAt(0),
 );
 
+const setGameTypesState = (gameTypes) => {
+   state.tabContent.lobby.styles = gameTypes;
+}
+
 let avatars;
 let arena;
-const avatarsPromise = Tactics.load([ 'avatars' ]).then(async () => {
+const handleAvatarsData = async () => {
   avatars = Tactics.getSprite('avatars');
   arena = avatars.getImage('arena');
   ScrollButton.config.icons = {
@@ -156,9 +146,15 @@ const avatarsPromise = Tactics.load([ 'avatars' ]).then(async () => {
     hover: avatars.getSound('focus').howl,
     click: avatars.getSound('select').howl,
   };
+}
 
-  await whenDOMReady;
-  renderLobby();
+const getDataFromService = Tactics.load(['avatars'])
+  .then(async () => {
+    const gameTypesData = await gameClient.getGameTypes()
+    setGameTypesState(gameTypesData);
+    await handleAvatarsData();
+    await whenDOMReady;
+    renderLobby();
 });
 
 const getAvatar = (playerId, direction) => {
@@ -403,11 +399,11 @@ async function showTabs() {
   myPlayerId = authClient.playerId;
   setMyName();
 
-  const avatar = (await gameClient.getPlayersAvatar([ myPlayerId ]))[0];
+  const avatar = (await gameClient.getPlayersAvatar([ myPlayerId ]))[0]; 
 
   document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
 
-  await avatarsPromise;
+  await getDataFromService;
   setMyAvatar(avatar);
   state.tabContent.lobby.setup.avatar = avatar;
 
@@ -663,7 +659,8 @@ function selectStyle(styleId) {
     ulFloorList.querySelector(`[data-style-id=${tabContent.selectedStyleId}]`).classList.remove('selected');
   ulFloorList.querySelector(`[data-style-id=${styleId}]`).classList.add('selected');
 
-  spnStyle.textContent = styles.get(styleId);
+  const styles = state.tabContent.lobby.styles;
+  spnStyle.textContent = styles.find(style => style.id === styleId).name;
   tabContent.selectedStyleId = styleId;
 }
 async function selectGroup(groupId) {
@@ -1254,7 +1251,9 @@ function renderFloors() {
   divFloors.appendChild(divFloorList);
 
   const ulFloorList = document.createElement('UL');
-  for (const [ styleId, styleName ] of styles) {
+
+  const styles = state.tabContent.lobby.styles;
+  for (const { id: styleId, name: styleName } of styles) {
     const liFloor = document.createElement('LI');
     liFloor.dataset.styleId = styleId;
     liFloor.addEventListener('mouseenter', () => {
