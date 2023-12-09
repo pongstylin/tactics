@@ -46,6 +46,14 @@ window.addEventListener('DOMContentLoaded', () => {
     divConfigure.classList.add('show');
   });
 
+  const gameTypes = gameClient.getGameTypes().then((gameTypes) => {
+    const gameTypesHTML = gameTypes.map((gameType) => {
+      return `<OPTION value="${gameType.id}">${gameType.name}</OPTION>`
+    })
+    const selGameType = document.querySelector('SELECT[name=type]')
+    selGameType.innerHTML = gameTypesHTML.join('')
+  });
+
   const selGameType = document.querySelector('SELECT[name=type]');
   const selSet = document.querySelector('SELECT[name=set]');
   const aChangeLink = document.querySelector('.change');

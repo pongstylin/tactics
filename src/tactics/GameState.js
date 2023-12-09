@@ -1301,8 +1301,14 @@ export default class GameState {
                 mRecovery = undefined;
             }
           }
-          else if (unit.mRecovery)
-            mRecovery = unit.mRecovery - 1;
+          else {
+            // Check recovery at the start of the turn, not the current recovery.
+            // This handles the case of a berserker attacking a friendly unit.
+            let unitAtTurnStart = this.units[unit.team.id].find(u => u.id === unit.id);
+            if (unitAtTurnStart.mRecovery) {
+              mRecovery = unit.mRecovery - 1;
+            }
+          }
 
           if (mRecovery !== undefined)
             result.changes.mRecovery = mRecovery;

@@ -1,4 +1,79 @@
 [
+    [
+    "freestyle",
+    {
+      "name": "Freestyle",
+      "description": "This style lets you use all the units you could buy including the extra copies (drops) you could earn on the original game commercial site (FPS) without restriction.",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
+        "units": {
+          "types": [
+            ["Scout",             { "max":2  }],
+            ["Assassin",          { "max":10 }],
+            ["Knight",            { "max":3  }],
+            ["Cleric",            { "max":10 }],
+            ["StoneGolem",        { "max":1  }],
+            ["Pyromancer",        { "max":10 }],
+            ["Enchantress",       { "max":10 }],
+            ["DarkMagicWitch",    { "max":10 }],
+            ["BarrierWard",       { "max":9  }],
+            ["LightningWard",     { "max":1  }],
+            ["MudGolem",          { "max":10 }],
+            ["PoisonWisp",        { "max":1  }],
+            ["FrostGolem",        { "max":10 }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
+            ["Furgon",            { "max":1  }],
+            ["DragonspeakerMage", { "max":1  }],
+            ["BeastRider",        { "max":10 }],
+            ["GolemAmbusher",     { "max":1  }],
+            ["Berserker",         { "max":1  }]
+          ]
+        }
+      },
+      "sets": [{
+        "name": "AFO Rush",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[1, 4], "type":"Scout" },
+          { "assignment":[2, 4], "type":"Knight" },
+          { "assignment":[4, 4], "type":"MudGolem" },
+          { "assignment":[5, 4], "type":"Knight" },
+          { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[8, 4], "type":"Knight" },
+          { "assignment":[9, 4], "type":"Scout" }
+        ]
+      },{
+        "name": "Standard Anti",
+        "units":[
+          {"type":"Scout","assignment":[10,4]},
+          {"type":"Knight","assignment":[9,4]},
+          {"type":"MudGolem","assignment":[8,4]},
+          {"type":"DragonTyrant","assignment":[7,4]},
+          {"type":"Knight","assignment":[6,4]},
+          {"type":"Knight","assignment":[5,3]},
+          {"type":"FrostGolem","assignment":[8,1]},
+          {"type":"Cleric","assignment":[8,0]},
+          {"type":"Scout","assignment":[6,1]}
+        ]
+      },{
+        "name": "Double D",
+        "units": [
+          {"type":"Cleric","assignment":[8,0]},
+          {"type":"Knight","assignment":[8,1]},
+          {"type":"Scout","assignment":[1,4]},
+          {"type":"MudGolem","assignment":[3,4]},
+          {"type":"PoisonWisp","assignment":[4,4]},
+          {"type":"Scout","assignment":[6,4]},
+          {"type":"DragonspeakerMage","assignment":[7,4]},
+          {"type":"Knight","assignment":[8,4]},
+          {"type":"DragonTyrant","assignment":[10,4]}
+        ]
+      }]
+    }
+  ],
   [
     "classic",
     {
@@ -546,81 +621,6 @@
           { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
           { "assignment":[8, 4], "type":"Knight" },
           { "assignment":[9, 4], "type":"Scout" }
-        ]
-      }]
-    }
-  ],
-  [
-    "freestyle",
-    {
-      "name": "Freestyle",
-      "description": "This style lets you use all the units you could buy including the extra copies (drops) you could earn on the original game commercial site (FPS) without restriction.",
-      "customizable": true,
-      "limits": {
-        "tiles": { "start":[0,0], "end":[10,4] },
-        "points": 10,
-        "units": {
-          "types": [
-            ["Scout",             { "max":2  }],
-            ["Assassin",          { "max":10 }],
-            ["Knight",            { "max":3  }],
-            ["Cleric",            { "max":10 }],
-            ["StoneGolem",        { "max":1  }],
-            ["Pyromancer",        { "max":10 }],
-            ["Enchantress",       { "max":10 }],
-            ["DarkMagicWitch",    { "max":10 }],
-            ["BarrierWard",       { "max":9  }],
-            ["LightningWard",     { "max":1  }],
-            ["MudGolem",          { "max":10 }],
-            ["PoisonWisp",        { "max":1  }],
-            ["FrostGolem",        { "max":10 }],
-            ["DragonTyrant",      { "max":1, "points":2 }],
-            ["Furgon",            { "max":1  }],
-            ["DragonspeakerMage", { "max":1  }],
-            ["BeastRider",        { "max":10 }],
-            ["GolemAmbusher",     { "max":1  }],
-            ["Berserker",         { "max":1  }]
-          ]
-        }
-      },
-      "sets": [{
-        "name": "AFO Rush",
-        "units": [
-          { "assignment":[5, 0], "type":"Cleric" },
-          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
-          { "assignment":[1, 4], "type":"Scout" },
-          { "assignment":[2, 4], "type":"Knight" },
-          { "assignment":[4, 4], "type":"MudGolem" },
-          { "assignment":[5, 4], "type":"Knight" },
-          { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
-          { "assignment":[8, 4], "type":"Knight" },
-          { "assignment":[9, 4], "type":"Scout" }
-        ]
-      },{
-        "name": "Standard Anti",
-        "units":[
-          {"type":"Scout","assignment":[10,4]},
-          {"type":"Knight","assignment":[9,4]},
-          {"type":"MudGolem","assignment":[8,4]},
-          {"type":"DragonTyrant","assignment":[7,4]},
-          {"type":"Knight","assignment":[6,4]},
-          {"type":"Knight","assignment":[5,3]},
-          {"type":"FrostGolem","assignment":[8,1]},
-          {"type":"Cleric","assignment":[8,0]},
-          {"type":"Scout","assignment":[6,1]}
-        ]
-      },{
-        "name": "Double D",
-        "units": [
-          {"type":"Cleric","assignment":[8,0]},
-          {"type":"Knight","assignment":[8,1]},
-          {"type":"Scout","assignment":[1,4]},
-          {"type":"MudGolem","assignment":[3,4]},
-          {"type":"PoisonWisp","assignment":[4,4]},
-          {"type":"Scout","assignment":[6,4]},
-          {"type":"DragonspeakerMage","assignment":[7,4]},
-          {"type":"Knight","assignment":[8,4]},
-          {"type":"DragonTyrant","assignment":[10,4]}
         ]
       }]
     }

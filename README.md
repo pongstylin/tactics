@@ -18,11 +18,19 @@ That is as far as it goes.  This project is intended to recreate the core game e
 
 ## Requirements
 * Node.js tested on version v16.16.0
+* Note: v18 does not work with current build.
 
 To install under windows, you also need Git Bash and configure npm to use the Git Bash executable.
 Example:
 ```bash
 npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
+```
+
+To manage Node versions in windows consider using https://github.com/coreybutler/nvm-windows.
+Then 
+```
+nvm install v16.16.0
+nvm use v16.16.0
 ```
 
 ## Development
