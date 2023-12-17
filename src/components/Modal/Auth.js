@@ -132,7 +132,6 @@ export default class Auth extends Modal {
       maxLength: 20,
       value: authClient.token ? authClient.playerName : null,
     }).on('submit', event => {
-      console.log('submit');
       event.waitUntil(this.identify(event.data)).catch(error => {
         btnContinue.classList.add('disabled');
       });

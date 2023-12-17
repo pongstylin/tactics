@@ -717,32 +717,40 @@ async function createGame(divArena) {
 
   const tabContent = state.tabContent.lobby;
   let { createBlocking, createTimeLimit, set, randomSide } = state.settings;
-  if (createBlocking === 'ask')
+  if (createBlocking === 'ask') {
     createBlocking = await popup({
       message: 'Choose blocking system.',
       buttons: [
         { label:'Luck',    value:'luck' },
         { label:'No Luck', value:'noluck' },
       ],
-      closeOnCancel: false,
     }).whenClosed;
-  if (createTimeLimit === 'ask')
+    if (createBlocking === undefined)
+      return;
+  }
+
+  if (createTimeLimit === 'ask') {
     createTimeLimit = await popup({
       message: 'Choose turn time limit.',
       buttons: [
         { label:'Standard', value:'standard' },
         { label:'Blitz',    value:'blitz' },
       ],
-      closeOnCancel: false,
     }).whenClosed;
+    if (createTimeLimit === undefined)
+      return;
+  }
+
   if (set === 'ask' && tabContent.sets.length === 1)
     set = tabContent.sets[0].id;
-  else if (set === 'ask')
+  else if (set === 'ask') {
     set = await popup({
       message: 'Choose set.',
       buttons: tabContent.sets.map(s => ({ label:s.name, value:s.id })),
-      closeOnCancel: false,
     }).whenClosed;
+    if (set === undefined)
+      return;
+  }
 
   const myTeam = {
     playerId: authClient.playerId,

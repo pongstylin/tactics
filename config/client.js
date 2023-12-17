@@ -110,7 +110,7 @@ const gameConfigProps = {
   barPosition: 'right',
   blockingSystem: 'luck',
   turnTimeLimit: 'standard',
-  set: 'default',
+  set: 'ask',
   randomSide: false,
   rotation: 'S',
   teamColorIds: [ 'Blue', 'Yellow', 'Red', 'Green' ],
