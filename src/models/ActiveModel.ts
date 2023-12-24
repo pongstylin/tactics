@@ -61,6 +61,12 @@ abstract class ActiveModel {
     if (!this.emitter)
       throw new Error('Active model is destroyed');
 
+    if (this.data instanceof Set)
+      return [ ...this.data ];
+    else if (this.data instanceof Map)
+      return [ ...this.data ];
+    else if (Array.isArray(this.data))
+      return [ ...this.data ];
     return { ...this.data };
   }
 

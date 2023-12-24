@@ -66,20 +66,59 @@
     .accountName {
       text-align: center;
     }
+
     .acl {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .acl .rule {
+      display: flex;
+      align-items: center;
+      margin: 4px 0;
+      width: 290px;
+    }
+    .acl .rule .label {
+      flex-grow: 1;
+    }
+    .acl .rule .label .description {
+      font-size: 0.8em;
+    }
+    .acl .rule .disposition {
+      display: flex;
+      gap: 4px;
+      font-size: 1.2em;
+    }
+    .acl .rule .disposition > * {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      width: 26px;
+      height: 26px;
+      cursor: pointer;
+    }
+
+    .relationships {
       text-align: center;
     }
-    .acl:empty::before {
+    .relationships:empty::before {
       font-style: italic;
       content: 'You can friend, mute, or block a player after tapping their name in a game.';
     }
-    .acl .icons > .fa {
+    .relationships .name > .inputTextAutosave {
+      width: 290px;
+    }
+    .relationships .name > .inputTextAutosave .icons .saved {
+      order: -1;
+    }
+    .relationships .icons > .fa {
       cursor: pointer;
     }
-    .acl .friended.active {
+
+    .friended.active {
       color: #00FF00;
     }
-    .acl .muted.active, .acl .blocked.active {
+    .muted.active, .blocked.active {
       color: #FF0000;
     }
 
@@ -93,6 +132,9 @@
     .intro {
       padding-bottom: 8px;
       text-align: left;
+    }
+    .break {
+      padding: 8px 0;
     }
 
     .error {
@@ -153,7 +195,30 @@
       <DIV class="intro">
         Manage friend, muted, and blocked players.
       </DIV>
-      <DIV class="acl"></DIV>
+      <DIV class="acl">
+        <DIV class="rule" data-rule="newAccounts">
+          <DIV class="label">
+            <DIV class="title">New Accounts</DIV>
+            <DIV class="description">Created account less than 7 days ago.</DIV>
+          </DIV>
+          <DIV class="disposition">
+            <SPAN class="muted fa fa-microphone-slash" title="Mute" data-value="muted"></SPAN>
+            <SPAN class="blocked fa fa-ban" title="Block" data-value="blocked"></SPAN>
+          </DIV>
+        </DIV>
+        <DIV class="rule" data-rule="anonAccounts">
+          <DIV class="label">
+            <DIV class="title">Anonymous Accounts</DIV>
+            <DIV class="description">Has not linked Discord or Facebook accounts.</DIV>
+          </DIV>
+          <DIV class="disposition">
+            <SPAN class="muted fa fa-microphone-slash" title="Mute" data-value="muted"></SPAN>
+            <SPAN class="blocked fa fa-ban" title="Block" data-value="blocked"></SPAN>
+          </DIV>
+        </DIV>
+      </DIV>
+      <DIV class="break">Individual relationships override the above rules.</DIV>
+      <DIV class="relationships"></DIV>
     </DIV>
   </DIV>
 </BODY>

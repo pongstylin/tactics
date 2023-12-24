@@ -6,6 +6,7 @@ import serializer from 'utils/serializer.js';
 export default class Room extends ActiveModel {
   protected data: {
     id: string
+    applyRules: boolean
     players: any[]
     events: any
     createdAt: Date
@@ -13,7 +14,11 @@ export default class Room extends ActiveModel {
 
   constructor(data) {
     super();
-    this.data = data;
+    this.data = {
+      applyRules: true,
+
+      ...data,
+    };
   }
 
   static create(players, options) {
@@ -22,12 +27,14 @@ export default class Room extends ActiveModel {
 
     options = Object.assign({
       id: uuid(),
+      applyRules: true,
     }, options);
 
     const data = {
-      id:        options.id,
-      players:   players,
-      events:    [],
+      id: options.id,
+      applyRules: options.applyRules,
+      players: players,
+      events: [],
       createdAt: new Date(),
     };
 
@@ -50,6 +57,9 @@ export default class Room extends ActiveModel {
 
   get id() {
     return this.data.id;
+  }
+  get applyRules() {
+    return this.data.applyRules;
   }
   get players() {
     return this.data.players;
@@ -97,9 +107,10 @@ serializer.addType({
   constructor: Room,
   schema: {
     type: 'object',
-    required: [ 'id', 'players', 'events', 'createdAt' ],
+    required: [ 'id', 'applyRules', 'players', 'events', 'createdAt' ],
     properties: {
       id: { type:'string', format:'uuid' },
+      applyRules: { type:'boolean' },
       players: {
         type: 'array',
         items: { $ref:'#/definitions/player' },

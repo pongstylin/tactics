@@ -5,6 +5,7 @@ const popup = Tactics.popup;
 
 let accountNameAutosave;
 let acl;
+let relationships;
 window.addEventListener('DOMContentLoaded', () => {
   let notice;
   if (navigator.onLine === false)
@@ -48,8 +49,11 @@ function renderPage() {
   const promises = [
     authClient.getACL().then(data => {
       acl = data;
-      for (const playerACL of acl.values()) {
-        delete playerACL.createdAt;
+    }),
+    authClient.getActiveRelationships().then(data => {
+      relationships = data;
+      for (const relationship of relationships.values()) {
+        delete relationship.createdAt;
       }
     }),
   ];
@@ -63,18 +67,47 @@ function renderPage() {
 
 function renderACL() {
   const content = [];
+  const ruleTypes = [ 'newAccounts', 'anonAccounts' ];
   const aclTypes = [ 'muted', 'blocked' ];
-  const sortedACL = [ ...acl ].sort((a,b) =>
-    aclTypes.indexOf(a[1].type) - aclTypes.indexOf(b[1].type) ||
+  const relationshipTypes = [ 'friended', 'muted', 'blocked' ];
+  const sortedACL = [ ...relationships ].sort((a,b) =>
+    relationshipTypes.indexOf(a[1].type) - relationshipTypes.indexOf(b[1].type) ||
     a[1].name.localeCompare(b[1].name)
   );
-  const divACL = document.querySelector('.acl');
 
-  for (const [ playerId, playerACL ] of acl) {
+  const divACL = document.querySelector('.acl');
+  const activateACL = newACL => {
+    acl = newACL;
+    for (const ruleType of ruleTypes)
+      for (const aclType of aclTypes)
+        divACL.querySelector(`.rule[data-rule=${ruleType}] .${aclType}`).classList.toggle('active', acl[ruleType] === aclType);
+  };
+  activateACL(acl);
+  divACL.addEventListener('click', event => {
+    const spnButton = event.target.closest('.muted, .blocked');
+    if (!spnButton)
+      return;
+
+    const divRule = spnButton.closest('.rule');
+    const newACL = { ...acl };
+
+    if (spnButton.classList.contains('active'))
+      newACL[divRule.dataset.rule] = null;
+    else
+      newACL[divRule.dataset.rule] = spnButton.dataset.value;
+    authClient.setACL({
+      newAccounts: newACL.newAccounts,
+      anonAccounts: newACL.anonAccounts,
+    }).then(() => activateACL(newACL));
+  });
+
+  const divRelationships = document.querySelector('.relationships');
+
+  for (const [ playerId, relationship ] of relationships) {
     const divPlayer = document.createElement('DIV');
-    divPlayer.id = `playerACL-${playerId}`;
-    divPlayer.classList.add('playerACL');
-    divACL.appendChild(divPlayer);
+    divPlayer.id = `relationship-${playerId}`;
+    divPlayer.classList.add('relationship');
+    divRelationships.appendChild(divPlayer);
 
     const divName = document.createElement('DIV');
     divName.classList.add('name');
@@ -83,20 +116,20 @@ function renderACL() {
     const autosave = new Autosave({
       submitOnChange: true,
       defaultValue: false,
-      value: playerACL.name,
+      value: relationship.name,
       maxLength: 20,
       icons: new Map([
         [ 'friended', {
           name: 'user-friends',
           title: 'Friend',
-          active: playerACL.type === 'friended',
+          active: relationship.type === 'friended',
           onClick: async friendIcon => {
             if (friendIcon.active) {
-              await authClient.clearPlayerACL(playerId);
+              await authClient.clearRelationship(playerId);
               friendIcon.active = false;
             } else {
-              playerACL.type = 'friended';
-              await authClient.setPlayerACL(playerId, playerACL);
+              relationship.type = 'friended';
+              await authClient.setRelationship(playerId, relationship);
               friendIcon.active = true;
               autosave.icons.get('muted').active = false;
               autosave.icons.get('blocked').active = false;
@@ -106,14 +139,14 @@ function renderACL() {
         [ 'muted', {
           name: 'microphone-slash',
           title: 'Mute',
-          active: playerACL.type === 'muted',
+          active: relationship.type === 'muted',
           onClick: async muteIcon => {
             if (muteIcon.active) {
-              await authClient.clearPlayerACL(playerId);
+              await authClient.clearRelationship(playerId);
               muteIcon.active = false;
             } else {
               popup({
-                title: `Mute <I>${playerACL.name}</I>?`,
+                title: `Mute <I>${relationship.name}</I>?`,
                 message: [
                   `<DIV>If you mute this player, you will:</DIV>`,
                   `<UL>`,
@@ -126,8 +159,8 @@ function renderACL() {
                   {
                     label: 'Mute',
                     onClick: async () => {
-                      playerACL.type = 'muted';
-                      await authClient.setPlayerACL(playerId, playerACL);
+                      relationship.type = 'muted';
+                      await authClient.setRelationship(playerId, relationship);
                       muteIcon.active = true;
                       autosave.icons.get('friended').active = false;
                       autosave.icons.get('blocked').active = false;
@@ -142,14 +175,14 @@ function renderACL() {
         [ 'blocked', {
           name: 'ban',
           title: 'Block',
-          active: playerACL.type === 'blocked',
+          active: relationship.type === 'blocked',
           onClick: async blockIcon => {
             if (blockIcon.active) {
-              await authClient.clearPlayerACL(playerId);
+              await authClient.clearRelationship(playerId);
               blockIcon.active = true;
             } else {
               popup({
-                title: `Block <I>${playerACL.name}</I>?`,
+                title: `Block <I>${relationship.name}</I>?`,
                 message: [
                   `<DIV>If you block this player, you will:</DIV>`,
                   `<UL>`,
@@ -166,8 +199,8 @@ function renderACL() {
                   {
                     label: 'Block',
                     onClick: async () => {
-                      playerACL.type = 'blocked';
-                      await authClient.setPlayerACL(playerId, playerACL);
+                      relationship.type = 'blocked';
+                      await authClient.setRelationship(playerId, relationship);
                       blockIcon.active = true;
                       autosave.icons.get('friended').active = false;
                       autosave.icons.get('muted').active = false;
@@ -181,8 +214,8 @@ function renderACL() {
         }],
       ]),
     }).on('submit', event => event.waitUntil(() => {
-      playerACL.name = event.data;
-      return authClient.setPlayerACL(playerId, playerACL);
+      relationship.name = event.data;
+      return authClient.setRelationship(playerId, relationship);
     }));
     autosave.appendTo(divName);
   }

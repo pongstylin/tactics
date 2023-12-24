@@ -530,18 +530,17 @@ export default class GameService extends Service {
     if (game.collection)
       await this._validateJoinGameForCollection(playerId, this.collections.get(game.collection));
 
+    const player = this.playerPara.get(playerId).player;
     const creator = await this._getAuthPlayer(game.createdBy);
-    if (creator.hasBlocked(playerId))
+    if (creator.hasBlocked(player, !!game.collection))
       throw new ServerError(403, 'You are blocked from joining this game.');
 
     /*
      * You can't play a blocked player.  But you can downgrade them to muted first.
      */
-    if (creator.isBlockedBy(playerId)) {
-      const joiner = await this._getAuthPlayer(playerId);
-      const playerACL = joiner.getPlayerACL(creator.id);
-      if (playerACL && playerACL.type === 'blocked')
-        joiner.mute(creator, playerACL.name);
+    if (player.hasBlocked(creator, false)) {
+      const relationship = player.getRelationship(creator);
+      player.mute(creator, relationship.name);
     }
 
     const gameType = await this.data.getGameType(game.state.type);
@@ -772,15 +771,27 @@ export default class GameService extends Service {
       throw new ServerError(403, 'To get player info for this game, they must be a participant.');
 
     const me = await this._getAuthPlayer(inPlayerId);
-    const player = await this._getAuthPlayer(forPlayerId);
+    const them = await this._getAuthPlayer(forPlayerId);
     const globalStats = await this.data.getPlayerStats(forPlayerId, forPlayerId);
     const localStats = await this.data.getPlayerStats(inPlayerId, forPlayerId);
 
     return {
-      createdAt: player.createdAt,
+      createdAt: them.createdAt,
       completed: globalStats.completed,
       canNotify: await this.push.hasPushSubscription(forPlayerId),
-      acl: me.getPlayerACL(forPlayerId),
+      acl: new Map([
+        [ 'me', me.acl ],
+        [ 'them', them.acl ],
+      ]),
+      isNew: new Map([
+        [ 'me', me.isNew ],
+        [ 'them', them.isNew ],
+      ]),
+      isVerified: new Map([
+        [ 'me', me.isVerified ],
+        [ 'them', them.isVerified ],
+      ]),
+      relationship: me.getRelationship(them),
       stats: {
         aliases: [ ...localStats.aliases.values() ]
           .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
@@ -807,7 +818,7 @@ export default class GameService extends Service {
       throw new ServerError(400, 'Unrecognized game collection');
 
     const player = this.clientPara.get(client.id).player;
-    return this.data.searchGameCollection(player, collectionId, query);
+    return this._searchGameCollection(player, collectionId, query);
   }
 
   /*
@@ -931,7 +942,7 @@ export default class GameService extends Service {
         clientIds: new Set(),
       };
       const playerGames = await this.data.openPlayerGames(playerId);
-      const stats = myGames.stats = this._getGameSummaryListStats(playerGames);
+      const stats = myGames.stats = await this._getGameSummaryListStats(playerGames);
       const emit = event => this._emit({
         type: 'event',
         body: {
@@ -941,7 +952,7 @@ export default class GameService extends Service {
         },
       });
 
-      playerGames.on('change', myGames.changeListener = event => {
+      playerGames.on('change', myGames.changeListener = async event => {
         if (event.type === 'change:set') {
           if (event.data.oldSummary)
             emit({ type:'change', data:event.data.gameSummary });
@@ -950,7 +961,7 @@ export default class GameService extends Service {
         } else if (event.type === 'change:delete')
           emit({ type:'remove', data:event.data.oldSummary });
 
-        const newStats = this._getGameSummaryListStats(playerGames);
+        const newStats = await this._getGameSummaryListStats(playerGames);
         if (newStats.waiting !== stats.waiting || newStats.active !== stats.active)
           emit({ type:'stats', data:Object.assign(stats, newStats) });
       });
@@ -1039,7 +1050,7 @@ export default class GameService extends Service {
 
       const stats = collectionPara.stats;
       if (!stats.has(player))
-        stats.set(player, this._getGameSummaryListStats(collection, player));
+        stats.set(player, await this._getGameSummaryListStats(collection, player));
     }
 
     clientPara.joinedGroups.add(groupPath);
@@ -1047,7 +1058,7 @@ export default class GameService extends Service {
     const response = {};
     if (params.query)
       if (this.collections.has(collectionId))
-        response.results = await this.data.searchGameCollection(player, collectionId, params.query);
+        response.results = await this._searchGameCollection(player, collectionId, params.query);
       else
         throw new ServerError(400, 'Can not query collection stats');
 
@@ -1145,13 +1156,17 @@ export default class GameService extends Service {
       node = node.parent;
     }
   }
-  _getGameSummaryListStats(collection, player = null) {
+  async _getGameSummaryListStats(collection, player = null) {
     const stats = { waiting:0, active:0 };
 
     for (const gameSummary of collection.values()) {
       if (!gameSummary.startedAt) {
-        if (!player?.isBlockedBy(gameSummary.createdBy))
-          stats.waiting++;
+        if (player) {
+          const creator = await this._getAuthPlayer(gameSummary.createdBy);
+          if (creator.hasBlocked(player))
+            continue;
+        }
+        stats.waiting++;
       } else if (!gameSummary.endedAt)
         stats.active++;
     }
@@ -1174,7 +1189,7 @@ export default class GameService extends Service {
       gamePara.emit({ clientId, type:'sync', data:sync });
     }
   }
-  _emitCollectionChange(collectionGroup, collection, event) {
+  async _emitCollectionChange(collectionGroup, collection, event) {
     const collectionPara = this.collectionPara.get(collection.id);
     const gameSummary = serializer.clone(event.data.gameSummary ?? event.data.oldSummary);
     const eventType = event.type === 'change:delete'
@@ -1191,10 +1206,11 @@ export default class GameService extends Service {
     });
 
     for (const player of collectionPara.stats.keys()) {
-      if (!gameSummary.startedAt && player.isBlockedBy(gameSummary.createdBy))
+      const creator = await this._getAuthPlayer(gameSummary.createdBy);
+      if (!gameSummary.startedAt && creator.hasBlocked(player))
         continue;
 
-      gameSummary.creatorACL = player.getPlayerACL(gameSummary.createdBy);
+      gameSummary.creatorACL = player.getRelationship(creator);
 
       emitChange(player.id);
     }
@@ -1202,7 +1218,7 @@ export default class GameService extends Service {
   /*
    * When a given collection changes, report stats changes, if any.
    */
-  _emitCollectionStats(collectionGroup, collection) {
+  async _emitCollectionStats(collectionGroup, collection) {
     const collectionPara = this.collectionPara.get(collection.id);
     const emitStats = (userId, group, data) => this._emit({
       type: 'event',
@@ -1215,7 +1231,7 @@ export default class GameService extends Service {
     });
 
     for (const [ player, oldStats ] of collectionPara.stats) {
-      const stats = this._getGameSummaryListStats(collection, player);
+      const stats = await this._getGameSummaryListStats(collection, player);
       if (stats.waiting === oldStats.waiting && stats.active === oldStats.active)
         continue;
 
@@ -1413,6 +1429,9 @@ export default class GameService extends Service {
     else
       return this.auth.getPlayer(playerId);
   }
+  async _searchGameCollection(player, collectionId, query) {
+    return this.data.searchGameCollection(player, collectionId, query, this._getAuthPlayer.bind(this));
+  }
 
   _resolveTeamSet(gameType, game, team) {
     const firstTeam = game.state.teams.find(t => t?.playerId === game.createdBy);
@@ -1466,8 +1485,8 @@ export default class GameService extends Service {
       const players = new Map(teams.map(t => [ t.playerId, t.name ]));
       if (players.size > 1)
         await this.chat.createRoom(
-          [...players].map(([id, name]) => ({ id, name })),
-          { id:game.id }
+          [ ...players ].map(([ id, name ]) => ({ id, name })),
+          { id:game.id, applyRules:!!game.collection }
         );
 
       // Now that the chat room is created, start the game.

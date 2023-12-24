@@ -3,6 +3,8 @@ import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
 
 import ActiveModel from 'models/ActiveModel.js';
+import Identities from 'models/Identities.js';
+import Identity from 'models/Identity.js';
 import serializer from 'utils/serializer.js';
 
 import IdentityToken from 'server/IdentityToken.js';
@@ -20,34 +22,43 @@ XRegExp.install('astral');
 const rUnicodeWhitelist = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
 const rUnicodeBlacklist = XRegExp('[\\u3164]');
 
-interface LogEntry {
-  type: string,
-  data: object,
-  createdAt: Date,
+enum Disposition {
+  friend = 'friended',
+  mute = 'muted',
+  block = 'blocked',
+}
+
+interface ACL {
+  newAccounts: Disposition | null
+  anonAccounts: Disposition | null
 }
 
 export default class Player extends ActiveModel {
   protected data: {
     id: string
+    identityId: string
     name: string
     confirmName: boolean
+    verified: boolean
     devices: Map<string, any>
     identityToken: IdentityToken | null
-    acl: Map<string, any>
-    reverseACL: Map<string, any>
-    log: LogEntry[],
+    acl: ACL
+    authProviderLinks: Map<string, string>
+    checkinAt: Date
     checkoutAt: Date
     createdAt: Date
   }
+  public identities: Identities
+  public identity: Identity
 
   constructor(data) {
     super();
     this.data = {
       confirmName: false,
+      verified: false,
       identityToken: null,
-      acl: new Map(),
-      reverseACL: new Map(),
-      log: [],
+      acl: { newAccounts:null, anonAccounts:null },
+      authProviderLinks: new Map(),
 
       ...data,
     };
@@ -61,6 +72,7 @@ export default class Player extends ActiveModel {
 
     data.id = uuid();
     data.createdAt = new Date();
+    data.checkinAt = data.createdAt;
     data.checkoutAt = data.createdAt;
     data.devices = new Map();
 
@@ -102,6 +114,15 @@ export default class Player extends ActiveModel {
   get id() {
     return this.data.id;
   }
+  get identityId() {
+    return this.data.identityId ?? this.data.id;
+  }
+  set identityId(identityId) {
+    if (identityId === this.data.identityId)
+      return;
+    this.data.identityId = identityId;
+    this.emit('change:identityId');
+  }
   get name() {
     return this.data.name;
   }
@@ -109,7 +130,21 @@ export default class Player extends ActiveModel {
     return this.data.devices;
   }
   get acl() {
-    return this.data.acl;
+    return {
+      muted: this.identity.muted,
+      ...this.data.acl,
+    };
+  }
+  set acl(acl) {
+    if (acl.newAccounts === this.data.acl.newAccounts && acl.anonAccounts === this.data.acl.anonAccounts)
+      return;
+    this.data.acl = acl;
+    this.emit({
+      type: 'acl',
+      target: this,
+      data: { acl },
+    });
+    this.emit('change:acl');
   }
   get identityToken() {
     return this.data.identityToken;
@@ -119,6 +154,43 @@ export default class Player extends ActiveModel {
   }
   get createdAt() {
     return this.data.createdAt;
+  }
+  get lastSeenAt() {
+    return this.data.checkinAt > this.data.checkoutAt ? new Date() : this.data.checkoutAt;
+  }
+
+  get isNew() {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    return oneWeekAgo < this.data.createdAt;
+  }
+  get isVerified() {
+    return this.data.verified;
+  }
+
+  hasAuthProviderLink(providerId) {
+    return this.data.authProviderLinks.has(providerId);
+  }
+  getAuthProviderLinkIds() {
+    return this.data.authProviderLinks.keys();
+  }
+  linkAuthProvider(provider, memberId) {
+    if (this.data.authProviderLinks.get(provider.id) === memberId)
+      return;
+
+    provider.linkPlayerId(this.id, memberId);
+    this.data.authProviderLinks.set(provider.id, memberId);
+    this.data.verified = true;
+    this.emit('change:linkAuthProvider');
+  }
+  unlinkAuthProvider(provider) {
+    if (!this.data.authProviderLinks.has(provider.id))
+      return;
+
+    provider.unlinkPlayerId(this.id);
+    this.data.authProviderLinks.delete(provider.id);
+    this.emit('change:unlinkAuthProvider');
   }
 
   updateProfile(profile) {
@@ -187,12 +259,22 @@ export default class Player extends ActiveModel {
 
     return true;
   }
+
+  checkin() {
+    this.data.checkinAt = new Date();
+    this.emit('change:checkin');
+    this.identity.lastSeenAt = this.data.checkinAt;
+    this.identities.add(this.identity);
+  }
   checkout(client, deviceId) {
-    const checkoutAt = new Date(Date.now() - client.session.idle * 1000);
+    const now = Date.now();
+    const checkoutAt = new Date(now - client.session.idle * 1000);
     if (checkoutAt > this.data.checkoutAt) {
       this.data.checkoutAt = checkoutAt;
       this.data.devices.get(deviceId).checkoutAt = checkoutAt;
       this.emit('change:checkout');
+      this.identity.lastSeenAt = this.data.checkoutAt;
+      this.identities.add(this.identity);
     }
   }
 
@@ -263,92 +345,120 @@ export default class Player extends ActiveModel {
     return true;
   }
 
-  getPlayerACL(playerId) {
-    const playerACL = this.data.acl.get(playerId);
-    const reverseType = this.data.reverseACL.get(playerId);
-    if (!playerACL && !reverseType)
-      return;
+  toggleGlobalMute() {
+    this.identity.muted = !this.identity.muted;
+    this.emit({
+      type: 'acl:toggleGlobalMute',
+      target: this,
+    });
 
-    return Object.assign({}, this.data.acl.get(playerId), { reverseType });
+    return this.identity.muted;
   }
-  setPlayerACL(player, playerACL) {
-    Player.validatePlayerName(playerACL.name);
+  getActiveRelationships() {
+    return this.identities.getRelationships(this.id);
+  }
+  getRelationship(player) {
+    const relationship:any = player.identity.getRelationship(this.id) ?? {};
+    const reverse:any = this.identity.getRelationship(player.id) ?? {};
 
-    const acl = this.data.acl.get(player.id);
-    if (acl?.type === playerACL.type && acl.name === playerACL.name)
+    return {
+      type: relationship.type,
+      name: relationship.nickname,
+      reverseType: reverse.type,
+    };
+  }
+  setRelationship(player, relationship) {
+    const oldRelationship = this.getRelationship(player);
+
+    if (relationship.type === undefined)
+      relationship.type = oldRelationship.type;
+    else if (relationship.type === null)
+      delete relationship.type;
+
+    if (relationship.name === undefined)
+      relationship.name = oldRelationship.name;
+    else if (relationship.name === null)
+      delete relationship.name;
+
+    if (relationship.type === undefined && relationship.name === undefined)
+      return this.clearRelationship(player);
+    if (oldRelationship?.type === relationship.type && oldRelationship.name === relationship.name)
       return false;
 
-    playerACL.createdAt = new Date();
+    Player.validatePlayerName(relationship.name);
 
-    this.data.acl.set(player.id, playerACL);
-    this.emit({
-      type: 'acl:set',
-      target: this,
-      data: { playerId:player.id, playerACL },
+    player.identity.setRelationship(this.id, {
+      type: relationship.type,
+      nickname: relationship.name,
+      createdAt: relationship.createdAt,
     });
-    this.emit('change:setPlayerACL');
 
-    player.setReversePlayerACL(this.data.id, playerACL.type);
+    this.emit({
+      type: 'acl:relationship',
+      target: this,
+      data: { playerId:player.id, relationship },
+    });
 
     return true;
   }
   mute(player, playerName) {
-    return this.setPlayerACL(player, {
+    return this.setRelationship(player, {
       type: 'muted',
       name: playerName,
     });
   }
-  clearPlayerACL(player) {
-    if (!this.data.acl.has(player.id))
+  clearRelationship(player) {
+    if (!player.identity.hasRelationship(this.id))
       return false;
 
-    this.data.acl.delete(player.id);
+    player.identity.deleteRelationship(this.id);
+
     this.emit({
       type: 'acl:clear',
       target: this,
       data: { playerId:player.id },
     });
-    this.emit('change:clearPlayerACL');
-
-    player.clearReversePlayerACL(this.data.id);
 
     return true;
   }
-  hasBlocked(playerId) {
-    return this.data.acl.get(playerId)?.type === 'blocked';
-  }
-  hasMutedOrBlocked(playerIds) {
-    const isMutedOrBlocked = /^(?:muted|blocked)$/;
+  hasBlocked(player, applyRules = true) {
+    if (player === this)
+      return false;
 
-    return playerIds.filter(pId => isMutedOrBlocked.test(this.data.acl.get(pId)?.type));
-  }
+    const relationship = player.identity.getRelationship(this.id);
+    if (relationship)
+      return relationship.type === 'blocked';
 
-  setReversePlayerACL(playerId, aclType) {
-    this.data.reverseACL.set(playerId, aclType);
-    this.emit({
-      type: 'acl:setReverse',
-      target: this,
-      data: { playerId },
-    });
-  }
-  clearReversePlayerACL(playerId) {
-    this.data.reverseACL.delete(playerId);
-    this.emit({
-      type: 'acl:clearReverse',
-      target: this,
-      data: { playerId },
-    });
-  }
-  listBlockedBy() {
-    const playerIds = new Set();
-    for (const [ playerId, aclType ] of this.data.reverseACL) {
-      if (aclType === 'blocked')
-        playerIds.add(playerId);
+    if (applyRules) {
+      if (this.data.acl.newAccounts === 'blocked' && player.isNew)
+        return true;
+      if (this.data.acl.anonAccounts === 'blocked' && !player.isVerified)
+        return true;
     }
-    return playerIds;
+
+    return false;
   }
-  isBlockedBy(playerId) {
-    return this.data.reverseACL.get(playerId) === 'blocked';
+  hasMuted(player, applyRules = true) {
+    if (player === this)
+      return false;
+
+    const relationship = player.identity.getRelationship(this.id);
+    if (relationship)
+      return relationship.type === 'muted';
+
+    if (applyRules) {
+      if (player.identity.muted)
+        return true;
+      if (this.data.acl.newAccounts === 'muted' && player.isNew)
+        return true;
+      if (this.data.acl.anonAccounts === 'muted' && !player.isVerified)
+        return true;
+    }
+
+    return false;
+  }
+  hasMutedOrBlocked(players, applyRules = true) {
+    return players.filter(p => this.hasMuted(p, applyRules) || this.hasBlocked(p, applyRules)).map(p => p.id);
   }
 
   /*
@@ -399,11 +509,6 @@ export default class Player extends ActiveModel {
     this.emit('change:clearIdentityToken');
   }
 
-  log(type, data) {
-    this.data.log.push({ type, data, createdAt:new Date() });
-    this.emit('change:log');
-  }
-
   toJSON() {
     const json = super.toJSON();
 
@@ -422,7 +527,7 @@ serializer.addType({
   constructor: Player,
   schema: {
     type: 'object',
-    required: [ 'id', 'name', 'devices', 'acl', 'reverseACL', 'identityToken', 'createdAt', 'checkoutAt' ],
+    required: [ 'id', 'name', 'devices', 'acl', 'identityToken', 'createdAt', 'checkoutAt' ],
     properties: {
       id: { type:'string', format:'uuid' },
       name: { type:'string' },
@@ -435,6 +540,7 @@ serializer.addType({
             id: { type:'string', format:'uuid' },
             name: { type:[ 'string', 'null' ] },
             confirmName: { type:'boolean' },
+            verified: { type:'boolean' },
             token: { $ref:'AccessToken' },
             nextToken: {
               oneOf: [
@@ -472,36 +578,22 @@ serializer.addType({
         },
       },
       acl: {
-        type: 'array',
-        subType: 'Map',
-        items: {
-          type: 'array',
-          items: [
-            { type:'string', format:'uuid' },
-            {
-              type: 'object',
-              required: [ 'type', 'name', 'createdAt' ],
-              properties: {
-                type: { $ref:'#/definitions/aclType' },
-                name: { type:'string' },
-                createdAt: { type:'string', subType:'Date' },
-              },
-              additionalProperties: false,
-            },
-          ],
-          additionalItems: false,
+        type: 'object',
+        properties: {
+          newAccounts: { $ref:'#/definitions/aclType' },
+          anonAccounts: { $ref:'#/definitions/aclType' },
         },
+        additionalProperties: false,
       },
-      reverseACL: {
+      authProviderLinks: {
         type: 'array',
         subType: 'Map',
         items: {
           type: 'array',
           items: [
-            { type:'string', format:'uuid' },
-            { $ref:'#/definitions/aclType' },
+            { type:'string' },
+            { type:'string' },
           ],
-          additionalItems: false,
         },
       },
       identityToken: {
@@ -509,17 +601,6 @@ serializer.addType({
           { type:'null' },
           { $ref:'IdentityToken' },
         ],
-      },
-      log: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            type: { type:'string' },
-            data: {},
-            createdAt: { type:'string', subType:'Date' },
-          },
-        },
       },
       createdAt: { type:'string', subType:'Date' },
       checkoutAt: { type:'string', subType:'Date' },

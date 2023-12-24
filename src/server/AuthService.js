@@ -48,10 +48,13 @@ export default class AuthService extends Service {
 
         isAccountAtRisk: [],
 
+        toggleGlobalMute: [ 'uuid' ],
         getACL: [],
-        getPlayerACL: [ 'uuid' ],
-        setPlayerACL: [ 'uuid', 'auth:acl' ],
-        clearPlayerACL: [ 'uuid' ],
+        setACL: [ 'auth:acl' ],
+        getActiveRelationships: [],
+        getRelationship: [ 'uuid' ],
+        setRelationship: [ 'uuid', 'auth:relationship' ],
+        clearRelationship: [ 'uuid' ],
       },
       definitions: {
         profile: {
@@ -59,8 +62,12 @@ export default class AuthService extends Service {
         },
         provider: config.auth.enabled ? `enum([ ${AUTH_PROVIDERS.map(p => `'${p}'`)} ])` : 'string',
         acl: {
-          type: `enum([ 'friended', 'muted', 'blocked' ])`,
-          name: 'string',
+          newAccounts: `enum([ 'muted', 'blocked' ]) | null`,
+          anonAccounts: `enum([ 'muted', 'blocked' ]) | null`,
+        },
+        relationship: {
+          'type?': `enum([ 'friended', 'muted', 'blocked' ])`,
+          'name?': 'string',
         },
       },
     });
@@ -114,6 +121,7 @@ export default class AuthService extends Service {
 
       // Keep this player open for the duration of the session.
       await this.data.openPlayer(player.id);
+
       if (client.closed) {
         this.data.closePlayer(player.id);
         return;
@@ -128,6 +136,7 @@ export default class AuthService extends Service {
       throw new ServerError(501, 'Unsupported change of device');
 
     this.clientPara.set(client.id, clientPara);
+    player.checkin();
   }
 
   async onRegisterRequest(client, playerData) {
@@ -224,8 +233,12 @@ export default class AuthService extends Service {
 
     const userinfo = await iClient.userinfo(tokenSet.access_token);
 
+    /*
+     * If a playerId is present, then this is linking a provider to an existing account.
+     * If not present, player is logging in either for the first time or not.
+     */
     if (state.playerId) {
-      await this.data.linkAuthPlayerId(state.provider, userinfo.id, state.playerId);
+      await this.data.linkAuthProvider(state.provider, userinfo.id, state.playerId);
       return;
     }
 
@@ -260,12 +273,18 @@ export default class AuthService extends Service {
       name = 'Noob';
     }
 
-    const oldPlayerId = await this.data.getAuthPlayerId(state.provider, userinfo.id);
-    const player = oldPlayerId
-      ? await this.data.getPlayer(oldPlayerId)
-      : await this.data.createPlayer({ name, confirmName:true });
+    const linkedPlayerId = await this.data.getAuthProviderPlayerId(state.provider, userinfo.id);
+    let player;
+    if (linkedPlayerId) {
+      player = await this.data.getPlayer(linkedPlayerId);
+    } else {
+      player = await this.data.createPlayer({ name, confirmName:true });
+      await this.data.linkAuthProvider(state.provider, userinfo.id, player.id);
+    }
+
+    // state.deviceId is set by AuthClient.openAuthProvider() when available.
+    // Necessary because logging in does not log in all tabs.
     const device = player.getDevice(state.deviceId) ?? player.addDevice(client);
-    await this.data.linkAuthPlayerId(state.provider, userinfo.id, player.id);
 
     return device.token;
   }
@@ -333,6 +352,19 @@ export default class AuthService extends Service {
       checkoutAt: device.checkoutAt,
     }));
   }
+
+  async onToggleGlobalMuteRequest(client, targetPlayerId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+    if (!player.identity.isAdmin)
+      throw new ServerError(401, 'You must be an admin to use this feature.');
+
+    const target = await this.data.getPlayer(targetPlayerId);
+    return target.toggleGlobalMute();
+  }
   onGetACLRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
@@ -341,6 +373,15 @@ export default class AuthService extends Service {
     const player = this.data.getOpenPlayer(clientPara.playerId);
 
     return player.acl;
+  }
+  onSetACLRequest(client, acl) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+    const player = this.data.getOpenPlayer(clientPara.playerId);
+
+    player.acl = acl;
   }
   /*
    * Add device to account using the identity token.  Return access token.
@@ -495,35 +536,62 @@ export default class AuthService extends Service {
     return player.getAccessToken(device.id);
   }
 
-  async onGetPlayerACLRequest(client, playerId) {
+  async onGetActiveRelationshipsRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
     const player = this.data.getOpenPlayer(clientPara.playerId);
 
-    return player.getPlayerACL(playerId);
+    return player.getActiveRelationships();
   }
-  async onSetPlayerACLRequest(client, playerId, playerACL) {
+  async onGetRelationshipRequest(client, targetPlayerId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const clientPara = this.clientPara.get(client.id);
+    if (clientPara.playerId === targetPlayerId)
+      throw new ServerError(403, 'May not get player info for yourself.');
+
+    const me = this.data.getOpenPlayer(clientPara.playerId);
+    const them = await this.data.getPlayer(targetPlayerId);
+
+    return {
+      ...me.getRelationship(them),
+      acl: new Map([
+        [ 'me', me.acl ],
+        [ 'them', them.acl ],
+      ]),
+      isNew: new Map([
+        [ 'me', me.isNew ],
+        [ 'them', them.isNew ],
+      ]),
+      isVerified: new Map([
+        [ 'me', me.isVerified ],
+        [ 'them', them.isVerified ],
+      ]),
+    };
+  }
+  async onSetRelationshipRequest(client, playerId, relationship) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
     const playerA = this.data.getOpenPlayer(clientPara.playerId);
     const playerB = await this.data.getPlayer(playerId);
-    playerA.setPlayerACL(playerB, playerACL);
+    playerA.setRelationship(playerB, relationship);
 
-    if (playerACL.type === 'blocked')
+    if (relationship.type === 'blocked')
       this.game.blockPlayer(playerA.id, playerId);
   }
-  async onClearPlayerACLRequest(client, playerId) {
+  async onClearRelationshipRequest(client, playerId) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
     const playerA = this.data.getOpenPlayer(clientPara.playerId);
     const playerB = await this.data.getPlayer(playerId);
-    playerA.clearPlayerACL(playerB);
+    playerA.clearRelationship(playerB);
   }
 
   async _validateAccessToken(client, token) {

@@ -333,15 +333,21 @@ export default class extends FileAdapter {
 
     return this._search(data, query);
   }
-  async searchGameCollection(player, group, query) {
+  async searchGameCollection(player, group, query, getPlayer) {
     const collection = await this._getGameCollection(group);
-    const blockedBy = player.listBlockedBy();
-    const playerIds = new Set();
-    const data = serializer.clone([ ...collection.values() ])
-      .filter(gs => {
-        gs.creatorACL = player.getPlayerACL(gs.createdBy);
-        return gs.startedAt || !blockedBy.has(gs.createdBy);
-      });
+    const data = [];
+
+    for (const gameSummary of collection.values()) {
+      if (!gameSummary.startedAt) {
+        const creator = await getPlayer(gameSummary.createdBy);
+        if (creator.hasBlocked(player))
+          continue;
+        const clone = serializer.clone(gameSummary);
+        clone.creatorACL = player.getRelationship(creator);
+        data.push(clone);
+      } else
+        data.push(gameSummary);
+    }
 
     return this._search(data, query);
   }

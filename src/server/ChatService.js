@@ -24,7 +24,7 @@ export default class ChatService extends Service {
       },
     });
 
-    this._onPlayerACLChangeListener = this._onPlayerACLChange.bind(this);
+    this._onACLChangeListener = this._onACLChange.bind(this);
   }
 
   /*
@@ -106,7 +106,6 @@ export default class ChatService extends Service {
     }
 
     const clientPara = this.clientPara.get(client.id);
-    const memberIds = room.players.map(p => p.id);
     const member = room.players.find(p => p.id === clientPara.playerId);
     if (!member)
       throw new ServerError(403, 'You are not a participant of this room');
@@ -114,6 +113,7 @@ export default class ChatService extends Service {
     /*
      * Get the players now to avoid 'firstJoined' triggering more than once.
      */
+    const memberIds = room.players.map(p => p.id);
     const players = await Promise.all(memberIds.map(id => this.auth.openPlayer(id)));
     const firstJoined = !this.roomPara.has(roomId);
     if (firstJoined) {
@@ -130,9 +130,9 @@ export default class ChatService extends Service {
       };
 
       const roomPara = {
-        memberIds,
+        room,
         muted: new Map(
-          players.map(p => [ p.id, new Set(p.hasMutedOrBlocked(memberIds)) ]),
+          players.map(p => [ p.id, new Set(p.hasMutedOrBlocked(players, room.applyRules)) ]),
         ),
         clientIds: new Set(),
         emit,
@@ -143,7 +143,7 @@ export default class ChatService extends Service {
         if (this.playerPara.has(player.id))
           this.playerPara.get(player.id).roomIds.add(roomId);
         else {
-          player.on('acl', this._onPlayerACLChangeListener);
+          player.on('acl', this._onACLChangeListener);
           this.playerPara.set(player.id, {
             roomIds: new Set([ roomId ]),
           });
@@ -185,12 +185,13 @@ export default class ChatService extends Service {
    */
   onLeaveRoomGroup(client, groupPath, roomId) {
     const room = this.data.closeRoom(roomId);
+    const memberIds = room.players.map(p => p.id);
 
     const clientPara = this.clientPara.get(client.id);
     clientPara.roomIds.delete(roomId);
 
     const roomPara = this.roomPara.get(roomId);
-    const players = roomPara.memberIds.map(id => this.auth.closePlayer(id));
+    const players = memberIds.map(id => this.auth.closePlayer(id));
     if (roomPara.clientIds.size > 1)
       roomPara.clientIds.delete(client.id);
     else {
@@ -199,7 +200,7 @@ export default class ChatService extends Service {
         if (playerPara.roomIds.size > 1)
           playerPara.roomIds.delete(roomId);
         else {
-          player.off('acl', this._onPlayerACLChangeListener);
+          player.off('acl', this._onACLChangeListener);
           this.playerPara.delete(player.id);
         }
       }
@@ -269,24 +270,30 @@ export default class ChatService extends Service {
     });
   }
 
-  _onPlayerACLChange({ target:player }) {
-    const playerPara = this.playerPara.get(player.id);
+  async _onACLChange({ target }) {
+    const playerPara = this.playerPara.get(target.id);
 
     for (const roomId of playerPara.roomIds) {
       const roomPara = this.roomPara.get(roomId);
-      const oldMuted = [ ...roomPara.muted.get(player.id) ];
-      const newMuted = player.hasMutedOrBlocked(roomPara.memberIds);
-      if (oldMuted.join(',') === newMuted.join(','))
-        continue;
+      const room = roomPara.room;
+      const memberIds = room.players.map(p => p.id);
+      const players = await Promise.all(memberIds.map(id => this.auth.getPlayer(id)));
 
-      roomPara.muted.set(player.id, newMuted);
-      roomPara.emit({
-        type: 'muted',
-        data: {
-          playerId: player.id,
-          muted: newMuted,
-        },
-      });
+      for (const player of players) {
+        const oldMuted = [ ...roomPara.muted.get(player.id) ];
+        const newMuted = player.hasMutedOrBlocked(players, room.applyRules);
+        if (oldMuted.join(',') === newMuted.join(','))
+          continue;
+
+        roomPara.muted.set(player.id, newMuted);
+        roomPara.emit({
+          type: 'muted',
+          data: {
+            playerId: player.id,
+            muted: newMuted,
+          },
+        });
+      }
     }
   }
 }

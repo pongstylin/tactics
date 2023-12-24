@@ -98,36 +98,34 @@ export default class Timeout {
     if (item === undefined || item === null)
       throw new Error(`${this.name}: ${itemId} item is missing`);
 
-    if (this._opened.has(itemId))
+    let itemTimeout;
+    const expireAt = Date.now() + ttl;
+
+    const opened = this._opened;
+    if (opened.has(itemId)) {
+      itemTimeout = opened.get(itemId);
+      if (expireAt > itemTimeout.expireAt) {
+        itemTimeout.expireAt = expireAt;
+        this.log('add', `refresh=${itemId}; ttl=${ttl}; openCount=${itemTimeout.openCount}`);
+      }
       return item;
+    }
 
     const closed = this._closed;
-    let itemTimeout;
-
     if (closed.has(itemId)) {
       itemTimeout = closed.get(itemId);
-      closed.delete(itemId);
-      this.log('add', `refresh=${itemId}; ttl=${ttl}`);
+      if (expireAt > itemTimeout.expireAt) {
+        itemTimeout.expireAt = expireAt;
+        closed.delete(itemId);
+        this.log('add', `refresh=${itemId}; ttl=${ttl}`);
+      } else
+        return item;
     } else {
-      itemTimeout = { item };
+      itemTimeout = { item, expireAt };
       this.log('add', `add=${itemId}; ttl=${ttl}`);
     }
 
-    itemTimeout.expireAt = Date.now() + ttl;
-
-    if (closed.size) {
-      const closedArray = [ ...closed ];
-
-      if (itemTimeout.expireAt > closedArray.last.expireAt)
-        closed.set(itemId, itemTimeout);
-      else {
-        closedArray.pushSorted([ itemId, itemTimeout ], i =>
-          i[1].expireAt - itemTimeout.expireAt
-        );
-        this._closed = new Map(closedArray);
-      }
-    } else
-      closed.set(itemId, itemTimeout);
+    this._addSorted(itemId, itemTimeout);
 
     return item;
   }
@@ -176,7 +174,6 @@ export default class Timeout {
       closed.delete(itemId);
 
       itemTimeout.openCount = 1;
-      delete itemTimeout.expireAt;
       opened.set(itemId, itemTimeout);
 
       this.log('open', `reopen=${itemId}`);
@@ -201,9 +198,11 @@ export default class Timeout {
     if (itemTimeout.openCount === 0) {
       opened.delete(itemId);
 
-      itemTimeout.expireAt = Date.now() + this.expireIn;
+      const expireAt = Date.now() + this.expireIn;
+      if (expireAt > itemTimeout.expireAt)
+        itemTimeout.expireAt = expireAt;
       delete itemTimeout.openCount;
-      this._closed.set(itemId, itemTimeout);
+      this._addSorted(itemId, itemTimeout);
 
       this.log('close', `close=${itemId}`);
     } else {
@@ -229,6 +228,24 @@ export default class Timeout {
 
     this.log('clear', `clear=${values.length}`);
     return values;
+  }
+
+  _addSorted(itemId, itemTimeout) {
+    const closed = this._closed;
+
+    if (closed.size) {
+      const closedArray = [ ...closed ];
+
+      if (itemTimeout.expireAt > closedArray.last.expireAt)
+        closed.set(itemId, itemTimeout);
+      else {
+        closedArray.pushSorted([ itemId, itemTimeout ], i =>
+          i[1].expireAt - itemTimeout.expireAt
+        );
+        this._closed = new Map(closedArray);
+      }
+    } else
+      closed.set(itemId, itemTimeout);
   }
 
   toJSON() {
