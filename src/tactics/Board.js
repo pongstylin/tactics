@@ -1,8 +1,8 @@
-import Tile from 'tactics/Tile.js';
-import Unit from 'tactics/Unit.js';
-import unitFactory from 'tactics/unitFactory.js';
-import { colorFilterMap } from 'tactics/colorMap.js';
-import emitter from 'utils/emitter.js';
+import Tile from '#tactics/Tile.js';
+import Unit from '#tactics/Unit.js';
+import unitFactory from '#tactics/unitFactory.js';
+import { colorFilterMap } from '#tactics/colorMap.js';
+import emitter from '#utils/emitter.js';
 
 export const TILE_WIDTH        = 88;
 export const TILE_HEIGHT       = 56;

@@ -3,7 +3,7 @@
     A tile should have no awareness of the overall board.
 */
 
-import emitter from 'utils/emitter.js';
+import emitter from '#utils/emitter.js';
 
 export const TILE_WIDTH  = 88;
 export const TILE_HEIGHT = 56;

@@ -1,5 +1,5 @@
-import Pyromancer from 'tactics/Unit/Pyromancer.js';
-import unitDataMap from 'tactics/unitData.js';
+import Pyromancer from '#tactics/Unit/Pyromancer.js';
+import unitDataMap from '#tactics/unitData.js';
 
 export function calcPowerModifiers(dragonCount, speakerCount, mageCount) {
   if (!dragonCount || !speakerCount)

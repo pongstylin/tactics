@@ -1,10 +1,10 @@
 import fs from 'fs/promises';
 import DebugLogger from 'debug';
 
-import config from 'config/server.js';
-import ServerError from 'server/Error.js';
-import Timeout from 'server/Timeout.js';
-import serializer from 'utils/serializer.js';
+import config from '#config/server.js';
+import ServerError from '#server/Error.js';
+import Timeout from '#server/Timeout.js';
+import serializer from '#utils/serializer.js';
 
 export const FILES_DIR = 'src/data/files';
 const ops = new Map([

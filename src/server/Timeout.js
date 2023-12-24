@@ -1,7 +1,7 @@
 import DebugLogger from 'debug';
 
-import emitter from 'utils/emitter.js';
-import serializer from 'utils/serializer.js';
+import emitter from '#utils/emitter.js';
+import serializer from '#utils/serializer.js';
 
 const timeouts = new Map();
 

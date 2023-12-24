@@ -1,5 +1,5 @@
-import ActiveModel from 'models/ActiveModel.js';
-import serializer from 'utils/serializer.js';
+import ActiveModel from '#models/ActiveModel.js';
+import serializer from '#utils/serializer.js';
 
 interface Links {
   // One-to-one relationships between memberId and playerId.

@@ -1,9 +1,9 @@
 import crypto from 'crypto';
 import express from 'express';
 
-import config from 'config/server.js';
-import ServerError from 'server/Error.js';
-import services from 'server/services.js';
+import config from '#config/server.js';
+import ServerError from '#server/Error.js';
+import services from '#server/services.js';
 
 const PATH = config.local.path;
 

@@ -1,6 +1,6 @@
-import ActiveModel from 'models/ActiveModel.js';
-import GameSummary from 'models/GameSummary.js';
-import serializer from 'utils/serializer.js';
+import ActiveModel from '#models/ActiveModel.js';
+import GameSummary from '#models/GameSummary.js';
+import serializer from '#utils/serializer.js';
 
 export default class GameSummaryList extends ActiveModel {
   protected data: {

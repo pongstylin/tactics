@@ -11,14 +11,23 @@
   "scripts": {
     "start": "npm run compile && ./start.sh",
     "start-force": "rm -rf src/data/files/*.json && npm run compile && ./start.sh",
-    "start-beta": "NODE_ENV=beta node --experimental-modules --loader ./resolver.mjs --require dotenv/config src/server.js || true",
+    "start-beta": "NODE_ENV=beta node --require dotenv/config src/server.js || true",
     "compile": "tsc",
     "lint": "tslint",
     "build": "NODE_ENV=beta webpack --config webpack.config.cjs",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "NODE_ENV=production webpack --config webpack.config.cjs",
     "clean": "rm -rf src/data/files && git checkout src/data/files && rm -rf src/models/*.js && rm tsconfig.tsbuildinfo",
-    "script": "node --es-module-specifier-resolution=node --experimental-modules --experimental-loader ./resolver.mjs --require dotenv/config"
+    "script": "node --require dotenv/config"
+  },
+  "imports": {
+    "#config/*": "./config/*",
+    "#server/*": "./src/server/*",
+    "#models/*": "./src/models/*",
+    "#data/*": "./src/data/*",
+    "#tactics/*": "./src/tactics/*",
+    "#utils/*": "./src/utils/*",
+    "#plugins/*": "./src/plugins/*"
   },
   "author": "Dave Clark",
   "license": "Unlicense",
@@ -35,7 +44,7 @@
     "sass": "^1.49.9",
     "sass-loader": "^12.6.0",
     "style-loader": "^2.0.0",
-    "typescript": "^4.4.4",
+    "typescript": "^4.9.5",
     "webpack": "^5.70.0",
     "webpack-cli": "^4.9.2"
   },
@@ -74,7 +83,7 @@
     "jsonwebtoken": "^9.0.0",
     "morgan": "^1.9.1",
     "nosleep.js": "github:pongstylin/nosleep.js",
-    "openid-client": "^5.1.9",
+    "openid-client": "^5.6.2",
     "seedrandom": "^3.0.5",
     "string-pixel-width": "^1.10.0",
     "touch-pinch": "^1.0.1",

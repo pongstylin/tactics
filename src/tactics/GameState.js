@@ -1,9 +1,9 @@
-import Team from 'models/Team.js';
-import ServerError from 'server/Error.js';
-import Board from 'tactics/Board.js';
-import botFactory from 'tactics/botFactory.js';
-import emitter from 'utils/emitter.js';
-import serializer from 'utils/serializer.js';
+import Team from '#models/Team.js';
+import ServerError from '#server/Error.js';
+import Board from '#tactics/Board.js';
+import botFactory from '#tactics/botFactory.js';
+import emitter from '#utils/emitter.js';
+import serializer from '#utils/serializer.js';
 
 export default class GameState {
   /*****************************************************************************

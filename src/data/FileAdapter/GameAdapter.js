@@ -1,19 +1,19 @@
 import fs from 'fs';
 import util from 'util';
 
-import migrate, { getLatestVersionNumber } from 'data/migrate.js';
-import serializer from 'utils/serializer.js';
-import FileAdapter from 'data/FileAdapter.js';
-import Timeout from 'server/Timeout.js';
+import migrate, { getLatestVersionNumber } from '#data/migrate.js';
+import serializer from '#utils/serializer.js';
+import FileAdapter from '#data/FileAdapter.js';
+import Timeout from '#server/Timeout.js';
 
-import GameType from 'tactics/GameType.js';
-import Game from 'models/Game.js';
-import GameSummary from 'models/GameSummary.js';
-import GameSummaryList from 'models/GameSummaryList.js';
-import PlayerStats from 'models/PlayerStats.js';
-import PlayerSets from 'models/PlayerSets.js';
-import PlayerAvatars from 'models/PlayerAvatars.js';
-import ServerError from 'server/Error.js';
+import GameType from '#tactics/GameType.js';
+import Game from '#models/Game.js';
+import GameSummary from '#models/GameSummary.js';
+import GameSummaryList from '#models/GameSummaryList.js';
+import PlayerStats from '#models/PlayerStats.js';
+import PlayerSets from '#models/PlayerSets.js';
+import PlayerAvatars from '#models/PlayerAvatars.js';
+import ServerError from '#server/Error.js';
 
 export default class extends FileAdapter {
   constructor() {

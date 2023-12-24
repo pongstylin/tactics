@@ -1,8 +1,8 @@
-import ActiveModel from 'models/ActiveModel.js';
-import serializer from 'utils/serializer.js';
+import ActiveModel from '#models/ActiveModel.js';
+import serializer from '#utils/serializer.js';
 
-import setsById from 'config/sets.js';
-import ServerError from 'server/Error.js';
+import setsById from '#config/sets.js';
+import ServerError from '#server/Error.js';
 
 export default class PlayerSets extends ActiveModel {
   protected data: {

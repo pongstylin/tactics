@@ -20,7 +20,7 @@ CR=$(printf '\r')
 NODE_ENV=development $WEBPACK --watch --config webpack.config.cjs | sed "s/\$/$CR/" &
 
 # Wait for the node server to terminate
-$NODE --es-module-specifier-resolution=node --experimental-modules --experimental-loader ./resolver.mjs --require dotenv/config src/server.js
+$NODE --es-module-specifier-resolution=node --require dotenv/config src/server.js
 
 # Stop all child processes like webpack and sed
 kill -INT 0

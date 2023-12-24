@@ -2,7 +2,7 @@ import http from 'http';
 import https from 'https';
 import fs from 'fs';
 
-import config from 'config/server.js';
+import config from '#config/server.js';
 
 export default app => {
   if (config.local.secure) {

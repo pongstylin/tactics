@@ -1,14 +1,14 @@
 import 'isomorphic-fetch';
-import uuid from 'uuid/v4';
+import uuid from 'uuid/v4.js';
 import uaparser from 'ua-parser-js';
 import { Issuer, generators } from 'openid-client';
 
-import config from 'config/server.js';
-import IdentityToken from 'server/IdentityToken.js';
-import AccessToken from 'server/AccessToken.js';
-import Service from 'server/Service.js';
-import ServerError from 'server/Error.js';
-import Player from 'models/Player.js';
+import config from '#config/server.js';
+import IdentityToken from '#server/IdentityToken.js';
+import AccessToken from '#server/AccessToken.js';
+import Service from '#server/Service.js';
+import ServerError from '#server/Error.js';
+import Player from '#models/Player.js';
 
 const AUTH_PROVIDERS = Object.keys(config.auth.providers);
 

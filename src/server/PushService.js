@@ -1,8 +1,8 @@
 import webpush from 'web-push';
 
-import AccessToken from 'server/AccessToken.js';
-import Service from 'server/Service.js';
-import ServerError from 'server/Error.js';
+import AccessToken from '#server/AccessToken.js';
+import Service from '#server/Service.js';
+import ServerError from '#server/Error.js';
 
 export default class PushService extends Service {
   constructor(props) {

@@ -1,7 +1,7 @@
-import uuid from 'uuid/v4';
+import uuid from 'uuid/v4.js';
 
-import ActiveModel from 'models/ActiveModel.js';
-import serializer from 'utils/serializer.js';
+import ActiveModel from '#models/ActiveModel.js';
+import serializer from '#utils/serializer.js';
 
 export default class Room extends ActiveModel {
   protected data: {

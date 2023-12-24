@@ -1,13 +1,13 @@
 import fs from 'fs';
 
-import serializer from 'utils/serializer.js';
-import FileAdapter from 'data/FileAdapter.js';
-import migrate, { getLatestVersionNumber } from 'data/migrate.js';
+import serializer from '#utils/serializer.js';
+import FileAdapter from '#data/FileAdapter.js';
+import migrate, { getLatestVersionNumber } from '#data/migrate.js';
 
-import Identities from 'models/Identities.js';
-import Identity from 'models/Identity.js';
-import Player from 'models/Player.js';
-import Provider from 'models/Provider.js';
+import Identities from '#models/Identities.js';
+import Identity from '#models/Identity.js';
+import Player from '#models/Player.js';
+import Provider from '#models/Provider.js';
 
 export default class extends FileAdapter {
   constructor() {

@@ -1,8 +1,8 @@
-import ActiveModel from 'models/ActiveModel.js';
-import serializer from 'utils/serializer.js';
-import unitData from 'tactics/unitData.js';
-import { colorFilterMap } from 'tactics/colorMap.js';
-import ServerError from 'server/Error.js';
+import ActiveModel from '#models/ActiveModel.js';
+import serializer from '#utils/serializer.js';
+import unitData from '#tactics/unitData.js';
+import { colorFilterMap } from '#tactics/colorMap.js';
+import ServerError from '#server/Error.js';
 
 export default class PlayerAvatars extends ActiveModel {
   protected data: {

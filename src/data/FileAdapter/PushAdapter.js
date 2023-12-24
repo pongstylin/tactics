@@ -1,4 +1,4 @@
-import FileAdapter from 'data/FileAdapter.js';
+import FileAdapter from '#data/FileAdapter.js';
 
 export default class extends FileAdapter {
   constructor() {

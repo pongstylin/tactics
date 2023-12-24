@@ -1,6 +1,6 @@
-import Polygon from 'utils/Polygon.js';
-import emitter from 'utils/emitter.js';
-import { numifyColor, colorFilterMap } from 'tactics/colorMap.js';
+import Polygon from '#utils/Polygon.js';
+import emitter from '#utils/emitter.js';
+import { numifyColor, colorFilterMap } from '#tactics/colorMap.js';
 
 const HALF_TILE_WIDTH  = 44;
 const HALF_TILE_HEIGHT = 28;

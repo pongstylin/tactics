@@ -1,4 +1,4 @@
-import setsById from 'config/sets.js';
+import setsById from '#config/sets.js';
 
 const local = {
   secure: process.env.LOCAL_SECURE === 'true',

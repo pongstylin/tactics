@@ -1,6 +1,4 @@
-'use strict';
-
-import Bot from 'tactics/Bot.js';
+import Bot from '#tactics/Bot.js';
 
 export default class extends Bot {
   constructor(state, team) {

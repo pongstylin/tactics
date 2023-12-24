@@ -1,4 +1,4 @@
-import config from 'config/server.js';
+import config from '#config/server.js';
 
 /*
  * NodeJS doesn't do a very good job of locating the source of syntax errors for

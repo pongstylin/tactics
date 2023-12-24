@@ -1,16 +1,16 @@
-import uuid from 'uuid/v4';
+import uuid from 'uuid/v4.js';
 import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
 
-import ActiveModel from 'models/ActiveModel.js';
-import Identities from 'models/Identities.js';
-import Identity from 'models/Identity.js';
-import serializer from 'utils/serializer.js';
+import ActiveModel from '#models/ActiveModel.js';
+import Identities from '#models/Identities.js';
+import Identity from '#models/Identity.js';
+import serializer from '#utils/serializer.js';
 
-import IdentityToken from 'server/IdentityToken.js';
-import AccessToken from 'server/AccessToken.js';
-import config from 'config/server.js';
-import ServerError from 'server/Error.js';
+import IdentityToken from '#server/IdentityToken.js';
+import AccessToken from '#server/AccessToken.js';
+import config from '#config/server.js';
+import ServerError from '#server/Error.js';
 
 /*
  * Player names may have the following characters:

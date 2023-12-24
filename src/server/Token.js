@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 
-import config from 'config/server.js';
-import ServerError from 'server/Error.js';
+import config from '#config/server.js';
+import ServerError from '#server/Error.js';
 
 export default class Token {
   constructor(tokenValue) {

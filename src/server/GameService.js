@@ -1,14 +1,14 @@
 import uaparser from 'ua-parser-js';
 import util from 'util';
 
-import setsById from 'config/sets.js';
-import AccessToken from 'server/AccessToken.js';
-import Service from 'server/Service.js';
-import ServerError from 'server/Error.js';
-import Game from 'models/Game.js';
-import Team from 'models/Team.js';
-import Player from 'models/Player.js';
-import serializer, { unionType } from 'utils/serializer.js';
+import setsById from '#config/sets.js';
+import AccessToken from '#server/AccessToken.js';
+import Service from '#server/Service.js';
+import ServerError from '#server/Error.js';
+import Game from '#models/Game.js';
+import Team from '#models/Team.js';
+import Player from '#models/Player.js';
+import serializer, { unionType } from '#utils/serializer.js';
 
 const ACTIVE_LIMIT = 120;
 const idleWatcher = function (session, oldIdle) {

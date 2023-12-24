@@ -2,7 +2,7 @@
  * Most classes in the 'server' directory are only used on the server.
  * But this class is the exception.
  */
-import serializer from 'utils/serializer.js';
+import serializer from '#utils/serializer.js';
 
 export default class ServerError extends Error {
   constructor() {

@@ -1,7 +1,7 @@
-import AccessToken from 'server/AccessToken.js';
-import Service from 'server/Service.js';
-import ServerError from 'server/Error.js';
-import Room from 'models/Room.js';
+import AccessToken from '#server/AccessToken.js';
+import Service from '#server/Service.js';
+import ServerError from '#server/Error.js';
+import Room from '#models/Room.js';
 
 export default class ChatService extends Service {
   constructor(props) {

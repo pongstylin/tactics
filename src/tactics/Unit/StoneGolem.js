@@ -1,4 +1,4 @@
-import Unit from 'tactics/Unit.js';
+import Unit from '#tactics/Unit.js';
 
 export default class StoneGolem extends Unit {
   getTargetTiles(target) {

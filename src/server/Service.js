@@ -1,8 +1,8 @@
 import DebugLogger from 'debug';
 
-import ServerError from 'server/Error.js';
-import emitter from 'utils/emitter.js';
-import serializer from 'utils/serializer.js';
+import ServerError from '#server/Error.js';
+import emitter from '#utils/emitter.js';
+import serializer from '#utils/serializer.js';
 
 export default class Service {
   constructor(props) {
