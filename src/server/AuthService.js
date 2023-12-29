@@ -1,5 +1,4 @@
 import 'isomorphic-fetch';
-import uuid from 'uuid/v4.js';
 import uaparser from 'ua-parser-js';
 import { Issuer, generators } from 'openid-client';
 

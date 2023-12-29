@@ -1,4 +1,4 @@
-import uuid from 'uuid/v4.js';
+import { v4 as uuid } from 'uuid';
 import util from 'util';
 
 import ActiveModel from '#models/ActiveModel.js';

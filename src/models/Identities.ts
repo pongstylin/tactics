@@ -1,5 +1,3 @@
-import uuid from 'uuid/v4.js';
-
 import ActiveModel from '#models/ActiveModel.js';
 import Identity from '#models/Identity.js';
 import serializer from '#utils/serializer.js';

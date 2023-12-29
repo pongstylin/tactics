@@ -1,4 +1,4 @@
-import uuid from 'uuid/v4.js';
+import { v4 as uuid } from 'uuid';
 
 import ActiveModel from '#models/ActiveModel.js';
 import serializer from '#utils/serializer.js';

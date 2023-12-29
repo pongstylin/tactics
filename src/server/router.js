@@ -1,5 +1,5 @@
 import url from 'url';
-import uuid from 'uuid/v4.js';
+import { v4 as uuid } from 'uuid';
 import DebugLogger from 'debug';
 import ws from 'ws';
 import Ajv from 'ajv';
