@@ -199,7 +199,7 @@ export default class Timeout {
       opened.delete(itemId);
 
       const expireAt = Date.now() + this.expireIn;
-      if (expireAt > itemTimeout.expireAt)
+      if (!itemTimeout.expireAt || expireAt > itemTimeout.expireAt)
         itemTimeout.expireAt = expireAt;
       delete itemTimeout.openCount;
       this._addSorted(itemId, itemTimeout);
