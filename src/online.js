@@ -173,6 +173,8 @@ authClient
   .on('logout', () => {
     hideTabs();
   });
+if (authClient.isAuthorized)
+  showTabs();
 
 gameClient
   .on('event', ({ body }) => {
