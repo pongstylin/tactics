@@ -1,15 +1,15 @@
 import fs from 'fs';
 
-import 'plugins/index.js';
-import FileAdapter from 'data/FileAdapter.js';
-import migrate, { getLatestVersionNumber } from 'data/migrate.js';
-import serializer from 'utils/serializer.js';
+import '#plugins/index.js';
+import FileAdapter from '#data/FileAdapter.js';
+import migrate, { getLatestVersionNumber } from '#data/migrate.js';
+import serializer from '#utils/serializer.js';
 
-import Identities from 'models/Identities.js';
-import Identity from 'models/Identity.js';
-import Player from 'models/Player.js';
-import Provider from 'models/Provider.js';
-import Room from 'models/Room.js';
+import Identities from '#models/Identities.js';
+import Identity from '#models/Identity.js';
+import Player from '#models/Player.js';
+import Provider from '#models/Provider.js';
+import Room from '#models/Room.js';
 
 const filesDir = 'src/data/files';
 const dataAdapter = new FileAdapter({ name:'data', filesDir });
@@ -25,7 +25,6 @@ const playerFileMatch = new RegExp('^player_[0-9a-f\\-]{36}\\.json$');
 const playerFiles = fs.readdirSync(`${filesDir}/auth`)
   .filter(fn => playerFileMatch.test(fn) && fs.statSync(`${filesDir}/auth/${fn}`).size > 0)
   .map(fn => `auth/${fn}`.replace('.json', ''));
-const since = new Date(new Date().setDate(new Date().getDate() - 30));
 const identities = Identities.create();
 const identitiesById = new Map();
 const playersById = new Map();
@@ -80,9 +79,6 @@ for (const playerFile of playerFiles) {
   player.identity = Identity.create(player);
   playersById.set(player.id, player);
   identitiesById.set(player.identityId, player.identity);
-
-  if (player.lastSeenAt > since)
-    identities.add(player.identity);
 }
 
 /*
@@ -95,6 +91,12 @@ for (const [ playerId, relationships ] of relationshipsByPlayerId) {
     player.setRelationship(relation, relationship);
   }
 }
+
+/*
+ * Index identities
+ */
+for (const identity of identitiesById.values())
+  identities.add(identity);
 
 /*
  * Apply links to players and merge identities.
@@ -186,7 +188,7 @@ for (const gameFile of gameFiles) {
  */
 let queue;
 
-console.log(`Saving identities object...`);
+console.log(`Saving identities object (${ identities.getIds().length })...`);
 await dataAdapter.putFile(`auth`, () => serializer.transform({ identities }));
 
 console.log(`Saving ${providersById.size} provider objects...`);

@@ -99,6 +99,9 @@ export default class Identity extends ActiveModel {
   /*
    * Relationship Management
    */
+  hasAnyRelationship() {
+    return this.data.relationships.size > 0;
+  }
   hasRelationship(playerId) {
     return this.data.relationships.has(playerId);
   }

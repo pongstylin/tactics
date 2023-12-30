@@ -31,12 +31,21 @@ export default class Identities extends ActiveModel {
   }
 
   add(identity) {
+    if (this.data.has(identity.id))
+      return false;
+    if (identity.ttl <= 0)
+      return false;
+    if (!identity.hasAnyRelationship())
+      return false;
+
     this.data.add(identity.id);
     this.identities.add(identity);
     this.emit({
       type: 'change:add',
       data: { identity },
     });
+
+    return true;
   }
   merge(identity1, identity2, players) {
     identity1.merge(identity2);
@@ -45,6 +54,7 @@ export default class Identities extends ActiveModel {
       player.identity = identity1;
     }
 
+    this.add(identity1);
     this.data.delete(identity2.id);
     this.identities.delete(identity2);
     this.emit({
