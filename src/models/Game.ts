@@ -1,11 +1,11 @@
-import uuid from 'uuid/v4';
+import { v4 as uuid } from 'uuid';
 import util from 'util';
 
-import ActiveModel from 'models/ActiveModel.js';
-import serializer from 'utils/serializer.js';
+import ActiveModel from '#models/ActiveModel.js';
+import serializer from '#utils/serializer.js';
 
-import GameState from 'tactics/GameState.js';
-import ServerError from 'server/Error.js';
+import GameState from '#tactics/GameState.js';
+import ServerError from '#server/Error.js';
 
 const gameKeys = new Set([
   'createdBy',

@@ -1,8 +1,8 @@
-import FileAdapter from 'data/FileAdapter.js';
-import migrate, { getLatestVersionNumber } from 'data/migrate.js';
-import serializer from 'utils/serializer.js';
+import FileAdapter from '#data/FileAdapter.js';
+import migrate, { getLatestVersionNumber } from '#data/migrate.js';
+import serializer from '#utils/serializer.js';
 
-import Room from 'models/Room.js';
+import Room from '#models/Room.js';
 
 export default class extends FileAdapter {
   constructor() {

@@ -1,6 +1,5 @@
 import 'howler';
 import 'plugins/pixi.js';
-import { Loader } from '@pixi/loaders';
 import { Rectangle } from '@pixi/math';
 
 import config, { gameConfig } from 'config/client.js';

@@ -22,8 +22,8 @@
  */
 import seedrandom from 'seedrandom';
 
-import ServerError from 'server/Error.js';
-import serializer from 'utils/serializer.js';
+import ServerError from '#server/Error.js';
+import serializer from '#utils/serializer.js';
 
 class Random {
   protected data: {

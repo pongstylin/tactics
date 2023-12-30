@@ -191,6 +191,14 @@ export default class AuthClient extends Client {
       });
   }
 
+  toggleGlobalMute(playerId) {
+    return this._server.requestAuthorized(this.name, 'toggleGlobalMute', [ playerId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.toggleGlobalMute(playerId);
+        throw error;
+      });
+  }
   getACL() {
     return this._server.requestAuthorized(this.name, 'getACL')
       .catch(error => {
@@ -199,27 +207,43 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
-  getPlayerACL(playerId) {
-    return this._server.requestAuthorized(this.name, 'getPlayerACL', [ playerId ])
+  setACL(acl) {
+    return this._server.requestAuthorized(this.name, 'setACL', [ acl ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getPlayerACL(playerId);
+          return this.setACL(acl);
         throw error;
       });
   }
-  setPlayerACL(playerId, playerACL) {
-    return this._server.requestAuthorized(this.name, 'setPlayerACL', [ playerId, playerACL ])
+  getActiveRelationships() {
+    return this._server.requestAuthorized(this.name, 'getActiveRelationships')
       .catch(error => {
         if (error === 'Connection reset')
-          return this.setPlayerACL(playerId, playerACL);
+          return this.getActiveRelationships();
         throw error;
       });
   }
-  clearPlayerACL(playerId) {
-    return this._server.requestAuthorized(this.name, 'clearPlayerACL', [ playerId ])
+  getRelationship(playerId) {
+    return this._server.requestAuthorized(this.name, 'getRelationship', [ playerId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.clearPlayerACL(playerId);
+          return this.getRelationship(playerId);
+        throw error;
+      });
+  }
+  setRelationship(playerId, relationship) {
+    return this._server.requestAuthorized(this.name, 'setRelationship', [ playerId, relationship ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.setRelationship(playerId, relationship);
+        throw error;
+      });
+  }
+  clearRelationship(playerId) {
+    return this._server.requestAuthorized(this.name, 'clearRelationship', [ playerId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.clearRelationship(playerId);
         throw error;
       });
   }

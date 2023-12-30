@@ -798,7 +798,7 @@ async function initGame() {
               muted.set(playerId, playerMuted);
               // If the player info dialog is open and someone else has changed
               // their mute/block preferences, then refresh the dialog content.
-              if (playerInfo && playerId !== authClient.playerId)
+              if (playerInfo)
                 playerInfo.getPlayerInfo();
               resetChatStatus(playerId);
             }
@@ -843,9 +843,20 @@ async function getGameData(gameId) {
 }
 async function joinGame(gameId, name, set, randomSide) {
   return gameClient.joinGame(gameId, { name, set, randomSide }).catch(error => {
-    if (error.code !== 409 && error.code !== 412) throw error;
+    if (error.code !== 404 && error.code !== 409 && error.code !== 412) throw error;
 
-    if (error.code === 412)
+    if (error.code === 404)
+      return new Promise(resolve => {
+        popup({
+          message: 'Oops!  The game expired or was cancelled.',
+          buttons: [
+            { label:'Back', closeOnClick:false, onClick:() => history.back() },
+          ],
+          maxWidth: '250px',
+          closeOnCancel: false,
+        });
+      });
+    else if (error.code === 412)
       return new Promise(resolve => {
         popup({
           message: error.message,
@@ -1441,10 +1452,18 @@ async function showJoinIntro(gameData) {
     }
 
     const creatorTeam = gameData.state.teams.find(t => !!t?.joinedAt);
-    const playerACL = await authClient.getPlayerACL(creatorTeam.playerId);
+    const relationship = await authClient.getRelationship(creatorTeam.playerId);
 
-    if (playerACL?.reverseType === 'blocked') {
-      challenge.innerHTML = `Sorry!  <I>${creatorTeam.name}</I> blocked you from joining their games.`;
+    let isBlocked;
+    if (relationship.reverseType === 'blocked')
+      isBlocked = `Sorry!  <I>${creatorTeam.name}</I> blocked you from joining their games.`;
+    else if (gameData.collection && !relationship.isVerified.get('me') && relationship.acl.get('them').anonAccounts === 'blocked')
+      isBlocked = `Sorry!  <I>${creatorTeam.name}</I> blocked anonymous players from joining their public and lobby games.`;
+    else if (gameData.collection && relationship.isNew.get('me') && relationship.acl.get('them').newAccounts === 'blocked')
+      isBlocked = `Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.`;
+
+    if (isBlocked) {
+      challenge.innerHTML = isBlocked;
       root.querySelector('.playerSetup').remove();
       details.remove();
       root.querySelector('.set').remove();
@@ -1456,25 +1475,25 @@ async function showJoinIntro(gameData) {
     }
 
     const message = [];
-    if (!playerACL)
+    if (!relationship.type)
       message.push(`<I>${creatorTeam.name}</I> is waiting for an opponent.  Want to play?`);
-    else if (playerACL.type === 'friended') {
-      if (playerACL.name.toLowerCase() === creatorTeam.name.toLowerCase())
+    else if (relationship.type === 'friended') {
+      if (relationship.name.toLowerCase() === creatorTeam.name.toLowerCase())
         message.push(`<I>${creatorTeam.name}</I> is your friend.`);
       else
-        message.push(`<I>${creatorTeam.name}</I> is your friend better known as <I>${playerACL.name}</I>.`);
+        message.push(`<I>${creatorTeam.name}</I> is your friend better known as <I>${relationship.name}</I>.`);
       message.push(`Want to play?`);
-    } else if (playerACL.type === 'muted') {
-      if (playerACL.name.toLowerCase() === creatorTeam.name.toLowerCase())
+    } else if (relationship.type === 'muted') {
+      if (relationship.name.toLowerCase() === creatorTeam.name.toLowerCase())
         message.push(`You muted <I>${creatorTeam.name}</I>.`);
       else
-        message.push(`You muted <I>${creatorTeam.name}</I> under the name <I>${playerACL.name}</I>.`);
+        message.push(`You muted <I>${creatorTeam.name}</I> under the name <I>${relationship.name}</I>.`);
       message.push(`But, you can still play!`);
-    } else if (playerACL.type === 'blocked') {
-      if (playerACL.name.toLowerCase() === creatorTeam.name.toLowerCase())
+    } else if (relationship.type === 'blocked') {
+      if (relationship.name.toLowerCase() === creatorTeam.name.toLowerCase())
         message.push(`You blocked <I>${creatorTeam.name}</I>.`);
       else
-        message.push(`You blocked <I>${creatorTeam.name}</I> under the name <I>${playerACL.name}</I>.`);
+        message.push(`You blocked <I>${creatorTeam.name}</I> under the name <I>${relationship.name}</I>.`);
       message.push(`But, you can play if you mute them instead.`);
 
       btnJoin.textContent = 'Mute and Join Game';

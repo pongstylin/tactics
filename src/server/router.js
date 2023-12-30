@@ -1,16 +1,16 @@
 import url from 'url';
-import uuid from 'uuid/v4';
+import { v4 as uuid } from 'uuid';
 import DebugLogger from 'debug';
 import ws from 'ws';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import addKeywords from 'ajv-keywords';
 
-import config from 'config/server.js';
-import Timeout from 'server/Timeout.js';
-import services, { servicesReady } from 'server/services.js';
-import ServerError from 'server/Error.js';
-import serializer, { enableValidation } from 'utils/serializer.js';
+import config from '#config/server.js';
+import Timeout from '#server/Timeout.js';
+import services, { servicesReady } from '#server/services.js';
+import ServerError from '#server/Error.js';
+import serializer, { enableValidation } from '#utils/serializer.js';
 
 const CLOSE_GOING_AWAY     = 1001;
 const CLOSE_NO_STATUS      = 1005;

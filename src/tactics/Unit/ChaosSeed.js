@@ -1,6 +1,6 @@
-import Unit from 'tactics/Unit.js';
-import { unitDataMap } from 'tactics/unitData.js';
-import { colorFilterMap } from 'tactics/colorMap.js';
+import Unit from '#tactics/Unit.js';
+import { unitDataMap } from '#tactics/unitData.js';
+import { colorFilterMap } from '#tactics/colorMap.js';
 
 export default class ChaosSeed extends Unit {
   constructor(data, board) {

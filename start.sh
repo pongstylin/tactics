@@ -17,7 +17,7 @@ NODE='node'
 
 STAMP=$(date "+%Y.%m.%d-%H.%M.%S")
 # Wait for the node server to terminate
-NODE_ENV=beta $NODE --es-module-specifier-resolution=node --experimental-modules --experimental-loader ./resolver.mjs --require dotenv/config src/server.js > log/$STAMP.log 2>&1
+NODE_ENV=beta $NODE --es-module-specifier-resolution=node --require dotenv/config src/server.js > log/$STAMP.log 2>&1
 
 # Stop all child processes like webpack and sed
 kill -INT 0

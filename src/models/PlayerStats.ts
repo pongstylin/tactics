@@ -1,5 +1,5 @@
-import ActiveModel from 'models/ActiveModel.js';
-import serializer from 'utils/serializer.js';
+import ActiveModel from '#models/ActiveModel.js';
+import serializer from '#utils/serializer.js';
 
 export default class PlayerStats extends ActiveModel {
   protected data: {

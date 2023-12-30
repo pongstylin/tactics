@@ -1,17 +1,17 @@
 import { WebSocketServer } from 'ws';
 import util from 'util';
 import DebugLogger from 'debug';
-import 'plugins/index.js';
+import '#plugins/index.js';
 
-import config from 'config/server.js';
-import AccessToken from 'server/AccessToken.js';
-import createApp from 'server/createApp.js';
-import createServer from 'server/createServer.js';
-import ServerError from 'server/Error.js';
-import { onConnect, onShutdown } from 'server/router.js';
-import services, { servicesReady } from 'server/services.js';
-import Timeout from 'server/Timeout.js';
-import useAuth from 'server/useAuth.js';
+import config from '#config/server.js';
+import AccessToken from '#server/AccessToken.js';
+import createApp from '#server/createApp.js';
+import createServer from '#server/createServer.js';
+import ServerError from '#server/Error.js';
+import { onConnect, onShutdown } from '#server/router.js';
+import services, { servicesReady } from '#server/services.js';
+import Timeout from '#server/Timeout.js';
+import useAuth from '#server/useAuth.js';
 
 const app    = createApp();
 const server = createServer(app);

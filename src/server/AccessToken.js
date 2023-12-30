@@ -1,6 +1,6 @@
-import Token from 'server/Token.js';
-import serializer from 'utils/serializer.js';
-import ServerError from 'server/Error.js';
+import Token from '#server/Token.js';
+import serializer from '#utils/serializer.js';
+import ServerError from '#server/Error.js';
 
 export default class AccessToken extends Token {
   static validate(tokenValue, options) {

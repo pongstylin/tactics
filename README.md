@@ -17,12 +17,19 @@ The final goal of this project is to keep the game relevant as technology change
 That is as far as it goes.  This project is intended to recreate the core game experience in the modern world.  It will not include community support features such as clans, private messaging, or tournament hosting.  Anybody who hosts this game is responsible for building such features according to their personal preference.
 
 ## Requirements
-* Node.js tested on version v16.16.0
+* Node.js tested on version v20.10.0
 
 To install under windows, you also need Git Bash and configure npm to use the Git Bash executable.
 Example:
 ```bash
 npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
+```
+
+To manage Node versions in windows consider using https://github.com/coreybutler/nvm-windows.
+Then 
+```
+nvm install v20.10.0
+nvm use v20.10.0
 ```
 
 ## Development

@@ -21,7 +21,7 @@ export default class PlayerInfo extends Modal {
       const target = event.target;
       if (target.tagName !== 'BUTTON') return;
 
-      const playerName = this.data.info.acl?.name ?? team.name;
+      const playerName = this.data.info.relationship?.name ?? team.name;
 
       if (target.name === 'clearStats')
         popup({
@@ -102,14 +102,36 @@ export default class PlayerInfo extends Modal {
       stats.style.lose[0] + stats.style.lose[1] +
       stats.style.draw[0] + stats.style.draw[1]
     );
+
+    let disposition = '';
+    if (info.relationship.reverseType)
+      disposition = `<DIV>You were ${info.relationship?.reverseType} by this player.</DIV>`;
+    else if (data.game.collection) {
+      if (info.isNew.get('me') && info.acl.get('them').newAccounts)
+        disposition = `<DIV>This player ${info.acl.get('them').newAccounts} you since you are new.</DIV>`;
+      else if (!info.isVerified.get('me') && info.acl.get('them').anonAccounts)
+        disposition = `<DIV>This player ${info.acl.get('them').anonAccounts} you since you are anonymous.</DIV>`;
+      else if (info.acl.get('me').muted)
+        disposition = `<DIV>You are muted by default by an admin.</DIV>`;
+      else if (!info.relationship.type) {
+        if (info.isNew.get('them') && info.acl.get('me').newAccounts)
+          disposition = `<DIV>This player is new so you ${info.acl.get('me').newAccounts} them.</DIV>`;
+        else if (!info.isVerified.get('them') && info.acl.get('me').anonAccounts)
+          disposition = `<DIV>This player is anonymous so you ${info.acl.get('me').anonAccounts} them.</DIV>`;
+        else if (info.acl.get('them').muted)
+          disposition = `<DIV>They are muted by default by an admin.</DIV>`;
+      }
+    }
+
     const content = [
-      '<DIV class="playerACLName"></DIV>',
+      '<DIV class="relationshipName"></DIV>',
       `<DIV>`,
         `<DIV>Account created ${this.getElapsed(createdDiff)} ago.</DIV>`,
+        `<DIV>This player is ${info.isVerified.get('them') ? 'verified' : 'anonymous'}.</DIV>`,
         `<DIV>This player has completed ${info.completed[0]} game(s).</DIV>`,
         info.completed[1] ? `<DIV>This player has abandoned ${info.completed[1]} game(s).</DIV>` : '',
         info.canNotify ? `<DIV>This player can be notified when it is their turn.</DIV>` : '',
-        info.acl?.reverseType ? `<DIV>You were ${info.acl?.reverseType} by this player.</DIV>` : '',
+        disposition,
       `</DIV>`,
       `<DIV class="wld">`,
         `<DIV>`,
@@ -187,7 +209,7 @@ export default class PlayerInfo extends Modal {
       `</DIV>`,
     ];
 
-    if (stats.aliases.length && !info.acl?.type)
+    if (stats.aliases.length && !info.relationship?.type)
       content.push(
         `<DIV>`,
           `<DIV>You have played these aliases:</DIV>`,
@@ -210,8 +232,8 @@ export default class PlayerInfo extends Modal {
 
     this.renderContent(content.join(''));
 
-    const playerName = info.acl?.name ?? data.team.name;
-    const playerACLName = new Autosave({
+    const playerName = info.relationship?.name ?? data.team.name;
+    const relationshipName = new Autosave({
       submitOnChange: true,
       defaultValue: false,
       value: playerName,
@@ -220,26 +242,26 @@ export default class PlayerInfo extends Modal {
         [ 'friended', {
           name: 'user-friends',
           title: 'Friend',
-          active: info.acl?.type === 'friended',
+          active: info.relationship?.type === 'friended',
           onClick: async friendIcon => {
             if (friendIcon.active) {
-              await this.clearPlayerACL();
+              await this.clearRelationship();
               friendIcon.active = false;
             } else {
               await this.friend();
               friendIcon.active = true;
-              playerACLName.icons.get('muted').active = false;
-              playerACLName.icons.get('blocked').active = false;
+              relationshipName.icons.get('muted').active = false;
+              relationshipName.icons.get('blocked').active = false;
             }
           },
         }],
         [ 'muted', {
           name: 'microphone-slash',
           title: 'Mute',
-          active: info.acl?.type === 'muted',
+          active: info.relationship?.type === 'muted',
           onClick: async muteIcon => {
             if (muteIcon.active) {
-              await this.clearPlayerACL();
+              await this.clearRelationship();
               muteIcon.active = false;
             } else {
               popup({
@@ -258,8 +280,8 @@ export default class PlayerInfo extends Modal {
                     onClick: async () => {
                       await this.mute();
                       muteIcon.active = true;
-                      playerACLName.icons.get('friended').active = false;
-                      playerACLName.icons.get('blocked').active = false;
+                      relationshipName.icons.get('friended').active = false;
+                      relationshipName.icons.get('blocked').active = false;
                     }
                   },
                   { label:'Cancel' },
@@ -271,10 +293,10 @@ export default class PlayerInfo extends Modal {
         [ 'blocked', {
           name: 'ban',
           title: 'Block',
-          active: info.acl?.type === 'blocked',
+          active: info.relationship?.type === 'blocked',
           onClick: async blockIcon => {
             if (blockIcon.active) {
-              await this.clearPlayerACL();
+              await this.clearRelationship();
               blockIcon.active = true;
             } else {
               popup({
@@ -297,8 +319,8 @@ export default class PlayerInfo extends Modal {
                     onClick: async () => {
                       await this.block();
                       blockIcon.active = true;
-                      playerACLName.icons.get('friended').active = false;
-                      playerACLName.icons.get('muted').active = false;
+                      relationshipName.icons.get('friended').active = false;
+                      relationshipName.icons.get('muted').active = false;
                     }
                   },
                   { label:'Cancel' },
@@ -310,41 +332,57 @@ export default class PlayerInfo extends Modal {
       ]),
     }).on('submit', event => event.waitUntil(async () => {
       await this.rename(event.data);
-      for (const [ iconName, icon ] of playerACLName.icons) {
-        icon.active = iconName === info.acl.type;
+      for (const [ iconName, icon ] of relationshipName.icons) {
+        icon.active = iconName === info.relationship.type;
       }
     }));
-    playerACLName.appendTo(this.root.querySelector('.playerACLName'));
+    relationshipName.appendTo(this.root.querySelector('.relationshipName'));
   }
 
   rename(newName) {
-    return this.setPlayerACL({ name:newName });
+    return this.setRelationship({ name:newName })
+      .then(() => {
+        this.data.info.relationship.name = newName;
+      });
   }
   friend() {
-    return this.setPlayerACL({ type:'friended' });
+    return this.setRelationship({ type:'friended' })
+      .then(() => {
+        this.data.info.relationship.type = 'friended';
+        this.renderInfo();
+      });
   }
   mute() {
-    return this.setPlayerACL({ type:'muted' });
+    return this.setRelationship({ type:'muted' })
+      .then(() => {
+        this.data.info.relationship.type = 'muted';
+        this.renderInfo();
+      });
   }
   block() {
-    return this.setPlayerACL({ type:'blocked' });
+    return this.setRelationship({ type:'blocked' })
+      .then(() => {
+        this.data.info.relationship.type = 'blocked';
+        this.renderInfo();
+      });
   }
-  setPlayerACL(changes) {
-    const playerACL = Object.assign({
+  setRelationship(changes) {
+    const relationship = Object.assign({
       type: 'friended',
       name: this.data.team.name,
-    }, this.data.info.acl, changes);
+    }, this.data.info.relationship, changes);
 
-    return authClient.setPlayerACL(this.data.team.playerId, {
-      type: playerACL.type,
-      name: playerACL.name,
-    }).then(() => this.data.info.acl = playerACL);
+    return authClient.setRelationship(this.data.team.playerId, {
+      type: relationship.type,
+      name: relationship.name,
+    }).then(() => this.data.info.relationship = relationship);
   }
-  clearPlayerACL() {
-    return authClient.clearPlayerACL(this.data.team.playerId)
+  clearRelationship() {
+    return authClient.clearRelationship(this.data.team.playerId)
       .then(() => {
-        delete this.data.info.acl.type;
-        delete this.data.info.acl.name;
+        delete this.data.info.relationship.type;
+        delete this.data.info.relationship.name;
+        this.renderInfo();
       });
   }
   clearStats() {

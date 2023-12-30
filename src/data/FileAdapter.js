@@ -1,10 +1,11 @@
 import fs from 'fs/promises';
 import DebugLogger from 'debug';
 
-import config from 'config/server.js';
-import ServerError from 'server/Error.js';
-import Timeout from 'server/Timeout.js';
-import serializer from 'utils/serializer.js';
+import config from '#config/server.js';
+import ServerError from '#server/Error.js';
+import Timeout from '#server/Timeout.js';
+import emitter from '#utils/emitter.js';
+import serializer from '#utils/serializer.js';
 
 export const FILES_DIR = 'src/data/files';
 const ops = new Map([
@@ -87,12 +88,21 @@ const querySchema = {
 // Serializer needs to support recursive schemas before we can use it.
 //const validateQuery = serializer.makeValidator('data:query', querySchema);
 
-export default class {
+const stateBuffer = new Timeout('state', config.buffer).on('expire', async ({ data:items }) => {
+  for (const [ itemId, item ] of items) {
+    FileAdapter._putJSONFile(itemId, item);
+  }
+});
+
+export default class FileAdapter {
   constructor(props) {
     Object.assign(this, {
       debug: DebugLogger(`data:${props.name}`),
       fileTypes: new Map(),
       hasState: false,
+      // State is intended to always be resident in memory.
+      // It is saved on server shut down and restored on start up.
+      // It should only contain ephemeral data or indexed data.
       state: null,
       cache: new Map(),
       buffer: new Map(),
@@ -144,6 +154,10 @@ export default class {
     });
   }
 
+  /*
+   * The state feature seems to be a bit of an anti-pattern.  It doesn't seem
+   * to mitigate the harm from a sudden shut down.
+   */
   async bootstrap() {
     if (this.hasState) {
       /*
@@ -157,24 +171,26 @@ export default class {
        *       shutdown.
        */
       try {
-        await this._createJSONFile(`${this.name}.lock`, { startupAt:new Date() });
+        await FileAdapter._createJSONFile(`${this.name}.lock`, { startupAt:new Date() });
       } catch (error) {
         if (error.code === 'EEXIST')
           throw new Error('Lock file exists.  Try `npm run start-force`.');
         throw error;
       }
 
-      /*
-       * Do not try to bootstrap state from nothing.  This helps people migrate
-       * to state files and detect when a server isn't cleanly shut down.
-       */
-      this.state = await this._readJSONFile(this.name, {});
-
-      if (this.state === false)
-        throw new Error('');
+      this.state = await FileAdapter._readJSONFile(this.name, {});
     }
 
     return this;
+  }
+
+  /*
+   * While not strictly necessary to call this method to save state, calling it
+   * allows us to track state changes during server run time.  It also makes it
+   * safer to forcefully start a server after not being gracefully shut down.
+   */
+  saveState() {
+    stateBuffer.add(this.name, this.state);
   }
 
   async cleanup() {
@@ -187,9 +203,10 @@ export default class {
     await Promise.all(promises);
 
     if (this.hasState) {
-      await this._putJSONFile(this.name, this.state);
+      stateBuffer.pause();
+      await FileAdapter._putJSONFile(this.name, this.state);
 
-      await this._deleteJSONFile(`${this.name}.lock`);
+      await FileAdapter._deleteJSONFile(`${this.name}.lock`);
     }
 
     return this;
@@ -309,22 +326,23 @@ export default class {
       throw new ServerError(500, 'Create failed');
     });
   }
-  _getFile(name, initialValue, transform) {
+  async _getFile(name, initialValue, transform) {
     const fqName = `${this.filesDir}/${name}.json`;
 
-    return fs.readFile(fqName, { encoding:'utf8' })
-      .then(data => transform(JSON.parse(data)))
-      .catch(error => {
-        if (error.code === 'ENOENT') {
-          const data = transform(initialValue);
-          if (data === undefined)
-            error = new ServerError(404, 'Not found');
-          else
-            return data;
-        }
+    try {
+      const data = await fs.readFile(fqName, { encoding:'utf8' })
+      return transform(JSON.parse(data));
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        const data = await transform(initialValue);
+        if (data === undefined)
+          error = new ServerError(404, `Not found: ${fqName}`);
+        else
+          return data;
+      }
 
-        throw error;
-      });
+      throw error;
+    }
   }
   async _putFile(name, data, transform) {
     const parts = name.split('/');
@@ -363,7 +381,7 @@ export default class {
   /*
    * These methods are for internal use for THIS class.
    */
-  _hasJSONFile(name) {
+  static _hasJSONFile(name) {
     return fs.stat(`${FILES_DIR}/${name}.json`).then(stats => {
       return stats.isFile();
     }).catch(error => {
@@ -373,7 +391,7 @@ export default class {
       throw error;
     });
   }
-  _readJSONFile(name, initial) {
+  static _readJSONFile(name, initial) {
     return fs.readFile(`${FILES_DIR}/${name}.json`, { encoding:'utf8' }).then(data => {
       return serializer.parse(data);
     }).catch(error => {
@@ -383,13 +401,13 @@ export default class {
       throw error;
     });
   }
-  _createJSONFile(name, data) {
+  static _createJSONFile(name, data) {
     return fs.writeFile(`${FILES_DIR}/${name}.json`, serializer.stringify(data), { flag:'wx' });
   }
-  _putJSONFile(name, data) {
+  static _putJSONFile(name, data) {
     return fs.writeFile(`${FILES_DIR}/${name}.json`, serializer.stringify(data));
   }
-  _deleteJSONFile(name) {
+  static _deleteJSONFile(name) {
     return fs.unlink(`${FILES_DIR}/${name}.json`).then(() => {
       return true;
     }).catch(error => {
@@ -679,3 +697,5 @@ export default class {
     return 0;
   }
 };
+
+emitter(FileAdapter);

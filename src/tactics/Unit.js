@@ -1,6 +1,6 @@
-import Polygon from 'utils/Polygon.js';
-import emitter from 'utils/emitter.js';
-import { numifyColor, colorFilterMap } from 'tactics/colorMap.js';
+import Polygon from '#utils/Polygon.js';
+import emitter from '#utils/emitter.js';
+import { numifyColor, colorFilterMap } from '#tactics/colorMap.js';
 
 const HALF_TILE_WIDTH  = 44;
 const HALF_TILE_HEIGHT = 28;
@@ -265,7 +265,7 @@ export default class Unit {
       // Armor reduces magic damage.
       calc.damage = Math.round(power * (100 - armor) / 100);
 
-      if (targetUnit.paralyzed || targetUnit.focusing)
+      if (targetUnit.paralyzed || targetUnit.focusing || !targetUnit.canBlock())
         calc.chance = 100;
       else if (targetUnit.directional === false) {
         // Wards have 100% blocking from all directions.
@@ -1882,6 +1882,9 @@ export default class Unit {
       !this.poisoned &&
       this.mPass !== false
     );
+  }
+  canBlock() {
+    return true;
   }
 
   clone() {

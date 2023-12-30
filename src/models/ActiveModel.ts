@@ -28,9 +28,9 @@ abstract class ActiveModel {
     return this;
   }
   once(eventType: EventType, fn: EventCB) {
-    const listener = () => {
+    const listener = event => {
       this.off(eventType, listener);
-      fn();
+      fn(event);
     };
 
     this.on(eventType, listener);
@@ -61,6 +61,12 @@ abstract class ActiveModel {
     if (!this.emitter)
       throw new Error('Active model is destroyed');
 
+    if (this.data instanceof Set)
+      return [ ...this.data ];
+    else if (this.data instanceof Map)
+      return [ ...this.data ];
+    else if (Array.isArray(this.data))
+      return [ ...this.data ];
     return { ...this.data };
   }
 

@@ -1,4 +1,4 @@
-import setsById from 'config/sets.js';
+import setsById from '#config/sets.js';
 
 const local = {
   secure: process.env.LOCAL_SECURE === 'true',
@@ -110,7 +110,7 @@ const gameConfigProps = {
   barPosition: 'right',
   blockingSystem: 'luck',
   turnTimeLimit: 'standard',
-  set: 'default',
+  set: 'ask',
   randomSide: false,
   rotation: 'S',
   teamColorIds: [ 'Blue', 'Yellow', 'Red', 'Green' ],

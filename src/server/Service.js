@@ -1,8 +1,8 @@
 import DebugLogger from 'debug';
 
-import ServerError from 'server/Error.js';
-import emitter from 'utils/emitter.js';
-import serializer from 'utils/serializer.js';
+import ServerError from '#server/Error.js';
+import emitter from '#utils/emitter.js';
+import serializer from '#utils/serializer.js';
 
 export default class Service {
   constructor(props) {
@@ -15,6 +15,17 @@ export default class Service {
 
       _validators: new Map(),
     });
+  }
+
+  /*
+   * This method is called once a service is ready to start.
+   * ... it is not ready to start at point of instantiation.
+   */
+  initialize() {
+    // This service will forward all associated data adapter events.
+    this.data.on('*', event => this._emit(event));
+
+    return true;
   }
 
   /*

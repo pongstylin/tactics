@@ -1,4 +1,4 @@
-import Unit from 'tactics/Unit.js';
+import Unit from '#tactics/Unit.js';
 
 export default class PoisonWisp extends Unit {
   getAttackResult(action, unit) {

@@ -1,5 +1,5 @@
-import Unit from 'tactics/Unit.js';
-import { colorFilterMap } from 'tactics/colorMap.js';
+import Unit from '#tactics/Unit.js';
+import { colorFilterMap } from '#tactics/colorMap.js';
 
 export default class ChaosDragon extends Unit {
   constructor(data, board) {

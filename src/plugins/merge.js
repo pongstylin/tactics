@@ -1,4 +1,4 @@
-import 'plugins/clone.js';
+import '#plugins/clone.js';
 
 Object.defineProperty(Object, 'merge', {
   value: function (...items) {

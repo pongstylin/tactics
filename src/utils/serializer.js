@@ -10,7 +10,7 @@
  * transform tree for more efficient deserialization.  For more efficient
  * serialization, a transform tree may be provided.
  */
-import parseType from 'utils/typeParser.js';
+import parseType from '#utils/typeParser.js';
 
 let ajv;
 

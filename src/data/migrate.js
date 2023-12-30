@@ -2,8 +2,8 @@
  * The purpose of this module is to migrate the JSON representation of player
  * and game objects to the latest version.
  */
-import unitDataMap from 'tactics/unitData.js';
-import GameType from 'tactics/GameType.js';
+import unitDataMap from '#tactics/unitData.js';
+import GameType from '#tactics/GameType.js';
 
 const migrationMap = new Map();
 

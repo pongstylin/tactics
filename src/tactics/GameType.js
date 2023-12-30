@@ -1,8 +1,8 @@
-import Board from 'tactics/Board.js';
-import ServerError from 'server/Error.js';
-import unitDataMap from 'tactics/unitData.js';
-import { calcPowerModifiers } from 'tactics/Unit/DragonspeakerMage.js';
-import serializer from 'utils/serializer.js';
+import Board from '#tactics/Board.js';
+import ServerError from '#server/Error.js';
+import unitDataMap from '#tactics/unitData.js';
+import { calcPowerModifiers } from '#tactics/Unit/DragonspeakerMage.js';
+import serializer from '#utils/serializer.js';
 
 export default class GameType {
   constructor(data) {

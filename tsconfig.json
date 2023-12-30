@@ -26,16 +26,9 @@
     /* Modules */
     "module": "esnext",                                /* Specify what module code is generated. */
     // "rootDir": "./",                                  /* Specify the root folder within your source files. */
-    // "moduleResolution": "node",                       /* Specify how TypeScript looks up a file from a given module specifier. */
+    "moduleResolution": "node16",                     /* Specify how TypeScript looks up a file from a given module specifier. */
     "baseUrl": "./",                                  /* Specify the base directory to resolve non-relative module names. */
-    "paths": {
-      "models/*": ["src/models/*"],
-      "server/*": ["src/server/*"],
-      "tactics/*": ["src/tactics/*"],
-      "xregexp": ["node_modules/xregexp/lib/index.js"],
-      "string-pixel-width": ["node_modules/string-pixel-width/lib/index.js"],
-      "seedrandom": ["node_modules/seedrandom/index.js"]
-    },                                      /* Specify a set of entries that re-map imports to additional lookup locations. */
+    //"paths": {}
     // "rootDirs": [],                                   /* Allow multiple folders to be treated as one when resolving modules. */
     // "typeRoots": [],                                  /* Specify multiple folders that act like `./node_modules/@types`. */
     // "types": [],                                      /* Specify type package names to be included without being referenced in a source file. */
@@ -58,7 +51,7 @@
     // "removeComments": true,                           /* Disable emitting comments. */
     // "noEmit": true,                                   /* Disable emitting files from a compilation. */
     // "importHelpers": true,                            /* Allow importing helper functions from tslib once per project, instead of including them per-file. */
-    // "importsNotUsedAsValues": "remove",               /* Specify emit/checking behavior for imports that are only used for types */
+    "importsNotUsedAsValues": "preserve",               /* Specify emit/checking behavior for imports that are only used for types */
     // "downlevelIteration": true,                       /* Emit more compliant, but verbose and less performant JavaScript for iteration. */
     // "sourceRoot": "",                                 /* Specify the root path for debuggers to find the reference source code. */
     // "mapRoot": "",                                    /* Specify the location where debugger should locate map files instead of generated locations. */

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
-import pkg from '../package.json' assert { type:'json' };
-import gameTypes from 'data/files/game/game_types.json' assert { type:'json' };
+import pkg from '#package.json' assert { type:'json' };
+import gameTypes from '#data/files/game/game_types.json' assert { type:'json' };
 
 const authAlg = 'aes256';
 const authKey = crypto.randomBytes(32);
@@ -111,15 +111,15 @@ const config = {
     [
       'auth',
       {
-        module: 'server/AuthService.js',
-        dataAdapterModule: 'data/FileAdapter/AuthAdapter.js',
+        module: '#server/AuthService.js',
+        dataAdapterModule: '#data/FileAdapter/AuthAdapter.js',
       },
     ],
     [
       'game',
       {
-        module: 'server/GameService.js',
-        dataAdapterModule: 'data/FileAdapter/GameAdapter.js',
+        module: '#server/GameService.js',
+        dataAdapterModule: '#data/FileAdapter/GameAdapter.js',
         config: {
           collections: [
             {
@@ -167,15 +167,15 @@ const config = {
     [
       'chat',
       {
-        module: 'server/ChatService.js',
-        dataAdapterModule: 'data/FileAdapter/ChatAdapter.js',
+        module: '#server/ChatService.js',
+        dataAdapterModule: '#data/FileAdapter/ChatAdapter.js',
       },
     ],
     [
       'push',
       {
-        module: 'server/PushService.js',
-        dataAdapterModule: 'data/FileAdapter/PushAdapter.js',
+        module: '#server/PushService.js',
+        dataAdapterModule: '#data/FileAdapter/PushAdapter.js',
         config: {
           /*
            * The `subject` should be 'mailto:' link with your email address or the URL

@@ -1,4 +1,4 @@
-import Unit from 'tactics/Unit.js';
+import Unit from '#tactics/Unit.js';
 
 export default class Furgon extends Unit {
   attach() {
@@ -64,6 +64,13 @@ export default class Furgon extends Unit {
         unit: this,
         changes: { name:'Furgon', disposition:null },
       }]);
+  }
+
+  /*
+   * Furgon cannot block when exhausted
+   */
+  canBlock() {
+    return this.disposition !== 'exhausted';
   }
 
   getAttackTiles(start = this.assignment) {

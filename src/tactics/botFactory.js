@@ -1,7 +1,5 @@
-'use strict';
-
-import Bot from 'tactics/Bot.js';
-import BotChaos from 'tactics/BotChaos.js';
+import Bot from '#tactics/Bot.js';
+import BotChaos from '#tactics/BotChaos.js';
 
 export default function (subclass, state, team) {
   if (subclass === 'Chaos')

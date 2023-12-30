@@ -1,19 +1,19 @@
 import fs from 'fs';
 import util from 'util';
 
-import migrate, { getLatestVersionNumber } from 'data/migrate.js';
-import serializer from 'utils/serializer.js';
-import FileAdapter from 'data/FileAdapter.js';
-import Timeout from 'server/Timeout.js';
+import migrate, { getLatestVersionNumber } from '#data/migrate.js';
+import serializer from '#utils/serializer.js';
+import FileAdapter from '#data/FileAdapter.js';
+import Timeout from '#server/Timeout.js';
 
-import GameType from 'tactics/GameType.js';
-import Game from 'models/Game.js';
-import GameSummary from 'models/GameSummary.js';
-import GameSummaryList from 'models/GameSummaryList.js';
-import PlayerStats from 'models/PlayerStats.js';
-import PlayerSets from 'models/PlayerSets.js';
-import PlayerAvatars from 'models/PlayerAvatars.js';
-import ServerError from 'server/Error.js';
+import GameType from '#tactics/GameType.js';
+import Game from '#models/Game.js';
+import GameSummary from '#models/GameSummary.js';
+import GameSummaryList from '#models/GameSummaryList.js';
+import PlayerStats from '#models/PlayerStats.js';
+import PlayerSets from '#models/PlayerSets.js';
+import PlayerAvatars from '#models/PlayerAvatars.js';
+import ServerError from '#server/Error.js';
 
 export default class extends FileAdapter {
   constructor() {
@@ -113,6 +113,20 @@ export default class extends FileAdapter {
       }
     });
 
+    if (!state.autoCancel)
+      state.autoCancel = new Timeout(`${this.name}AutoCancel`);
+    state.autoCancel.on('expire', async ({ data:items }) => {
+      const games = await Promise.all(
+        [ ...items.keys() ].map(gameId => this._getGame(gameId)),
+      );
+      for (const game of games) {
+        if (game.state.startedAt)
+          continue;
+
+        game.cancel();
+      }
+    });
+
     if (state.shutdownAt) {
       /*
        * If the server was shut down for more than 30 seconds, end real-time
@@ -172,6 +186,13 @@ export default class extends FileAdapter {
    ****************************************************************************/
   hasGameType(gameTypeId) {
     return this._gameTypes.has(gameTypeId);
+  }
+  getGameTypes() {
+    return [...this._gameTypes.values()]
+      .map(({ id, config }) => ({
+        id: id, 
+        name: config.name,
+    }));
   }
   getGameType(gameTypeId) {
     const gameTypes = this._gameTypes;
@@ -326,15 +347,21 @@ export default class extends FileAdapter {
 
     return this._search(data, query);
   }
-  async searchGameCollection(player, group, query) {
+  async searchGameCollection(player, group, query, getPlayer) {
     const collection = await this._getGameCollection(group);
-    const blockedBy = player.listBlockedBy();
-    const playerIds = new Set();
-    const data = serializer.clone([ ...collection.values() ])
-      .filter(gs => {
-        gs.creatorACL = player.getPlayerACL(gs.createdBy);
-        return gs.startedAt || !blockedBy.has(gs.createdBy);
-      });
+    const data = [];
+
+    for (const gameSummary of collection.values()) {
+      if (!gameSummary.startedAt) {
+        const creator = await getPlayer(gameSummary.createdBy);
+        if (creator.hasBlocked(player))
+          continue;
+        const clone = serializer.clone(gameSummary);
+        clone.creatorACL = player.getRelationship(creator);
+        data.push(clone);
+      } else
+        data.push(gameSummary);
+    }
 
     return this._search(data, query);
   }
@@ -375,6 +402,27 @@ export default class extends FileAdapter {
         declaredBy: myPlayerId,
       });
     }
+  }
+
+  /*
+   * This is triggered by player checkin / checkout events.
+   * On checkin, open games will not be auto cancelled.
+   * On checkout, open games will auto cancel after a period of time.
+   * That period of time is 1 hour if they have push notifications enabled.
+   * Otherwise, the period of time is based on game turn time limit.
+   */
+  async scheduleAutoCancel(playerId, extended = false) {
+    const playerGames = await this._getPlayerGames(playerId);
+    for (const gameSummary of playerGames.values())
+      if (gameSummary.collection && !gameSummary.startedAt && gameSummary.turnTimeLimit < 86400) {
+        const game = await this._getGame(gameSummary.id);
+        this.state.autoCancel.add(gameSummary.id, true, (extended ? 3600 : game.state.turnTimeBuffer) * 1000);
+      }
+  }
+  async clearAutoCancel(playerId) {
+    const playerGames = await this._getPlayerGames(playerId);
+    for (const gameSummary of playerGames.values())
+      this.state.autoCancel.delete(gameSummary.id);
   }
 
   /*****************************************************************************
@@ -441,6 +489,7 @@ export default class extends FileAdapter {
 
     this.cache.get('game').delete(game.id);
     this.buffer.get('game').delete(game.id);
+    this.state.autoCancel.delete(game.id);
     game.destroy();
 
     this._clearGameSummary(game);

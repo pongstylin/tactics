@@ -1,9 +1,9 @@
-import Team from 'models/Team.js';
-import ServerError from 'server/Error.js';
-import Board from 'tactics/Board.js';
-import botFactory from 'tactics/botFactory.js';
-import emitter from 'utils/emitter.js';
-import serializer from 'utils/serializer.js';
+import Team from '#models/Team.js';
+import ServerError from '#server/Error.js';
+import Board from '#tactics/Board.js';
+import botFactory from '#tactics/botFactory.js';
+import emitter from '#utils/emitter.js';
+import serializer from '#utils/serializer.js';
 
 export default class GameState {
   /*****************************************************************************
@@ -811,6 +811,8 @@ export default class GameState {
             const result = action.results[k];
             // This check ignores summoned units, e.g. shrubs
             if (typeof result.unit !== 'number') continue;
+            // Ignore immune attacks
+            if (result.miss === 'immune') continue;
 
             let defenderTeamId;
             for (let t = 0; t < teamsUnits.length; t++) {
@@ -1299,8 +1301,16 @@ export default class GameState {
                 mRecovery = undefined;
             }
           }
-          else if (unit.mRecovery)
-            mRecovery = unit.mRecovery - 1;
+          else {
+            // Check recovery at the start of the turn, not the current recovery.
+            // This handles the case of a berserker attacking a friendly unit.
+            // Note: this also needs an undefined check since the furgon's shrubs do not exist at turn start
+            //       and will be undefined
+            let unitAtTurnStart = this.units[unit.team.id].find(u => u.id === unit.id);
+            if (!!unitAtTurnStart && unitAtTurnStart.mRecovery) {
+              mRecovery = unit.mRecovery - 1;
+            }
+          }
 
           if (mRecovery !== undefined)
             result.changes.mRecovery = mRecovery;

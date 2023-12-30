@@ -1,4 +1,4 @@
-import serializer from 'utils/serializer.js';
+import serializer from '#utils/serializer.js';
 
 export default class Version {
   major: number

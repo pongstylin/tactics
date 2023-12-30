@@ -250,7 +250,7 @@ export default class Game {
         old_selected.deactivate();
         board.selected = null;
 
-        if (old_selected.assignment.focused) {
+        if (old_selected.assignment.focused && old_selected.assignment.is_interactive()) {
           this.focused = null;
           this.focused = old_selected;
         }
