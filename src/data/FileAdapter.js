@@ -4,6 +4,7 @@ import DebugLogger from 'debug';
 import config from '#config/server.js';
 import ServerError from '#server/Error.js';
 import Timeout from '#server/Timeout.js';
+import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
 
 export const FILES_DIR = 'src/data/files';
@@ -696,3 +697,5 @@ export default class FileAdapter {
     return 0;
   }
 };
+
+emitter(FileAdapter);

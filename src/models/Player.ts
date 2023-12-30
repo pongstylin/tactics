@@ -308,7 +308,7 @@ export default class Player extends ActiveModel {
     if (this.data.devices.size > 10) {
       const devices = [ ...this.data.devices.values() ].sort((a,b) => a.checkoutAt - b.checkoutAt);
       while (devices.length > 10)
-        this.data.devices.delete(devices.shift().id);
+        this.removeDevice(devices.shift().id);
     }
 
     this.emit('change:addDevice');
@@ -340,7 +340,10 @@ export default class Player extends ActiveModel {
       return false;
 
     this.data.devices.delete(deviceId);
-    this.emit('change:removeDevice');
+    this.emit({
+      type: 'change:removeDevice',
+      data: { deviceId },
+    });
 
     return true;
   }

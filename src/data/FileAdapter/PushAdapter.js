@@ -7,36 +7,38 @@ export default class extends FileAdapter {
     });
   }
 
-  async getAllPushSubscriptions(playerId) {
-    const fileName = `player_${playerId}_push`;
-    return await this.getFile(fileName, {
-      subscriptions: [],
-    }, pushData => new Map(pushData.subscriptions));
-  }
   async hasPushSubscription(playerId) {
-    const subscriptions = await this.getAllPushSubscriptions(playerId);
+    const pushData = await this._getPlayerPushSubscriptions(playerId);
 
-    return subscriptions.size > 0;
+    return pushData.subscriptions.size > 0;
   }
   async getPushSubscription(playerId, deviceId) {
-    const subscriptions = await this.getAllPushSubscriptions(playerId);
+    const pushData = await this._getPlayerPushSubscriptions(playerId);
 
-    return subscriptions.get(deviceId);
+    return pushData.subscriptions.get(deviceId);
   }
   async setPushSubscription(playerId, deviceId, subscription) {
-    const fileName = `player_${playerId}_push`;
+    const pushData = await this._getPlayerPushSubscriptions(playerId);
 
-    const pushData = await this.getFile(fileName, {
-      subscriptions: [],
-    }, pushData => {
-      pushData.subscriptions = new Map(pushData.subscriptions);
-      return pushData;
-    });
     if (subscription)
       pushData.subscriptions.set(deviceId, subscription);
     else
       pushData.subscriptions.delete(deviceId);
 
+    await this._savePlayerPushSubscriptions(playerId, pushData);
+  }
+
+  async _getPlayerPushSubscriptions(playerId) {
+    const fileName = `player_${playerId}_push`;
+    return await this.getFile(fileName, {
+      subscriptions: [],
+    }, pushData => {
+      pushData.subscriptions = new Map(pushData.subscriptions);
+      return pushData;
+    });
+  }
+  async _savePlayerPushSubscriptions(playerId, pushData) {
+    const fileName = `player_${playerId}_push`;
     await this.putFile(fileName, pushData);
   }
 };

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-import pkg from '../package.json' assert { type:'json' };
+import pkg from '#package.json' assert { type:'json' };
 import gameTypes from '#data/files/game/game_types.json' assert { type:'json' };
 
 const authAlg = 'aes256';

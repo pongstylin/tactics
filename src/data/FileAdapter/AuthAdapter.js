@@ -196,7 +196,11 @@ export default class extends FileAdapter {
       player.identities = this.state.identities;
       player.identity = await this._getIdentity(player.identityId);
 
-      player.once('change', () => buffer.add(playerId, player));
+      player.once('change', event => buffer.add(playerId, player));
+      player.on('change:removeDevice', event => this._emit({
+        type: 'player:removeDevice',
+        data: { player, deviceId:event.data.deviceId },
+      }));
       return player;
     });
   }

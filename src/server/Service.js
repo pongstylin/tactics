@@ -18,6 +18,17 @@ export default class Service {
   }
 
   /*
+   * This method is called once a service is ready to start.
+   * ... it is not ready to start at point of instantiation.
+   */
+  initialize() {
+    // This service will forward all associated data adapter events.
+    this.data.on('*', event => this._emit(event));
+
+    return true;
+  }
+
+  /*
    * Client-facing service methods may have their inputs validated & normalized.
    * The input validation is a proprietary shorthand for defining tuple schemas.
    * The shorthand is converted to JSON Schemas for validation purposes.

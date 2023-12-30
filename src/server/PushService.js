@@ -21,6 +21,14 @@ export default class PushService extends Service {
     });
   }
 
+  initialize() {
+    this.auth.on('player:removeDevice', ({ data:{ player, deviceId } }) =>
+      this.clearPushSubscription(player.id, deviceId)
+    );
+
+    return super.initialize();
+  }
+
   hasPushSubscription(playerId) {
     return this.data.hasPushSubscription(playerId);
   }

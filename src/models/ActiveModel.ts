@@ -28,9 +28,9 @@ abstract class ActiveModel {
     return this;
   }
   once(eventType: EventType, fn: EventCB) {
-    const listener = () => {
+    const listener = event => {
       this.off(eventType, listener);
-      fn();
+      fn(event);
     };
 
     this.on(eventType, listener);

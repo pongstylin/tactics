@@ -21,6 +21,7 @@
     "script": "node --require dotenv/config"
   },
   "imports": {
+    "#package.json": "./package.json",
     "#config/*": "./config/*",
     "#server/*": "./src/server/*",
     "#models/*": "./src/models/*",
@@ -86,7 +87,7 @@
     "seedrandom": "^3.0.5",
     "string-pixel-width": "^1.10.0",
     "touch-pinch": "^1.0.1",
-    "ua-parser-js": "^0.7.28",
+    "ua-parser-js": "^1.0.37",
     "utf-8-validate": "^5.0.2",
     "uuid": "^9.0.1",
     "web-push": "^3.5.0",

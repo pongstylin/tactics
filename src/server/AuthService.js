@@ -421,8 +421,6 @@ export default class AuthService extends Service {
     this.removeDevice(player, device.id);
   }
   removeDevice(player, deviceId) {
-    this.push.clearPushSubscription(player.id, deviceId);
-
     /*
      * Logout all clients on this device.
      */
