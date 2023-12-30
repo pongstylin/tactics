@@ -142,6 +142,9 @@ export default class Timeout {
     return this._opened.get(itemId).item;
   }
   delete(itemId) {
+    if (!this._opened.has(itemId) && !this._closed.has(itemId))
+      return;
+
     this.log('delete', `delete=${itemId}`);
 
     return this._opened.delete(itemId) || this._closed.delete(itemId);
@@ -187,7 +190,7 @@ export default class Timeout {
 
     return item;
   }
-  close(itemId) {
+  close(itemId, ttl = this.expireIn) {
     const opened = this._opened;
     if (!opened.has(itemId))
       throw new Error(`${this.name}: Attempted to close an item '${itemId}' that is not open`);
@@ -198,7 +201,7 @@ export default class Timeout {
     if (itemTimeout.openCount === 0) {
       opened.delete(itemId);
 
-      const expireAt = Date.now() + this.expireIn;
+      const expireAt = Date.now() + ttl;
       if (!itemTimeout.expireAt || expireAt > itemTimeout.expireAt)
         itemTimeout.expireAt = expireAt;
       delete itemTimeout.openCount;

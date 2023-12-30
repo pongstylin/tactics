@@ -843,9 +843,20 @@ async function getGameData(gameId) {
 }
 async function joinGame(gameId, name, set, randomSide) {
   return gameClient.joinGame(gameId, { name, set, randomSide }).catch(error => {
-    if (error.code !== 409 && error.code !== 412) throw error;
+    if (error.code !== 404 && error.code !== 409 && error.code !== 412) throw error;
 
-    if (error.code === 412)
+    if (error.code === 404)
+      return new Promise(resolve => {
+        popup({
+          message: 'Oops!  The game expired or was cancelled.',
+          buttons: [
+            { label:'Back', closeOnClick:false, onClick:() => history.back() },
+          ],
+          maxWidth: '250px',
+          closeOnCancel: false,
+        });
+      });
+    else if (error.code === 412)
       return new Promise(resolve => {
         popup({
           message: error.message,

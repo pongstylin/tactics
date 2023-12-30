@@ -1,5 +1,7 @@
-import Transport from 'tactics/Transport.js';
 import clientFactory from 'client/clientFactory.js';
+import popup from 'components/popup.js';
+import ServerError from 'server/Error.js';
+import Transport from 'tactics/Transport.js';
 
 const authClient = clientFactory('auth');
 const gameClient = clientFactory('game');
@@ -172,6 +174,16 @@ export default class RemoteTransport extends Transport {
       // Ignore a connection reset since a new connection will trigger a retry.
       if (error === 'Connection reset')
         return;
+      if (error instanceof ServerError)
+        if (error.code === 404)
+          return popup({
+            message: 'Oops!  The game expired or was cancelled.',
+            buttons: [
+              { label:'Back', closeOnClick:false, onClick:() => history.back() },
+            ],
+            maxWidth: '250px',
+            closeOnCancel: false,
+          });
       throw error;
     });
   }

@@ -113,6 +113,20 @@ export default class extends FileAdapter {
       }
     });
 
+    if (!state.autoCancel)
+      state.autoCancel = new Timeout(`${this.name}AutoCancel`);
+    state.autoCancel.on('expire', async ({ data:items }) => {
+      const games = await Promise.all(
+        [ ...items.keys() ].map(gameId => this._getGame(gameId)),
+      );
+      for (const game of games) {
+        if (game.state.startedAt)
+          continue;
+
+        game.cancel();
+      }
+    });
+
     if (state.shutdownAt) {
       /*
        * If the server was shut down for more than 30 seconds, end real-time
@@ -390,6 +404,27 @@ export default class extends FileAdapter {
     }
   }
 
+  /*
+   * This is triggered by player checkin / checkout events.
+   * On checkin, open games will not be auto cancelled.
+   * On checkout, open games will auto cancel after a period of time.
+   * That period of time is 1 hour if they have push notifications enabled.
+   * Otherwise, the period of time is based on game turn time limit.
+   */
+  async scheduleAutoCancel(playerId, extended = false) {
+    const playerGames = await this._getPlayerGames(playerId);
+    for (const gameSummary of playerGames.values())
+      if (gameSummary.collection && !gameSummary.startedAt && gameSummary.turnTimeLimit < 86400) {
+        const game = await this._getGame(gameSummary.id);
+        this.state.autoCancel.add(gameSummary.id, true, (extended ? 3600 : game.state.turnTimeBuffer) * 1000);
+      }
+  }
+  async clearAutoCancel(playerId) {
+    const playerGames = await this._getPlayerGames(playerId);
+    for (const gameSummary of playerGames.values())
+      this.state.autoCancel.delete(gameSummary.id);
+  }
+
   /*****************************************************************************
    * Private Interface
    ****************************************************************************/
@@ -454,6 +489,7 @@ export default class extends FileAdapter {
 
     this.cache.get('game').delete(game.id);
     this.buffer.get('game').delete(game.id);
+    this.state.autoCancel.delete(game.id);
     game.destroy();
 
     this._clearGameSummary(game);

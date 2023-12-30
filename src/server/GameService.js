@@ -223,8 +223,14 @@ export default class GameService extends Service {
     const playerPara = this.playerPara.get(playerId);
     if (playerPara.clients.size > 1)
       playerPara.clients.delete(client.id);
-    else
+    else {
       this.playerPara.delete(playerId);
+      this.push.hasPushSubscription(playerId).then(extended => {
+        // Make sure the player is still logged out
+        if (!this.playerPara.has(playerId))
+          this.data.scheduleAutoCancel(playerId, extended);
+      });
+    }
 
     this.clientPara.delete(client.id);
 
@@ -384,6 +390,7 @@ export default class GameService extends Service {
 
       // Let people who needs to know that this player is online.
       this._setPlayerGamesStatus(player.id);
+      this.data.clearAutoCancel(player.id);
     }
   }
 
