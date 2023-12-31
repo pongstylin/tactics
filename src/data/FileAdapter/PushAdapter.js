@@ -7,7 +7,7 @@ export default class extends FileAdapter {
     });
   }
 
-  async hasPushSubscription(playerId) {
+  async hasAnyPushSubscription(playerId) {
     const pushData = await this._getPlayerPushSubscriptions(playerId);
 
     return pushData.subscriptions.size > 0;
