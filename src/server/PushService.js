@@ -33,10 +33,22 @@ export default class PushService extends Service {
     return this.data.hasAnyPushSubscription(playerId);
   }
   async pushNotification(playerId, notification, urgency = 'normal') {
-    const canNotify = await this.data.hasAnyPushSubscription(playerId);
-    if (!canNotify) return;
+    const deviceSubscriptions = await this.data.getAllPushSubscriptions(playerId);
+    if (!deviceSubscriptions) return;
 
-    this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}; urgency=${urgency}`);
+    /*
+     * Deduplicate subscriptions by grouping them by the stringified subscription.
+     */
+    const subscriptions = new Map();
+    for (const [ deviceId, subscription ] of deviceSubscriptions) {
+      const json = JSON.stringify(subscription);
+      if (subscriptions.has(json))
+        subscriptions.get(json).deviceIds.push(deviceId);
+      else
+        subscriptions.set(json, { subscription, deviceIds:[ deviceId ] });
+    }
+
+    this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}/${deviceSubscriptions.size}; urgency=${urgency}`);
 
     const payload = JSON.stringify(notification);
 
@@ -46,8 +58,8 @@ export default class PushService extends Service {
       this.config.privateKey,
     );
 
-    return Promise.all([...subscriptions].map(([deviceId, subscription]) =>
-      webpush.sendNotification(subscription, payload, {
+    return Promise.all([ ...subscriptions.values() ].map(data =>
+      webpush.sendNotification(data.subscription, payload, {
         headers: {
           'Urgency': urgency,
         },
@@ -55,9 +67,10 @@ export default class PushService extends Service {
         // [403] invalid push subscription endpoint.
         // [410] push subscription has unsubscribed or expired.
         if (error.statusCode === 403 || error.statusCode === 410)
-          this.data.setPushSubscription(playerId, deviceId, null);
+          for (const deviceId of data.deviceIds)
+            this.data.setPushSubscription(playerId, deviceId, null);
 
-        this.debug(`${notification.type}: playerId=${playerId}; deviceId=${deviceId}; error=[${error.statusCode}] ${error.body}`);
+        this.debug(`${notification.type}: playerId=${playerId}; deviceIds=${data.deviceIds.length}; error=[${error.statusCode}] ${error.body}`);
       })
     ));
   }

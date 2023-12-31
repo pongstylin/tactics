@@ -7,6 +7,11 @@ export default class extends FileAdapter {
     });
   }
 
+  async getAllPushSubscriptions(playerId) {
+    const pushData = await this._getPlayerPushSubscriptions(playerId);
+
+    return new Map([ ...pushData.subscriptions ]);
+  }
   async hasAnyPushSubscription(playerId) {
     const pushData = await this._getPlayerPushSubscriptions(playerId);
 
