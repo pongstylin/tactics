@@ -163,19 +163,6 @@ const getAvatar = (playerId, direction) => {
   return Tactics.drawAvatar(avatar, { direction, withShadow:true });
 };
 
-authClient
-  .on('login', () => {
-    showTabs();
-  })
-  .on('name-change', () => {
-    setMyName();
-  })
-  .on('logout', () => {
-    hideTabs();
-  });
-if (authClient.isAuthorized)
-  showTabs();
-
 gameClient
   .on('event', ({ body }) => {
     const statsContent = state.tabContent.stats;
@@ -390,6 +377,13 @@ whenDOMReady.then(() => {
 
   window.addEventListener('resize', () => resize(dynamicStyle.sheet));
   resize(dynamicStyle.sheet);
+
+  authClient
+    .on('login', () => showTabs())
+    .on('name-change', () => setMyName())
+    .on('logout', () => hideTabs());
+  if (authClient.isAuthorized)
+    showTabs();
 });
 
 async function showTabs() {
@@ -812,6 +806,29 @@ async function joinGame(arena) {
     return false;
 
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
+  if (arena.creatorACL?.blockedByRule) {
+    let message;
+    if (arena.creatorACL.blockedByRule === 'anon')
+      message = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked anonymous players from joining their public and lobby games.
+        You can verify your account on your <A href="security.html">Account Security</A> page.
+      `;
+    else if (arena.creatorACL.blockedByRule === 'new')
+      message = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
+        You can try again later or create your own game.
+      `;
+    else
+      message = `You are blocked for unknown reasons.`;
+
+    return popup({
+      message,
+      buttons: [
+        { label:'Ok', value:false },
+      ],
+      maxWidth: '300px',
+    });
+  }
   if (arena.creatorACL?.type) {
     let proceed = false;
     let message;

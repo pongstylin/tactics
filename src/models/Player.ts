@@ -364,10 +364,17 @@ export default class Player extends ActiveModel {
     const relationship:any = player.identity.getRelationship(this.id) ?? {};
     const reverse:any = this.identity.getRelationship(player.id) ?? {};
 
+    let blockedByRule:any = false;
+    if (player.acl.newAccounts === 'blocked' && this.isNew)
+      blockedByRule = 'new';
+    else if (player.acl.anonAccounts === 'blocked' && !this.isVerified)
+      blockedByRule = 'anon';
+
     return {
       type: relationship.type,
       name: relationship.nickname,
       reverseType: reverse.type,
+      blockedByRule,
     };
   }
   setRelationship(player, relationship) {

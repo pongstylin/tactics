@@ -1458,9 +1458,15 @@ async function showJoinIntro(gameData) {
     if (relationship.reverseType === 'blocked')
       isBlocked = `Sorry!  <I>${creatorTeam.name}</I> blocked you from joining their games.`;
     else if (gameData.collection && !relationship.isVerified.get('me') && relationship.acl.get('them').anonAccounts === 'blocked')
-      isBlocked = `Sorry!  <I>${creatorTeam.name}</I> blocked anonymous players from joining their public and lobby games.`;
+      isBlocked = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked anonymous players from joining their public and lobby games.
+        You can verify your account on your <A href="security.html">Account Security</A> page.
+      `;
     else if (gameData.collection && relationship.isNew.get('me') && relationship.acl.get('them').newAccounts === 'blocked')
-      isBlocked = `Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.`;
+      isBlocked = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
+        You can try again later or create your own game.
+      `;
 
     if (isBlocked) {
       challenge.innerHTML = isBlocked;

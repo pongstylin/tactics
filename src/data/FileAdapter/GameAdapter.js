@@ -357,7 +357,7 @@ export default class extends FileAdapter {
     for (const gameSummary of collection.values()) {
       if (!gameSummary.startedAt) {
         const creator = await getPlayer(gameSummary.createdBy);
-        if (creator.hasBlocked(player))
+        if (creator.hasBlocked(player, false))
           continue;
         const clone = serializer.clone(gameSummary);
         clone.creatorACL = player.getRelationship(creator);
