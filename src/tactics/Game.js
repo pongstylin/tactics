@@ -1042,6 +1042,8 @@ export default class Game {
   canUndo() {
     if (this.isViewOnly)
       return false;
+    if (!this.state.startedAt)
+      return false;
 
     // Determine the team that is requesting the undo.
     const teams = this.teams;

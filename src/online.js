@@ -170,7 +170,7 @@ gameClient
     const lobbyContent = state.tabContent.lobby;
     const publicContent = state.tabContent.publicGames;
 
-    if (body.group === `/myGames/${authClient.playerId}`) {
+    if (body.group === `/myGames/${myPlayerId}`) {
       if (body.type === 'stats') {
         yourContent.stats = body.data;
         renderStats('my');
@@ -551,7 +551,7 @@ function setLobbyGame(gameSummary) {
     lobbyGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...lobbyGames[0] ]);
   else if (!gameSummary.endedAt)
     lobbyGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...lobbyGames[1] ]);
-  else if (gameSummary.teams.findIndex(t => t?.playerId === authClient.playerId) === -1)
+  else if (gameSummary.teams.findIndex(t => t?.playerId === myPlayerId) === -1)
     lobbyGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...lobbyGames[2] ]);
 
   renderLobbyGames();
@@ -698,7 +698,7 @@ async function selectArena(divArena) {
   } else if (divArena.classList.contains('waiting')) {
     const arena = JSON.parse(divArena.dataset.arena);
 
-    if (arena.teams.find(t => t?.playerId === authClient.playerId))
+    if (arena.teams.find(t => t?.playerId === myPlayerId))
       cancelGame();
     else
       joinGame(arena);
@@ -749,7 +749,7 @@ async function createGame(divArena) {
   }
 
   const myTeam = {
-    playerId: authClient.playerId,
+    playerId: myPlayerId,
     set,
     randomSide: randomSide && !tabContent.gameType.hasFixedPositions,
   };
@@ -1689,13 +1689,23 @@ async function fillTeam(divArena, slot, arena, oldArena) {
   const spnName = divArena.querySelector(`.name.${slot}`);
   const imgUnit = divArena.querySelector(`.unit.${slot}`);
 
-  const oldTeamIndex = oldArena?.teams[0].playerId === authClient.playerId
-    ? slot === 'top' ? 1 : 0
-    : slot === 'top' ? 0 : 1
+  /*
+   * If the first team is my team, flip it to the bottom.
+   * Else if the 2nd team is the creator team, flip it to the top.
+   */
+  const oldTeamIndex
+    = oldArena?.teams[0].playerId === myPlayerId
+      ? slot === 'top' ? 1 : 0
+    : oldArena?.teams[1].playerId === oldArena?.createdBy
+      ? slot === 'top' ? 1 : 0
+      : slot === 'top' ? 0 : 1
   const oldTeam = oldArena?.teams[oldTeamIndex];
-  const teamIndex = arena?.teams[0].playerId === authClient.playerId
-    ? slot === 'top' ? 1 : 0
-    : slot === 'top' ? 0 : 1
+  const teamIndex
+    = arena?.teams[0].playerId === myPlayerId
+      ? slot === 'top' ? 1 : 0
+    : arena?.teams[1].playerId === arena?.createdBy
+      ? slot === 'top' ? 1 : 0
+      : slot === 'top' ? 0 : 1
   const team = arena?.teams[teamIndex];
   const isWinner = [ undefined, teamIndex ].includes(arena?.winnerId);
 
@@ -2035,7 +2045,7 @@ function renderGame(game) {
       middle = '<I>Yourself</I>';
     else
       middle = '<I>Finish Setup</I>';
-  } else if (game.startedAt || game.createdBy !== authClient.playerId) {
+  } else if (game.startedAt || game.createdBy !== myPlayerId) {
     const opponents = teams.map((team, teamId) => {
       if (!team?.joinedAt || team.playerId === myPlayerId)
         return false;
