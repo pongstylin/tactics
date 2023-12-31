@@ -34,7 +34,7 @@ export default class PushService extends Service {
   }
   async pushNotification(playerId, notification, urgency = 'normal') {
     const deviceSubscriptions = await this.data.getAllPushSubscriptions(playerId);
-    if (!deviceSubscriptions) return;
+    if (deviceSubscriptions.size === 0) return;
 
     /*
      * Deduplicate subscriptions by grouping them by the stringified subscription.
