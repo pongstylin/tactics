@@ -225,7 +225,7 @@ export default class GameService extends Service {
       playerPara.clients.delete(client.id);
     else {
       this.playerPara.delete(playerId);
-      this.push.hasPushSubscription(playerId).then(extended => {
+      this.push.hasAnyPushSubscription(playerId).then(extended => {
         // Make sure the player is still logged out
         if (!this.playerPara.has(playerId))
           this.data.scheduleAutoCancel(playerId, extended);
@@ -785,7 +785,7 @@ export default class GameService extends Service {
     return {
       createdAt: them.createdAt,
       completed: globalStats.completed,
-      canNotify: await this.push.hasPushSubscription(forPlayerId),
+      canNotify: await this.push.hasAnyPushSubscription(forPlayerId),
       acl: new Map([
         [ 'me', me.acl ],
         [ 'them', them.acl ],

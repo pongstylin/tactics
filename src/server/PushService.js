@@ -29,12 +29,12 @@ export default class PushService extends Service {
     return super.initialize();
   }
 
-  hasPushSubscription(playerId) {
-    return this.data.hasPushSubscription(playerId);
+  hasAnyPushSubscription(playerId) {
+    return this.data.hasAnyPushSubscription(playerId);
   }
   async pushNotification(playerId, notification, urgency = 'normal') {
-    const subscriptions = await this.data.getAllPushSubscriptions(playerId);
-    if (subscriptions.size === 0) return;
+    const canNotify = await this.data.hasAnyPushSubscription(playerId);
+    if (!canNotify) return;
 
     this.debug(`${notification.type}: playerId=${playerId}; subscriptions=${subscriptions.size}; urgency=${urgency}`);
 
