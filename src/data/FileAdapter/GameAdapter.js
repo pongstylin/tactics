@@ -74,9 +74,6 @@ export default class extends FileAdapter {
 
       return gameTypes;
     });
-    for (const [ gameTypeId, gameType ] of [ ...this._gameTypes.entries() ])
-      if (gameType.config.archived)
-        this._gameTypes.delete(gameTypeId);
 
     if (!state.willSync)
       state.willSync = new Timeout(`${this.name}WillSync`);
