@@ -812,6 +812,29 @@ async function joinGame(arena) {
     return false;
 
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
+  if (arena.creatorACL?.blockedByRule) {
+    let message;
+    if (arena.creatorACL.blockedByRule === 'anon')
+      message = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked anonymous players from joining their public and lobby games.
+        You can verify your account on your <A href="security.html">Account Security</A> page.
+      `;
+    else if (arena.creatorACL.blockedByRule === 'new')
+      message = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
+        You can try again later or create your own game.
+      `;
+    else
+      message = `You are blocked for unknown reasons.`;
+
+    return popup({
+      message,
+      buttons: [
+        { label:'Ok', value:false },
+      ],
+      maxWidth: '300px',
+    });
+  }
   if (arena.creatorACL?.type) {
     let proceed = false;
     let message;

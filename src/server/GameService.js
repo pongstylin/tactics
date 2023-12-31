@@ -1170,7 +1170,7 @@ export default class GameService extends Service {
       if (!gameSummary.startedAt) {
         if (player) {
           const creator = await this._getAuthPlayer(gameSummary.createdBy);
-          if (creator.hasBlocked(player))
+          if (creator.hasBlocked(player, false))
             continue;
         }
         stats.waiting++;
@@ -1214,7 +1214,7 @@ export default class GameService extends Service {
 
     for (const player of collectionPara.stats.keys()) {
       const creator = await this._getAuthPlayer(gameSummary.createdBy);
-      if (!gameSummary.startedAt && creator.hasBlocked(player))
+      if (!gameSummary.startedAt && creator.hasBlocked(player, false))
         continue;
 
       gameSummary.creatorACL = player.getRelationship(creator);
