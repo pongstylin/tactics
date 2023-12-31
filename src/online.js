@@ -1696,14 +1696,14 @@ async function fillTeam(divArena, slot, arena, oldArena) {
   const oldTeamIndex
     = oldArena?.teams[0].playerId === myPlayerId
       ? slot === 'top' ? 1 : 0
-    : oldArena?.teams[1].playerId === oldArena?.createdBy
+    : oldArena?.teams[1]?.playerId === oldArena?.createdBy
       ? slot === 'top' ? 1 : 0
       : slot === 'top' ? 0 : 1
   const oldTeam = oldArena?.teams[oldTeamIndex];
   const teamIndex
     = arena?.teams[0].playerId === myPlayerId
       ? slot === 'top' ? 1 : 0
-    : arena?.teams[1].playerId === arena?.createdBy
+    : arena?.teams[1]?.playerId === arena?.createdBy
       ? slot === 'top' ? 1 : 0
       : slot === 'top' ? 0 : 1
   const team = arena?.teams[teamIndex];
