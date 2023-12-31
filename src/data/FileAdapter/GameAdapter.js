@@ -188,11 +188,12 @@ export default class extends FileAdapter {
     return this._gameTypes.has(gameTypeId);
   }
   getGameTypes() {
-    return [...this._gameTypes.values()]
+    return [ ...this._gameTypes.values() ]
+      .filter(gt => !gt.config.archived)
       .map(({ id, config }) => ({
         id: id, 
         name: config.name,
-    }));
+      }));
   }
   getGameType(gameTypeId) {
     const gameTypes = this._gameTypes;
