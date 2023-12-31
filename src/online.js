@@ -163,19 +163,6 @@ const getAvatar = (playerId, direction) => {
   return Tactics.drawAvatar(avatar, { direction, withShadow:true });
 };
 
-authClient
-  .on('login', () => {
-    showTabs();
-  })
-  .on('name-change', () => {
-    setMyName();
-  })
-  .on('logout', () => {
-    hideTabs();
-  });
-if (authClient.isAuthorized)
-  showTabs();
-
 gameClient
   .on('event', ({ body }) => {
     const statsContent = state.tabContent.stats;
@@ -390,6 +377,13 @@ whenDOMReady.then(() => {
 
   window.addEventListener('resize', () => resize(dynamicStyle.sheet));
   resize(dynamicStyle.sheet);
+
+  authClient
+    .on('login', () => showTabs())
+    .on('name-change', () => setMyName())
+    .on('logout', () => hideTabs());
+  if (authClient.isAuthorized)
+    showTabs();
 });
 
 async function showTabs() {
