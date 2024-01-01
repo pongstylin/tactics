@@ -8,6 +8,7 @@ import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
 
 export const FILES_DIR = 'src/data/files';
+export const ARCHIVE_DIR = 'src/data/archive';
 const ops = new Map([
   [ 'create', '_createFile' ],
   [ 'get',    '_getFile' ],
@@ -108,6 +109,7 @@ export default class FileAdapter {
       buffer: new Map(),
       queue: new Map(),
       filesDir: `${FILES_DIR}/${props.name}`,
+      archiveDir: `${ARCHIVE_DIR}/${props.name}`,
     }, props);
 
     for (const [ fileType, fileConfig ] of this.fileTypes) {
@@ -264,6 +266,20 @@ export default class FileAdapter {
 
     return this._pushQueue(fileName, { type:'put', args });
   }
+  async archiveFile(fileName) {
+    const fqSource = `${this.filesDir}/${fileName}.json`;
+    const fqTarget = `${this.archiveDir}/${fileName}.json`;
+    const fqTargetDir = fqTarget.slice(0, fqTarget.lastIndexOf('/'));
+
+    await fs.mkdir(fqTargetDir, { recursive:true });
+    try {
+      await fs.rename(fqSource, fqTarget);
+    } catch (error) {
+      if (error.code === 'ENOENT')
+        return;
+      throw error;
+    }
+  }
   /*
    * Pretend the file was deleted if it does not exist.
    * Remove the file if it does exist.
@@ -333,7 +349,9 @@ export default class FileAdapter {
       const data = await fs.readFile(fqName, { encoding:'utf8' })
       return transform(JSON.parse(data));
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error.message === 'Unexpected end of JSON input')
+        error = new ServerError(500, `Corrupt: ${fqName}`);
+      else if (error.code === 'ENOENT') {
         const data = await transform(initialValue);
         if (data === undefined)
           error = new ServerError(404, `Not found: ${fqName}`);

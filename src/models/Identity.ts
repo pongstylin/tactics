@@ -96,6 +96,16 @@ export default class Identity extends ActiveModel {
     this.emit('change:merge');
   }
 
+  deletePlayerId(playerId) {
+    if (!this.data.playerIds.has(playerId))
+      return false;
+
+    this.data.playerIds.delete(playerId);
+    this.emit('change:deletePlayerId');
+
+    return true;
+  }
+
   /*
    * Relationship Management
    */

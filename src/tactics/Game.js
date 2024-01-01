@@ -499,10 +499,10 @@ export default class Game {
     if (typeof team === 'number')
       team = this.teams[team];
 
-    if (this.playerId)
-      return team.playerId === this.playerId;
-    else
+    if (this.playerId === null)
       return !team.bot;
+    else
+      return team.playerId === this.playerId;
   }
   hasOneLocalTeam(team) {
     if (team !== undefined && !this.isMyTeam(team)) return false;

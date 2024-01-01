@@ -328,4 +328,23 @@ export default class extends FileAdapter {
       });
     });
   }
+
+  async archivePlayer(playerId) {
+    try {
+      const filesToArchive = [ `player_${playerId}` ];
+
+      const player = await this._getPlayer(playerId);
+      if (player.identity.playerIds.length === 1)
+        filesToArchive.push(`identity_${player.identityId}`);
+      else
+        player.identity.deletePlayerId(playerId);
+
+      await Promise.all(filesToArchive.map(f => this.archiveFile(f)));
+    } catch (e) {
+      if (e.message.startsWith('Corrupt:'))
+        await this.deleteFile(`player_${playerId}`);
+      else
+        throw e;
+    }
+  }
 };

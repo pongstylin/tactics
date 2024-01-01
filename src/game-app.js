@@ -907,7 +907,7 @@ async function loadTransport(gameId, gameData) {
 async function loadGame(transport) {
   await loadResources(transport);
 
-  return new Tactics.Game(transport, authClient.playerId);
+  return new Tactics.Game(transport, authClient.playerId ?? false);
 }
 async function loadResources(gameState) {
   const unitTypes = gameType.getUnitTypes();
