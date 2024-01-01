@@ -625,7 +625,7 @@ export default class extends FileAdapter {
     );
 
     if (game.collection)
-      promises.push(this._getGameCollection(game.collection));
+      promises.push(this.getGameCollection(game.collection));
 
     return Promise.all(promises).then(gameSummaryLists => {
       for (const gameSummaryList of gameSummaryLists) {
@@ -848,5 +848,32 @@ export default class extends FileAdapter {
         resolve(gameIds);
       });
     });
+  }
+
+  async archivePlayer(playerId) {
+    await Promise.all([
+      this.archiveFile(`player_${playerId}_stats`),
+      this.archiveFile(`player_${playerId}_games`),
+      this.archiveFile(`player_${playerId}_sets`),
+      this.archiveFile(`player_${playerId}_avatars`),
+    ]);
+  }
+
+  async archiveGame(gameId) {
+    try {
+      const game = await this._getGame(gameId);
+      if (game.collection)
+        await Promise.all([
+          this.getGameCollection(game.collection).then(gsl => gsl.delete(game.id)),
+          this.archiveFile(`game_${gameId}`),
+        ]);
+      else
+        await this.archiveFile(`game_${gameId}`);
+    } catch (e) {
+      if (e.message.startsWith('Corrupt:'))
+        await this.deleteFile(`game_${gameId}`);
+      else
+        throw e;
+    }
   }
 };
