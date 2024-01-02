@@ -163,64 +163,6 @@ const getAvatar = (playerId, direction) => {
   return Tactics.drawAvatar(avatar, { direction, withShadow:true });
 };
 
-gameClient
-  .on('event', ({ body }) => {
-    const statsContent = state.tabContent.stats;
-    const yourContent = state.tabContent.yourGames;
-    const lobbyContent = state.tabContent.lobby;
-    const publicContent = state.tabContent.publicGames;
-
-    if (body.group === `/myGames/${myPlayerId}`) {
-      if (body.type === 'stats') {
-        yourContent.stats = body.data;
-        renderStats('my');
-      } else if (body.type === 'add' || body.type === 'change')
-        setYourGame(body.data);
-      else if (body.type === 'remove')
-        unsetYourGame(body.data);
-    } else if (body.group === '/collections') {
-      if (body.type === 'stats') {
-        statsContent.byCollection.set(body.data.collectionId, body.data.stats);
-        renderStats('collections');
-      }
-    } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
-      if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
-        return;
-
-      if (body.type === 'add' || body.type === 'change')
-        setLobbyGame(body.data);
-      else if (body.type === 'remove')
-        unsetLobbyGame(body.data);
-    } else if (body.group === '/collections/public') {
-      if (body.type === 'add' || body.type === 'change')
-        setPublicGame(body.data);
-      else if (body.type === 'remove')
-        unsetPublicGame(body.data);
-    }
-  })
-  .on('open', async ({ data:{ reason } }) => {
-    if (state.currentTab === null || reason === 'resume')
-      document.querySelector('.tabContent .loading').classList.remove('is-active');
-    else {
-      /*
-       * Now that the connection is open, sync the current tab.  This is always
-       * required regardless of whether the page has never finished loading any
-       * data or if tabs have changed while offline or if a tab was in the middle
-       * of being loaded.  But just in case any tabs were synced at the time we
-       * lost connection, mark them as no longer synced.
-       */
-      for (const tabContent of Object.values(state.tabContent)) {
-        tabContent.isSynced = false;
-        tabContent.whenSynced = Promise.resolve();
-      }
-      syncTab();
-    }
-  })
-  .on('close', ({ data:{ reopen } }) => {
-    if (reopen)
-      document.querySelector('.tabContent .loading').classList.add('is-active');
-  });
-
 whenDOMReady.then(() => {
   const divLoading = document.querySelector(`.tabContent .loading`);
   divLoading.classList.add('is-active');
@@ -384,6 +326,64 @@ whenDOMReady.then(() => {
     .on('logout', () => hideTabs());
   if (authClient.isAuthorized)
     showTabs();
+
+  gameClient
+    .on('event', ({ body }) => {
+      const statsContent = state.tabContent.stats;
+      const yourContent = state.tabContent.yourGames;
+      const lobbyContent = state.tabContent.lobby;
+      const publicContent = state.tabContent.publicGames;
+
+      if (body.group === `/myGames/${myPlayerId}`) {
+        if (body.type === 'stats') {
+          yourContent.stats = body.data;
+          renderStats('my');
+        } else if (body.type === 'add' || body.type === 'change')
+          setYourGame(body.data);
+        else if (body.type === 'remove')
+          unsetYourGame(body.data);
+      } else if (body.group === '/collections') {
+        if (body.type === 'stats') {
+          statsContent.byCollection.set(body.data.collectionId, body.data.stats);
+          renderStats('collections');
+        }
+      } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
+        if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
+          return;
+
+        if (body.type === 'add' || body.type === 'change')
+          setLobbyGame(body.data);
+        else if (body.type === 'remove')
+          unsetLobbyGame(body.data);
+      } else if (body.group === '/collections/public') {
+        if (body.type === 'add' || body.type === 'change')
+          setPublicGame(body.data);
+        else if (body.type === 'remove')
+          unsetPublicGame(body.data);
+      }
+    })
+    .on('open', async ({ data:{ reason } }) => {
+      if (state.currentTab === null || reason === 'resume')
+        document.querySelector('.tabContent .loading').classList.remove('is-active');
+      else {
+        /*
+         * Now that the connection is open, sync the current tab.  This is always
+         * required regardless of whether the page has never finished loading any
+         * data or if tabs have changed while offline or if a tab was in the middle
+         * of being loaded.  But just in case any tabs were synced at the time we
+         * lost connection, mark them as no longer synced.
+         */
+        for (const tabContent of Object.values(state.tabContent)) {
+          tabContent.isSynced = false;
+          tabContent.whenSynced = Promise.resolve();
+        }
+        syncTab();
+      }
+    })
+    .on('close', ({ data:{ reopen } }) => {
+      if (reopen)
+        document.querySelector('.tabContent .loading').classList.add('is-active');
+    });
 });
 
 async function showTabs() {
