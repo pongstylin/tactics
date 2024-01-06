@@ -264,6 +264,7 @@ export default class extends FileAdapter {
       cache.delete(identity.id);
     if (buffer.has(identity.id))
       buffer.delete(identity.id);
+    identity.destroy();
 
     await this.deleteFile(`identity_${identity.id}`);
   }
