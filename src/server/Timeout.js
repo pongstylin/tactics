@@ -106,7 +106,7 @@ export default class Timeout {
       itemTimeout = opened.get(itemId);
       if (expireAt > itemTimeout.expireAt) {
         itemTimeout.expireAt = expireAt;
-        this.log('add', `refresh=${itemId}; ttl=${ttl}; openCount=${itemTimeout.openCount}`);
+        this.log('add', `refresh=${itemId}; expireAt=${new Date(itemTimeout.expireAt).toISOString()}; openCount=${itemTimeout.openCount}`);
       }
       return item;
     }
@@ -117,7 +117,7 @@ export default class Timeout {
       if (expireAt > itemTimeout.expireAt) {
         itemTimeout.expireAt = expireAt;
         closed.delete(itemId);
-        this.log('add', `refresh=${itemId}; ttl=${ttl}`);
+        this.log('add', `refresh=${itemId}; expireAt=${new Date(itemTimeout.expireAt).toISOString()}`);
       } else
         return item;
     } else {
@@ -207,7 +207,7 @@ export default class Timeout {
       delete itemTimeout.openCount;
       this._addSorted(itemId, itemTimeout);
 
-      this.log('close', `close=${itemId}`);
+      this.log('close', `close=${itemId}; expireAt=${itemTimeout.expireAt}`);
     } else {
       this.log('close', `close=${itemId}; openCount=${itemTimeout.openCount}`);
     }

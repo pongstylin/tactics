@@ -99,6 +99,7 @@ export default class FileAdapter {
   constructor(props) {
     Object.assign(this, {
       debug: DebugLogger(`data:${props.name}`),
+      debugV: DebugLogger(`data-v:${props.name}`),
       fileTypes: new Map(),
       hasState: false,
       // State is intended to always be resident in memory.
@@ -127,6 +128,7 @@ export default class FileAdapter {
 
       cache.on('expire', ({ data:items }) => {
         for (const [ itemId, item ] of items) {
+          this.debugV(`cache:expire=${itemId}; destroy=${!buffer.has(itemId)}`);
           if (!buffer.has(itemId))
             item.destroy();
         }
@@ -134,6 +136,7 @@ export default class FileAdapter {
       buffer.on('expire', async ({ data:items }) => {
         await Promise.all([ ...items.values() ].map(i => this[fileConfig.saver](i)));
         for (const [ itemId, item ] of items) {
+          this.debugV(`buffer:expire=${itemId}; destroy=${!cache.has(itemId)}`);
           if (!cache.has(itemId))
             item.destroy();
         }
