@@ -414,11 +414,12 @@
   }
 
   #chat {
+    background-color: black;
     display: flex;
     flex-direction: column;
 
     position: absolute;
-    z-index: 20;
+    z-index: 40;
     box-sizing: border-box;
     width: 100%;
 
@@ -451,6 +452,27 @@
         }
         .content {
           white-space: pre-wrap;
+        }
+      }
+    }
+
+    #prompts {
+      color: #b08d57;
+      font-weight: bold;
+
+      .message {
+        &::before {
+          content: '— ';
+        }
+      }
+
+      .actions {
+        display: inline-flex;
+        padding: 0 8px;
+        gap: 8px;
+
+        .action BUTTON {
+          padding: 0 4px;
         }
       }
     }
@@ -490,7 +512,6 @@
     }
     #chat {
       justify-content: flex-end;
-      background-color: black;
     }
   }
 }
@@ -781,6 +802,7 @@
       & > .buttons {
         z-index: 30;
 
+        background-color: black;
         position: relative;
         padding: 6px;
 
@@ -934,6 +956,8 @@
       }
 
       & > .buttons {
+        // When zooming the board, do not show it behind the buttons
+        background-color: black;
         position: fixed;
         top: 0 !important;
         width: 52px;

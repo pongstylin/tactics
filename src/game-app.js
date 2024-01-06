@@ -1642,14 +1642,18 @@ async function showJoinIntro(gameData) {
 }
 
 function updateChatButton() {
+  const $button = $('BUTTON[name=chat]');
+  const playerId = authClient.playerId;
+
+  const divPrompt = document.querySelector('#prompts .prompt');
+  if (divPrompt && game.state.playerRequest.status !== 'cancelled')
+    return $button.addClass('ready').attr('badge', '+');
+
+  $button.removeClass('ready').attr('badge', '');
+
   if (!chatMessages.length) return;
 
-  const playerId = authClient.playerId;
-  const $button = $('BUTTON[name=chat]');
-
   if ($('#app').is('.show.with-inlineChat, .chat-open')) {
-    $button.removeClass('ready').attr('badge', '');
-
     if (lastSeenEventId < chatMessages.last.id) {
       lastSeenEventId = chatMessages.last.id;
 
@@ -1908,11 +1912,11 @@ async function startGame() {
         timeoutPopup.close();
     })
     .on('resetTimeout', () => setTurnTimeoutClock())
-    .on('playerRequest', ({ data:request }) => updatePlayerRequestPopup('request', request.status === 'pending'))
-    .on('playerRequest:accept', () => updatePlayerRequestPopup('accept'))
-    .on('playerRequest:reject', () => updatePlayerRequestPopup('reject'))
-    .on('playerRequest:cancel', () => updatePlayerRequestPopup('cancel'))
-    .on('playerRequest:complete', hidePlayerRequestPopup)
+    .on('playerRequest', ({ data:request }) => updatePlayerRequest('request', request.status === 'pending'))
+    .on('playerRequest:accept', () => updatePlayerRequest('accept'))
+    .on('playerRequest:reject', () => updatePlayerRequest('reject'))
+    .on('playerRequest:cancel', () => updatePlayerRequest('cancel'))
+    .on('playerRequest:complete', hidePlayerRequest)
     .on('startSync', () => {
       $('BUTTON[name=play]').hide();
       $('BUTTON[name=pause]').show();
@@ -1971,27 +1975,136 @@ async function startGame() {
     game.play(-1);
 }
 
-function updatePlayerRequestPopup(eventType, createIfNeeded = false) {
+function updatePlayerRequest(eventType, createIfNeeded = false) {
   if (game.isViewOnly)
     return;
 
   if (eventType !== 'accept')
     toggleUndoButton();
 
-  if (!playerRequestPopup && !createIfNeeded)
-    return;
-
   const playerRequest = game.state.playerRequest;
   // Was undo cancelled before we got an update?
   if (!playerRequest)
-    return hidePlayerRequestPopup();
+    return hidePlayerRequest();
 
   const teams = game.teams;
-  const myTeam = game.myTeam;
   const requestor = 'teamId' in playerRequest
     ? teams[playerRequest.teamId]
     : teams.find(t => t.playerId === playerRequest.createdBy);
+
+  if (game.hasOneLocalTeam(requestor))
+    updatePlayerRequestPopup(playerRequest, createIfNeeded);
+  else
+    updatePlayerRequestPrompt(playerRequest, requestor, createIfNeeded);
+}
+
+function updatePlayerRequestPrompt(playerRequest, requestor, createIfNeeded) {
+  const teams = game.teams;
+  const myTeam = game.myTeam;
+  const requestorName = teams.filter(t => t.name === requestor.name).length > 1 ? requestor.color : requestor.name;
+
+  const divPrompts = document.getElementById('prompts');
+  let divPrompt = divPrompts.querySelector(`.prompt.${playerRequest.type}`);
+  if (!divPrompt) {
+    if (!createIfNeeded)
+      return;
+
+    divPrompt = document.createElement('DIV');
+    divPrompt.classList.add('prompt');
+    divPrompt.classList.add(playerRequest.type);
+
+    const spnMessage = document.createElement('SPAN');
+    spnMessage.classList.add('message');
+    divPrompt.appendChild(spnMessage);
+
+    const spnActions = document.createElement('SPAN');
+    spnActions.classList.add('actions');
+    divPrompt.appendChild(spnActions);
+
+    divPrompts.appendChild(divPrompt);
+  }
+
+  let message;
+  const buttons = [];
+  if (playerRequest.status === 'pending') {
+    if (playerRequest.accepted.has(myTeam.id)) {
+      message = playerRequest.type === 'undo'
+        ? `undo request is waiting: ${playerRequest.accepted.size}/${teams.length}`
+        : `truce offer is waiting: ${playerRequest.accepted.size}/${teams.length}`;
+    } else {
+      message = playerRequest.type === 'undo'
+        ? `requests an undo:`
+        : `offers a truce:`;
+      buttons.push(
+        {
+          label: 'Accept',
+          onClick: () => game.acceptPlayerRequest(),
+        },
+        {
+          label: 'Reject',
+          onClick: () => game.rejectPlayerRequest(),
+        }
+      );
+    }
+  } else if (playerRequest.status === 'cancelled') {
+    message = playerRequest.type === 'undo'
+      ? `cancelled their undo request.`
+      : `cancelled their truce offer.`;
+    buttons.push({
+      label: 'Ok',
+      onClick: hidePlayerRequest,
+    });
+  } else if (playerRequest.status === 'rejected') {
+    const rejectorId = playerRequest.rejected.get(`${playerRequest.createdBy}:${playerRequest.type}`);
+    if (rejectorId === authClient.playerId)
+      return hidePlayerRequest();
+
+    const rejector = teams.find(t => t.playerId === rejectorId);
+    const rejectorName = teams.filter(t => t.name === rejector.name).length > 1 ? rejector.color : rejector.name;
+
+    message = playerRequest.type === 'undo'
+      ? `undo request was rejected by ${rejectorName}.`
+      : `truce offer was rejected by ${rejectorName}.`;
+    buttons.push({
+      label: 'Ok',
+      onClick: hidePlayerRequest,
+    });
+  }
+
+  divPrompt.querySelector('.message').textContent = `${requestorName} ${message}`;
+  divPrompt.querySelector('.actions').innerHTML = '';
+  for (const button of buttons) {
+    const spnAction = document.createElement('SPAN');
+    spnAction.classList.add('action');
+    divPrompt.querySelector('.actions').appendChild(spnAction);
+
+    const prefix = document.createTextNode('«');
+    spnAction.appendChild(prefix);
+
+    const btn = document.createElement('BUTTON');
+    btn.classList.add('link');
+    btn.addEventListener('click', button.onClick);
+    btn.textContent = button.label;
+    spnAction.appendChild(btn);
+
+    const suffix = document.createTextNode('»');
+    spnAction.appendChild(suffix);
+  }
+
+  updateChatButton();
+}
+
+function updatePlayerRequestPopup(playerRequest, createIfNeeded) {
+  if (!playerRequestPopup && !createIfNeeded)
+    return;
+
+  const teams = game.teams;
+  const playerRequestTypeName = (
+    playerRequest.type.toUpperCase('first') + ' ' +
+    (playerRequest.type === 'undo' ? 'Request' : 'Offer')
+  );
   const popupData = {
+    title: `Your ${playerRequestTypeName}`,
     buttons: [],
     onClose: () => {
       playerRequestPopup = null;
@@ -2000,21 +2113,22 @@ function updatePlayerRequestPopup(eventType, createIfNeeded = false) {
     container: document.getElementById('field'),
   };
 
-  const playerRequestTypeName = (
-    playerRequest.type.toUpperCase('first') + ' ' +
-    (playerRequest.type === 'undo' ? 'Request' : 'Offer')
-  );
-  if (game.hasOneLocalTeam(requestor))
-    popupData.title = `Your ${playerRequestTypeName}`;
-  else if (teams.filter(t => t.name === requestor.name).length > 1)
-    popupData.title = `${playerRequestTypeName} By ${requestor.color}`;
-  else
-    popupData.title = `${playerRequestTypeName} By ${requestor.name}`;
+  if (playerRequest.status === 'pending') {
+    popupData.closeOnCancel = false;
 
-  if (playerRequest.status !== 'pending') {
+    popupData.message = `Waiting for approval.`;
+    popupData.buttons.push({
+      label: 'Cancel',
+      onClick: () => {
+        game.cancelPlayerRequest();
+        if (playerRequest.type === 'truce')
+          buttons.surrender();
+      },
+    });
+  } else {
     if (playerRequest.status === 'rejected') {
       if (playerRequest.type === 'truce') {
-        hidePlayerRequestPopup();
+        hidePlayerRequest();
         return buttons.surrender();
       }
 
@@ -2022,43 +2136,11 @@ function updatePlayerRequestPopup(eventType, createIfNeeded = false) {
       const rejector = teams.find(t => t.playerId === rejectorId);
 
       popupData.message = `Request rejected by ${rejector.name}.`;
-    } else if (playerRequest.status === 'cancelled')
-      popupData.message = `The request was cancelled.`;
-    else if (playerRequest.status === 'completed')
+    } else if (playerRequest.status === 'completed')
       // The playerRequest:completed event is never sent if we were offline.
       popupData.message = `The request was accepted.`;
 
     popupData.buttons.push({ label:'Ok' });
-  } else {
-    popupData.closeOnCancel = false;
-
-    if (game.isMyTeam(requestor)) {
-      popupData.message = `Waiting for approval.`;
-      popupData.buttons.push({
-        label: 'Cancel',
-        onClick: () => {
-          game.cancelPlayerRequest();
-          if (playerRequest.type === 'truce')
-            buttons.surrender();
-        },
-      });
-    } else if (playerRequest.accepted.has(myTeam.id)) {
-      popupData.message = `Approval sent.  Waiting for others.`;
-      popupData.buttons.push({
-        label: 'Withdraw Approval',
-        onClick: () => game.rejectPlayerRequest(),
-      });
-    } else {
-      popupData.message = `Do you approve?`;
-      popupData.buttons.push({
-        label: 'Yes',
-        onClick: () => game.acceptPlayerRequest(),
-      });
-      popupData.buttons.push({
-        label: 'No',
-        onClick: () => game.rejectPlayerRequest(),
-      });
-    }
   }
 
   popupData.zIndex = 20;
@@ -2071,9 +2153,14 @@ function updatePlayerRequestPopup(eventType, createIfNeeded = false) {
   }
 }
 
-function hidePlayerRequestPopup() {
+function hidePlayerRequest() {
   if (playerRequestPopup)
     playerRequestPopup.close();
+
+  const divPrompts = document.getElementById('prompts');
+  divPrompts.innerHTML = '';
+
+  updateChatButton();
 }
 
 function setHistoryState() {
