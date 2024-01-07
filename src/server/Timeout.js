@@ -191,6 +191,9 @@ export default class Timeout {
     return item;
   }
   close(itemId, ttl = this.expireIn) {
+    if (typeof ttl !== 'number')
+      throw new TypeError(`ttl is not a number`);
+
     const opened = this._opened;
     if (!opened.has(itemId))
       throw new Error(`${this.name}: Attempted to close an item '${itemId}' that is not open`);

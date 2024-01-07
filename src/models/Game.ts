@@ -204,7 +204,7 @@ export default class Game extends ActiveModel {
   submitPlayerRequest(playerId, requestType, receivedAt = Date.now()) {
     const oldRequest = this.data.playerRequest;
     if (oldRequest?.status === 'pending')
-      throw new ServerError(409, `A '${requestType}' request is still pending`);
+      throw new ServerError(409, `A '${oldRequest.type}' request is still pending`);
 
     if (this.getTeamForPlayer(playerId) === null)
       throw new ServerError(401, 'You are not a player in this game.');
