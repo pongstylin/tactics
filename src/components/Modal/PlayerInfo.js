@@ -21,7 +21,7 @@ export default class PlayerInfo extends Modal {
       const target = event.target;
       if (target.tagName !== 'BUTTON') return;
 
-      const playerName = this.data.info.relationship?.name ?? team.name;
+      const playerName = this.data.info.relationship.name ?? team.name;
 
       if (target.name === 'clearStats')
         popup({
@@ -105,7 +105,7 @@ export default class PlayerInfo extends Modal {
 
     let disposition = '';
     if (info.relationship.reverseType)
-      disposition = `<DIV>You were ${info.relationship?.reverseType} by this player.</DIV>`;
+      disposition = `<DIV>You were ${info.relationship.reverseType} by this player.</DIV>`;
     else if (data.game.collection) {
       if (info.isNew.get('me') && info.acl.get('them').newAccounts)
         disposition = `<DIV>This player ${info.acl.get('them').newAccounts} you since you are new.</DIV>`;
@@ -209,7 +209,7 @@ export default class PlayerInfo extends Modal {
       `</DIV>`,
     ];
 
-    if (stats.aliases.length && !info.relationship?.type)
+    if (stats.aliases.length && !info.relationship.type)
       content.push(
         `<DIV>`,
           `<DIV>You have played these aliases:</DIV>`,
@@ -232,7 +232,7 @@ export default class PlayerInfo extends Modal {
 
     this.renderContent(content.join(''));
 
-    const playerName = info.relationship?.name ?? data.team.name;
+    const playerName = info.relationship.name ?? data.team.name;
     const relationshipName = new Autosave({
       submitOnChange: true,
       defaultValue: false,
@@ -242,7 +242,7 @@ export default class PlayerInfo extends Modal {
         [ 'friended', {
           name: 'user-friends',
           title: 'Friend',
-          active: info.relationship?.type === 'friended',
+          active: info.relationship.type === 'friended',
           onClick: async friendIcon => {
             if (friendIcon.active) {
               await this.clearRelationship();
@@ -258,7 +258,7 @@ export default class PlayerInfo extends Modal {
         [ 'muted', {
           name: 'microphone-slash',
           title: 'Mute',
-          active: info.relationship?.type === 'muted',
+          active: info.relationship.type === 'muted',
           onClick: async muteIcon => {
             if (muteIcon.active) {
               await this.clearRelationship();
@@ -293,7 +293,7 @@ export default class PlayerInfo extends Modal {
         [ 'blocked', {
           name: 'ban',
           title: 'Block',
-          active: info.relationship?.type === 'blocked',
+          active: info.relationship.type === 'blocked',
           onClick: async blockIcon => {
             if (blockIcon.active) {
               await this.clearRelationship();
