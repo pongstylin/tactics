@@ -80,7 +80,8 @@ export default class extends FileAdapter {
   }
   closePlayer(playerId) {
     const player = this.cache.get('player').close(playerId);
-    this.cache.get('identity').close(player.identityId, player.identity.ttl);
+    const expireAt = new Date(Math.max(this.cache.get('player').getExpireAt(player.identityId), player.identity.ttl));
+    this.cache.get('identity').close(player.identityId, expireAt);
     return player;
   }
   async getPlayer(playerId) {
