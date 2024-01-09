@@ -1,6 +1,8 @@
 import 'isomorphic-fetch';
 import uaparser from 'ua-parser-js';
 import { Issuer, generators } from 'openid-client';
+import { REST } from '@discordjs/rest';
+import { Routes } from 'discord-api-types/v10';
 
 import config from '#config/server.js';
 import IdentityToken from '#server/IdentityToken.js';
@@ -244,23 +246,15 @@ export default class AuthService extends Service {
     let name;
 
     if (state.provider === 'discord') {
-      const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
+      const client = new REST({ version:'10',authPrefix:'Bearer' }).setToken(tokenSet.access_token);
 
       try {
-        const rsp = await fetch(`http://discord.com/api/users/@me/guilds/${DISCORD_GUILD_ID}/member`, {
-          headers: {
-            Authorization: `Bearer ${tokenSet.access_token}`,
-          },
-        });
+        const guild = await client.get(Routes.userGuildMember(process.env.DISCORD_GUILD_ID));
 
-        if (rsp.status === 200)
-          userinfo.guild = await rsp.json();
-        else if (rsp.status !== 404)
-          throw new ServerError(rsp.status, rsp.statusText);
-
-        name = userinfo.guild?.nick ?? userinfo.username;
+        name = guild?.nick ?? userinfo.username;
       } catch (error) {
-        console.log('Error while fetching guild:', error);
+        if (error.status !== 404)
+          console.log('Error while fetching guild:', error);
         name = userinfo.username;
       }
     } else if (state.provider === 'facebook')
