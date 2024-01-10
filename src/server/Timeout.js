@@ -197,10 +197,6 @@ export default class Timeout {
     return item;
   }
   close(itemId, ttl = this.expireIn) {
-    const expireAt = typeof ttl === 'number' ? new Date(Date.now() + ttl) : ttl instanceof Date ? ttl : new Date(NaN);
-    if (isNaN(expireAt.getTime()))
-      throw new TypeError(`ttl is not a valid number or Date`);
-
     const opened = this._opened;
     if (!opened.has(itemId))
       throw new Error(`${this.name}: Attempted to close an item '${itemId}' that is not open`);
@@ -210,6 +206,10 @@ export default class Timeout {
 
     if (itemTimeout.openCount === 0) {
       opened.delete(itemId);
+
+      const expireAt = typeof ttl === 'number' ? new Date(Date.now() + ttl) : ttl instanceof Date ? ttl : new Date(NaN);
+      if (isNaN(expireAt.getTime()))
+        throw new TypeError(`ttl is not a valid number or Date`);
 
       if (!itemTimeout.expireAt || expireAt > itemTimeout.expireAt)
         itemTimeout.expireAt = expireAt;
