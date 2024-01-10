@@ -727,11 +727,6 @@ async function initGame() {
     .then(async g => {
       game = g;
       game.id = gameId;
-      game.state.on('playerStatus', () => {
-        resetPlayerBanners();
-        // An opponent opening the game may mean no longer being able to undo without approval.
-        toggleUndoButton();
-      });
 
       settings = new GameSettingsModal(
         { game, gameType },
@@ -1958,7 +1953,15 @@ async function startGame() {
 
   await game.start();
 
+  // Listen for these events after the game is started so that game._teams is defined.
+  game.state.on('playerStatus', () => {
+    resetPlayerBanners();
+    // An opponent opening the game may mean no longer being able to undo without approval.
+    toggleUndoButton();
+  });
+
   resetPlayerBanners();
+  toggleUndoButton();
   updateChatButton();
   updateRotateButton();
   progress.hide();
