@@ -94,38 +94,31 @@ export default class Timeout {
     this._checkAt = now + this.interval;
   }
 
-  add(itemId, item, ttl = this.expireIn) {
+  add(itemId, item, ttl = null) {
     if (item === undefined || item === null)
       throw new Error(`${this.name}: ${itemId} item is missing`);
-
-    const expireAt = typeof ttl === 'number' ? new Date(Date.now() + ttl) : ttl instanceof Date ? ttl : new Date(NaN);
-    if (isNaN(expireAt.getTime()))
-      throw new TypeError(`ttl is not a valid number or Date`);
 
     let itemTimeout;
 
     const opened = this._opened;
     if (opened.has(itemId)) {
       itemTimeout = opened.get(itemId);
-      if (expireAt > itemTimeout.expireAt) {
-        itemTimeout.expireAt = expireAt;
-        this.log('add', `refresh=${itemId}; expireAt=${expireAt.toISOString()}; openCount=${itemTimeout.openCount}`);
-      }
+      const expireAt = this._setExpireAt(itemTimeout, ttl);
+      this.log('add', `refresh=${itemId}; ttl=${ttl}; expireAt=${expireAt.toISOString()}; openCount=${itemTimeout.openCount}`);
       return item;
     }
 
     const closed = this._closed;
     if (closed.has(itemId)) {
       itemTimeout = closed.get(itemId);
-      if (expireAt > itemTimeout.expireAt) {
-        itemTimeout.expireAt = expireAt;
-        closed.delete(itemId);
-        this.log('add', `refresh=${itemId}; expireAt=${expireAt.toISOString()}`);
-      } else
-        return item;
+      const expireAt = this._setExpireAt(itemTimeout, ttl);
+      this.log('add', `refresh=${itemId}; ttl=${ttl}; expireAt=${expireAt.toISOString()}`);
+
+      closed.delete(itemId);
     } else {
-      itemTimeout = { item, expireAt };
-      this.log('add', `add=${itemId}; expireAt=${expireAt.toISOString()}`);
+      itemTimeout = { item };
+      const expireAt = this._setExpireAt(itemTimeout, ttl);
+      this.log('add', `add=${itemId}; ttl=${ttl}; expireAt=${expireAt.toISOString()}`);
     }
 
     this._addSorted(itemId, itemTimeout);
@@ -196,7 +189,7 @@ export default class Timeout {
 
     return item;
   }
-  close(itemId, ttl = this.expireIn) {
+  close(itemId, ttl = null) {
     const opened = this._opened;
     if (!opened.has(itemId))
       throw new Error(`${this.name}: Attempted to close an item '${itemId}' that is not open`);
@@ -207,12 +200,7 @@ export default class Timeout {
     if (itemTimeout.openCount === 0) {
       opened.delete(itemId);
 
-      const expireAt = typeof ttl === 'number' ? new Date(Date.now() + ttl) : ttl instanceof Date ? ttl : new Date(NaN);
-      if (isNaN(expireAt.getTime()))
-        throw new TypeError(`ttl is not a valid number or Date`);
-
-      if (!itemTimeout.expireAt || expireAt > itemTimeout.expireAt)
-        itemTimeout.expireAt = expireAt;
+      const expireAt = this._setExpireAt(itemTimeout, ttl);
       delete itemTimeout.openCount;
       this._addSorted(itemId, itemTimeout);
 
@@ -242,6 +230,23 @@ export default class Timeout {
     return values;
   }
 
+  _setExpireAt(itemTimeout, ttl) {
+    const now = Date.now();
+
+    if (ttl === null) {
+      const expireAt = new Date(now + this.expireIn);
+      if (!itemTimeout.expireAt || expireAt > itemTimeout.expireAt)
+        itemTimeout.expireAt = expireAt;
+    } else {
+      const expireAt = typeof ttl === 'number' ? new Date(now + ttl) : ttl instanceof Date ? ttl : new Date(NaN);
+      if (isNaN(expireAt.getTime()))
+        throw new TypeError(`ttl is not a valid number or Date`);
+
+      itemTimeout.expireAt = expireAt;
+    }
+
+    return itemTimeout.expireAt;
+  }
   _addSorted(itemId, itemTimeout) {
     const closed = this._closed;
 
