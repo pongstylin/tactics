@@ -1027,6 +1027,11 @@ function renderMessage(message) {
       playerName = '<I>You</I> ';
   }
 
+  const gameUrl = location.origin + location.pathname.slice(0, location.pathname.lastIndexOf('/')) + '/game.html';
+  const gameUrlMatch = new RegExp(`${gameUrl}\\?([0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12})`);
+
+  message.content = message.content.replace(gameUrlMatch, '<A href="game.html?$1" target="_blank">Game Link</A>');
+
   $('#messages').append(`
     <DIV class="message player-${playerId} ${isMuted}">
       <SPAN class="player">${playerName}</SPAN>
