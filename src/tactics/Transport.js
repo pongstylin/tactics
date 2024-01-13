@@ -129,6 +129,9 @@ export default class Transport {
   get currentTeam() {
     return this.teams[this.currentTeamId];
   }
+  get lockedTurnId() {
+    return this._getStateData('lockedTurnId');
+  }
   get winningTeams() {
     return this.board.teams.filter(team =>
       !!team.units.find(unit => {

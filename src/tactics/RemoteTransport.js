@@ -232,6 +232,7 @@ export default class RemoteTransport extends Transport {
       })
       .on('playerRequest', ({ data:request }) => {
         this._data.playerRequest = request;
+        this._data.playerRequest.turnId = this.currentTurnId;
       })
       .on('playerRequest:accept', ({ data }) => {
         this._data.playerRequest.accepted.add(data.playerId);
