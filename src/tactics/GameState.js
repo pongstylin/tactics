@@ -782,11 +782,11 @@ export default class GameState {
      * Determine current draw counts from the game history.
      * The min turnId is 0 not -1.  The always passed 1st turn doesn't count.
      */
-    const maxTurnId = this.currentTurnId - 1;
+    const maxTurnId = this._actions.last?.type === 'endTurn' ? this.currentTurnId : this.currentTurnId - 1;
     const minTurnId = Math.max(0, maxTurnId - attackTurnLimit);
     TURN:for (let i = maxTurnId; i > minTurnId; i--) {
-      const actions = this.turns[i].actions;
-      const teamsUnits = this.turns[i].units;
+      const actions = i === this.currentTurnId ? this._actions : this.turns[i].actions;
+      const teamsUnits = i === this.currentTurnId ? this.units : this.turns[i].units;
 
       // If the only action that took place is ending the turn...
       if (actions.length === 1) {
