@@ -1040,6 +1040,19 @@ function renderMessage(message) {
   `);
 }
 
+function resetPrompts() {
+  const divPrompts = document.querySelector('#prompts');
+
+  console.log(game.state.currentTurnId, game.state.playerRequest?.turnId, game.state.lockedTurnId);
+  if (game.state.playerRequest === null)
+    divPrompts.innerHTML = '';
+  // Used to clear cancelled requests after they become irrelevant (esp. undo requests)
+  else if (game.state.playerRequest.turnId <= game.state.lockedTurnId)
+    divPrompts.innerHTML = '';
+
+  updateChatButton();
+}
+
 async function showPublicIntro(gameData) {
   renderShareLink(gameData, document.querySelector('#public .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#public .cancelButton'));
@@ -1646,7 +1659,7 @@ function updateChatButton() {
   const playerId = authClient.playerId;
 
   const divPrompt = document.querySelector('#prompts .prompt');
-  if (divPrompt && game.state.playerRequest.status !== 'cancelled')
+  if (divPrompt && game.state.playerRequest && game.state.playerRequest.status !== 'cancelled')
     return $button.addClass('ready').attr('badge', '+');
 
   $button.removeClass('ready').attr('badge', '');
@@ -1958,12 +1971,18 @@ async function startGame() {
 
   await game.start();
 
-  // Listen for these events after the game is started so that game._teams is defined.
-  game.state.on('playerStatus', () => {
-    resetPlayerBanners();
-    // An opponent opening the game may mean no longer being able to undo without approval.
-    toggleUndoButton();
-  });
+  /*
+   * Warning: These events can fire before state changes are animated.
+   */
+  game.state
+    .on('playerStatus', () => {
+      resetPlayerBanners();
+      // An opponent opening the game may mean no longer being able to undo without approval.
+      // The game._teams property must be defined or this will throw an error.
+      toggleUndoButton();
+    })
+    .on('startTurn', resetPrompts)
+    .on('endGame', hidePlayerRequest);
 
   resetPlayerBanners();
   toggleUndoButton();
