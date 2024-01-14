@@ -46,14 +46,6 @@ window.addEventListener('DOMContentLoaded', () => {
     divConfigure.classList.add('show');
   });
 
-  const gameTypes = gameClient.getGameTypes().then((gameTypes) => {
-    const gameTypesHTML = gameTypes.map((gameType) => {
-      return `<OPTION value="${gameType.id}">${gameType.name}</OPTION>`
-    })
-    const selGameType = document.querySelector('SELECT[name=type]')
-    selGameType.innerHTML = gameTypesHTML.join('')
-  });
-
   const selGameType = document.querySelector('SELECT[name=type]');
   const selSet = document.querySelector('SELECT[name=set]');
   const aChangeLink = document.querySelector('.change');
@@ -132,14 +124,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
     state.changeInProgress = false;
   });
+
+  gameClient.getGameTypes().then(gameTypes => {
+    const options = gameTypes.map(gameType => `<OPTION value="${gameType.id}">${gameType.name}</OPTION>`);
+    const selGameType = document.querySelector('SELECT[name=type]');
+    selGameType.innerHTML = options.join('');
+
+    document.querySelector('SELECT[name=type]').dispatchEvent(new CustomEvent('change'));
+  });
+
   // Detect auto-fill of dropdown in Chrome after using browser back button.
   window.addEventListener('load', () => {
-    document.querySelector('SELECT[name=type]').dispatchEvent(
-      new CustomEvent('change')
-    );
-    document.querySelector('INPUT[name=vs]:checked').dispatchEvent(
-      new CustomEvent('change')
-    );
+    document.querySelector('INPUT[name=vs]:checked').dispatchEvent(new CustomEvent('change'));
   });
 
   document.querySelector('.fa.fa-info.style').addEventListener('click', event => {
