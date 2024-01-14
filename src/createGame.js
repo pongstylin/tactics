@@ -129,6 +129,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const options = gameTypes.map(gameType => `<OPTION value="${gameType.id}">${gameType.name}</OPTION>`);
     const selGameType = document.querySelector('SELECT[name=type]');
     selGameType.innerHTML = options.join('');
+    selGameType.disabled = false;
 
     document.querySelector('SELECT[name=type]').dispatchEvent(new CustomEvent('change'));
   });
