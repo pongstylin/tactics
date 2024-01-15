@@ -955,7 +955,7 @@ export default class SetBuilder extends Modal {
 
           popup('Sorry!  Unable to share or copy an image of your set.');
           report({
-            type: 'Unable to share canvas',
+            type: 'Unable to copy canvas',
             error: getErrorData(error),
           });
         });
@@ -1290,7 +1290,7 @@ export default class SetBuilder extends Modal {
     board.setHighlight(noplaces, {
       action: 'noplace',
       color: 0x000000,
-      alpha: 0.3,
+      alpha: 0,
       onFocus: ({ target:tile }) => {
         if (!tile.is_interactive()) return;
 
