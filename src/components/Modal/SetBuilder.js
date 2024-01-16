@@ -1240,6 +1240,8 @@ export default class SetBuilder extends Modal {
     const hasFullSet = this._hasFullSet();
     const places = [];
     const noplaces = [];
+    const masked = [];
+    const blacked = [];
 
     for (let x = 0; x < 11; x++) {
       for (let y = 0; y < 11; y++) {
@@ -1254,6 +1256,17 @@ export default class SetBuilder extends Modal {
         } else {
           tile.set_interactive(!!tile.assigned);
           noplaces.push(tile);
+
+          if (board.rotation === 'N' && tile.y >= 5)
+            masked.push(tile);
+          else if (board.rotation === 'S' && tile.y <= 5)
+            masked.push(tile);
+          else if (board.rotation === 'E' && tile.x <= 5)
+            masked.push(tile);
+          else if (board.rotation === 'W' && tile.x >= 5)
+            masked.push(tile);
+          else
+            blacked.push(tile);
         }
       }
     }
@@ -1287,26 +1300,16 @@ export default class SetBuilder extends Modal {
       },
     });
 
-    board.setHighlight(noplaces, {
-      action: 'noplace',
+    board.setHighlight(masked, {
+      action: 'masked',
       color: 0x000000,
       alpha: 0,
-      onFocus: ({ target:tile }) => {
-        if (!tile.is_interactive()) return;
+    }, true);
 
-        Tactics.playSound('focus');
-        tile.paint('focus', 0.3, 0xFFFFFF);
-        this.renderBoard();
-      },
-      onBlur: ({ target:tile }) => {
-        if (!tile.is_interactive()) return;
-
-        tile.paint('noplace', 0.3, 0x000000);
-        this.renderBoard();
-      },
-      onSelect: ({ target:tile }) => {
-        this.selected = tile.assigned;
-      },
+    board.setHighlight(blacked, {
+      action: 'noplace',
+      color: 0x000000,
+      alpha: 0.3,
     }, true);
 
     return { places, noplaces };
