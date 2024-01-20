@@ -34,6 +34,40 @@ Object.defineProperty(Array.prototype, 'last', {
   },
 });
 
+/*
+ * fn() is expected to handle type checking and caching of expensive computations when required.
+ */
+Object.defineProperty(Array.prototype, 'max', {
+  value: function (fn) {
+    if (this.length === 0)
+      return;
+
+    if (!fn)
+      return this.reduce((a, b) => {
+        if (a === undefined)
+          return b;
+        if (b === undefined)
+          return a;
+        return a > b ? a : b;
+      });
+
+    const max = {
+      item: this[0],
+      value: fn(this[0]),
+    };
+    for (let i = 1; i < this.length; i++) {
+      const item = this[i];
+      const value = fn(item);
+      if (value > max.value) {
+        max.item = item;
+        max.value = value;
+      }
+    }
+
+    return max.item;
+  },
+});
+
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 /*
  * Sort the item before its peers.

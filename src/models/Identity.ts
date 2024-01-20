@@ -13,6 +13,7 @@ interface Relationship {
 export default class Identity extends ActiveModel {
   protected data: {
     id: string
+    name: string
     muted: boolean
     admin: boolean
     lastSeenAt: Date
@@ -48,6 +49,15 @@ export default class Identity extends ActiveModel {
   get id() {
     return this.data.id;
   }
+  get name() {
+    return this.data.name;
+  }
+  set name(name) {
+    if (this.data.name === name)
+      return;
+    this.data.name = name;
+    this.emit('change:name');
+  }
   get muted() {
     return this.data.muted;
   }
@@ -81,7 +91,17 @@ export default class Identity extends ActiveModel {
     return this.data.lastSeenAt.getTime() + 30 * 86400 * 1000 - Date.now();
   }
 
+  get needsIndex() {
+    if (this.ttl <= 0)
+      return false;
+    if (this.data.name === null && this.data.relationships.size === 0)
+      return false;
+
+    return true;
+  }
+
   merge(identity) {
+    this.name = identity.name;
     if (identity.lastSeenAt > this.data.lastSeenAt)
       this.lastSeenAt = identity.lastSeenAt;
 
@@ -112,9 +132,6 @@ export default class Identity extends ActiveModel {
   /*
    * Relationship Management
    */
-  hasAnyRelationship() {
-    return this.data.relationships.size > 0;
-  }
   hasRelationship(playerId) {
     return this.data.relationships.has(playerId);
   }
