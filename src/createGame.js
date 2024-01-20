@@ -420,8 +420,9 @@ window.addEventListener('DOMContentLoaded', () => {
         divConfigure.classList.add('show');
 
         state.createInProgress = false;
-        // Log the error
-        throw error;
+        // Log client-side errors
+        if (!error.code)
+          throw error;
       });
   });
 });
