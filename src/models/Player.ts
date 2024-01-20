@@ -85,7 +85,7 @@ export default class Player extends ActiveModel {
     return new Player(data);
   }
 
-  static validatePlayerName(name) {
+  static validatePlayerName(name, checkIdentities = true) {
     if (!name)
       throw new ServerError(422, 'Player name is required');
     if (name.length > 20)
@@ -109,6 +109,8 @@ export default class Player extends ActiveModel {
       throw new ServerError(403, 'The # symbol is reserved');
     if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
       throw new ServerError(403, 'The name may not contain markup');
+    if (this.identities.sharesName(this.identityId, profile.name))
+      throw new ServerError(403, 'The name is currently in use');
   }
 
   get id() {
@@ -206,8 +208,6 @@ export default class Player extends ActiveModel {
           return;
 
         Player.validatePlayerName(profile.name);
-        if (this.identities.includesName(profile.name))
-          throw new ServerError(403, 'The name is currently in use');
 
         this.data.name = profile.name;
         this.data.confirmName = false;
@@ -401,7 +401,7 @@ export default class Player extends ActiveModel {
     if (oldRelationship?.type === relationship.type && oldRelationship.name === relationship.name)
       return false;
 
-    Player.validatePlayerName(relationship.name);
+    Player.validatePlayerName(relationship.name, false);
 
     player.identity.setRelationship(this.id, {
       type: relationship.type,
