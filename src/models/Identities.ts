@@ -88,11 +88,11 @@ export default class Identities extends ActiveModel {
 
     return relationships;
   }
-  sharesName(identityId, name) {
+  sharesName(name, forIdentity) {
     const normalizedName = name.toLowerCase().replace(/ /g, '');
 
     for (const identity of this.identities)
-      if (identity.id !== identityId && identity.name?.toLowerCase().replace(/ /g, '') === normalizedName)
+      if (identity !== forIdentity && identity.name?.toLowerCase().replace(/ /g, '') === normalizedName)
         return true;
 
     return false;

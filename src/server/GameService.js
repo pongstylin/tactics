@@ -467,21 +467,22 @@ export default class GameService extends Service {
 
       teamData.slot = slot;
 
-      let team;
-      if (teamData.playerId && teamData.playerId !== playerId) {
+      if (teamData.playerId) {
         const player = await this._getAuthPlayer(teamData.playerId);
         if (!player)
-          throw new ServerError(404, 'A team has an unrecognized player ID');
+          throw new ServerError(404, `Team ${slot} has an unrecognized playerId`);
+        if (teamData.name !== undefined && teamData.name !== null)
+          Player.validatePlayerName(teamData.name, player.identity);
+      } else if (teamData.name !== undefined)
+        throw new ServerError(400, `Team ${slot} playerId field is required a name is present`);
 
+      let team;
+      if (teamData.playerId && teamData.playerId !== playerId)
         team = Team.createReserve(teamData, clientPara);
-      } else if (teamData.set === undefined && gameType.isCustomizable) {
+      else if (teamData.set === undefined && gameType.isCustomizable)
         team = Team.createReserve(teamData, clientPara);
-      } else {
-        if (teamData.name !== undefined)
-          Player.validatePlayerName(teamData.name);
-
+      else
         team = Team.createJoin(teamData, clientPara, game, gameType);
-      }
 
       await this._joinGame(game, gameType, team);
     }
@@ -525,9 +526,6 @@ export default class GameService extends Service {
   async onJoinGameRequest(client, gameId, teamData = {}) {
     this.debug(`joinGame: gameId=${gameId}`);
 
-    if (teamData.name !== undefined && teamData.name !== null)
-      Player.validatePlayerName(teamData.name);
-
     const clientPara = this.clientPara.get(client.id);
     const playerId = clientPara.playerId;
     const game = await this.data.getGame(gameId);
@@ -541,6 +539,9 @@ export default class GameService extends Service {
     const creator = await this._getAuthPlayer(game.createdBy);
     if (creator.hasBlocked(player, !!game.collection))
       throw new ServerError(403, 'You are blocked from joining this game.');
+
+    if (teamData.name !== undefined && teamData.name !== null)
+      Player.validatePlayerName(teamData.name, player.identity);
 
     /*
      * You can't play a blocked player.  But you can downgrade them to muted first.
