@@ -191,7 +191,14 @@ schema.oneOf.forEach((schema, i) => {
 });
 
 const sessions = new Map();
+
+/*
+ * This Set and Map guards against duplicate/concurrent API requests.
+ * The Set is used for detecting and rejecting duplicate/concurrent API requests.
+ * The Map is used for consolidating duplicate/concurrent requests into a single response.
+ */
 const requests = new Set();
+const requestsMap = new Map();
 
 /*
  * This function is called to route a new connection.
@@ -775,10 +782,16 @@ async function onRequestMessage(client, message) {
       source: { method:body.method },
     });
 
-  try {
-    service.will(client, message.type, body);
+  const requestKey = `${client.id}:request:${body.service}:${body.method}:${JSON.stringify(body.args)}`;
 
-    const data = await service[method](client, ...body.args, message.receivedAt);
+  try {
+    if (!requestsMap.has(requestKey)) {
+      service.will(client, message.type, body);
+
+      requestsMap.set(requestKey, service[method](client, ...body.args, message.receivedAt));
+    }
+
+    const data = await requestsMap.get(requestKey);
     if (client.closed)
       return;
 
@@ -786,6 +799,8 @@ async function onRequestMessage(client, message) {
   } catch (error) {
     sendErrorResponse(client, requestId, error);
   }
+
+  requestsMap.delete(requestKey);
 }
 
 async function onJoinMessage(client, message) {

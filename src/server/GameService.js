@@ -1,5 +1,4 @@
 import uaparser from 'ua-parser-js';
-import util from 'util';
 
 import setsById from '#config/sets.js';
 import AccessToken from '#server/AccessToken.js';
