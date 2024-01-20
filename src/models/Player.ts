@@ -48,7 +48,7 @@ export default class Player extends ActiveModel {
     checkoutAt: Date
     createdAt: Date
   }
-  public identities: Identities
+  static identities: Identities
   public identity: Identity
 
   constructor(data) {
@@ -85,7 +85,13 @@ export default class Player extends ActiveModel {
     return new Player(data);
   }
 
-  static validatePlayerName(name, checkIdentities = true) {
+  /*
+   * checkIdentity can be:
+   *  true: Check all identities for the name and throw error if found
+   *  false: Do not check identities.
+   *  Identity: Check all identities on behalf of provided Identity.
+   */
+  static validatePlayerName(name, checkIdentity:boolean | Identity = true) {
     if (!name)
       throw new ServerError(422, 'Player name is required');
     if (name.length > 20)
@@ -109,7 +115,8 @@ export default class Player extends ActiveModel {
       throw new ServerError(403, 'The # symbol is reserved');
     if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
       throw new ServerError(403, 'The name may not contain markup');
-    if (this.identities.sharesName(this.identityId, profile.name))
+
+    if (checkIdentity && Player.identities.sharesName(name, checkIdentity))
       throw new ServerError(403, 'The name is currently in use');
   }
 
@@ -207,7 +214,7 @@ export default class Player extends ActiveModel {
         if (oldValue === newValue && this.data.confirmName === false)
           return;
 
-        Player.validatePlayerName(profile.name);
+        Player.validatePlayerName(profile.name, this.identity);
 
         this.data.name = profile.name;
         this.data.confirmName = false;
@@ -270,7 +277,7 @@ export default class Player extends ActiveModel {
     this.data.checkinAt = new Date();
     this.emit('change:checkin');
     this.identity.lastSeenAt = this.data.checkinAt;
-    this.identities.add(this.identity);
+    Player.identities.add(this.identity);
   }
   checkout(client, deviceId) {
     const now = Date.now();
@@ -280,7 +287,7 @@ export default class Player extends ActiveModel {
       this.data.devices.get(deviceId).checkoutAt = checkoutAt;
       this.emit('change:checkout');
       this.identity.lastSeenAt = this.data.checkoutAt;
-      this.identities.add(this.identity);
+      Player.identities.add(this.identity);
     }
   }
 
@@ -364,7 +371,7 @@ export default class Player extends ActiveModel {
     return this.identity.muted;
   }
   getActiveRelationships() {
-    return this.identities.getRelationships(this.id);
+    return Player.identities.getRelationships(this.id);
   }
   getRelationship(player) {
     const relationship:any = player.identity.getRelationship(this.id) ?? {};

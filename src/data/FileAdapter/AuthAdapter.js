@@ -53,6 +53,8 @@ export default class extends FileAdapter {
     for (const identity of identities.values())
       cache.add(identity.id, identity, identity.ttl)
 
+    Player.identities = this.state.identities;
+
     return this;
   }
 
@@ -167,7 +169,6 @@ export default class extends FileAdapter {
   async _createPlayer(player) {
     const buffer = this.buffer.get('player');
 
-    player.identities = this.state.identities;
     player.identity = Identity.create(player);
 
     await Promise.all([
@@ -195,7 +196,6 @@ export default class extends FileAdapter {
 
       const player = serializer.normalize(migrate('player', data));
 
-      player.identities = this.state.identities;
       player.identity = await this._getIdentity(player.identityId);
 
       player.once('change', event => buffer.add(playerId, player));
