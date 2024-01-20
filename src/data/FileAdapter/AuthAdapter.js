@@ -10,10 +10,11 @@ import Player from '#models/Player.js';
 import Provider from '#models/Provider.js';
 
 export default class extends FileAdapter {
-  constructor() {
+  constructor(options = {}) {
     super({
       name: 'auth',
-      hasState: true,
+      state: {},
+      hasState: options.hasState ?? true,
       fileTypes: new Map([
         [
           'player', {
@@ -327,6 +328,23 @@ export default class extends FileAdapter {
         }
 
         resolve(playerIds);
+      });
+    });
+  }
+  listAllIdentityIds() {
+    return new Promise((resolve, reject) => {
+      const identityIds = [];
+      const regex = /^identity_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
+
+      fs.readdir(this.filesDir, (err, fileNames) => {
+        for (let i=0; i<fileNames.length; i++) {
+          const match = regex.exec(fileNames[i]);
+          if (!match) continue;
+
+          identityIds.push(match[1]);
+        }
+
+        resolve(identityIds);
       });
     });
   }

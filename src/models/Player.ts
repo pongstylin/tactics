@@ -182,6 +182,7 @@ export default class Player extends ActiveModel {
     provider.linkPlayerId(this.id, memberId);
     this.data.authProviderLinks.set(provider.id, memberId);
     this.data.verified = true;
+    this.identity.name = this.name;
     this.emit('change:linkAuthProvider');
   }
   unlinkAuthProvider(provider) {
@@ -205,8 +206,13 @@ export default class Player extends ActiveModel {
           return;
 
         Player.validatePlayerName(profile.name);
+        if (this.identities.includesName(profile.name))
+          throw new ServerError(403, 'The name is currently in use');
+
         this.data.name = profile.name;
         this.data.confirmName = false;
+        if (this.data.verified)
+          this.identity.name = profile.name;
 
         // Create new access token(s) with the new name
         for (let [deviceId, device] of this.data.devices)

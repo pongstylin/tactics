@@ -33,9 +33,7 @@ export default class Identities extends ActiveModel {
   add(identity) {
     if (this.data.has(identity.id))
       return false;
-    if (identity.ttl <= 0)
-      return false;
-    if (!identity.hasAnyRelationship())
+    if (!identity.needsIndex)
       return false;
 
     this.data.add(identity.id);
@@ -89,6 +87,15 @@ export default class Identities extends ActiveModel {
     }
 
     return relationships;
+  }
+  includesName(name) {
+    const normalizedName = name.toLowerCase().replace(/ /g, '');
+
+    for (const identity of this.identities)
+      if (identity.name?.toLowerCase().replace(/ /g, '') === normalizedName)
+        return true;
+
+    return false;
   }
 };
 

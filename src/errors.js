@@ -41,6 +41,8 @@ var unhandledrejectionListener = function (event) {
 
     if (error instanceof Error)
       reportData.error = getErrorData(error);
+    else if (error instanceof Event)
+      reportData.error = getEventData(error);
     else if (error !== undefined)
       reportData.error = error + '';
     reportData.promise = promise.tags;
@@ -83,7 +85,7 @@ function getErrorData(error) {
   if (!(error instanceof Error))
     return { message:error };
 
-  let stack = error.stack;
+  var stack = error.stack;
   if (typeof stack === 'string') {
     stack = stack.split('\n');
     if (stack[0] === `${error.name}: ${error.message}`)
@@ -99,6 +101,21 @@ function getErrorData(error) {
     columnNumber: error.columnNumber,
     stack,
   };
+}
+function getEventData(error) {
+  var data = {};
+  var key;
+
+  for (key in error) {
+    if (error[key] instanceof Node)
+      data[key] = 'Node';
+    else if (error[key] instanceof Window)
+      data[key] = 'Window';
+    else
+      data[key] = error[key];
+  }
+
+  return { type:'Event', data:data };
 }
 
 function reportError(error) {
