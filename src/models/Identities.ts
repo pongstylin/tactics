@@ -1,6 +1,7 @@
 import ActiveModel from '#models/ActiveModel.js';
 import Identity from '#models/Identity.js';
 import serializer from '#utils/serializer.js';
+import decancer from '#utils/decancer.js';
 
 export default class Identities extends ActiveModel {
   protected data: Set<string>
@@ -89,10 +90,10 @@ export default class Identities extends ActiveModel {
     return relationships;
   }
   sharesName(name, forIdentity) {
-    const normalizedName = name.toLowerCase().replace(/ /g, '');
+    const curedName = decancer(name);
 
     for (const identity of this.identities)
-      if (identity !== forIdentity && identity.name?.toLowerCase().replace(/ /g, '') === normalizedName)
+      if (identity !== forIdentity && decancer(identity.name) === curedName)
         return true;
 
     return false;

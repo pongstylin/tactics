@@ -74,6 +74,7 @@
     "ajv-formats": "^2.1.1",
     "ajv-keywords": "^5.1.0",
     "bufferutil": "^4.0.1",
+    "decancer": "^1.6.5",
     "discord.js": "^14.14.1",
     "events": "^3.3.0",
     "express": "^4.16.4",
@@ -92,6 +93,6 @@
     "uuid": "^9.0.1",
     "web-push": "^3.6.6",
     "ws": "^8.2.2",
-    "xregexp": "^4.2.4"
+    "xregexp": "^5.1.1"
   }
 }
