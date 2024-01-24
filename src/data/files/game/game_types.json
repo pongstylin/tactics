@@ -673,6 +673,45 @@
     }
   ],
   [
+    "ultimateGrey",
+    {
+      "name": "Ultimate Grey",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
+        "units": {
+          "types": [
+            ["Cleric",         { "max":1 }],
+            ["Knight",         { "max":1 }],
+            ["Pyromancer",     { "max":1 }],
+            ["Enchantress",    { "max":1 }],
+            ["Scout",          { "max":1 }],
+            ["Assassin",       { "max":1 }],
+            ["BarrierWard",    { "max":1 }],
+            ["DarkMagicWitch", { "max":1 }],
+            ["LightningWard",  { "max":1 }],
+            ["Berserker",      { "max":1 }]
+          ]
+        }
+      },
+      "sets": [{
+        "units": [
+          { "assignment":[5,4], "type":"LightningWard" },
+          { "assignment":[4,3], "type":"Knight" },
+          { "assignment":[7,3], "type":"Assassin" },
+          { "assignment":[3,2], "type":"Scout" },
+          { "assignment":[4,2], "type":"DarkMagicWitch" },
+          { "assignment":[6,2], "type":"Pyromancer" },
+          { "assignment":[5,1], "type":"BarrierWard" },
+          { "assignment":[6,1], "type":"Berserker" },
+          { "assignment":[4,0], "type":"Enchantress" },
+          { "assignment":[5,0], "type":"Cleric" }
+        ]
+      }]
+    }
+  ],
+  [
     "golem",
     {
       "name": "Golems!",
@@ -1025,7 +1064,7 @@
     "tao100",
     {
       "name": "TAO 100",
-      "description": "This custom style invented by Pepeg gives you 100 points to spend on units for your set.  You are only allowed one copy of each unit type.",
+      "description": "This custom style invented by Pepeg, but managed by Aristocatt gives you 100 points to spend on units for your set.  You are only allowed one copy of each unit type.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
