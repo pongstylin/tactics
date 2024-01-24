@@ -676,6 +676,7 @@
     "ultimateGrey",
     {
       "name": "Ultimate Grey",
+      "description": "This custom style invented by Pepeg is a variation on Dropless Gray where you may not have more than one Knight or Pyromancer and may use a Berserker instead!",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
