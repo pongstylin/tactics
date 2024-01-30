@@ -713,6 +713,42 @@
     }
   ],
   [
+    "greystone",
+    {
+      "name": "Greystone",
+      "description": "This custom style invented by still_the_gr8st is a variation on Ultimate Grey with a Stone Golem!  Only 8 units are allowed.",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 8,
+        "units": {
+          "types": [
+            ["Cleric",         { "max":1 }],
+            ["Knight",         { "max":1 }],
+            ["Pyromancer",     { "max":1 }],
+            ["Scout",          { "max":1 }],
+            ["Assassin",       { "max":1 }],
+            ["DarkMagicWitch", { "max":1 }],
+            ["Berserker",      { "max":1 }],
+            ["StoneGolem",     { "max":1 }]
+          ]
+        }
+      },
+      "sets": [{
+        "units": [
+          { "assignment":[7,2], "type":"Scout" },
+          { "assignment":[8,2], "type":"Assassin" },
+          { "assignment":[6,3], "type":"Knight" },
+          { "assignment":[7,3], "type":"Pyromancer" },
+          { "assignment":[8,3], "type":"DarkMagicWitch" },
+          { "assignment":[6,4], "type":"Berserker" },
+          { "assignment":[7,4], "type":"StoneGolem" },
+          { "assignment":[8,4], "type":"Cleric" }
+        ]
+      }]
+    }
+  ],
+  [
     "golem",
     {
       "name": "Golems!",
