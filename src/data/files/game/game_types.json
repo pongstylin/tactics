@@ -738,12 +738,12 @@
         "units": [
           { "assignment":[7,2], "type":"Scout" },
           { "assignment":[8,2], "type":"Assassin" },
-          { "assignment":[6,3], "type":"Knight" },
-          { "assignment":[7,3], "type":"Pyromancer" },
-          { "assignment":[8,3], "type":"DarkMagicWitch" },
-          { "assignment":[6,4], "type":"Berserker" },
-          { "assignment":[7,4], "type":"StoneGolem" },
-          { "assignment":[8,4], "type":"Cleric" }
+          { "assignment":[6,1], "type":"Knight" },
+          { "assignment":[7,1], "type":"Pyromancer" },
+          { "assignment":[8,1], "type":"DarkMagicWitch" },
+          { "assignment":[6,0], "type":"Berserker" },
+          { "assignment":[7,0], "type":"StoneGolem" },
+          { "assignment":[8,0], "type":"Cleric" }
         ]
       }]
     }
