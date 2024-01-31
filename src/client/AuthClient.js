@@ -145,15 +145,16 @@ export default class AuthClient extends Client {
     return this._server.requestAuthorized(this.name, 'getDevices');
   }
   addDevice(identityToken) {
-    let promise;
-    if (this.token)
-      promise = this.removeDevice(this.deviceId);
-    else
-      promise = Promise.resolve();
+    const promise = this.token ? this.logout() : Promise.resolve();
 
     return promise.then(() =>
       this._server.request(this.name, 'addDevice', [ identityToken ])
         .then(token => this._storeToken(token, true))
+        .catch(() => {
+          if (error === 'Connection reset')
+            return this.addDevice(identityToken);
+          throw error;
+        })
     );
   }
   setDeviceName(deviceId, deviceName) {
