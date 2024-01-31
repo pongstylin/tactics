@@ -92,8 +92,8 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
-  createIdentityToken() {
-    return this._server.requestAuthorized(this.name, 'createIdentityToken');
+  createIdentityToken(playerId = null) {
+    return this._server.requestAuthorized(this.name, 'createIdentityToken', [ playerId ]);
   }
   revokeIdentityToken() {
     return this._server.requestAuthorized(this.name, 'revokeIdentityToken');
