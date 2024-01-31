@@ -28,7 +28,7 @@ export default class AuthService extends Service {
         saveProfile: [ 'auth:profile' ],
         refreshToken: `tuple([ 'AccessToken({ ignoreExpiration:true })' ], 0)`,
 
-        createIdentityToken: [],
+        createIdentityToken: [ 'uuid' ],
         getIdentityToken: [],
         revokeIdentityToken: [],
 
