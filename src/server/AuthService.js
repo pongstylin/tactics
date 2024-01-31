@@ -166,10 +166,13 @@ export default class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
+    let player = this.data.getOpenPlayer(clientPara.playerId);
 
-    if (playerId && playerId !== clientPara.playerId && !player.identity.isAdmin)
-      throw new ServerError(401, 'You must be an admin to create identity tokens for other players.');
+    if (playerId && playerId !== clientPara.playerId) {
+      if (!player.identity.isAdmin)
+        throw new ServerError(401, 'You must be an admin to create identity tokens for other players.');
+      player = await this.data.getPlayer(playerId);
+    }
 
     player.setIdentityToken();
 
