@@ -872,12 +872,14 @@ async function joinGame(arena) {
   let { set, randomSide } = state.settings;
   if (set === 'ask' && tabContent.sets.length === 1)
     set = tabContent.sets[0].id;
-  else if (set === 'ask')
+  else if (set === 'ask') {
     set = await popup({
       message: 'Choose set.',
       buttons: tabContent.sets.map(s => ({ label:s.name, value:s.id })),
-      closeOnCancel: false,
     }).whenClosed;
+    if (set === undefined)
+      return false;
+  }
 
   try {
     state.activeGameId = arena.id;

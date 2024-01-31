@@ -1043,7 +1043,6 @@ function renderMessage(message) {
 function resetPrompts() {
   const divPrompts = document.querySelector('#prompts');
 
-  console.log(game.state.currentTurnId, game.state.playerRequest?.turnId, game.state.lockedTurnId);
   if (game.state.playerRequest === null)
     divPrompts.innerHTML = '';
   // Used to clear cancelled requests after they become irrelevant (esp. undo requests)
