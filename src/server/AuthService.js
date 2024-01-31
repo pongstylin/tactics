@@ -28,7 +28,7 @@ export default class AuthService extends Service {
         saveProfile: [ 'auth:profile' ],
         refreshToken: `tuple([ 'AccessToken({ ignoreExpiration:true })' ], 0)`,
 
-        createIdentityToken: [],
+        createIdentityToken: [ 'uuid' ],
         getIdentityToken: [],
         revokeIdentityToken: [],
 
@@ -161,12 +161,19 @@ export default class AuthService extends Service {
     return player.getAccessToken(device.id);
   }
 
-  async onCreateIdentityTokenRequest(client) {
+  async onCreateIdentityTokenRequest(client, playerId) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
+    let player = this.data.getOpenPlayer(clientPara.playerId);
+
+    if (playerId && playerId !== clientPara.playerId) {
+      if (!player.identity.isAdmin)
+        throw new ServerError(401, 'You must be an admin to create identity tokens for other players.');
+      player = await this.data.getPlayer(playerId);
+    }
+
     player.setIdentityToken();
 
     return player.identityToken;
