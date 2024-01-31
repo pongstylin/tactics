@@ -381,6 +381,9 @@ export default class AuthService extends Service {
    * (Authorization not required)
    */
   async onAddDeviceRequest(client, token) {
+    if (this.clientPara.has(client.id))
+      throw new ServerError(400, 'To add a device, you must first logout');
+
     const player = await this.data.getPlayer(token.playerId);
 
     return player.addDevice(client, token).token;
