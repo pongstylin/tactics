@@ -128,7 +128,7 @@ export default class FileAdapter {
 
       cache.on('expire', ({ data:items }) => {
         for (const [ itemId, item ] of items) {
-          this.debugV(`cache:expire=${itemId}; destroy=${!buffer.has(itemId)}`);
+          this.debugV(`${cache.name}:expire=${itemId}; destroy=${!buffer.has(itemId)}`);
           if (!buffer.has(itemId))
             item.destroy();
         }
@@ -136,7 +136,7 @@ export default class FileAdapter {
       buffer.on('expire', async ({ data:items }) => {
         await Promise.all([ ...items.values() ].map(i => this[fileConfig.saver](i)));
         for (const [ itemId, item ] of items) {
-          this.debugV(`buffer:expire=${itemId}; destroy=${!cache.has(itemId)}`);
+          this.debugV(`${buffer.name}:expire=${itemId}; destroy=${!cache.has(itemId)}`);
           if (!cache.has(itemId))
             item.destroy();
         }

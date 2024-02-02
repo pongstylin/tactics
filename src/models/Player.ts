@@ -277,7 +277,6 @@ export default class Player extends ActiveModel {
     this.data.checkinAt = new Date();
     this.emit('change:checkin');
     this.identity.lastSeenAt = this.data.checkinAt;
-    Player.identities.add(this.identity);
   }
   checkout(client, deviceId) {
     const now = Date.now();
@@ -287,7 +286,6 @@ export default class Player extends ActiveModel {
       this.data.devices.get(deviceId).checkoutAt = checkoutAt;
       this.emit('change:checkout');
       this.identity.lastSeenAt = this.data.checkoutAt;
-      Player.identities.add(this.identity);
     }
   }
 

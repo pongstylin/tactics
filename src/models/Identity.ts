@@ -71,7 +71,7 @@ export default class Identity extends ActiveModel {
     return this.data.lastSeenAt;
   }
   set lastSeenAt(lastSeenAt) {
-    if (+lastSeenAt === +this.lastSeenAt)
+    if (+lastSeenAt <= +this.lastSeenAt)
       return;
 
     this.data.lastSeenAt = lastSeenAt;

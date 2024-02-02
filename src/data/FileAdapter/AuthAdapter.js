@@ -40,13 +40,11 @@ export default class extends FileAdapter {
     const cache = this.cache.get('identity');
     const identities = state.identities ||= Identities.create();
     identities.on('change', () => this.saveState());
-    identities.on('change:add', ({ data:{ identity } }) => cache.add(identity.id, identity, identity.ttl));
     identities.on('change:merge', ({ data:{ identity } }) => this._deleteIdentity(identity));
 
     cache.on('expire', ({ data:items }) => {
-      for (const identity of items.values()) {
+      for (const identity of items.values())
         identities.archive(identity);
-      }
     });
 
     identities.setValues(await Promise.all(identities.getIds().map(iId => this._getIdentity(iId))));
@@ -219,13 +217,11 @@ export default class extends FileAdapter {
   }
 
   async _createIdentity(identity) {
-    const buffer = this.buffer.get('identity');
-
     await this.createFile(`identity_${identity.id}`, () => {
       const data = serializer.transform(identity);
       data.version = getLatestVersionNumber('identity');
 
-      identity.once('change', () => buffer.add(identity.id, identity));
+      this.subscribeIdentity(identity);
       return data;
     });
   }
@@ -243,8 +239,7 @@ export default class extends FileAdapter {
 
       const identity = serializer.normalize(migrate('identity', data));
 
-      identity.once('change', () => buffer.add(identityId, identity));
-      return identity;
+      return this._subscribeIdentity(identity);
     });
   }
   async _saveIdentity(identity) {
@@ -269,6 +264,19 @@ export default class extends FileAdapter {
     identity.destroy();
 
     await this.deleteFile(`identity_${identity.id}`);
+  }
+  _subscribeIdentity(identity) {
+    const identities = this.state.identities;
+    const cache = this.cache.get('identity');
+    const buffer = this.buffer.get('identity');
+
+    identity.once('change', () => buffer.add(identity.id, identity));
+    identity.on('change:lastSeenAt', () => {
+      identities.add(identity);
+      cache.add(identity.id, identity, identity.ttl);
+    });
+
+    return identity;
   }
 
   async _getProvider(providerId) {
