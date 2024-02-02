@@ -715,8 +715,45 @@
   [
     "greystone",
     {
-      "name": "Silverstone",
+      "name": "Greystone",
+      "archived": true,
       "description": "This custom style invented by still_the_gr8st is a variation on Ultimate Grey with a Stone Golem!  Only 8 units are allowed.",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 8,
+        "units": {
+          "types": [
+            ["Cleric",         { "max":1 }],
+            ["Knight",         { "max":1 }],
+            ["Pyromancer",     { "max":1 }],
+            ["Scout",          { "max":1 }],
+            ["DarkMagicWitch", { "max":1 }],
+            ["Berserker",      { "max":1 }],
+            ["Assassin",       { "max":1 }],
+            ["StoneGolem",     { "max":1 }]
+          ]
+        }
+      },
+      "sets": [{
+        "units": [
+          { "assignment":[7,2], "type":"Scout" },
+          { "assignment":[8,2], "type":"Assassin" },
+          { "assignment":[6,1], "type":"Knight" },
+          { "assignment":[7,1], "type":"Pyromancer" },
+          { "assignment":[8,1], "type":"DarkMagicWitch" },
+          { "assignment":[6,0], "type":"Berserker" },
+          { "assignment":[7,0], "type":"StoneGolem" },
+          { "assignment":[8,0], "type":"Cleric" }
+        ]
+      }]
+    }
+  ],
+  [
+    "silverstone",
+    {
+      "name": "Silverstone",
+      "description": "This custom style invented by still_the_gr8st requires exactly 8 units including a Stone Golem, but excluding a Scout!",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
