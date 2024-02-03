@@ -92,7 +92,7 @@ export default class Unit {
     if (this.aLOS === true)
       return this.getLOSTargetTiles(target, source);
     else if (this.aAll === true)
-      return this.getAttackTiles(source);
+      return [...this.getAttackTiles(source), this.assignment];
     else if (this.aLinear === true) {
       let direction = this.board.getDirection(source, target);
       let targets = [];
