@@ -49,7 +49,7 @@ export default class extends FileAdapter {
 
     identities.setValues(await Promise.all(identities.getIds().map(iId => this._getIdentity(iId))));
     for (const identity of identities.values())
-      cache.add(identity.id, identity, identity.ttl)
+      cache.add(identity.id, identity, identity.expireAt)
 
     Player.identities = this.state.identities;
 
@@ -81,7 +81,7 @@ export default class extends FileAdapter {
   }
   closePlayer(playerId) {
     const player = this.cache.get('player').close(playerId);
-    const expireAt = new Date(Math.max(this.cache.get('player').getExpireAt(playerId), player.identity.ttl));
+    const expireAt = new Date(Math.max(this.cache.get('player').getExpireAt(playerId), player.identity.expireAt));
     this.cache.get('identity').close(player.identityId, expireAt);
     return player;
   }
@@ -273,7 +273,7 @@ export default class extends FileAdapter {
     identity.once('change', () => buffer.add(identity.id, identity));
     identity.on('change:lastSeenAt', () => {
       identities.add(identity);
-      cache.add(identity.id, identity, identity.ttl);
+      cache.add(identity.id, identity, identity.expireAt);
     });
 
     return identity;
