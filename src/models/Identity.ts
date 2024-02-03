@@ -90,9 +90,12 @@ export default class Identity extends ActiveModel {
   get ttl() {
     return this.data.lastSeenAt.getTime() + 30 * 86400 * 1000 - Date.now();
   }
+  get expireAt() {
+    return new Date(this.data.lastSeenAt.getTime() + 30 * 86400 * 1000);
+  }
 
   get needsIndex() {
-    if (this.ttl <= 0)
+    if (this.expireAt.getTime() <= Date.now())
       return false;
     if (this.data.name === null && this.data.relationships.size === 0)
       return false;
