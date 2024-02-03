@@ -221,7 +221,7 @@ export default class extends FileAdapter {
       const data = serializer.transform(identity);
       data.version = getLatestVersionNumber('identity');
 
-      this.subscribeIdentity(identity);
+      this._subscribeIdentity(identity);
       return data;
     });
   }
