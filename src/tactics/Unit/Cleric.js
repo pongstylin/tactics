@@ -8,7 +8,14 @@ export default class Cleric extends Unit {
     return this.getAttackTiles();
   }
   getTargetUnits() {
-    return this.team.units.filter(u => u.mHealth < 0);
+    return [
+      ...this.team.units.filter(u => {
+        const notDuplicatedSelf = u !== this; // Don't double heal self
+        const isDamaged =  u.mHealth < 0;
+        return notDuplicatedSelf && isDamaged;
+      }),
+      this // Add self as target for double click
+    ];
   }
   /*
    * Customized to show effect on all units, not just healed units.
@@ -45,7 +52,21 @@ export default class Cleric extends Unit {
     return anim;
   }
   getAttackResults(action) {
-    let results = super.getAttackResults(action);
+    const board = this.board;
+    const calcs = this.getTargetUnits(action.target)
+      .map(targetUnit => [
+        targetUnit,
+        this.calcAttack(targetUnit, this.assignment, action.target),
+      ])
+      // Remove full health targets from healing (self on double click)
+      .filter(([targetUnit]) => targetUnit.mHealth < 0);
+
+    let results = calcs.map(([targetUnit, calc]) => {
+      const result = this.getAttackResult(action, targetUnit, calc);
+      board.applyActionResults([result]);
+      this.getAttackSubResults(result);
+      return result;
+    });
 
     results.sort((a, b) =>
       a.unit.assignment.y - b.unit.assignment.y ||
