@@ -1623,7 +1623,7 @@ export default class Board {
 
   showTargets(target) {
     let selected = this.selected;
-    let targeted = this.targeted = new Set(selected.getTargetUnits(target));
+    let targeted = this.targeted = new Set(selected.getTargetUnitsWithoutSelf(target));
 
     // Units affected by the attack will pulsate.
     targeted.forEach(tu => {
@@ -1923,6 +1923,7 @@ export default class Board {
 
     let unit = tile.assigned;
     let game = Tactics.game;
+    const selected = this.selected;
 
     // Single-click attacks are only enabled for mouse pointers.
     if (tile.action === 'attack') {
@@ -1932,7 +1933,11 @@ export default class Board {
     else if (tile.action === 'target') {
       if (game.pointerType === 'mouse')
         this._clearTargetMix(tile);
-      if (unit)
+      if (selected?.aAll) {
+        // Don't unset notice for aAll targets, or it will display defaults
+        const target = selected.getTargetUnitsWithoutSelf(selected)[0];
+        selected.setTargetNotice(target);
+      } else if (unit)
         unit.change({ notice:null });
     }
 

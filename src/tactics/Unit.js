@@ -92,7 +92,7 @@ export default class Unit {
     if (this.aLOS === true)
       return this.getLOSTargetTiles(target, source);
     else if (this.aAll === true)
-      return this.getAttackTiles(source);
+      return [...this.getAttackTiles(source), this.assignment];
     else if (this.aLinear === true) {
       let direction = this.board.getDirection(source, target);
       let targets = [];
@@ -109,6 +109,13 @@ export default class Unit {
     }
 
     return [target];
+  }
+  getTargetTilesWithoutSelf(target, source = this.assignment) {
+    const targetTiles = this.getTargetTiles(target, source);
+
+    if (this.aAll)
+      return targetTiles.filter(tile => tile !== this.assignment);
+    return targetTiles;
   }
   getSpecialTargetTiles() {
     return [];
@@ -159,6 +166,13 @@ export default class Unit {
       target_units = target_units.filter(u => u.type !== 'Shrub');
 
     return target_units;
+  }
+  getTargetUnitsWithoutSelf(target) {
+    const targetUnits = this.getTargetUnits(target);
+
+    if (this.aAll && this.name !== 'Cleric') // Click should heal self
+      return targetUnits.filter(unit => unit !== this);
+    return targetUnits;
   }
   getLOSTargetTiles(target, source) {
     source = source || this.assignment;
@@ -349,7 +363,7 @@ export default class Unit {
    */
   getAttackResults(action) {
     const board = this.board;
-    const calcs = this.getTargetUnits(action.target).map(targetUnit => [
+    const calcs = this.getTargetUnitsWithoutSelf(action.target).map(targetUnit => [
       targetUnit,
       this.calcAttack(targetUnit, this.assignment, action.target),
     ]);
@@ -1319,7 +1333,7 @@ export default class Unit {
         targets.push(targetUnit.assignment);
     }
     else
-      targets = this.getTargetTiles(action.target);
+      targets = this.getTargetTilesWithoutSelf(action.target);
 
     targets.forEach(target => {
       let result = action.results.find(r => r.unit === target.assigned);
@@ -1664,7 +1678,9 @@ export default class Unit {
       `${Math.min(99, Math.max(1, Math.round(calc.chance)))}%`;
     let notice;
 
-    if (calc.effect)
+    if (this.aAll && targetUnit === this)
+      notice = ''; // aAll self taretting shouldn't show damage on self
+    else if (calc.effect)
       notice = calc.effect.toUpperCase('first')+'!';
     else if (calc.miss === 'immune')
       notice = 'Immune!';
