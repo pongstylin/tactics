@@ -1225,6 +1225,9 @@ export default class Game {
       return;
     }
 
+    /*
+     * For actions initiated by the viewing player, perform the quick version.
+     */
     const quick = (
       (!selected || selected === actor) &&
       this.isMyTeam(action.teamId) &&
