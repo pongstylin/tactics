@@ -170,7 +170,7 @@ export default class Unit {
   getTargetUnitsWithoutSelf(target) {
     const targetUnits = this.getTargetUnits(target);
 
-    if (this.aAll && this.name !== 'Cleric') // Click should heal self
+    if (this.aAll && this.type !== 'Cleric') // Cleric should be able to heal self
       return targetUnits.filter(unit => unit !== this);
     return targetUnits;
   }
@@ -1678,8 +1678,10 @@ export default class Unit {
       `${Math.min(99, Math.max(1, Math.round(calc.chance)))}%`;
     let notice;
 
-    if (this.aAll && targetUnit === this)
-      notice = ''; // aAll self taretting shouldn't show damage on self
+    if (this.type === 'Cleric' && targetUnit.mHealth === 0
+      || this.aAll && targetUnit === this && this.type !== 'Cleric')
+      // aAll shouldn't show damage on self or empty heal
+      notice = '';
     else if (calc.effect)
       notice = calc.effect.toUpperCase('first')+'!';
     else if (calc.miss === 'immune')
