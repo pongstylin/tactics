@@ -400,9 +400,10 @@ export default class extends FileAdapter {
   async scheduleAutoCancel(playerId, extended = false) {
     const playerGames = await this._getPlayerGames(playerId);
     for (const gameSummary of playerGames.values())
-      if (gameSummary.collection && !gameSummary.startedAt && gameSummary.turnTimeLimit < 86400) {
-        const game = await this._getGame(gameSummary.id);
-        this.state.autoCancel.add(gameSummary.id, true, (extended ? 3600 : game.state.turnTimeBuffer) * 1000);
+      if (gameSummary.collection && !gameSummary.startedAt) {
+        const game = await this.getGame(gameSummary.id);
+        if (game.state.timeLimit.base < 86400)
+          this.state.autoCancel.add(game.id, true, (extended ? 3600 : game.state.timeLimit.initial) * 1000);
       }
   }
   async clearAutoCancel(playerId) {
@@ -632,7 +633,7 @@ export default class extends FileAdapter {
       if (gameSummary.endedAt)
         completed.push(gameSummary);
       else if (gameSummary.startedAt && isCollectionList) {
-        if (!gameSummary.turnTimeLimit)
+        if (!gameSummary.timeLimitName)
           gameSummaryList.delete(gameSummary.id);
         else if (gameSummary.getTurnTimeRemaining(now) === 0)
           gameSummaryList.delete(gameSummary.id);
