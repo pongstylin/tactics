@@ -1,3 +1,4 @@
+import { applyTurnTimeLimit, getTurnTimeLimit } from '#config/timeLimit.js';
 import Team from '#models/Team.js';
 import ServerError from '#server/Error.js';
 import Board from '#tactics/Board.js';
@@ -68,8 +69,7 @@ export default class GameState {
         strictFork: false,
         autoSurrender: false,
         rated: false,
-        turnTimeLimit: null,
-        turnTimeBuffer: null,
+        timeLimit: null,
       },
       stateData,
       {
@@ -93,16 +93,6 @@ export default class GameState {
 
     return gameState;
   }
-  static fromJSON(stateData) {
-    if (stateData.turnTimeBuffer) {
-      for (const turn of stateData.turns) {
-        if (turn.timeBuffer === undefined)
-          turn.timeBuffer = 0;
-      }
-    }
-
-    return new GameState(stateData);
-  }
 
   /*****************************************************************************
    * Public Property Accessors
@@ -118,7 +108,6 @@ export default class GameState {
       startedAt: this.turnStartedAt,
       units: this.units,
       actions: this.actions,
-      timeBuffer: this.currentTeam.turnTimeBuffer,
     };
   }
   get currentTurnTimeLimit() {
@@ -129,6 +118,15 @@ export default class GameState {
   }
   get currentTeam() {
     return this.teams[this.currentTeamId];
+  }
+  get previousTurnId() {
+    return this.turns.length - 1;
+  }
+  get previousTeamId() {
+    return this.previousTurnId % this.teams.length;
+  }
+  get previousTeam() {
+    return this.teams[this.previousTeamId];
   }
   get activeTeams() {
     return this.teams.filter(t => !!t.units.length);
@@ -315,16 +313,12 @@ export default class GameState {
     // Fork games have already started
     if (!this.startedAt) {
       // The game and first turn starts at the same time.  This guarantee enables
-      // use to determine if a given turn is the first playable turn by comparing
+      // us to determine if a given turn is the first playable turn by comparing
       // the turn start date with the game start date.  This is currently used for
       // triggering "Your Turn" notifications at the right times.
       this.startedAt = new Date();
       this.lockedTurnId = this.getFirstTurnId() - 1;
       this.turnStartedAt = this.startedAt;
-
-      if (this.turnTimeBuffer)
-        for (const team of this.teams)
-          team.turnTimeBuffer = 0;
 
       // First turn must be passed, but at least recovery drops.
       // The second turn might be passed, too, if all units are in recovery.
@@ -357,8 +351,7 @@ export default class GameState {
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       rated: this.rated,
-      turnTimeLimit: this.turnTimeLimit,
-      turnTimeBuffer: this.turnTimeBuffer,
+      timeLimit: this.timeLimit,
       currentTurnTimeLimit: this.currentTurnTimeLimit,
 
       teams: this.teams.map(t => t && t.getData(!!this.startedAt)),
@@ -377,7 +370,7 @@ export default class GameState {
       winnerId: this.winnerId,
     };
   }
-  getTurnData(turnId = this.currentTurnId) {
+  getTurnData(turnId = this.currentTurnId, withTimeLimit = true) {
     let turnData;
 
     if (turnId === this.currentTurnId)
@@ -388,13 +381,13 @@ export default class GameState {
       };
     else if (!this.turns[turnId])
       return null;
-    else {
+    else
       turnData = {...this.turns[turnId]};
-      delete turnData.timeBuffer;
-    }
 
     turnData.id = turnId;
     turnData.teamId = turnId % this.teams.length;
+    if (withTimeLimit)
+      turnData.timeLimit = this.getTurnTimeLimit(turnId);
 
     return turnData;
   }
@@ -844,27 +837,18 @@ export default class GameState {
     return team.id + (numTeams * Math.max(waitTurns, skipTurns));
   }
   getTurnTimeLimit(turnId = this.currentTurnId) {
-    if (!this.startedAt || this.endedAt || !this.turnTimeLimit)
+    if (!this.startedAt || this.endedAt || !this.timeLimit)
       return null;
 
-    let turnTimeLimit = this.turnTimeLimit;
-    if (this.turnTimeBuffer) {
-      const teams = this.teams;
-      const teamId = turnId % teams.length;
-      const firstTurnId = this.getTeamFirstTurnId(teams[teamId]);
-      if (turnId === firstTurnId)
-        return this.turnTimeBuffer;
+    if (turnId === this.currentTurnId)
+      return this.timeLimit.current;
 
-      const turnTimeBuffer = turnId === this.currentTurnId ? this.currentTeam.turnTimeBuffer : this.turns[turnId].timeBuffer;
-      turnTimeLimit += turnTimeBuffer;
-    }
-
-    return turnTimeLimit;
+    return getTurnTimeLimit[this.timeLimit.type].call(this, turnId);
   }
   getTurnTimeRemaining(turnId = this.currentTurnId) {
     if (!this.startedAt || this.endedAt)
       return false;
-    if (!this.turnTimeLimit)
+    if (!this.timeLimit)
       return Infinity;
 
     const turnTimeLimit = this.getTurnTimeLimit(turnId);
@@ -1091,7 +1075,7 @@ export default class GameState {
     // Approval is also disabled for blitz games with auto surrender.
     if (pointer === false) {
       const hasBot = this.teams.findIndex(t => !!t.bot) > -1;
-      const approve = hasBot || this.turnTimeLimit === 30 && this.autoSurrender ? false : 'approve';
+      const approve = hasBot || this.timeLimit.base === 30 && this.autoSurrender ? false : 'approve';
 
       return approve;
     }
@@ -1166,7 +1150,7 @@ export default class GameState {
     const turnStartedAt = this.turnStartedAt;
     const actions = this._actions;
     const actionTimeout = Math.max(0, 5000 - (Date.now() - (actions.last?.createdAt ?? turnStartedAt)));
-    const turnTimeout = this.getTurnTimeRemaining(this.currentTurnId);
+    const turnTimeout = this.getTurnTimeRemaining();
 
     // Let opponents know an action has occurred 5 seconds after it was submitted.
     // Start a turn 5 seconds after the previous one ends.
@@ -1222,12 +1206,6 @@ export default class GameState {
    */
   toJSON() {
     const turns = this.turns.slice().map(t => ({ ...t }));
-    if (this.turnTimeBuffer) {
-      for (const turn of turns) {
-        if (turn.timeBuffer === 0)
-          delete turn.timeBuffer;
-      }
-    }
 
     return {
       type: this.type,
@@ -1237,8 +1215,7 @@ export default class GameState {
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       rated: this.rated,
-      turnTimeLimit: this.turnTimeLimit,
-      turnTimeBuffer: this.turnTimeBuffer,
+      timeLimit: this.timeLimit,
 
       teams: this.teams,
 
@@ -1397,7 +1374,7 @@ export default class GameState {
         throw new ServerError(403, "It is not the team's turn");
 
       // The team's timeout must be exceeded.
-      if (this.turnTimeLimit && this.getTurnTimeRemaining() > 0)
+      if (this.timeLimit && this.getTurnTimeRemaining() > 0)
         throw new ServerError(403, 'The time limit has not been exceeded');
     }
 
@@ -1492,7 +1469,7 @@ export default class GameState {
     return actions;
   }
   _pushHistory(nextTurnStartsAt = new Date()) {
-    const turn = this.currentTurn;
+    const turnData = this.getTurnData(this.currentTurnId, false);
 
     if (this.rated) {
       const undoTurnIds = this.teams.map(t => this.getUndoTurnId(t.id)).filter(tId => tId !== null);
@@ -1500,27 +1477,13 @@ export default class GameState {
         this.lockedTurnId = Math.min(...undoTurnIds) - 1;
     }
 
-    if (this.turnTimeBuffer && (turn.actions.length > 1 || !turn.actions.last.forced)) {
-      const turnStartedAt = turn.startedAt;
-      const turnEndedAt = turn.actions.last.createdAt;
-      const team = this.currentTeam;
-      const firstTurnId = this.getTeamFirstTurnId(team);
-
-      if (this.currentTurnId > firstTurnId) {
-        const turnTimeBuffer = this.turnTimeBuffer;
-        const turnTimeLimit = this.turnTimeLimit;
-        const elapsed = Math.floor((turnEndedAt - turnStartedAt) / 1000);
-        if (elapsed > turnTimeLimit)
-          team.turnTimeBuffer = 0;
-        else
-          team.turnTimeBuffer = Math.min(turnTimeBuffer, team.turnTimeBuffer + Math.max(0, (turnTimeLimit / 2) - elapsed));
-      }
-    }
-
-    this.turns.push(turn);
+    this.turns.push(turnData);
     this.turnStartedAt = nextTurnStartsAt;
     this.units = this._board.getState();
     this._actions.length = 0;
+
+    if (this.timeLimit)
+      applyTurnTimeLimit[this.timeLimit.type].call(this, 'pushed', turnData);
 
     return this;
   }
@@ -1535,7 +1498,7 @@ export default class GameState {
     if (turnId === undefined)
       turnId = turns.length - 1;
 
-    const turnData = turns[turnId];
+    const turnData = this.getTurnData(turnId, false);
 
     // Truncate the turn history.
     turns.length = turnId;
@@ -1546,20 +1509,10 @@ export default class GameState {
       _actions: [],
     });
 
-    if (this.turnTimeBuffer) {
-      this.currentTeam.turnTimeBuffer = turnData.timeBuffer;
-
-      /*
-       * Sync up other teams' turn time buffers just in case more than one turn
-       * was popped.
-       */
-      const numTeams = this.teams.length;
-      for (let tId = Math.max(0, turnId - numTeams + 1); tId < turnId; tId++) {
-        this.teams[tId % numTeams].turnTimeBuffer = turns[tId].timeBuffer;
-      }
-    }
-
     this._board.setState(this.units, this.teams);
+
+    if (this.timeLimit)
+      applyTurnTimeLimit[this.timeLimit.type].call(this, 'popped', turnData);
 
     return turnData;
   }
@@ -1584,8 +1537,17 @@ serializer.addType({
       strictFork: { type:'boolean' },
       autoSurrender: { type:'boolean' },
       rated: { type:'boolean' },
-      turnTimeLimit: { type:[ 'number', 'null' ] },
-      turnTimeBuffer: { type:[ 'number', 'null' ] },
+      timeLimit: {
+        type: 'object',
+        required: [ 'type', 'base' ],
+        properties: {
+          type: { type:'string' },
+          base: { type:'number' },
+          current: { type:'number' },
+        },
+        // For example: buffered time limits have 'initial', 'maxBuffer', and 'buffers' properties.
+        additionalProperties: true,
+      },
       teams: {
         type: 'array',
         minItems: 2,
@@ -1612,6 +1574,8 @@ serializer.addType({
               minItems: 1,
             },
           },
+          // For example: buffered time limits add a timeBuffer property.
+          additionalProperties: true,
         },
       },
       lockedTurnId: { type:[ 'number', 'null' ] },

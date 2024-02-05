@@ -239,9 +239,9 @@ whenDOMReady.then(() => {
     const gameType = await gameClient.getGameType(gameData.state.type);
 
     let message = `Want to play a ${gameType.name} game`;
-    if (gameData.state.turnTimeLimit === 120)
+    if (gameData.state.timeLimit.base === 120)
       message += ' at 2min per turn';
-    else if (gameData.state.turnTimeLimit === 30)
+    else if (gameData.state.timeLimit.base === 30)
       message += ' at 30sec per turn';
     if (!gameData.state.randomHitChance)
       message += ' without luck';
@@ -729,6 +729,7 @@ async function createGame(divArena) {
     createTimeLimit = await popup({
       message: 'Choose turn time limit.',
       buttons: [
+        { label:'Relaxed',  value:'relaxed' },
         { label:'Standard', value:'standard' },
         { label:'Blitz',    value:'blitz' },
       ],
@@ -758,7 +759,7 @@ async function createGame(divArena) {
     state.activeGameId = await gameClient.createGame(tabContent.selectedStyleId, {
       collection: `lobby/${tabContent.selectedStyleId}`,
       randomHitChance: createBlocking === 'luck',
-      turnTimeLimit: createTimeLimit,
+      timeLimitName: createTimeLimit,
       teams: [ myTeam, null ],
       tags: {
         arenaIndex: parseInt(divArena.dataset.index),
@@ -1681,8 +1682,8 @@ async function fillArena(divArena, arena = true) {
   if (!arena.startedAt) {
     if (arena.randomHitChance === false)
       labels.push('No Luck');
-    if (arena.turnTimeLimit === 30)
-      labels.push('Blitz');
+    if (arena.timeLimitName !== 'standard')
+      labels.push(arena.timeLimitName.toUpperCase('first'));
   }
 
   divArena.querySelector('.label').textContent = labels.join(', ');
@@ -1781,11 +1782,11 @@ function renderYourGames() {
       return game;
     })
     .sort((a, b) => {
-      if (a.turnTimeLimit && !b.turnTimeLimit)
+      if (a.timeLimitName && !b.timeLimitName)
         return -1;
-      else if (!a.turnTimeLimit && b.turnTimeLimit)
+      else if (!a.timeLimitName && b.timeLimitName)
         return 1;
-      else if (!a.turnTimeLimit && !b.turnTimeLimit)
+      else if (!a.timeLimitName && !b.timeLimitName)
         return b.updatedAt - a.updatedAt;
 
       return a.turnTimeRemaining - b.turnTimeRemaining;
@@ -2014,15 +2015,11 @@ function renderGame(game) {
       labels.push('No Luck');
 
     if (game.collection?.startsWith('lobby/')) {
-      if (game.turnTimeLimit === 30)
-        labels.push('Blitz');
+      if (game.timeLimitName !== 'standard')
+        labels.push(game.timeLimitName.toUpperCase('first'));
     } else {
-      if (game.turnTimeLimit === 86400)
-        labels.push('1 Day');
-      else if (game.turnTimeLimit === 120)
-        labels.push('Standard');
-      else if (game.turnTimeLimit === 30)
-        labels.push('Blitz');
+      if (game.timeLimitName !== 'week')
+        labels.push(game.timeLimitName.toUpperCase('first'))
     }
 
     if (game.isFork)
@@ -2070,11 +2067,11 @@ function renderGame(game) {
   let addClass = '';
   let elapsed;
 
-  if (state.currentTab === 'publicGames' || !game.startedAt || game.endedAt || !game.turnTimeLimit)
+  if (state.currentTab === 'publicGames' || !game.startedAt || game.endedAt || !game.timeLimitName)
     elapsed = (now - game.updatedAt) / 1000;
   else {
     elapsed = game.turnTimeRemaining / 1000;
-    if (elapsed < (game.turnTimeLimit * 0.2))
+    if (elapsed < (game.currentTurnTimeLimit * 0.2))
       addClass = 'low';
   }
 

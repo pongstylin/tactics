@@ -35,12 +35,7 @@ export default class GameSettings extends Modal {
       identity = `This is ${rated} ${vs} game.`;
     }
 
-    const timeLimit = data.game.state.turnTimeLimit;
-    const timeLimitLabel =
-      timeLimit === 30 ? 'Blitz' :
-      timeLimit === 120 ? 'Standard' :
-      timeLimit === 86400 ? '1 Day' :
-      timeLimit === 604800 ? '1 Week' : 'None';
+    const timeLimitLabel = data.game.timeLimitName?.toUpperCase('first') ?? 'None';
 
     options.title = 'Game Settings';
     options.content = `
@@ -49,7 +44,7 @@ export default class GameSettings extends Modal {
       </DIV>
       <DIV class="info">
         <DIV>Game Style: ${data.gameType.name}</DIV>
-        <DIV>Turn Time Limit: ${timeLimitLabel}</DIV>
+        <DIV>Time Limit: ${timeLimitLabel}</DIV>
         <DIV>Blocking System: ${data.game.state.randomHitChance ? 'Random (Luck)' : 'Predictable (No Luck)'}</DIV>
       </DIV>
       <DIV class="settings">

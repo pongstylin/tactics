@@ -68,11 +68,11 @@ export default class Transport {
   get rated() {
     return this._getStateData('rated');
   }
-  get turnTimeLimit() {
-    return this._getStateData('turnTimeLimit');
+  get timeLimitName() {
+    return this._getData('timeLimitName');
   }
-  get turnTimeBuffer() {
-    return this._getStateData('turnTimeBuffer');
+  get timeLimit() {
+    return this._getStateData('timeLimit');
   }
   get createdAt() {
     return this._getData('createdAt');
@@ -389,7 +389,7 @@ export default class Transport {
       const hasBot = this.teams.findIndex(t => !!t.bot) > -1;
       const approve = (
         hasBot ||
-        this.turnTimeLimit === 30 && this.autoSurrender ||
+        this.timeLimit.base === 30 && this.autoSurrender ||
         this.playerRequest?.rejected.has(`${team.playerId}:undo`)
       ) ? false : 'approve';
 
@@ -425,11 +425,21 @@ export default class Transport {
   getTurnTimeRemaining() {
     if (!this.startedAt || this.endedAt)
       return false;
-    if (!this.turnTimeLimit)
+    if (!this.timeLimit)
       return Infinity;
 
-    const turnTimeLimit = this.currentTurnTimeLimit;
-    const turnTimeout = +this.turnStartedAt + turnTimeLimit*1000 - this.now;
+    let turnData;
+    for (let tId = this.currentTurnId; tId > 0; tId--) {
+      const td = this.getRecentTurnData(tId);
+      if (!td)
+        break;
+      if (td.actions.length === 1 && td.actions.last.forced)
+        continue;
+      turnData = td;
+      break;
+    }
+
+    const turnTimeout = +turnData.startedAt + turnData.timeLimit*1000 - this.now;
 
     return Math.max(0, turnTimeout);
   }
@@ -443,6 +453,7 @@ export default class Transport {
         id: turnId,
         teamId: state.currentTeamId,
         startedAt: state.turnStartedAt,
+        timeLimit: state.currentTurnTimeLimit,
         units: state.units,
         actions: state.actions,
       };
@@ -514,6 +525,7 @@ export default class Transport {
       id: state.currentTurnId,
       teamId: state.currentTeamId,
       startedAt: state.turnStartedAt,
+      timeLimit: state.currentTurnTimeLimit,
       units: state.units,
       actions: state.actions,
     });
@@ -639,6 +651,7 @@ export default class Transport {
         id: turn.turnId,
         teamId: turn.teamId,
         startedAt: turn.startedAt,
+        timeLimit: turn.timeLimit,
         units: board.getState(),
         actions: turn.actions,
       });

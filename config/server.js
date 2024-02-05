@@ -152,7 +152,7 @@ const config = {
                   strictUndo: 'const(false)',
                   autoSurrender: 'const(true)',
                   rated: 'const(true)',
-                  turnTimeLimit: `enum([ 'blitz', 'standard' ])`,
+                  turnTimeLimit: `enum([ 'blitz', 'standard', 'relaxed' ])`,
                 },
               },
               collections: gameTypeIds.map(gtId => ({

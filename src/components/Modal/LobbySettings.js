@@ -6,35 +6,36 @@ export default class LobbySettings extends Modal {
   constructor(options = {}) {
     options.title = 'Lobby Settings';
     options.content = `
-      <DIV class="row audio">
+      <DIV class="row col3 audio">
         <DIV class="label">Audio</DIV>
         <LABEL><INPUT type="radio" name="audio" value="on"> On</LABEL>
         <LABEL><INPUT type="radio" name="audio" value="off"> Off</LABEL>
       </DIV>
-      <DIV class="row barPosition">
+      <DIV class="row col3 barPosition">
         <DIV class="label">Bar Position</DIV>
         <LABEL><INPUT type="radio" name="barPosition" value="left"> Left</LABEL>
         <LABEL><INPUT type="radio" name="barPosition" value="right"> Right</LABEL>
       </DIV>
-      <DIV class="row createBlocking">
+      <DIV class="row col4 createBlocking">
         <DIV class="label">Blocking</DIV>
         <LABEL><INPUT type="radio" name="createBlocking" value="ask"> Ask</LABEL>
         <LABEL><INPUT type="radio" name="createBlocking" value="luck"> Luck</LABEL>
         <LABEL><INPUT type="radio" name="createBlocking" value="noluck"> No Luck</LABEL>
       </DIV>
-      <DIV class="row createTimeLimit">
+      <DIV class="row col5 createTimeLimit">
         <DIV class="label">Time Limit</DIV>
         <LABEL><INPUT type="radio" name="createTimeLimit" value="ask"> Ask</LABEL>
+        <LABEL><INPUT type="radio" name="createTimeLimit" value="relaxed"> Relaxed</LABEL>
         <LABEL><INPUT type="radio" name="createTimeLimit" value="standard"> Standard</LABEL>
         <LABEL><INPUT type="radio" name="createTimeLimit" value="blitz"> Blitz</LABEL>
       </DIV>
-      <DIV class="row set">
+      <DIV class="row col4 set">
         <DIV class="label">Set</DIV>
         <LABEL><INPUT type="radio" name="set" value="ask"> Ask</LABEL>
         <LABEL><INPUT type="radio" name="set" value="default"> Default</LABEL>
         <LABEL><INPUT type="radio" name="set" value="random"> Random</LABEL>
       </DIV>
-      <DIV class="row randomSide">
+      <DIV class="row col3 randomSide">
         <DIV class="label">Random Side</DIV>
         <LABEL><INPUT type="radio" name="randomSide" value="on"> On</LABEL>
         <LABEL><INPUT type="radio" name="randomSide" value="off"> Off</LABEL>

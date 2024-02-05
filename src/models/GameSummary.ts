@@ -42,7 +42,7 @@ export default class GameSummary {
       turnStartedAt,
       // This value is only non-null for 5 seconds after a rated game turn ends
       turnEndedAt: actions.last?.type === 'endTurn' ? actions.last.createdAt : null,
-      turnTimeLimit: game.state.turnTimeLimit,
+      timeLimitName: game.timeLimitName,
       currentTurnTimeLimit: game.state.currentTurnTimeLimit,
       isFork: game.isFork,
       rated: game.state.rated,
@@ -84,8 +84,11 @@ export default class GameSummary {
   get turnEndedAt() {
     return this.data.turnEndedAt;
   }
-  get turnTimeLimit() {
-    return this.data.turnTimeLimit;
+  get timeLimitName() {
+    return this.data.timeLimitName;
+  }
+  get currentTurnTimeLimit() {
+    return this.data.currentTurnTimeLimit;
   }
   get isFork() {
     return this.data.isFork;
@@ -134,7 +137,7 @@ export default class GameSummary {
   getTurnTimeRemaining(now = Date.now()) {
     if (!this.data.startedAt || this.data.endedAt)
       return false;
-    if (!this.data.turnTimeLimit)
+    if (!this.data.timeLimitName)
       return Infinity;
 
     const turnTimeLimit = this.data.currentTurnTimeLimit;
@@ -157,7 +160,7 @@ serializer.addType({
     type: 'object',
     required: [
       'id', 'type', 'typeName', 'isFork', 'rated', 'randomFirstTurn',
-      'randomHitChance', 'turnTimeLimit', 'startedAt', 'turnStartedAt',
+      'randomHitChance', 'timeLimitName', 'startedAt', 'turnStartedAt',
       'endedAt', 'teams', 'createdBy', 'createdAt', 'updatedAt',
     ],
     properties: {
@@ -169,7 +172,7 @@ serializer.addType({
       rated: { type:'boolean' },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
-      turnTimeLimit: { type:[ 'number', 'null' ] },
+      timeLimitName: { type:[ 'string', 'null' ] },
       currentTeamId: { type:'number' },
       startedAt: { type:[ 'string', 'null' ], subType:'Date' },
       turnStartedAt: { type:[ 'string', 'null' ], subType:'Date' },

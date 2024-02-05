@@ -55,10 +55,23 @@
       padding: 4px;
     }
     .configure .indent {
+      padding: 0 0 0 12px;
+    }
+    .configure .indent:not(.grid) {
       display: flex;
       flex-direction: row;
       align-items: center;
-      padding: 0 0 0 12px;
+    }
+    .configure .indent.grid.col4 {
+      display: grid;
+      align-items: center;
+      grid-template-columns: auto auto auto auto;
+    }
+    .configure .indent.grid.col4 DIV.col3 > *:last-child {
+      grid-column: span 2;
+    }
+    .configure .indent.grid DIV {
+      display: contents;
     }
 
     .configure .error {
@@ -151,11 +164,18 @@
       </DIV>
       <DIV>
         <DIV>Choose turn time limit:</DIV>
-        <DIV class="indent">
-          <LABEL><INPUT type="radio" name="turnLimit" value="604800" checked> 1 Week</LABEL>
-          <LABEL><INPUT type="radio" name="turnLimit" value="86400"> 1 Day</LABEL>
-          <LABEL><INPUT type="radio" name="turnLimit" value="standard"> Standard</LABEL>
-          <LABEL><INPUT type="radio" name="turnLimit" value="blitz"> Blitz</LABEL>
+        <DIV class="indent grid col4">
+          <DIV class="col3">
+            <SPAN class="label">Long:</SPAN>
+            <LABEL><INPUT type="radio" name="timeLimitName" value="week" checked> Week</LABEL>
+            <LABEL><INPUT type="radio" name="timeLimitName" value="day"> Day</LABEL>
+          </DIV>
+          <DIV class="col4">
+            <SPAN class="label">Short:</SPAN>
+            <LABEL><INPUT type="radio" name="timeLimitName" value="relaxed"> Relaxed</LABEL>
+            <LABEL><INPUT type="radio" name="timeLimitName" value="standard"> Standard</LABEL>
+            <LABEL><INPUT type="radio" name="timeLimitName" value="blitz"> Blitz</LABEL>
+          </DIV>
         </DIV>
       </DIV>
       <DIV>

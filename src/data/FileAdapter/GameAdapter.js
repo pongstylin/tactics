@@ -132,24 +132,26 @@ export default class extends FileAdapter {
        * If the server was shut down for more than 30 seconds, end real-time
        * games in a truce.
        */
-      if (Date.now() - state.shutdownAt > 30000) {
-        state.autoSurrender.pause();
+      const elapsed = Math.floor((Date.now() - state.shutdownAt) / 1000);
+      delete state.shutdownAt;
 
-        const games = await Promise.all(
-          state.autoSurrender.values()
-            .filter(({ turnTimeBuffer }) => !!turnTimeBuffer)
-            .map(({ id:gameId }) => this._getGame(gameId)),
-        );
+      state.autoSurrender.pause();
 
-        for (const game of games) {
+      const games = await Promise.all(
+        state.autoSurrender.keys().map(gameId => this._getGame(gameId)),
+      );
+
+      for (const game of games) {
+        if (game.state.getTurnTimeRemaining() > 0)
+          // Extend the time limit by the amount of time the server was offline plus 2 minutes.
+          game.state.timeLimit.current += elapsed + 120;
+        else
+          // Don't make players wait forever for the server to start back up.
           game.state.end('truce');
-          game.emit('change:cleanup');
-        }
-
-        state.autoSurrender.resume();
+        game.emit('change:state');
       }
 
-      delete state.shutdownAt;
+      state.autoSurrender.resume();
     }
 
     return this;
@@ -160,23 +162,6 @@ export default class extends FileAdapter {
     const autoSurrender = state.autoSurrender.pause();
     state.willSync.pause();
     state.shutdownAt = new Date();
-
-    /*
-     * In the hopes that the server will restart quickly, set team turn time
-     * buffers to max.
-     */
-    const games = await Promise.all(
-      autoSurrender.values()
-        .filter(({ turnTimeBuffer }) => !!turnTimeBuffer)
-        .map(({ id:gameId }) => this._getGame(gameId)),
-    );
-
-    for (const game of games) {
-      for (const team of game.state.teams) {
-        team.turnTimeBuffer = game.state.turnTimeBuffer;
-      }
-      game.emit('change:cleanup');
-    }
 
     return super.cleanup();
   }
@@ -668,10 +653,7 @@ export default class extends FileAdapter {
     if (game.state.endedAt)
       this.state.autoSurrender.delete(game.id);
     else
-      this.state.autoSurrender.add(game.id, {
-        id: game.id,
-        turnTimeBuffer: game.state.turnTimeBuffer,
-      }, game.state.getTurnTimeRemaining());
+      this.state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
   }
 
   /*
