@@ -1,6 +1,7 @@
 import uaparser from 'ua-parser-js';
 
 import setsById from '#config/sets.js';
+import timeLimit from '#config/timeLimit.js';
 import AccessToken from '#server/AccessToken.js';
 import Service from '#server/Service.js';
 import ServerError from '#server/Error.js';
@@ -133,7 +134,7 @@ export default class GameService extends Service {
           'strictFork?': 'boolean',
           'autoSurrender?': 'boolean',
           'rated?': 'boolean',
-          'turnTimeLimit?': `enum([ 'blitz', 'standard', 86400, 604800 ])`,
+          'timeLimitName?': `enum([ 'blitz', 'standard', 'relaxed', 'day', 'week' ])`,
           'tags?': 'game:tags',
         },
         forkOptions: unionType(
@@ -442,17 +443,13 @@ export default class GameService extends Service {
     gameOptions.createdBy = playerId;
     gameOptions.type = gameTypeId;
 
-    if (gameOptions.turnTimeLimit === 'standard') {
-      gameOptions.turnTimeLimit = 120;
-      gameOptions.turnTimeBuffer = 300;
-    } else if (gameOptions.turnTimeLimit === 'blitz') {
-      gameOptions.turnTimeLimit = 30;
-      gameOptions.turnTimeBuffer = 120;
-      if (gameOptions.rated)
+    if (gameOptions.timeLimitName) {
+      gameOptions.timeLimit = timeLimit[gameOptions.timeLimitName].clone();
+      if (gameOptions.rated && gameOptions.timeLimit.base <= 30)
         gameOptions.strictUndo = true;
-    } else if (gameOptions.turnTimeLimit === undefined) {
+    } else {
       if (isMultiplayer)
-        stateData.turnTimeLimit = 604800;
+        gameOptions.timeLimit = timeLimit.week.clone();
     }
 
     const game = Game.create({
@@ -1714,7 +1711,7 @@ export default class GameService extends Service {
     if (notification.gameCount === 0)
       return;
 
-    const urgency = game.state.rated === true && game.state.turnTimeLimit < 86400 ? 'high' : 'normal';
+    const urgency = game.state.rated === true && game.state.timeLimit.base < 86400 ? 'high' : 'normal';
 
     this.push.pushNotification(playerId, notification, urgency);
   }

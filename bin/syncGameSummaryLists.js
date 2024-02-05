@@ -1,6 +1,8 @@
-import 'plugins/index.js';
-import GameAdapter from 'data/FileAdapter/GameAdapter.js';
+import '#plugins/index.js';
+import GameAdapter from '#data/FileAdapter/GameAdapter.js';
+import gameTypes from '#data/files/game/game_types.json' assert { type:'json' };
 
+const gameTypeMap = new Map(gameTypes);
 const dataAdapter = new GameAdapter();
 await dataAdapter.bootstrap();
 
@@ -20,5 +22,7 @@ dataAdapter.listAllGameIds().then(gameIds => {
 
 async function syncGame(gameId) {
   const game = await dataAdapter._getGame(gameId);
+  if (!gameTypeMap.has(game.state.type))
+    return;
   await dataAdapter._updateGameSummary(game);
 }

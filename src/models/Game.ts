@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import util from 'util';
 
+import timeLimit from '#config/timeLimit.js';
 import ActiveModel from '#models/ActiveModel.js';
 import serializer from '#utils/serializer.js';
 
@@ -10,6 +11,7 @@ import ServerError from '#server/Error.js';
 const gameKeys = new Set([
   'createdBy',
   'collection',
+  'timeLimitName',
   'tags',
 ]);
 
@@ -21,8 +23,7 @@ const stateKeys = new Set([
   'strictFork',
   'autoSurrender',
   'rated',
-  'turnTimeBuffer',
-  'turnTimeLimit',
+  'timeLimit',
   'teams',
 ]);
 
@@ -39,6 +40,7 @@ export default class Game extends ActiveModel {
     state: GameState
     forkOf: any
     collection: string
+    timeLimitName: string | null
     tags: Map<string, string | number | boolean>
     createdBy: string
     createdAt: Date
@@ -97,6 +99,9 @@ export default class Game extends ActiveModel {
   }
   get collection() {
     return this.data.collection;
+  }
+  get timeLimitName() {
+    return this.data.timeLimitName;
   }
   get state() {
     return this.data.state;
@@ -375,7 +380,6 @@ export default class Game extends ActiveModel {
     forkGameData.createdAt = new Date();
     forkGameData.id = uuid();
     forkGameData.forkOf = { gameId:this.data.id, turnId:forkGameData.state.currentTurnId };
-    forkGameData.state.turnTimeBuffer = null;
     forkGameData.state.strictUndo = false;
     forkGameData.state.strictFork = false;
     forkGameData.state.autoSurrender = false;
@@ -394,7 +398,8 @@ export default class Game extends ActiveModel {
 
       teams.forEach(t => t.join({}, clientPara));
 
-      forkGameData.state.turnTimeLimit = null;
+      forkGameData.timeLimitName = null;
+      forkGameData.state.timeLimit = null;
       forkGameData.state.start();
     } else if (vs === 'private') {
       if (teams[as] === undefined)
@@ -402,9 +407,10 @@ export default class Game extends ActiveModel {
 
       teams[as].join({}, clientPara);
 
+      forkGameData.timeLimitName = 'day';
+      forkGameData.state.timeLimit = timeLimit.day.clone();
       forkGameData.state.startedAt = null;
       forkGameData.state.turnStartedAt = null;
-      forkGameData.state.turnTimeLimit = 86400;
     }
 
     return new Game(forkGameData);
@@ -447,6 +453,7 @@ export default class Game extends ActiveModel {
     // So, when resuming a game, these values need not be sent.
     delete gameData.id;
     delete gameData.collection;
+    delete gameData.timeLimitName;
     delete gameData.createdAt;
     delete gameData.createdBy;
 
@@ -459,8 +466,7 @@ export default class Game extends ActiveModel {
     delete gameData.state.type;
     delete gameData.state.randomFirstTurn;
     delete gameData.state.randomHitChance;
-    delete gameData.state.turnTimeLimit;
-    delete gameData.state.turnTimeBuffer;
+    delete gameData.state.timeLimit;
     delete gameData.state.strictUndo;
     delete gameData.state.strictFork;
     delete gameData.state.autoSurrender;
@@ -528,13 +534,20 @@ export default class Game extends ActiveModel {
     delete state.currentTurnId;
     delete state.currentTeamId;
 
-    // Don't need the units at start of turn if they were already seen
-    if (fromTurnStartedAt === toTurnStartedAt) {
-      delete state.turnStartedAt;
-      delete state.units;
-
+    if (fromTurnId === toTurnId) {
+      if (fromTurnStartedAt === toTurnStartedAt)
+        delete state.turnStartedAt;
       if (fromTurnLimit === toTurnLimit)
         delete state.currentTurnTimeLimit;
+    } else /* fromTurnId < toTurnId */ {
+      // These values will be communicated via 'startTurn' events.
+      delete state.turnStartedAt;
+      delete state.currentTurnTimeLimit;
+    }
+
+    // Don't need the units at start of turn if they were already seen
+    if (fromTurnStartedAt === toTurnStartedAt) {
+      delete state.units;
 
       if (fromActionId === toActionId && fromActionsAt.last === toActionsAt.last)
         // Actions are unchanged
@@ -564,11 +577,6 @@ export default class Game extends ActiveModel {
         delete state.actions;
       }
     } else {
-      state.turnStartedAt = turn.startedAt;
-      if (fromTurnLimit !== turn.timeLimit)
-        state.currentTurnTimeLimit = turn.timeLimit;
-      else
-        delete state.currentTurnTimeLimit;
       state.units = turn.units;
       if (fromActionId || turn.actions.length)
         state.actions = turn.actions;

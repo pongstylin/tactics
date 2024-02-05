@@ -240,8 +240,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('INPUT[name=vs]').forEach(vsRadio => {
     vsRadio.addEventListener('change', event => {
-      document.querySelectorAll('INPUT[name=turnLimit]').forEach(turnLimitRadio => {
-        turnLimitRadio.disabled = vsRadio.value === 'you';
+      document.querySelectorAll('INPUT[name=timeLimitName]').forEach(timeLimitRadio => {
+        timeLimitRadio.disabled = vsRadio.value === 'you';
       });
       document.querySelectorAll('INPUT[name=rated]').forEach(ratedRadio => {
         ratedRadio.disabled = vsRadio.value === 'you';
@@ -271,7 +271,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const vs = document.querySelector('INPUT[name=vs]:checked').value;
     const set = document.querySelector('SELECT[name=set] OPTION:checked').value;
     const turnOrder = document.querySelector('INPUT[name=turnOrder]:checked').value;
-    const turnLimit = document.querySelector('INPUT[name=turnLimit]:checked').value;
+    const timeLimitName = document.querySelector('INPUT[name=timeLimitName]:checked').value;
     const randomHitChance = document.querySelector('INPUT[name=randomHitChance]:checked').value;
     const rated = document.querySelector('INPUT[name=rated]:checked').value;
     const gameOptions = {
@@ -290,7 +290,7 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 
     if (vs !== 'you') {
-      gameOptions.turnTimeLimit = isNaN(turnLimit) ? turnLimit : parseInt(turnLimit);
+      gameOptions.timeLimitName = timeLimitName;
       if (!state.gameType.hasFixedPositions)
         youTeam.randomSide = gameConfig.randomSide;
     }
@@ -338,7 +338,7 @@ window.addEventListener('DOMContentLoaded', () => {
             // Look for an open game with this player as a participant
             'teams[].playerId': authClient.playerId,
             // Time limit must match
-            turnTimeLimit: gameOptions.turnTimeLimit,
+            timeLimitName: gameOptions.timeLimitName,
             // First turn randomization must match player preference.
             randomFirstTurn: gameOptions.randomFirstTurn,
             // Blocking system must match player preference.
@@ -369,7 +369,7 @@ window.addEventListener('DOMContentLoaded', () => {
           // Don't join games against disqualified players
           'teams[].playerId': { '!':[...excludedPlayerIds] },
           // Time limit must match
-          turnTimeLimit: gameOptions.turnTimeLimit,
+          timeLimitName: gameOptions.timeLimitName,
           // First turn randomization must match player preference.
           randomFirstTurn: gameOptions.randomFirstTurn,
           // Blocking system must match player preference.

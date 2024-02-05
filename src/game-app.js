@@ -1127,10 +1127,8 @@ function renderCancelButton(gameId, container) {
 
 function renderShareLink(gameData, container) {
   let message = `Want to play a ${gameType.name} game`;
-  if (gameData.state.turnTimeLimit === 120)
-    message += ' at 2min per turn';
-  else if (gameData.state.turnTimeLimit === 30)
-    message += ' at 30sec per turn';
+  if (gameData.timeLimitName !== 'week')
+    message += ` with a ${gameData.timeLimitName.toUpperCase('first')} time limit`;
   if (!gameData.state.randomHitChance)
     message += ' without luck';
   message += '?';
@@ -1357,21 +1355,6 @@ async function showJoinFork(gameData) {
 
   challenge.innerHTML = `<I>${creatorTeam.name}</I> is waiting to play as ${as1} in a fork of ${who} ${of}.  Want to play as ${as2}?`;
 
-  let turnLimit;
-  switch (gameData.state.turnTimeLimit) {
-    case 604800:
-      turnLimit = '1 week';
-      break;
-    case 86400:
-      turnLimit = '1 day';
-      break;
-    case 120:
-      turnLimit = '2 minutes';
-      break;
-    default:
-      turnLimit = `${gameData.state.turnTimeLimit} seconds`;
-  }
-
   let person;
   if (creatorTeam.id === gameData.state.currentTeamId)
     person = `<I>${creatorTeam.name}</I>`;
@@ -1384,7 +1367,7 @@ async function showJoinFork(gameData) {
   details.innerHTML = `
     <DIV>This is a fork of <A href="${forkOfURL}" target="_blank">this ${of} and turn</A>.</DIV>
     <DIV>The game style is <I>${gameType.name}</I>.</DIV>
-    <DIV>The turn time limit is set to ${turnLimit}.</DIV>
+    <DIV>The time limit is set to ${gameData.timeLimitName.toUpperCase('first')}.</DIV>
     <DIV>The next person to move is ${person}.</DIV>
     <DIV>The blocking system is ${blocking}.</DIV>
   `;
@@ -1528,21 +1511,6 @@ async function showJoinIntro(gameData) {
     else
       vs = 'a Private';
 
-    let turnLimit;
-    switch (gameData.state.turnTimeLimit) {
-      case 604800:
-        turnLimit = '1 week';
-        break;
-      case 86400:
-        turnLimit = '1 day';
-        break;
-      case 120:
-        turnLimit = '2 minutes';
-        break;
-      default:
-        turnLimit = `${gameData.state.turnTimeLimit} seconds`;
-    }
-
     let person;
     if (gameData.state.randomFirstTurn)
       person = 'random';
@@ -1557,7 +1525,7 @@ async function showJoinIntro(gameData) {
     details.innerHTML = `
       <DIV>This is ${vs} game.</DIV>
       <DIV>The game style is <I>${gameType.name}</I>.</DIV>
-      <DIV>The turn time limit is set to ${turnLimit}.</DIV>
+      <DIV>The time limit is set to ${gameData.timeLimitName.toUpperCase('first')}.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
       <DIV>The blocking system is ${blocking}.</DIV>
       <DIV>The game is ${rated}.</DIV>
@@ -1750,12 +1718,12 @@ function setTurnTimeoutClock() {
   } else
     $('.clock').css({ display:'' });
 
-  let timeout = game.turnTimeRemaining;
+  const timeLimit = game.timeLimit.base;
+  const timeout = game.turnTimeRemaining;
   let timeoutClass;
   let removeClass;
   let timeoutText;
   if (timeout > 0) {
-    let timeLimit = game.turnTimeLimit;
     timeoutClass = timeout < timeLimit*1000 * 0.3 ? 'short' : 'long';
     removeClass = timeout < timeLimit*1000 * 0.3 ? 'long' : 'short';
     removeClass += ' expired';
@@ -1775,8 +1743,8 @@ function setTurnTimeoutClock() {
       tick = (timeout % 60000) + 250;
     // Show clock
     } else {
-      let min = Math.floor(timeout / 60000);
-      let sec = Math.floor((timeout % 60000) / 1000).toString().padStart(2, '0');
+      const min = Math.floor(timeout / 60000);
+      const sec = Math.floor((timeout % 60000) / 1000).toString().padStart(2, '0');
       timeoutText = `${min}:${sec}`;
       tick = (timeout % 1000) + 250;
     }
@@ -1791,20 +1759,20 @@ function setTurnTimeoutClock() {
 
   timeoutText += ' <SPAN class="fa fa-clock"></SPAN>';
 
-  let board = game.board;
-  let degree = board.getDegree('N', board.rotation);
+  const board = game.board;
+  const degree = board.getDegree('N', board.rotation);
 
   game.teams.forEach(team => {
-    let position = board.getRotation(team.position, degree);
-    let ePlayerId = 'player-'+position.toLowerCase();
-    let $clock = $(`#${ePlayerId} .clock`);
+    const position = board.getRotation(team.position, degree);
+    const ePlayerId = 'player-'+position.toLowerCase();
+    const $clock = $(`#${ePlayerId} .clock`);
 
     if (team === game.currentTeam) {
       $clock
         .removeClass(removeClass)
         .addClass(timeoutClass)
         .html(timeoutText);
-      $('.critical').toggleClass('show', game.isMyTeam(team) && timeoutClass !== 'long');
+      $('.critical').toggleClass('show', timeLimit < 3600 && game.isMyTeam(team) && timeoutClass !== 'long');
     } else
       $clock
         .removeClass('expired short long')

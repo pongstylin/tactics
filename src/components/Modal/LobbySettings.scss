@@ -1,64 +1,74 @@
-.modal.lobbySettings {
-  .content {
-    display: grid;
-    align-items: center;
-    grid-template-columns: auto auto auto auto;
+.modal.lobbySettings .content {
+  display: grid;
+  align-items: center;
+  grid-template-columns: auto auto auto auto auto;
 
-    HEADER {
-      grid-column: span 4;
-      font-style: normal;
-    }
-    HEADER:first-child {
-      margin: 0;
-    }
-    HEADER:not(:first-child) {
-      margin-top: 12px;
-    }
-    .audio LABEL:last-child,
-    .barPosition LABEL:last-child {
-      grid-column: span 2;
-    }
-    .audio.broken {
-      & > * {
-        display: none;
-      }
-      &::after {
-        content: 'Audio is broken in this browser.';
-        color: red;
-        grid-column: span 4;
-        padding: 4px 0;
-        // Fixes an apparent bug in Chrome
-        text-shadow: 0 0 red;
-      }
-    }
-    .row {
-      display: contents;
-
-      .label {
-        margin-right: 16px;
-      }
-      .label, LABEL {
-        white-space: nowrap;
-      }
-    }
-    .barPosition {
+  HEADER {
+    grid-column: span 5;
+    font-style: normal;
+  }
+  HEADER:first-child {
+    margin: 0;
+  }
+  HEADER:not(:first-child) {
+    margin-top: 12px;
+  }
+  .row.col3 LABEL:last-child {
+    grid-column: span 3;
+  }
+  .row.col4 LABEL:last-child {
+    grid-column: span 2;
+  }
+  .audio.broken {
+    & > * {
       display: none;
     }
+    &::after {
+      content: 'Audio is broken in this browser.';
+      color: red;
+      grid-column: span 4;
+      padding: 4px 0;
+      // Fixes an apparent bug in Chrome
+      text-shadow: 0 0 red;
+    }
+  }
+  .row {
+    display: contents;
+
+    .label {
+      margin-right: 16px;
+    }
+    .label, LABEL {
+      white-space: nowrap;
+    }
+  }
+  .barPosition {
+    display: none;
   }
 }
 
+/*
+ * Landscape phone
+ */
 @media (max-height: 440px) and (min-aspect-ratio: 5/3) {
-  .modal.lobbySettings {
-    .content {
-      .barPosition {
-        display: contents;
-      }
+  .modal.lobbySettings .content {
+    .barPosition {
+      display: contents;
     }
   }
 }
 
-@media (max-width: 320px) {
+/*
+ * Portrait small phone
+ */
+@media (max-width: 405px) {
   .modal.lobbySettings .content {
-    padding: 8px !important;
+    display: block;
+
+    .row {
+      &:not(:first-child) .label {
+        margin-top: 8px;
+      }
+    }
   }
 }

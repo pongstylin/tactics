@@ -4,6 +4,7 @@
  */
 import unitDataMap from '#tactics/unitData.js';
 import GameType from '#tactics/GameType.js';
+import timeLimit from '#config/timeLimit.js';
 
 const migrationMap = new Map();
 
@@ -408,6 +409,52 @@ migrationMap.set('game', [
     const playerIds = new Set(state.teams.map(t => t?.playerId));
     if (state.rated === undefined)
       state.rated = !json.$data.forkOf && playerIds.size > 1;
+
+    return json;
+  },
+  json => {
+    const game = json.$data;
+    const state = game.state;
+
+    if (state.turnTimeLimit) {
+      const timeLimitNameMap = new Map([
+        [ 604800, 'week' ],
+        [ 86400, 'day' ],
+        [ 43200, '12hour' ],
+        [ 120, 'relaxed' ],
+        [ 30, 'blitz' ],
+      ]);
+
+      game.timeLimitName = timeLimitNameMap.get(state.turnTimeLimit);
+      if (game.timeLimitName == '12hour')
+        state.timeLimit = {
+          type: 'fixed',
+          base: 43200,
+        };
+      else
+        state.timeLimit = timeLimit[game.timeLimitName].clone();
+
+      if (state.timeLimit.type === 'buffered') {
+        if (state.startedAt)
+          for (const [ t, team ] of state.teams.entries()) {
+            if (!state.timeLimit.buffers)
+              state.timeLimit.buffers = [];
+            state.timeLimit.buffers[t] = team.turnTimeBuffer;
+            delete team.turnTimeBuffer;
+          }
+        delete state.turnTimeBuffer;
+      }
+      delete state.turnTimeLimit;
+
+      if (state.startedAt && !state.endedAt) {
+        if (state.timeLimit.type === 'fixed')
+          state.timeLimit.current = state.timeLimit.base;
+        else if (state.timeLimit.type === 'buffered') {
+          const currentTeamId = state.turns.length % state.teams.length;
+          state.timeLimit.current = state.timeLimit.base + state.timeLimit.buffers[currentTeamId];
+        }
+      }
+    }
 
     return json;
   },
