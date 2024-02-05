@@ -2014,13 +2014,14 @@ function renderGame(game) {
     if (!game.randomHitChance)
       labels.push('No Luck');
 
-    if (game.collection?.startsWith('lobby/')) {
-      if (game.timeLimitName !== 'standard')
-        labels.push(game.timeLimitName.toUpperCase('first'));
-    } else {
-      if (game.timeLimitName !== 'week')
-        labels.push(game.timeLimitName.toUpperCase('first'))
-    }
+    if (game.timeLimitName)
+      if (game.collection?.startsWith('lobby/')) {
+        if (game.timeLimitName !== 'standard')
+          labels.push(game.timeLimitName.toUpperCase('first'));
+      } else {
+        if (game.timeLimitName !== 'week')
+          labels.push(game.timeLimitName.toUpperCase('first'))
+      }
 
     if (game.isFork)
       labels.push('Fork');
