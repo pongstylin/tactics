@@ -81,25 +81,33 @@ export const applyTurnTimeLimit = {
     const turns = this.turns;
     const timeLimit = this.timeLimit;
     const numTeams = this.teams.length;
-    const buffers = timeLimit.buffers ??= new Array(numTeams).fill(0);
 
     if (op === 'popped') {
-      const currentTeamId = this.currentTeamId;
+      const buffers = timeLimit.buffers = new Array(numTeams).fill(0);
 
-      buffers[currentTeamId] = this.turns[turnData.id].timeBuffer ?? 0;
+      buffers[turnData.teamId] = turnData.timeBuffer;
 
       /*
        * Sync up other teams' turn time buffers just in case more than one turn
        * was popped.
        */
-      const currentTurnId = this.currentTurnId;
-      for (let tId = Math.max(0, currentTurnId - numTeams + 1); tId < currentTurnId; tId++)
-        buffers[tId % numTeams] = turns[tId].timeBuffer ?? 0;
+      for (let i = 1; i < numTeams; i++) {
+        const startTurnId = turnData.id - i;
+        const teamId = startTurnId % numTeams;
+
+        for (let tId = startTurnId; tId > 0; tId -= 2) {
+          const turn = this.turns[tId];
+          if (!isAutoPassedTurn(turn)) {
+            buffers[teamId] = turn.timeBuffer;
+            break;
+          }
+        }
+      }
     } else {
-      const previousTeamId = this.previousTeamId;
+      const buffers = timeLimit.buffers ??= new Array(numTeams).fill(0);
 
       // Remember the timeBuffer for the turn just in case we go back to it.
-      turnData.timeBuffer = buffers[previousTeamId];
+      this.turns[turnData.id].timeBuffer = buffers[turnData.teamId];
 
       // Adjust the buffer for the previous team for their next turn, if necessary.
       if (!isAutoPassedTurn(turnData) && !isInitialTurn(this, turnData)) {
@@ -107,11 +115,11 @@ export const applyTurnTimeLimit = {
         const turnEndedAt = turnData.actions.last.createdAt;
         const elapsed = Math.floor((turnEndedAt - turnStartedAt) / 1000);
         if (elapsed > timeLimit.base)
-          buffers[previousTeamId] = 0;
+          buffers[turnData.teamId] = 0;
         else
-          buffers[previousTeamId] = Math.min(
+          buffers[turnData.teamId] = Math.min(
             timeLimit.maxBuffer,
-            buffers[previousTeamId] + Math.max(0, (timeLimit.base / 2) - elapsed),
+            buffers[turnData.teamId] + Math.max(0, (timeLimit.base / 2) - elapsed),
           );
       }
     }
