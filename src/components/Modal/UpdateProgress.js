@@ -85,7 +85,10 @@ export default class UpdateProgress extends Modal {
         this.data.worker = worker;
       } else {
         // Update existing worker and wait for 'updatefound'.
-        reg.update().catch(() => { checkStatus() });
+        reg.update().catch(error => {
+          report({ type:'update', error:getErrorData(error) });
+          this.checkStatus();
+        });
         return this.setStep(0);
       }
     }
