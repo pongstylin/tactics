@@ -180,7 +180,7 @@ export default class Game {
   }
   get speed() {
     if (this._speed === 'auto')
-      return this.state.timeLimit.base === 30 ? 2 : 1;
+      return this.state.timeLimit?.base === 30 ? 2 : 1;
     else
       return this._speed;
   }
@@ -1206,7 +1206,7 @@ export default class Game {
         selected &&
         selected.directional !== false &&
         (!this.isMyTeam(action.teamId) || this._inReplay) &&
-        (this.state.timeLimit.base > 30 || this._inReplay)
+        (this.state.timeLimit?.base > 30 || this._inReplay)
       );
       if (doShowDirection) {
         // Show the direction the unit turned for 2 seconds.
