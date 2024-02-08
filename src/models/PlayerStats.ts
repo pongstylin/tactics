@@ -1,10 +1,13 @@
 import ActiveModel from '#models/ActiveModel.js';
 import serializer from '#utils/serializer.js';
 
+const DEFAULT_RATING = 750.0;
+
 export default class PlayerStats extends ActiveModel {
   protected data: {
     playerId: string
     stats: Map<string, any>
+    ratings: Map<string, any>
   }
 
   constructor(data) {
@@ -16,6 +19,7 @@ export default class PlayerStats extends ActiveModel {
     return new PlayerStats({
       playerId,
       stats: new Map(),
+      ratings: new Map(),
     });
   }
 
@@ -91,6 +95,24 @@ export default class PlayerStats extends ActiveModel {
           });
         }
       }
+    }
+
+    const ratings = this.data.ratings;
+
+    // If the rating for this game type does not exist, set it to the default.
+    if (!ratings.has(game.state.type)) {
+      ratings.set(game.state.type, {
+        rating: DEFAULT_RATING,
+        lastUpdated: now,
+      });
+    }
+
+    // If an overall rating does not exist, set it to the default.
+    if (!ratings.has("overall")) {
+      ratings.set("overall", {
+        rating: DEFAULT_RATING,
+        lastUpdated: now,
+      });
     }
 
     this.emit('change:recordGameStart');
@@ -207,9 +229,32 @@ serializer.addType({
   constructor: PlayerStats,
   schema: {
     type: 'object',
-    required: [ 'playerId', 'stats' ],
+    required: [ 'playerId', 'stats', 'ratings' ],
     properties: {
       playerId: { type:'string', format:'uuid' },
+      ratings: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [
+            { type:'string' },
+            {
+              type:'string',
+              oneOf: [
+                {
+                  required: ['rating'],
+                  properties: {
+                    rating: { type:'number' },
+                    lastUpdated: { type:'string', subType:'Date' },
+                  },
+                },
+              ],
+              additionalProperties: false,
+            },
+          ],
+        },
+      },
       stats: {
         type: 'array',
         subType: 'Map',
