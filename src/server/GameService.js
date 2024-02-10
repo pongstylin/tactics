@@ -68,7 +68,7 @@ export default class GameService extends Service {
         getPlayerStatus: [ 'game:group' ],
         getPlayerActivity: [ 'game:group', 'uuid' ],
         getPlayerInfo: [ 'game:group', 'uuid' ],
-        clearWLDStatsRequest: `tuple([ 'uuid', 'string | null' ], 1)`,
+        clearWLDStats: `tuple([ 'uuid', 'string | null' ], 1)`,
 
         searchGameCollection: [ 'string', 'any' ],
         searchMyGames: [ 'any' ],
