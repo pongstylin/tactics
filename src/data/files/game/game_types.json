@@ -728,6 +728,7 @@
             ["Knight",         { "max":1 }],
             ["Pyromancer",     { "max":1 }],
             ["Scout",          { "max":1 }],
+            ["PoisonWisp",     { "max":0 }],
             ["DarkMagicWitch", { "max":1 }],
             ["Berserker",      { "max":1 }],
             ["Assassin",       { "max":1 }],
