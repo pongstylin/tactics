@@ -201,6 +201,10 @@ export default class Autosave {
     this.data.value = input.value.trim().length ? input.value.trim() : null;
 
     const submit = () => {
+      // Double submission can happen on Enter in Chrome
+      if (divAutosave.classList.contains('is-saving'))
+        return;
+
       const promises = [];
       const waitUntil = promise => {
         if (typeof promise === 'function')
