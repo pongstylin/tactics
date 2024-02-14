@@ -484,9 +484,19 @@ export default class extends FileAdapter {
   }
   async _recordGameStats(game) {
     const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
+    const playerStatsMap = new Map();
 
+    // Populate a map of the stats of all players involved
+    for (const playerId of playerIds)
+      playerStatsMap.set(playerId, await this._getPlayerStats(playerId));
+
+    // If the game ended, update the ratings for all players
+    if (game.state.endedAt)
+      PlayerStats.updateRatings(game, playerStatsMap);
+
+    // For each player, update stats (wld vs opponent, etc.) and save all the changes
     for (const playerId of playerIds) {
-      const playerStats = await this._getPlayerStats(playerId);
+      const playerStats = playerStatsMap.get(playerId);
       if (game.state.endedAt)
         playerStats.recordGameEnd(game);
       else
