@@ -109,15 +109,15 @@ export default class PlayerInfo extends Modal {
     else if (data.game.collection) {
       if (info.isNew.get('me') && info.acl.get('them').newAccounts)
         disposition = `<DIV>This player ${info.acl.get('them').newAccounts} you since you are new.</DIV>`;
-      else if (!info.isVerified.get('me') && info.acl.get('them').anonAccounts)
-        disposition = `<DIV>This player ${info.acl.get('them').anonAccounts} you since you are anonymous.</DIV>`;
+      else if (!info.isVerified.get('me') && info.acl.get('them').guestAccounts)
+        disposition = `<DIV>This player ${info.acl.get('them').guestAccounts} you since you are a guest.</DIV>`;
       else if (info.acl.get('me').muted)
         disposition = `<DIV>You are muted by default by an admin.</DIV>`;
       else if (!info.relationship.type) {
         if (info.isNew.get('them') && info.acl.get('me').newAccounts)
           disposition = `<DIV>This player is new so you ${info.acl.get('me').newAccounts} them.</DIV>`;
-        else if (!info.isVerified.get('them') && info.acl.get('me').anonAccounts)
-          disposition = `<DIV>This player is anonymous so you ${info.acl.get('me').anonAccounts} them.</DIV>`;
+        else if (!info.isVerified.get('them') && info.acl.get('me').guestAccounts)
+          disposition = `<DIV>This player is a guest so you ${info.acl.get('me').guestAccounts} them.</DIV>`;
         else if (info.acl.get('them').muted)
           disposition = `<DIV>They are muted by default by an admin.</DIV>`;
       }
@@ -127,7 +127,7 @@ export default class PlayerInfo extends Modal {
       '<DIV class="relationshipName"></DIV>',
       `<DIV>`,
         `<DIV>Account created ${this.getElapsed(createdDiff)} ago.</DIV>`,
-        `<DIV>This player is ${info.isVerified.get('them') ? 'verified' : 'anonymous'}.</DIV>`,
+        `<DIV>This player is ${info.isVerified.get('them') ? 'verified' : 'a guest'}.</DIV>`,
         `<DIV>This player has completed ${info.completed[0]} game(s).</DIV>`,
         info.completed[1] ? `<DIV>This player has abandoned ${info.completed[1]} game(s).</DIV>` : '',
         info.canNotify ? `<DIV>This player can be notified when it is their turn.</DIV>` : '',

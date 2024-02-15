@@ -82,6 +82,16 @@ migrationMap.set('player', [
       $data: json.data,
     };
   },
+  json => {
+    const data = json.$data;
+
+    if ('anonAccounts' in data.acl) {
+      data.acl.guestAccounts = data.acl.anonAccounts;
+      delete data.acl.anonAccounts;
+    }
+
+    return json;
+  },
 ]);
 
 migrationMap.set('game', [

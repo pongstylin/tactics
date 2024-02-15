@@ -1438,17 +1438,21 @@ export default class GameService extends Service {
   }
 
   _resolveTeamSet(gameType, game, team) {
-    const firstTeam = game.state.teams.find(t => t?.playerId === game.createdBy);
+    const firstTeam = game.state.teams.filter(t => t.joinedAt).sort((a,b) => a.joinedAt < b.joinedAt)[0];
 
     if (!gameType.isCustomizable || team.set === null) {
       const set = gameType.getDefaultSet();
       team.set = { units:set.units };
     } else if (team.set === 'same') {
+      if (!firstTeam)
+        throw new ServerError(400, `Can't use same set when nobody has joined yet.`);
       team.set = {
         via: 'same',
         ...firstTeam.set,
       };
     } else if (team.set === 'mirror') {
+      if (!firstTeam)
+        throw new ServerError(400, `Can't use mirror set when nobody has joined yet.`);
       team.set = {
         via: 'mirror',
         units: firstTeam.set.units.map(u => {
