@@ -16,6 +16,30 @@ const ops = new Map([
   [ 'delete', '_deleteFile' ],
 ]);
 
+/*
+ * Wrap FS operations that require file descriptors.
+ * Once the file descriptor count reaches the max, block operations until previous ones clear.
+ */
+const maxOpenFiles = 1024;
+const fsStack = [];
+let numOpenFiles = 0;
+
+const FS_NEXT = ({ method, args, resolve, reject }) => {
+  numOpenFiles++;
+  return fs[method](...args).then(resolve, reject).finally(() => {
+    numOpenFiles--;
+    while (fsStack.length && numOpenFiles < maxOpenFiles)
+      FS_NEXT(fsStack.shift());
+  });
+};
+
+const FS = (method, ...args) => new Promise((resolve, reject) => {
+  if (numOpenFiles === maxOpenFiles)
+    fsStack.push({ method, args, resolve, reject });
+  else
+    FS_NEXT({ method, args, resolve, reject });
+});
+
 const querySchema = {
   $schema: 'http://json-schema.org/draft-07/schema',
   $ref: '#/definitions/query',
@@ -340,7 +364,7 @@ export default class FileAdapter {
   _createFile(name, data, transform) {
     const fqName = `${this.filesDir}/${name}.json`;
 
-    return fs.writeFile(fqName, JSON.stringify(transform(data)), { flag:'wx' }).catch(error => {
+    return FS('writeFile', fqName, JSON.stringify(transform(data)), { flag:'wx' }).catch(error => {
       console.log('createFile', error);
       throw new ServerError(500, 'Create failed');
     });
@@ -349,7 +373,7 @@ export default class FileAdapter {
     const fqName = `${this.filesDir}/${name}.json`;
 
     try {
-      const data = await fs.readFile(fqName, { encoding:'utf8' })
+      const data = await FS('readFile', fqName, { encoding:'utf8' })
       return transform(JSON.parse(data));
     } catch (error) {
       if (error.message === 'Unexpected end of JSON input')
@@ -380,7 +404,7 @@ export default class FileAdapter {
     const fqNameTemp = `${fqDir}/.${filePart}.json`;
     const fqName = `${fqDir}/${filePart}.json`;
 
-    await fs.writeFile(fqNameTemp, JSON.stringify(transform(data))).catch(error => {
+    await FS('writeFile', fqNameTemp, JSON.stringify(transform(data))).catch(error => {
       console.log('writeFile', error);
       throw new ServerError(500, 'Save failed');
     });
@@ -413,7 +437,7 @@ export default class FileAdapter {
     });
   }
   static _readJSONFile(name, initial) {
-    return fs.readFile(`${FILES_DIR}/${name}.json`, { encoding:'utf8' }).then(data => {
+    return FS('readFile', `${FILES_DIR}/${name}.json`, { encoding:'utf8' }).then(data => {
       return serializer.parse(data);
     }).catch(error => {
       if (error.code === 'ENOENT' && initial !== undefined)
@@ -423,10 +447,10 @@ export default class FileAdapter {
     });
   }
   static _createJSONFile(name, data) {
-    return fs.writeFile(`${FILES_DIR}/${name}.json`, serializer.stringify(data), { flag:'wx' });
+    return FS('writeFile', `${FILES_DIR}/${name}.json`, serializer.stringify(data), { flag:'wx' });
   }
   static _putJSONFile(name, data) {
-    return fs.writeFile(`${FILES_DIR}/${name}.json`, serializer.stringify(data));
+    return FS('writeFile', `${FILES_DIR}/${name}.json`, serializer.stringify(data));
   }
   static _deleteJSONFile(name) {
     return fs.unlink(`${FILES_DIR}/${name}.json`).then(() => {

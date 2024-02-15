@@ -64,7 +64,7 @@ export default class AuthService extends Service {
         provider: config.auth.enabled ? `enum([ ${AUTH_PROVIDERS.map(p => `'${p}'`)} ])` : 'string',
         acl: {
           newAccounts: `enum([ 'muted', 'blocked' ]) | null`,
-          anonAccounts: `enum([ 'muted', 'blocked' ]) | null`,
+          guestAccounts: `enum([ 'muted', 'blocked' ]) | null`,
         },
         relationship: {
           'type?': `enum([ 'friended', 'muted', 'blocked' ])`,
