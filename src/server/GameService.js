@@ -1438,7 +1438,7 @@ export default class GameService extends Service {
   }
 
   _resolveTeamSet(gameType, game, team) {
-    const firstTeam = game.state.teams.filter(t => t.joinedAt).sort((a,b) => a.joinedAt < b.joinedAt)[0];
+    const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a,b) => a.joinedAt < b.joinedAt)[0];
 
     if (!gameType.isCustomizable || team.set === null) {
       const set = gameType.getDefaultSet();
