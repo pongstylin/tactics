@@ -67,7 +67,7 @@ function renderPage() {
 
 function renderACL() {
   const content = [];
-  const ruleTypes = [ 'newAccounts', 'anonAccounts' ];
+  const ruleTypes = [ 'newAccounts', 'guestAccounts' ];
   const aclTypes = [ 'muted', 'blocked' ];
   const relationshipTypes = [ 'friended', 'muted', 'blocked' ];
   const sortedACL = [ ...relationships ].sort((a,b) =>
@@ -97,7 +97,7 @@ function renderACL() {
       newACL[divRule.dataset.rule] = spnButton.dataset.value;
     authClient.setACL({
       newAccounts: newACL.newAccounts,
-      anonAccounts: newACL.anonAccounts,
+      guestAccounts: newACL.guestAccounts,
     }).then(() => activateACL(newACL));
   });
 

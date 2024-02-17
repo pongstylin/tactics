@@ -194,7 +194,7 @@ export default class extends FileAdapter {
 
       const player = serializer.normalize(migrate('player', data));
 
-      player.identity = await this._getIdentity(player.identityId);
+      player.identity = await this._getIdentity(player.identityId, player);
 
       player.once('change', event => buffer.add(playerId, player));
       player.on('change:removeDevice', event => this._emit({
@@ -225,7 +225,7 @@ export default class extends FileAdapter {
       return data;
     });
   }
-  async _getIdentity(identityId) {
+  async _getIdentity(identityId, player = null) {
     const cache = this.cache.get('identity');
     const buffer = this.buffer.get('identity');
 
@@ -235,9 +235,11 @@ export default class extends FileAdapter {
       return buffer.get(identityId);
 
     return this.getFile(`identity_${identityId}`, data => {
-      if (data === undefined) return;
+      if (data === undefined && player === null) return;
 
-      const identity = serializer.normalize(migrate('identity', data));
+      const identity = data === undefined
+        ? Identity.create(player)
+        : serializer.normalize(migrate('identity', data));
 
       return this._subscribeIdentity(identity);
     });

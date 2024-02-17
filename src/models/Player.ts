@@ -30,7 +30,7 @@ enum Disposition {
 
 interface ACL {
   newAccounts: Disposition | null
-  anonAccounts: Disposition | null
+  guestAccounts: Disposition | null
 }
 
 export default class Player extends ActiveModel {
@@ -57,7 +57,7 @@ export default class Player extends ActiveModel {
       confirmName: false,
       verified: false,
       identityToken: null,
-      acl: { newAccounts:null, anonAccounts:null },
+      acl: { newAccounts:null, guestAccounts:null },
       authProviderLinks: new Map(),
 
       ...data,
@@ -145,7 +145,7 @@ export default class Player extends ActiveModel {
     };
   }
   set acl(acl) {
-    if (acl.newAccounts === this.data.acl.newAccounts && acl.anonAccounts === this.data.acl.anonAccounts)
+    if (acl.newAccounts === this.data.acl.newAccounts && acl.guestAccounts === this.data.acl.guestAccounts)
       return;
     this.data.acl = acl;
     this.emit({
@@ -378,8 +378,8 @@ export default class Player extends ActiveModel {
     let blockedByRule:any = false;
     if (player.acl.newAccounts === 'blocked' && this.isNew)
       blockedByRule = 'new';
-    else if (player.acl.anonAccounts === 'blocked' && !this.isVerified)
-      blockedByRule = 'anon';
+    else if (player.acl.guestAccounts === 'blocked' && !this.isVerified)
+      blockedByRule = 'guest';
 
     return {
       type: relationship.type,
@@ -453,7 +453,7 @@ export default class Player extends ActiveModel {
     if (applyRules) {
       if (this.data.acl.newAccounts === 'blocked' && player.isNew)
         return true;
-      if (this.data.acl.anonAccounts === 'blocked' && !player.isVerified)
+      if (this.data.acl.guestAccounts === 'blocked' && !player.isVerified)
         return true;
     }
 
@@ -472,7 +472,7 @@ export default class Player extends ActiveModel {
         return true;
       if (this.data.acl.newAccounts === 'muted' && player.isNew)
         return true;
-      if (this.data.acl.anonAccounts === 'muted' && !player.isVerified)
+      if (this.data.acl.guestAccounts === 'muted' && !player.isVerified)
         return true;
     }
 
@@ -602,7 +602,7 @@ serializer.addType({
         type: 'object',
         properties: {
           newAccounts: { $ref:'#/definitions/aclType' },
-          anonAccounts: { $ref:'#/definitions/aclType' },
+          guestAccounts: { $ref:'#/definitions/aclType' },
         },
         additionalProperties: false,
       },
