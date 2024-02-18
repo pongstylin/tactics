@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
+import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from 'obscenity';
 
 import ActiveModel from '#models/ActiveModel.js';
 import Identities from '#models/Identities.js';
@@ -11,6 +12,11 @@ import IdentityToken from '#server/IdentityToken.js';
 import AccessToken from '#server/AccessToken.js';
 import config from '#config/server.js';
 import ServerError from '#server/Error.js';
+
+const obscenity = new RegExpMatcher({
+	...englishDataset.build(),
+	...englishRecommendedTransformers,
+});
 
 /*
  * Player names may have the following characters:
@@ -115,6 +121,8 @@ export default class Player extends ActiveModel {
       throw new ServerError(403, 'The # symbol is reserved');
     if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
       throw new ServerError(403, 'The name may not contain markup');
+    if (obscenity.hasMatch(name))
+      throw new ServerError(403, 'The name is obscene');
 
     if (checkIdentity && Player.identities.sharesName(name, checkIdentity))
       throw new ServerError(403, 'The name is currently in use');
