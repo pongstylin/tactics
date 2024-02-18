@@ -11,8 +11,14 @@ const matcher = new RegExpMatcher({
 
 for (const playerId of playerIds) {
   const player = await authAdapter._getPlayer(playerId);
-  if (matcher.hasMatch(player.name))
-    player.updateProfile({ name:'Noob' });
+  if (matcher.hasMatch(player.name)) {
+    for (let i = 1; i < 100; i++) {
+      try {
+        player.updateProfile({ name:i === 1 ? 'Noob' : `Noob${i}` });
+        break;
+      } catch (e) {}
+    }
+  }
 }
 
 await authAdapter.cleanup();
