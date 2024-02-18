@@ -92,7 +92,7 @@ export default class Unit {
     if (this.aLOS === true)
       return this.getLOSTargetTiles(target, source);
     else if (this.aAll === true)
-      return this.getAttackTiles(source);
+      return [...this.getAttackTiles(source), this.assignment];
     else if (this.aLinear === true) {
       let direction = this.board.getDirection(source, target);
       let targets = [];
@@ -149,6 +149,11 @@ export default class Unit {
       let unit = this.getLOSTargetUnit(target);
       if (unit)
         target_units.push(unit);
+    }
+    else if (this.aAll === true) {
+      target_units = this.getAttackTiles()
+        .filter(tile => !!tile.assigned)
+        .map(tile => tile.assigned);
     }
     else
       target_units = this.getTargetTiles(target)
@@ -1318,6 +1323,9 @@ export default class Unit {
       if (targetUnit)
         targets.push(targetUnit.assignment);
     }
+    else if (this.aAll === true)
+      // For aAll use attack tiles or it will animate self attack
+      targets = this.getAttackTiles();
     else
       targets = this.getTargetTiles(action.target);
 
@@ -1664,7 +1672,11 @@ export default class Unit {
       `${Math.min(99, Math.max(1, Math.round(calc.chance)))}%`;
     let notice;
 
-    if (calc.effect)
+    if (this.type === 'Cleric' && targetUnit.mHealth === 0
+      || this.aAll && targetUnit === this && this.type !== 'Cleric')
+      // aAll shouldn't show damage on self or empty heal
+      notice = '';
+    else if (calc.effect)
       notice = calc.effect.toUpperCase('first')+'!';
     else if (calc.miss === 'immune')
       notice = 'Immune!';

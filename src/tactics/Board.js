@@ -1632,8 +1632,9 @@ export default class Board {
       selected.setTargetNotice(tu, target);
     });
 
-    // If only one unit is affected, draw card.
-    if (targeted.size === 1)
+    // Draw card if only one unit is affected, or aAll
+    // If aAll not handled, with multiple targets, it will show self
+    if (targeted.size === 1 || selected?.aAll && targeted.size > 0)
       // Pass the targeted unit to override the focused unit, if any.
       this.drawCard([...this.targeted][0]);
 

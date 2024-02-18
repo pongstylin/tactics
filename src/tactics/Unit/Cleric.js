@@ -5,7 +5,7 @@ export default class Cleric extends Unit {
     return this.getTargetUnits().map(u => u.assignment);
   }
   getTargetTiles() {
-    return this.getAttackTiles();
+    return [...this.getAttackTiles(), this.assignment];
   }
   getTargetUnits() {
     return this.team.units.filter(u => u.mHealth < 0);

@@ -793,7 +793,6 @@ export default class Game {
       height  = vpHeight;
       height -= rect.top;
       //height -= vpHeight - rect.bottom;
-      //console.log(vpHeight, rect.bottom);
     }
     else
       height -= canvas.offsetTop;
