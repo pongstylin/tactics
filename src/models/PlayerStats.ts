@@ -27,8 +27,12 @@ export default class PlayerStats extends ActiveModel {
     if (game.state.teams.length !== 2)
       return;
 
-    const blockDueToBoostingCheck = false; // TODO: Add logic to compare second most recent game timestamp
-    if (blockDueToBoostingCheck)
+    // Only update stats for rated games
+    if (!game.state.rated)
+      return;
+
+    // Check for farming
+    if (game.state.flaggedForFarming)
       return;
 
     // Find the winner and the loser
