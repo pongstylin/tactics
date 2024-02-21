@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "1.17.0",
+  "version": "1.17.1",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
@@ -85,6 +85,7 @@
     "jsonwebtoken": "^9.0.0",
     "morgan": "^1.9.1",
     "nosleep.js": "github:pongstylin/nosleep.js",
+    "obscenity": "^0.2.0",
     "openid-client": "^5.6.2",
     "seedrandom": "^3.0.5",
     "string-pixel-width": "^1.10.0",
