@@ -382,6 +382,7 @@ export default class Game extends ActiveModel {
     forkGameData.state.strictFork = false;
     forkGameData.state.autoSurrender = false;
     forkGameData.state.rated = false;
+    forkGameData.state.flaggedForFarming = false;
 
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
 

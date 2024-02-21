@@ -56,48 +56,48 @@ export default class GameService extends Service {
     });
 
     this.setValidation({
-      authorize: { token:AccessToken },
+      authorize: { token: AccessToken },
       requests: {
-        createGame: [ 'string', 'game:options' ],
-        tagGame: [ 'uuid', 'game:tags' ],
-        forkGame: [ 'uuid', 'game:forkOptions' ],
-        cancelGame: [ 'uuid' ],
+        createGame: ['string', 'game:options'],
+        tagGame: ['uuid', 'game:tags'],
+        forkGame: ['uuid', 'game:forkOptions'],
+        cancelGame: ['uuid'],
         joinGame: `tuple([ 'uuid', 'game:joinTeam' ], 1)`,
 
         getGameTypes: [],
-        getGameTypeConfig: [ 'string' ],
-        getGame: [ 'uuid' ],
-        getTurnData: [ 'uuid', 'integer(0)' ],
-        getTurnActions: [ 'uuid', 'integer(0)' ],
+        getGameTypeConfig: ['string'],
+        getGame: ['uuid'],
+        getTurnData: ['uuid', 'integer(0)'],
+        getTurnActions: ['uuid', 'integer(0)'],
 
-        action: [ 'game:group', 'game:newAction | game:newAction[]' ],
-        playerRequest: [ 'game:group', `enum(['undo','truce'])` ],
-        getPlayerStatus: [ 'game:group' ],
-        getPlayerActivity: [ 'game:group', 'uuid' ],
-        getPlayerInfo: [ 'game:group', 'uuid' ],
+        action: ['game:group', 'game:newAction | game:newAction[]'],
+        playerRequest: ['game:group', `enum(['undo','truce'])`],
+        getPlayerStatus: ['game:group'],
+        getPlayerActivity: ['game:group', 'uuid'],
+        getPlayerInfo: ['game:group', 'uuid'],
         clearWLDStats: `tuple([ 'uuid', 'string | null' ], 1)`,
 
-        searchGameCollection: [ 'string', 'any' ],
-        searchMyGames: [ 'any' ],
+        searchGameCollection: ['string', 'any'],
+        searchMyGames: ['any'],
 
-        getPlayerSets: [ 'string' ],
-        getPlayerSet: [ 'string', 'string' ],
-        savePlayerSet: [ 'string', 'game:set' ],
-        deletePlayerSet: [ 'string', 'string' ],
+        getPlayerSets: ['string'],
+        getPlayerSet: ['string', 'string'],
+        savePlayerSet: ['string', 'game:set'],
+        deletePlayerSet: ['string', 'string'],
 
         getMyAvatar: [],
-        saveMyAvatar: [ 'game:avatar' ],
+        saveMyAvatar: ['game:avatar'],
         getMyAvatarList: [],
-        getPlayersAvatar: [ 'uuid[]' ],
+        getPlayersAvatar: ['uuid[]'],
       },
       events: {
-        'playerRequest:accept': [ 'game:group', 'Date' ],
-        'playerRequest:reject': [ 'game:group', 'Date' ],
-        'playerRequest:cancel': [ 'game:group', 'Date' ],
+        'playerRequest:accept': ['game:group', 'Date'],
+        'playerRequest:reject': ['game:group', 'Date'],
+        'playerRequest:cancel': ['game:group', 'Date'],
       },
       definitions: {
         group: 'string(/^\\/games\\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/)',
-        coords: [ 'integer(0,10)', 'integer(0,10)' ],
+        coords: ['integer(0,10)', 'integer(0,10)'],
         direction: `enum(['N','S','E','W'])`,
         newUnit: {
           type: 'string',
@@ -114,7 +114,7 @@ export default class GameService extends Service {
         },
         setOption: unionType(
           'game:tempSet',
-          `enum([ 'same', 'mirror', 'random', '${[ ...setsById.keys() ].join("','")}' ])`,
+          `enum([ 'same', 'mirror', 'random', '${[...setsById.keys()].join("','")}' ])`,
         ),
         newTeam: unionType(
           'null',
@@ -141,6 +141,7 @@ export default class GameService extends Service {
           'strictFork?': 'boolean',
           'autoSurrender?': 'boolean',
           'rated?': 'boolean',
+          'flaggedForFarming?': 'boolean',
           'timeLimitName?': `enum([ 'blitz', 'standard', 'relaxed', 'day', 'week' ])`,
           'tags?': 'game:tags',
         },
@@ -362,7 +363,7 @@ export default class GameService extends Service {
     const teams = gamesSummary[0].teams;
     const teamId = gamesSummary[0].currentTeamId;
     let opponentTeam;
-    for (let i=1; i<teams.length; i++) {
+    for (let i = 1; i < teams.length; i++) {
       const nextTeam = teams[(teamId + i) % teams.length];
       if (nextTeam.playerId === playerId) continue;
 
@@ -444,7 +445,7 @@ export default class GameService extends Service {
       await Promise.all([
         this.auth.openPlayer(playerId),
         this.data.openPlayer(playerId),
-      ]).then(([ player ]) => clientPara.player = player);
+      ]).then(([player]) => clientPara.player = player);
       if (client.closed) {
         this.auth.closePlayer(playerId);
         this.data.closePlayer(playerId);
@@ -480,34 +481,34 @@ export default class GameService extends Service {
     }
   }
 
-/*
- * The group SHOULD be closed on game end because no more events or requests are
- * accepted for the game.  But there are two things that still require it:
- *  1) Resuming or replaying a game.  Someone may have gone inactive mid-game
- *  and wish to resume it post-game.  This function should be separated from the
- *  game group as we add support for replaying completed games.
- *
- *  2) Player status.  The players may continue to chat after game end, but wish
- *  to know if their opponent is still present.  For active game groups, we want
- *  to track the player's online or active status.  But for chat groups, we only
- *  want to track whether the player is inchat or not.  This should be managed
- *  separately from game groups.
- *
-  onGameEnd(gameId) {
-    const gamePara = this.gamePara.get(gameId);
-    gamePara.clients.keys().forEach(clientId =>
-      this.clientPara.get(clientId).joinedGroups.delete(`/games/${gameId}`)
-    );
-    this.gamePara.delete(gameId);
-
-    this._emit({
-      type: 'closeGroup',
-      body: {
-        group: `/games/${gameId}`,
-      },
-    });
-  }
-*/
+  /*
+   * The group SHOULD be closed on game end because no more events or requests are
+   * accepted for the game.  But there are two things that still require it:
+   *  1) Resuming or replaying a game.  Someone may have gone inactive mid-game
+   *  and wish to resume it post-game.  This function should be separated from the
+   *  game group as we add support for replaying completed games.
+   *
+   *  2) Player status.  The players may continue to chat after game end, but wish
+   *  to know if their opponent is still present.  For active game groups, we want
+   *  to track the player's online or active status.  But for chat groups, we only
+   *  want to track whether the player is inchat or not.  This should be managed
+   *  separately from game groups.
+   *
+    onGameEnd(gameId) {
+      const gamePara = this.gamePara.get(gameId);
+      gamePara.clients.keys().forEach(clientId =>
+        this.clientPara.get(clientId).joinedGroups.delete(`/games/${gameId}`)
+      );
+      this.gamePara.delete(gameId);
+  
+      this._emit({
+        type: 'closeGroup',
+        body: {
+          group: `/games/${gameId}`,
+        },
+      });
+    }
+  */
 
   /*
    * Create a new game and save it to persistent storage.
@@ -528,6 +529,7 @@ export default class GameService extends Service {
 
     gameOptions.createdBy = playerId;
     gameOptions.type = gameTypeId;
+    gameOptions.flaggedForFarming = false;
 
     if (gameOptions.timeLimitName) {
       gameOptions.timeLimit = timeLimit[gameOptions.timeLimitName].clone();
@@ -791,7 +793,7 @@ export default class GameService extends Service {
       throw new ServerError(412, 'To get player status for this game, you must first join it');
 
     const gamePara = this.gamePara.get(gameId);
-    return [ ...gamePara.playerStatus ]
+    return [...gamePara.playerStatus]
       .map(([playerId, playerStatus]) => ({ playerId, ...playerStatus }));
   }
   async onGetPlayerActivityRequest(client, groupPath, forPlayerId) {
@@ -864,22 +866,22 @@ export default class GameService extends Service {
       completed: globalStats.completed,
       canNotify: await this.push.hasAnyPushSubscription(forPlayerId),
       acl: new Map([
-        [ 'me', me.acl ],
-        [ 'them', them.acl ],
+        ['me', me.acl],
+        ['them', them.acl],
       ]),
       isNew: new Map([
-        [ 'me', me.isNew ],
-        [ 'them', them.isNew ],
+        ['me', me.isNew],
+        ['them', them.isNew],
       ]),
       isVerified: new Map([
-        [ 'me', me.isVerified ],
-        [ 'them', them.isVerified ],
+        ['me', me.isVerified],
+        ['them', them.isVerified],
       ]),
       relationship: me.getRelationship(them),
       stats: {
-        aliases: [ ...localStats.aliases.values() ]
+        aliases: [...localStats.aliases.values()]
           .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
-          .sort((a,b) =>
+          .sort((a, b) =>
             b.count - a.count || b.lastSeenAt - a.lastSeenAt
           )
           .slice(0, 10),
@@ -980,7 +982,7 @@ export default class GameService extends Service {
     if (playerPara.joinedGameGroups.has(gameId))
       playerPara.joinedGameGroups.get(gameId).add(client.id);
     else
-      playerPara.joinedGameGroups.set(gameId, new Set([ client.id ]));
+      playerPara.joinedGameGroups.set(gameId, new Set([client.id]));
 
     const gamePara = this.gamePara.get(gameId);
     const sync = game.getSyncForPlayer(playerId, reference);
@@ -992,7 +994,7 @@ export default class GameService extends Service {
       body: {
         group: groupPath,
         user: {
-          id:   playerId,
+          id: playerId,
           name: clientPara.name,
         },
       },
@@ -1007,7 +1009,7 @@ export default class GameService extends Service {
       this._setGamePlayersStatus(gameId);
 
     const response = {
-      playerStatus: [ ...gamePara.playerStatus ]
+      playerStatus: [...gamePara.playerStatus]
         .map(([playerId, playerStatus]) => ({ playerId, ...playerStatus })),
       sync,
     };
@@ -1040,15 +1042,15 @@ export default class GameService extends Service {
       playerGames.on('change', myGames.changeListener = async event => {
         if (event.type === 'change:set') {
           if (event.data.oldSummary)
-            emit({ type:'change', data:event.data.gameSummary });
+            emit({ type: 'change', data: event.data.gameSummary });
           else
-            emit({ type:'add', data:event.data.gameSummary });
+            emit({ type: 'add', data: event.data.gameSummary });
         } else if (event.type === 'change:delete')
-          emit({ type:'remove', data:event.data.oldSummary });
+          emit({ type: 'remove', data: event.data.oldSummary });
 
         const newStats = await this._getGameSummaryListStats(playerGames);
         if (newStats.waiting !== stats.waiting || newStats.active !== stats.active)
-          emit({ type:'stats', data:Object.assign(stats, newStats) });
+          emit({ type: 'stats', data: Object.assign(stats, newStats) });
       });
     }
 
@@ -1067,7 +1069,7 @@ export default class GameService extends Service {
       body: {
         group: groupPath,
         user: {
-          id:   playerId,
+          id: playerId,
           name: clientPara.name,
         },
       },
@@ -1158,7 +1160,7 @@ export default class GameService extends Service {
       body: {
         group: groupPath,
         user: {
-          id:   player.id,
+          id: player.id,
           name: clientPara.name,
         },
       },
@@ -1276,11 +1278,11 @@ export default class GameService extends Service {
 
       try {
         collection.gameOptions.validate?.(gameOptions);
-      } catch(e) {
+      } catch (e) {
         if (e.constructor === Array) {
           // User-facing validation errors are treated manually with specific messages.
           // So, be verbose since failures indicate a problem with the schema or client.
-          console.error('data', JSON.stringify({ type:messageType, body }, null, 2));
+          console.error('data', JSON.stringify({ type: messageType, body }, null, 2));
           console.error('errors', e);
           e = new ServerError(403, 'Game options are not allowed for this collection');
         }
@@ -1290,7 +1292,7 @@ export default class GameService extends Service {
     }
 
     const playerIds = new Set(gameOptions.teams.filter(t => t?.playerId).map(t => t.playerId));
-    await Promise.all([ ...playerIds ].map(pId => this._validateJoinGameForCollection(pId, collection)));
+    await Promise.all([...playerIds].map(pId => this._validateJoinGameForCollection(pId, collection)));
   }
   async _validateJoinGameForCollection(playerId, collection) {
     const collectionGroups = this.collectionGroups;
@@ -1324,7 +1326,7 @@ export default class GameService extends Service {
     }
   }
   async _getGameSummaryListStats(collection, player = null) {
-    const stats = { waiting:0, active:0 };
+    const stats = { waiting: 0, active: 0 };
 
     for (const gameSummary of collection.values()) {
       if (!gameSummary.startedAt) {
@@ -1343,7 +1345,7 @@ export default class GameService extends Service {
   _emitGameSync(game) {
     const gamePara = this.gamePara.get(game.id);
 
-    for (const [ clientId, reference ] of gamePara.clients.entries()) {
+    for (const [clientId, reference] of gamePara.clients.entries()) {
       const clientPara = this.clientPara.get(clientId);
       const sync = game.getSyncForPlayer(clientPara.playerId, reference);
       if (!sync.reference)
@@ -1353,7 +1355,7 @@ export default class GameService extends Service {
       delete sync.playerRequest;
 
       gamePara.clients.set(clientId, sync.reference);
-      gamePara.emit({ clientId, type:'sync', data:sync });
+      gamePara.emit({ clientId, type: 'sync', data: sync });
     }
   }
   async _emitCollectionChange(collectionGroup, collection, event) {
@@ -1397,7 +1399,7 @@ export default class GameService extends Service {
       },
     });
 
-    for (const [ player, oldStats ] of collectionPara.stats) {
+    for (const [player, oldStats] of collectionPara.stats) {
       const stats = await this._getGameSummaryListStats(collection, player);
       if (stats.waiting === oldStats.waiting && stats.active === oldStats.active)
         continue;
@@ -1406,9 +1408,9 @@ export default class GameService extends Service {
 
       const parts = collectionGroup.split('/');
       for (let i = 1; i < parts.length; i++) {
-        const group = parts.slice(0, i+1).join('/');
+        const group = parts.slice(0, i + 1).join('/');
 
-        emitStats(player.id, group, { collectionId:collection.id, stats });
+        emitStats(player.id, group, { collectionId: collection.id, stats });
       }
     }
   }
@@ -1602,11 +1604,11 @@ export default class GameService extends Service {
   }
 
   _resolveTeamSet(gameType, game, team) {
-    const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a,b) => a.joinedAt < b.joinedAt)[0];
+    const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt < b.joinedAt)[0];
 
     if (!gameType.isCustomizable || team.set === null) {
       const set = gameType.getDefaultSet();
-      team.set = { units:set.units };
+      team.set = { units: set.units };
     } else if (team.set === 'same') {
       if (!firstTeam)
         throw new ServerError(400, `Can't use same set when nobody has joined yet.`);
@@ -1621,7 +1623,7 @@ export default class GameService extends Service {
         via: 'mirror',
         units: firstTeam.set.units.map(u => {
           const unit = { ...u };
-          unit.assignment = [ ...unit.assignment ];
+          unit.assignment = [...unit.assignment];
           unit.assignment[0] = 10 - unit.assignment[0];
           if (unit.direction === 'W')
             unit.direction = 'E';
@@ -1648,19 +1650,46 @@ export default class GameService extends Service {
 
     game.state.join(team);
 
-    /*
-     * If no open slots remain, start the game.
-     */
     const teams = game.state.teams;
 
     if (teams.findIndex(t => !t?.joinedAt) === -1) {
-      const players = new Map(teams.map(t => [ t.playerId, t.name ]));
-      if (players.size > 1)
+      const playerIds = new Set(teams.map(t => t.playerId));
+      if (playerIds.size > 1) {
+
         await this.chat.createRoom(
-          [ ...players ].map(([ id, name ]) => ({ id, name })),
-          { id:game.id, applyRules:!!game.collection }
+          teams.map(t => ({ id: t.playerId, name: t.name })),
+          { id: game.id, applyRules: !!game.collection }
         );
 
+        // Check if this game if flagged for farming. 
+        const COOLOFF_PERIOD_IN_MS = 7 * 24 * 60 * 60 * 1000; // 1 week, in milliseconds
+        if (game.state.rated) {
+          // Check the 'nth' most recent game in this matchup
+          let n = 2
+
+          const playerGames = await this.data.openPlayerGames(teams[0].playerId);
+          const now = Date.now();
+          // Check this player's games to see if there is too much history with their opponent in too short a time
+          for (const gameSummary of playerGames.values()) {
+            if (!gameSummary.endedAt) {
+              continue;
+            }
+            const timeSinceGame = now - gameSummary.endedAt;
+            if (timeSinceGame < COOLOFF_PERIOD_IN_MS) {
+              const opponentFound = gameSummary.teams.findIndex(t => t?.playerId === game.state.teams[1].playerId) !== -1;
+              const isSameMode = gameSummary.type === game.state.type;
+              const isRated = gameSummary.rated;
+              const flaggedForFarming = gameSummary.flaggedForFarming;
+              if (opponentFound && isSameMode && isRated && !flaggedForFarming) {
+                n--;
+                if (n === 0) {
+                  game.state.flaggedForFarming = true;
+                }
+              }
+            }
+          }
+        }
+      }
       // Now that the chat room is created, start the game.
       game.state.start();
     }
@@ -1684,7 +1713,7 @@ export default class GameService extends Service {
       const oldPlayerStatus = playerStatus.get(playerId);
       const newPlayerStatus = this._getPlayerGameStatus(playerId, game);
       if (
-        newPlayerStatus.status     !== oldPlayerStatus?.status ||
+        newPlayerStatus.status !== oldPlayerStatus?.status ||
         newPlayerStatus.deviceType !== oldPlayerStatus?.deviceType
       ) {
         playerStatus.set(playerId, newPlayerStatus);
@@ -1710,7 +1739,7 @@ export default class GameService extends Service {
     if (session.watchers)
       session.watchers.add(gameId);
     else {
-      session.watchers = new Set([ gameId ]);
+      session.watchers = new Set([gameId]);
       session.onIdleChange = this.idleWatcher;
     }
   }
@@ -1727,7 +1756,7 @@ export default class GameService extends Service {
   _getPlayerGameStatus(playerId, game) {
     const playerPara = this.playerPara.get(playerId);
     if (!playerPara || (game.state.endedAt && !playerPara.joinedGameGroups.has(game.id)))
-      return { status:'offline' };
+      return { status: 'offline' };
 
     let deviceType;
     for (const clientId of playerPara.clients) {
@@ -1740,7 +1769,7 @@ export default class GameService extends Service {
     }
 
     if (!playerPara.joinedGameGroups.has(game.id))
-      return { status:'online', deviceType };
+      return { status: 'online', deviceType };
 
     /*
      * Determine active status with the minimum idle of all clients this player
@@ -1807,8 +1836,8 @@ export default class GameService extends Service {
         game.state.startedAt && !game.state.endedAt &&
         game.state.teams.findIndex(t => t.playerId === playerId) > -1
       )
-      .map(game => ({ game, idle:this._getPlayerGameIdle(playerId, game) }))
-      .sort((a,b) => a.idle - b.idle);
+      .map(game => ({ game, idle: this._getPlayerGameIdle(playerId, game) }))
+      .sort((a, b) => a.idle - b.idle);
 
     // Get a filtered list of the games that are active.
     const activeGamesInfo = openGamesInfo
