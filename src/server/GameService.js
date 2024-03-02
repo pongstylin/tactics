@@ -75,6 +75,7 @@ export default class GameService extends Service {
         getPlayerStatus: ['game:group'],
         getPlayerActivity: ['game:group', 'uuid'],
         getPlayerInfo: ['game:group', 'uuid'],
+        getPlayerRatings: [],
         clearWLDStats: `tuple([ 'uuid', 'string | null' ], 1)`,
 
         searchGameCollection: ['string', 'any'],
@@ -879,6 +880,7 @@ export default class GameService extends Service {
       ]),
       relationship: me.getRelationship(them),
       stats: {
+        ratings: globalStats.ratings,
         aliases: [...localStats.aliases.values()]
           .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
           .sort((a, b) =>
@@ -887,6 +889,17 @@ export default class GameService extends Service {
           .slice(0, 10),
         all: localStats.all,
         style: localStats.style.get(game.state.type),
+      },
+    };
+  }
+
+  async onGetPlayerRatingsRequest(client) {
+    const playerId = this.clientPara.get(client.id).playerId;
+    const myStats = await this.data.getPlayerStats(playerId, playerId);
+
+    return {
+      stats: {
+        ratings: myStats.ratings,
       },
     };
   }
