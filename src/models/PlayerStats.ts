@@ -23,9 +23,6 @@ export default class PlayerStats extends ActiveModel {
 
   // Updates the ratings of all players involved in a game. This method is static because it acts on the rating of more than one player
   static updateRatings(game, playerStatsMap) {
-    // Do not attempt to update ratings for 4-player game.
-    if (game.state.teams.length !== 2)
-      return;
 
     // Only update stats for rated games
     if (!game.state.rated)
@@ -33,6 +30,15 @@ export default class PlayerStats extends ActiveModel {
 
     // Check for farming
     if (game.state.flaggedForFarming)
+      return;
+
+    // Ensure the game was played (and not abandoned) by exactly 2 players
+    const playedBy = new Set();
+    for (const team of game.state.teams) {
+      if (game.state.teamHasPlayed(team))
+        playedBy.add(team.playerId);
+    }
+    if (playedBy.size !== 2)
       return;
 
     // Find the winner and the loser
@@ -50,9 +56,6 @@ export default class PlayerStats extends ActiveModel {
 
     // Update the ratings for specific game type played
     _updateRatingInfo(winnerRatings.get(game.state.type), loserRatings.get(game.state.type), game.state.winnerId === 'draw');
-
-    // Update the overall ratings
-    _updateRatingInfo(winnerRatings.get("overall"), loserRatings.get("overall"), game.state.winnerId === 'draw');
   }
 
   get playerId() {
@@ -131,14 +134,6 @@ export default class PlayerStats extends ActiveModel {
         const stats = this.data.stats.get(this.data.playerId);
         if (!stats.ratings.has(game.state.type)) {
           stats.ratings.set(game.state.type, {
-            rating: DEFAULT_RATING,
-            gamesPlayed: 0,
-            updatedAt: now,
-          });
-        }
-
-        if (!stats.ratings.has("overall")) {
-          stats.ratings.set("overall", {
             rating: DEFAULT_RATING,
             gamesPlayed: 0,
             updatedAt: now,
@@ -374,7 +369,7 @@ serializer.addType({
                               {
                                 required: ['rating'],
                                 properties: {
-                                  completed: { $ref: '#/definitions/rating' },
+                                  rating: { $ref: '#/definitions/rating' },
                                 },
                               },
                             ],
