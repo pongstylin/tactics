@@ -1,22 +1,17 @@
 import { v4 as uuid } from 'uuid';
 import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
-import { RegExpMatcher, englishDataset, englishRecommendedTransformers } from 'obscenity';
 
 import ActiveModel from '#models/ActiveModel.js';
 import Identities from '#models/Identities.js';
 import Identity from '#models/Identity.js';
+import obscenity from '#utils/obscenity.js';
 import serializer from '#utils/serializer.js';
 
 import IdentityToken from '#server/IdentityToken.js';
 import AccessToken from '#server/AccessToken.js';
 import config from '#config/server.js';
 import ServerError from '#server/Error.js';
-
-const obscenity = new RegExpMatcher({
-	...englishDataset.build(),
-	...englishRecommendedTransformers,
-});
 
 /*
  * Player names may have the following characters:
