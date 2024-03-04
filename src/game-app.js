@@ -7,6 +7,7 @@ import wakelock from 'components/wakelock.js';
 import GameSettingsModal from 'components/Modal/GameSettings.js';
 import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
 import PlayerInfoModal from 'components/Modal/PlayerInfo.js';
+import PlayerInfoSelfModal from 'components/Modal/PlayerInfoSelf.js';
 import ForkModal from 'components/Modal/Fork.js';
 import sleep from 'utils/sleep.js';
 
@@ -459,14 +460,19 @@ $(() => {
     .on('click', '#field .player .link', event => {
       const $link = $(event.currentTarget);
       const team = $link.closest('.player').data('team');
-
+      
       if ($link.hasClass('status')) {
         new PlayerActivityModal({ game, team });
-      } else if ($link.hasClass('name'))
+      } else if (team.playerId !== authClient.playerId) {
         playerInfo = new PlayerInfoModal(
           { game, gameType, team },
-          { onClose:() => playerInfo = null }
+          { onClose: () => playerInfo = null }
         );
+      } else {
+        new PlayerInfoSelfModal(
+          { game, gameType, team },
+        );
+      }
     })
     /*
      * Under these conditions a special attack can be triggered:
@@ -1677,7 +1683,7 @@ function resetPlayerBanners() {
       .data('team', team);
 
     const playerStatus = game.state.playerStatus.get(team.playerId);
-    const showLink = playerStatus !== 'unavailable' && !game.isViewOnly && !isMyTeam;
+    const showLink = playerStatus !== 'unavailable' && !game.isViewOnly;
     const $status = $player.find('.status')
       .removeClass('offline online active unavailable')
       .addClass(playerStatus.status)

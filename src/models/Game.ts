@@ -384,6 +384,7 @@ export default class Game extends ActiveModel {
     forkGameData.state.strictFork = false;
     forkGameData.state.autoSurrender = false;
     forkGameData.state.rated = false;
+    forkGameData.state.flaggedForFarming = false;
 
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
 
@@ -471,6 +472,7 @@ export default class Game extends ActiveModel {
     delete gameData.state.strictFork;
     delete gameData.state.autoSurrender;
     delete gameData.state.rated;
+    delete gameData.state.flaggedForFarming;
 
     if (reference === 'creation') {
       this._addRecentTurns(gameData, playerId);
