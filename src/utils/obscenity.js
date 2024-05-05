@@ -1,4 +1,5 @@
 import { RegExpMatcher, englishDataset, englishRecommendedTransformers, pattern } from 'obscenity';
+import decancer from '#utils/decancer.js';
 
 const obscenityConfig = {
   ...englishDataset.build(),
@@ -15,6 +16,8 @@ const matcher = new RegExpMatcher(obscenityConfig);
 
 export default {
   hasMatch: text => {
-    return matcher.hasMatch(text) || matcher.hasMatch(text.replace(/l/g, 'I'));
+    return matcher.hasMatch(text)
+      || matcher.hasMatch(decancer(text))
+      || matcher.hasMatch(decancer(text).replace(/l/g, 'I'));
   },
 };
