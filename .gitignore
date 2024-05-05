@@ -1,5 +1,8 @@
 node_modules
 dist
+config/*.pem
+static/*.min.js
+static/sw.js
 !static/jquery*
 src/models/*.js
 src/data/archive
