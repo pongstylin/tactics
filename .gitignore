@@ -1,5 +1,6 @@
 node_modules
 dist
+config/*.pem
 static/*.min.js
 static/sw.js
 !static/jquery*

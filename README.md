@@ -44,7 +44,7 @@ The start command will output a URL that can be used to run the game and build J
 
 You may locally host image and audio resources.  For example, download and unzip the sprite JSON files from [here](https://tactics.taorankings.com/sprites.zip) to the "/static/sprites" directory.  Then set the "SPRITE\_SOURCE" in the ".env" file to "/sprites/".  Not all image and audio resources are currently included in the zip, but the few exceptions will eventually be incorporated.
 
-If you wish to use HTTPS for local development, be sure to set "secure=true" in the `.env` file.  Also, install the `mkcert` tool and install the certificate authority and either use or replace the generated `localhost.pem` and `localhost-key.pem` files in the `config` directory.  This is useful for testing OAuth and PWA installations.
+If you wish to use HTTPS for local development, be sure to set "secure=true" in the `.env` file.  Also, install the `mkcert` tool and install the certificate authority and a certificate for `localhost` such that `localhost.pem` and `localhost-key.pem` files are placed in the `config` directory.  This is useful for testing OAuth and PWA installations.
 
 ## Contributing
 Pull requests are encouraged. For major changes, please open an issue first to discuss what you would like to change.
