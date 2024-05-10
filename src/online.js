@@ -299,11 +299,13 @@ whenDOMReady.then(() => {
       return;
     }
 
+    const replayLink = link + "#c=1,0";
+
     // Support common open-new-tab semantics
     if (event.ctrlKey || event.metaKey || event.button === 1)
-      open(link, '_blank');
+      open(replayLink, '_blank');
     else
-      location.href = link;
+      location.href = replayLink;
   };
   document.querySelector('.tabContent').addEventListener('mouseup', event => {
     // Detect and handle middle-click
@@ -395,7 +397,7 @@ async function showTabs() {
   myPlayerId = authClient.playerId;
   setMyName();
 
-  const avatar = (await gameClient.getPlayersAvatar([ myPlayerId ]))[0]; 
+  const avatar = (await gameClient.getPlayersAvatar([ myPlayerId ]))[0];
 
   document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
 
@@ -2433,4 +2435,3 @@ async function fetchGames(tabName) {
     return fetchGames(tabName);
   });
 }
-
