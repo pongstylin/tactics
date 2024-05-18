@@ -212,11 +212,20 @@ export default class Timeout {
     return itemTimeout.item;
   }
 
+  openedKeys() {
+    return this._opened.keys();
+  }
+  openedValues() {
+    return [ ...this._opened ].map(([ k, v ]) => v.item);
+  }
+  closedKeys() {
+    return this._closed.keys();
+  }
+  closedValues() {
+    return [ ...this._closed ].map(([ k, v ]) => v.item);
+  }
   keys() {
     return [ ...this._opened.keys(), ...this._closed.keys() ];
-  }
-  openValues() {
-    return [ ...this._opened ].map(([ k, v ]) => v.item);
   }
   values() {
     const openedValues = [ ...this._opened ].map(([ k, v ]) => v.item);

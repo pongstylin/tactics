@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "npm run compile && ./start.sh",
-    "start-force": "rm -rf src/data/files/*.json && npm run compile && ./start.sh",
+    "start-force": "rm -rf src/data/files/*.lock.json && npm run compile && ./start.sh",
     "start-beta": "NODE_ENV=beta node --require dotenv/config src/server.js || true",
     "compile": "tsc",
     "lint": "tslint",

@@ -22,7 +22,7 @@ export default class GameSummary {
     let updatedAt;
     if (endedAt)
       updatedAt = endedAt;
-    else if (actions.length)
+    else if (actions?.length)
       updatedAt = actions.last.createdAt;
     else
       updatedAt = turnStartedAt || createdAt;
@@ -41,7 +41,7 @@ export default class GameSummary {
       randomHitChance: game.state.randomHitChance,
       turnStartedAt,
       // This value is only non-null for 5 seconds after a rated game turn ends
-      turnEndedAt: actions.last?.type === 'endTurn' ? actions.last.createdAt : null,
+      turnEndedAt: game.state.turnEndedAt,
       timeLimitName: game.timeLimitName,
       currentTurnTimeLimit: game.state.currentTurnTimeLimit,
       isFork: game.isFork,

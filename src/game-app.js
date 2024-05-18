@@ -2186,11 +2186,11 @@ function toggleUndoButton() {
 
   const canUndo = game.canUndo();
   $('BUTTON[name=undo]').prop('disabled', !canUndo);
-  $('BUTTON[name=undo]').toggleClass('request', canUndo === 'approve');
+  $('BUTTON[name=undo]').toggleClass('request', !!canUndo?.approve);
 
   // If we are only able to undo for a limited time, set a timer to disable it.
-  if (canUndo && typeof canUndo === 'number')
-    undoTimeout = setTimeout(toggleUndoButton, canUndo);
+  if (canUndo?.refreshTimeout)
+    undoTimeout = setTimeout(toggleUndoButton, canUndo.refreshTimeout);
 }
 
 function toggleReplayButtons() {

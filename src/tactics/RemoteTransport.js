@@ -66,16 +66,16 @@ export default class RemoteTransport extends Transport {
    * Returns a promise that resolves to the method result, if any.
    */
   async getTurnData(turnId) {
-    const turnData = this.getRecentTurnData(turnId);
-    if (turnData)
-      return turnData;
+    const turn = this.getRecentTurn(turnId);
+    if (turn)
+      return turn.getData();
 
     return gameClient.getTurnData(this._data.id, turnId);
   }
   async getTurnActions(turnId) {
-    const turnData = this.getRecentTurnData(turnId);
-    if (turnData)
-      return turnData.actions;
+    const turn = this.getRecentTurn(turnId);
+    if (turn)
+      return turn.actions;
 
     return gameClient.getTurnActions(this._data.id, turnId);
   }
@@ -191,7 +191,8 @@ export default class RemoteTransport extends Transport {
   _onStartTurn(event) {
     // Clear a player's rejected requests when their turn starts.
     if (this._data.playerRequest) {
-      const playerId = this._data.state.teams[event.data.teamId].playerId;
+      const currentTeamId = (this._data.state.currentTurnId + 1) % this.teams.length;
+      const playerId = this.teams[currentTeamId].playerId;
       const oldRejected = this._data.playerRequest.rejected;
       const newRejected = [ ...oldRejected ].filter(([k,v]) => !k.startsWith(`${playerId}:`))
 
@@ -205,10 +206,16 @@ export default class RemoteTransport extends Transport {
 
     return super._onStartTurn(event);
   }
-  _onEndGame(event) {
-    this._data.playerRequest = null;
-
-    return super._onEndGame(event);
+  /*
+   * We only need enough history to determine undo availability.
+   */
+  _pruneRecentTurns() {
+    const state = this._data.state;
+    const recentTurns = state.recentTurns;
+    const team = this.getTeamForPlayer(authClient.playerId);
+    const pointer = this.getUndoPointer(team) || { turnId:state.currentTurnId };
+    while (recentTurns[0].id < pointer.turnId)
+      recentTurns.shift();
   }
   _watchForDataChanges(gameData) {
     this

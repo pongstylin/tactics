@@ -88,7 +88,7 @@ export default class Team {
     usedSim: boolean
     forkOf: any
   }
-  units: any[][]
+  public units: any[][]
 
   constructor(data) {
     this.data = Object.assign({
@@ -137,9 +137,6 @@ export default class Team {
 
       // Whether to randomize the side the set is placed on at game start
       randomSide: false,
-
-      // The current state of units for the team
-      units: null,
 
       // The bot, if any, controlling the team
       bot: undefined,
@@ -315,8 +312,8 @@ export default class Team {
     if (this.checkoutAt > this.checkinAt)
       return this.checkoutAt > date;
 
-    // If checked in right now, date is seen
-    return true;
+    // If checked in right now, date is seen if it isn't in the future.
+    return Date.now() > date;
   }
 
   setUsedUndo() {
