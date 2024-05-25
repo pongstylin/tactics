@@ -35,7 +35,7 @@ export default {
  *
  */
 export const getTurnTimeLimit = {
-  fixed: function () {
+  fixed: function (turn = this.currentTurn) {
     if (turn.isAutoSkipped)
       return null;
 

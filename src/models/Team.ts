@@ -366,6 +366,12 @@ export default class Team {
     return this.data.randomState.generate();
   }
 
+  merge(teamData) {
+    // @ts-ignore
+    this.data.merge(teamData);
+    return this;
+  }
+
   /*
    * This method is used to send data from the server to the client.
    */

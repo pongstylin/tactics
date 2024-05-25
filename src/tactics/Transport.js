@@ -528,9 +528,7 @@ export default class Transport {
     Object.assign(this._data.state, {
       startedAt: data.startedAt,
       teams: data.teams,
-      units: data.units,
     });
-    this._applyState();
     this.whenStarted.resolve();
     this._emit({ type:'change' });
   }
@@ -617,7 +615,7 @@ export default class Transport {
           if (teams[i] === null)
             data.state.teams[i] = null;
           else
-            data.state.teams[i] = data.teams[i] ? data.state.teams[i].merge(teams[i]) : new Team(teams[i]);
+            data.state.teams[i] = data.state.teams[i] ? data.state.teams[i].merge(teams[i]) : new Team(teams[i]);
       }
 
       if (currentTurn) {

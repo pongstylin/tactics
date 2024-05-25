@@ -397,7 +397,6 @@ export default class GameState {
         data: {
           startedAt: this.startedAt,
           teams: this.teams.map(t => t.getData(true)),
-          units: this.units,
         },
       });
 
