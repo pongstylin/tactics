@@ -975,7 +975,7 @@ export default class GameState {
             return null;
 
           // Pass control to the next team 5 seconds after the current turn ends in rated games.
-          if (rated && turn.isEnded && Date.now() - turn.endedAt >= 5000)
+          if (rated && turn.isEnded && this.seen(team, turn.endedAt.getTime() + 5000) && Date.now() - turn.endedAt >= 5000)
             return pointer;
         } else {
           // Can't undo when team's last turn is locked.
@@ -1140,7 +1140,7 @@ export default class GameState {
     if (reason === 'willSync' && this.endedAt)
       return;
 
-    if (this.currentTurn.isEnded && (!this.rated || !this.getUndoPointer()))
+    if (this.currentTurn.isEnded && (!this.rated || Date.now() - this.currentTurn.endedAt >= 5000))
       return this.startTurn();
 
     this._emit({ type:'sync' });

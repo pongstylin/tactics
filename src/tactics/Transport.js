@@ -197,7 +197,7 @@ export default class Transport {
    * Has any other team checked in since the given date?
    */
   seen(team, date) {
-    return this._data.state.teams.findIndex(t => t.id !== team.id && new Team(t).seen(date)) > -1;
+    return this._data.state.teams.findIndex(t => t.id !== team.id && t.seen(date)) > -1;
   }
 
   /*
@@ -260,7 +260,7 @@ export default class Transport {
             return null;
 
           // Pass control to the next team 5 seconds after the current turn ends in rated games.
-          if (rated && turn.isEnded && Date.now() - turn.endedAt >= 5000)
+          if (rated && turn.isEnded && this.seen(team, turn.endedAt.getTime() + 5000) && Date.now() - turn.endedAt >= 5000)
             return pointer;
         } else {
           // Can't undo when team's last turn is locked.
