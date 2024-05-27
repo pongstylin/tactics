@@ -19,11 +19,14 @@ export default class Transport {
       _teams: null,
       _data: null,
       _listeners: new Map([
-        [ 'startGame', this._onStartGame.bind(this) ],
+        [ 'sync', this._onSync.bind(this) ],
+        // For now, sync events can include startTurn and action events.
+        // But would it be nice if we only needed sync events?
+        // recentTurns is sufficient to give enough history to support undo use.
+        // Even if very behind, GameStateCursor can use getTurnData then getTurnActions
+        // to efficiently catch up to current state.
         [ 'startTurn', this._onStartTurn.bind(this) ],
         [ 'action', this._onAction.bind(this) ],
-        [ 'revert', this._onRevert.bind(this) ],
-        [ 'sync', this._onSync.bind(this) ],
       ]),
 
       ...props,
@@ -489,7 +492,7 @@ export default class Transport {
 
   makeState(units, actions) {
     const board = new Board();
-    board.setState(units, this.teams.map(t => new Team(t)));
+    board.setState(units, this.teams.map(t => t.clone()));
     board.decodeAction(actions).forEach(a => board.applyAction(a));
     return board.getState();
   }
@@ -524,72 +527,11 @@ export default class Transport {
       this.on(eventType, listener);
     }
   }
-  _onStartGame({ data }) {
-    Object.assign(this._data.state, {
-      startedAt: data.startedAt,
-      teams: data.teams,
-    });
-    this.whenStarted.resolve();
-    this._emit({ type:'change' });
-  }
-  _onStartTurn({ data }) {
-    const board = this.board;
-    const state = this._data.state;
-
-    state.currentTurnId++;
-
-    state.recentTurns.push(Turn.create({
-      id: state.currentTurnId,
-      team: this.teams[state.currentTurnId % this.teams.length],
-      data: {
-        startedAt: data.startedAt,
-        units: board.getState(),
-      },
-      timeLimit: data.timeLimit,
-    }));
-
-    this.previousTurn.isCurrent = false;
-
-    this.whenTurnStarted.resolve();
-    this._emit({ type:'change' });
-  }
   _pruneRecentTurns() {
-    const recentTurns = state.recentTurns;
+    const recentTurns = this._data.state.recentTurns;
 
     while (recentTurns.length > 1)
       recentTurns.shift();
-  }
-  _onAction({ data:actions }) {
-    const state = this._data.state;
-    const board = this.board;
-
-    for (const action of actions) {
-      this.currentTurn.pushAction(action);
-      board.applyAction(board.decodeAction(action));
-    }
-
-    // Emit a change so that the game state cursor can pick up on the new
-    // action before it is potentially cleared in the next step.
-    this._emit({ type:'change' });
-  }
-  _onRevert({ data:currentTurnData }) {
-    const state = this._data.state;
-
-    state.currentTurnId = currentTurnData.id;
-    state.recentTurns = [ new Turn({
-      id: currentTurnData.id,
-      team: this.teams[currentTurnData.id % this.teams.length],
-      data: {
-        startedAt: currentTurnData.startedAt,
-        units: currentTurnData.units,
-        actions: currentTurnData.actions,
-      },
-      isCurrent: true,
-      timeLimit: currentTurnData.timeLimit,
-    }) ];
-
-    this._applyState();
-    this._emit({ type:'change' });
   }
   /*
    * Sync Game State
@@ -650,10 +592,45 @@ export default class Transport {
 
     this._pruneRecentTurns();
   }
+  _onStartTurn({ data }) {
+    const board = this.board;
+    const state = this._data.state;
+
+    state.currentTurnId++;
+
+    state.recentTurns.push(Turn.create({
+      id: state.currentTurnId,
+      team: this.teams[state.currentTurnId % this.teams.length],
+      data: {
+        startedAt: data.startedAt,
+        units: board.getState(),
+      },
+      timeLimit: data.timeLimit,
+    }));
+
+    if (this.previousTurn)
+      this.previousTurn.isCurrent = false;
+
+    this.whenTurnStarted.resolve();
+    this._emit({ type:'change' });
+  }
+  _onAction({ data:actions }) {
+    const state = this._data.state;
+    const board = this.board;
+
+    for (const action of actions) {
+      this.currentTurn.pushAction(action);
+      board.applyAction(board.decodeAction(action));
+    }
+
+    // Emit a change so that the game state cursor can pick up on the new
+    // action before it is potentially cleared in the next step.
+    this._emit({ type:'change' });
+  }
 
   _applyState() {
     const board = this.board;
-    board.setState(this.units, this.teams.map(t => new Team(t)));
+    board.setState(this.units, this.teams);
     board.decodeAction(this.actions).forEach(a => board.applyAction(a));
   }
   _expandTeams() {

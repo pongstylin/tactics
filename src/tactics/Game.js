@@ -560,7 +560,8 @@ export default class Game {
         else if (myOldTeams.length > 1)
           myTeam = myOldTeams.sort((a,b) => a.joinedAt - b.joinedAt)[0];
       } else
-        myTeam = myTeams.sort((a,b) => a.joinedAt - b.joinedAt)[0];
+        // joinedAt might be the same for all teams, so slot is used for local games.
+        myTeam = myTeams.sort((a,b) => a.slot - b.slot)[0];
     }
 
     if (myTeam)

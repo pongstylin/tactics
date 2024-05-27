@@ -397,6 +397,7 @@ export default class GameState {
         data: {
           startedAt: this.startedAt,
           teams: this.teams.map(t => t.getData(true)),
+          units: this.units,
         },
       });
 
@@ -415,13 +416,7 @@ export default class GameState {
     return this.getTurnData(turnId).actions;
   }
 
-  /*
-   * This method is used when transmitting game state from the server to client.
-   * It does not include all of the data that is serialized by toJSON().
-   * Sometimes a player may only view an earlier state
-   */
-  getDataForPlayer(playerId = 'anonymous') {
-    const team = this.getTeamForPlayer(playerId);
+  getData() {
     const data = {
       type: this.type,
       randomFirstTurn: this.randomFirstTurn,
@@ -440,13 +435,25 @@ export default class GameState {
       currentTurnId: this.currentTurnId,
     };
 
+    if (this.startedAt)
+      data.recentTurns = [ this.currentTurn ];
+
+    return data;
+  }
+  /*
+   * This method is used when transmitting game state from the server to client.
+   * It does not include all of the data that is serialized by toJSON().
+   * Sometimes a player may only view an earlier state
+   */
+  getDataForPlayer(playerId = 'anonymous') {
+    const team = this.getTeamForPlayer(playerId);
+    const data = this.getData();
+
     if (this.startedAt) {
       // Provide enough history so that the client knows if they may undo.
       const pointer = this.getUndoPointer(team);
       if (pointer)
         data.recentTurns = this.turns.slice(pointer.turnId);
-      else
-        data.recentTurns = [ this.currentTurn ];
     }
 
     // Everybody sees the game start and end
@@ -1108,6 +1115,7 @@ export default class GameState {
     this._emit({
       type: 'startTurn',
       data: {
+        teamId: this.currentTeamId,
         startedAt: this.startedAt,
         timeLimit: this.turnTimeLimit,
       },

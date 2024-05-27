@@ -366,6 +366,9 @@ export default class Team {
     return this.data.randomState.generate();
   }
 
+  clone() {
+    return new Team(this.data);
+  }
   merge(teamData) {
     // @ts-ignore
     this.data.merge(teamData);
