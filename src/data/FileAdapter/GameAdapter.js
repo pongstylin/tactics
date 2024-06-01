@@ -61,8 +61,6 @@ export default class extends FileAdapter {
   }
 
   async bootstrap() {
-    const state = (await super.bootstrap()).state;
-
     this._gameTypes = await this.getFile('game_types', data => {
       const gameTypes = new Map();
       for (const [ id, config ] of data) {
@@ -75,95 +73,7 @@ export default class extends FileAdapter {
       return gameTypes;
     });
 
-    if (!state.willSync)
-      state.willSync = new Timeout(`${this.name}WillSync`);
-    state.willSync.on('expire', async ({ data:items }) => {
-      const games = await Promise.all(
-        [ ...items.keys() ].map(gameId => this._getGame(gameId)),
-      );
-      for (const game of games) {
-        if (game.state.endedAt || game.state.actions.last?.type !== 'endTurn')
-          continue;
-
-        game.state.sync({ type:'timeout' });
-      }
-    });
-
-    if (!state.autoSurrender)
-      state.autoSurrender = new Timeout(`${this.name}AutoSurrender`);
-    state.autoSurrender.on('expire', async ({ data:items }) => {
-      const games = await Promise.all(
-        [ ...items.keys() ].map(gameId => this._getGame(gameId)),
-      );
-      for (const game of games) {
-        // Just in case they finished their turn at the very last moment.
-        if (game.state.endedAt || game.state.getTurnTimeRemaining() > 0)
-          continue;
-
-        if (game.state.actions.length === 0)
-          game.state.submitAction({
-            type: 'surrender',
-            declaredBy: 'system',
-          });
-        else if (game.state.actions.last.type !== 'endTurn')
-          game.state.submitAction({
-            type: 'endTurn',
-            forced: true,
-          });
-      }
-    });
-
-    if (!state.autoCancel)
-      state.autoCancel = new Timeout(`${this.name}AutoCancel`);
-    state.autoCancel.on('expire', async ({ data:items }) => {
-      const games = await Promise.all(
-        [ ...items.keys() ].map(gameId => this._getGame(gameId)),
-      );
-      for (const game of games) {
-        if (game.state.startedAt)
-          continue;
-
-        game.cancel();
-      }
-    });
-
-    if (state.shutdownAt) {
-      /*
-       * If the server was shut down for more than 30 seconds, end real-time
-       * games in a truce.
-       */
-      const elapsed = Math.floor((Date.now() - state.shutdownAt) / 1000);
-      delete state.shutdownAt;
-
-      state.autoSurrender.pause();
-
-      const games = await Promise.all(
-        state.autoSurrender.keys().map(gameId => this._getGame(gameId)),
-      );
-
-      for (const game of games) {
-        if (game.state.getTurnTimeRemaining() > 0)
-          // Extend the time limit by the amount of time the server was offline plus 2 minutes.
-          game.state.timeLimit.current += elapsed + 120;
-        else
-          // Don't make players wait forever for the server to start back up.
-          game.state.end('truce');
-        game.emit('change:state');
-      }
-
-      state.autoSurrender.resume();
-    }
-
-    return this;
-  }
-
-  async cleanup() {
-    const state = this.state;
-    const autoSurrender = state.autoSurrender.pause();
-    state.willSync.pause();
-    state.shutdownAt = new Date();
-
-    return super.cleanup();
+    return super.bootstrap();
   }
 
   /*****************************************************************************
@@ -176,7 +86,7 @@ export default class extends FileAdapter {
     return [ ...this._gameTypes.values() ]
       .filter(gt => !gt.config.archived)
       .map(({ id, config }) => ({
-        id: id, 
+        id: id,
         name: config.name,
       }));
   }
@@ -258,10 +168,15 @@ export default class extends FileAdapter {
     return this.cache.get('game').open(gameId, game);
   }
   getOpenGames() {
-    return this.cache.get('game').openValues();
+    return this.cache.get('game').openedValues();
   }
   closeGame(gameId) {
     return this.cache.get('game').close(gameId);
+  }
+  async getGames(gameIds) {
+    const games = await Promise.all([ ...gameIds ].map(gId => this._getGame(gId)));
+    games.forEach(g => this.cache.get('game').add(g.id, g));
+    return games;
   }
   async getGame(gameId) {
     const game = await this._getGame(gameId);
@@ -269,6 +184,17 @@ export default class extends FileAdapter {
   }
   getOpenGame(gameId) {
     return this.cache.get('game').getOpen(gameId);
+  }
+  async deleteGame(game) {
+    if (this._dirtyGames.has(game.id))
+      await this._dirtyGames.get(game.id);
+
+    this.cache.get('game').delete(game.id);
+    this.buffer.get('game').delete(game.id);
+    game.destroy();
+
+    this._clearGameSummary(game);
+    this.deleteFile(`game_${game.id}`);
   }
 
   getOpenPlayerSets(playerId, gameType) {
@@ -390,28 +316,6 @@ export default class extends FileAdapter {
     }
   }
 
-  /*
-   * This is triggered by player checkin / checkout events.
-   * On checkin, open games will not be auto cancelled.
-   * On checkout, open games will auto cancel after a period of time.
-   * That period of time is 1 hour if they have push notifications enabled.
-   * Otherwise, the period of time is based on game turn time limit.
-   */
-  async scheduleAutoCancel(playerId, extended = false) {
-    const playerGames = await this._getPlayerGames(playerId);
-    for (const gameSummary of playerGames.values())
-      if (gameSummary.collection && !gameSummary.startedAt) {
-        const game = await this.getGame(gameSummary.id);
-        if (game.state.timeLimit.base < 86400)
-          this.state.autoCancel.add(game.id, true, (extended ? 3600 : game.state.timeLimit.initial) * 1000);
-      }
-  }
-  async clearAutoCancel(playerId) {
-    const playerGames = await this._getPlayerGames(playerId);
-    for (const gameSummary of playerGames.values())
-      this.state.autoCancel.delete(gameSummary.id);
-  }
-
   /*****************************************************************************
    * Private Interface
    ****************************************************************************/
@@ -427,10 +331,8 @@ export default class extends FileAdapter {
       return data;
     });
     await this._updateGameSummary(game);
-    if (game.state.startedAt) {
+    if (game.state.startedAt)
       await this._recordGameStats(game);
-      this._syncAutoSurrender(game);
-    }
   }
   async _getGame(gameId) {
     if (this.cache.get('game').has(gameId))
@@ -448,39 +350,16 @@ export default class extends FileAdapter {
     });
   }
   _attachGame(game) {
-    game.state.on('willSync', event => this._onGameWillSync(game, event.data));
-    game.state.on('sync', event => this._onGameSync(game));
     game.on('change', event => this._onGameChange(game));
-    game.on('delete', event => this._onGameDelete(game));
     if (!game.state.startedAt)
       game.state.once('startGame', event => this._recordGameStats(game));
     if (!game.state.endedAt)
       game.state.once('endGame', event => this._recordGameStats(game));
   }
-  _onGameWillSync(game, expireIn) {
-    this.state.willSync.add(game.id, game.id, expireIn);
-  }
-  _onGameSync(game) {
-    this.state.willSync.delete(game.id);
-  }
   _onGameChange(game) {
     if (!this.buffer.get('game').has(game.id))
       this.buffer.get('game').add(game.id, game);
     this._updateGameSummary(game);
-    if (game.state.startedAt)
-      this._syncAutoSurrender(game);
-  }
-  async _onGameDelete(game) {
-    if (this._dirtyGames.has(game.id))
-      await this._dirtyGames.get(game.id);
-
-    this.cache.get('game').delete(game.id);
-    this.buffer.get('game').delete(game.id);
-    this.state.autoCancel.delete(game.id);
-    game.destroy();
-
-    this._clearGameSummary(game);
-    this.deleteFile(`game_${game.id}`);
   }
   async _recordGameStats(game) {
     const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
@@ -560,7 +439,7 @@ export default class extends FileAdapter {
       promises.push(
         this._getGameCollection(game.collection).then(collection => {
           if (game.state.endedAt) {
-            const minTurnId = game.state.getFirstTurnId() + 3;
+            const minTurnId = game.state.initialTurnId + 3;
             if (game.state.currentTurnId < minTurnId) {
               collection.delete(game.id);
               return;
@@ -655,16 +534,6 @@ export default class extends FileAdapter {
       for (const gameSummary of completed.slice(100)) {
         gameSummaryList.delete(gameSummary.id);
       }
-  }
-
-  _syncAutoSurrender(game) {
-    if (!game.state.autoSurrender)
-      return;
-
-    if (game.state.endedAt)
-      this.state.autoSurrender.delete(game.id);
-    else
-      this.state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
   }
 
   /*

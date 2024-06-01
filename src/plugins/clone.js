@@ -19,6 +19,9 @@ Object.defineProperty(Object, 'getProperties', {
  */
 Object.defineProperty(JSON, 'clone', {
   value: function(item) {
+    if (item === null || typeof item !== 'object')
+      return item;
+
     return JSON.parse(JSON.stringify(item));
   },
 });

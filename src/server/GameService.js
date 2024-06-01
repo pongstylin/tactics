@@ -10,6 +10,10 @@ import Team from '#models/Team.js';
 import Player from '#models/Player.js';
 import serializer, { unionType } from '#utils/serializer.js';
 
+// When the server is shut down in the middle of an auto surrender game,
+// the participants are allowed to safely bail on the game if they do not
+// show up.  When their time limit expires, the game ends in truce.
+const protectedGameIds = new Set();
 const ACTIVE_LIMIT = 120;
 const idleWatcher = function (session, oldIdle) {
   const newInactive = session.idle > ACTIVE_LIMIT;
@@ -26,6 +30,9 @@ export default class GameService extends Service {
   constructor(props) {
     super({
       ...props,
+
+      startupAt: new Date(),
+      attachedGames: new WeakSet(),
 
       /*
        * Entity: Any identifiable thing that exists apart from any other thing.
@@ -191,6 +198,85 @@ export default class GameService extends Service {
     this.idleWatcher = idleWatcher.bind(this);
   }
 
+  async initialize() {
+    const state = this.data.state;
+
+    if (!state.willSync)
+      state.willSync = new Timeout(`${this.name}WillSync`);
+    state.willSync.on('expire', async ({ data:items }) => {
+      for (const game of await this._getGames(items.keys())) {
+        game.state.sync('willSync');
+      }
+    });
+
+    if (!state.autoSurrender)
+      state.autoSurrender = new Timeout(`${this.name}AutoSurrender`);
+    state.autoSurrender.on('expire', async ({ data:items }) => {
+      for (const game of await this._getGames(items.keys())) {
+        // Just in case they finished their turn at the very last moment.
+        if (game.state.endedAt)
+          continue;
+        else if (game.state.getTurnTimeRemaining() > 0) {
+          state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
+          continue;
+        }
+
+        if (protectedGameIds.has(game.id) && !game.state.currentTeam.seen(this.startupAt)) {
+          protectedGameIds.delete(game.id);
+          game.state.end('truce');
+        } else if (game.state.actions.length === 0)
+          game.state.submitAction({
+            type: 'surrender',
+            declaredBy: 'system',
+          });
+        else if (game.state.actions.last.type !== 'endTurn')
+          game.state.submitAction({
+            type: 'endTurn',
+            forced: true,
+          });
+      }
+    });
+
+    if (!state.autoCancel)
+      state.autoCancel = new Timeout(`${this.name}AutoCancel`);
+    state.autoCancel.on('expire', async ({ data:items }) => {
+      for (const game of await this._getGames(items.keys()))
+        if (!game.state.startedAt)
+          game.cancel();
+    });
+
+    if (state.shutdownAt) {
+      delete state.shutdownAt;
+
+      state.autoSurrender.pause();
+
+      for (const game of await this._getGames(state.autoSurrender.keys())) {
+        if (game.state.getTurnTimeRemaining() < 300000) {
+          protectedGameIds.add(game.id);
+          game.state.currentTurn.resetTimeLimit(300);
+          state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
+          this._notifyYourTurn(game);
+        }
+      }
+
+      state.autoSurrender.resume();
+    }
+
+    return super.initialize();
+  }
+
+  async cleanup() {
+    const state = this.data.state;
+    state.autoSurrender.pause();
+    for (const game of await this._getGames(state.autoCancel.keys()))
+      if (!game.state.startedAt)
+        game.cancel();
+    state.willSync.pause();
+    state.shutdownAt = new Date();
+
+    return super.cleanup();
+  }
+
   /*
    * Test if the service will handle the message from client
    */
@@ -230,7 +316,7 @@ export default class GameService extends Service {
       this.push.hasAnyPushSubscription(playerId).then(extended => {
         // Make sure the player is still logged out
         if (!this.playerPara.has(playerId))
-          this.data.scheduleAutoCancel(playerId, extended);
+          this._closeAutoCancel(playerId, extended);
       });
     }
 
@@ -392,7 +478,7 @@ export default class GameService extends Service {
 
       // Let people who needs to know that this player is online.
       this._setPlayerGamesStatus(player.id);
-      this.data.clearAutoCancel(player.id);
+      this._reopenAutoCancel(player.id);
     }
   }
 
@@ -487,22 +573,21 @@ export default class GameService extends Service {
     }
 
     // Create the game before generating a notification to ensure it is accurate.
-    await this.data.createGame(game);
+    await this._createGame(game);
 
     /*
      * Notify the player that goes first that it is their turn.
      * ...unless the player to go first just created the game.
      */
-    if (game.state.startedAt) {
+    if (game.state.startedAt)
       if (game.state.currentTeam.playerId !== playerId)
         this._notifyYourTurn(game);
-    }
 
     return game.id;
   }
   async onTagGameRequest(client, gameId, tags) {
     const clientPara = this.clientPara.get(client.id);
-    const game = await this.data.getGame(gameId);
+    const game = await this._getGame(gameId);
 
     if (game.createdBy !== clientPara.playerId)
       throw new ServerError(403, `May not tag someone else's game`);
@@ -514,10 +599,10 @@ export default class GameService extends Service {
     this.debug(`forkGame: gameId=${gameId}; turnId=${options.turnId}, vs=${options.vs}, as=${options.as}`);
 
     const clientPara = this.clientPara.get(client.id);
-    const game = await this.data.getGame(gameId);
+    const game = await this._getGame(gameId);
     const newGame = game.fork(clientPara, options);
 
-    await this.data.createGame(newGame);
+    await this._createGame(newGame);
 
     return newGame.id;
   }
@@ -527,7 +612,7 @@ export default class GameService extends Service {
 
     const clientPara = this.clientPara.get(client.id);
     const playerId = clientPara.playerId;
-    const game = await this.data.getGame(gameId);
+    const game = await this._getGame(gameId);
     if (game.state.startedAt)
       throw new ServerError(409, 'The game has already started.');
 
@@ -601,26 +686,23 @@ export default class GameService extends Service {
      * Notify the player that goes first that it is their turn.
      * ...unless the player to go first just joined.
      */
-    if (game.state.startedAt) {
+    if (game.state.startedAt)
       if (game.state.currentTeam.playerId !== playerId)
         this._notifyYourTurn(game);
-    }
   }
 
   async onCancelGameRequest(client, gameId) {
     this.debug(`cancelGame: gameId=${gameId}`);
 
     const clientPara = this.clientPara.get(client.id);
-    const game = await this.data.getGame(gameId);
+    const game = await this._getGame(gameId);
     if (clientPara.playerId !== game.createdBy)
       throw new ServerError(403, 'You cannot cancel other users\' game');
 
     const gamePara = this.gamePara.get(gameId);
-    if (gamePara) {
-      for (const clientId of gamePara.clients.keys()) {
+    if (gamePara)
+      for (const clientId of gamePara.clients.keys())
         this.onLeaveGameGroup(this.clientPara.get(clientId).client, `/games/${gameId}`, gameId);
-      }
-    }
 
     game.cancel();
   }
@@ -685,23 +767,21 @@ export default class GameService extends Service {
      * When getting a game, leave out the turn history as an efficiency measure.
      */
     const clientPara = this.clientPara.get(client.id);
-    const game = await this.data.getGame(gameId);
-    const gameData = game.toJSON();
-    gameData.state = gameData.state.getDataForPlayer(clientPara?.playerId);
+    const game = await this._getGame(gameId);
 
-    return gameData;
+    return game.getSyncForPlayer(clientPara?.playerId);
   }
   async onGetTurnDataRequest(client, gameId, ...args) {
     this.throttle(client.address, 'getTurnData', 300, 300);
 
-    const game = await this.data.getGame(gameId);
+    const game = await this._getGame(gameId);
 
     return game.state.getTurnData(...args);
   }
   async onGetTurnActionsRequest(client, gameId, ...args) {
     this.throttle(client.address, 'getTurnData', 300, 300);
 
-    const game = await this.data.getGame(gameId);
+    const game = await this._getGame(gameId);
 
     return game.state.getTurnActions(...args);
   }
@@ -884,7 +964,7 @@ export default class GameService extends Service {
           data: event.data,
         },
       });
-      const listener = ({ data: event }) => {
+      const listener = event => {
         // Send notification, if needed, to the current player
         // Only send a notification after the first playable turn
         // This is because notifications are already sent elsewhere on game start.
@@ -897,6 +977,7 @@ export default class GameService extends Service {
 
       game.on('playerRequest', emit);
       game.state.on('sync', listener);
+      game.state.on('startTurn', listener);
 
       this.gamePara.set(gameId, {
         playerStatus: new Map(),
@@ -918,7 +999,7 @@ export default class GameService extends Service {
 
     const gamePara = this.gamePara.get(gameId);
     const sync = game.getSyncForPlayer(playerId, reference);
-    gamePara.clients.set(client.id, sync.reference);
+    gamePara.clients.set(client.id, sync.reference ?? reference);
 
     this._emit({
       type: 'joinGroup',
@@ -1100,6 +1181,88 @@ export default class GameService extends Service {
 
     return response;
   }
+
+  /*****************************************************************************
+   * Private Methods
+   ****************************************************************************/
+  async _createGame(game) {
+    await this.data.createGame(game);
+    this._attachGame(game);
+    return game;
+  }
+  async _getGames(gameId) {
+    const games = await this.data.getGames(gameId);
+    games.forEach(g => this._attachGame(g));
+    return games;
+  }
+  async _getGame(gameId) {
+    const game = await this.data.getGame(gameId);
+    this._attachGame(game);
+    return game;
+  }
+
+  _attachGame(game) {
+    if (this.attachedGames.has(game))
+      return;
+    this.attachedGames.add(game);
+
+    const state = this.data.state;
+
+    if (!game.state.startedAt && game.collection && game.state.timeLimit.base < 86400) {
+      state.autoCancel.open(game.id, true);
+      game.state.once('startGame', event => {
+        state.autoCancel.delete(game.id);
+      });
+      game.on('delete', event => {
+        state.autoCancel.delete(game.id);
+      });
+    }
+
+    this._syncAutoSurrender(game);
+
+    game.state.on('sync', event => {
+      this._syncAutoSurrender(game);
+    });
+    game.state.on('willSync', ({ data:expireIn }) => {
+      state.willSync.add(game.id, true, expireIn);
+    });
+    game.state.on('sync', event => {
+      state.willSync.delete(game.id);
+    });
+    game.on('delete', event => {
+      this.data.deleteGame(game);
+    });
+  }
+  _syncAutoSurrender(game) {
+    if (!game.state.startedAt || !game.state.autoSurrender)
+      return;
+
+    if (game.state.endedAt)
+      this.data.state.autoSurrender.delete(game.id);
+    else
+      this.data.state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
+  }
+
+  /*
+   * This is triggered by player checkin / checkout events.
+   * On checkin, open games will not be auto cancelled.
+   * On checkout, open games will auto cancel after a period of time.
+   * That period of time is 1 hour if they have push notifications enabled.
+   * Otherwise, the period of time is based on game turn time limit.
+   */
+  async _closeAutoCancel(playerId, extended = false) {
+    const autoCancel = this.data.state.autoCancel;
+    for (const game of await this._getGames(autoCancel.openedKeys()))
+      if (game.createdBy === playerId)
+        autoCancel.close(game.id, (extended ? 3600 : game.state.timeLimit.initial) * 1000);
+  }
+  async _reopenAutoCancel(playerId) {
+    const autoCancel = this.data.state.autoCancel;
+    for (const game of await this._getGames(autoCancel.closedKeys()))
+      if (game.createdBy === playerId)
+        autoCancel.open(game.id, true);
+  }
+
   async _validateCreateGameForCollection(gameTypeId, gameOptions) {
     /*
      * Validate collection existance.
@@ -1280,6 +1443,7 @@ export default class GameService extends Service {
     if (gamePara.clients.size === 0) {
       // TODO: Don't shut down the game state until all bots have made their turns.
       game.state.off('sync', gamePara.listener);
+      game.state.off('startTurn', gamePara.listener);
       game.off('playerRequest', gamePara.emit);
 
       this.gamePara.delete(gameId);
@@ -1463,7 +1627,7 @@ export default class GameService extends Service {
         throw new ServerError(400, `Can't use same set when nobody has joined yet.`);
       team.set = {
         via: 'same',
-        ...firstTeam.set,
+        ...firstTeam.set.clone(),
       };
     } else if (team.set === 'mirror') {
       if (!firstTeam)
@@ -1485,13 +1649,13 @@ export default class GameService extends Service {
       const set = this.data.getOpenPlayerSets(team.playerId, gameType).random();
       team.set = {
         via: 'random',
-        units: set.units,
+        units: JSON.clone(set.units),
       };
     } else if (typeof team.set === 'string') {
       const set = this.data.getOpenPlayerSet(team.playerId, gameType, team.set);
       if (set === null)
         throw new ServerError(412, 'Sorry!  Looks like the selected set no longer exists.');
-      team.set = { units: set.units };
+      team.set = { units:JSON.clone(set.units) };
     }
   }
   async _joinGame(game, gameType, team) {

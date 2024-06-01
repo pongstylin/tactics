@@ -1967,7 +1967,7 @@ async function startGame() {
   // Just in case a smart user changes the URL manually
   window.addEventListener('hashchange', () => buttons.replay());
 
-  if (location.hash)
+  if (location.hash || game.state.endedAt)
     await buttons.replay();
   else if (game.isMyTurn && !game.isLocalGame)
     game.play(-game.teams.length);
@@ -2192,11 +2192,11 @@ function toggleUndoButton() {
 
   const canUndo = game.canUndo();
   $('BUTTON[name=undo]').prop('disabled', !canUndo);
-  $('BUTTON[name=undo]').toggleClass('request', canUndo === 'approve');
+  $('BUTTON[name=undo]').toggleClass('request', !!canUndo?.approve);
 
   // If we are only able to undo for a limited time, set a timer to disable it.
-  if (canUndo && typeof canUndo === 'number')
-    undoTimeout = setTimeout(toggleUndoButton, canUndo);
+  if (canUndo?.refreshTimeout)
+    undoTimeout = setTimeout(toggleUndoButton, canUndo.refreshTimeout);
 }
 
 function toggleReplayButtons() {

@@ -1693,34 +1693,39 @@ async function fillTeam(divArena, slot, arena, oldArena) {
   const imgUnit = divArena.querySelector(`.unit.${slot}`);
 
   /*
-   * If the first team is my team, flip it to the bottom.
-   * Else if the 2nd team is the creator team, flip it to the top.
+   * My team, if present, must be on bottom else the creator team must be on top.
    */
-  const oldTeamIndex
-    = oldArena?.teams[0].playerId === myPlayerId
-      ? slot === 'top' ? 1 : 0
-    : oldArena?.teams[1]?.playerId === oldArena?.createdBy
-      ? slot === 'top' ? 1 : 0
-      : slot === 'top' ? 0 : 1
-  const oldTeam = oldArena?.teams[oldTeamIndex];
-  const teamIndex
-    = arena?.teams[0].playerId === myPlayerId
-      ? slot === 'top' ? 1 : 0
-    : arena?.teams[1]?.playerId === arena?.createdBy
-      ? slot === 'top' ? 1 : 0
-      : slot === 'top' ? 0 : 1
-  const team = arena?.teams[teamIndex];
-  const isWinner = [ undefined, teamIndex ].includes(arena?.winnerId);
+  const oldTeam = oldArena && (() => {
+    const myIndex = oldArena.teams.findIndex(t => t?.playerId === myPlayerId);
+    const creatorIndex = oldArena.teams.findIndex(t => t?.playerId === oldArena.createdBy);
+    const topIndex = myIndex > -1 ? (myIndex + oldArena.teams.length/2) % oldArena.teams.length : creatorIndex;
+    const indexMap = new Map([ [ 'top',0 ], [ 'btm',1 ] ]);
+    const teamIndex = (topIndex + indexMap.get(slot)) % oldArena.teams.length;
 
-  if (oldTeam && team) {
+    return oldArena.teams[teamIndex];
+  })();
+  const newTeam = arena && (() => {
+    const myIndex = arena.teams.findIndex(t => t?.playerId === myPlayerId);
+    const creatorIndex = arena.teams.findIndex(t => t?.playerId === arena.createdBy);
+    const topIndex = myIndex > -1 ? (myIndex + arena.teams.length/2) % arena.teams.length : creatorIndex;
+    const indexMap = new Map([ [ 'top',0 ], [ 'btm',1 ] ]);
+    const teamIndex = (topIndex + indexMap.get(slot)) % arena.teams.length;
+
+    const team = arena.teams[teamIndex];
+    if (team)
+      team.isLoser = ![ undefined, teamIndex ].includes(arena.winnerId);
+    return team;
+  })();
+
+  if (oldTeam && newTeam) {
     if (
-      oldTeam.playerId === team.playerId &&
-      oldTeam.name === team.name &&
+      oldTeam.playerId === newTeam.playerId &&
+      oldTeam.name === newTeam.name &&
       /*
-      oldTeam.avatar === team.avatar &&
-      oldTeam.color === team.color &&
+      oldTeam.avatar === newTeam.avatar &&
+      oldTeam.color === newTeam.color &&
       */
-      imgUnit.classList.contains('loser') === !isWinner
+      imgUnit.classList.contains('loser') === newTeam.isLoser
     ) return false;
   }
 
@@ -1731,10 +1736,10 @@ async function fillTeam(divArena, slot, arena, oldArena) {
     });
   }
 
-  if (team) {
-    const avatar = getAvatar(team.playerId, slot === 'top' ? 'S' : 'N');
-    spnName.textContent = team.name;
-    imgUnit.classList.toggle('loser', !isWinner);
+  if (newTeam) {
+    const avatar = getAvatar(newTeam.playerId, slot === 'top' ? 'S' : 'N');
+    spnName.textContent = newTeam.name;
+    imgUnit.classList.toggle('loser', newTeam.isLoser);
     imgUnit.style.top = `${avatar.y}px`;
     imgUnit.style.left = `${avatar.x}px`;
     imgUnit.src = avatar.src;

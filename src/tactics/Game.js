@@ -522,12 +522,12 @@ export default class Game {
       this.state.winnerId === team.id
     ) return true;
 
-    const firstTurnId = this.state.getTeamFirstTurnId(team);
+    const initialTurnId = this.state.getTeamInitialTurnId(team);
 
-    if (this.state.currentTurnId < firstTurnId)
+    if (this.state.currentTurnId < initialTurnId)
       return false;
     // Might not be completely accurate for ended games where this team lost.
-    if (this.state.currentTurnId > firstTurnId)
+    if (this.state.currentTurnId > initialTurnId)
       return true;
 
     return !!this.actions.find(a => a.type !== 'surrender' && !a.forced);
@@ -545,7 +545,7 @@ export default class Game {
     await state.whenStarted;
 
     // Clone teams since board.setState() applies a units property to each.
-    const teams = this._teams = state.teams.map(team => ({...team}));
+    const teams = this._teams = state.teams.map(team => team.getData(true));
 
     // Rotate the board such that my first local team is in the configured location.
     const myTeams = this.teams.filter(t => this.isMyTeam(t));
@@ -560,7 +560,8 @@ export default class Game {
         else if (myOldTeams.length > 1)
           myTeam = myOldTeams.sort((a,b) => a.joinedAt - b.joinedAt)[0];
       } else
-        myTeam = myTeams.sort((a,b) => a.joinedAt - b.joinedAt)[0];
+        // joinedAt might be the same for all teams, so slot is used for local games.
+        myTeam = myTeams.sort((a,b) => a.slot - b.slot)[0];
     }
 
     if (myTeam)
@@ -586,6 +587,7 @@ export default class Game {
     });
 
     // Wait until the game and first turn starts, if it hasn't already started.
+    // (Game start might happen before turn start in local games)
     await state.whenTurnStarted;
 
     this.cursor = new Cursor(state),
@@ -777,30 +779,29 @@ export default class Game {
    * Allow touch devices to upscale to normal size.
    */
   resize() {
-    let canvas = this._canvas;
+    const canvas = this._canvas;
     canvas.style.width  = '';
     canvas.style.height = '';
 
-    let container = canvas.parentNode;
-    let width     = container.clientWidth;
+    const container = canvas.parentNode;
+    const width     = container.clientWidth;
     let height    = container.clientHeight;
     // window.innerHeight is buggy on iOS Safari during orientation change
-    let vpHeight  = document.body.offsetHeight;
+    const vpHeight  = document.body.offsetHeight;
 
     if (vpHeight < height) {
-      let rect = canvas.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect();
 
       height  = vpHeight;
       height -= rect.top;
       //height -= vpHeight - rect.bottom;
       //console.log(vpHeight, rect.bottom);
-    }
-    else
+    } else
       height -= canvas.offsetTop;
 
-    let width_ratio  = width  / Tactics.width;
-    let height_ratio = height / Tactics.height;
-    let elementScale = Math.min(1, width_ratio, height_ratio);
+    const width_ratio  = width  / Tactics.width;
+    const height_ratio = height / Tactics.height;
+    const elementScale = Math.min(1, width_ratio, height_ratio);
 
     if (elementScale < 1)
       if (width_ratio < height_ratio)
@@ -809,7 +810,7 @@ export default class Game {
       else
         canvas.style.height = height+'px';
 
-    let panzoom = this._panzoom;
+    const panzoom = this._panzoom;
     panzoom.maxScale = 1 / elementScale;
     panzoom.reset();
 
@@ -1217,6 +1218,8 @@ export default class Game {
       return this._playEndTurn(action);
     } else if (actionType === 'surrender')
       return this._playSurrender(action);
+    else if (actionType === 'endGame')
+      return;
 
     const actor = action.unit;
 
@@ -1778,14 +1781,12 @@ export default class Game {
           if (!silent)
             Tactics.playSound('victory');
         }
-      }
       // Applies to bot, opponent, and local games
-      else if (this.isMyTeam(winner)) {
+      } else if (this.isMyTeam(winner)) {
         this.notice = 'You win!';
         if (!silent)
           Tactics.playSound('victory');
-      }
-      else if (this.isViewOnly)
+      } else if (this.isViewOnly)
         this.notice = `${winnerMoniker}!`;
       else {
         this.notice = 'You lose!';

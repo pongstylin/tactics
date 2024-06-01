@@ -1,4 +1,5 @@
 import { RegExpMatcher, englishDataset, englishRecommendedTransformers, pattern } from 'obscenity';
+import decancer from '#utils/decancer.js';
 
 const obscenityConfig = {
   ...englishDataset.build(),
@@ -11,4 +12,12 @@ obscenityConfig.blacklistedTerms[98].pattern.requireWordBoundaryAtStart = false;
 // Fix Buttplug detection
 obscenityConfig.blacklistedTerms[108].pattern.nodes[0].chars = 'butplug'.split('').map(c => c.charCodeAt(0));
 
-export default new RegExpMatcher(obscenityConfig);
+const matcher = new RegExpMatcher(obscenityConfig);
+
+export default {
+  hasMatch: text => {
+    return matcher.hasMatch(text)
+      || matcher.hasMatch(decancer(text))
+      || matcher.hasMatch(decancer(text).replace(/l/g, 'I'));
+  },
+};
