@@ -20,11 +20,8 @@ export default class Transport {
       _data: null,
       _listeners: new Map([
         [ 'sync', this._onSync.bind(this) ],
-        // For now, sync events can include startTurn and action events.
-        // But would it be nice if we only needed sync events?
-        // recentTurns is sufficient to give enough history to support undo use.
-        // Even if very behind, GameStateCursor can use getTurnData then getTurnActions
-        // to efficiently catch up to current state.
+        // Sync events encapsulate startTurn and action events since that can be
+        // the most efficient way to sync current board state.
         [ 'startTurn', this._onStartTurn.bind(this) ],
         [ 'action', this._onAction.bind(this) ],
       ]),

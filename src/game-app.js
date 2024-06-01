@@ -1961,7 +1961,7 @@ async function startGame() {
   // Just in case a smart user changes the URL manually
   window.addEventListener('hashchange', () => buttons.replay());
 
-  if (location.hash)
+  if (location.hash || game.state.endedAt)
     await buttons.replay();
   else if (game.isMyTurn && !game.isLocalGame)
     game.play(-game.teams.length);
