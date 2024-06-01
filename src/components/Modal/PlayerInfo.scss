@@ -17,6 +17,26 @@
     }
   }
 
+  .fa.fa-info {
+    vertical-align: center;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 2px;
+    border: 1px solid #00FFFF;
+    border-radius: 50%;
+    width: 10px;
+    height: 10px;
+    color: #00FFFF;
+    cursor: pointer;
+    font-size: 7px;
+    transform: translateY(-22%);
+  }
+
+  .fa.fa-info:hover {
+    border-color: #CCFFFF;
+    color: #CCFFFF;
+  }
   .player.bronze {
     display: inline-block;
     background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 94%, black 102%);
@@ -46,11 +66,15 @@
     }
 
     &[name=clearStats], &[name=clearStyleStats] {
-      margin-left: 8px;
-      padding: 0 8px;
+      font-style: italic;
+      margin-left: 0px;
+      padding: 0 0px;
       line-height: 16px;
+      background: none;
+      border: none;
     }
   }
+
   .content > DIV {
     &:not(.controls) {
       margin-bottom: 8px;
@@ -73,5 +97,13 @@
       margin-top: 16px;
       text-align: right;
     }
+  }
+
+  .all-ratings-link {
+    color: #00FFFF;
+    cursor: pointer;
+    font-size: 11px;
+    margin-left: 10px;
+    font-style: italic;
   }
 }

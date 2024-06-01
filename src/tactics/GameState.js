@@ -65,6 +65,7 @@ export default class GameState {
         strictFork: false,
         autoSurrender: false,
         rated: false,
+        flaggedForFarming: false,
         timeLimit: null,
       },
       stateData,
@@ -425,6 +426,7 @@ export default class GameState {
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       rated: this.rated,
+      flaggedForFarming: this.flaggedForFarming,
       timeLimit: this.timeLimit,
 
       teams: this.teams.map(t => t && t.getData(!!this.startedAt)),
@@ -1223,6 +1225,7 @@ export default class GameState {
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       rated: this.rated,
+      flaggedForFarming: this.flaggedForFarming,
       timeLimit: this.timeLimit,
 
       teams: this.teams,
@@ -1533,6 +1536,7 @@ serializer.addType({
       strictFork: { type:'boolean' },
       autoSurrender: { type:'boolean' },
       rated: { type:'boolean' },
+      flaggedForFarming: { type:'boolean' },
       timeLimit: {
         type: 'object',
         required: [ 'type' ],
