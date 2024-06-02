@@ -44,7 +44,7 @@ export default class PlayerInfoSelf extends Modal {
       const playerName = team.name;
 
       if (target.tagName === 'SPAN' && target.id === "all_ratings") {
-        let ratings = this.data.info.stats.ratings;
+        const ratings = this.data.info.stats.ratings;
         let sorted_ratings = PlayerInfo.getSortedRatings(ratings);
         const ratingPaddingLeft = "10px";
         const gameCountPaddingLeft = "25px";
@@ -82,18 +82,16 @@ export default class PlayerInfoSelf extends Modal {
       if (target.tagName !== 'BUTTON') return;
 
     if (target.name === 'close')
-        this.close();
+      this.close();
     });
 
-    this.getPlayerInfo();
-
-    this.renderInfo();
+    this.getMyInfo();
   }
 
-  getPlayerInfo() {
+  getMyInfo() {
     this.renderContent('Please wait...');
 
-    return gameClient.getPlayerRatings()
+    return gameClient.getMyInfo()
       .then(info => {
         // Just in case the modal was closed before the request completed.
         if (!this.root) return;
@@ -109,26 +107,47 @@ export default class PlayerInfoSelf extends Modal {
 
   renderInfo() {
     const data = this.data;
-    const ratings = this.data.info.stats.ratings;
+    const info = this.data.info;
+    const createdDiff = (Date.now() - info.createdAt) / 1000;
 
+    const ratings = this.data.info.stats.ratings;
+    const forteRating = PlayerInfo.computeForteRating(ratings);
+    const styleRating = ratings.get(data.gameType.id)?.rating;
     const content = [
       // Ratings section
-      `<B>Ratings</B> <SPAN class="all-ratings-link" id="all_ratings"> see all </SPAN>`,
-      `<HR>`,
-      `<TABLE cellPaddingRight=0 cellSpacingRight=0>`,
-      `<TR>`,
-      `<TD class="label">Forte <SPAN id="rating_explanation" class="fa fa-info forteRatingExplanation"></SPAN></TD>`,
-      `<TD class="label" style="padding-left: 20px;"> ${data.gameType.name} </TD>`,
-      `</TR>`,
-      `<TR>`,
-      `<TD class="label">
-          <B>${Math.round(PlayerInfo.computeForteRating(ratings))}</B>
-        </TD>`,
-      `<TD class="label" style="padding-left: 20px;">
-          <B>${Math.round(ratings.get(data.gameType.id).rating)}</B>
-         </TD>`,
-      `</TR>`,
-      `</TABLE>`,
+      ...(info.isVerified ? [
+        `<B>Ratings</B> <SPAN class="all-ratings-link" id="all_ratings"> see all </SPAN>`,
+        `<HR>`,
+        `<TABLE cellPaddingRight=0 cellSpacingRight=0>`,
+        `<TR>`,
+          `<TD class="label">Forte <SPAN id="rating_explanation" class="fa fa-info forteRatingExplanation"></SPAN></TD>`,
+          `<TD class="label" style="padding-left: 20px;"> ${data.gameType.name} </TD>`,
+        `</TR>`,
+        `<TR>`,
+          `<TD class="label">`,
+            `<B>${forteRating ? Math.round(forteRating) : 'None'}</B>`,
+          `</TD>`,
+          `<TD class="label" style="padding-left: 20px;">`,
+            `<B>${styleRating ? Math.round(styleRating) : 'None'}</B>`,
+          `</TD>`,
+        `</TR>`,
+        `</TABLE>`,
+      ] : [
+        `<B>Ratings</B>`,
+        `<HR>`,
+        `<DIV>Verify your account to receive ratings.</DIV>`,
+      ]),
+      `</BR>`,
+
+      // Account details section
+      `<DIV>`,
+        `<B>Account Details</B>`,
+        `<HR>`,
+        `<DIV>Account created ${PlayerInfo.getElapsed(createdDiff)} ago.</DIV>`,
+        `<DIV>You are ${info.isVerified ? 'verified' : 'a guest'}.</DIV>`,
+        `<DIV>You have completed ${info.completed[0]} game(s).</DIV>`,
+        info.completed[1] ? `<DIV>You have abandoned ${info.completed[1]} game(s).</DIV>` : '',
+      `</DIV>`,
     ];
 
     content.push(
