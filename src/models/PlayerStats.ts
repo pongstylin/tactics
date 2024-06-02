@@ -63,7 +63,11 @@ export default class PlayerStats extends ActiveModel {
   }
 
   get(playerId) {
-    return this.data.stats.get(playerId);
+    const stats = this.data.stats.get(playerId) ?? {};
+    if (playerId === this.data.playerId && !stats.ratings)
+      stats.ratings = new Map();
+
+    return stats;
   }
 
   recordGameStart(game) {

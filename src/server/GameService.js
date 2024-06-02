@@ -75,7 +75,7 @@ export default class GameService extends Service {
         getPlayerStatus: ['game:group'],
         getPlayerActivity: ['game:group', 'uuid'],
         getPlayerInfo: ['game:group', 'uuid'],
-        getPlayerRatings: [],
+        getMyInfo: [],
         clearWLDStats: `tuple([ 'uuid', 'string | null' ], 1)`,
 
         searchGameCollection: ['string', 'any'],
@@ -888,16 +888,23 @@ export default class GameService extends Service {
           )
           .slice(0, 10),
         all: localStats.all,
-        style: localStats.style.get(game.state.type),
+        style: localStats.style.get(game.state.type) ?? {
+          win:  [ 0, 0 ],
+          lose: [ 0, 0 ],
+          draw: [ 0, 0 ],
+        },
       },
     };
   }
-
-  async onGetPlayerRatingsRequest(client) {
+  async onGetMyInfoRequest(client) {
     const playerId = this.clientPara.get(client.id).playerId;
+    const player = await this._getAuthPlayer(playerId);
     const myStats = await this.data.getPlayerStats(playerId, playerId);
 
     return {
+      createdAt: player.createdAt,
+      completed: myStats.completed,
+      isVerified: player.isVerified,
       stats: {
         ratings: myStats.ratings,
       },

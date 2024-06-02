@@ -146,11 +146,11 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  getPlayerRatings() {
-    return this._server.requestAuthorized(this.name, 'getPlayerRatings')
+  getMyInfo() {
+    return this._server.requestAuthorized(this.name, 'getMyInfo')
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getPlayerRatings();
+          return this.getMyInfo();
         throw error;
       });
   }
