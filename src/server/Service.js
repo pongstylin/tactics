@@ -28,6 +28,10 @@ export default class Service {
     return true;
   }
 
+  async cleanup() {
+    return this.data.cleanup();
+  }
+
   /*
    * Client-facing service methods may have their inputs validated & normalized.
    * The input validation is a proprietary shorthand for defining tuple schemas.
@@ -118,10 +122,6 @@ export default class Service {
     this.validate(messageType, body);
 
     return true;
-  }
-
-  async cleanup() {
-    return this.data.cleanup();
   }
 
   /*

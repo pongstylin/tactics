@@ -193,7 +193,7 @@ export default class GameStateCursor {
 
     // Data for the current turn is already available.
     if (turnId === stateTurnId) {
-      turnData = state.currentTurnData;
+      turnData = state.currentTurn.getData();
     // Data for the cursor is already available
     // ... but the actions are refreshed if incomplete.
     } else if (turnId === this.turnId) {

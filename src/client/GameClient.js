@@ -146,6 +146,14 @@ export default class GameClient extends Client {
         throw error;
       });
   }
+  getPlayerRatings() {
+    return this._server.requestAuthorized(this.name, 'getPlayerRatings')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getPlayerRatings();
+        throw error;
+      });
+  }
   clearWLDStats(playerId, gameTypeId) {
     return this._server.requestAuthorized(this.name, 'clearWLDStats', [ playerId, gameTypeId ])
       .catch(error => {

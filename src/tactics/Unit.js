@@ -230,10 +230,10 @@ export default class Unit {
     if (!target)
       target = targetUnit.assignment;
 
-    let calc     = {};
-    let power    = Math.max(0, this.power + this.mPower);
-    let armor    = Math.max(0, Math.min(100, targetUnit.armor + targetUnit.mArmor));
-    let blocking = targetUnit.blocking + targetUnit.mBlocking;
+    const calc     = {};
+    const power    = Math.max(0, this.power + this.mPower);
+    const armor    = Math.max(0, Math.min(100, targetUnit.armor + targetUnit.mArmor));
+    const blocking = targetUnit.blocking + targetUnit.mBlocking;
 
     // Equality check the unit ID since targetUnit may be a clone.
     if (this.aLOS && this.getLOSTargetUnit(target, from).id !== targetUnit.id) {
@@ -243,13 +243,11 @@ export default class Unit {
       // Another unit is in the way.  No chance to hit target unit.
       calc.chance = 0;
       calc.miss = 'miss';
-    }
-    else if (
+    } else if (
       (
         /^(melee|magic|heal)$/.test(this.aType) &&
         targetUnit.barriered
-      ) ||
-      (
+      ) || (
         this.aType === 'melee' &&
         targetUnit.blocking === 100 &&
         targetUnit.directional === false &&
@@ -260,8 +258,7 @@ export default class Unit {
       calc.miss = 'immune';
       calc.chance = 0;
       calc.damage = 0;
-    }
-    else if (this.aType === 'melee') {
+    } else if (this.aType === 'melee') {
       // Armor reduces magic damage.
       calc.damage = Math.round(power * (100 - armor) / 100);
 
@@ -277,16 +274,14 @@ export default class Unit {
         // But, a failed block does not boost Chaos Seed blocking.
         calc.bonus   = 0;
         calc.penalty = 100 - targetUnit.blocking;
-      }
-      else {
+      } else {
         // My direction to target can be diagonal, such as NW
         let direction = this.board.getDirection(from, targetUnit.assignment, true);
 
         if (direction.indexOf(targetUnit.direction) > -1) {
           // Hitting a unit from behind always succeeds.
           calc.chance = 100;
-        }
-        else {
+        } else {
           let team = this.team;
           // Hits from the side have a greater chance and penalty
           let factor = direction.indexOf(this.board.getRotation(targetUnit.direction, 180)) > -1 ? 1 : 2;
@@ -308,22 +303,19 @@ export default class Unit {
           calc.penalty = 100*factor - targetUnit.blocking;
         }
       }
-    }
-    else if (this.aType === 'magic') {
+    } else if (this.aType === 'magic') {
       // Armor reduces magic damage.
       calc.damage = Math.round(power * (100 - armor) / 100);
 
       // Magic can only be stopped by barriers.
       calc.chance = 100;
-    }
-    else if (this.aType === 'heal') {
+    } else if (this.aType === 'heal') {
       // Armor has no effect on heal power.
       calc.damage = -power;
 
       // Healing can only be stopped by barriers.
       calc.chance = 100;
-    }
-    else {
+    } else {
       // The attack type is the name of an effect.
       calc.effect = this.aType;
 

@@ -26,41 +26,37 @@ export default {
   },
 };
 
-const isInitialTurn = (game, turnData) => turnData.id === game.getTeamFirstTurnId(game.teams[turnData.teamId]);
-const isAutoPassedTurn = turnData => turnData.actions.length === 1 && turnData.actions.last.forced;
-
 /*
- * Compute the turn time limit for the provided turnId.
+ * Compute the turn time limit for the provided turn.
  *
  * `this` refers to a GameState object.
- * This function is called internally to set game.timeLimit.current when the current turn changes.
+ * This function is called internally to set turn.timeLimit when the current turn changes.
  * This function is called externally to obtain the time limit for a previous turn.
  *
- * Note that game.timeLimit.current may be externally modified, e.g. to extend the time limit.
  */
 export const getTurnTimeLimit = {
-  fixed: function (turnId) {
+  fixed: function (turn = this.currentTurn) {
+    if (turn.isAutoSkipped)
+      return null;
+
     return this.timeLimit.base;
   },
-  buffered: function (turnId) {
-    const turnData = this.getTurnData(turnId, false);
-    if (isAutoPassedTurn(turnData))
+  buffered: function (turn = this.currentTurn) {
+    if (turn.isAutoSkipped)
       return null;
-    if (isInitialTurn(this, turnData))
+    if (this.getTeamInitialTurnId(turn.team) === turn.id)
       return this.timeLimit.initial;
 
-    const buffer = turnId === this.currentTurnId ? this.timeLimit.buffers[turnData.teamId] : this.turns[turnId].timeBuffer;
-    return this.timeLimit.base + buffer;
+    return this.timeLimit.base + turn.get('timeBuffer', 0);
   },
-  legacy: function (turnId) {
-    const turnData = this.getTurnData(turnId, false);
-    if (isAutoPassedTurn(turnData))
+  legacy: function (turn = this.currentTurn) {
+    if (turn.isAutoSkipped)
       return null;
-    if (isInitialTurn(this, turnData))
+    if (this.getTeamInitialTurnId(turn.team) === turn.id)
       return this.timeLimit.initial;
 
     const initial = this.teams.reduce((p, t) => p * t.set.units.length, 1);
-    const current = turnData.units.reduce((p, us) => p * Math.max(1, us.filter(u => u.type !== 'Shrub').length), 1);
+    const current = turn.units.reduce((p, us) => p * Math.max(1, us.filter(u => u.type !== 'Shrub').length), 1);
     // Ranges from 1 (full time limit) to 2 (half time limit)
     const speed = (initial * 2 - 2) / (current + initial - 2);
     return this.timeLimit.base / speed;
@@ -69,64 +65,42 @@ export const getTurnTimeLimit = {
 
 /*
  * This function is called when a turn is newly pushed or popped.
- * When popped, turnData is the turn that was popped (is current turn).
- * When pushed, turnData is the turn that was pushed (was previous turn).
+ * This sets the current turn time limit.
+ * Note that turn.timeLimit may be externally modified, e.g. to extend the time limit.
+ *
  * `this` refers to a GameState object.
  */
 export const applyTurnTimeLimit = {
   fixed: function () {
-    this.timeLimit.current = getTurnTimeLimit.fixed.call(this, this.currentTurnId);
+    this.currentTurn.timeLimit = getTurnTimeLimit.fixed.call(this);
   },
-  buffered: function (op, turnData) {
-    const turns = this.turns;
+  buffered: function (op) {
     const timeLimit = this.timeLimit;
-    const numTeams = this.teams.length;
+    const currentTurn = this.currentTurn;
 
-    if (op === 'popped') {
-      const buffers = timeLimit.buffers = new Array(numTeams).fill(0);
+    /*
+     * Determine the turn time buffer for the new turn based on the team's previous playable turn, if any.
+     */
+    // Buffer already set, as needed, for popped turns.
+    // No buffer if turn isn't playable (auto passed)
+    if (op === 'pushed' && currentTurn.isPlayable) {
+      const initialTurnId = this.getTeamInitialTurnId(currentTurn.team);
+      const previousTurnId = this.getTeamPreviousPlayableTurnId(currentTurn.team);
+      const previousTurn = this.turns[previousTurnId];
 
-      buffers[turnData.teamId] = turnData.timeBuffer;
-
-      /*
-       * Sync up other teams' turn time buffers just in case more than one turn
-       * was popped.
-       */
-      for (let i = 1; i < numTeams; i++) {
-        const startTurnId = turnData.id - i;
-        const teamId = startTurnId % numTeams;
-
-        for (let tId = startTurnId; tId > 0; tId -= 2) {
-          const turn = this.turns[tId];
-          if (!isAutoPassedTurn(turn)) {
-            buffers[teamId] = turn.timeBuffer;
-            break;
-          }
-        }
-      }
-    } else {
-      const buffers = timeLimit.buffers ??= new Array(numTeams).fill(0);
-
-      // Remember the timeBuffer for the turn just in case we go back to it.
-      this.turns[turnData.id].timeBuffer = buffers[turnData.teamId];
-
-      // Adjust the buffer for the previous team for their next turn, if necessary.
-      if (!isAutoPassedTurn(turnData) && !isInitialTurn(this, turnData)) {
-        const turnStartedAt = turnData.startedAt;
-        const turnEndedAt = turnData.actions.last.createdAt;
-        const elapsed = Math.floor((turnEndedAt - turnStartedAt) / 1000);
-        if (elapsed > timeLimit.base)
-          buffers[turnData.teamId] = 0;
-        else
-          buffers[turnData.teamId] = Math.min(
-            timeLimit.maxBuffer,
-            buffers[turnData.teamId] + Math.max(0, (timeLimit.base / 2) - elapsed),
-          );
+      // No buffer if this or previous team's turn is the initial turn.
+      // No buffer if previous team's turn lasted longer than base time limit.
+      if (previousTurn && previousTurn.id !== initialTurnId && previousTurn.duration < timeLimit.base) {
+        currentTurn.set('timeBuffer', Math.min(
+          timeLimit.maxBuffer,
+          previousTurn.get('timeBuffer', 0) + Math.max(0, (timeLimit.base / 2) - previousTurn.timeElapsed),
+        ));
       }
     }
 
-    this.timeLimit.current = getTurnTimeLimit.buffered.call(this, this.currentTurnId);
+    currentTurn.timeLimit = getTurnTimeLimit.buffered.call(this);
   },
   legacy: function () {
-    this.timeLimit.current = getTurnTimeLimit.legacy.call(this, this.currentTurnId);
+    this.currentTurn.timeLimit = getTurnTimeLimit.legacy.call(this);
   },
 };

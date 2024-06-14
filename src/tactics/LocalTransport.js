@@ -1,4 +1,5 @@
 import Transport from 'tactics/Transport.js';
+import serializer from 'utils/serializer.js';
 
 let counter = 0;
 
@@ -8,7 +9,7 @@ export default class LocalTransport extends Transport {
    */
   constructor() {
     const worker = new Worker('ww.min.js');
-    worker.addEventListener('message', ({ data:message }) => this._onMessage(message));
+    worker.addEventListener('message', ({ data:message }) => this._onMessage(serializer.parse(message)));
 
     super({
       _worker:    worker,
@@ -81,12 +82,9 @@ export default class LocalTransport extends Transport {
 
     if (type === 'init')
       this._makeReady({ state:data });
-    else if (type === 'event') {
-      if (data.type === 'sync')
-        return;
-
+    else if (type === 'sync')
       this._emit(data);
-    } else if (type === 'reply') {
+    else if (type === 'reply') {
       const resolvers = this._resolvers;
 
       const promise = resolvers.get(data.id);

@@ -1,16 +1,22 @@
 /* Web Worker */
 
-import 'plugins/array.js';
-import 'plugins/clone.js';
+import 'plugins/index.js';
 import GameState from 'tactics/GameState.js';
-
-const post = (type, data) => {
-  self.postMessage({ type:type, data:data });
-};
+import serializer from 'utils/serializer.js';
 
 // The state object is stored on 'self' so that it can be inspected.
 self.state = null;
 self.data = null;
+
+const post = (type, data) => {
+  if (type === 'sync') {
+    const state = self.state.getData();
+    state.recentTurns = state.recentTurns.map((turn, i) => turn.getDigest(i === 0, false));
+    data.data = { state };
+  }
+
+  self.postMessage(serializer.stringify({ type, data }));
+};
 
 self.addEventListener('message', ({ data:message }) => {
   const { type, data } = message;
@@ -18,7 +24,7 @@ self.addEventListener('message', ({ data:message }) => {
   if (type === 'create') {
     self.data = data;
     self.state = GameState.create(data.clone())
-      .on('*', event => post('event', event));
+      .on('sync', event => post('sync', event));
 
     post('init', self.state.getData());
 
@@ -26,7 +32,7 @@ self.addEventListener('message', ({ data:message }) => {
       self.state.start();
   } else if (type === 'restart') {
     self.state = GameState.create(self.data.clone())
-      .on('*', event => post('event', event));
+      .on('sync', event => post('sync', event));
 
     post('init', self.state.getData());
 
