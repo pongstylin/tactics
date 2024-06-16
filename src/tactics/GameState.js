@@ -1290,12 +1290,8 @@ export default class GameState {
                 mRecovery = undefined;
             }
           } else {
-            // Check recovery at the start of the turn, not the current recovery.
-            // This handles the case of a berserker attacking a friendly unit.
-            // Note: this also needs an undefined check since the furgon's shrubs do not exist at turn start
-            //       and will be undefined
-            const unitAtTurnStart = this.units[team.id].find(u => u.id === unit.id);
-            if (!!unitAtTurnStart && unitAtTurnStart.mRecovery)
+            // Only deduct recovery if set at start of turn
+            if (unit.initialState.mRecovery)
               mRecovery = unit.mRecovery - 1;
           }
 
@@ -1479,6 +1475,7 @@ export default class GameState {
       },
     }));
 
+    this._board.setInitialState();
     this.previousTurn.isCurrent = false;
 
     if (this.rated) {

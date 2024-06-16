@@ -204,6 +204,9 @@ export default class Board {
                 aLabel: { type:'T', x:0,   y:16, text:'Armor' },
                 armor : { type:'T', x:39,  y:16, style:{ letterSpacing:1 }},
                 mArmor: { type:'T', x:70,  y:16, style:{ letterSpacing:1 }},
+
+                shLabel: { type:'T', x:88,  y:16, style:{ fontFamily:'fontawesome' } },
+                shield:  { type:'T', x:115, y:16, style:{ letterSpacing:1 }},
               },
             },
             layer2: {
@@ -933,8 +936,71 @@ export default class Board {
       if (unit.armored)
         notices.push('Armored!');
 
-      if (unit.mBlocking < 0 && (unit.mBlocking + unit.blocking) < 50)
-        notices.push('Vulnerable!');
+      if (unit.blocking) {
+        // Show shield for this turn if unit has not been attacked yet, otherwise show for next turn.
+        const mBlocking = unit.mBlocking === unit.initialState.mBlocking ?? 0 ? unit.mBlocking : unit.mBlocking * 0.9;
+        const blocking = unit.blocking + mBlocking;
+        const countTurns = (modifier, canContinue) => {
+          let numTurns = 0;
+          while (canContinue(modifier *= 0.9))
+            numTurns++;
+          const numCycles = numTurns / this.teamsUnits.length;
+          const intCycles = unit.team.isCurrent ? Math.ceil(numCycles) : Math.floor(numCycles);
+          return '+' + intCycles + (intCycles === 1 ? ' turn' : ' turns');
+        };
+
+        if (unit.paralyzed) {
+          els.shLabel.text = '\uf132';
+          els.shLabel.style.fill = '#FF4444';
+          els.shield.text = '—';
+          notices.push('Vulnerable!');
+        } else if (unit.team.useRandom) {
+          if (blocking >= 100) {
+            els.shLabel.text = '\uf132';
+            els.shLabel.style.fill = unit.blocking < 100 ? '#00CC00' : '#FFFFFF';
+            els.shield.text =
+              unit.blocking === 100 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 100);
+            if (unit.blocking < 100)
+              notices.push('Protected!');
+          } else if (blocking <= 0) {
+            els.shLabel.text = '\uf132';
+            els.shLabel.style.fill = '#FF4444';
+            els.shield.text = countTurns(unit.mBlocking, m => unit.blocking + m <= 0);
+            notices.push('Vulnerable!');
+          } else {
+            els.shLabel.text = '\uf132';
+            els.shLabel.style.fill = '#FFFFFF';
+            els.shield.text = '—';
+          }
+        } else {
+          const canBlockSide = blocking >= 100 || mBlocking >= unit.blocking;
+          const canBlockFront = blocking >= 50 || mBlocking >= unit.blocking/2;
+
+          if (canBlockSide) {
+            els.shLabel.text = '\uf132';
+            els.shLabel.style.fill = unit.blocking < 100 ? '#00CC00' : '#FFFFFF';
+            els.shield.text =
+              unit.blocking === 100 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 100 || m >= unit.blocking);
+            if (unit.blocking < 100)
+              notices.push('Protected!');
+          } else if (canBlockFront) {
+            els.shLabel.text = '\uf3ed';
+            els.shLabel.style.fill = unit.blocking < 50 ? '#00CC00' : '#FFFFFF';
+            els.shield.text =
+              unit.blocking >= 50 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 50 || m >= unit.blocking/2);
+          } else {
+            els.shLabel.text = '\uf132';
+            els.shLabel.style.fill = '#FF4444';
+            els.shield.text =
+              unit.blocking < 50 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m < 50);
+            if (unit.blocking >= 50)
+              notices.push('Vulnerable!');
+          }
+        }
+      } else {
+        els.shLabel.text = '';
+        els.shield.text = '';
+      }
 
       if (unit.title)
         notices.push(unit.title);
@@ -1152,6 +1218,7 @@ export default class Board {
     unit.stand();
 
     this.assign(unit, unit.assignment);
+    unit.initialState = unit.toJSON();
 
     team.units.push(unit);
     unit.attach();
@@ -1504,6 +1571,10 @@ export default class Board {
       return unitState;
     }));
   }
+  setInitialState() {
+    for (const unit of this.teamsUnits.flat())
+      unit.initialState = unit.toJSON();
+  }
   setState(teamsUnits, teams) {
     this.clear();
     this.teams = teams;
@@ -1554,6 +1625,8 @@ export default class Board {
           unit.showBarrier();
       }
     });
+
+    this.setInitialState();
 
     return this;
   }

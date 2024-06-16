@@ -49,6 +49,9 @@ export default class Unit {
       pixi:    null,
       filters: {},
 
+      // Unit state at start of turn.  Set by Board.setInitialState().
+      initialState: null,
+
       _sprite: null,
       _pulse: null,
     });

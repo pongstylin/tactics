@@ -53,6 +53,8 @@ export default class Turn extends ActiveModel {
         isLocked: false,
       }, props.data.clone()), 
     });
+
+    this.team.isCurrent = this._isCurrent;
   }
 
   static create(props:CreateProps) {
@@ -92,7 +94,7 @@ export default class Turn extends ActiveModel {
     return this._isCurrent;
   }
   set isCurrent(v) {
-    this._isCurrent = v;
+    this._isCurrent = this.team.isCurrent = v;
   }
   get timeLimit() {
     return this._timeLimit;

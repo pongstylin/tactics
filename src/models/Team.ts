@@ -88,6 +88,7 @@ export default class Team {
     usedSim: boolean
     forkOf: any
   }
+  public isCurrent: boolean
   public units: any[][]
 
   constructor(data) {
@@ -148,6 +149,9 @@ export default class Team {
 
     if (this.data.useRandom && !this.data.randomState)
       this.data.randomState = Random.create();
+
+    this.isCurrent = false;
+    this.units = null;
   }
 
   static validateSet(data, game, gameType) {

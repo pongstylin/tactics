@@ -545,7 +545,7 @@ export default class Game {
     await state.whenStarted;
 
     // Clone teams since board.setState() applies a units property to each.
-    const teams = this._teams = state.teams.map(team => team.getData(true));
+    const teams = this._teams = state.teams.map(t => t.clone());
 
     // Rotate the board such that my first local team is in the configured location.
     const myTeams = this.teams.filter(t => this.isMyTeam(t));
@@ -628,14 +628,17 @@ export default class Game {
     const board = this._board;
     board.setState(this.units, this._teams);
 
+    for (const team of this._teams)
+      team.isCurrent = team.id === this.cursor.teamId;
+
     let actions = this.actions;
     actions.forEach(action => this._applyAction(action));
 
     this.selectMode = 'move';
 
-    if (actions.length) {
+    if (actions.length)
       this.selected = actions[0].unit;
-    } else if (this._inReplay && this.cursor.actions.length) {
+    else if (this._inReplay && this.cursor.actions.length) {
       actions = board.decodeAction(this.cursor.actions);
       this.selected = actions[0].unit;
     } else
@@ -719,9 +722,8 @@ export default class Game {
       if (movement === 'back')
         // The undo button can cause the next action to be a previous one
         this.setState();
-      else if (movement === 'forward') {
+      else if (movement === 'forward')
         await this._performAction(cursor.thisAction);
-      }
 
       if (whilePlaying.state === 'interrupt')
         return stopPlaying();
@@ -962,8 +964,7 @@ export default class Game {
       /*
        * If the selected unit was poisoned at turn start, can't attack.
        */
-      let unitState = this.units[selected.team.id].find(u => u.id === selected.id);
-      if (unitState.poisoned)
+      if (selected.initialState.poisoned)
         return false;
 
       return !!selected.getAttackTiles().length;
@@ -1744,6 +1745,11 @@ export default class Game {
       }
 
     this._applyChangeResults(action.results);
+    this._board.setInitialState();
+
+    const teamId = (this.cursor.teamId + 1) % this.teams.length;
+    for (const team of this._teams)
+      team.isCurrent = team.id === teamId;
 
     return this;
   }

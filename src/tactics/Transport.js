@@ -605,6 +605,7 @@ export default class Transport {
       timeLimit: data.timeLimit,
     }));
 
+    board.setInitialState();
     if (this.previousTurn)
       this.previousTurn.isCurrent = false;
 
