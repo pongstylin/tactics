@@ -1148,8 +1148,14 @@ export default class GameState {
     if (reason === 'willSync' && this.endedAt)
       return;
 
-    if (this.currentTurn.isEnded && (!this.rated || Date.now() - this.currentTurn.endedAt >= 5000))
-      return this.startTurn();
+    if (this.currentTurn.isEnded && (
+      // Opponent can see a turn end immediately in unrated games.
+      !this.rated ||
+      // Opponent can see a turn end 5 seconds after it ended.
+      Date.now() - this.currentTurn.endedAt >= 5000 ||
+      // Opponent can see a turn end within 10 seconds of time limit expiration
+      this.getTurnTimeRemaining() <= 10000
+    )) return this.startTurn();
 
     this._emit({ type:'sync' });
 
@@ -1508,7 +1514,8 @@ export default class GameState {
 
     turn.isCurrent = true;
 
-    if (this.timeLimit && turn.timeLimit === null)
+    // Even if the previous turn time limit isn't null, reset it just in case it was extended.
+    if (this.timeLimit)
       applyTurnTimeLimit[this.timeLimit.type].call(this, 'popped');
 
     return turn;
