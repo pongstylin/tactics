@@ -205,7 +205,8 @@ export default class Board {
                 armor : { type:'T', x:39,  y:16, style:{ letterSpacing:1 }},
                 mArmor: { type:'T', x:70,  y:16, style:{ letterSpacing:1 }},
 
-                shLabel: { type:'T', x:88,  y:16, style:{ fontFamily:'fontawesome' } },
+                sfLabel: { type:'T', x:81,  y:16, style:{ fontFamily:'fontawesome' } },
+                shLabel: { type:'T', x:95,  y:16, style:{ fontFamily:'fontawesome' } },
                 shield:  { type:'T', x:115, y:16, style:{ letterSpacing:1 }},
               },
             },
@@ -949,27 +950,39 @@ export default class Board {
           return '+' + intCycles + (intCycles === 1 ? ' turn' : ' turns');
         };
 
-        if (unit.paralyzed) {
-          els.shLabel.text = '\uf132';
+        els.sfLabel.text = '\uf132';
+        els.shLabel.text = unit.directional !== false ? '\uf3ed' : '';
+
+        if (unit.paralyzed || unit.focusing) {
+          els.sfLabel.style.fill = '#FF4444';
           els.shLabel.style.fill = '#FF4444';
           els.shield.text = '—';
           notices.push('Vulnerable!');
+        } else if (unit.blocking === 100 && unit.directional === false) {
+          els.shLabel.style.fill = '#FFFFFF';
+          els.shield.text = '—';
         } else if (unit.team.useRandom) {
-          if (blocking >= 100) {
-            els.shLabel.text = '\uf132';
-            els.shLabel.style.fill = unit.blocking < 100 ? '#00CC00' : '#FFFFFF';
-            els.shield.text =
-              unit.blocking === 100 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 100);
-            if (unit.blocking < 100)
-              notices.push('Protected!');
-          } else if (blocking <= 0) {
-            els.shLabel.text = '\uf132';
+          const willBlockSide = blocking >= 200;
+          const willBlockFront = blocking >= 100;
+          const wontBlock = blocking <= 0;
+
+          if (willBlockSide) {
+            els.sfLabel.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
+            els.shLabel.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
+            els.shield.text = countTurns(unit.mBlocking, m => unit.blocking + m >= 200);
+            notices.push('Protected!');
+          } else if (willBlockFront) {
+            els.sfLabel.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
+            els.shLabel.style.fill = '#CCCC00';
+            els.shield.text = countTurns(unit.mBlocking, m => unit.blocking + m >= 100);
+          } else if (wontBlock) {
+            els.sfLabel.style.fill = '#FF4444';
             els.shLabel.style.fill = '#FF4444';
             els.shield.text = countTurns(unit.mBlocking, m => unit.blocking + m <= 0);
             notices.push('Vulnerable!');
           } else {
-            els.shLabel.text = '\uf132';
-            els.shLabel.style.fill = '#FFFFFF';
+            els.sfLabel.style.fill = '#CCCC00';
+            els.shLabel.style.fill = '#CCCC00';
             els.shield.text = '—';
           }
         } else {
@@ -977,19 +990,19 @@ export default class Board {
           const canBlockFront = blocking >= 50 || mBlocking >= unit.blocking/2;
 
           if (canBlockSide) {
-            els.shLabel.text = '\uf132';
-            els.shLabel.style.fill = unit.blocking < 100 ? '#00CC00' : '#FFFFFF';
+            els.sfLabel.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
+            els.shLabel.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
             els.shield.text =
               unit.blocking === 100 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 100 || m >= unit.blocking);
             if (unit.blocking < 100)
               notices.push('Protected!');
           } else if (canBlockFront) {
-            els.shLabel.text = '\uf3ed';
-            els.shLabel.style.fill = unit.blocking < 50 ? '#00CC00' : '#FFFFFF';
+            els.sfLabel.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
+            els.shLabel.style.fill = '#FF4444';
             els.shield.text =
               unit.blocking >= 50 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 50 || m >= unit.blocking/2);
           } else {
-            els.shLabel.text = '\uf132';
+            els.sfLabel.style.fill = '#FF4444';
             els.shLabel.style.fill = '#FF4444';
             els.shield.text =
               unit.blocking < 50 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m < 50);
@@ -998,6 +1011,7 @@ export default class Board {
           }
         }
       } else {
+        els.sfLabel.text = '';
         els.shLabel.text = '';
         els.shield.text = '';
       }
