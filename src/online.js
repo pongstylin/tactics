@@ -1982,9 +1982,9 @@ function renderGame(game) {
       left += ', <SPAN>Truce!</SPAN>';
     else if (game.winnerId === 'draw')
       left += ', <SPAN>Draw!</SPAN>';
-    else if (teams[game.winnerId].playerId === myPlayerId)
+    else if (game.winner.playerId === myPlayerId)
       left += ', <SPAN>You Win!</SPAN>';
-    else if (teams.findIndex(t => t.playerId === myPlayerId) > -1)
+    else if (game.losers.some(t => t.playerId === myPlayerId))
       left += ', <SPAN>You Lose!</SPAN>';
   // Active Games
   } else if (game.startedAt) {

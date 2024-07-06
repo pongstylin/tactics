@@ -324,6 +324,7 @@
       margin-left: 6px;
     }
 
+    /*
     @media (hover:hover) {
       #pn .toggle:hover {
         color: #CCFFFF;
@@ -342,6 +343,7 @@
         text-decoration: underline;
       }
     }
+    */
 
     BUTTON.fa {
       display: block;
@@ -721,6 +723,12 @@
       text-align: center;
     }
 
+    /* Shrink down the tabs to fit into a smaller space */
+    @media (max-width:399px) {
+      .tabs LI {
+        flex-basis: min-content;
+      }
+    }
     @media (min-width:820px) and (min-height:600px) {
       .page {
         width: 820px;
@@ -801,6 +809,7 @@
         <LI class="yourGames"><span class="label">Your Games</span><span class="badge"></span></LI>
         <LI class="lobby"><span class="label">Lobby</span><span class="badge"></span></LI>
         <LI class="publicGames"><span class="label">Public Games</span><span class="badge"></span></LI>
+        <LI class="rankings"><span class="label">Rankings</span><span class="badge"></span></LI>
       </UL>
     </DIV>
     <DIV class="tabContent">
@@ -810,6 +819,7 @@
       </DIV>
       <DIV class="lobby"></DIV>
       <DIV class="gameList publicGames"></DIV>
+      <DIV class="rankings"></DIV>
       <DIV class="loading">
         <DIV class="label">Please<br>wait...</DIV>
         <DIV class="spinner">

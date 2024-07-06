@@ -147,7 +147,7 @@ export default class GameClient extends Client {
       });
   }
   getMyInfo() {
-    return this._server.requestAuthorized(this.name, 'getMyInfo')
+    return this._server.requestAuthorized(this.name, 'getMyInfo', [ ])
       .catch(error => {
         if (error === 'Connection reset')
           return this.getMyInfo();

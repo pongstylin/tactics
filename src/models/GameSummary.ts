@@ -46,7 +46,7 @@ export default class GameSummary {
       currentTurnTimeLimit: game.state.currentTurnTimeLimit,
       isFork: game.isFork,
       rated: game.state.rated,
-      flaggedForFarming: game.state.flaggedForFarming,
+      ranked: game.state.ranked,
       teams: teams.map(t => t && {
         createdAt: t.createdAt,
         joinedAt: t.joinedAt,
@@ -97,8 +97,8 @@ export default class GameSummary {
   get rated() {
     return this.data.rated;
   }
-  get flaggedForFarming() {
-    return this.data.flaggedForFarming;
+  get ranked() {
+    return this.data.ranked;
   }
   get teams() {
     return this.data.teams;
@@ -126,6 +126,14 @@ export default class GameSummary {
   }
   get winnerId() {
     return this.data.winnerId;
+  }
+  get winner() {
+    const winnerId = this.data.winnerId;
+    return typeof winnerId === 'number' ? this.teams[winnerId] : null;
+  }
+  get losers() {
+    const winner = this.winner;
+    return this.teams.filter(t => t !== winner);
   }
 
   /*
@@ -163,7 +171,7 @@ serializer.addType({
   schema: {
     type: 'object',
     required: [
-      'id', 'type', 'typeName', 'isFork', 'rated', 'flaggedForFarming',
+      'id', 'type', 'typeName', 'isFork', 'rated', 'ranked',
       'randomFirstTurn', 'randomHitChance', 'timeLimitName', 'startedAt',
       'turnStartedAt', 'endedAt', 'teams', 'createdBy', 'createdAt', 'updatedAt',
     ],
@@ -174,7 +182,7 @@ serializer.addType({
       collection: { type:'string' },
       isFork: { type:'boolean' },
       rated: { type:'boolean' },
-      flaggedForFarming: { type:'boolean' },
+      ranked: { type:'boolean' },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
       timeLimitName: { type:[ 'string', 'null' ] },

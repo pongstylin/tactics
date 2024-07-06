@@ -41,8 +41,6 @@ export default class PlayerInfo extends Modal {
       const playerName = this.data.info.relationship.name ?? team.name;
 
       if (target.tagName === 'SPAN' && target.id === "all_ratings") {
-        let ratings = this.data.info.stats.ratings;
-        let sorted_ratings = PlayerInfo.getSortedRatings(ratings);
         const ratingPaddingLeft = "10px";
         const gameCountPaddingLeft = "25px";
         let messages = [
@@ -52,22 +50,18 @@ export default class PlayerInfo extends Modal {
                <TH style='padding-left: ${ratingPaddingLeft}'> Rating </TH> 
                <TH style='padding-left: ${gameCountPaddingLeft}'> Games </TH>`,
         ];
-        for (let style of sorted_ratings) {
-          // TODO: Annoying problem where "style" is not user-friendly string.
-          // droplessGray vs Dropless Gray
+        for (const ratingInfo of this.data.info.stats.ratings)
           messages.push(`
             <TR>
-              <TD> ${style} </TD>
+              <TD>${ratingInfo.gameTypeName}</TD>
               <TD style='padding-left: ${ratingPaddingLeft}'> 
-                ${"" + Math.round(ratings.get(style).rating)}
+                ${Math.round(ratingInfo.rating)}
               </TD>
               <TD style='padding-left: ${gameCountPaddingLeft}'>
-                ${"" + ratings.get(style).gamesPlayed}
+                ${ratingInfo.gameCount}
               </TD>
             </TR>
           `);
-
-        }
         messages.push(`</TABLE> </DIV>`)
         popup({
           title: `<I>${playerName}</I> ratings`,
@@ -142,27 +136,6 @@ export default class PlayerInfo extends Modal {
     return elapsed;
   }
 
-  static computeForteRating(ratings) {
-    let sortedRatings = PlayerInfo.getSortedRatings(ratings);
-    let weight = 1.0;
-    let overallRating = 0;
-    for (let style of sortedRatings) {
-      if (ratings.get(style).gamesPlayed >= 10) {
-        weight /= 2;
-        overallRating += ratings.get(style).rating * weight;
-      }
-    }
-    return overallRating;
-  }
-
-  static getSortedRatings(ratings) {
-    let sorted_keys = [...ratings.keys()].sort(function (a, b) {
-      return ratings.get(b).rating - ratings.get(a).rating;
-    });
-
-    return sorted_keys;
-  }
-
   renderInfo() {
     const data = this.data;
     const info = this.data.info;
@@ -199,9 +172,9 @@ export default class PlayerInfo extends Modal {
       }
     }
 
-    const ratings = stats.ratings;
-    const forteRating = PlayerInfo.computeForteRating(ratings);
-    const styleRating = ratings.get(data.gameType.id)?.rating;
+    const ratingsInfo = this.data.info.stats.ratings;
+    const forteRating = ratingsInfo.find(r => r.gameTypeId === 'FORTE')?.rating;
+    const styleRating = ratingsInfo.find(r => r.gameTypeId === data.gameType.id)?.rating;
     const content = [
       `<DIV class="relationshipName"></DIV>`,
       `</BR>`,

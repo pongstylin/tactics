@@ -3,7 +3,9 @@
     font-style: italic;
   }
 
-  .relationshipName {
+  .relationshipName .inputTextAutosave {
+    width: 100%;
+
     .icons {
       & > .fa {
         cursor: pointer;

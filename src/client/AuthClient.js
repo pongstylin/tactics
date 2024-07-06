@@ -248,6 +248,14 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
+  getRankings(gameTypeId = 'FORTE') {
+    return this._server.requestAuthorized(this.name, 'getRankings', [ gameTypeId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRankings(gameTypeId);
+        throw error;
+      });
+  }
 
   async _onOpen({ data }) {
     // If this is the first connection upon loading the page...

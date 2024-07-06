@@ -13,7 +13,8 @@ interface Relationship {
 export default class Identity extends ActiveModel {
   protected data: {
     id: string
-    name: string
+    name?: string
+    ranking?: { playerId:number, ratings:Map<string,{ rating:number, gameCount:number }> }
     muted: boolean
     admin: boolean
     lastSeenAt: Date
@@ -49,8 +50,12 @@ export default class Identity extends ActiveModel {
   get id() {
     return this.data.id;
   }
+
+  /*
+   * Only available to verified players
+   */
   get name() {
-    return this.data.name;
+    return this.data.name ?? null;
   }
   set name(name) {
     if (this.data.name === name)
@@ -58,6 +63,7 @@ export default class Identity extends ActiveModel {
     this.data.name = name;
     this.emit('change:name');
   }
+
   get muted() {
     return this.data.muted;
   }
@@ -103,8 +109,27 @@ export default class Identity extends ActiveModel {
     return true;
   }
 
+  getRanking(gameTypeId = 'FORTE') {
+    const ranking = this.data.ranking;
+    if (!ranking?.ratings.has(gameTypeId))
+      return null;
+
+    return {
+      playerId: ranking.playerId,
+      name: this.name,
+      rating: ranking.ratings.get(gameTypeId).rating,
+      gameCount: ranking.ratings.get(gameTypeId).gameCount,
+    };
+  }
+  setRanking(playerId, ratings) {
+    this.data.ranking = { playerId, ratings };
+    this.emit('change:setRanking');
+  }
+
   merge(identity) {
     this.name = identity.name;
+    this.data.ranking = identity.data.ranking;
+
     if (identity.lastSeenAt > this.data.lastSeenAt)
       this.lastSeenAt = identity.lastSeenAt;
 
@@ -173,6 +198,26 @@ serializer.addType({
     required: [ 'id', 'muted', 'lastSeenAt', 'playerIds' ],
     properties: {
       id: { type:'string', format:'uuid' },
+      name: { type:'string' },
+      ranking: {
+        type: 'object',
+        required: [ 'playerId', 'ratings' ],
+        properties: {
+          playerId: { type:'string', format:'uuid' },
+          ratings: {
+            type: 'array',
+            subType: 'Map',
+            items: {
+              type: 'array',
+              items: [
+                { type:'string', format:'uuid' },
+                { type:'number' },
+              ],
+            },
+          },
+        },
+        additionalProperties: false,
+      },
       muted: { type:'boolean' },
       lastSeenAt: { type:'string', subType:'Date' },
       relationships: {

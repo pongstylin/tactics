@@ -154,11 +154,23 @@ export default class extends FileAdapter {
     const player = await this.getPlayer(playerId);
     const authLinks = new Map();
 
-    for (const providerId of providerIds) {
+    for (const providerId of providerIds)
       authLinks.set(providerId, player.hasAuthProviderLink(providerId));
-    }
 
     return authLinks;
+  }
+
+  async getRankings(gameTypeId) {
+    const identities = this.state.identities.values();
+    const rankings = [];
+
+    for (const identity of identities) {
+      const ranking = identity.getRanking(gameTypeId);
+      if (ranking)
+        rankings.push(ranking);
+    }
+
+    return rankings.sort((a,b) => b.rating - a.rating);
   }
 
   /*****************************************************************************

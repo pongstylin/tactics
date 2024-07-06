@@ -44,33 +44,27 @@ export default class PlayerInfoSelf extends Modal {
       const playerName = team.name;
 
       if (target.tagName === 'SPAN' && target.id === "all_ratings") {
-        const ratings = this.data.info.stats.ratings;
-        let sorted_ratings = PlayerInfo.getSortedRatings(ratings);
         const ratingPaddingLeft = "10px";
         const gameCountPaddingLeft = "25px";
-        let messages = [
+        const messages = [
           `<DIV style='display: grid; text-align: left;'>
              <TABLE cellSpacing=10px> <TR>
                <TH> Style </TH>
                <TH style='padding-left: ${ratingPaddingLeft}'> Rating </TH> 
                <TH style='padding-left: ${gameCountPaddingLeft}'> Games </TH>`,
         ];
-        for (let style of sorted_ratings) {
-          // TODO: Annoying problem where "style" is not user-friendly string.
-          // droplessGray vs Dropless Gray
+        for (const ratingInfo of this.data.info.stats.ratings)
           messages.push(`
             <TR>
-              <TD> ${style} </TD>
+              <TD>${ratingInfo.gameTypeName}</TD>
               <TD style='padding-left: ${ratingPaddingLeft}'> 
-                ${"" + Math.round(ratings.get(style).rating)}
+                ${Math.round(ratingInfo.rating)}
               </TD>
               <TD style='padding-left: ${gameCountPaddingLeft}'>
-                ${"" + ratings.get(style).gamesPlayed}
+                ${ratingInfo.gameCount}
               </TD>
             </TR>
           `);
-
-        }
         messages.push(`</TABLE> </DIV>`)
         popup({
           title: `<I>${playerName}</I> ratings`,
@@ -110,9 +104,9 @@ export default class PlayerInfoSelf extends Modal {
     const info = this.data.info;
     const createdDiff = (Date.now() - info.createdAt) / 1000;
 
-    const ratings = this.data.info.stats.ratings;
-    const forteRating = PlayerInfo.computeForteRating(ratings);
-    const styleRating = ratings.get(data.gameType.id)?.rating;
+    const ratingsInfo = this.data.info.stats.ratings;
+    const forteRating = ratingsInfo.find(r => r.gameTypeId === 'FORTE')?.rating;
+    const styleRating = ratingsInfo.find(r => r.gameTypeId === data.gameType.id)?.rating;
     const content = [
       // Ratings section
       ...(info.isVerified ? [

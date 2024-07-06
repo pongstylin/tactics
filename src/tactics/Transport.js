@@ -69,6 +69,12 @@ export default class Transport {
   get rated() {
     return this._getStateData('rated');
   }
+  get ranked() {
+    return this._getStateData('ranked');
+  }
+  get unrankedReason() {
+    return this._getStateData('unrankedReason');
+  }
   get timeLimitName() {
     return this._getData('timeLimitName');
   }
@@ -176,6 +182,20 @@ export default class Transport {
   get winnerId() {
     const lastAction = this.recentTurns.last?.actions.last;
     return lastAction?.type === 'endGame' ? lastAction.winnerId : null;
+  }
+  get winner() {
+    const winnerId = this.winnerId;
+    if (winnerId === null)
+      return null;
+
+    return typeof winnerId === 'number' ? this.teams[winnerId] : null;
+  }
+  get losers() {
+    const winner = this.winner;
+    if (winner === null)
+      return null;
+
+    return this.teams.filter(t => t !== winner);
   }
 
   get playerRequest() {

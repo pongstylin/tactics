@@ -5,9 +5,11 @@ import timeLimit from '#config/timeLimit.js';
 import AccessToken from '#server/AccessToken.js';
 import Service from '#server/Service.js';
 import ServerError from '#server/Error.js';
+import Timeout from '#server/Timeout.js';
 import Game from '#models/Game.js';
 import Team from '#models/Team.js';
 import Player from '#models/Player.js';
+import PlayerStats from '#models/PlayerStats.js';
 import serializer, { unionType } from '#utils/serializer.js';
 
 // When the server is shut down in the middle of an auto surrender game,
@@ -142,7 +144,6 @@ export default class GameService extends Service {
           'strictFork?': 'boolean',
           'autoSurrender?': 'boolean',
           'rated?': 'boolean',
-          'flaggedForFarming?': 'boolean',
           'timeLimitName?': `enum([ 'blitz', 'standard', 'relaxed', 'day', 'week' ])`,
           'tags?': 'game:tags',
         },
@@ -530,7 +531,6 @@ export default class GameService extends Service {
 
     gameOptions.createdBy = playerId;
     gameOptions.type = gameTypeId;
-    gameOptions.flaggedForFarming = false;
 
     if (gameOptions.timeLimitName) {
       gameOptions.timeLimit = timeLimit[gameOptions.timeLimitName].clone();
@@ -708,7 +708,14 @@ export default class GameService extends Service {
   }
 
   async onGetGameTypesRequest(client) {
-    return this.data.getGameTypes();
+    const gameTypes = this.data.getGameTypesById();
+
+    return [ ...gameTypes.values() ]
+      .filter(gt => !gt.config.archived)
+      .map(({ id, config }) => ({
+        id: id,
+        name: config.name,
+      }));
   }
 
   async onGetGameTypeConfigRequest(client, gameTypeId) {
@@ -857,10 +864,11 @@ export default class GameService extends Service {
     if (!team)
       throw new ServerError(403, 'To get player info for this game, they must be a participant.');
 
+    const gameTypesById = await this.data.getGameTypesById();
     const me = await this._getAuthPlayer(inPlayerId);
     const them = await this._getAuthPlayer(forPlayerId);
-    const globalStats = await this.data.getPlayerStats(forPlayerId, forPlayerId);
-    const localStats = await this.data.getPlayerStats(inPlayerId, forPlayerId);
+    const globalStats = await this.data.getPlayerStats(forPlayerId);
+    const localStats = await this.data.getPlayerInfo(inPlayerId, forPlayerId);
 
     return {
       createdAt: them.createdAt,
@@ -880,7 +888,12 @@ export default class GameService extends Service {
       ]),
       relationship: me.getRelationship(them),
       stats: {
-        ratings: globalStats.ratings,
+        ratings: [ ...globalStats.ratings ].map(([ gtId, r ]) => ({
+          gameTypeId: gtId,
+          gameTypeName: gtId === 'FORTE' ? 'Forte' : gameTypesById.get(gtId).name,
+          rating: r.rating,
+          gameCount: r.gameCount,
+        })).sort((a,b) => b.rating - a.rating),
         aliases: [...localStats.aliases.values()]
           .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
           .sort((a, b) =>
@@ -899,14 +912,20 @@ export default class GameService extends Service {
   async onGetMyInfoRequest(client) {
     const playerId = this.clientPara.get(client.id).playerId;
     const player = await this._getAuthPlayer(playerId);
-    const myStats = await this.data.getPlayerStats(playerId, playerId);
+    const gameTypesById = await this.data.getGameTypesById();
+    const myStats = await this.data.getPlayerStats(playerId);
 
     return {
       createdAt: player.createdAt,
       completed: myStats.completed,
       isVerified: player.isVerified,
       stats: {
-        ratings: myStats.ratings,
+        ratings: [ ...myStats.ratings ].map(([ gtId, r ]) => ({
+          gameTypeId: gtId,
+          gameTypeName: gtId === 'FORTE' ? 'Forte' : gameTypesById.get(gtId).name,
+          rating: r.rating,
+          gameCount: r.gameCount,
+        })).sort((a,b) => b.rating - a.rating),
       },
     };
   }
@@ -1195,6 +1214,8 @@ export default class GameService extends Service {
   async _createGame(game) {
     await this.data.createGame(game);
     this._attachGame(game);
+    if (game.state.startedAt)
+      await this._recordGameStats(game);
     return game;
   }
   async _getGames(gameId) {
@@ -1215,15 +1236,22 @@ export default class GameService extends Service {
 
     const state = this.data.state;
 
-    if (!game.state.startedAt && game.collection && game.state.timeLimit.base < 86400) {
-      state.autoCancel.open(game.id, true);
-      game.state.once('startGame', event => {
-        state.autoCancel.delete(game.id);
-      });
-      game.on('delete', event => {
-        state.autoCancel.delete(game.id);
-      });
+    if (!game.state.startedAt) {
+      game.state.once('startGame', event => this._recordGameStats(game));
+
+      if (game.collection && game.state.timeLimit.base < 86400) {
+        state.autoCancel.open(game.id, true);
+        game.state.once('startGame', event => {
+          state.autoCancel.delete(game.id);
+        });
+        game.on('delete', event => {
+          state.autoCancel.delete(game.id);
+        });
+      }
     }
+
+    if (!game.state.endedAt)
+      game.state.once('endGame', event => this._recordGameStats(game));
 
     this._syncAutoSurrender(game);
 
@@ -1239,6 +1267,25 @@ export default class GameService extends Service {
     game.on('delete', event => {
       this.data.deleteGame(game);
     });
+  }
+  async _recordGameStats(game) {
+    const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
+    const playersMap = new Map(await Promise.all([ ...playerIds ].map(pId =>
+      this._getAuthPlayer(pId).then(p => [ pId, p ])
+    )));
+    const playersStats = await Promise.all(playerIds.map(pId => this.data.getPlayerStats(pId)));
+
+    if (game.state.endedAt) {
+      if (PlayerStats.updateRatings(game, playersStatsMap))
+        for (const playerStats of playersStats)
+          playersMap.get(playerStats.playerId).identity.setRanking(playerStats.playerId, playerStats.ratings);
+
+      for (const playerStats of playersStats)
+        playerStats.recordGameEnd(game);
+    } else {
+      for (const playerStats of playersStats)
+        playerStats.recordGameStart(game);
+    }
   }
   _syncAutoSurrender(game) {
     if (!game.state.startedAt || !game.state.autoSurrender)
@@ -1613,7 +1660,7 @@ export default class GameService extends Service {
   /*******************************************************************************
    * Helpers
    ******************************************************************************/
-  _getAuthPlayer(playerId) {
+  async _getAuthPlayer(playerId) {
     if (this.playerPara.has(playerId))
       return this.playerPara.get(playerId).player;
     else
@@ -1675,41 +1722,19 @@ export default class GameService extends Service {
     if (teams.findIndex(t => !t?.joinedAt) === -1) {
       const playerIds = new Set(teams.map(t => t.playerId));
       if (playerIds.size > 1) {
+        if (game.state.rated) {
+          const players = await Promise.all([ ...playerIds ].map(pId => this._getAuthPlayer(pId)));
+          const { ranked, reason } = await this.data.canPlayRankedGame(game, ...players);
+          game.state.ranked = ranked;
+          game.state.unrankedReason = reason;
+        }
 
         await this.chat.createRoom(
           teams.map(t => ({ id: t.playerId, name: t.name })),
           { id: game.id, applyRules: !!game.collection }
         );
-
-        // Check if this game if flagged for farming. 
-        const COOLOFF_PERIOD_IN_MS = 7 * 24 * 60 * 60 * 1000; // 1 week, in milliseconds
-        if (game.state.rated) {
-          // Check the 'nth' most recent game in this matchup
-          let n = 2
-
-          const playerGames = await this.data.openPlayerGames(teams[0].playerId);
-          const now = Date.now();
-          // Check this player's games to see if there is too much history with their opponent in too short a time
-          for (const gameSummary of playerGames.values()) {
-            if (!gameSummary.endedAt) {
-              continue;
-            }
-            const timeSinceGame = now - gameSummary.endedAt;
-            if (timeSinceGame < COOLOFF_PERIOD_IN_MS) {
-              const opponentFound = gameSummary.teams.findIndex(t => t?.playerId === game.state.teams[1].playerId) !== -1;
-              const isSameMode = gameSummary.type === game.state.type;
-              const isRated = gameSummary.rated;
-              const flaggedForFarming = gameSummary.flaggedForFarming;
-              if (opponentFound && isSameMode && isRated && !flaggedForFarming) {
-                n--;
-                if (n === 0) {
-                  game.state.flaggedForFarming = true;
-                }
-              }
-            }
-          }
-        }
       }
+
       // Now that the chat room is created, start the game.
       game.state.start();
     }

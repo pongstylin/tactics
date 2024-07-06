@@ -99,9 +99,10 @@ export default class Auth extends Modal {
     divAuth.querySelector('.facebook').style.display = config.facebook ? '' : 'none';
 
     divNotice.innerHTML = this.data.notice ?? [
-      'Login with Discord (preferred) or Facebook.',
-      'This way you won\'t accidentally lose your account.',
-    ].map(s => s.replace(/ /g, '\u00A0')).join('<BR>');
+      'Logging in with Discord is the best way<BR>',
+      'to avoid losing your account.<BR>',
+      `Join the community chat <A href="https://discord.gg/juyhghF" target="_blank">here</A>.`,
+    ].join('');
 
     if (!this.data.authIsInit)
       this.initAuth();

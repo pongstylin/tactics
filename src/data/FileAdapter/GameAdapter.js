@@ -4,7 +4,6 @@ import util from 'util';
 import migrate, { getLatestVersionNumber } from '#data/migrate.js';
 import serializer from '#utils/serializer.js';
 import FileAdapter from '#data/FileAdapter.js';
-import Timeout from '#server/Timeout.js';
 
 import GameType from '#tactics/GameType.js';
 import Game from '#models/Game.js';
@@ -82,13 +81,8 @@ export default class extends FileAdapter {
   hasGameType(gameTypeId) {
     return this._gameTypes.has(gameTypeId);
   }
-  getGameTypes() {
-    return [ ...this._gameTypes.values() ]
-      .filter(gt => !gt.config.archived)
-      .map(({ id, config }) => ({
-        id: id,
-        name: config.name,
-      }));
+  getGameTypesById() {
+    return this._gameTypes;
   }
   getGameType(gameTypeId) {
     const gameTypes = this._gameTypes;
@@ -141,6 +135,12 @@ export default class extends FileAdapter {
   }
 
   async getPlayerStats(myPlayerId, vsPlayerId) {
+    const playerStats = await this._getPlayerStats(myPlayerId);
+
+    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    return playerStats;
+  }
+  async getPlayerInfo(myPlayerId, vsPlayerId) {
     const playerStats = await this._getPlayerStats(myPlayerId);
 
     this.cache.get('playerStats').add(myPlayerId, playerStats);
@@ -316,6 +316,52 @@ export default class extends FileAdapter {
     }
   }
 
+  async canPlayRankedGame(game, player, opponent) {
+    if (!game.collection)
+      return { ranked:false, reason:'private' };
+
+    // Both players must be verified
+    if (!player.isVerified || !opponent.isVerified)
+      return { ranked:false, reason:'not verified' };
+
+    // Can't play a ranked game against yourself
+    if (player.identityId === opponent.identityId)
+      return { ranked:false, reason:'same identity' };
+
+    /*
+     * Max of 2 ranked games per week between 2 players.
+     */
+    const playerGames = await this._getPlayerGames(player.id);
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000; // 1 week ago, in milliseconds
+
+    // Check the 'nth' most recent game in this matchup
+    let n = 2;
+
+    // Check this player's games to see if there is too much history with their opponent in too short a time
+    for (const gameSummary of playerGames.values()) {
+      // Unranked games don't affect ranking
+      if (!gameSummary.ranked)
+        continue;
+
+      // Different styles have different rankings
+      if (gameSummary.type !== game.state.type)
+        continue;
+
+      // Old games don't prevent playing more ranked games
+      if (gameSummary.startedAt < since)
+        continue;
+
+      // Only counting games against any of the opponent's accounts.
+      if (!gameSummary.teams.some(t => opponent.identity.playerIds.includes(t.playerId)))
+        continue;
+
+      if (--n === 0)
+        return { ranked:false, reason:'too many games' };
+    }
+
+    return { ranked:true };
+  }
+
   /*****************************************************************************
    * Private Interface
    ****************************************************************************/
@@ -327,12 +373,10 @@ export default class extends FileAdapter {
       const data = serializer.transform(game);
       data.version = getLatestVersionNumber('game');
 
-      this._attachGame(game);
+      game.on('change', event => this._onGameChange(game));
       return data;
     });
     await this._updateGameSummary(game);
-    if (game.state.startedAt)
-      await this._recordGameStats(game);
   }
   async _getGame(gameId) {
     if (this.cache.get('game').has(gameId))
@@ -344,43 +388,14 @@ export default class extends FileAdapter {
       if (data === undefined) return;
 
       const game = serializer.normalize(migrate('game', data));
-      this._attachGame(game);
-
+      game.on('change', event => this._onGameChange(game));
       return game;
     });
-  }
-  _attachGame(game) {
-    game.on('change', event => this._onGameChange(game));
-    if (!game.state.startedAt)
-      game.state.once('startGame', event => this._recordGameStats(game));
-    if (!game.state.endedAt)
-      game.state.once('endGame', event => this._recordGameStats(game));
   }
   _onGameChange(game) {
     if (!this.buffer.get('game').has(game.id))
       this.buffer.get('game').add(game.id, game);
     this._updateGameSummary(game);
-  }
-  async _recordGameStats(game) {
-    const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
-    const playerStatsMap = new Map();
-
-    // Populate a map of the stats of all players involved
-    for (const playerId of playerIds)
-      playerStatsMap.set(playerId, await this._getPlayerStats(playerId));
-
-    // If the game ended, update the ratings for all players
-    if (game.state.endedAt)
-      PlayerStats.updateRatings(game, playerStatsMap);
-
-    // For each player, update stats (wld vs opponent, etc.) and save all the changes
-    for (const playerId of playerIds) {
-      const playerStats = playerStatsMap.get(playerId);
-      if (game.state.endedAt)
-        playerStats.recordGameEnd(game);
-      else
-        playerStats.recordGameStart(game);
-    }
   }
   async _saveGame(game) {
     await this.putFile(`game_${game.id}`, () => {

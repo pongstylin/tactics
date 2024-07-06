@@ -21,45 +21,50 @@ export default class PlayerStats extends ActiveModel {
     });
   }
 
-  // Updates the ratings of all players involved in a game. This method is static because it acts on the rating of more than one player
-  static updateRatings(game, playerStatsMap) {
+  /*
+   * Updates the ratings of all players involved in a game.
+   * This method is static because it acts on the rating of more than one player
+   */
+  static updateRatings(game, playersStatsMap) {
+    // Only update ratings for ranked games.
+    if (!game.state.ranked)
+      return false;
 
-    // Only update stats for rated games
-    if (!game.state.rated)
-      return;
+    const isDraw = game.state.winnerId === 'draw';
+    const winnerPlayerId = (game.state.winner ?? game.state.teams[1]).playerId;
+    const winnerStats = playersStatsMap.get(winnerPlayerId);
+    const winnerRatingInfo = winnerStats._getRatingInfo(game.state.type);
+    const loserPlayerId = game.state.losers[0].playerId;
+    const loserStats = playersStatsMap.get(loserPlayerId);
+    const loserRatingInfo = loserStats._getRatingInfo(game.state.type);
 
-    // Check for farming
-    if (game.state.flaggedForFarming)
-      return;
+    // Note - the max rating change is sometimes different for each player (if experience levels are different)
+    const maxRatingChanges = _computeMaxRatingChange(winnerRatingInfo.gameCount, loserRatingInfo.gameCount);
 
-    // Ensure the game was played (and not abandoned) by exactly 2 players
-    const playedBy = new Set();
-    for (const team of game.state.teams) {
-      if (game.state.teamHasPlayed(team))
-        playedBy.add(team.playerId);
-    }
-    if (playedBy.size !== 2)
-      return;
+    winnerStats.setRating(
+      game.state.type,
+      Math.max(100, _computeElo(winnerRatingInfo, loserRatingInfo, maxRatingChanges[0], isDraw)[0]),
+    );
 
-    // Find the winner and the loser
-    let winnerPlayerId, loserPlayerId;
-    if (game.state.winnerId === 'draw') {
-      // If a draw, there is no winner or loser
-      winnerPlayerId = game.state.teams[0].playerId;
-      loserPlayerId = game.state.teams[1].playerId;
-    } else {
-      winnerPlayerId = game.state.teams[game.state.winnerId].playerId;
-      loserPlayerId = game.state.teams[(game.state.winnerId + 1) % 2].playerId;
-    }
-    const winnerRatings = playerStatsMap.get(winnerPlayerId).data.stats.get(winnerPlayerId).ratings;
-    const loserRatings = playerStatsMap.get(loserPlayerId).data.stats.get(loserPlayerId).ratings;
+    loserStats.setRating(
+      game.state.type,
+      Math.max(100, _computeElo(winnerRatingInfo, loserRatingInfo, maxRatingChanges[1], isDraw)[1]),
+    );
 
-    // Update the ratings for specific game type played
-    _updateRatingInfo(winnerRatings.get(game.state.type), loserRatings.get(game.state.type), game.state.winnerId === 'draw');
+    return true;
   }
 
   get playerId() {
     return this.data.playerId;
+  }
+  get completed() {
+    return this.data.stats.get(this.data.playerId).completed;
+  }
+  get ratings() {
+    const ratingsInfo = this._getRatingsInfo();
+    const ratings = new Map([ ...ratingsInfo ].map(([ gtId, ri ]) => [ gtId, { rating:ri.rating, gameCount:ri.gameCount } ]));
+
+    return ratings;
   }
 
   get(playerId) {
@@ -68,6 +73,17 @@ export default class PlayerStats extends ActiveModel {
       stats.ratings = new Map();
 
     return stats;
+  }
+  getRating(gameTypeId) {
+    return this._getRatingInfo(gameTypeId).rating;
+  }
+  setRating(gameTypeId, rating) {
+    const ratingInfo = this._getRatingInfo(gameTypeId);
+    ratingInfo.gameCount++;
+    ratingInfo.updatedAt = new Date();
+    ratingInfo.rating = rating;
+
+    this.emit('change:setRating');
   }
 
   recordGameStart(game) {
@@ -132,15 +148,6 @@ export default class PlayerStats extends ActiveModel {
             win: [0, 0],
             lose: [0, 0],
             draw: [0, 0],
-          });
-        }
-      } else {
-        const stats = this.data.stats.get(this.data.playerId);
-        if (!stats.ratings.has(game.state.type)) {
-          stats.ratings.set(game.state.type, {
-            rating: DEFAULT_RATING,
-            gamesPlayed: 0,
-            updatedAt: now,
           });
         }
       }
@@ -253,27 +260,41 @@ export default class PlayerStats extends ActiveModel {
 
     this.emit('change:clearWLDStats');
   }
+
+  _getRatingsInfo() {
+    const ratingsInfo = this.data.stats.get(this.data.playerId).ratings ?? new Map();
+
+    const forteRating = _calcForteRating(ratingsInfo);
+    const gameCount = [ ...ratingsInfo.values() ].reduce((sum, ri) => sum += ri.gameCount, 0);
+    const updatedAt = Math.max(...[ ratingsInfo.values() ].map(ri => ri.updatedat));
+    if (forteRating)
+      ratingsInfo.set('FORTE', { rating:forteRating, gameCount, updatedAt:new Date(updatedAt) });
+
+    return ratingsInfo;
+  }
+  _getRatingInfo(gameTypeId) {
+    return this._getRatingsInfo().get(gameTypeId) ?? {
+      rating: DEFAULT_RATING,
+      gameCount: 0,
+      updatedAt: new Date(),
+    };
+  }
 };
 
-function _updateRatingInfo(ratingsWinner, ratingsLoser, isDraw) {
-  const winnerRating = ratingsWinner.rating;
-  const loserRating = ratingsLoser.rating;
+function _calcForteRating(ratingsInfo) {
+  const sortedRatingsInfo = [ ...ratingsInfo.values() ].sort((a,b) => b.rating - a.rating);
 
-  // Note - the max rating change is sometimes different for each player (if experience levels are different)
-  const maxRatingChanges = _computeMaxRatingChange(ratingsWinner.gamesPlayed, ratingsLoser.gamesPlayed);
-  // For winner
-  ratingsWinner.rating = _computeElo(winnerRating, loserRating, maxRatingChanges[0], isDraw)[0];
-  // For loser
-  ratingsLoser.rating = _computeElo(winnerRating, loserRating, maxRatingChanges[1], isDraw)[1];
+  let weight = 1.0;
+  let rating = 0;
+  for (const ratingInfo of sortedRatingsInfo) {
+    if (ratingInfo.gameCount >= 10) {
+      weight /= 2;
+      rating += ratingInfo.rating * weight;
+    }
+  }
 
-  // Update metadata
-  const now = Date.now()
-  ratingsWinner.gamesPlayed++;
-  ratingsWinner.updatedAt = now;
-  ratingsLoser.gamesPlayed++;
-  ratingsLoser.updatedAt = now;
-}
-
+  return rating;
+};
 
 // Inspired by: https://www.geeksforgeeks.org/elo-rating-algorithm/
 function _probability(rating1, rating2) {
@@ -290,7 +311,6 @@ function _probability(rating1, rating2) {
  * @param K
  */
 function _computeElo(ratingWinner, ratingLoser, K, isDraw) {
-
   let pWinner = _probability(ratingLoser, ratingWinner);
   let pLoser = _probability(ratingWinner, ratingLoser);
 
@@ -308,7 +328,7 @@ function _computeElo(ratingWinner, ratingLoser, K, isDraw) {
 
 // This function computes the optimal values for "K" which is the maximum change that can occur to a player's rating in a single game.
 // In general, a new player should have a large value for K, and an experienced player should have a smaller value for K.
-function _computeMaxRatingChange(gamesPlayed1, gamesPlayed2) {
+function _computeMaxRatingChange(gameCount1, gameCount2) {
 
   // Note that the original game had 32, which was a bit high.
   // Suggested reading: https://en.wikipedia.org/wiki/Elo_rating_system#Most_accurate_K-factor
@@ -319,19 +339,19 @@ function _computeMaxRatingChange(gamesPlayed1, gamesPlayed2) {
 
   // High confidence - both sides played a sufficient number of games. Return standard value.
   // In the long-term, this should be the most common case.
-  if (gamesPlayed1 >= EXPERIENCE_THRESHOLD && gamesPlayed2 >= EXPERIENCE_THRESHOLD)
+  if (gameCount1 >= EXPERIENCE_THRESHOLD && gameCount2 >= EXPERIENCE_THRESHOLD)
     return [DEFAULT_K_FACTOR, DEFAULT_K_FACTOR];
 
   // In this case, at least one player is "new", meaning we do not have confidence that their rating is representative of their skill.
   // As such, K is doubled for the new player, so they can reach their "true rating" faster.
   // And K is halved for their opponent when their opponent is experienced (to protect against new accounts used as stat killers)
   let k1, k2;
-  if (gamesPlayed1 < EXPERIENCE_THRESHOLD)
+  if (gameCount1 < EXPERIENCE_THRESHOLD)
     k1 = DEFAULT_K_FACTOR * 2;
   else
     k1 = DEFAULT_K_FACTOR / 2;
 
-  if (gamesPlayed2 < EXPERIENCE_THRESHOLD)
+  if (gameCount2 < EXPERIENCE_THRESHOLD)
     k2 = DEFAULT_K_FACTOR * 2;
   else
     k2 = DEFAULT_K_FACTOR / 2;
@@ -457,10 +477,10 @@ serializer.addType({
       },
       rating: {
         type: 'object',
-        required: ['rating', 'gamesPlayed', 'updatedAt'],
+        required: ['rating', 'gameCount', 'updatedAt'],
         properties: {
           rating: { type: 'number' },
-          gamesPlayed: { type: 'number' },
+          gameCount: { type: 'number' },
           updatedAt: { type: 'string', subType: 'Date' },
         },
         additionalProperties: false,

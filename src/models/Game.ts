@@ -151,6 +151,10 @@ export default class Game extends ActiveModel {
   }
 
   checkin(team, checkinAt = new Date()) {
+    // Stop tracking checkin after game ends.
+    if (this.state.endedAt)
+      return false;
+
     let changed = false;
 
     if (team.checkinAt < checkinAt) {
@@ -163,6 +167,10 @@ export default class Game extends ActiveModel {
     return changed;
   }
   checkout(team, checkoutAt, lastActiveAt) {
+    // Stop tracking checkout after game ends.
+    if (this.state.endedAt)
+      return false;
+
     let changed = false;
 
     if (team.checkoutAt < checkoutAt) {
@@ -382,7 +390,7 @@ export default class Game extends ActiveModel {
     forkGameData.state.strictFork = false;
     forkGameData.state.autoSurrender = false;
     forkGameData.state.rated = false;
-    forkGameData.state.flaggedForFarming = false;
+    forkGameData.state.ranked = false;
 
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
 
@@ -467,9 +475,9 @@ export default class Game extends ActiveModel {
       return gameData;
     }
 
-    // Only teams and turn data are mutable after game creation.
+    // Only some data is mutable after game creation.
     for (const key of Object.keys(state))
-      if (![ 'teams', 'startedAt', 'lockedTurnId', 'currentTurnId', 'recentTurns' ].includes(key))
+      if (![ 'teams', 'startedAt', 'ranked', 'unrankedReason', 'lockedTurnId', 'currentTurnId', 'recentTurns' ].includes(key))
         delete state[key];
 
     if (reference === 'creation')
@@ -478,6 +486,13 @@ export default class Game extends ActiveModel {
     // These fields don't change after game start.
     delete state.teams;
     delete state.startedAt;
+
+    // Lazy implementation.  We know ranked / unrankedReason hasn't changed if game hasn't ended.
+    // But we should also delete if client has seen end game state.
+    if (!this.state.endedAt) {
+      delete state.ranked;
+      delete state.unrankedReason;
+    }
 
     this._pruneGameState(gameData, reference);
 

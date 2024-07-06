@@ -20,8 +20,20 @@ export default class GameState {
     // Clone the stateData since we'll be modifying it.
     stateData = Object.assign({}, stateData);
 
+    if ('ranked' in stateData) {
+      stateData._ranked = stateData.ranked;
+      delete stateData.ranked;
+    }
+
+    if ('unrankedReason' in stateData) {
+      stateData._unrankedReason = stateData.unrankedReason;
+      delete stateData.unrankedReason;
+    }
+
     Object.assign(this,
       {
+        rated: false,
+        _ranked: false,
         turns: [],
       },
       stateData,
@@ -64,8 +76,6 @@ export default class GameState {
         strictUndo: false,
         strictFork: false,
         autoSurrender: false,
-        rated: false,
-        flaggedForFarming: false,
         timeLimit: null,
       },
       stateData,
@@ -170,6 +180,35 @@ export default class GameState {
     return this.teams[this.previousTeamId];
   }
 
+  get ranked() {
+    return (
+      this._ranked &&
+      this.winnerId !== 'truce' &&
+      (!this.endedAt || !this.losers.some(t => !t.seen(this.endedAt - 10000)))
+    );
+  }
+  set ranked(ranked) {
+    this._ranked = ranked;
+  }
+  get unrankedReason() {
+    if (this.ranked)
+      return;
+
+    if (!this.rated)
+      return 'not rated';
+
+    if (this.winnerId === 'truce')
+      return 'truce';
+
+    if (this.endedAt && this.losers.some(t => !t.seen(this.endedAt - 10000)))
+      return 'unseen';
+
+    return this._unrankedReason;
+  }
+  set unrankedReason(reason) {
+    this._unrankedReason = reason;
+  }
+
   get lockedTurnId() {
     if (!this.startedAt)
       return null;
@@ -193,6 +232,20 @@ export default class GameState {
   get winnerId() {
     const lastAction = this.turns.last?.actions.last;
     return lastAction?.type === 'endGame' ? lastAction.winnerId : null;
+  }
+  get winner() {
+    const winnerId = this.winnerId;
+    if (winnerId === null)
+      return null;
+
+    return typeof winnerId === 'number' ? this.teams[winnerId] : null;
+  }
+  get losers() {
+    const winner = this.winner;
+    if (winner === null)
+      return null;
+
+    return this.teams.filter(t => t !== winner);
   }
 
   get activeTeams() {
@@ -426,7 +479,8 @@ export default class GameState {
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       rated: this.rated,
-      flaggedForFarming: this.flaggedForFarming,
+      ranked: this.ranked,
+      unrankedReason: this.unrankedReason,
       timeLimit: this.timeLimit,
 
       teams: this.teams.map(t => t && t.getData(!!this.startedAt)),
@@ -1223,7 +1277,7 @@ export default class GameState {
    * Intended for serializing game data for persistent storage.
    */
   toJSON() {
-    return {
+    const data = {
       type: this.type,
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
@@ -1231,12 +1285,20 @@ export default class GameState {
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       rated: this.rated,
-      flaggedForFarming: this.flaggedForFarming,
+      ranked: this._ranked,
+      unrankedReason: this._unrankedReason,
       timeLimit: this.timeLimit,
 
       teams: this.teams,
       turns: this.turns.map(t => t.toJSON()),
     };
+
+    if (!data.rated)
+      delete data.rated;
+    if (!data.ranked)
+      delete data.ranked;
+
+    return data;
   }
 
   /*****************************************************************************
@@ -1540,7 +1602,8 @@ serializer.addType({
       strictFork: { type:'boolean' },
       autoSurrender: { type:'boolean' },
       rated: { type:'boolean' },
-      flaggedForFarming: { type:'boolean' },
+      ranked: { type:'boolean' },
+      unrankedReason: { type:'string' },
       timeLimit: {
         type: 'object',
         required: [ 'type' ],
