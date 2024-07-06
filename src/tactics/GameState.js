@@ -184,7 +184,7 @@ export default class GameState {
     return (
       this._ranked &&
       this.winnerId !== 'truce' &&
-      (!this.endedAt || !this.losers.some(t => !t.seen(this.endedAt - 10000)))
+      (!this.endedAt || !this.losers.some(t => !this.teamHasSeen(t)))
     );
   }
   set ranked(ranked) {
@@ -200,7 +200,7 @@ export default class GameState {
     if (this.winnerId === 'truce')
       return 'truce';
 
-    if (this.endedAt && this.losers.some(t => !t.seen(this.endedAt - 10000)))
+    if (this.endedAt && this.losers.some(t => !this.teamHasSeen(t)))
       return 'unseen';
 
     return this._unrankedReason;
@@ -953,7 +953,26 @@ export default class GameState {
     return Math.max(0, turnTimeout);
   }
 
+  teamHasSeen(team) {
+    if (!this.endedAt)
+      return null;
+
+    if ([ 'truce', 'draw', team.id ].includes(this.winnerId))
+      return true;
+
+    const initialTurnId = this.getTeamInitialTurnId(team);
+    if (this.currentTurnId > initialTurnId)
+      return true;
+
+    if (this.currentTurn.actions.some(a => a.teamId === team.id && !a.forced))
+      return true;
+
+    return team.seen(Math.max(this.startedAt, this.endedAt - 10000));
+  }
   teamHasPlayed(team) {
+    if (!this.endedAt)
+      return null;
+
     if ([ 'truce', 'draw', team.id ].includes(this.winnerId))
       return true;
 

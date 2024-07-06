@@ -251,7 +251,16 @@ export default class GameService extends Service {
 
       state.autoSurrender.pause();
 
-      for (const game of await this._getGames(state.autoSurrender.keys())) {
+      for (const gameId of state.autoSurrender.keys()) {
+        let game;
+        try {
+          game = await this._getGame(gameId);
+        } catch (e) {
+          // Only expected to happen when manually deleting files.
+          state.autoSurrender.delete(gameId);
+          continue;
+        }
+
         if (game.state.getTurnTimeRemaining() < 300000) {
           protectedGameIds.add(game.id);
           game.state.currentTurn.resetTimeLimit(300);
@@ -1269,11 +1278,13 @@ export default class GameService extends Service {
     });
   }
   async _recordGameStats(game) {
-    const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
-    const playersMap = new Map(await Promise.all([ ...playerIds ].map(pId =>
-      this._getAuthPlayer(pId).then(p => [ pId, p ])
-    )));
-    const playersStats = await Promise.all(playerIds.map(pId => this.data.getPlayerStats(pId)));
+    const playerIds = Array.from(new Set([ ...game.state.teams.map(t => t.playerId) ]));
+    const [ players, playersStats ] = await Promise.all([
+      Promise.all(playerIds.map(pId => this._getAuthPlayer(pId))),
+      Promise.all(playerIds.map(pId => this.data.getPlayerStats(pId))),
+    ]);
+    const playersMap = new Map(players.map(p => [ p.id, p ]));
+    const playersStatsMap = new Map(playersStats.map(ps => [ ps.playerId, ps ]));
 
     if (game.state.endedAt) {
       if (PlayerStats.updateRatings(game, playersStatsMap))

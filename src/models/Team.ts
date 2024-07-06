@@ -319,7 +319,8 @@ export default class Team {
       return false;
 
     if (this.checkoutAt === null)
-      return this.checkinAt >= date;
+      // If never checked out, checkin must be <= the date to have seen it.
+      return this.checkinAt <= date;
 
     // If checked out right now, date is seen if checked out after
     if (this.checkoutAt > this.checkinAt)

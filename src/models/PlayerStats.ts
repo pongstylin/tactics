@@ -43,12 +43,12 @@ export default class PlayerStats extends ActiveModel {
 
     winnerStats.setRating(
       game.state.type,
-      Math.max(100, _computeElo(winnerRatingInfo, loserRatingInfo, maxRatingChanges[0], isDraw)[0]),
+      Math.max(100, _computeElo(winnerRatingInfo.rating, loserRatingInfo.rating, maxRatingChanges[0], isDraw)[0]),
     );
 
     loserStats.setRating(
       game.state.type,
-      Math.max(100, _computeElo(winnerRatingInfo, loserRatingInfo, maxRatingChanges[1], isDraw)[1]),
+      Math.max(100, _computeElo(winnerRatingInfo.rating, loserRatingInfo.rating, maxRatingChanges[1], isDraw)[1]),
     );
 
     return true;
@@ -58,7 +58,7 @@ export default class PlayerStats extends ActiveModel {
     return this.data.playerId;
   }
   get completed() {
-    return this.data.stats.get(this.data.playerId).completed;
+    return this._getMyStats().completed ?? [ 0, 0 ];
   }
   get ratings() {
     const ratingsInfo = this._getRatingsInfo();
@@ -78,7 +78,7 @@ export default class PlayerStats extends ActiveModel {
     return this._getRatingInfo(gameTypeId).rating;
   }
   setRating(gameTypeId, rating) {
-    const ratingInfo = this._getRatingInfo(gameTypeId);
+    const ratingInfo = this._getRatingInfo(gameTypeId, true);
     ratingInfo.gameCount++;
     ratingInfo.updatedAt = new Date();
     ratingInfo.rating = rating;
@@ -261,8 +261,21 @@ export default class PlayerStats extends ActiveModel {
     this.emit('change:clearWLDStats');
   }
 
-  _getRatingsInfo() {
-    const ratingsInfo = this.data.stats.get(this.data.playerId).ratings ?? new Map();
+  _getMyStats(persist = false) {
+    const stats = this.data.stats.get(this.data.playerId) ?? {
+      completed: [ 0, 0 ],
+      ratings: new Map(),
+    };
+    if (persist)
+      this.data.stats.set(this.data.playerId, stats);
+
+    return stats;
+  }
+  _getRatingsInfo(persist = false) {
+    const myStats = this._getMyStats(persist);
+    const ratingsInfo = myStats.ratings ?? new Map();
+    if (persist)
+      myStats.ratings = ratingsInfo;
 
     const forteRating = _calcForteRating(ratingsInfo);
     const gameCount = [ ...ratingsInfo.values() ].reduce((sum, ri) => sum += ri.gameCount, 0);
@@ -272,12 +285,17 @@ export default class PlayerStats extends ActiveModel {
 
     return ratingsInfo;
   }
-  _getRatingInfo(gameTypeId) {
-    return this._getRatingsInfo().get(gameTypeId) ?? {
+  _getRatingInfo(gameTypeId, persist = false) {
+    const ratingsInfo = this._getRatingsInfo();
+    const ratingInfo = ratingsInfo.get(gameTypeId) ?? {
       rating: DEFAULT_RATING,
       gameCount: 0,
       updatedAt: new Date(),
     };
+    if (persist)
+      ratingsInfo.set(gameTypeId, ratingInfo);
+
+    return ratingInfo;
   }
 };
 
