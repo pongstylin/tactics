@@ -1289,7 +1289,7 @@ export default class GameService extends Service {
     if (game.state.endedAt) {
       if (PlayerStats.updateRatings(game, playersStatsMap))
         for (const playerStats of playersStats)
-          playersMap.get(playerStats.playerId).identity.setRanking(playerStats.playerId, playerStats.ratings);
+          playersMap.get(playerStats.playerId).identity.setRanks(playerStats.playerId, playerStats.ratings);
 
       for (const playerStats of playersStats)
         playerStats.recordGameEnd(game);

@@ -62,7 +62,10 @@ export default class PlayerStats extends ActiveModel {
   }
   get ratings() {
     const ratingsInfo = this._getRatingsInfo();
-    const ratings = new Map([ ...ratingsInfo ].map(([ gtId, ri ]) => [ gtId, { rating:ri.rating, gameCount:ri.gameCount } ]));
+    const ratings = new Map([ ...ratingsInfo ].map(([ gtId, ri ]) => [ gtId, {
+      rating: Math.round(ri.rating),
+      gameCount: ri.gameCount,
+    } ]));
 
     return ratings;
   }
@@ -75,7 +78,7 @@ export default class PlayerStats extends ActiveModel {
     return stats;
   }
   getRating(gameTypeId) {
-    return this._getRatingInfo(gameTypeId).rating;
+    return Math.round(this._getRatingInfo(gameTypeId).rating);
   }
   setRating(gameTypeId, rating) {
     const ratingInfo = this._getRatingInfo(gameTypeId, true);
@@ -281,7 +284,10 @@ export default class PlayerStats extends ActiveModel {
     const gameCount = [ ...ratingsInfo.values() ].reduce((sum, ri) => sum += ri.gameCount, 0);
     const updatedAt = Math.max(...[ ratingsInfo.values() ].map(ri => ri.updatedat));
     if (forteRating)
-      ratingsInfo.set('FORTE', { rating:forteRating, gameCount, updatedAt:new Date(updatedAt) });
+      return new Map([
+        [ 'FORTE', { rating:forteRating, gameCount, updatedAt:new Date(updatedAt) } ],
+        ...ratingsInfo,
+      ]);
 
     return ratingsInfo;
   }

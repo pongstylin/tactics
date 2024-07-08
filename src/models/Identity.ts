@@ -14,7 +14,7 @@ export default class Identity extends ActiveModel {
   protected data: {
     id: string
     name?: string
-    ranking?: { playerId:number, ratings:Map<string,{ rating:number, gameCount:number }> }
+    ranks?: { playerId:number, ratings:Map<string,{ rating:number, gameCount:number }> }
     muted: boolean
     admin: boolean
     lastSeenAt: Date
@@ -109,26 +109,29 @@ export default class Identity extends ActiveModel {
     return true;
   }
 
-  getRanking(gameTypeId = 'FORTE') {
-    const ranking = this.data.ranking;
-    if (!ranking?.ratings.has(gameTypeId))
+  getRanks() {
+    return new Map([ ...(this.data.ranks?.ratings.keys() ?? []) ].map(rId => [ rId, this.getRank(rId) ]));
+  }
+  getRank(rankingId = 'FORTE') {
+    const ranks = this.data.ranks;
+    if (!ranks?.ratings.has(rankingId))
       return null;
 
     return {
-      playerId: ranking.playerId,
+      playerId: ranks.playerId,
       name: this.name,
-      rating: ranking.ratings.get(gameTypeId).rating,
-      gameCount: ranking.ratings.get(gameTypeId).gameCount,
+      rating: ranks.ratings.get(rankingId).rating,
+      gameCount: ranks.ratings.get(rankingId).gameCount,
     };
   }
-  setRanking(playerId, ratings) {
-    this.data.ranking = { playerId, ratings };
-    this.emit('change:setRanking');
+  setRanks(playerId, ratings) {
+    this.data.ranks = { playerId, ratings };
+    this.emit('change:setRanks');
   }
 
   merge(identity) {
     this.name = identity.name;
-    this.data.ranking = identity.data.ranking;
+    this.data.ranks = identity.data.ranks;
 
     if (identity.lastSeenAt > this.data.lastSeenAt)
       this.lastSeenAt = identity.lastSeenAt;
@@ -199,7 +202,7 @@ serializer.addType({
     properties: {
       id: { type:'string', format:'uuid' },
       name: { type:'string' },
-      ranking: {
+      ranks: {
         type: 'object',
         required: [ 'playerId', 'ratings' ],
         properties: {

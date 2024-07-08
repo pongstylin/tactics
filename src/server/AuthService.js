@@ -57,7 +57,8 @@ export default class AuthService extends Service {
         setRelationship: [ 'uuid', 'auth:relationship' ],
         clearRelationship: [ 'uuid' ],
 
-        getRankings: [ 'string' ],
+        getRankings: [],
+        getRanking: [ 'string' ],
       },
       definitions: {
         profile: {
@@ -597,11 +598,19 @@ export default class AuthService extends Service {
     playerA.clearRelationship(playerB);
   }
 
-  async onGetRankingsRequest(client, gameTypeId) {
+  async onGetRankingsRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    return this.data.getRankings(gameTypeId);
+    const clientPara = this.clientPara.get(client.id);
+
+    return this.data.getRankings(clientPara.playerId);
+  }
+  async onGetRankingRequest(client, gameTypeId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    return this.data.getRanking(gameTypeId);
   }
 
   async _validateAccessToken(client, token) {

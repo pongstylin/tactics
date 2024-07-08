@@ -494,6 +494,7 @@ export default class Player extends ActiveModel {
       expiresIn: config.ACCESS_TOKEN_TTL || '1h',
       name: this.data.name,
       deviceId,
+      verified: this.data.verified,
     };
 
     if (this.data.confirmName)

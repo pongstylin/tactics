@@ -160,12 +160,37 @@ export default class extends FileAdapter {
     return authLinks;
   }
 
-  async getRankings(gameTypeId) {
+  /*
+   * Returns a map of ranking id to a summary of ranks.
+   * The summary includes the top 3 ranks and the player's rank, if any.
+   */
+  async getRankings(playerId) {
+    const identities = this.state.identities.values();
+    const rankings = new Map();
+
+    for (const identity of identities)
+      for (const [ rankingId, rank ] of identity.getRanks())
+        if (!rankings.has(rankingId))
+          rankings.set(rankingId, [ rank ]);
+        else
+          rankings.get(rankingId).push(rank);
+
+    for (const [ rankingId, ranking ] of rankings.entries())
+      rankings.set(
+        rankingId,
+        ranking.sort((a,b) => b.rating - a.rating).map((r,i) => ({ rank:i+1, ...r })).filter(r =>
+          r.rank < 4 || r.playerId === playerId
+        ),
+      );
+
+    return rankings;
+  }
+  async getRanking(rankingId) {
     const identities = this.state.identities.values();
     const rankings = [];
 
     for (const identity of identities) {
-      const ranking = identity.getRanking(gameTypeId);
+      const ranking = identity.getRank(rankingId);
       if (ranking)
         rankings.push(ranking);
     }

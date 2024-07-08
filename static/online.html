@@ -246,6 +246,19 @@
       font-size: 1.2em;
       color: #b08d57;
     }
+    .tabContent HEADER .sep {
+      margin: 0 4px;
+    }
+    .tabContent HEADER .sep::after {
+      content: '•';
+    }
+    .tabContent HEADER .link {
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .tabContent HEADER .link:hover {
+      color: #00FFFF;
+    }
 
     .gameList .game {
       display: flex;
@@ -282,6 +295,80 @@
 
     .gameList .game .right.low {
       color: red;
+    }
+
+    .rankings .notice {
+      margin-top: 8px;
+      text-align: center;
+    }
+    .rankings TABLE {
+      table-layout: fixed;
+      border-collapse: separate;
+      border-spacing: 0 8px;
+      width: 100%;
+      text-align: center;
+    }
+    .rankings TABLE .caption {
+      font-style: italic;
+      font-weight: bold;
+      font-size: 1.2em;
+      text-align: left;
+    }
+    .rankings TABLE .caption SPAN {
+      color: #b08d57;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .rankings TABLE .caption SPAN:hover {
+      color: #00FFFF;
+    }
+    .rankings TH {
+      font-weight: bold;
+      color: #b08d57;
+    }
+    .rankings TABLE TD:first-child {
+      border-left: 1px solid #444444;
+    }
+    .rankings TABLE TD:last-child {
+      border-right: 1px solid #444444;
+    }
+    .rankings TABLE TD {
+      border-top: 1px solid #444444;
+      border-bottom: 1px solid #444444;
+      padding: 0;
+      height: 60px;
+    }
+    .rankings TH.rank,
+    .rankings TH.avatar,
+    .rankings TH.rating,
+    .rankings TH.gameCount {
+      width: 15%;
+    }
+    .rankings TH.name {
+      width: 40%;
+    }
+    .rankings TH.rank {
+      white-space: nowrap;
+      font-style: italic;
+      text-align: left;
+    }
+    .rankings TH.rank SPAN.rank {
+      margin-left: 4px;
+      color: #DED8D5;
+      font-style: normal;
+    }
+    .rankings TD.avatar {
+      vertical-align: bottom;
+    }
+    .rankings DIV.avatar {
+      display: inline-block;
+      position: relative;
+    }
+    .rankings TD.avatar IMG {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      transform: scale(0.6);
     }
 
     .popup.account .buttons {
@@ -324,7 +411,6 @@
       margin-left: 6px;
     }
 
-    /*
     @media (hover:hover) {
       #pn .toggle:hover {
         color: #CCFFFF;
@@ -343,7 +429,6 @@
         text-decoration: underline;
       }
     }
-    */
 
     BUTTON.fa {
       display: block;
@@ -375,7 +460,8 @@
     .page > .tabContent .lobby HEADER {
       padding: 0 8px;
     }
-    .page > .tabContent .gameList {
+    .page > .tabContent .gameList,
+    .page > .tabContent .rankings {
       padding: 0 8px;
     }
     .page > .tabContent .gameList:empty::before {
@@ -819,7 +905,15 @@
       </DIV>
       <DIV class="lobby"></DIV>
       <DIV class="gameList publicGames"></DIV>
-      <DIV class="rankings"></DIV>
+      <DIV class="rankings">
+        <HEADER></HEADER>
+        <DIV class="topranks" style="display:none">
+        </DIV>
+        <DIV class="ranking" style="display:none">
+        </DIV>
+        <DIV class="gameList" style="display:none">
+        </DIV>
+      </DIV>
       <DIV class="loading">
         <DIV class="label">Please<br>wait...</DIV>
         <DIV class="spinner">
