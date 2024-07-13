@@ -1959,6 +1959,7 @@ async function renderRankings() {
   const { topranks } = state.tabContent.rankings;
   const header = document.querySelector('.tabContent .rankings HEADER');
   const divRankings = document.querySelector('.tabContent .rankings');
+  const divNotice = divRankings.querySelector('.notice');
   const divContent = divRankings.querySelector('DIV.topranks');
   divContent.innerHTML = '';
 
@@ -1966,14 +1967,8 @@ async function renderRankings() {
 
   header.textContent = 'Rankings';
 
-  if (!authClient.isVerified) {
-    const divNotice = document.createElement('DIV');
-    divNotice.classList.add('notice');
-    divNotice.innerHTML = `
-      Only verified accounts may particate in rankings.  To verify your account, go <A href="/security.html">here</A>.
-    `;
-    divContent.append(divNotice);
-  }
+  if (!authClient.isVerified)
+    divNotice.style.display = '';
 
   for (const rankingId of [ 'FORTE', ...state.styles.map(s => s.id) ]) {
     if (!topranks.has(rankingId))
