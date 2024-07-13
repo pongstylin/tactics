@@ -109,8 +109,12 @@ export default class Identity extends ActiveModel {
     return true;
   }
 
-  getRanks() {
-    return new Map([ ...(this.data.ranks?.ratings.keys() ?? []) ].map(rId => [ rId, this.getRank(rId) ]));
+  getRanks(rankingId = null) {
+    return new Map(
+      [ ...(this.data.ranks?.ratings.keys() ?? []) ]
+        .filter(rId => [ null, rId ].includes(rankingId))
+        .map(rId => [ rId, this.getRank(rId) ])
+    );
   }
   getRank(rankingId = 'FORTE') {
     const ranks = this.data.ranks;

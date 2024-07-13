@@ -90,7 +90,6 @@ const state = {
       renderTimeout: null,
     },
     rankings: {
-      data: [],
     },
   },
   settings: null,
@@ -1957,13 +1956,13 @@ function renderPublicGames() {
 }
 
 async function renderRankings() {
-  const tabContent = state.tabContent.rankings;
+  const { topranks } = state.tabContent.rankings;
   const header = document.querySelector('.tabContent .rankings HEADER');
   const divRankings = document.querySelector('.tabContent .rankings');
-  const divContent = divRankings.querySelector('.tabContent .rankings .topranks');
+  const divContent = divRankings.querySelector('DIV.topranks');
   divContent.innerHTML = '';
 
-  await fetchAvatars([ ...tabContent.data.values() ].map(rs => rs.map(r => r.playerId)).flat());
+  await fetchAvatars([ ...topranks.values() ].map(rs => rs.map(r => r.playerId)).flat());
 
   header.textContent = 'Rankings';
 
@@ -1977,30 +1976,29 @@ async function renderRankings() {
   }
 
   for (const rankingId of [ 'FORTE', ...state.styles.map(s => s.id) ]) {
-    if (!tabContent.data.has(rankingId))
+    if (!topranks.has(rankingId))
       continue;
 
+    const divRanks = renderRanks(rankingId, topranks.get(rankingId));
+    const divCaption = divRanks.querySelector('.header .group:first-child .avatar');
+    divCaption.classList.add('caption');
+
     const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
+    const spnName = document.createElement('SPAN');
+    spnName.classList.add('link');
+    spnName.textContent = name;
+    spnName.addEventListener('click', event => location.hash = `#rankings/${rankingId}`);
+    divCaption.append(spnName);
 
-    const tblRanking = renderRankingTable(rankingId, tabContent.data.get(rankingId));
-    const tblHeader = tblRanking.querySelector('TH:first-child');
-    tblHeader.classList.add('caption');
-
-    const spnRanking = document.createElement('SPAN');
-    spnRanking.classList.add('link');
-    spnRanking.textContent = name;
-    spnRanking.addEventListener('click', event => renderRanking(rankingId));
-    tblHeader.append(spnRanking);
-
-    divContent.append(tblRanking);
+    divContent.append(divRanks);
   }
 
-  for (const view of divRankings.querySelectorAll('DIV.ranking, DIV.gameList'))
+  for (const view of divRankings.querySelectorAll('DIV.ranking, DIV.rankedGames'))
     view.style.display = 'none';
   divContent.style.display = '';
 }
 async function renderRanking(rankingId) {
-  const tabContent = state.tabContent.rankings;
+  const { ranks } = state.tabContent.rankings;
   const header = document.querySelector('.tabContent .rankings HEADER');
   const divRankings = document.querySelector('.tabContent .rankings');
   const divContent = divRankings.querySelector('DIV.ranking');
@@ -2013,88 +2011,213 @@ async function renderRanking(rankingId) {
     `<SPAN>${name}</SPAN>`,
   ];
   header.innerHTML = crumbs.join('');
-  header.querySelector('.link').addEventListener('click', event => renderRankings());
+  header.querySelector('.link').addEventListener('click', event => location.hash = '#rankings');
 
-  const ranks = await authClient.getRanking(rankingId);
   await fetchAvatars(ranks.map(r => r.playerId));
 
-  const tblRanking = renderRankingTable(rankingId, ranks);
-  const tblHeader = tblRanking.querySelector('TH.rank');
+  const divRanks = renderRanks(rankingId, ranks);
+  const divCaption = divRanks.querySelector('.header .group:first-child .avatar');
+  divCaption.classList.add('caption');
 
   const yourRank = ranks.findIndex(r => r.playerId === authClient.playerId);
   if (yourRank > -1)
-    tblHeader.innerHTML = `Your Rank: <SPAN class="rank">#${ yourRank + 1 }</SPAN>`;
+    divCaption.innerHTML = `Your Rank: <SPAN class="rank">#${ yourRank + 1 }</SPAN>`;
   else
-    tblHeader.innerHTML = `Your Rank: None`;
+    divCaption.innerHTML = `Your Rank: None`;
 
-  divContent.append(tblRanking);
+  divRanks.querySelector('.header .group:last-child').style.display = ranks.length === 1 ? 'none' : '';
 
-  for (const view of divRankings.querySelectorAll('DIV.topranks, DIV.gameList'))
+  divContent.append(divRanks);
+
+  for (const view of divRankings.querySelectorAll('DIV.topranks, DIV.rankedGames'))
     view.style.display = 'none';
   divContent.style.display = '';
 }
-async function renderRankedGames() {
-}
-function renderRankingTable(rankingId, ranks) {
-  const tblRanking = document.createElement('TABLE');
-  tblRanking.classList.add('ranking');
+async function renderRankedGames(rankingId, playerId) {
+  const { rank, rankedGames } = state.tabContent.rankings;
+  const header = document.querySelector('.tabContent .rankings HEADER');
+  const divRankings = document.querySelector('.tabContent .rankings');
+  const divContent = divRankings.querySelector('DIV.rankedGames');
+  divContent.innerHTML = '';
 
-  tblRanking.innerHTML = `
-    <TR>
-      <TH class="rank"></TH>
-      <TH class="avatar"</TH>
-      <TH class="name"></TH>
-      <TH class="rating">Rating</TH>
-      <TH class="gameCount">Game Count</TH>
-    </TR>
+  const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
+  const crumbs = [
+    `<SPAN class="link topranks">Rankings</SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    `<SPAN class="link ranking">${name}</SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    rank.name,
+  ];
+  header.innerHTML = crumbs.join('');
+  header.querySelector('.link.topranks').addEventListener('click', event => location.hash = '#rankings');
+  header.querySelector('.link.ranking').addEventListener('click', event => location.hash = `#rankings/${rankingId}`);
+
+  await fetchAvatars(rankedGames.map(g => g.rank.playerId));
+
+  const divRankedGames = document.createElement('DIV');
+  divRankedGames.classList.add('magic-table');
+  divRankedGames.classList.add('rankedGames');
+  divRankedGames.innerHTML = `
+    <DIV class="header">
+      <DIV class="group">
+        <DIV class="result"></DIV>
+        <DIV class="avatar"></DIV>
+        <DIV class="name"></DIV>
+        <DIV class="turnCount">Turn Count</DIV>
+        <DIV class="started">Started</DIV>
+      </DIV>
+      <DIV class="group">
+        <DIV class="result"></DIV>
+        <DIV class="avatar"></DIV>
+        <DIV class="name"></DIV>
+        <DIV class="turnCount">Turn Count</DIV>
+        <DIV class="started">Started</DIV>
+      </DIV>
+    </DIV>
   `;
+
+  const divBody = document.createElement('DIV');
+  divBody.classList.add('body');
+
+  for (const rankedGame of rankedGames)
+    divBody.append(renderRankedGame(rankingId, rank, rankedGame));
+
+  divRankedGames.append(divBody);
+
+  divContent.append(divRankedGames);
+
+  for (const view of divRankings.querySelectorAll('DIV.topranks, DIV.ranking'))
+    view.style.display = 'none';
+  divContent.style.display = '';
+}
+function renderRanks(rankingId, ranks) {
+  const divRanks = document.createElement('DIV');
+  divRanks.classList.add('magic-table');
+  divRanks.classList.add('ranks');
+  divRanks.innerHTML = `
+    <DIV class="header">
+      <DIV class="group">
+        <DIV class="avatar"></DIV>
+        <DIV class="name"></DIV>
+        <DIV class="gameCount">Game Count</DIV>
+        <DIV class="rank">Rank</DIV>
+      </DIV>
+      <DIV class="group">
+        <DIV class="avatar"></DIV>
+        <DIV class="name"></DIV>
+        <DIV class="gameCount">Game Count</DIV>
+        <DIV class="rank">Rank</DIV>
+      </DIV>
+    </DIV>
+  `;
+
+  const divBody = document.createElement('DIV');
+  divBody.classList.add('body');
 
   for (const [ r, rank ] of ranks.entries()) {
     rank.rank ??= r + 1;
-    tblRanking.append(renderRank(rank));
+    divBody.append(renderRank(rankingId, rank));
   }
 
-  return tblRanking;
+  divRanks.append(divBody);
+
+  return divRanks;
 }
-function renderRank(rank) {
-  const trRank = document.createElement('TR');
+function renderRank(rankingId, rank) {
+  const divRank = document.createElement('DIV');
+  divRank.classList.add('magic-row');
+  divRank.classList.add('rank');
+  divRank.addEventListener('click', event => location.hash = `#rankings/${rankingId}/${rank.playerId}`);
 
-  const tdRank = document.createElement('TD');
-  tdRank.classList.add('rank');
-  tdRank.textContent = `#${ rank.rank }`;
-  trRank.append(tdRank);
+  const divAvatarContainer = document.createElement('DIV');
+  divAvatarContainer.classList.add('avatar');
+  divRank.append(divAvatarContainer);
 
-  const tdAvatar = document.createElement('TD');
-  tdAvatar.classList.add('avatar');
-  trRank.append(tdAvatar);
-
-  const divAvatar = document.createElement('DIV');
-  divAvatar.classList.add('avatar');
-  tdAvatar.append(divAvatar);
+  const divAvatarWrapper = document.createElement('DIV');
+  divAvatarContainer.append(divAvatarWrapper);
 
   const avatar = getAvatar(rank.playerId, { withFocus:true });
   const imgAvatar = document.createElement('IMG');
-  imgAvatar.style.top = `${avatar.y}px`;
-  imgAvatar.style.left = `${avatar.x}px`;
+  const originY = avatar.y - 22;
+  imgAvatar.style.transformOrigin = `${-avatar.x}px ${-originY}px`;
+  imgAvatar.style.transform = `translate(${avatar.x}px, ${originY}px) scale(0.6)`;
+  imgAvatar.style.top = (avatar.y > -72 ? -(avatar.y + 72) * 0.6 / 2 : 0) + 'px';
   imgAvatar.src = avatar.src;
-  divAvatar.append(imgAvatar);
+  divAvatarWrapper.append(imgAvatar);
 
-  const tdName = document.createElement('TD');
-  tdName.classList.add('name');
-  tdName.textContent = rank.name;
-  trRank.append(tdName);
+  const divName = document.createElement('DIV');
+  divName.classList.add('name');
+  divName.innerHTML = `
+    <DIV>${rank.name}</DIV>
+    <DIV>(${rank.rating})</DIV>
+  `;
+  divRank.append(divName);
 
-  const tdRating = document.createElement('TD');
-  tdRating.classList.add('rating');
-  tdRating.textContent = rank.rating;
-  trRank.append(tdRating);
+  const divGameCount = document.createElement('DIV');
+  divGameCount.classList.add('gameCount');
+  divGameCount.textContent = rank.gameCount;
+  divRank.append(divGameCount);
 
-  const tdGameCount = document.createElement('TD');
-  tdGameCount.classList.add('gameCount');
-  tdGameCount.textContent = rank.gameCount;
-  trRank.append(tdGameCount);
+  const divRankNum = document.createElement('DIV');
+  divRankNum.classList.add('rank');
+  divRankNum.textContent = `#${ rank.rank }`;
+  divRank.append(divRankNum);
 
-  return trRank;
+  return divRank;
+}
+function renderRankedGame(rankingId, rank, game) {
+  const opponent = game.teams.find(t => t.playerId !== rank.playerId);
+  const divGame = document.createElement('DIV');
+  divGame.classList.add('magic-row');
+  divGame.classList.add('rankedGame');
+  divGame.addEventListener('click', event => location.href = `game.html?${game.id}`);
+
+  const divAvatar = document.createElement('DIV');
+  divAvatar.classList.add('avatar');
+  divGame.append(divAvatar);
+
+  const divAvatarWrapper = document.createElement('DIV');
+  divAvatar.classList.add('wrapper');
+  divAvatar.append(divAvatarWrapper);
+
+  const avatar = getAvatar(opponent.playerId, { withFocus:true });
+  const imgAvatar = document.createElement('IMG');
+  const originY = avatar.y - 22;
+  imgAvatar.style.transformOrigin = `${-avatar.x}px ${-originY}px`;
+  imgAvatar.style.transform = `translate(${avatar.x}px, ${originY}px) scale(0.6)`;
+  imgAvatar.style.top = (avatar.y > -72 ? -(avatar.y + 72) * 0.6 / 2 : 0) + 'px';
+  imgAvatar.src = avatar.src;
+  divAvatarWrapper.append(imgAvatar);
+
+  const divName = document.createElement('DIV');
+  divName.classList.add('name');
+  divName.innerHTML = `
+    <DIV>${opponent.name}</DIV>
+    <DIV>(${game.rank.rating ?? 'Unranked'})</DIV>
+  `;
+  divGame.append(divName);
+
+  const divResult = document.createElement('DIV');
+  divResult.classList.add('result');
+  divResult.textContent = (
+    game.winnerId === 'draw' ? 'Draw!' :
+    game.winnerId === 'truce' ? 'Truce!' :
+    game.winnerId === game.teams.findIndex(t => t === opponent) ? 'Lose!' :
+    'Win!'
+  );
+  divGame.append(divResult);
+
+  const divTurnCount = document.createElement('DIV');
+  divTurnCount.classList.add('turnCount');
+  divTurnCount.textContent = game.currentTurnId;
+  divGame.append(divTurnCount);
+
+  const divStarted = document.createElement('DIV');
+  divStarted.classList.add('started');
+  divStarted.append(renderClock(game.startedAt));
+  divGame.append(divStarted);
+
+  return divGame;
 }
 
 function renderGame(game) {
@@ -2214,6 +2337,28 @@ function renderGame(game) {
       addClass = 'low';
   }
 
+  const divGame = document.createElement('DIV');
+  divGame.id = game.id;
+  divGame.classList.add('game');
+  divGame.innerHTML = `
+    <SPAN class="left">${left}</SPAN>
+    <SPAN class="middle">${middle}</SPAN>
+  `;
+
+  const spnClock = renderClock(elapsed);
+  spnClock.classList.add('right');
+  if (addClass)
+    spnClock.classList.add(addClass);
+  divGame.append(spnClock);
+
+  return divGame;
+}
+function renderClock(elapsed) {
+  const spnClock = document.createElement('SPAN');
+
+  if (elapsed instanceof Date)
+    elapsed = (gameClient.serverNow - elapsed) / 1000;
+
   if (elapsed <= 0)
     elapsed = '0';
   else if (elapsed < 60)
@@ -2229,30 +2374,25 @@ function renderGame(game) {
   else
     elapsed = Math.floor(elapsed / 31557600) + 'y';
 
-  const divGame = document.createElement('DIV');
-  divGame.id = game.id;
-  divGame.classList.add('game');
-  divGame.innerHTML = `
-    <SPAN class="left">${left}</SPAN>
-    <SPAN class="middle">${middle}</SPAN>
-    <SPAN class="right ${addClass}">
-      <SPAN class="elapsed">${elapsed}</SPAN>
-      <SPAN class="fa fa-clock"></SPAN>
-    </SPAN>
+  spnClock.innerHTML = `
+    <SPAN class="elapsed">${elapsed}</SPAN>
+    <SPAN class="fa fa-clock"></SPAN>
   `;
 
-  return divGame;
+  return spnClock;
 }
 
 async function openTab() {
   closeTab();
 
+  const tab = location.hash.split('/')[0];
+
   state.currentTab = 'yourGames';
-  if (location.hash === '#lobby')
+  if (tab === '#lobby')
     state.currentTab = 'lobby';
-  else if (location.hash === '#publicGames')
+  else if (tab === '#publicGames')
     state.currentTab = 'publicGames';
-  else if (location.hash === '#rankings')
+  else if (tab === '#rankings')
     state.currentTab = 'rankings';
 
   document.querySelector(`.tabs .${state.currentTab}`).classList.add('is-active');
@@ -2334,7 +2474,7 @@ async function syncTab() {
       else if (state.currentTab === 'publicGames')
         renderPublicGames();
       else
-        await renderRankings();
+        await tabContent.route();
 
       document.querySelector(`.tabContent .${currentTab}`).classList.add('is-active');
     }
@@ -2566,11 +2706,36 @@ async function fetchTabData(tabName) {
       }),
     );
   } else {
-    promises.push(
-      authClient.getRankings().then(rsp => {
-        tabContent.data = rsp;
-      }),
-    );
+    const route = location.hash.split('/');
+
+    if (route.length === 1) {
+      tabContent.route = () => renderRankings();
+
+      promises.push(
+        authClient.getRankings().then(rsp => {
+          tabContent.topranks = rsp;
+        }),
+      );
+    } else if (route.length === 2) {
+      tabContent.route = () => renderRanking(route[1]);
+
+      promises.push(
+        authClient.getRanking(route[1]).then(rsp => {
+          tabContent.ranks = rsp;
+        }),
+      );
+    } else if (route.length === 3) {
+      tabContent.route = () => renderRankedGames(route[1], route[2]);
+
+      promises.push(
+        authClient.getRankings(route[2], route[1]).then(rsp => {
+          tabContent.rank = rsp.get(route[1]).find(r => r.playerId === route[2]);
+        }),
+        gameClient.getRankedGames(route[2], route[1]).then(rsp => {
+          tabContent.rankedGames = rsp;
+        }),
+      );
+    }
   }
 
   return Promise.all(promises).catch(error => {

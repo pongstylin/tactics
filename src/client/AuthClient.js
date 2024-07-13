@@ -251,11 +251,11 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
-  getRankings() {
-    return this._server.requestAuthorized(this.name, 'getRankings')
+  getRankings(playerId = this.playerId, rankingId = null) {
+    return this._server.requestAuthorized(this.name, 'getRankings', [ playerId, rankingId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getRankings();
+          return this.getRankings(playerId, rankingId);
         throw error;
       });
   }

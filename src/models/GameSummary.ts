@@ -43,6 +43,7 @@ export default class GameSummary {
       // This value is only non-null for 5 seconds after a rated game turn ends
       turnEndedAt: game.state.turnEndedAt,
       timeLimitName: game.timeLimitName,
+      currentTurnId: game.state.currentTurnId,
       currentTurnTimeLimit: game.state.currentTurnTimeLimit,
       isFork: game.isFork,
       rated: game.state.rated,
@@ -87,6 +88,9 @@ export default class GameSummary {
   }
   get timeLimitName() {
     return this.data.timeLimitName;
+  }
+  get currentTurnId() {
+    return this.data.currentTurnId;
   }
   get currentTurnTimeLimit() {
     return this.data.currentTurnTimeLimit;
@@ -144,6 +148,13 @@ export default class GameSummary {
   }
   set creatorACL(creatorACL) {
     this.data.creatorACL = creatorACL;
+  }
+
+  get rank() {
+    return this.data.rank;
+  }
+  set rank(rank) {
+    this.data.rank = rank;
   }
 
   getTurnTimeRemaining(now = Date.now()) {

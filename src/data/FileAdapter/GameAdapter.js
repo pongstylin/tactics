@@ -277,6 +277,25 @@ export default class extends FileAdapter {
 
     return this._search(data, query);
   }
+  /*
+   * Get games completed by a player that are viewable by other players.
+   * Not expected to exceed 50 games.
+   */
+  async getRankedGames(playerId, rankingId) {
+    const gamesSummary = await this._getPlayerGames(playerId);
+    const results = [];
+
+    for (const gameSummary of gamesSummary.values()) {
+      if (!gameSummary.endedAt || !gameSummary.ranked)
+        continue;
+      if (![ 'FORTE', gameSummary.type ].includes(rankingId))
+        continue;
+
+      results.push(gameSummary);
+    }
+
+    return results.sort((a,b) => b.startedAt - a.startedAt).slice(0, 50);
+  }
 
   async listMyTurnGamesSummary(myPlayerId) {
     const games = await this._getPlayerGames(myPlayerId, true);
@@ -524,31 +543,52 @@ export default class extends FileAdapter {
     });
   }
   /*
-   * Prune completed games to 100 most recently ended.
-   * Prune active games with expired time limits (collections only)
+   * Prune completed games to 50 most recently ended per sub group.
+   * Collections only have one completed group.
+   * Player game lists have one group per style among potentially ranked games.
+   * Player game lists have one group for unrated and private games.
+   * Prune active games with expired time limits (collections only).
    */
   _pruneGameSummaryList(gameSummaryList) {
     // Hacky
     const isCollectionList = !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(gameSummaryList.id);
-    const now = Date.now();
+    const groups = new Map([ [ 'completed', [] ] ]);
 
-    const completed = [];
-    for (const gameSummary of gameSummaryList.values()) {
-      if (gameSummary.endedAt)
-        completed.push(gameSummary);
-      else if (gameSummary.startedAt && isCollectionList) {
-        if (!gameSummary.timeLimitName)
-          gameSummaryList.delete(gameSummary.id);
-        else if (gameSummary.getTurnTimeRemaining(now) === 0)
-          gameSummaryList.delete(gameSummary.id);
+    if (isCollectionList) {
+      const now = Date.now();
+
+      for (const gameSummary of gameSummaryList.values()) {
+        if (gameSummary.endedAt)
+          groups.get('completed').push(gameSummary);
+        else if (gameSummary.startedAt) {
+          if (!gameSummary.timeLimitName)
+            gameSummaryList.delete(gameSummary.id);
+          else if (gameSummary.getTurnTimeRemaining(now) === 0)
+            gameSummaryList.delete(gameSummary.id);
+        }
+      }
+    } else {
+      for (const gameSummary of gameSummaryList.values()) {
+        if (!gameSummary.endedAt)
+          continue;
+
+        if (gameSummary.ranked) {
+          if (groups.has(gameSummary.type))
+            groups.get(gameSummary.type).push(gameSummary);
+          else
+            groups.set(gameSummary.type, [ gameSummary ]);
+        } else
+          groups.get('completed').push(gameSummary);
       }
     }
-    completed.sort((a,b) => b.endedAt - a.endedAt);
 
-    if (completed.length > 100)
-      for (const gameSummary of completed.slice(100)) {
-        gameSummaryList.delete(gameSummary.id);
-      }
+    for (const gamesSummary of groups.values()) {
+      gamesSummary.sort((a,b) => b.endedAt - a.endedAt);
+
+      if (gamesSummary.length > 50)
+        for (const gameSummary of gamesSummary.slice(50))
+          gameSummaryList.delete(gameSummary.id);
+    }
   }
 
   /*

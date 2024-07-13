@@ -252,11 +252,11 @@
     .tabContent HEADER .sep::after {
       content: '•';
     }
-    .tabContent HEADER .link {
+    .tabContent .link {
       cursor: pointer;
       text-decoration: underline;
     }
-    .tabContent HEADER .link:hover {
+    .tabContent .link:hover {
       color: #00FFFF;
     }
 
@@ -297,78 +297,127 @@
       color: red;
     }
 
+    .magic-table {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+    }
+    .magic-table .caption {
+      margin-top: 8px;
+
+      white-space: nowrap;
+      text-align: left;
+      font-style: italic;
+      font-weight: bold;
+      font-size: 1.2em;
+      color: #b08d57;
+    }
+    .magic-table .header {
+      display: grid;
+      gap: 8px;
+
+      font-weight: bold;
+      color: #b08d57;
+    }
+    .magic-table .header .group {
+      display: grid;
+      align-items: center;
+      text-align: center;
+    }
+    .magic-table.ranks .header .group {
+      grid-template-columns: 15% 55% 15% 15%;
+    }
+    .magic-table.rankedGames .header .group {
+      grid-template-columns: 15% 40% 15% 15% 15%;
+    }
+    .magic-table .body {
+      display: grid;
+      gap: 8px;
+
+      padding-top: 8px;
+    }
+    .magic-table .magic-row {
+      display: grid;
+      align-items: center;
+      text-align: center;
+
+      border: 1px solid #444444;
+      padding: 0;
+      height: 60px;
+
+      cursor: pointer;
+      break-inside: avoid;
+    }
+    .magic-table.ranks .magic-row {
+      grid-template-columns: 15% 55% 15% 15%;
+    }
+    .magic-table.rankedGames .magic-row {
+      grid-template-columns: 15% 40% 15% 15% 15%;
+    }
+    .magic-table .magic-row:hover {
+      border-color: #00FFFF;
+    }
+    .magic-table .magic-row .avatar {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .magic-table .magic-row .avatar DIV {
+      display: inline-block;
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+    }
+    .magic-table .magic-row .avatar IMG {
+      position: absolute;
+    }
+
+    .rankings {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
     .rankings .notice {
       margin-top: 8px;
       text-align: center;
     }
-    .rankings TABLE {
-      table-layout: fixed;
-      border-collapse: separate;
-      border-spacing: 0 8px;
+    .rankings > .topranks {
+      display: grid;
+      align-items: flex-start;
+      gap: 12px;
       width: 100%;
-      text-align: center;
     }
-    .rankings TABLE .caption {
-      font-style: italic;
-      font-weight: bold;
-      font-size: 1.2em;
-      text-align: left;
+    .rankings > .topranks .magic-table .header .group:last-child {
+      display: none;
     }
-    .rankings TABLE .caption SPAN {
-      color: #b08d57;
-      text-decoration: underline;
-      cursor: pointer;
+    .rankings > .topranks .magic-table .header,
+    .rankings > .topranks .magic-table .body {
+      grid-template-columns: 1fr;
     }
-    .rankings TABLE .caption SPAN:hover {
-      color: #00FFFF;
+    .rankings > .ranking {
+      width: 100%;
     }
-    .rankings TH {
-      font-weight: bold;
-      color: #b08d57;
-    }
-    .rankings TABLE TD:first-child {
-      border-left: 1px solid #444444;
-    }
-    .rankings TABLE TD:last-child {
-      border-right: 1px solid #444444;
-    }
-    .rankings TABLE TD {
-      border-top: 1px solid #444444;
-      border-bottom: 1px solid #444444;
-      padding: 0;
-      height: 60px;
-    }
-    .rankings TH.rank,
-    .rankings TH.avatar,
-    .rankings TH.rating,
-    .rankings TH.gameCount {
-      width: 15%;
-    }
-    .rankings TH.name {
-      width: 40%;
-    }
-    .rankings TH.rank {
-      white-space: nowrap;
-      font-style: italic;
-      text-align: left;
-    }
-    .rankings TH.rank SPAN.rank {
-      margin-left: 4px;
+    .rankings > .ranking .caption .rank {
       color: #DED8D5;
-      font-style: normal;
     }
-    .rankings TD.avatar {
-      vertical-align: bottom;
+    .rankings > .rankedGames {
+      width: 100%;
     }
-    .rankings DIV.avatar {
-      display: inline-block;
-      position: relative;
+
+    @media (min-width:750px) {
+      .magic-table .header,
+      .magic-table .body {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .rankings > .topranks {
+        grid-template-columns: 1fr 1fr;
+      }
     }
-    .rankings TD.avatar IMG {
-      position: absolute;
-      left: 50%;
-      bottom: 0;
-      transform: scale(0.6);
+    @media (max-width:749px) {
+      .magic-table .header .group:last-child {
+        display: none;
+      }
     }
 
     .popup.account .buttons {
@@ -911,7 +960,7 @@
         </DIV>
         <DIV class="ranking" style="display:none">
         </DIV>
-        <DIV class="gameList" style="display:none">
+        <DIV class="rankedGames" style="display:none">
         </DIV>
       </DIV>
       <DIV class="loading">

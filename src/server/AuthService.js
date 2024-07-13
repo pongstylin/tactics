@@ -57,7 +57,7 @@ export default class AuthService extends Service {
         setRelationship: [ 'uuid', 'auth:relationship' ],
         clearRelationship: [ 'uuid' ],
 
-        getRankings: [],
+        getRankings: [ 'uuid', 'string | null' ],
         getRanking: [ 'string' ],
       },
       definitions: {
@@ -88,6 +88,9 @@ export default class AuthService extends Service {
   }
   unlinkAuthProvider(provider, userId) {
     return this.data.unlinkAuthProvider(provider, userId);
+  }
+  getPlayerRank(playerId, rankingId) {
+    return this.data.state.identities.findByPlayerId(playerId).getRank(rankingId);
   }
 
   dropClient(client) {
@@ -598,13 +601,11 @@ export default class AuthService extends Service {
     playerA.clearRelationship(playerB);
   }
 
-  async onGetRankingsRequest(client) {
+  async onGetRankingsRequest(client, playerId, rankingId) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-
-    return this.data.getRankings(clientPara.playerId);
+    return this.data.getRankings(playerId, rankingId);
   }
   async onGetRankingRequest(client, gameTypeId) {
     if (!this.clientPara.has(client.id))

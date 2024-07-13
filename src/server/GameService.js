@@ -82,6 +82,7 @@ export default class GameService extends Service {
 
         searchGameCollection: ['string', 'any'],
         searchMyGames: ['any'],
+        getRankedGames: [ 'uuid', 'string' ],
 
         getPlayerSets: ['string'],
         getPlayerSet: ['string', 'string'],
@@ -953,6 +954,21 @@ export default class GameService extends Service {
 
     const player = this.clientPara.get(client.id).player;
     return this._searchGameCollection(player, collectionId, query);
+  }
+  async onGetRankedGamesRequest(client, playerId, rankingId) {
+    const gamesSummary = await this.data.getRankedGames(playerId, rankingId);
+
+    for (const gameSummary of gamesSummary) {
+      const opponent = gameSummary.teams.find(t => t.playerId !== playerId);
+      const rank = this.auth.getPlayerRank(opponent.playerId, rankingId) ?? {
+        playerId: opponent.playerId,
+        name: opponent.name,
+      };
+
+      gameSummary.rank = rank;
+    }
+
+    return gamesSummary;
   }
 
   /*
