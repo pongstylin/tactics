@@ -2107,6 +2107,7 @@ async function renderRankedGames(rankingId, playerId) {
     divBody.append(renderRankedGame(rankingId, rank, rankedGame));
 
   divRankedGames.append(divBody);
+  divRankedGames.querySelector('.header .group:last-child').style.display = rankedGames.length === 1 ? 'none' : '';
 
   divContent.append(divRankedGames);
 
