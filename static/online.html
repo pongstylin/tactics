@@ -392,6 +392,14 @@
       gap: 12px;
       width: 100%;
     }
+    .rankings > .topranks:empty {
+      grid-template-columns: 1fr;
+    }
+    .rankings > .topranks:empty::before {
+      margin-top: 8px;
+      text-align: center;
+      content: 'No rankings until more ranked games are played.';
+    }
     .rankings > .topranks .magic-table .header .group:last-child {
       display: none;
     }
@@ -990,6 +998,9 @@
       <DIV class="gameList publicGames"></DIV>
       <DIV class="rankings">
         <HEADER></HEADER>
+        <DIV class="notice" style="display:none">
+          Only verified accounts may particate in rankings.  To verify your account, go <A href="/security.html">here</A>.
+        </DIV>
         <DIV class="topranks" style="display:none">
         </DIV>
         <DIV class="ranking" style="display:none">
