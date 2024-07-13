@@ -294,7 +294,7 @@ export default class extends FileAdapter {
       results.push(gameSummary);
     }
 
-    return results.sort((a,b) => b.startedAt - a.startedAt).slice(0, 50);
+    return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
   }
 
   async listMyTurnGamesSummary(myPlayerId) {

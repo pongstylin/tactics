@@ -439,7 +439,7 @@ function setMyName() {
   spnName.textContent = authClient.playerName;
 }
 function setMyAvatar(avatar) {
-  const divAvatar = document.querySelector('.page HEADER .account .avatar .image');
+  const divAvatar = document.querySelector('.page HEADER .account .avatar-badge .image');
 
   state.avatars.set(myPlayerId, avatar);
 
@@ -2045,14 +2045,43 @@ async function renderRankedGames(rankingId, playerId) {
     `<SPAN class="link topranks">Rankings</SPAN>`,
     '<SPAN class="sep"></SPAN>',
     `<SPAN class="link ranking">${name}</SPAN>`,
-    '<SPAN class="sep"></SPAN>',
-    rank.name,
   ];
   header.innerHTML = crumbs.join('');
   header.querySelector('.link.topranks').addEventListener('click', event => location.hash = '#rankings');
   header.querySelector('.link.ranking').addEventListener('click', event => location.hash = `#rankings/${rankingId}`);
 
-  await fetchAvatars(rankedGames.map(g => g.rank.playerId));
+  await fetchAvatars([ playerId, ...rankedGames.map(g => g.rank.playerId) ]);
+
+  const divPlayer = document.createElement('DIV');
+  divPlayer.classList.add('player');
+  divContent.append(divPlayer);
+
+  const divPlayerName = document.createElement('DIV');
+  divPlayerName.classList.add('name');
+  divPlayerName.textContent = rank.name;
+  divPlayer.append(divPlayerName);
+
+  const divRank = document.createElement('DIV');
+  divRank.classList.add('rank');
+  divRank.textContent = `Rank #${rank.rank} (${rank.rating})`;
+  divPlayer.append(divRank);
+
+  const divAvatarBadge = document.createElement('DIV');
+  divAvatarBadge.classList.add('avatar-badge');
+  divPlayer.append(divAvatarBadge);
+
+  const divAvatarImage = document.createElement('DIV');
+  divAvatarImage.classList.add('image');
+  divAvatarBadge.append(divAvatarImage);
+
+  const avatar = getAvatar(playerId);
+  const translateX = 40 + avatar.x - 4;
+  const translateY = avatar.y < -60 ? avatar.y + 60 : Math.max(0, avatar.y + 52);
+  const imgAvatar = document.createElement('IMG');
+  imgAvatar.style.transformOrigin = `${-avatar.x}px ${-avatar.y}px`;
+  imgAvatar.style.transform = `translate(${translateX}px, ${translateY}px)`;
+  imgAvatar.src = avatar.src;
+  divAvatarImage.append(imgAvatar);
 
   const divRankedGames = document.createElement('DIV');
   divRankedGames.classList.add('magic-table');
@@ -2064,14 +2093,14 @@ async function renderRankedGames(rankingId, playerId) {
         <DIV class="avatar"></DIV>
         <DIV class="name"></DIV>
         <DIV class="turnCount">Turn Count</DIV>
-        <DIV class="started">Started</DIV>
+        <DIV class="ended">Ended</DIV>
       </DIV>
       <DIV class="group">
         <DIV class="result"></DIV>
         <DIV class="avatar"></DIV>
         <DIV class="name"></DIV>
         <DIV class="turnCount">Turn Count</DIV>
-        <DIV class="started">Started</DIV>
+        <DIV class="ended">Ended</DIV>
       </DIV>
     </DIV>
   `;
@@ -2125,7 +2154,7 @@ function renderRanks(rankingId, ranks) {
 }
 function renderRank(rankingId, rank) {
   const divRank = document.createElement('DIV');
-  divRank.classList.add('magic-row');
+  divRank.classList.add('row');
   divRank.classList.add('rank');
   divRank.addEventListener('click', event => location.hash = `#rankings/${rankingId}/${rank.playerId}`);
 
@@ -2168,7 +2197,7 @@ function renderRank(rankingId, rank) {
 function renderRankedGame(rankingId, rank, game) {
   const opponent = game.teams.find(t => t.playerId !== rank.playerId);
   const divGame = document.createElement('DIV');
-  divGame.classList.add('magic-row');
+  divGame.classList.add('row');
   divGame.classList.add('rankedGame');
   divGame.addEventListener('click', event => location.href = `game.html?${game.id}`);
 
@@ -2212,10 +2241,10 @@ function renderRankedGame(rankingId, rank, game) {
   divTurnCount.textContent = game.currentTurnId;
   divGame.append(divTurnCount);
 
-  const divStarted = document.createElement('DIV');
-  divStarted.classList.add('started');
-  divStarted.append(renderClock(game.startedAt));
-  divGame.append(divStarted);
+  const divEnded = document.createElement('DIV');
+  divEnded.classList.add('ended');
+  divEnded.append(renderClock(game.endedAt));
+  divGame.append(divEnded);
 
   return divGame;
 }
