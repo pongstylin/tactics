@@ -622,15 +622,17 @@ export default class GameService extends Service {
 
     const clientPara = this.clientPara.get(client.id);
     const playerId = clientPara.playerId;
+    const player = this.playerPara.get(playerId).player;
     const game = await this._getGame(gameId);
-    if (game.state.startedAt)
-      throw new ServerError(409, 'The game has already started.');
+    const gameType = await this.data.getGameType(game.state.type);
+    const creator = await this._getAuthPlayer(game.createdBy);
 
     if (game.collection)
       await this._validateJoinGameForCollection(playerId, this.collections.get(game.collection));
 
-    const player = this.playerPara.get(playerId).player;
-    const creator = await this._getAuthPlayer(game.createdBy);
+    if (game.state.startedAt)
+      throw new ServerError(409, 'The game has already started.');
+
     if (creator.hasBlocked(player, !!game.collection))
       throw new ServerError(403, 'You are blocked from joining this game.');
 
@@ -645,7 +647,6 @@ export default class GameService extends Service {
       player.mute(creator, relationship.name);
     }
 
-    const gameType = await this.data.getGameType(game.state.type);
     const teams = game.state.teams;
 
     let openSlot = teams.findIndex(t => !t?.playerId);
