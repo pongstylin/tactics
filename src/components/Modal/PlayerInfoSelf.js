@@ -140,7 +140,6 @@ export default class PlayerInfoSelf extends Modal {
         `<DIV>Account created ${PlayerInfo.getElapsed(createdDiff)} ago.</DIV>`,
         `<DIV>You are ${info.isVerified ? 'verified' : 'a guest'}.</DIV>`,
         `<DIV>You have completed ${info.completed[0]} game(s).</DIV>`,
-        info.completed[1] ? `<DIV>You have abandoned ${info.completed[1]} game(s).</DIV>` : '',
       `</DIV>`,
     ];
 

@@ -364,7 +364,7 @@ export default class Game extends ActiveModel {
     /*
      * If necessary, roll back to the previous playable turn.
      */
-    forkGameData.state.revert(turnId);
+    forkGameData.state.revert(turnId, 0, false, true);
     forkGameData.state.autoPass(true);
 
     while (turnId > 0) {
@@ -393,6 +393,7 @@ export default class Game extends ActiveModel {
     forkGameData.state.ranked = false;
 
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
+    forkGameData.state.turns.forEach(t => t.team = teams[t.id % teams.length]);
 
     if (vs === 'you') {
       if (!this.data.state.endedAt && this.data.state.rated) {
@@ -407,6 +408,7 @@ export default class Game extends ActiveModel {
 
       forkGameData.timeLimitName = null;
       forkGameData.state.timeLimit = null;
+      forkGameData.state.currentTurn.timeLimit = null;
       forkGameData.state.start();
     } else if (vs === 'private') {
       if (teams[as] === undefined)
@@ -416,8 +418,7 @@ export default class Game extends ActiveModel {
 
       forkGameData.timeLimitName = 'day';
       forkGameData.state.timeLimit = timeLimit.day.clone();
-      forkGameData.state.startedAt = null;
-      forkGameData.state.turnStartedAt = null;
+      forkGameData.state.currentTurn.timeLimit = 86400;
     }
 
     return new Game(forkGameData);

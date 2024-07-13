@@ -122,6 +122,10 @@ export default class GameState {
   }
 
   get startedAt() {
+    // Useful for fork games.
+    if (this.teams.some(t => !t?.joinedAt))
+      return null;
+
     return this.turns[0]?.startedAt ?? null;
   }
 
@@ -317,9 +321,6 @@ export default class GameState {
   join(team) {
     let teams = this.teams;
 
-    if (this.startedAt)
-      throw new TypeError('Game already started');
-
     if (!(team instanceof Team))
       throw new TypeError('Expected Team object');
 
@@ -456,7 +457,8 @@ export default class GameState {
       });
 
       this.startTurn();
-    }
+    } else
+      this.sync();
   }
 
   getTurnData(turnId) {

@@ -238,84 +238,43 @@ var buttons = {
         maxWidth: '320px',
         margin: '16px',
       });
-    else if (game.canTruce()) {
-      if (!game.teamHasPlayed(game.myTeam))
-        popup({
-          message: [
-            `Since you haven't played a turn, you can abandon the game.  `,
-            `Abandoned games do not affect player's Win/Lose/Draw stats.  `,
-            `However, your opponents can see how many times you have abandoned games.  `,
-            `You may, however, offer a truce to avoid abandoning the game.`,
-          ].join(''),
-          buttons: [
-            {
-              label: 'Offer Truce',
-              onClick: () => game.truce(),
-            },
-            {
-              label: 'Abandon',
-              onClick: () => game.surrender(),
-            },
-            {
-              label: 'Cancel',
-            },
-          ],
-          maxWidth: '400px',
-          margin: '16px',
-        });
-      else
-        popup({
-          message: [
-            `If you and your opponent agree to a truce, then this game won't affect your Win/Lose/Draw stats.  `,
-            `Otherwise, you can surrender.`,
-          ].join(''),
-          buttons: [
-            {
-              label: 'Offer Truce',
-              onClick: () => game.truce(),
-            },
-            {
-              label: 'Surrender',
-              onClick: () => game.surrender(),
-            },
-            {
-              label: 'Cancel',
-            },
-          ],
-          maxWidth: '320px',
-          margin: '16px',
-        });
-    } else
-      if (!game.teamHasPlayed(game.myTeam))
-        popup({
-          message: `A truce has been rejected.  So, will you abandon the game?`,
-          buttons: [
-            {
-              label: 'Abandon',
-              onClick: () => game.surrender(),
-            },
-            {
-              label: 'Cancel',
-            },
-          ],
-          maxWidth: '250px',
-          margin: '16px',
-        });
-      else
-        popup({
-          message: `A truce has been rejected.  So, do you surrender?`,
-          buttons: [
-            {
-              label: 'Surrender',
-              onClick: () => game.surrender(),
-            },
-            {
-              label: 'Cancel',
-            },
-          ],
-          maxWidth: '250px',
-          margin: '16px',
-        });
+    else if (game.canTruce())
+      popup({
+        message: [
+          `If you and your opponent agree to a truce, then this game won't affect your Win/Lose/Draw stats.  `,
+          `Otherwise, you can surrender.`,
+        ].join(''),
+        buttons: [
+          {
+            label: 'Offer Truce',
+            onClick: () => game.truce(),
+          },
+          {
+            label: 'Surrender',
+            onClick: () => game.surrender(),
+          },
+          {
+            label: 'Cancel',
+          },
+        ],
+        maxWidth: '320px',
+        margin: '16px',
+      });
+    else
+      popup({
+        message: `A truce has been rejected.  So, do you surrender?`,
+        buttons: [
+          {
+            label: 'Surrender',
+            onClick: () => game.surrender(),
+          },
+          {
+            label: 'Cancel',
+          },
+        ],
+        maxWidth: '250px',
+        margin: '16px',
+      });
   },
   chat: () => {
     let $app = $('#app');

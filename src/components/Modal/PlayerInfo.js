@@ -287,7 +287,6 @@ export default class PlayerInfo extends Modal {
         `<DIV>Account created ${PlayerInfo.getElapsed(createdDiff)} ago.</DIV>`,
         `<DIV>This player is ${info.isVerified.get('them') ? 'verified' : 'a guest'}.</DIV>`,
         `<DIV>This player has completed ${info.completed[0]} game(s).</DIV>`,
-        info.completed[1] ? `<DIV>This player has abandoned ${info.completed[1]} game(s).</DIV>` : '',
         info.canNotify ? `<DIV>This player can be notified when it is their turn.</DIV>` : '',
         disposition,
       `</DIV>`,
