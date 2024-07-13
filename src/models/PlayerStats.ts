@@ -292,7 +292,7 @@ export default class PlayerStats extends ActiveModel {
     return ratingsInfo;
   }
   _getRatingInfo(gameTypeId, persist = false) {
-    const ratingsInfo = this._getRatingsInfo();
+    const ratingsInfo = this._getRatingsInfo(persist);
     const ratingInfo = ratingsInfo.get(gameTypeId) ?? {
       rating: DEFAULT_RATING,
       gameCount: 0,
