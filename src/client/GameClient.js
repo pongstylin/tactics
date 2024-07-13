@@ -146,6 +146,14 @@ export default class GameClient extends Client {
         throw error;
       });
   }
+  getMyInfo() {
+    return this._server.requestAuthorized(this.name, 'getMyInfo', [ ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getMyInfo();
+        throw error;
+      });
+  }
   clearWLDStats(playerId, gameTypeId) {
     return this._server.requestAuthorized(this.name, 'clearWLDStats', [ playerId, gameTypeId ])
       .catch(error => {
@@ -234,6 +242,14 @@ export default class GameClient extends Client {
       .catch(error => {
         if (error === 'Connection reset')
           return this.searchGameCollection(collection, query);
+        throw error;
+      });
+  }
+  getRankedGames(playerId, gameTypeId) {
+    return this._server.requestAuthorized(this.name, 'getRankedGames', [ playerId, gameTypeId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRankedGames(playerId, gameTypeId);
         throw error;
       });
   }

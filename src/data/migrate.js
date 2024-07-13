@@ -468,6 +468,48 @@ migrationMap.set('game', [
 
     return json;
   },
+  json => {
+    const game = json.$data;
+    const state = game.state;
+
+    state.turns.push({
+      startedAt: state.turnStartedAt,
+      units: state.units,
+      actions: state.actions,
+    });
+
+    if (state.rated && state.lockedTurnId)
+      state.turns[state.lockedTurnId + 1].isLocked = true;
+
+    if (state.endedAt)
+      state.turns.last.actions.push({
+        type: 'endGame',
+        forced: true,
+        winnerId: state.winnerId,
+        createdAt: state.endedAt,
+      });
+
+    delete state.startedAt;
+    if (state.timeLimit)
+      delete state.timeLimit.buffers;
+    delete state.lockedTurnId;
+    delete state.turnStartedAt;
+    delete state.units;
+    delete state.actions;
+    delete state.endedAt;
+    delete state.winnerId;
+
+    return json;
+  },
+  json => {
+    const game = json.$data;
+    const state = game.state;
+
+    if (state.rated)
+      state.unrankedReason = 'old';
+
+    return json;
+  },
 ]);
 
 migrationMap.set('sets', [

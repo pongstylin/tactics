@@ -50,6 +50,38 @@
       display: none;
     }
 
+    .avatar-badge {
+      position: absolute;
+      z-index: 1;
+      box-sizing: content-box;
+      border-radius: 50%;
+    }
+    .avatar-badge .image {
+      position: relative;
+      border-radius: 50%;
+      box-sizing: border-box;
+      padding: 4px;
+      width: 100%;
+      height: 100%;
+
+      background-image: linear-gradient(45deg, black, transparent);
+      background-clip: content-box;
+    }
+    .avatar-badge .image::after {
+      position: absolute;
+      top: 0;
+      left: 0;
+      border-radius: 50%;
+      width: 100%;
+      height: 100%;
+      background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
+      content: '';
+      z-index: -1;
+    }
+    .avatar-badge .image IMG {
+      position: absolute;
+    }
+
     .page {
       display: flex;
       flex-direction: column;
@@ -92,45 +124,18 @@
       padding-right: 16px;
       font-style: italic;
     }
-    .page > HEADER .account .avatar {
-      position: absolute;
+    .page > HEADER .account BUTTON .avatar-badge {
       top: 0;
       right: 0;
-      z-index: 1;
-      box-sizing: content-box;
-      border-radius: 50%;
       width: 40px;
       height: 40px;
     }
-    .page > HEADER .account .avatar .image {
-      position: relative;
-      border-radius: 50%;
-      box-sizing: border-box;
-      padding: 4px;
-      width: 100%;
-      height: 100%;
-
-      background-image: linear-gradient(45deg, black, transparent);
-      background-clip: content-box;
+    .page > HEADER .account BUTTON .avatar-badge .image IMG {
+      transform: translate(20px, 18px) scale(0.5);
     }
-    .page > HEADER .account .avatar .image::after {
-      position: absolute;
-      top: 0;
-      left: 0;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 90%);
-      content: '';
-      z-index: -1;
-    }
-    .page > HEADER .account BUTTON:hover .avatar .image::after {
+    .page > HEADER .account BUTTON:hover .avatar-badge .image::after {
       background-image: none;
       background-color: #FFCC00;
-    }
-    .page > HEADER .account .avatar .image IMG {
-      position: absolute;
-      transform: translate(20px, 18px) scale(0.5);
     }
 
     #pn {
@@ -246,6 +251,19 @@
       font-size: 1.2em;
       color: #b08d57;
     }
+    .tabContent HEADER .sep {
+      margin: 0 4px;
+    }
+    .tabContent HEADER .sep::after {
+      content: '•';
+    }
+    .tabContent .link {
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .tabContent .link:hover {
+      color: #00FFFF;
+    }
 
     .gameList .game {
       display: flex;
@@ -282,6 +300,158 @@
 
     .gameList .game .right.low {
       color: red;
+    }
+
+    .magic-table {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+    }
+    .magic-table .caption {
+      margin-top: 8px;
+
+      white-space: nowrap;
+      text-align: left;
+      font-style: italic;
+      font-weight: bold;
+      font-size: 1.2em;
+      color: #b08d57;
+    }
+    .magic-table .header {
+      display: grid;
+      gap: 8px;
+
+      font-weight: bold;
+      color: #b08d57;
+    }
+    .magic-table .header .group {
+      display: grid;
+      align-items: center;
+      text-align: center;
+    }
+    .magic-table.ranks .header .group {
+      grid-template-columns: 15% 55% 15% 15%;
+    }
+    .magic-table.rankedGames .header .group {
+      grid-template-columns: 15% 40% 15% 15% 15%;
+    }
+    .magic-table .body {
+      display: grid;
+      gap: 8px;
+
+      padding-top: 8px;
+    }
+    .magic-table .row {
+      display: grid;
+      align-items: center;
+      text-align: center;
+
+      border: 1px solid #444444;
+      padding: 0;
+      height: 60px;
+
+      cursor: pointer;
+      break-inside: avoid;
+    }
+    .magic-table.ranks .row {
+      grid-template-columns: 15% 55% 15% 15%;
+    }
+    .magic-table.rankedGames .row {
+      grid-template-columns: 15% 40% 15% 15% 15%;
+    }
+    .magic-table .row:hover {
+      border-color: #00FFFF;
+    }
+    .magic-table .row .avatar {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .magic-table .row .avatar DIV {
+      display: inline-block;
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+    }
+    .magic-table .row .avatar IMG {
+      position: absolute;
+    }
+
+    .rankings {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .rankings .notice {
+      margin-top: 8px;
+      text-align: center;
+    }
+    .rankings > .topranks {
+      display: grid;
+      align-items: flex-start;
+      gap: 12px;
+      width: 100%;
+    }
+    .rankings > .topranks .magic-table .header .group:last-child {
+      display: none;
+    }
+    .rankings > .topranks .magic-table .header,
+    .rankings > .topranks .magic-table .body {
+      grid-template-columns: 1fr;
+    }
+    .rankings > .ranking {
+      width: 100%;
+    }
+    .rankings > .ranking .caption .rank {
+      color: #DED8D5;
+    }
+    .rankings > .rankedGames {
+      width: 100%;
+    }
+    .rankings > .rankedGames .player {
+      position: relative;
+      padding: 8px 0;
+      height: 40px;
+    }
+    .rankings > .rankedGames .player .name {
+      position: absolute;
+      top: 20px;
+      left: 100px;
+
+      font-size: 1.2em;
+      font-style: italic;
+      font-weight: bold;
+      color: #b08d57;
+    }
+    .rankings > .rankedGames .player .rank {
+      position: absolute;
+      top: 50px;
+      left: 112px;
+
+      font-size: 1.1em;
+    }
+    .rankings > .rankedGames .player .avatar-badge {
+      top: 8px;
+      left: 8px;
+      width: 80px;
+      height: 80px;
+      pointer-events: none;
+    }
+
+    @media (min-width:640px) {
+      .magic-table .header,
+      .magic-table .body {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .rankings > .topranks {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width:639px) {
+      .magic-table .header .group:last-child {
+        display: none;
+      }
     }
 
     .popup.account .buttons {
@@ -373,7 +543,8 @@
     .page > .tabContent .lobby HEADER {
       padding: 0 8px;
     }
-    .page > .tabContent .gameList {
+    .page > .tabContent .gameList,
+    .page > .tabContent .rankings {
       padding: 0 8px;
     }
     .page > .tabContent .gameList:empty::before {
@@ -721,6 +892,12 @@
       text-align: center;
     }
 
+    /* Shrink down the tabs to fit into a smaller space */
+    @media (max-width:399px) {
+      .tabs LI {
+        flex-basis: min-content;
+      }
+    }
     @media (min-width:820px) and (min-height:600px) {
       .page {
         width: 820px;
@@ -791,7 +968,7 @@
         <SPAN class="warning">!!</SPAN>
         <BUTTON name="account" class="styled">
           <SPAN class="name"></SPAN>
-          <DIV class="avatar"><DIV class="image"></DIV></DIV>
+          <DIV class="avatar-badge"><DIV class="image"></DIV></DIV>
         </BUTTON>
       </DIV>
     </HEADER>
@@ -801,6 +978,7 @@
         <LI class="yourGames"><span class="label">Your Games</span><span class="badge"></span></LI>
         <LI class="lobby"><span class="label">Lobby</span><span class="badge"></span></LI>
         <LI class="publicGames"><span class="label">Public Games</span><span class="badge"></span></LI>
+        <LI class="rankings"><span class="label">Rankings</span><span class="badge"></span></LI>
       </UL>
     </DIV>
     <DIV class="tabContent">
@@ -810,6 +988,15 @@
       </DIV>
       <DIV class="lobby"></DIV>
       <DIV class="gameList publicGames"></DIV>
+      <DIV class="rankings">
+        <HEADER></HEADER>
+        <DIV class="topranks" style="display:none">
+        </DIV>
+        <DIV class="ranking" style="display:none">
+        </DIV>
+        <DIV class="rankedGames" style="display:none">
+        </DIV>
+      </DIV>
       <DIV class="loading">
         <DIV class="label">Please<br>wait...</DIV>
         <DIV class="spinner">

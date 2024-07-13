@@ -43,10 +43,12 @@ export default class ChatService extends Service {
       throw new ServerError(401, 'Token is expired');
   }
 
-  createRoom(players, options) {
+  async createRoom(players, options) {
     const room = Room.create(players, options);
 
-    return this.data.createRoom(room);
+    await this.data.createRoom(room);
+
+    return room;
   }
 
   dropClient(client) {

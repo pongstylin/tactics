@@ -47,6 +47,7 @@ const state = {
    * also prevents additional popups or redirects.
    */
   activeGameId: null,
+  styles: null,
   // Indicates the currently selected tab
   currentTab: null,
   tabContent: {
@@ -80,7 +81,6 @@ const state = {
       selectedStyleId: null,
       selectedGroupId: 'lobby',
       sets: null,
-      styles: null,
     },
     publicGames: {
       isOpen: false,
@@ -88,6 +88,8 @@ const state = {
       whenSynced: Promise.resolve(),
       isLoading: false,
       renderTimeout: null,
+    },
+    rankings: {
     },
   },
   settings: null,
@@ -130,7 +132,7 @@ const pushPublicKey = Uint8Array.from(
 );
 
 const setGameTypesState = (gameTypes) => {
-   state.tabContent.lobby.styles = gameTypes;
+   state.styles = gameTypes;
 }
 
 let avatars;
@@ -148,19 +150,27 @@ const handleAvatarsData = async () => {
   };
 }
 
-const getDataFromService = Tactics.load(['avatars'])
-  .then(async () => {
-    const gameTypesData = await gameClient.getGameTypes()
-    setGameTypesState(gameTypesData);
-    await handleAvatarsData();
-    await whenDOMReady;
-    renderLobby();
+const getDataFromService = Tactics.load(['avatars']).then(async () => {
+  const gameTypesData = await gameClient.getGameTypes()
+  setGameTypesState(gameTypesData);
+  await handleAvatarsData();
+  await whenDOMReady;
+  renderLobby();
 });
 
-const getAvatar = (playerId, direction) => {
+const fetchAvatars = async playerIds => {
+  const newPlayerIds = Array.from(new Set(playerIds.filter(pId => !state.avatars.has(pId))));
+
+  if (newPlayerIds.length) {
+    const avatars = await gameClient.getPlayersAvatar(newPlayerIds);
+    for (let i = 0; i < newPlayerIds.length; i++)
+      state.avatars.set(newPlayerIds[i], avatars[i]);
+  }
+}
+const getAvatar = (playerId, options = {}) => {
   const avatar = state.avatars.get(playerId);
 
-  return Tactics.drawAvatar(avatar, { direction, withShadow:true });
+  return Tactics.drawAvatar(avatar, { direction:'S', withShadow:true, ...options });
 };
 
 whenDOMReady.then(() => {
@@ -429,7 +439,7 @@ function setMyName() {
   spnName.textContent = authClient.playerName;
 }
 function setMyAvatar(avatar) {
-  const divAvatar = document.querySelector('.page HEADER .account .avatar .image');
+  const divAvatar = document.querySelector('.page HEADER .account .avatar-badge .image');
 
   state.avatars.set(myPlayerId, avatar);
 
@@ -655,7 +665,7 @@ function selectStyle(styleId) {
     ulFloorList.querySelector(`[data-style-id=${tabContent.selectedStyleId}]`).classList.remove('selected');
   ulFloorList.querySelector(`[data-style-id=${styleId}]`).classList.add('selected');
 
-  const styles = state.tabContent.lobby.styles;
+  const styles = state.styles;
   spnStyle.textContent = styles.find(style => style.id === styleId).name;
   tabContent.selectedStyleId = styleId;
 }
@@ -1282,7 +1292,7 @@ function renderFloors() {
 
   const ulFloorList = document.createElement('UL');
 
-  const styles = state.tabContent.lobby.styles;
+  const styles = state.styles;
   for (const { id: styleId, name: styleName } of styles) {
     const liFloor = document.createElement('LI');
     liFloor.dataset.styleId = styleId;
@@ -1583,26 +1593,7 @@ async function renderLobbyGames() {
   /*
    * Cache the avatars for all the players we're about to see
    */
-  const playerIdSet = new Set();
-
-  for (const arena of arenas) {
-    if (!arena) continue;
-
-    for (const team of arena.teams) {
-      if (!team) continue;
-
-      if (team.playerId && !state.avatars.has(team.playerId))
-        playerIdSet.add(team.playerId);
-    }
-  }
-
-  if (playerIdSet.size) {
-    const playerIds = [ ...playerIdSet ];
-    const avatars = await gameClient.getPlayersAvatar(playerIds);
-    for (let i = 0; i < playerIds.length; i++) {
-      state.avatars.set(playerIds[i], avatars[i]);
-    }
-  }
+  await fetchAvatars(arenas.filter(a => !!a).map(a => a.teams.filter(t => !!t).map(t => t.playerId)).flat());
 
   while (divArenaList.length < arenas.length) {
     const divArena = renderArena(divArenaList.length);
@@ -1693,34 +1684,39 @@ async function fillTeam(divArena, slot, arena, oldArena) {
   const imgUnit = divArena.querySelector(`.unit.${slot}`);
 
   /*
-   * If the first team is my team, flip it to the bottom.
-   * Else if the 2nd team is the creator team, flip it to the top.
+   * My team, if present, must be on bottom else the creator team must be on top.
    */
-  const oldTeamIndex
-    = oldArena?.teams[0].playerId === myPlayerId
-      ? slot === 'top' ? 1 : 0
-    : oldArena?.teams[1]?.playerId === oldArena?.createdBy
-      ? slot === 'top' ? 1 : 0
-      : slot === 'top' ? 0 : 1
-  const oldTeam = oldArena?.teams[oldTeamIndex];
-  const teamIndex
-    = arena?.teams[0].playerId === myPlayerId
-      ? slot === 'top' ? 1 : 0
-    : arena?.teams[1]?.playerId === arena?.createdBy
-      ? slot === 'top' ? 1 : 0
-      : slot === 'top' ? 0 : 1
-  const team = arena?.teams[teamIndex];
-  const isWinner = [ undefined, teamIndex ].includes(arena?.winnerId);
+  const oldTeam = oldArena && (() => {
+    const myIndex = oldArena.teams.findIndex(t => t?.playerId === myPlayerId);
+    const creatorIndex = oldArena.teams.findIndex(t => t?.playerId === oldArena.createdBy);
+    const topIndex = myIndex > -1 ? (myIndex + oldArena.teams.length/2) % oldArena.teams.length : creatorIndex;
+    const indexMap = new Map([ [ 'top',0 ], [ 'btm',1 ] ]);
+    const teamIndex = (topIndex + indexMap.get(slot)) % oldArena.teams.length;
 
-  if (oldTeam && team) {
+    return oldArena.teams[teamIndex];
+  })();
+  const newTeam = arena && (() => {
+    const myIndex = arena.teams.findIndex(t => t?.playerId === myPlayerId);
+    const creatorIndex = arena.teams.findIndex(t => t?.playerId === arena.createdBy);
+    const topIndex = myIndex > -1 ? (myIndex + arena.teams.length/2) % arena.teams.length : creatorIndex;
+    const indexMap = new Map([ [ 'top',0 ], [ 'btm',1 ] ]);
+    const teamIndex = (topIndex + indexMap.get(slot)) % arena.teams.length;
+
+    const team = arena.teams[teamIndex];
+    if (team)
+      team.isLoser = ![ undefined, teamIndex ].includes(arena.winnerId);
+    return team;
+  })();
+
+  if (oldTeam && newTeam) {
     if (
-      oldTeam.playerId === team.playerId &&
-      oldTeam.name === team.name &&
+      oldTeam.playerId === newTeam.playerId &&
+      oldTeam.name === newTeam.name &&
       /*
-      oldTeam.avatar === team.avatar &&
-      oldTeam.color === team.color &&
+      oldTeam.avatar === newTeam.avatar &&
+      oldTeam.color === newTeam.color &&
       */
-      imgUnit.classList.contains('loser') === !isWinner
+      imgUnit.classList.contains('loser') === newTeam.isLoser
     ) return false;
   }
 
@@ -1731,10 +1727,10 @@ async function fillTeam(divArena, slot, arena, oldArena) {
     });
   }
 
-  if (team) {
-    const avatar = getAvatar(team.playerId, slot === 'top' ? 'S' : 'N');
-    spnName.textContent = team.name;
-    imgUnit.classList.toggle('loser', !isWinner);
+  if (newTeam) {
+    const avatar = getAvatar(newTeam.playerId, { direction:slot === 'top' ? 'S' : 'N' });
+    spnName.textContent = newTeam.name;
+    imgUnit.classList.toggle('loser', newTeam.isLoser);
     imgUnit.style.top = `${avatar.y}px`;
     imgUnit.style.left = `${avatar.x}px`;
     imgUnit.src = avatar.src;
@@ -1959,6 +1955,300 @@ function renderPublicGames() {
   tabContent.renderTimeout = setTimeout(renderPublicGames, 30000);
 }
 
+async function renderRankings() {
+  const { topranks } = state.tabContent.rankings;
+  const header = document.querySelector('.tabContent .rankings HEADER');
+  const divRankings = document.querySelector('.tabContent .rankings');
+  const divContent = divRankings.querySelector('DIV.topranks');
+  divContent.innerHTML = '';
+
+  await fetchAvatars([ ...topranks.values() ].map(rs => rs.map(r => r.playerId)).flat());
+
+  header.textContent = 'Rankings';
+
+  if (!authClient.isVerified) {
+    const divNotice = document.createElement('DIV');
+    divNotice.classList.add('notice');
+    divNotice.innerHTML = `
+      Only verified accounts may particate in rankings.  To verify your account, go <A href="/security.html">here</A>.
+    `;
+    divContent.append(divNotice);
+  }
+
+  for (const rankingId of [ 'FORTE', ...state.styles.map(s => s.id) ]) {
+    if (!topranks.has(rankingId))
+      continue;
+
+    const divRanks = renderRanks(rankingId, topranks.get(rankingId));
+    const divCaption = divRanks.querySelector('.header .group:first-child .avatar');
+    divCaption.classList.add('caption');
+
+    const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
+    const spnName = document.createElement('SPAN');
+    spnName.classList.add('link');
+    spnName.textContent = name;
+    spnName.addEventListener('click', event => location.hash = `#rankings/${rankingId}`);
+    divCaption.append(spnName);
+
+    divContent.append(divRanks);
+  }
+
+  for (const view of divRankings.querySelectorAll('DIV.ranking, DIV.rankedGames'))
+    view.style.display = 'none';
+  divContent.style.display = '';
+}
+async function renderRanking(rankingId) {
+  const { ranks } = state.tabContent.rankings;
+  const header = document.querySelector('.tabContent .rankings HEADER');
+  const divRankings = document.querySelector('.tabContent .rankings');
+  const divContent = divRankings.querySelector('DIV.ranking');
+  divContent.innerHTML = '';
+
+  const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
+  const crumbs = [
+    `<SPAN class="link">Rankings</SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    `<SPAN>${name}</SPAN>`,
+  ];
+  header.innerHTML = crumbs.join('');
+  header.querySelector('.link').addEventListener('click', event => location.hash = '#rankings');
+
+  await fetchAvatars(ranks.map(r => r.playerId));
+
+  const divRanks = renderRanks(rankingId, ranks);
+  const divCaption = divRanks.querySelector('.header .group:first-child .avatar');
+  divCaption.classList.add('caption');
+
+  const yourRank = ranks.findIndex(r => r.playerId === authClient.playerId);
+  if (yourRank > -1)
+    divCaption.innerHTML = `Your Rank: <SPAN class="rank">#${ yourRank + 1 }</SPAN>`;
+  else
+    divCaption.innerHTML = `Your Rank: None`;
+
+  divRanks.querySelector('.header .group:last-child').style.display = ranks.length === 1 ? 'none' : '';
+
+  divContent.append(divRanks);
+
+  for (const view of divRankings.querySelectorAll('DIV.topranks, DIV.rankedGames'))
+    view.style.display = 'none';
+  divContent.style.display = '';
+}
+async function renderRankedGames(rankingId, playerId) {
+  const { rank, rankedGames } = state.tabContent.rankings;
+  const header = document.querySelector('.tabContent .rankings HEADER');
+  const divRankings = document.querySelector('.tabContent .rankings');
+  const divContent = divRankings.querySelector('DIV.rankedGames');
+  divContent.innerHTML = '';
+
+  const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
+  const crumbs = [
+    `<SPAN class="link topranks">Rankings</SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    `<SPAN class="link ranking">${name}</SPAN>`,
+  ];
+  header.innerHTML = crumbs.join('');
+  header.querySelector('.link.topranks').addEventListener('click', event => location.hash = '#rankings');
+  header.querySelector('.link.ranking').addEventListener('click', event => location.hash = `#rankings/${rankingId}`);
+
+  await fetchAvatars([ playerId, ...rankedGames.map(g => g.rank.playerId) ]);
+
+  const divPlayer = document.createElement('DIV');
+  divPlayer.classList.add('player');
+  divContent.append(divPlayer);
+
+  const divPlayerName = document.createElement('DIV');
+  divPlayerName.classList.add('name');
+  divPlayerName.textContent = rank.name;
+  divPlayer.append(divPlayerName);
+
+  const divRank = document.createElement('DIV');
+  divRank.classList.add('rank');
+  divRank.textContent = `Rank #${rank.rank} (${rank.rating})`;
+  divPlayer.append(divRank);
+
+  const divAvatarBadge = document.createElement('DIV');
+  divAvatarBadge.classList.add('avatar-badge');
+  divPlayer.append(divAvatarBadge);
+
+  const divAvatarImage = document.createElement('DIV');
+  divAvatarImage.classList.add('image');
+  divAvatarBadge.append(divAvatarImage);
+
+  const avatar = getAvatar(playerId);
+  const translateX = 40 + avatar.x - 4;
+  const translateY = avatar.y < -60 ? avatar.y + 60 : Math.max(0, avatar.y + 52);
+  const imgAvatar = document.createElement('IMG');
+  imgAvatar.style.transformOrigin = `${-avatar.x}px ${-avatar.y}px`;
+  imgAvatar.style.transform = `translate(${translateX}px, ${translateY}px)`;
+  imgAvatar.src = avatar.src;
+  divAvatarImage.append(imgAvatar);
+
+  const divRankedGames = document.createElement('DIV');
+  divRankedGames.classList.add('magic-table');
+  divRankedGames.classList.add('rankedGames');
+  divRankedGames.innerHTML = `
+    <DIV class="header">
+      <DIV class="group">
+        <DIV class="result"></DIV>
+        <DIV class="avatar"></DIV>
+        <DIV class="name"></DIV>
+        <DIV class="turnCount">Turn Count</DIV>
+        <DIV class="ended">Ended</DIV>
+      </DIV>
+      <DIV class="group">
+        <DIV class="result"></DIV>
+        <DIV class="avatar"></DIV>
+        <DIV class="name"></DIV>
+        <DIV class="turnCount">Turn Count</DIV>
+        <DIV class="ended">Ended</DIV>
+      </DIV>
+    </DIV>
+  `;
+
+  const divBody = document.createElement('DIV');
+  divBody.classList.add('body');
+
+  for (const rankedGame of rankedGames)
+    divBody.append(renderRankedGame(rankingId, rank, rankedGame));
+
+  divRankedGames.append(divBody);
+
+  divContent.append(divRankedGames);
+
+  for (const view of divRankings.querySelectorAll('DIV.topranks, DIV.ranking'))
+    view.style.display = 'none';
+  divContent.style.display = '';
+}
+function renderRanks(rankingId, ranks) {
+  const divRanks = document.createElement('DIV');
+  divRanks.classList.add('magic-table');
+  divRanks.classList.add('ranks');
+  divRanks.innerHTML = `
+    <DIV class="header">
+      <DIV class="group">
+        <DIV class="avatar"></DIV>
+        <DIV class="name"></DIV>
+        <DIV class="gameCount">Game Count</DIV>
+        <DIV class="rank">Rank</DIV>
+      </DIV>
+      <DIV class="group">
+        <DIV class="avatar"></DIV>
+        <DIV class="name"></DIV>
+        <DIV class="gameCount">Game Count</DIV>
+        <DIV class="rank">Rank</DIV>
+      </DIV>
+    </DIV>
+  `;
+
+  const divBody = document.createElement('DIV');
+  divBody.classList.add('body');
+
+  for (const [ r, rank ] of ranks.entries()) {
+    rank.rank ??= r + 1;
+    divBody.append(renderRank(rankingId, rank));
+  }
+
+  divRanks.append(divBody);
+
+  return divRanks;
+}
+function renderRank(rankingId, rank) {
+  const divRank = document.createElement('DIV');
+  divRank.classList.add('row');
+  divRank.classList.add('rank');
+  divRank.addEventListener('click', event => location.hash = `#rankings/${rankingId}/${rank.playerId}`);
+
+  const divAvatarContainer = document.createElement('DIV');
+  divAvatarContainer.classList.add('avatar');
+  divRank.append(divAvatarContainer);
+
+  const divAvatarWrapper = document.createElement('DIV');
+  divAvatarContainer.append(divAvatarWrapper);
+
+  const avatar = getAvatar(rank.playerId, { withFocus:true });
+  const imgAvatar = document.createElement('IMG');
+  const originY = avatar.y - 22;
+  imgAvatar.style.transformOrigin = `${-avatar.x}px ${-originY}px`;
+  imgAvatar.style.transform = `translate(${avatar.x}px, ${originY}px) scale(0.6)`;
+  imgAvatar.style.top = (avatar.y > -72 ? -(avatar.y + 72) * 0.6 / 2 : 0) + 'px';
+  imgAvatar.src = avatar.src;
+  divAvatarWrapper.append(imgAvatar);
+
+  const divName = document.createElement('DIV');
+  divName.classList.add('name');
+  divName.innerHTML = `
+    <DIV>${rank.name}</DIV>
+    <DIV>(${rank.rating})</DIV>
+  `;
+  divRank.append(divName);
+
+  const divGameCount = document.createElement('DIV');
+  divGameCount.classList.add('gameCount');
+  divGameCount.textContent = rank.gameCount;
+  divRank.append(divGameCount);
+
+  const divRankNum = document.createElement('DIV');
+  divRankNum.classList.add('rank');
+  divRankNum.textContent = `#${ rank.rank }`;
+  divRank.append(divRankNum);
+
+  return divRank;
+}
+function renderRankedGame(rankingId, rank, game) {
+  const opponent = game.teams.find(t => t.playerId !== rank.playerId);
+  const divGame = document.createElement('DIV');
+  divGame.classList.add('row');
+  divGame.classList.add('rankedGame');
+  divGame.addEventListener('click', event => location.href = `game.html?${game.id}`);
+
+  const divAvatar = document.createElement('DIV');
+  divAvatar.classList.add('avatar');
+  divGame.append(divAvatar);
+
+  const divAvatarWrapper = document.createElement('DIV');
+  divAvatar.classList.add('wrapper');
+  divAvatar.append(divAvatarWrapper);
+
+  const avatar = getAvatar(opponent.playerId, { withFocus:true });
+  const imgAvatar = document.createElement('IMG');
+  const originY = avatar.y - 22;
+  imgAvatar.style.transformOrigin = `${-avatar.x}px ${-originY}px`;
+  imgAvatar.style.transform = `translate(${avatar.x}px, ${originY}px) scale(0.6)`;
+  imgAvatar.style.top = (avatar.y > -72 ? -(avatar.y + 72) * 0.6 / 2 : 0) + 'px';
+  imgAvatar.src = avatar.src;
+  divAvatarWrapper.append(imgAvatar);
+
+  const divName = document.createElement('DIV');
+  divName.classList.add('name');
+  divName.innerHTML = `
+    <DIV>${opponent.name}</DIV>
+    <DIV>(${game.rank.rating ?? 'Unranked'})</DIV>
+  `;
+  divGame.append(divName);
+
+  const divResult = document.createElement('DIV');
+  divResult.classList.add('result');
+  divResult.textContent = (
+    game.winnerId === 'draw' ? 'Draw!' :
+    game.winnerId === 'truce' ? 'Truce!' :
+    game.winnerId === game.teams.findIndex(t => t === opponent) ? 'Lose!' :
+    'Win!'
+  );
+  divGame.append(divResult);
+
+  const divTurnCount = document.createElement('DIV');
+  divTurnCount.classList.add('turnCount');
+  divTurnCount.textContent = game.currentTurnId;
+  divGame.append(divTurnCount);
+
+  const divEnded = document.createElement('DIV');
+  divEnded.classList.add('ended');
+  divEnded.append(renderClock(game.endedAt));
+  divGame.append(divEnded);
+
+  return divGame;
+}
+
 function renderGame(game) {
   const teams = game.teams;
   const gameIsPractice = teams.filter(t => t?.playerId === myPlayerId).length === teams.length;
@@ -1977,9 +2267,9 @@ function renderGame(game) {
       left += ', <SPAN>Truce!</SPAN>';
     else if (game.winnerId === 'draw')
       left += ', <SPAN>Draw!</SPAN>';
-    else if (teams[game.winnerId].playerId === myPlayerId)
+    else if (game.winner.playerId === myPlayerId)
       left += ', <SPAN>You Win!</SPAN>';
-    else if (teams.findIndex(t => t.playerId === myPlayerId) > -1)
+    else if (game.losers.some(t => t.playerId === myPlayerId))
       left += ', <SPAN>You Lose!</SPAN>';
   // Active Games
   } else if (game.startedAt) {
@@ -2076,6 +2366,28 @@ function renderGame(game) {
       addClass = 'low';
   }
 
+  const divGame = document.createElement('DIV');
+  divGame.id = game.id;
+  divGame.classList.add('game');
+  divGame.innerHTML = `
+    <SPAN class="left">${left}</SPAN>
+    <SPAN class="middle">${middle}</SPAN>
+  `;
+
+  const spnClock = renderClock(elapsed);
+  spnClock.classList.add('right');
+  if (addClass)
+    spnClock.classList.add(addClass);
+  divGame.append(spnClock);
+
+  return divGame;
+}
+function renderClock(elapsed) {
+  const spnClock = document.createElement('SPAN');
+
+  if (elapsed instanceof Date)
+    elapsed = (gameClient.serverNow - elapsed) / 1000;
+
   if (elapsed <= 0)
     elapsed = '0';
   else if (elapsed < 60)
@@ -2091,29 +2403,26 @@ function renderGame(game) {
   else
     elapsed = Math.floor(elapsed / 31557600) + 'y';
 
-  const divGame = document.createElement('DIV');
-  divGame.id = game.id;
-  divGame.classList.add('game');
-  divGame.innerHTML = `
-    <SPAN class="left">${left}</SPAN>
-    <SPAN class="middle">${middle}</SPAN>
-    <SPAN class="right ${addClass}">
-      <SPAN class="elapsed">${elapsed}</SPAN>
-      <SPAN class="fa fa-clock"></SPAN>
-    </SPAN>
+  spnClock.innerHTML = `
+    <SPAN class="elapsed">${elapsed}</SPAN>
+    <SPAN class="fa fa-clock"></SPAN>
   `;
 
-  return divGame;
+  return spnClock;
 }
 
 async function openTab() {
   closeTab();
 
+  const tab = location.hash.split('/')[0];
+
   state.currentTab = 'yourGames';
-  if (location.hash === '#lobby')
+  if (tab === '#lobby')
     state.currentTab = 'lobby';
-  else if (location.hash === '#publicGames')
+  else if (tab === '#publicGames')
     state.currentTab = 'publicGames';
+  else if (tab === '#rankings')
+    state.currentTab = 'rankings';
 
   document.querySelector(`.tabs .${state.currentTab}`).classList.add('is-active');
 
@@ -2171,7 +2480,7 @@ async function syncTab() {
 
   try {
     if (!tabContent.isSynced) {
-      await fetchGames(currentTab);
+      await fetchTabData(currentTab);
 
       // If the tab was changed before fetching completed, abort.
       if (state.currentTab !== currentTab)
@@ -2191,8 +2500,10 @@ async function syncTab() {
     } else {
       if (state.currentTab === 'yourGames')
         renderYourGames();
-      else
+      else if (state.currentTab === 'publicGames')
         renderPublicGames();
+      else
+        await tabContent.route();
 
       document.querySelector(`.tabContent .${currentTab}`).classList.add('is-active');
     }
@@ -2249,9 +2560,11 @@ function getTabNameForElement(el) {
     return 'yourGames';
   else if (el.classList.contains('publicGames'))
     return 'publicGames';
+  else if (el.classList.contains('rankings'))
+    return 'rankings';
 }
 
-async function fetchGames(tabName) {
+async function fetchTabData(tabName) {
   const promises = [];
 
   const statsContent = state.tabContent.stats;
@@ -2419,8 +2732,39 @@ async function fetchGames(tabName) {
       gameClient.joinCollectionGroup(`public`, { query }).then(rsp => {
         tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
-      })
+      }),
     );
+  } else {
+    const route = location.hash.split('/');
+
+    if (route.length === 1) {
+      tabContent.route = () => renderRankings();
+
+      promises.push(
+        authClient.getRankings().then(rsp => {
+          tabContent.topranks = rsp;
+        }),
+      );
+    } else if (route.length === 2) {
+      tabContent.route = () => renderRanking(route[1]);
+
+      promises.push(
+        authClient.getRanking(route[1]).then(rsp => {
+          tabContent.ranks = rsp;
+        }),
+      );
+    } else if (route.length === 3) {
+      tabContent.route = () => renderRankedGames(route[1], route[2]);
+
+      promises.push(
+        authClient.getRankings(route[2], route[1]).then(rsp => {
+          tabContent.rank = rsp.get(route[1]).find(r => r.playerId === route[2]);
+        }),
+        gameClient.getRankedGames(route[2], route[1]).then(rsp => {
+          tabContent.rankedGames = rsp;
+        }),
+      );
+    }
   }
 
   return Promise.all(promises).catch(error => {
@@ -2430,7 +2774,7 @@ async function fetchGames(tabName) {
     if (state.currentTab !== tabName)
       return;
 
-    return fetchGames(tabName);
+    return fetchTabData(tabName);
   });
 }
 

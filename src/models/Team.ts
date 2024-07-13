@@ -88,7 +88,8 @@ export default class Team {
     usedSim: boolean
     forkOf: any
   }
-  units: any[][]
+  public isCurrent: boolean
+  public units: any[][]
 
   constructor(data) {
     this.data = Object.assign({
@@ -138,9 +139,6 @@ export default class Team {
       // Whether to randomize the side the set is placed on at game start
       randomSide: false,
 
-      // The current state of units for the team
-      units: null,
-
       // The bot, if any, controlling the team
       bot: undefined,
 
@@ -151,6 +149,9 @@ export default class Team {
 
     if (this.data.useRandom && !this.data.randomState)
       this.data.randomState = Random.create();
+
+    this.isCurrent = false;
+    this.units = null;
   }
 
   static validateSet(data, game, gameType) {
@@ -311,12 +312,22 @@ export default class Team {
    * Check a date to see if the team has checked in since then.
    */
   seen(date) {
+    if (!date)
+      return false;
+
+    if (this.checkinAt === null)
+      return false;
+
+    if (this.checkoutAt === null)
+      // If never checked out, checkin must be <= the date to have seen it.
+      return this.checkinAt <= date;
+
     // If checked out right now, date is seen if checked out after
     if (this.checkoutAt > this.checkinAt)
-      return this.checkoutAt > date;
+      return this.checkoutAt >= date;
 
-    // If checked in right now, date is seen
-    return true;
+    // If checked in right now, date is seen if it isn't in the future.
+    return Date.now() > date;
   }
 
   setUsedUndo() {
@@ -367,6 +378,15 @@ export default class Team {
       return { number:Math.random() * 100 };
 
     return this.data.randomState.generate();
+  }
+
+  clone() {
+    return new Team(this.data);
+  }
+  merge(teamData) {
+    // @ts-ignore
+    this.data.merge(teamData);
+    return this;
   }
 
   /*

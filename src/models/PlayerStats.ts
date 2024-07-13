@@ -1,6 +1,8 @@
 import ActiveModel from '#models/ActiveModel.js';
 import serializer from '#utils/serializer.js';
 
+const DEFAULT_RATING = 750.0;
+
 export default class PlayerStats extends ActiveModel {
   protected data: {
     playerId: string
@@ -19,12 +21,72 @@ export default class PlayerStats extends ActiveModel {
     });
   }
 
+  /*
+   * Updates the ratings of all players involved in a game.
+   * This method is static because it acts on the rating of more than one player
+   */
+  static updateRatings(game, playersStatsMap) {
+    // Only update ratings for ranked games.
+    if (!game.state.ranked)
+      return false;
+
+    const isDraw = game.state.winnerId === 'draw';
+    const winnerPlayerId = (game.state.winner ?? game.state.teams[1]).playerId;
+    const winnerStats = playersStatsMap.get(winnerPlayerId);
+    const winnerRatingInfo = winnerStats._getRatingInfo(game.state.type);
+    const loserPlayerId = game.state.losers[0].playerId;
+    const loserStats = playersStatsMap.get(loserPlayerId);
+    const loserRatingInfo = loserStats._getRatingInfo(game.state.type);
+
+    // Note - the max rating change is sometimes different for each player (if experience levels are different)
+    const maxRatingChanges = _computeMaxRatingChange(winnerRatingInfo.gameCount, loserRatingInfo.gameCount);
+
+    winnerStats.setRating(
+      game.state.type,
+      Math.max(100, _computeElo(winnerRatingInfo.rating, loserRatingInfo.rating, maxRatingChanges[0], isDraw)[0]),
+    );
+
+    loserStats.setRating(
+      game.state.type,
+      Math.max(100, _computeElo(winnerRatingInfo.rating, loserRatingInfo.rating, maxRatingChanges[1], isDraw)[1]),
+    );
+
+    return true;
+  }
+
   get playerId() {
     return this.data.playerId;
   }
+  get completed() {
+    return this._getMyStats().completed ?? [ 0, 0 ];
+  }
+  get ratings() {
+    const ratingsInfo = this._getRatingsInfo();
+    const ratings = new Map([ ...ratingsInfo ].map(([ gtId, ri ]) => [ gtId, {
+      rating: Math.round(ri.rating),
+      gameCount: ri.gameCount,
+    } ]));
+
+    return ratings;
+  }
 
   get(playerId) {
-    return this.data.stats.get(playerId);
+    const stats = this.data.stats.get(playerId) ?? {};
+    if (playerId === this.data.playerId && !stats.ratings)
+      stats.ratings = new Map();
+
+    return stats;
+  }
+  getRating(gameTypeId) {
+    return Math.round(this._getRatingInfo(gameTypeId).rating);
+  }
+  setRating(gameTypeId, rating) {
+    const ratingInfo = this._getRatingInfo(gameTypeId, true);
+    ratingInfo.gameCount++;
+    ratingInfo.updatedAt = new Date();
+    ratingInfo.rating = rating;
+
+    this.emit('change:setRating');
   }
 
   recordGameStart(game) {
@@ -50,6 +112,7 @@ export default class PlayerStats extends ActiveModel {
           this.data.stats.set(team.playerId, {
             // Played X games and abandoned Y games.
             completed: [0, 0],
+            ratings: new Map(),
           });
         else
           // Individual stats
@@ -200,50 +263,195 @@ export default class PlayerStats extends ActiveModel {
 
     this.emit('change:clearWLDStats');
   }
+
+  _getMyStats(persist = false) {
+    const stats = this.data.stats.get(this.data.playerId) ?? {
+      completed: [ 0, 0 ],
+      ratings: new Map(),
+    };
+    if (persist)
+      this.data.stats.set(this.data.playerId, stats);
+
+    return stats;
+  }
+  _getRatingsInfo(persist = false) {
+    const myStats = this._getMyStats(persist);
+    const ratingsInfo = myStats.ratings ?? new Map();
+    if (persist)
+      myStats.ratings = ratingsInfo;
+
+    const forteRating = _calcForteRating(ratingsInfo);
+    const gameCount = [ ...ratingsInfo.values() ].reduce((sum, ri) => sum += ri.gameCount, 0);
+    const updatedAt = Math.max(...[ ratingsInfo.values() ].map(ri => ri.updatedat));
+    if (forteRating)
+      return new Map([
+        [ 'FORTE', { rating:forteRating, gameCount, updatedAt:new Date(updatedAt) } ],
+        ...ratingsInfo,
+      ]);
+
+    return ratingsInfo;
+  }
+  _getRatingInfo(gameTypeId, persist = false) {
+    const ratingsInfo = this._getRatingsInfo();
+    const ratingInfo = ratingsInfo.get(gameTypeId) ?? {
+      rating: DEFAULT_RATING,
+      gameCount: 0,
+      updatedAt: new Date(),
+    };
+    if (persist)
+      ratingsInfo.set(gameTypeId, ratingInfo);
+
+    return ratingInfo;
+  }
 };
+
+function _calcForteRating(ratingsInfo) {
+  const sortedRatingsInfo = [ ...ratingsInfo.values() ].sort((a,b) => b.rating - a.rating);
+
+  let weight = 1.0;
+  let rating = 0;
+  for (const ratingInfo of sortedRatingsInfo) {
+    if (ratingInfo.gameCount >= 10) {
+      weight /= 2;
+      rating += ratingInfo.rating * weight;
+    }
+  }
+
+  return rating;
+};
+
+// Inspired by: https://www.geeksforgeeks.org/elo-rating-algorithm/
+function _probability(rating1, rating2) {
+  return (
+    (1.0 * 1.0) / (1 + 1.0 * Math.pow(10, (1.0 * (rating1 - rating2)) / 400))
+  );
+}
+
+/**
+ * Computes the updated Elo Ratings for two players. Returns an array of size 2, in which the first and second elements
+ * are the updated ratings of the winner and loser respectively.
+ * @param ratingWinner
+ * @param ratingLoser
+ * @param K
+ */
+function _computeElo(ratingWinner, ratingLoser, K, isDraw) {
+  let pWinner = _probability(ratingLoser, ratingWinner);
+  let pLoser = _probability(ratingWinner, ratingLoser);
+
+  let ratings = [];
+  if (isDraw) {
+    ratings.push(ratingWinner + K * (0.5 - pWinner));
+    ratings.push(ratingLoser + K * (0.5 - pLoser));
+  } else {
+    ratings.push(ratingWinner + K * (1 - pWinner));
+    ratings.push(ratingLoser + K * (0 - pLoser));
+  }
+
+  return ratings;
+}
+
+// This function computes the optimal values for "K" which is the maximum change that can occur to a player's rating in a single game.
+// In general, a new player should have a large value for K, and an experienced player should have a smaller value for K.
+function _computeMaxRatingChange(gameCount1, gameCount2) {
+
+  // Note that the original game had 32, which was a bit high.
+  // Suggested reading: https://en.wikipedia.org/wiki/Elo_rating_system#Most_accurate_K-factor
+  const DEFAULT_K_FACTOR = 20;
+
+  // Players who have played this many games or more are no longer considered "new".
+  const EXPERIENCE_THRESHOLD = 10;
+
+  // High confidence - both sides played a sufficient number of games. Return standard value.
+  // In the long-term, this should be the most common case.
+  if (gameCount1 >= EXPERIENCE_THRESHOLD && gameCount2 >= EXPERIENCE_THRESHOLD)
+    return [DEFAULT_K_FACTOR, DEFAULT_K_FACTOR];
+
+  // In this case, at least one player is "new", meaning we do not have confidence that their rating is representative of their skill.
+  // As such, K is doubled for the new player, so they can reach their "true rating" faster.
+  // And K is halved for their opponent when their opponent is experienced (to protect against new accounts used as stat killers)
+  let k1, k2;
+  if (gameCount1 < EXPERIENCE_THRESHOLD)
+    k1 = DEFAULT_K_FACTOR * 2;
+  else
+    k1 = DEFAULT_K_FACTOR / 2;
+
+  if (gameCount2 < EXPERIENCE_THRESHOLD)
+    k2 = DEFAULT_K_FACTOR * 2;
+  else
+    k2 = DEFAULT_K_FACTOR / 2;
+
+  return [k1, k2];
+}
 
 serializer.addType({
   name: 'PlayerStats',
   constructor: PlayerStats,
   schema: {
     type: 'object',
-    required: [ 'playerId', 'stats' ],
+    required: ['playerId', 'stats', 'ratings'],
     properties: {
-      playerId: { type:'string', format:'uuid' },
+      playerId: { type: 'string', format: 'uuid' },
       stats: {
         type: 'array',
         subType: 'Map',
         items: {
           type: 'array',
           items: [
-            { type:'string', format:'uuid' },
+            { type: 'string', format: 'uuid' },
             {
               type: 'object',
               oneOf: [
                 {
-                  required: [ 'completed' ],
+                  required: ['ratings'],
                   properties: {
-                    completed: { $ref:'#/definitions/statTuple' },
+                    ratings: {
+                      type: 'array',
+                      subType: 'Map',
+                      items: {
+                        type: 'array',
+                        items: [
+                          { type: 'string' },
+                          {
+                            type: 'string',
+                            oneOf: [
+                              {
+                                required: ['rating'],
+                                properties: {
+                                  rating: { $ref: '#/definitions/rating' },
+                                },
+                              },
+                            ],
+                            additionalProperties: false,
+                          },
+                        ],
+                      },
+                    },
                   },
                 },
                 {
-                  required: [ 'name', 'aliases', 'all', 'style' ],
+                  required: ['completed'],
                   properties: {
-                    name: { type:'string' },
+                    completed: { $ref: '#/definitions/statTuple' },
+                  },
+                },
+                {
+                  required: ['name', 'aliases', 'all', 'style'],
+                  properties: {
+                    name: { type: 'string' },
                     aliases: {
                       type: 'array',
                       subType: 'Map',
                       items: {
                         type: 'array',
                         items: [
-                          { type:'string', },
+                          { type: 'string', },
                           {
                             type: 'object',
-                            required: [ 'name', 'count', 'lastSeenAt' ],
+                            required: ['name', 'count', 'lastSeenAt'],
                             properties: {
-                              name: { type:'string' },
-                              count: { type:'number' },
-                              lastSeenAt: { type:'string', subType:'Date' },
+                              name: { type: 'string' },
+                              count: { type: 'number' },
+                              lastSeenAt: { type: 'string', subType: 'Date' },
                             },
                             additionalProperties: false,
                           },
@@ -288,8 +496,18 @@ serializer.addType({
       },
       statTuple: {
         type: 'array',
-        items: [ { type:'number' }, { type:'number' } ],
+        items: [ { type: 'number' }, { type: 'number' } ],
         additionalItems: false,
+      },
+      rating: {
+        type: 'object',
+        required: ['rating', 'gameCount', 'updatedAt'],
+        properties: {
+          rating: { type: 'number' },
+          gameCount: { type: 'number' },
+          updatedAt: { type: 'string', subType: 'Date' },
+        },
+        additionalProperties: false,
       },
     },
   },
