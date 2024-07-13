@@ -19,9 +19,58 @@ export default class PlayerInfo extends Modal {
 
     this.root.addEventListener('click', event => {
       const target = event.target;
-      if (target.tagName !== 'BUTTON') return;
+      if (target.tagName === 'SPAN' && target.id === "rating_explanation") {
+        popup({
+          title: 'Forte Rating',
+          message: [
+            `<DIV> Your <B>Forte</B> rating measures your <I>TAO Skill</I>. It rewards
+                   players who are highly successful in many styles.</DIV>`,
+            `<BR/>`,
+            `<DIV> It is a weighted sum of all styles <B>in which you have played at least 10
+                   rated games.</B></DIV>`,
+            `<BR/>`,
+            `<DIV>Formula: <BR/> <B>(0.5 x R1) + (0.25 x R2) + (0.125 x R3) ...</B> </DIV>`,
+            `<BR/>`,
+            `<DIV>Where <B>R1</B> is your rating in your highest-rated style, <B>R2</B> is your rating
+                  in your second highest-rated style, etc.</DIV>`,
+          ].join('  '),
+          maxWidth: '500px',
+        });
+      }
 
       const playerName = this.data.info.relationship.name ?? team.name;
+
+      if (target.tagName === 'SPAN' && target.id === "all_ratings") {
+        const ratingPaddingLeft = "10px";
+        const gameCountPaddingLeft = "25px";
+        let messages = [
+          `<DIV style='display: grid; text-align: left;'>
+             <TABLE cellSpacing=10px> <TR>
+               <TH> Style </TH>
+               <TH style='padding-left: ${ratingPaddingLeft}'> Rating </TH> 
+               <TH style='padding-left: ${gameCountPaddingLeft}'> Games </TH>`,
+        ];
+        for (const ratingInfo of this.data.info.stats.ratings)
+          messages.push(`
+            <TR>
+              <TD>${ratingInfo.gameTypeName}</TD>
+              <TD style='padding-left: ${ratingPaddingLeft}'> 
+                ${Math.round(ratingInfo.rating)}
+              </TD>
+              <TD style='padding-left: ${gameCountPaddingLeft}'>
+                ${ratingInfo.gameCount}
+              </TD>
+            </TR>
+          `);
+        messages.push(`</TABLE> </DIV>`)
+        popup({
+          title: `<I>${playerName}</I> ratings`,
+          message: messages.join(' '),
+          maxWidth: '500px',
+        });
+      }
+
+      if (target.tagName !== 'BUTTON') return;
 
       if (target.name === 'clearStats')
         popup({
@@ -73,7 +122,7 @@ export default class PlayerInfo extends Modal {
       });
   }
 
-  getElapsed(diff) {
+  static getElapsed(diff) {
     let elapsed;
     if (diff > 86400)
       elapsed = `${Math.floor(diff / 86400)} day(s)`;
@@ -123,25 +172,46 @@ export default class PlayerInfo extends Modal {
       }
     }
 
+    const ratingsInfo = this.data.info.stats.ratings;
+    const forteRating = ratingsInfo.find(r => r.gameTypeId === 'FORTE')?.rating;
+    const styleRating = ratingsInfo.find(r => r.gameTypeId === data.gameType.id)?.rating;
     const content = [
-      '<DIV class="relationshipName"></DIV>',
-      `<DIV>`,
-        `<DIV>Account created ${this.getElapsed(createdDiff)} ago.</DIV>`,
-        `<DIV>This player is ${info.isVerified.get('them') ? 'verified' : 'a guest'}.</DIV>`,
-        `<DIV>This player has completed ${info.completed[0]} game(s).</DIV>`,
-        info.completed[1] ? `<DIV>This player has abandoned ${info.completed[1]} game(s).</DIV>` : '',
-        info.canNotify ? `<DIV>This player can be notified when it is their turn.</DIV>` : '',
-        disposition,
-      `</DIV>`,
+      `<DIV class="relationshipName"></DIV>`,
+      `</BR>`,
+
+      // Ratings section
+      ...(info.isVerified.get('them') ? [
+        `<B>Ratings</B> <SPAN class="all-ratings-link" id="all_ratings"> see all </SPAN>`,
+        `<HR>`,
+        `<TABLE cellPaddingRight=0 cellSpacingRight=0>`,
+        `<TR>`,
+          `<TD class="label">Forte <SPAN id="rating_explanation" class="fa fa-info forteRatingExplanation"></SPAN></TD>`,
+          `<TD class="label" style="padding-left: 20px;">
+            ${data.gameType.name}
+          </TD>`,
+        `</TR>`,
+        `<TR>`,
+          `<TD class="label">`,
+            `<B>${forteRating ? Math.round(forteRating) : 'None'}</B>`,
+          `</TD>`,
+          `<TD class="label" style="padding-left: 20px;">`,
+            `<B>${styleRating ? Math.round(styleRating) : 'None'}</B>`,
+          `</TD>`,
+        `</TR>`,
+        `</TABLE>`,
+      ] : [
+        `<B>Ratings</B>`,
+        `<HR>`,
+        `<DIV>Guests do not have ratings.</DIV>`,
+      ]),
+      `</BR>`,
+
+      // Matchup History section
+      `<B>Matchup History</B>`,
+      `<HR>`,
       `<DIV class="wld">`,
         `<DIV>`,
-          `<DIV>`,
-            `Overall Stats:`,
-            `<BUTTON `,
-              `name="clearStats" `,
-              `class="${ allGameCount ? '' : 'hide' }"`,
-            `>Clear?</BUTTON>`,
-          `</DIV>`,
+          `Overall`,
           `<DIV class="indent wld">`,
             `<TABLE cellPadding="0" cellSpacing="0">`,
             `<TR>`,
@@ -158,7 +228,7 @@ export default class PlayerInfo extends Modal {
                 stats.all.lose[1] === 0
                   ? `${stats.all.lose[0]} game(s)`
                   : `<DIV>${stats.all.lose[0]} game(s)</DIV><DIV>+${stats.all.lose[1]} with disadvantage</DIV>`,
-              `</TD>`,
+            `</TD>`,
             `<TR>`,
               `<TD class="label">Draw:</TD>`,
               `<TD>`,
@@ -169,15 +239,12 @@ export default class PlayerInfo extends Modal {
             `</TR>`,
             `</TABLE>`,
           `</DIV>`,
+          `<CENTER>`,
+            `<BUTTON name="clearStats">Reset</BUTTON>`,
+          `</CENTER>`,
         `</DIV>`,
         `<DIV>`,
-          `<DIV>`,
-            `${data.gameType.name} Stats:`,
-            `<BUTTON `,
-              `name="clearStyleStats" `,
-              `class="${ styleGameCount ? '' : 'hide' }"`,
-            `>Clear?</BUTTON>`,
-          `</DIV>`,
+          `${data.gameType.name}`,
           `<DIV class="indent wld">`,
             `<TABLE cellPadding="0" cellSpacing="0">`,
             `<TR>`,
@@ -194,7 +261,7 @@ export default class PlayerInfo extends Modal {
                 stats.style.lose[1] === 0
                   ? `${stats.style.lose[0]} game(s)`
                   : `<DIV>${stats.style.lose[0]} game(s)</DIV><DIV>+${stats.style.lose[1]} with disadvantage</DIV>`,
-              `</TD>`,
+            `</TD>`,
             `<TR>`,
               `<TD class="label">Draw:</TD>`,
               `<TD>`,
@@ -205,7 +272,24 @@ export default class PlayerInfo extends Modal {
             `</TR>`,
             `</TABLE>`,
           `</DIV>`,
+          `<CENTER>`,
+            `<BUTTON name="clearStyleStats">Reset</BUTTON>`,
+          `</CENTER>`,
         `</DIV>`,
+      `</DIV>`,
+      `</DIV>`,
+      `</BR>`,
+
+      // Account details section
+      `<DIV>`,
+        `<B>Account Details</B>`,
+        `<HR>`,
+        `<DIV>Account created ${PlayerInfo.getElapsed(createdDiff)} ago.</DIV>`,
+        `<DIV>This player is ${info.isVerified.get('them') ? 'verified' : 'a guest'}.</DIV>`,
+        `<DIV>This player has completed ${info.completed[0]} game(s).</DIV>`,
+        info.completed[1] ? `<DIV>This player has abandoned ${info.completed[1]} game(s).</DIV>` : '',
+        info.canNotify ? `<DIV>This player can be notified when it is their turn.</DIV>` : '',
+        disposition,
       `</DIV>`,
     ];
 

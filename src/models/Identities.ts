@@ -20,6 +20,14 @@ export default class Identities extends ActiveModel {
     return new Identities(new Set(data));
   }
 
+  findByPlayerId(playerId) {
+    for (const identity of this.identities)
+      if (identity.playerIds.includes(playerId))
+        return identity;
+
+    return null;
+  }
+
   getIds() {
     return [ ...this.data ];
   }

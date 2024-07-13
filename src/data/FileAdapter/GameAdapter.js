@@ -4,7 +4,6 @@ import util from 'util';
 import migrate, { getLatestVersionNumber } from '#data/migrate.js';
 import serializer from '#utils/serializer.js';
 import FileAdapter from '#data/FileAdapter.js';
-import Timeout from '#server/Timeout.js';
 
 import GameType from '#tactics/GameType.js';
 import Game from '#models/Game.js';
@@ -82,13 +81,8 @@ export default class extends FileAdapter {
   hasGameType(gameTypeId) {
     return this._gameTypes.has(gameTypeId);
   }
-  getGameTypes() {
-    return [ ...this._gameTypes.values() ]
-      .filter(gt => !gt.config.archived)
-      .map(({ id, config }) => ({
-        id: id,
-        name: config.name,
-      }));
+  getGameTypesById() {
+    return this._gameTypes;
   }
   getGameType(gameTypeId) {
     const gameTypes = this._gameTypes;
@@ -141,6 +135,12 @@ export default class extends FileAdapter {
   }
 
   async getPlayerStats(myPlayerId, vsPlayerId) {
+    const playerStats = await this._getPlayerStats(myPlayerId);
+
+    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    return playerStats;
+  }
+  async getPlayerInfo(myPlayerId, vsPlayerId) {
     const playerStats = await this._getPlayerStats(myPlayerId);
 
     this.cache.get('playerStats').add(myPlayerId, playerStats);
@@ -277,6 +277,25 @@ export default class extends FileAdapter {
 
     return this._search(data, query);
   }
+  /*
+   * Get games completed by a player that are viewable by other players.
+   * Not expected to exceed 50 games.
+   */
+  async getRankedGames(playerId, rankingId) {
+    const gamesSummary = await this._getPlayerGames(playerId);
+    const results = [];
+
+    for (const gameSummary of gamesSummary.values()) {
+      if (!gameSummary.endedAt || !gameSummary.ranked)
+        continue;
+      if (![ 'FORTE', gameSummary.type ].includes(rankingId))
+        continue;
+
+      results.push(gameSummary);
+    }
+
+    return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
+  }
 
   async listMyTurnGamesSummary(myPlayerId) {
     const games = await this._getPlayerGames(myPlayerId, true);
@@ -316,6 +335,52 @@ export default class extends FileAdapter {
     }
   }
 
+  async canPlayRankedGame(game, player, opponent) {
+    if (!game.collection)
+      return { ranked:false, reason:'private' };
+
+    // Both players must be verified
+    if (!player.isVerified || !opponent.isVerified)
+      return { ranked:false, reason:'not verified' };
+
+    // Can't play a ranked game against yourself
+    if (player.identityId === opponent.identityId)
+      return { ranked:false, reason:'same identity' };
+
+    /*
+     * Max of 2 ranked games per week between 2 players.
+     */
+    const playerGames = await this._getPlayerGames(player.id);
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000; // 1 week ago, in milliseconds
+
+    // Check the 'nth' most recent game in this matchup
+    let n = 2;
+
+    // Check this player's games to see if there is too much history with their opponent in too short a time
+    for (const gameSummary of playerGames.values()) {
+      // Unranked games don't affect ranking
+      if (!gameSummary.ranked)
+        continue;
+
+      // Different styles have different rankings
+      if (gameSummary.type !== game.state.type)
+        continue;
+
+      // Old games don't prevent playing more ranked games
+      if (gameSummary.startedAt < since)
+        continue;
+
+      // Only counting games against any of the opponent's accounts.
+      if (!gameSummary.teams.some(t => opponent.identity.playerIds.includes(t.playerId)))
+        continue;
+
+      if (--n === 0)
+        return { ranked:false, reason:'too many games' };
+    }
+
+    return { ranked:true };
+  }
+
   /*****************************************************************************
    * Private Interface
    ****************************************************************************/
@@ -327,12 +392,10 @@ export default class extends FileAdapter {
       const data = serializer.transform(game);
       data.version = getLatestVersionNumber('game');
 
-      this._attachGame(game);
+      game.on('change', event => this._onGameChange(game));
       return data;
     });
     await this._updateGameSummary(game);
-    if (game.state.startedAt)
-      await this._recordGameStats(game);
   }
   async _getGame(gameId) {
     if (this.cache.get('game').has(gameId))
@@ -344,33 +407,14 @@ export default class extends FileAdapter {
       if (data === undefined) return;
 
       const game = serializer.normalize(migrate('game', data));
-      this._attachGame(game);
-
+      game.on('change', event => this._onGameChange(game));
       return game;
     });
-  }
-  _attachGame(game) {
-    game.on('change', event => this._onGameChange(game));
-    if (!game.state.startedAt)
-      game.state.once('startGame', event => this._recordGameStats(game));
-    if (!game.state.endedAt)
-      game.state.once('endGame', event => this._recordGameStats(game));
   }
   _onGameChange(game) {
     if (!this.buffer.get('game').has(game.id))
       this.buffer.get('game').add(game.id, game);
     this._updateGameSummary(game);
-  }
-  async _recordGameStats(game) {
-    const playerIds = new Set([ ...game.state.teams.map(t => t.playerId) ]);
-
-    for (const playerId of playerIds) {
-      const playerStats = await this._getPlayerStats(playerId);
-      if (game.state.endedAt)
-        playerStats.recordGameEnd(game);
-      else
-        playerStats.recordGameStart(game);
-    }
   }
   async _saveGame(game) {
     await this.putFile(`game_${game.id}`, () => {
@@ -499,31 +543,52 @@ export default class extends FileAdapter {
     });
   }
   /*
-   * Prune completed games to 100 most recently ended.
-   * Prune active games with expired time limits (collections only)
+   * Prune completed games to 50 most recently ended per sub group.
+   * Collections only have one completed group.
+   * Player game lists have one group per style among potentially ranked games.
+   * Player game lists have one group for unrated and private games.
+   * Prune active games with expired time limits (collections only).
    */
   _pruneGameSummaryList(gameSummaryList) {
     // Hacky
     const isCollectionList = !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(gameSummaryList.id);
-    const now = Date.now();
+    const groups = new Map([ [ 'completed', [] ] ]);
 
-    const completed = [];
-    for (const gameSummary of gameSummaryList.values()) {
-      if (gameSummary.endedAt)
-        completed.push(gameSummary);
-      else if (gameSummary.startedAt && isCollectionList) {
-        if (!gameSummary.timeLimitName)
-          gameSummaryList.delete(gameSummary.id);
-        else if (gameSummary.getTurnTimeRemaining(now) === 0)
-          gameSummaryList.delete(gameSummary.id);
+    if (isCollectionList) {
+      const now = Date.now();
+
+      for (const gameSummary of gameSummaryList.values()) {
+        if (gameSummary.endedAt)
+          groups.get('completed').push(gameSummary);
+        else if (gameSummary.startedAt) {
+          if (!gameSummary.timeLimitName)
+            gameSummaryList.delete(gameSummary.id);
+          else if (gameSummary.getTurnTimeRemaining(now) === 0)
+            gameSummaryList.delete(gameSummary.id);
+        }
+      }
+    } else {
+      for (const gameSummary of gameSummaryList.values()) {
+        if (!gameSummary.endedAt)
+          continue;
+
+        if (gameSummary.ranked) {
+          if (groups.has(gameSummary.type))
+            groups.get(gameSummary.type).push(gameSummary);
+          else
+            groups.set(gameSummary.type, [ gameSummary ]);
+        } else
+          groups.get('completed').push(gameSummary);
       }
     }
-    completed.sort((a,b) => b.endedAt - a.endedAt);
 
-    if (completed.length > 100)
-      for (const gameSummary of completed.slice(100)) {
-        gameSummaryList.delete(gameSummary.id);
-      }
+    for (const gamesSummary of groups.values()) {
+      gamesSummary.sort((a,b) => b.endedAt - a.endedAt);
+
+      if (gamesSummary.length > 50)
+        for (const gameSummary of gamesSummary.slice(50))
+          gameSummaryList.delete(gameSummary.id);
+    }
   }
 
   /*

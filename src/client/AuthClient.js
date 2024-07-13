@@ -47,6 +47,9 @@ export default class AuthClient extends Client {
   get playerId() {
     return this.token && this.token.playerId;
   }
+  get isVerified() {
+    return this.token && this.token.isVerified;
+  }
   get playerName() {
     return this.token && this.token.playerName;
   }
@@ -245,6 +248,22 @@ export default class AuthClient extends Client {
       .catch(error => {
         if (error === 'Connection reset')
           return this.clearRelationship(playerId);
+        throw error;
+      });
+  }
+  getRankings(playerId = this.playerId, rankingId = null) {
+    return this._server.requestAuthorized(this.name, 'getRankings', [ playerId, rankingId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRankings(playerId, rankingId);
+        throw error;
+      });
+  }
+  getRanking(gameTypeId = 'FORTE') {
+    return this._server.requestAuthorized(this.name, 'getRanking', [ gameTypeId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRankings(gameTypeId);
         throw error;
       });
   }

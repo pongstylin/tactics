@@ -501,6 +501,15 @@ migrationMap.set('game', [
 
     return json;
   },
+  json => {
+    const game = json.$data;
+    const state = game.state;
+
+    if (state.rated)
+      state.unrankedReason = 'old';
+
+    return json;
+  },
 ]);
 
 migrationMap.set('sets', [

@@ -312,9 +312,19 @@ export default class Team {
    * Check a date to see if the team has checked in since then.
    */
   seen(date) {
+    if (!date)
+      return false;
+
+    if (this.checkinAt === null)
+      return false;
+
+    if (this.checkoutAt === null)
+      // If never checked out, checkin must be <= the date to have seen it.
+      return this.checkinAt <= date;
+
     // If checked out right now, date is seen if checked out after
     if (this.checkoutAt > this.checkinAt)
-      return this.checkoutAt > date;
+      return this.checkoutAt >= date;
 
     // If checked in right now, date is seen if it isn't in the future.
     return Date.now() > date;

@@ -23,6 +23,9 @@ export default class Token {
   get deviceId() {
     return this.claims.deviceId;
   }
+  get isVerified() {
+    return this.claims.verified;
+  }
   get createdAt() {
     return new Date(this.claims.iat * 1000);
   }

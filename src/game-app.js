@@ -7,6 +7,7 @@ import wakelock from 'components/wakelock.js';
 import GameSettingsModal from 'components/Modal/GameSettings.js';
 import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
 import PlayerInfoModal from 'components/Modal/PlayerInfo.js';
+import PlayerInfoSelfModal from 'components/Modal/PlayerInfoSelf.js';
 import ForkModal from 'components/Modal/Fork.js';
 import sleep from 'utils/sleep.js';
 
@@ -459,14 +460,19 @@ $(() => {
     .on('click', '#field .player .link', event => {
       const $link = $(event.currentTarget);
       const team = $link.closest('.player').data('team');
-
+      
       if ($link.hasClass('status')) {
         new PlayerActivityModal({ game, team });
-      } else if ($link.hasClass('name'))
+      } else if (team.playerId !== authClient.playerId) {
         playerInfo = new PlayerInfoModal(
           { game, gameType, team },
-          { onClose:() => playerInfo = null }
+          { onClose: () => playerInfo = null }
         );
+      } else {
+        new PlayerInfoSelfModal(
+          { game, gameType, team },
+        );
+      }
     })
     /*
      * Under these conditions a special attack can be triggered:
@@ -998,11 +1004,89 @@ function resetChatStatus(playerId) {
   }
 }
 function initMessages(messages) {
+  if (game.state.randomHitChance === false)
+    messages.push({ content:[
+      `This is a <a href="javascript:void(0)" class="info-no-luck">No Luck</a> game.  `,
+      `Tap link for more info.`,
+    ].join('') });
+
+  if (game.state.rated && !game.state.ranked) {
+    let reason;
+    switch (game.state.unrankedReason) {
+      case 'private':
+        reason = `this is a private game`;
+        break;
+      case 'not verified':
+        reason = `both players must be verified`;
+        break;
+      case 'same identity':
+        reason = `both players share the same identity`;
+        break;
+      case 'too many games':
+        reason = `the players have 2 ranked games against each other in this style within the past week`;
+        break;
+      case 'truce':
+        reason = `the game ended in a truce`;
+        break;
+      case 'unseen':
+        reason = `the loser didn't open the game in time`;
+        break;
+      case 'old':
+        reason = `it predated rankings release`;
+        break;
+      default:
+        reason = `of a bug`;
+    }
+
+    messages.push({ class:'ranked', content:[
+      `This is <span style="color:red">NOT</span> a <a href="javascript:void(0)" class="info-ranked">Ranked</a> game `,
+      `because ${reason}.`,
+    ].join('') });
+  }
+
   chatMessages = messages;
   messages.forEach(m => renderMessage(m));
 
   const $messages = $('#messages');
   $messages.scrollTop($messages.prop('scrollHeight'));
+
+  $messages.on('click', event => {
+    if (event.target.classList.contains('info-no-luck'))
+      popup({ message:`
+        <P style="margin:0 0 8px 0">
+          Normally, hits and blocks are determined by random chance.
+          When creating a game, you can enable No Luck mode to make hits and blocks more predictable.
+          You can tell whether a unit will block by looking at the shield icons in the unit card.
+        </P>
+        <UL style="margin: 0 0 0 24px">
+          <LI>A unit with 50%+ blocking will block front attacks.</LI>
+          <LI>A unit with 100%+ blocking will also block side attacks.</LI>
+          <LI>A unit with 1.5x blocking will block front attacks.</LI>
+          <LI>A unit with 2x blocking will also block side attacks.</LI>
+        </UL>
+        <P>
+          The 1.5x and 2x blocking rules can be confusing.  It means that even units with low blocking
+          will block front temporarily after being hit and will block side after being hit twice in quick
+          succession.  The unit's info card will tell you how long the unit will remain protected.
+        </P>
+      `, maxWidth:'400px' });
+    else if (event.target.classList.contains('info-ranked'))
+      popup({ message:`
+        <P style="margin:0 0 8px 0">
+          Players are ranked according to their style skill ratings.
+          You can view a player's ratings and rank by clicking their name in the banner.
+          Here are the requirements for playing a ranked game.
+        </P>
+        <UL style="margin: 0 0 0 24px">
+          <LI>Only rated public or lobby games affect rankings.</LI>
+          <LI>A ranked game must be between 2 verified players.</LI>
+          <LI>Only 1 ranked game per opponent per style at a time.</LI>
+          <LI>Only 2 ranked games per opponent per style per week.</LI>
+          <LI>Game will not affect ranking if it ends in a truce.</LI>
+          <LI>Game will not affect ranking if a player doesn't see it.</LI>
+        </UL>
+      `, maxWidth:'400px' });
+  });
 }
 function appendMessages(messages) {
   if (!Array.isArray(messages))
@@ -1017,27 +1101,49 @@ function appendMessages(messages) {
   updateChatButton();
 }
 function renderMessage(message) {
-  const myMuted = muted.get(authClient.playerId);
-  const playerId = message.player.id;
-  const isMuted = myMuted.has(playerId) || myMuted.size === muted.size - 1 ? 'muted' : '';
-  let playerName = message.player.name;
-  if (game.teams.filter(t => t.name === playerName).length > 1) {
-    const team = game.teams.find(t => t.playerId === playerId);
-    if (game.isMyTeam(team))
-      playerName = '<I>You</I> ';
+  if (message.player) {
+    const myMuted = muted.get(authClient.playerId);
+    const playerId = message.player.id;
+    const isMuted = myMuted.has(playerId) || myMuted.size === muted.size - 1 ? 'muted' : '';
+    let playerName = message.player.name;
+    if (game.teams.filter(t => t.name === playerName).length > 1) {
+      const team = game.teams.find(t => t.playerId === playerId);
+      if (game.isMyTeam(team))
+        playerName = '<I>You</I> ';
+    }
+
+    const gameUrl = location.origin + location.pathname.slice(0, location.pathname.lastIndexOf('/')) + '/game.html';
+    const gameUrlMatch = new RegExp(`${gameUrl}\\?([0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12})`);
+
+    message.content = message.content.replace(gameUrlMatch, '<A href="game.html?$1" target="_blank">Game Link</A>');
+
+    $('#messages').append(`
+      <DIV class="message player player-${playerId} ${isMuted} ${message.class ?? ''}">
+        <SPAN class="player">${playerName}</SPAN>
+        <SPAN class="content">${message.content}</SPAN>
+      </DIV>
+    `);
+  } else {
+    $('#messages').append(`
+      <DIV class="message system ${message.class ?? ''}">
+        <SPAN class="content">${message.content}</SPAN>
+      </DIV>
+    `);
   }
+}
+function refreshRankedMessage() {
+  const reason =
+    game.state.unrankedReason === 'truce' ? 'the game ended in a truce' :
+    game.state.unrankedReason === 'unseen' ? `the loser didn't open the game in time` :
+    null;
 
-  const gameUrl = location.origin + location.pathname.slice(0, location.pathname.lastIndexOf('/')) + '/game.html';
-  const gameUrlMatch = new RegExp(`${gameUrl}\\?([0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12})`);
-
-  message.content = message.content.replace(gameUrlMatch, '<A href="game.html?$1" target="_blank">Game Link</A>');
-
-  $('#messages').append(`
-    <DIV class="message player-${playerId} ${isMuted}">
-      <SPAN class="player">${playerName}</SPAN>
-      <SPAN class="content">${message.content}</SPAN>
-    </DIV>
-  `);
+  if (reason) {
+    $('#messages .message.ranked').remove();
+    appendMessages([ { class:'ranked', content:[
+      `This is <span style="color:red">NOT</span> a <a href="javascript:void(0)" class="info-ranked">Ranked</a> game `,
+      `because ${reason}.`,
+    ].join('') } ]);
+  }
 }
 
 function resetPrompts() {
@@ -1640,7 +1746,7 @@ function updateChatButton() {
       chatClient.seen(gameId, lastSeenEventId);
     }
   } else {
-    if (chatMessages.last.player.id !== playerId)
+    if (chatMessages.last.player?.id !== playerId)
       $button.attr('badge', '+');
     else
       $button.attr('badge', '');
@@ -1677,7 +1783,7 @@ function resetPlayerBanners() {
       .data('team', team);
 
     const playerStatus = game.state.playerStatus.get(team.playerId);
-    const showLink = playerStatus !== 'unavailable' && !game.isViewOnly && !isMyTeam;
+    const showLink = playerStatus !== 'unavailable' && !game.isViewOnly;
     const $status = $player.find('.status')
       .removeClass('offline online active unavailable')
       .addClass(playerStatus.status)
@@ -1802,8 +1908,10 @@ async function startGame() {
     .on('state-change', event => {
       $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
       toggleUndoButton();
-      if (game.state.endedAt && game.state.rated)
+      if (game.state.endedAt && game.state.rated) {
         $('BUTTON[name=undo]').hide();
+        refreshRankedMessage();
+      }
       toggleReplayButtons();
     })
     .on('selectMode-change', event => {

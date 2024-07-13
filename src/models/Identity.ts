@@ -13,7 +13,8 @@ interface Relationship {
 export default class Identity extends ActiveModel {
   protected data: {
     id: string
-    name: string
+    name?: string
+    ranks?: { playerId:number, ratings:Map<string,{ rating:number, gameCount:number }> }
     muted: boolean
     admin: boolean
     lastSeenAt: Date
@@ -49,8 +50,12 @@ export default class Identity extends ActiveModel {
   get id() {
     return this.data.id;
   }
+
+  /*
+   * Only available to verified players
+   */
   get name() {
-    return this.data.name;
+    return this.data.name ?? null;
   }
   set name(name) {
     if (this.data.name === name)
@@ -58,6 +63,7 @@ export default class Identity extends ActiveModel {
     this.data.name = name;
     this.emit('change:name');
   }
+
   get muted() {
     return this.data.muted;
   }
@@ -103,8 +109,34 @@ export default class Identity extends ActiveModel {
     return true;
   }
 
+  getRanks(rankingId = null) {
+    return new Map(
+      [ ...(this.data.ranks?.ratings.keys() ?? []) ]
+        .filter(rId => [ null, rId ].includes(rankingId))
+        .map(rId => [ rId, this.getRank(rId) ])
+    );
+  }
+  getRank(rankingId = 'FORTE') {
+    const ranks = this.data.ranks;
+    if (!ranks?.ratings.has(rankingId))
+      return null;
+
+    return {
+      playerId: ranks.playerId,
+      name: this.name,
+      rating: ranks.ratings.get(rankingId).rating,
+      gameCount: ranks.ratings.get(rankingId).gameCount,
+    };
+  }
+  setRanks(playerId, ratings) {
+    this.data.ranks = { playerId, ratings };
+    this.emit('change:setRanks');
+  }
+
   merge(identity) {
     this.name = identity.name;
+    this.data.ranks = identity.data.ranks;
+
     if (identity.lastSeenAt > this.data.lastSeenAt)
       this.lastSeenAt = identity.lastSeenAt;
 
@@ -173,6 +205,26 @@ serializer.addType({
     required: [ 'id', 'muted', 'lastSeenAt', 'playerIds' ],
     properties: {
       id: { type:'string', format:'uuid' },
+      name: { type:'string' },
+      ranks: {
+        type: 'object',
+        required: [ 'playerId', 'ratings' ],
+        properties: {
+          playerId: { type:'string', format:'uuid' },
+          ratings: {
+            type: 'array',
+            subType: 'Map',
+            items: {
+              type: 'array',
+              items: [
+                { type:'string', format:'uuid' },
+                { type:'number' },
+              ],
+            },
+          },
+        },
+        additionalProperties: false,
+      },
       muted: { type:'boolean' },
       lastSeenAt: { type:'string', subType:'Date' },
       relationships: {

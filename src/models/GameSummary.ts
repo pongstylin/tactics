@@ -43,9 +43,11 @@ export default class GameSummary {
       // This value is only non-null for 5 seconds after a rated game turn ends
       turnEndedAt: game.state.turnEndedAt,
       timeLimitName: game.timeLimitName,
+      currentTurnId: game.state.currentTurnId,
       currentTurnTimeLimit: game.state.currentTurnTimeLimit,
       isFork: game.isFork,
       rated: game.state.rated,
+      ranked: game.state.ranked,
       teams: teams.map(t => t && {
         createdAt: t.createdAt,
         joinedAt: t.joinedAt,
@@ -87,6 +89,9 @@ export default class GameSummary {
   get timeLimitName() {
     return this.data.timeLimitName;
   }
+  get currentTurnId() {
+    return this.data.currentTurnId;
+  }
   get currentTurnTimeLimit() {
     return this.data.currentTurnTimeLimit;
   }
@@ -95,6 +100,9 @@ export default class GameSummary {
   }
   get rated() {
     return this.data.rated;
+  }
+  get ranked() {
+    return this.data.ranked;
   }
   get teams() {
     return this.data.teams;
@@ -123,6 +131,14 @@ export default class GameSummary {
   get winnerId() {
     return this.data.winnerId;
   }
+  get winner() {
+    const winnerId = this.data.winnerId;
+    return typeof winnerId === 'number' ? this.teams[winnerId] : null;
+  }
+  get losers() {
+    const winner = this.winner;
+    return this.teams.filter(t => t !== winner);
+  }
 
   /*
    * Properties assigned outside the class.
@@ -132,6 +148,13 @@ export default class GameSummary {
   }
   set creatorACL(creatorACL) {
     this.data.creatorACL = creatorACL;
+  }
+
+  get rank() {
+    return this.data.rank;
+  }
+  set rank(rank) {
+    this.data.rank = rank;
   }
 
   getTurnTimeRemaining(now = Date.now()) {
@@ -159,9 +182,9 @@ serializer.addType({
   schema: {
     type: 'object',
     required: [
-      'id', 'type', 'typeName', 'isFork', 'rated', 'randomFirstTurn',
-      'randomHitChance', 'timeLimitName', 'startedAt', 'turnStartedAt',
-      'endedAt', 'teams', 'createdBy', 'createdAt', 'updatedAt',
+      'id', 'type', 'typeName', 'isFork', 'rated', 'ranked',
+      'randomFirstTurn', 'randomHitChance', 'timeLimitName', 'startedAt',
+      'turnStartedAt', 'endedAt', 'teams', 'createdBy', 'createdAt', 'updatedAt',
     ],
     properties: {
       id: { type:'string', format:'uuid' },
@@ -170,6 +193,7 @@ serializer.addType({
       collection: { type:'string' },
       isFork: { type:'boolean' },
       rated: { type:'boolean' },
+      ranked: { type:'boolean' },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
       timeLimitName: { type:[ 'string', 'null' ] },
