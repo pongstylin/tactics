@@ -1010,45 +1010,39 @@ function initMessages(messages) {
       `Tap link for more info.`,
     ].join('') });
 
-  if (game.state.rated)
-    if (game.state.ranked)
-      messages.push({ content:[
-        `This is a <a href="javascript:void(0)" class="info-ranked">Ranked</a> game.  `,
-        `Tap link for more info.`,
-      ].join('') });
-    else {
-      let reason;
-      switch (game.state.unrankedReason) {
-        case 'private':
-          reason = `this is a private game`;
-          break;
-        case 'not verified':
-          reason = `both players must be verified`;
-          break;
-        case 'same identity':
-          reason = `both players share the same identity`;
-          break;
-        case 'too many games':
-          reason = `the players have 2 ranked games against each other in this style within the past week`;
-          break;
-        case 'truce':
-          reason = `the game ended in a truce`;
-          break;
-        case 'unseen':
-          reason = `the loser didn't open the game in time`;
-          break;
-        case 'old':
-          reason = `it predated rankings release`;
-          break;
-        default:
-          reason = `of a bug`;
-      }
-
-      messages.push({ class:'ranked', content:[
-        `This is <span style="color:red">NOT</span> a <a href="javascript:void(0)" class="info-ranked">Ranked</a> game `,
-        `because ${reason}.`,
-      ].join('') });
+  if (game.state.rated && !game.state.ranked) {
+    let reason;
+    switch (game.state.unrankedReason) {
+      case 'private':
+        reason = `this is a private game`;
+        break;
+      case 'not verified':
+        reason = `both players must be verified`;
+        break;
+      case 'same identity':
+        reason = `both players share the same identity`;
+        break;
+      case 'too many games':
+        reason = `the players have 2 ranked games against each other in this style within the past week`;
+        break;
+      case 'truce':
+        reason = `the game ended in a truce`;
+        break;
+      case 'unseen':
+        reason = `the loser didn't open the game in time`;
+        break;
+      case 'old':
+        reason = `it predated rankings release`;
+        break;
+      default:
+        reason = `of a bug`;
     }
+
+    messages.push({ class:'ranked', content:[
+      `This is <span style="color:red">NOT</span> a <a href="javascript:void(0)" class="info-ranked">Ranked</a> game `,
+      `because ${reason}.`,
+    ].join('') });
+  }
 
   chatMessages = messages;
   messages.forEach(m => renderMessage(m));
