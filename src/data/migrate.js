@@ -472,11 +472,12 @@ migrationMap.set('game', [
     const game = json.$data;
     const state = game.state;
 
-    state.turns.push({
-      startedAt: state.turnStartedAt,
-      units: state.units,
-      actions: state.actions,
-    });
+    if (state.startedAt)
+      state.turns.push({
+        startedAt: state.turnStartedAt,
+        units: state.units,
+        actions: state.actions,
+      });
 
     if (state.rated && state.lockedTurnId)
       state.turns[state.lockedTurnId + 1].isLocked = true;
