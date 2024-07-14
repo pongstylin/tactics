@@ -1193,7 +1193,7 @@ export default class GameState {
       type: 'startTurn',
       data: {
         teamId: this.currentTeamId,
-        startedAt: this.startedAt,
+        startedAt: this.turnStartedAt,
         timeLimit: this.turnTimeLimit,
       },
     });
