@@ -683,7 +683,7 @@ export default class Transport {
 
       recentTurns[i].isCurrent = recentTurns[i].id === state.currentTurnId;
       recentTurns[i].isLocked = recentTurns[i].id === state.lockedTurnId;
-      recentTurns[i].timeLimit = turnData.timeLimit;
+      recentTurns[i].timeLimit = turnData.timeLimit ?? null;
     }
   }
 
