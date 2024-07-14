@@ -455,10 +455,9 @@ export default class GameState {
           units: this.units,
         },
       });
+    }
 
-      this.startTurn();
-    } else
-      this.sync();
+    this.startTurn();
   }
 
   getTurnData(turnId) {
@@ -757,14 +756,15 @@ export default class GameState {
     } else if (this._newActions.length === 0)
       return;
 
-    this._emit({
+    const actionEvent = {
       type: 'action',
       data: this._board.encodeAction(this._newActions),
-    });
-    this._newActions.length = 0;
+    };
 
+    this._newActions.length = 0;
+    this._emit(actionEvent);
     // At the very least, echo actions back to submitter.
-    this.sync('action');
+    this.sync(actionEvent);
   }
   /*
    * Only called when a turn ends or just began.
@@ -1189,16 +1189,17 @@ export default class GameState {
     if (this.currentTurn.isEnded)
       this._pushHistory();
 
-    this._emit({
+    const startTurnEvent = {
       type: 'startTurn',
       data: {
         teamId: this.currentTeamId,
         startedAt: this.turnStartedAt,
-        timeLimit: this.turnTimeLimit,
+        timeLimit: this.currentTurnTimeLimit,
       },
-    });
+    };
 
-    this.sync('startTurn');
+    this._emit(startTurnEvent);
+    this.sync(startTurnEvent);
   }
   end(winnerId) {
     this._pushAction({
@@ -1213,16 +1214,24 @@ export default class GameState {
     });
     this._newActions.length = 0;
 
-    this._emit({
+    const endGameEvent = {
       type: 'endGame',
       data: this.currentTurn.actions.last,
-    });
+    };
 
-    this.sync('endGame');
+    this._emit(endGameEvent);
+    this.sync(endGameEvent);
   }
-  sync(reason = 'sync') {
+  /*
+   * The original event is only needed due to Your Turn notifications.
+   * Essentially, Game:change event needs to fire and start updating game
+   * summaries before GameService looks at player games to generate a your turn
+   * notification.  GameService should only listen for sync events and will need
+   * to know if it was caused by a start turn event along with its data.
+   */
+  sync(originalEvent) {
     // If the game ended since we scheduled a sync, ignore
-    if (reason === 'willSync' && this.endedAt)
+    if (originalEvent.type === 'willSync' && this.endedAt)
       return;
 
     if (this.currentTurn.isEnded && (
@@ -1234,7 +1243,7 @@ export default class GameState {
       this.getTurnTimeRemaining() <= 10000
     )) return this.startTurn();
 
-    this._emit({ type:'sync' });
+    this._emit({ type:'sync', data:originalEvent });
 
     // Only active rated games require scheduling a sync after a timeout.
     if (!this.endedAt && this.rated)
@@ -1286,12 +1295,13 @@ export default class GameState {
 
     if (isUndo !== true) return;
 
-    this._emit({
+    const revertEvent = {
       type: 'revert',
       data: this.currentTurn.getData(),
-    });
+    };
 
-    this.sync('revert');
+    this._emit(revertEvent);
+    this.sync(revertEvent);
   }
 
   /*
