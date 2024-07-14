@@ -624,6 +624,10 @@ export default class Game {
     return this.start();
   }
 
+  /*
+   * Used to jump to a cursor:
+   *   resume()
+   */
   setState() {
     const board = this._board;
     board.setState(this.units, this._teams);
@@ -636,11 +640,15 @@ export default class Game {
 
     this.selectMode = 'move';
 
-    if (actions.length)
-      this.selected = actions[0].unit;
-    else if (this._inReplay && this.cursor.actions.length) {
+    if (actions.length) {
+      const unit = actions[0].unit;
+      if (unit?.assignment)
+        this.selected = unit;
+    } else if (this._inReplay && this.cursor.actions.length) {
       actions = board.decodeAction(this.cursor.actions);
-      this.selected = actions[0].unit;
+      const unit = actions[0].unit;
+      if (unit?.assignment)
+        this.selected = unit;
     } else
       this.render();
   }
