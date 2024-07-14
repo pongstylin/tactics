@@ -207,7 +207,7 @@ export default class GameService extends Service {
       state.willSync = new Timeout(`${this.name}WillSync`);
     state.willSync.on('expire', async ({ data:items }) => {
       for (const game of await this._getGames(items.keys())) {
-        game.state.sync('willSync');
+        game.state.sync({ type:'willSync' });
       }
     });
 
@@ -1016,7 +1016,7 @@ export default class GameService extends Service {
           data: event.data,
         },
       });
-      const listener = event => {
+      const listener = ({ data:event }) => {
         // Send notification, if needed, to the current player
         // Only send a notification after the first playable turn
         // This is because notifications are already sent elsewhere on game start.
@@ -1029,7 +1029,6 @@ export default class GameService extends Service {
 
       game.on('playerRequest', emit);
       game.state.on('sync', listener);
-      game.state.on('startTurn', listener);
 
       this.gamePara.set(gameId, {
         playerStatus: new Map(),
@@ -1525,7 +1524,6 @@ export default class GameService extends Service {
     if (gamePara.clients.size === 0) {
       // TODO: Don't shut down the game state until all bots have made their turns.
       game.state.off('sync', gamePara.listener);
-      game.state.off('startTurn', gamePara.listener);
       game.off('playerRequest', gamePara.emit);
 
       this.gamePara.delete(gameId);
