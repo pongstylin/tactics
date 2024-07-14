@@ -252,7 +252,7 @@ export default class Timeout {
     } else {
       const expireAt = typeof ttl === 'number' ? new Date(now + ttl) : ttl instanceof Date ? ttl : new Date(NaN);
       if (isNaN(expireAt.getTime()))
-        throw new TypeError(`ttl is not a valid number or Date`);
+        throw new TypeError(`ttl is not a valid number or Date: ${ttl}`);
 
       itemTimeout.expireAt = expireAt;
     }
