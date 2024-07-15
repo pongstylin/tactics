@@ -280,14 +280,16 @@ export default class PlayerStats extends ActiveModel {
     if (persist)
       myStats.ratings = ratingsInfo;
 
-    const forteRating = _calcForteRating(ratingsInfo);
-    const gameCount = [ ...ratingsInfo.values() ].reduce((sum, ri) => sum += ri.gameCount, 0);
-    const updatedAt = Math.max(...[ ratingsInfo.values() ].map(ri => ri.updatedat));
-    if (forteRating)
-      return new Map([
-        [ 'FORTE', { rating:forteRating, gameCount, updatedAt:new Date(updatedAt) } ],
-        ...ratingsInfo,
-      ]);
+    if (!persist) {
+      const forteRating = _calcForteRating(ratingsInfo);
+      const gameCount = [ ...ratingsInfo.values() ].reduce((sum, ri) => sum += ri.gameCount, 0);
+      const updatedAt = Math.max(...[ ratingsInfo.values() ].map(ri => ri.updatedat));
+      if (forteRating)
+        return new Map([
+          [ 'FORTE', { rating:forteRating, gameCount, updatedAt:new Date(updatedAt) } ],
+          ...ratingsInfo,
+        ]);
+    }
 
     return ratingsInfo;
   }
