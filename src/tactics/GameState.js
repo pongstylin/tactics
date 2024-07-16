@@ -129,11 +129,6 @@ export default class GameState {
     return this.turns[0]?.startedAt ?? null;
   }
 
-  get effectiveCurrentTurnId() {
-    const currentTurn = this.currentTurn;
-    return currentTurn.isEnded ? currentTurn.id + 1 : currentTurn.id;
-  }
-
   get initialTurnId() {
     return Math.min(...this.teams.map(t => this.getTeamInitialTurnId(t)));
   }
@@ -445,7 +440,7 @@ export default class GameState {
       // given turn is the first playable turn by comparing the turn start date
       // with the first turn start date.  This is currently used for triggering
       // "Your Turn" notifications at the right times.
-      this.autoPass(true);
+      this.autoPass();
 
       this._emit({
         type: 'startGame',
@@ -751,8 +746,6 @@ export default class GameState {
       }
 
       this._pushAction(endTurn);
-      if (this.autoPass())
-        return this.end('draw');
     } else if (this._newActions.length === 0)
       return;
 
@@ -767,11 +760,14 @@ export default class GameState {
     this.sync(actionEvent);
   }
   /*
-   * Only called when a turn ends or just began.
+   * Only called when a turn ends or the game just began.
    * Keep ending turns until a team is capable of making their turn.
    * ...or the game ends due to draw.
    */
-  autoPass(startNextTurn = false) {
+  autoPass() {
+    if (this.currentTurn.isEnded)
+      this._pushHistory();
+
     let {
       passedTurnLimit,
       passedTurnCount,
@@ -784,12 +780,8 @@ export default class GameState {
       if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit)
         return 'draw';
 
-      const currentTurnId = this.effectiveCurrentTurnId;
-      const currentTeamId = currentTurnId % this.teams.length;
-      const currentTeam = this.teams[currentTeamId];
-
       // End the next turn if we can't find one playable unit.
-      turnEnded = !currentTeam.units.some(unit => {
+      turnEnded = !this.currentTeam.units.some(unit => {
         if (unit.mRecovery) return;
         if (unit.paralyzed) return;
         if (unit.type === 'Shrub') return;
@@ -798,16 +790,12 @@ export default class GameState {
       });
 
       if (turnEnded) {
-        if (this.currentTurn.isEnded)
-          this._pushHistory();
         this._pushAction(this._getEndTurnAction(true));
+        this._pushHistory();
         passedTurnCount++;
         attackTurnCount++;
       }
     }
-
-    if (startNextTurn && this.currentTurn.isEnded)
-      this._pushHistory();
   }
 
   calcDrawCounts() {
@@ -887,6 +875,26 @@ export default class GameState {
     const teamId = (this.currentTeamId + n) % teams.length;
 
     return teams[teamId];
+  }
+  getNextPlayableTeam() {
+    // Protect against infinite loops, though it shouldn't happen.
+    const limit = this.teams.length * 6;
+    for (let i = 0; i < limit; i++) {
+      const team = this.getNextTeam(i + 1);
+      const usedRecovery = Math.floor(i / this.teams.length);
+      const isPlayable = team.units.some(unit => {
+        if ((unit.mRecovery ?? 0) - usedRecovery > 0) return;
+        if (unit.paralyzed) return;
+        if (unit.type === 'Shrub') return;
+
+        return true;
+      });
+
+      if (isPlayable)
+        return team;
+    }
+
+    return null;
   }
   /*
    * Return the most recent team owned by the player, if any.
@@ -1186,9 +1194,6 @@ export default class GameState {
     return true;
   }
   startTurn() {
-    if (this.currentTurn.isEnded)
-      this._pushHistory();
-
     const startTurnEvent = {
       type: 'startTurn',
       data: {
@@ -1240,8 +1245,15 @@ export default class GameState {
       // Opponent can see a turn end 5 seconds after it ended.
       Date.now() - this.currentTurn.endedAt >= 5000 ||
       // Opponent can see a turn end within 10 seconds of time limit expiration
-      this.getTurnTimeRemaining() <= 10000
-    )) return this.startTurn();
+      this.getTurnTimeRemaining() <= 10000 ||
+      // Current team can go again if all opponents will be auto passed.
+      this.getNextPlayableTeam() === this.currentTeam
+    )) {
+      if (this.autoPass())
+        return this.end('draw');
+      else
+        return this.startTurn();
+    }
 
     this._emit({ type:'sync', data:originalEvent });
 

@@ -2045,7 +2045,7 @@ async function renderRankedGames(rankingId, playerId) {
   header.querySelector('.link.topranks').addEventListener('click', event => location.hash = '#rankings');
   header.querySelector('.link.ranking').addEventListener('click', event => location.hash = `#rankings/${rankingId}`);
 
-  await fetchAvatars([ playerId, ...rankedGames.map(g => g.rank.playerId) ]);
+  await fetchAvatars(rankedGames.map(g => g.teams.map(t => t.playerId)).flat());
 
   const divPlayer = document.createElement('DIV');
   divPlayer.classList.add('player');
