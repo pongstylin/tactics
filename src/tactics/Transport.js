@@ -191,11 +191,11 @@ export default class Transport {
     return typeof winnerId === 'number' ? this.teams[winnerId] : null;
   }
   get losers() {
-    const winner = this.winner;
-    if (winner === null)
+    const winnerId = this.winnerId;
+    if (winnerId === null)
       return null;
 
-    return this.teams.filter(t => t !== winner);
+    return this.teams.filter(t => t.id !== winnerId);
   }
 
   get playerRequest() {

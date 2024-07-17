@@ -240,11 +240,11 @@ export default class GameState {
     return typeof winnerId === 'number' ? this.teams[winnerId] : null;
   }
   get losers() {
-    const winner = this.winner;
-    if (winner === null)
+    const winnerId = this.winnerId;
+    if (winnerId === null)
       return null;
 
-    return this.teams.filter(t => t !== winner);
+    return this.teams.filter(t => t.id !== winnerId);
   }
 
   get activeTeams() {
@@ -808,7 +808,7 @@ export default class GameState {
       attackTurnCount: 0,
     };
     const initialTurnId = this.initialTurnId;
-    const stopTurnId = this.effectiveCurrentTurnId;
+    const stopTurnId = this.currentTurnId;
     const startTurnId = Math.max(initialTurnId, stopTurnId - counts.attackTurnLimit);
     const turns = this.turns.slice(startTurnId, stopTurnId).reverse();
 
