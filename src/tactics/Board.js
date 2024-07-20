@@ -959,7 +959,7 @@ export default class Board {
           els.shield.text = '—';
           notices.push('Vulnerable!');
         } else if (unit.blocking === 100 && unit.directional === false) {
-          els.shLabel.style.fill = '#FFFFFF';
+          els.sfLabel.style.fill = '#FFFFFF';
           els.shield.text = '—';
         } else if (unit.team.useRandom) {
           const willBlockSide = blocking >= 200;

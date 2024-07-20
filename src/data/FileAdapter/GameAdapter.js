@@ -15,10 +15,11 @@ import PlayerAvatars from '#models/PlayerAvatars.js';
 import ServerError from '#server/Error.js';
 
 export default class extends FileAdapter {
-  constructor() {
+  constructor(options = {}) {
     super({
       name: 'game',
-      hasState: true,
+      readonly: options.readonly ?? false,
+      hasState: options.hasState ?? true,
       fileTypes: new Map([
         [
           'game', {
