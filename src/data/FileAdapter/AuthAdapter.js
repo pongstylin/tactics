@@ -14,6 +14,7 @@ export default class extends FileAdapter {
     super({
       name: 'auth',
       state: {},
+      readonly: options.readonly ?? false,
       hasState: options.hasState ?? true,
       fileTypes: new Map([
         [

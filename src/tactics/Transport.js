@@ -622,7 +622,7 @@ export default class Transport {
         startedAt: data.startedAt,
         units: board.getState(),
       },
-      timeLimit: data.timeLimit,
+      timeLimit: data.timeLimit ?? null,
     }));
 
     board.setInitialState();

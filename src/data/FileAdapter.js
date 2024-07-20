@@ -125,6 +125,7 @@ export default class FileAdapter {
       debug: DebugLogger(`data:${props.name}`),
       debugV: DebugLogger(`data-v:${props.name}`),
       fileTypes: new Map(),
+      readonly: false,
       hasState: false,
       // State is intended to always be resident in memory.
       // It is saved on server shut down and restored on start up.
@@ -312,6 +313,9 @@ export default class FileAdapter {
    * Remove the file if it does exist.
    */
   async deleteFile(fileName) {
+    if (this.readonly)
+      return;
+
     return this._pushQueue(fileName, { type:'delete', args:[] });
   }
 
@@ -362,6 +366,9 @@ export default class FileAdapter {
    * Only call these methods while a lock is in place.
    */
   _createFile(name, data, transform) {
+    if (this.readonly)
+      return;
+
     const fqName = `${this.filesDir}/${name}.json`;
 
     return FS('writeFile', fqName, JSON.stringify(transform(data)), { flag:'wx' }).catch(error => {
@@ -390,6 +397,9 @@ export default class FileAdapter {
     }
   }
   async _putFile(name, data, transform) {
+    if (this.readonly)
+      return;
+
     const parts = name.split('/');
     const dirPart = parts.slice(0, -1).join('/');
     const filePart = parts.last;
