@@ -14,6 +14,7 @@ const ops = new Map([
   [ 'get',    '_getFile' ],
   [ 'put',    '_putFile' ],
   [ 'delete', '_deleteFile' ],
+  [ 'stat',   '_statFile' ],
 ]);
 
 /*
@@ -318,6 +319,9 @@ export default class FileAdapter {
 
     return this._pushQueue(fileName, { type:'delete', args:[] });
   }
+  async statFile(fileName, ifExists = false) {
+    return this._pushQueue(fileName, { type:'stat', args:[ ifExists ] });
+  }
 
   async _pushQueue(fileName, op, resolveConflict) {
     op.method = ops.get(op.type);
@@ -432,6 +436,17 @@ export default class FileAdapter {
       throw new ServerError(500, 'Delete failed');
     });
   }
+  _statFile(name, ifExists = false) {
+    const fqName = `${this.filesDir}/${name}.json`;
+
+    return fs.stat(fqName).catch(error => {
+      if (error.code === 'ENOENT' && ifExists)
+        return null;
+
+      console.log('statFile', error);
+      throw new ServerError(500, 'Stat failed');
+    });
+  }
 
   /*
    * These methods are for internal use for THIS class.
@@ -450,8 +465,12 @@ export default class FileAdapter {
     return FS('readFile', `${FILES_DIR}/${name}.json`, { encoding:'utf8' }).then(data => {
       return serializer.parse(data);
     }).catch(error => {
-      if (error.code === 'ENOENT' && initial !== undefined)
-        return initial;
+      if (error.code === 'ENOENT') {
+        if (typeof initial === 'function')
+          return initial();
+        else if (initial !== undefined)
+          return initial;
+      }
 
       throw error;
     });
