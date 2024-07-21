@@ -1586,9 +1586,9 @@ async function renderLobbyGames() {
   if (tabContent.selectedGroupId === 'lobby')
     arenas.push(...getLobbyGames());
   else if (tabContent.selectedGroupId === 'active')
-    arenas.push(...tabContent.games[1].values());
+    arenas.push(...Array.from(tabContent.games[1].values()).sort((a,b) => b.startedAt - a.startedAt));
   else if (tabContent.selectedGroupId === 'complete')
-    arenas.push(...tabContent.games[2].values());
+    arenas.push(...Array.from(tabContent.games[2].values()).sort((a,b) => b.endedAt - a.endedAt));
 
   /*
    * Cache the avatars for all the players we're about to see
