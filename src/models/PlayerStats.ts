@@ -174,8 +174,6 @@ export default class PlayerStats extends ActiveModel {
     /*
      * Determine which players played a turn.
      */
-    // The number of turns excludes the game end turn.
-    const currentTurnId = game.state.currentTurnId;
     const playedBy = new Set();
     for (const team of game.state.teams) {
       if (game.state.teamHasPlayed(team))

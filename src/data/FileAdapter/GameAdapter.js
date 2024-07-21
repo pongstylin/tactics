@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import util from 'util';
 
 import migrate, { getLatestVersionNumber } from '#data/migrate.js';
@@ -17,7 +17,7 @@ import ServerError from '#server/Error.js';
 export default class extends FileAdapter {
   constructor(options = {}) {
     super({
-      name: 'game',
+      name: options.name ?? 'game',
       readonly: options.readonly ?? false,
       hasState: options.hasState ?? true,
       fileTypes: new Map([
@@ -750,22 +750,75 @@ export default class extends FileAdapter {
   /*****************************************************************************
    * Not intended for use by application.
    ****************************************************************************/
-  listAllGameIds() {
-    return new Promise((resolve, reject) => {
-      const gameIds = [];
-      const regex = /^game_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
+  async listAllGameIds(since = null) {
+    const fileNames = await fs.readdir(this.filesDir);
+    const regex = /^game_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
+    const gameIds = [];
 
-      fs.readdir(this.filesDir, (err, fileNames) => {
-        for (let i=0; i<fileNames.length; i++) {
-          let match = regex.exec(fileNames[i]);
-          if (!match) continue;
+    for (let i=0; i<fileNames.length; i++) {
+      let match = regex.exec(fileNames[i]);
+      if (!match) continue;
 
-          gameIds.push(match[1]);
-        }
+      if (since) {
+        const mtime = (await fs.stat(`${this.filesDir}/${fileNames[i]}`)).mtime;
+        if (mtime < since)
+          continue;
+      }
 
-        resolve(gameIds);
-      });
+      gameIds.push(match[1]);
+    }
+
+    return gameIds;
+  }
+
+  /*
+   * Used by syncPlayerStats
+   */
+  async indexAllGames() {
+    const indexAt = new Date();
+    const indexStat = await this.statFile('game_index', true);
+    const lastIndexAt = indexStat && new Date(indexStat.mtime);
+    const gameIds = await this.listAllGameIds(lastIndexAt);
+    const gameIndex = await this.getFile('game_index', data => {
+      if (data === undefined)
+        return new Map();
+      return serializer.normalize(data);
     });
+
+    for (let i = 0; i < gameIds.length; i += 100) {
+      console.log(`indexAllGames: ${i} through ${i+100} of ${gameIds.length}`);
+      const games = await Promise.all(gameIds.slice(i, i + 100).map(gId => this._getGame(gId)));
+
+      for (const game of games) {
+        if (!game.state.startedAt)
+          continue;
+        if (game.state.isPracticeGame)
+          continue;
+
+        gameIndex.set(game.id, {
+          startedAt: game.state.startedAt,
+          endedAt: game.state.endedAt,
+          type: game.state.type,
+          rated: game.state.rated,
+          ranked: game.state.ranked,
+          winnerId: game.state.winnerId,
+          teams: game.state.teams.map(t => ({
+            playerId: t.playerId,
+            name: t.name,
+            usedUndo: t.usedUndo,
+            usedSim: t.usedSim,
+            hasPlayed: game.state.teamHasPlayed(t),
+          })),
+        });
+      }
+    }
+
+    if (gameIds.length) {
+      await this.putFile('game_index', serializer.transform(gameIndex));
+      await fs.utimes(`${this.filesDir}/game_index.json`, indexAt, indexAt);
+    }
+
+    return gameIndex;
   }
 
   async archivePlayer(playerId) {

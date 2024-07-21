@@ -8,23 +8,47 @@ const gameAdapter = new GameAdapter({ hasState:false, readonly:true });
 const playerMeta = new Map();
 
 (async () => {
-  const gameIds = await gameAdapter.listAllGameIds();
+  gameAdapter.readonly = false;
+  const gameIndex = await gameAdapter.indexAllGames();
+  gameAdapter.readonly = true;
 
-  for (const gameId of gameIds) {
-    const game = await gameAdapter._getGame(gameId);
+  const gameEvents = [];
 
-    try {
-      if (game.state.endedAt) {
-        const lastTurn = game.state.turns.pop();
-        await recordGameStats(game);
-        game.state.turns.push(lastTurn);
-        await recordGameStats(game);
-      } else {
-        await recordGameStats(game);
-      }
-    } catch (e) {
-      console.error(`Skipping ${game.id}: ${e}`);
-    }
+  for (const [ gameId, index ] of gameIndex.entries()) {
+    if (index.startedAt)
+      gameEvents.push({ at:index.startedAt, id:gameId, type:'started', index });
+    if (index.endedAt)
+      gameEvents.push({ at:index.endedAt, id:gameId, type:'ended', index });
+  }
+
+  gameEvents.sort((a,b) => a.at - b.at);
+
+  for (const gameEvent of gameEvents) {
+    // Approximate game object using indexed data to speed things up.
+    await recordGameStats({ state:{
+      type: gameEvent.index.type,
+      rated: gameEvent.index.rated,
+      ranked: gameEvent.index.ranked,
+      startedAt: gameEvent.index.startedAt,
+      endedAt: gameEvent.type === 'started' ? null : gameEvent.index.endedAt,
+      winnerId: gameEvent.index.winnerId,
+      teams: gameEvent.index.teams,
+      teamHasPlayed: t => t.hasPlayed,
+      get winner() {
+        const winnerId = this.winnerId;
+        if (winnerId === null)
+          return null;
+
+        return typeof winnerId === 'number' ? this.teams[winnerId] : null;
+      },
+      get losers() {
+        const winnerId = this.winnerId;
+        if (winnerId === null)
+          return null;
+
+        return this.teams.filter((t,tId) => tId !== winnerId);
+      },
+    }});
   }
 
   await gameAdapter.cleanup();
@@ -35,17 +59,17 @@ const playerMeta = new Map();
 
     const player = await authAdapter.getPlayer(playerId);
     const playerStats = await gameAdapter.getPlayerStats(playerId);
-    const rankingIds = new Set(
+    const rankingIds = new Set([
       ...playerMeta.get(playerId).keys(),
       ...playerStats.ratings.keys(),
-    );
+    ]);
 
     for (const rankingId of rankingIds) {
       const oldRating = playerMeta.get(playerId).get(rankingId)?.rating ?? 750;
-      const newRating = playerStats.getRating(playerId);
+      const newRating = playerStats.getRating(rankingId);
 
       if (oldRating !== newRating)
-        console.log(`${player.name}: ${rankingId}: ${oldRating} => ${newRating}`);
+        console.log(`${player.id}: ${player.name}: ${rankingId}: ${oldRating} => ${newRating}`);
     }
   }
 })();
@@ -64,7 +88,7 @@ async function recordGameStats(game) {
       continue;
 
     if (playersMap.get(playerStats.playerId).isVerified)
-      playerMeta.set(playerStats.playerId, playerStats.ratings);
+      playerMeta.set(playerStats.playerId, playerStats.ratings.clone());
     else
       playerMeta.set(playerStats.playerId, null);
 
