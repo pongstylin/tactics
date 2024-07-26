@@ -22,6 +22,7 @@ export default class GameSettings extends Modal {
       identity = `This is a local game.`;
     } else {
       const rated = data.game.state.rated ? 'a rated' : 'an unrated';
+      const ranked = data.game.state.ranked ? 'a ranked' : 'an unranked';
       let vs;
       if (data.game.collection === 'public')
         vs = 'Public';
@@ -32,7 +33,7 @@ export default class GameSettings extends Modal {
       else
         vs = 'Private';
 
-      identity = `This is ${rated} ${vs} game.`;
+      identity = `This is ${data.game.collection ? ranked : rated} ${vs} game.`;
     }
 
     const timeLimitLabel = data.game.timeLimitName?.toUpperCase('first') ?? 'None';
