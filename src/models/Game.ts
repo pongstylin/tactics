@@ -71,6 +71,12 @@ export default class Game extends ActiveModel {
     data.state.on('sync', () => {
       this.emit('change:state');
     });
+    data.state.on('join', ({ data:team }) => {
+      team.on('change', () => this.emit('change:team'));
+      this.emit('change:state');
+    });
+
+    data.state.teams.forEach(t => t?.on('change', () => this.emit('change:team')));
 
     this.data = data;
   }

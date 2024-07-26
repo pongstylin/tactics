@@ -3,14 +3,17 @@ import AuthAdapter from '#data/FileAdapter/AuthAdapter.js';
 import GameAdapter from '#data/FileAdapter/GameAdapter.js';
 import PlayerStats from '#models/PlayerStats.js';
 
-const authAdapter = new AuthAdapter({ hasState:false, readonly:true });
-const gameAdapter = new GameAdapter({ hasState:false, readonly:true });
+const dryRun = true;
+const authAdapter = new AuthAdapter({ hasState:false, readonly:dryRun });
+const gameAdapter = new GameAdapter({ hasState:false, readonly:dryRun });
 const playerMeta = new Map();
 
 (async () => {
+  await gameAdapter.bootstrap();
+
   gameAdapter.readonly = false;
   const gameIndex = await gameAdapter.indexAllGames();
-  gameAdapter.readonly = true;
+  gameAdapter.readonly = dryRun;
 
   const gameEvents = [];
 
@@ -24,33 +27,40 @@ const playerMeta = new Map();
   gameEvents.sort((a,b) => a.at - b.at);
 
   for (const gameEvent of gameEvents) {
+    // Need full game object to sync ranked game team ratings.
+    const needFullGame = gameEvent.index.ranked && gameEvent.type === 'ended';
+    const game = needFullGame ? await gameAdapter._getGame(gameEvent.id) : {
+      state:{
+        type: gameEvent.index.type,
+        rated: gameEvent.index.rated,
+        ranked: gameEvent.index.ranked,
+        startedAt: gameEvent.index.startedAt,
+        endedAt: gameEvent.type === 'started' ? null : gameEvent.index.endedAt,
+        winnerId: gameEvent.index.winnerId,
+        teams: gameEvent.index.teams,
+        teamHasPlayed: t => t.hasPlayed,
+        get winner() {
+          const winnerId = this.winnerId;
+          if (winnerId === null)
+            return null;
+
+          return typeof winnerId === 'number' ? this.teams[winnerId] : null;
+        },
+        get losers() {
+          const winnerId = this.winnerId;
+          if (winnerId === null)
+            return null;
+
+          return this.teams.filter((t,tId) => tId !== winnerId);
+        },
+      },
+    };
+
     // Approximate game object using indexed data to speed things up.
-    await recordGameStats({ state:{
-      type: gameEvent.index.type,
-      rated: gameEvent.index.rated,
-      ranked: gameEvent.index.ranked,
-      startedAt: gameEvent.index.startedAt,
-      endedAt: gameEvent.type === 'started' ? null : gameEvent.index.endedAt,
-      winnerId: gameEvent.index.winnerId,
-      teams: gameEvent.index.teams,
-      teamHasPlayed: t => t.hasPlayed,
-      get winner() {
-        const winnerId = this.winnerId;
-        if (winnerId === null)
-          return null;
-
-        return typeof winnerId === 'number' ? this.teams[winnerId] : null;
-      },
-      get losers() {
-        const winnerId = this.winnerId;
-        if (winnerId === null)
-          return null;
-
-        return this.teams.filter((t,tId) => tId !== winnerId);
-      },
-    }});
+    await recordGameStats(game);
   }
 
+  await authAdapter.cleanup();
   await gameAdapter.cleanup();
 
   for (const playerId of playerMeta.keys()) {
@@ -96,6 +106,9 @@ async function recordGameStats(game) {
   }
 
   if (game.state.endedAt) {
+    if (game.state.ranked)
+      game.state.teams.forEach(t => t.data.ratings = null);
+
     if (PlayerStats.updateRatings(game, playersStatsMap))
       for (const playerStats of playersStats)
         playersMap.get(playerStats.playerId).identity.setRanks(playerStats.playerId, playerStats.ratings);

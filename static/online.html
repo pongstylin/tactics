@@ -306,6 +306,8 @@
       display: flex;
       flex-direction: column;
       justify-content: space-around;
+      width: 100%;
+      max-width: 400px;
     }
     .magic-table .caption {
       margin-top: 8px;
@@ -337,21 +339,42 @@
     }
     .magic-table .body {
       display: grid;
-      gap: 8px;
 
       padding-top: 8px;
+    }
+    .magic-table .down {
+      color: #FF0000;
+    }
+    .magic-table .down::before {
+      content: '\2212';
+    }
+    .magic-table .up {
+      color: #00FF00;
+    }
+    .magic-table .up::before {
+      content: '+';
     }
     .magic-table .row {
       display: grid;
       align-items: center;
       text-align: center;
 
+      margin-bottom: 8px;
       border: 1px solid #444444;
       padding: 0;
       height: 60px;
 
       cursor: pointer;
       break-inside: avoid;
+    }
+    .magic-table .footer {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      margin: -8px 0 8px 0;
+      padding: 2px 6px;
+
+      background-color: #444444;
     }
     .magic-table.ranks .row {
       grid-template-columns: 15% 55% 15% 15%;
@@ -383,7 +406,7 @@
       align-items: center;
     }
     .rankings .notice {
-      margin-top: 8px;
+      margin: 8px 0;
       text-align: center;
     }
     .rankings > .topranks {
@@ -407,14 +430,15 @@
     .rankings > .topranks .magic-table .body {
       grid-template-columns: 1fr;
     }
-    .rankings > .ranking {
+    .rankings > .ranking,
+    .rankings > .rankedGames {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       width: 100%;
     }
     .rankings > .ranking .caption .rank {
       color: #DED8D5;
-    }
-    .rankings > .rankedGames {
-      width: 100%;
     }
     .rankings > .rankedGames .player {
       position: relative;
@@ -446,6 +470,7 @@
       pointer-events: none;
     }
 
+    /*
     @media (min-width:640px) {
       .magic-table .header,
       .magic-table .body {
@@ -460,6 +485,10 @@
       .magic-table .header .group:last-child {
         display: none;
       }
+    }
+    */
+    .magic-table .header .group:last-child {
+      display: none;
     }
 
     .popup.account .buttons {

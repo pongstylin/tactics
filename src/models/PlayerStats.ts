@@ -30,26 +30,36 @@ export default class PlayerStats extends ActiveModel {
     if (!game.state.ranked)
       return false;
 
+    const teamsMeta = game.state.teams.map(t => {
+      const stats = playersStatsMap.get(t.playerId);
+      const forteRating = stats._getRatingInfo('FORTE').rating;
+      const ratingInfo = stats._getRatingInfo(game.state.type);
+
+      return { id:t.id, stats, forteRating, ...ratingInfo };
+    });
+
+    teamsMeta.sort((a,b) => game.state.winnerId === a.id ? -1 : game.state.winnerId === b.id ? 1 : 0);
+
     const isDraw = game.state.winnerId === 'draw';
-    const winnerPlayerId = (game.state.winner ?? game.state.teams[1]).playerId;
-    const winnerStats = playersStatsMap.get(winnerPlayerId);
-    const winnerRatingInfo = winnerStats._getRatingInfo(game.state.type);
-    const loserPlayerId = game.state.losers[0].playerId;
-    const loserStats = playersStatsMap.get(loserPlayerId);
-    const loserRatingInfo = loserStats._getRatingInfo(game.state.type);
+    const k = computeMaxRatingChange(...teamsMeta.map(t => t.gameCount) as [ number, number ]);
+    const ratings = teamsMeta.map(t => t.rating) as [ number, number ];
 
-    // Note - the max rating change is sometimes different for each player (if experience levels are different)
-    const maxRatingChanges = _computeMaxRatingChange(winnerRatingInfo.gameCount, loserRatingInfo.gameCount);
+    for (const [ t, teamMeta ] of teamsMeta.entries()) {
+      const team = game.state.teams[teamMeta.id];
 
-    winnerStats.setRating(
-      game.state.type,
-      Math.max(100, _computeElo(winnerRatingInfo.rating, loserRatingInfo.rating, maxRatingChanges[0], isDraw)[0]),
-    );
+      teamMeta.stats.setRating(
+        game.state.type,
+        Math.max(100, _computeElo(...ratings, k[t], isDraw)[t]),
+      );
 
-    loserStats.setRating(
-      game.state.type,
-      Math.max(100, _computeElo(winnerRatingInfo.rating, loserRatingInfo.rating, maxRatingChanges[1], isDraw)[1]),
-    );
+      const newRatingsInfo = teamMeta.stats._getRatingsInfo();
+      const newForte = newRatingsInfo.get('FORTE')?.rating ?? 0;
+      const newRating = newRatingsInfo.get(game.state.type).rating;
+
+      if (newForte)
+        team.setRating('FORTE', teamMeta.forteRating, newForte);
+      team.setRating(game.state.type, teamMeta.rating, newRating);
+    }
 
     return true;
   }
@@ -291,15 +301,15 @@ export default class PlayerStats extends ActiveModel {
 
     return ratingsInfo;
   }
-  _getRatingInfo(gameTypeId, persist = false) {
+  _getRatingInfo(rankingId, persist = false) {
     const ratingsInfo = this._getRatingsInfo(persist);
-    const ratingInfo = ratingsInfo.get(gameTypeId) ?? {
-      rating: DEFAULT_RATING,
+    const ratingInfo = ratingsInfo.get(rankingId) ?? {
+      rating: rankingId === 'FORTE' ? 0 : DEFAULT_RATING,
       gameCount: 0,
       updatedAt: new Date(),
     };
     if (persist)
-      ratingsInfo.set(gameTypeId, ratingInfo);
+      ratingsInfo.set(rankingId, ratingInfo);
 
     return ratingInfo;
   }
@@ -352,7 +362,7 @@ function _computeElo(ratingWinner, ratingLoser, K, isDraw) {
 
 // This function computes the optimal values for "K" which is the maximum change that can occur to a player's rating in a single game.
 // In general, a new player should have a large value for K, and an experienced player should have a smaller value for K.
-function _computeMaxRatingChange(gameCount1, gameCount2) {
+function computeMaxRatingChange(gameCount1, gameCount2) {
 
   // Note that the original game had 32, which was a bit high.
   // Suggested reading: https://en.wikipedia.org/wiki/Elo_rating_system#Most_accurate_K-factor
@@ -369,16 +379,8 @@ function _computeMaxRatingChange(gameCount1, gameCount2) {
   // In this case, at least one player is "new", meaning we do not have confidence that their rating is representative of their skill.
   // As such, K is doubled for the new player, so they can reach their "true rating" faster.
   // And K is halved for their opponent when their opponent is experienced (to protect against new accounts used as stat killers)
-  let k1, k2;
-  if (gameCount1 < EXPERIENCE_THRESHOLD)
-    k1 = DEFAULT_K_FACTOR * 2;
-  else
-    k1 = DEFAULT_K_FACTOR / 2;
-
-  if (gameCount2 < EXPERIENCE_THRESHOLD)
-    k2 = DEFAULT_K_FACTOR * 2;
-  else
-    k2 = DEFAULT_K_FACTOR / 2;
+  const k1 = gameCount1 < EXPERIENCE_THRESHOLD ? DEFAULT_K_FACTOR * 2 : DEFAULT_K_FACTOR / 2;
+  const k2 = gameCount2 < EXPERIENCE_THRESHOLD ? DEFAULT_K_FACTOR * 2 : DEFAULT_K_FACTOR / 2;
 
   return [k1, k2];
 }

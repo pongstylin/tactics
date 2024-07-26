@@ -325,8 +325,8 @@ export default class GameState {
     teams[slot] = team;
 
     this._emit({
-      type: 'joined',
-      data: { team:team.getData() },
+      type: 'join',
+      data: team,
     });
   }
 
