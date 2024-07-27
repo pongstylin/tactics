@@ -2,6 +2,8 @@ import 'components/Modal/LobbySettings.scss';
 import { gameConfig } from 'config/client.js';
 import Modal from 'components/Modal.js';
 
+const authClient = Tactics.authClient;
+
 export default class LobbySettings extends Modal {
   constructor(options = {}) {
     options.title = 'Lobby Settings';
@@ -29,6 +31,13 @@ export default class LobbySettings extends Modal {
         <LABEL><INPUT type="radio" name="createTimeLimit" value="standard"> Standard</LABEL>
         <LABEL><INPUT type="radio" name="createTimeLimit" value="blitz"> Blitz</LABEL>
       </DIV>
+      <DIV class="row col5 ranked">
+        <DIV class="label">Ranked</DIV>
+        <LABEL><INPUT type="radio" name="ranked" value="ask"> Ask</LABEL>
+        <LABEL><INPUT type="radio" name="ranked" value="any"> Any</LABEL>
+        <LABEL><INPUT type="radio" name="ranked" value="yes"> Yes</LABEL>
+        <LABEL><INPUT type="radio" name="ranked" value="no"> No</LABEL>
+      </DIV>
       <DIV class="row col4 set">
         <DIV class="label">Set</DIV>
         <LABEL><INPUT type="radio" name="set" value="ask"> Ask</LABEL>
@@ -46,6 +55,7 @@ export default class LobbySettings extends Modal {
 
     Object.assign(this._els, {
       audio: this.root.querySelector('.audio'),
+      ranked: this.root.querySelector('.ranked'),
     });
     this.root.classList.add('lobbySettings');
 
@@ -63,6 +73,9 @@ export default class LobbySettings extends Modal {
         case 'createTimeLimit':
           this.setCreateTimeLimit(event.target.value);
           break;
+        case 'ranked':
+          this.setRanked(event.target.value);
+          break;
         case 'set':
           this.setSet(event.target.value);
           break;
@@ -74,6 +87,8 @@ export default class LobbySettings extends Modal {
 
     if (Howler.noAudio)
       this._els.audio.style.display = 'none';
+    if (!authClient.isVerified)
+      this._els.ranked.style.display = 'none';
 
     this.restore();
     this.detectSettings();
@@ -101,6 +116,7 @@ export default class LobbySettings extends Modal {
     this.root.querySelector(`INPUT[name=barPosition][value=${settings.barPosition}]`).checked = true;
     this.root.querySelector(`INPUT[name=createBlocking][value=${settings.createBlocking}]`).checked = true;
     this.root.querySelector(`INPUT[name=createTimeLimit][value=${settings.createTimeLimit}]`).checked = true;
+    this.root.querySelector(`INPUT[name=ranked][value=${settings.ranked}]`).checked = true;
     this.root.querySelector(`INPUT[name=set][value=${settings.set}]`).checked = true;
 
     if (settings.randomSide)
@@ -127,6 +143,10 @@ export default class LobbySettings extends Modal {
     this.data.settings.createTimeLimit = value;
     gameConfig.turnTimeLimit = value;
   }
+  setRanked(value) {
+    this.data.settings.ranked = value;
+    gameConfig.ranked = value;
+  }
   setSet(value) {
     this.data.settings.set = value;
     gameConfig.set = value;
@@ -143,6 +163,7 @@ export default class LobbySettings extends Modal {
       barPosition: gameConfig.barPosition,
       createBlocking: gameConfig.blockingSystem,
       createTimeLimit: gameConfig.turnTimeLimit,
+      ranked: gameConfig.ranked,
       set: gameConfig.set,
       randomSide: gameConfig.randomSide,
     };

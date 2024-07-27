@@ -855,13 +855,23 @@
     .arena.waiting:not(.disabled) .arena-shape:hover .arena-button-bottom {
       display: block;
     }
-    .arena .label {
-      --notchSize: 4px;
+    .arena .labels {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
 
       position: absolute;
       top: 58px;
       left: 50%;
       transform: translateX(-50%);
+
+      width: 140px;
+    }
+    .arena .labels .label {
+      --notchSize: 4px;
+
+      position: relative;
       white-space: nowrap;
 
       background-color: #b08d57;
@@ -875,9 +885,10 @@
         var(--notchSize) 100%,
         0 calc(100% - var(--notchSize))
       );
+      margin: 2px;
       padding: 0 6px;
     }
-    .arena .label::before {
+    .arena .labels .label::before {
       position: absolute;
       top: 1px;
       left: 1px;

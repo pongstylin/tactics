@@ -722,7 +722,7 @@ async function createGame(divArena) {
     return;
 
   const tabContent = state.tabContent.lobby;
-  let { createBlocking, createTimeLimit, set, randomSide } = state.settings;
+  let { createBlocking, createTimeLimit, set, ranked, randomSide } = state.settings;
   if (createBlocking === 'ask') {
     createBlocking = await popup({
       message: 'Choose blocking system.',
@@ -748,12 +748,28 @@ async function createGame(divArena) {
       return;
   }
 
+  if (ranked === 'ask') {
+    ranked = await popup({
+      message: 'Should this game be ranked?',
+      buttons: [
+        { label:'Any', value:'any' },
+        { label:'Yes', value:'yes' },
+        { label:'No',  value:'no' },
+      ],
+    }).whenClosed;
+    if (ranked === undefined)
+      return;
+  }
+
   if (set === 'ask' && tabContent.sets.length === 1)
     set = tabContent.sets[0].id;
   else if (set === 'ask') {
     set = await popup({
       message: 'Choose set.',
-      buttons: tabContent.sets.map(s => ({ label:s.name, value:s.id })),
+      buttons: [
+        ...tabContent.sets.map(s => ({ label:s.name, value:s.id })),
+        { label:'Random', value:'random' },
+      ],
     }).whenClosed;
     if (set === undefined)
       return;
@@ -771,6 +787,10 @@ async function createGame(divArena) {
       randomHitChance: createBlocking === 'luck',
       timeLimitName: createTimeLimit,
       teams: [ myTeam, null ],
+      ...(
+        ranked === 'yes' ? { ranked:true } :
+        ranked === 'no' ? { rated:false } : {}
+      ),
       tags: {
         arenaIndex: parseInt(divArena.dataset.index),
       },
@@ -886,7 +906,10 @@ async function joinGame(arena) {
   else if (set === 'ask') {
     set = await popup({
       message: 'Choose set.',
-      buttons: tabContent.sets.map(s => ({ label:s.name, value:s.id })),
+      buttons: [
+        ...tabContent.sets.map(s => ({ label:s.name, value:s.id })),
+        { label:'Random', value:'random' },
+      ],
     }).whenClosed;
     if (set === undefined)
       return false;
@@ -902,9 +925,16 @@ async function joinGame(arena) {
   } catch (e) {
     state.activeGameId = null;
 
+    // A 403 for a ranked game means ranked rules weren't met
+    if (arena.ranked && e.code === 403) {
+      popup({ maxWidth:'325px', message:`
+        Sorry!  You cannot join this ranked game.<BR>
+        <BR>
+        Reason: ${e.message}.
+      ` });
     // A 404 means the game was cancelled right before we tried to join
     // A 409 means someone else joined the game first.
-    if (e.code !== 404 && e.code !== 409) {
+    } else if (e.code !== 404 && e.code !== 409) {
       reportError(e);
       popup('Oops!  Something went wrong.');
     }
@@ -1475,7 +1505,7 @@ function renderArena(index) {
   shpArena.appendChild(nameBtm);
 
   const divLabel = document.createElement('DIV');
-  divLabel.classList.add('label');
+  divLabel.classList.add('labels');
   shpArena.appendChild(divLabel);
 
   return divArena;
@@ -1675,9 +1705,21 @@ async function fillArena(divArena, arena = true) {
       labels.push('No Luck');
     if (arena.timeLimitName !== 'standard')
       labels.push(arena.timeLimitName.toUpperCase('first'));
+    if (arena.ranked)
+      labels.push('Ranked');
+    else if (!arena.rated)
+      labels.push('Unranked');
   }
 
-  divArena.querySelector('.label').textContent = labels.join(', ');
+  const divLabels = divArena.querySelector('.labels');
+  divLabels.innerHTML = '';
+
+  for (const label of labels) {
+    const divLabel = document.createElement('DIV');
+    divLabel.classList.add('label');
+    divLabel.textContent = label;
+    divLabels.append(divLabel);
+  }
 }
 async function fillTeam(divArena, slot, arena, oldArena) {
   const spnName = divArena.querySelector(`.name.${slot}`);
@@ -1756,7 +1798,7 @@ async function emptyArena(divArena) {
   divArena.classList.remove('complete');
   divArena.classList.add('empty');
 
-  divArena.querySelector('.label').textContent = '';
+  divArena.querySelector('.labels').innerHTML = '';
 
   return Promise.all([
     fillTeam(divArena, 'top', null, oldArena),

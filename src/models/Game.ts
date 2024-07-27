@@ -23,6 +23,7 @@ const stateKeys = new Set([
   'strictFork',
   'autoSurrender',
   'rated',
+  'ranked',
   'timeLimit',
   'teams',
 ]);

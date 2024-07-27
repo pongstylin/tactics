@@ -110,6 +110,7 @@ const gameConfigProps = {
   barPosition: 'right',
   blockingSystem: 'luck',
   turnTimeLimit: 'standard',
+  ranked: 'any',
   set: 'ask',
   randomSide: false,
   rotation: 'S',
