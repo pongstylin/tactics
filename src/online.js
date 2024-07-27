@@ -2222,7 +2222,7 @@ function renderRankedGame(rankingId, rank, game) {
   divAvatarWrapper.append(imgAvatar);
 
   const rating = [];
-  if (game.rank.rating) {
+  if (game.rank.rating && opponent.ratings.get(rankingId)) {
     const vsRatings = opponent.ratings.get(rankingId);
     const change = vsRatings[1] - vsRatings[0];
     const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
@@ -2231,7 +2231,7 @@ function renderRankedGame(rankingId, rank, game) {
     rating.push(`<SPAN class="${change > 0 ? 'up' : 'down'}">${label}</SPAN>`);
     rating.push(` (${game.rank.rating})`);
   } else {
-    rating.push('(Unranked)');
+    rating.push(`(${game.rank.rating || 'Unranked'})`);
   }
 
   const divName = document.createElement('DIV');
