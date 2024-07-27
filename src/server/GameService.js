@@ -145,6 +145,7 @@ export default class GameService extends Service {
           'strictFork?': 'boolean',
           'autoSurrender?': 'boolean',
           'rated?': 'boolean',
+          'ranked?': 'boolean',
           'timeLimitName?': `enum([ 'blitz', 'standard', 'relaxed', 'day', 'week' ])`,
           'tags?': 'game:tags',
         },
@@ -528,9 +529,15 @@ export default class GameService extends Service {
   async onCreateGameRequest(client, gameTypeId, gameOptions) {
     const clientPara = this.clientPara.get(client.id);
     const playerId = clientPara.playerId;
+    const player = this.playerPara.get(playerId).player;
 
-    if (gameOptions.collection)
+    if (gameOptions.collection) {
       await this._validateCreateGameForCollection(gameTypeId, gameOptions);
+
+      if (gameOptions.ranked && !player.isVerified)
+        throw new ServerError(403, 'Guest accounts cannot create ranked games');
+    } else if (gameOptions.ranked)
+      throw new ServerError(403, 'Private games cannot be ranked');
 
     if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
       throw new ServerError(400, 'You must join games that you create');
@@ -627,8 +634,21 @@ export default class GameService extends Service {
     const gameType = await this.data.getGameType(game.state.type);
     const creator = await this._getAuthPlayer(game.createdBy);
 
-    if (game.collection)
+    if (game.collection) {
       await this._validateJoinGameForCollection(playerId, this.collections.get(game.collection));
+
+      if (game.state.ranked) {
+        const { ranked, reason } = await this.data.canPlayRankedGame(game, creator, player);
+        if (!ranked) {
+          if (reason === 'not verified')
+            throw new ServerError(403, 'Guests cannot join ranked games');
+          else if (reason === 'same identity')
+            throw new ServerError(403, 'Cannot play yourself in a ranked game');
+          else if (reason === 'too many games')
+            throw new ServerError(403, 'You have played this person in a ranked game twice in this style in the past week');
+        }
+      }
+    }
 
     if (game.state.startedAt)
       throw new ServerError(409, 'The game has already started.');
@@ -1748,7 +1768,7 @@ export default class GameService extends Service {
     if (teams.findIndex(t => !t?.joinedAt) === -1) {
       const playerIds = new Set(teams.map(t => t.playerId));
       if (playerIds.size > 1) {
-        if (game.state.rated) {
+        if (game.state.rated && !game.state.ranked) {
           const players = await Promise.all([ ...playerIds ].map(pId => this._getAuthPlayer(pId)));
           const { ranked, reason } = await this.data.canPlayRankedGame(game, ...players);
           game.state.ranked = ranked;
