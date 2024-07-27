@@ -17,7 +17,6 @@
     "build": "NODE_ENV=beta webpack --config webpack.config.cjs",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "NODE_ENV=production webpack --config webpack.config.cjs",
-    "clean": "rm -rf src/data/files && git checkout src/data/files && rm -rf src/models/*.js && rm tsconfig.tsbuildinfo",
     "script": "node --require dotenv/config"
   },
   "imports": {
