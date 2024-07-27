@@ -53,6 +53,7 @@ export default class GameSummary {
         joinedAt: t.joinedAt,
         playerId: t.playerId,
         name: t.name,
+        ratings: t.ratings,
       }),
       tags: { ...game.tags },
     };
@@ -220,6 +221,24 @@ serializer.addType({
               properties: {
                 playerId: { type:'string', format:'uuid' },
                 name: { type:'string' },
+                ratings: {
+                  type: 'array',
+                  subType: 'Map',
+                  items: {
+                    type: 'array',
+                    items: [
+                      { type:'string' },
+                      {
+                        type: 'array',
+                        items: [
+                          { type:'number' },
+                          { type:'number' },
+                        ],
+                        additionalItems: false,
+                      },
+                    ],
+                  },
+                },
                 joinedAt: { type:[ 'string', 'null' ], subType:'Date' },
                 createdAt: { type:'string', subType:'Date' },
               },

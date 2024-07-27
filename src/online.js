@@ -2030,6 +2030,11 @@ async function renderRanking(rankingId) {
 }
 async function renderRankedGames(rankingId, playerId) {
   const { rank, rankedGames } = state.tabContent.rankings;
+  if (!rank) {
+    location.hash = '#rankings';
+    return;
+  }
+
   const header = document.querySelector('.tabContent .rankings HEADER');
   const divRankings = document.querySelector('.tabContent .rankings');
   const divContent = divRankings.querySelector('DIV.rankedGames');
@@ -2049,7 +2054,6 @@ async function renderRankedGames(rankingId, playerId) {
 
   const divPlayer = document.createElement('DIV');
   divPlayer.classList.add('player');
-  divContent.append(divPlayer);
 
   const divPlayerName = document.createElement('DIV');
   divPlayerName.classList.add('name');
@@ -2082,6 +2086,7 @@ async function renderRankedGames(rankingId, playerId) {
   divRankedGames.classList.add('magic-table');
   divRankedGames.classList.add('rankedGames');
   divRankedGames.innerHTML = `
+    ${divPlayer.outerHTML}
     <DIV class="header">
       <DIV class="group">
         <DIV class="result"></DIV>
@@ -2103,8 +2108,10 @@ async function renderRankedGames(rankingId, playerId) {
   const divBody = document.createElement('DIV');
   divBody.classList.add('body');
 
-  for (const rankedGame of rankedGames)
+  for (const rankedGame of rankedGames) {
     divBody.append(renderRankedGame(rankingId, rank, rankedGame));
+    divBody.append(renderRankedGameFooter(rankingId, rank, rankedGame));
+  }
 
   divRankedGames.append(divBody);
   divRankedGames.querySelector('.header .group:last-child').style.display = rankedGames.length === 1 ? 'none' : '';
@@ -2214,11 +2221,24 @@ function renderRankedGame(rankingId, rank, game) {
   imgAvatar.src = avatar.src;
   divAvatarWrapper.append(imgAvatar);
 
+  const rating = [];
+  if (game.rank.rating) {
+    const vsRatings = opponent.ratings.get(rankingId);
+    const change = vsRatings[1] - vsRatings[0];
+    const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
+
+    rating.push(`<SPAN class="rating">${Math.round(vsRatings[0])}</SPAN>`);
+    rating.push(`<SPAN class="${change > 0 ? 'up' : 'down'}">${label}</SPAN>`);
+    rating.push(` (${game.rank.rating})`);
+  } else {
+    rating.push('(Unranked)');
+  }
+
   const divName = document.createElement('DIV');
   divName.classList.add('name');
   divName.innerHTML = `
     <DIV>${opponent.name}</DIV>
-    <DIV>(${game.rank.rating ?? 'Unranked'})</DIV>
+    <DIV>${rating.join('')}</DIV>
   `;
   divGame.append(divName);
 
@@ -2243,6 +2263,42 @@ function renderRankedGame(rankingId, rank, game) {
   divGame.append(divEnded);
 
   return divGame;
+}
+function renderRankedGameFooter(rankingId, rank, game) {
+  const myTeam = game.teams.find(t => t.playerId === rank.playerId);
+  const myRatings = myTeam.ratings.get(rankingId);
+
+  const divFooter = document.createElement('DIV');
+  divFooter.classList.add('footer');
+
+  const labels = [];
+  if (rankingId === 'FORTE')
+    labels.push(game.typeName);
+  if (!game.randomHitChance)
+    labels.push('No Luck');
+  if (game.timeLimitName !== 'standard')
+    labels.push(game.timeLimitName.toUpperCase('first'));
+
+  const spnLeft = document.createElement('SPAN');
+  spnLeft.classList.add('left');
+  spnLeft.textContent = labels.join(', ');
+  divFooter.append(spnLeft);
+
+  const spnRight = document.createElement('SPAN');
+  spnRight.classList.add('right');
+  if (myRatings) {
+    const change = myRatings[1] - myRatings[0];
+    const label = Math.abs(Math.round(myRatings[1]) - Math.round(myRatings[0])) || '';
+
+    spnRight.innerHTML = [
+      `<SPAN class="rating">${Math.round(myRatings[0])}</SPAN>`,
+      `<SPAN class="${change > 0 ? 'up' : 'down'}">${label}</SPAN>`,
+    ].join('');
+  } else
+    spnRight.innerHTML = `Unranked`;
+  divFooter.append(spnRight);
+
+  return divFooter;
 }
 
 function renderGame(game) {
@@ -2754,7 +2810,7 @@ async function fetchTabData(tabName) {
 
       promises.push(
         authClient.getRankings(route[2], route[1]).then(rsp => {
-          tabContent.rank = rsp.get(route[1]).find(r => r.playerId === route[2]);
+          tabContent.rank = rsp.get(route[1])?.find(r => r.playerId === route[2]);
         }),
         gameClient.getRankedGames(route[2], route[1]).then(rsp => {
           tabContent.rankedGames = rsp;

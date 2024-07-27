@@ -22,6 +22,7 @@
  */
 import seedrandom from 'seedrandom';
 
+import ActiveModel from '#models/ActiveModel.js';
 import ServerError from '#server/Error.js';
 import serializer from '#utils/serializer.js';
 
@@ -66,7 +67,7 @@ class Random {
   }
 };
 
-export default class Team {
+export default class Team extends ActiveModel {
   protected data: {
     id: number
     slot: number
@@ -87,11 +88,13 @@ export default class Team {
     usedUndo: boolean
     usedSim: boolean
     forkOf: any
+    ratings: Map<string, [ number, number ]>
   }
   public isCurrent: boolean
   public units: any[][]
 
   constructor(data) {
+    super();
     this.data = Object.assign({
       // The position of the team in the teams array post game start
       id: null,
@@ -145,6 +148,9 @@ export default class Team {
       // Flags for determining if the team had an advantage
       usedUndo: undefined,
       usedSim: undefined,
+
+      // If applicable, before and after views of the player's ratings.
+      ratings: null,
     }, data);
 
     if (this.data.useRandom && !this.data.randomState)
@@ -283,6 +289,9 @@ export default class Team {
   get usedSim() {
     return this.data.usedSim === true;
   }
+  get ratings() {
+    return this.data.ratings;
+  }
   get createdAt() {
     return this.data.createdAt;
   }
@@ -335,6 +344,12 @@ export default class Team {
   }
   setUsedSim() {
     this.data.usedSim = true;
+  }
+  setRating(rankingId, oldRating, newRating) {
+    if (!this.data.ratings)
+      this.data.ratings = new Map();
+    this.data.ratings.set(rankingId, [ oldRating, newRating ]);
+    this.emit('change:setRating');
   }
 
   fork() {
@@ -401,7 +416,6 @@ export default class Team {
 
     delete json.lastActiveAt;
     delete json.randomState;
-    delete json.randomSide;
 
     return json;
   }
@@ -416,6 +430,8 @@ export default class Team {
       delete json.useRandom;
     if (json.randomSide === false)
       delete json.randomSide;
+    if (json.ratings === null)
+      delete json.ratings;
 
     if (json.checkinAt === null)
       delete json.checkinAt;
@@ -478,6 +494,24 @@ serializer.addType({
       randomState: { $ref:'Random' },
       usedUndo: { type:'boolean', const:true },
       usedSim: { type:'boolean', const:true },
+      ratings: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [
+            { type:'string' },
+            {
+              type: 'array',
+              items: [
+                { type:'number' },
+                { type:'number' },
+              ],
+              additionalItems: false,
+            },
+          ],
+        },
+      },
       joinedAt: { type:[ 'string', 'null' ], subType:'Date' },
       checkinAt: { type:[ 'string', 'null' ], subType:'Date' },
       checkoutAt: { type:[ 'string', 'null' ], subType:'Date' },

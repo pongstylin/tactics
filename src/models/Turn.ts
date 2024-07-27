@@ -1,5 +1,5 @@
 import ActiveModel from '#models/ActiveModel.js';
-import Team from '#models/Team.js';
+import type Team from '#models/Team.js';
 import ServerError from '#server/Error.js';
 import serializer from '#utils/serializer.js';
 
