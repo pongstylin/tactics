@@ -76,6 +76,15 @@ export default class extends FileAdapter {
     return super.bootstrap();
   }
 
+  async cleanup() {
+    while (this._dirtyGames.size) {
+      console.log('waiting on dirty games');
+      await Promise.all(Array.from(this._dirtyGames.values()));
+    }
+
+    return super.cleanup();
+  }
+
   /*****************************************************************************
    * Public Interface
    ****************************************************************************/
@@ -269,9 +278,14 @@ export default class extends FileAdapter {
         const creator = await getPlayer(gameSummary.createdBy);
         if (creator.hasBlocked(player, false))
           continue;
-        const clone = serializer.clone(gameSummary);
-        clone.creatorACL = player.getRelationship(creator);
-        data.push(clone);
+        const meta = {};
+        meta.creatorACL = player.getRelationship(creator);
+        if (gameSummary.collection && gameSummary.rated) {
+          const { ranked, reason } = await this.canPlayRankedGame(gameSummary, creator, player);
+          meta.ranked = ranked;
+          meta.unrankedReason = reason;
+        }
+        data.push(gameSummary.cloneWithMeta(meta));
       } else
         data.push(gameSummary);
     }
@@ -336,6 +350,9 @@ export default class extends FileAdapter {
     }
   }
 
+  /*
+   * game can be either a Game or GameSummary object.
+   */
   async canPlayRankedGame(game, player, opponent) {
     if (!game.collection)
       return { ranked:false, reason:'private' };
@@ -364,7 +381,9 @@ export default class extends FileAdapter {
         continue;
 
       // Different styles have different rankings
-      if (gameSummary.type !== game.state.type)
+      if (game instanceof Game && gameSummary.type !== game.state.type)
+        continue;
+      if (game instanceof GameSummary && gameSummary.type !== game.type)
         continue;
 
       // Old games don't prevent playing more ranked games
@@ -440,7 +459,7 @@ export default class extends FileAdapter {
   _updateGameSummary(game) {
     const dirtyGames = this._dirtyGames;
     if (dirtyGames.has(game.id))
-      return;
+      return dirtyGames.get(game.id);
 
     const syncingPlayerGames = this._syncingPlayerGames;
     // Get a unique list of player IDs from the teams.
@@ -488,7 +507,8 @@ export default class extends FileAdapter {
     const promise = Promise.all(promises).then(gameSummaryLists => {
       const gameType = this._gameTypes.get(game.state.type);
       const summary = GameSummary.create(gameType, game);
-      dirtyGames.delete(game.id);
+      if (dirtyGames.get(game.id) === promise)
+        dirtyGames.delete(game.id);
 
       for (const gameSummaryList of gameSummaryLists) {
         if (!gameSummaryList) continue;
@@ -525,6 +545,8 @@ export default class extends FileAdapter {
     return promise;
   }
   async _clearGameSummary(game) {
+    const dirtyGames = this._dirtyGames;
+
     // Get a unique list of player IDs from the teams.
     const playerIds = new Set(
       game.state.teams.filter(t => !!t?.playerId).map(t => t.playerId)
@@ -537,11 +559,18 @@ export default class extends FileAdapter {
     if (game.collection)
       promises.push(this.getGameCollection(game.collection));
 
-    return Promise.all(promises).then(gameSummaryLists => {
-      for (const gameSummaryList of gameSummaryLists) {
+    const promise = Promise.all(promises).then(gameSummaryLists => {
+      dirtyGames.delete(game.id);
+
+      for (const gameSummaryList of gameSummaryLists)
         gameSummaryList.delete(game.id);
-      }
     });
+
+    if (dirtyGames.has(game.id))
+      dirtyGames.set(game.id, dirtyGames.get(game.id).then(() => promise));
+    else
+      dirtyGames.set(game.id, promise);
+    return promise;
   }
   /*
    * Prune completed games to 50 most recently ended per sub group.

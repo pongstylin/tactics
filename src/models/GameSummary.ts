@@ -141,23 +141,6 @@ export default class GameSummary {
     return this.teams.filter(t => t !== winner);
   }
 
-  /*
-   * Properties assigned outside the class.
-   */
-  get creatorACL() {
-    return this.data.creatorACL;
-  }
-  set creatorACL(creatorACL) {
-    this.data.creatorACL = creatorACL;
-  }
-
-  get rank() {
-    return this.data.rank;
-  }
-  set rank(rank) {
-    this.data.rank = rank;
-  }
-
   getTurnTimeRemaining(now = Date.now()) {
     if (!this.data.startedAt || this.data.endedAt)
       return false;
@@ -170,6 +153,10 @@ export default class GameSummary {
     const actionTimeout = (+this.data.updatedAt + actionTimeLimit) - now;
 
     return Math.max(0, turnTimeout, actionTimeout);
+  }
+
+  cloneWithMeta(meta) {
+    return new GameSummary({ ...this.data, meta });
   }
 
   toJSON() {

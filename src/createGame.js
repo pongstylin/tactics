@@ -451,7 +451,7 @@ async function joinOpenGame(query, youTeam) {
     const result = await gameClient.searchGameCollection('public', query);
     if (!result.count) return;
 
-    const hits = result.hits.filter(h => h.creatorACL?.type !== 'blocked');
+    const hits = result.hits.filter(h => h.meta.creatorACL?.type !== 'blocked');
     if (!hits.length) return;
 
     gameSummary = hits[0];

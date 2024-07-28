@@ -979,14 +979,14 @@ export default class GameService extends Service {
   async onGetRankedGamesRequest(client, playerId, rankingId) {
     const gamesSummary = await this.data.getRankedGames(playerId, rankingId);
 
-    for (const gameSummary of gamesSummary) {
+    for (const [ i, gameSummary ] of gamesSummary.entries()) {
       const opponent = gameSummary.teams.find(t => t.playerId !== playerId);
       const rank = this.auth.getPlayerRank(opponent.playerId, rankingId) ?? {
         playerId: opponent.playerId,
         name: opponent.name,
       };
 
-      gameSummary.rank = rank;
+      gamesSummary[i] = gameSummary.cloneWithMeta({ rank });
     }
 
     return gamesSummary;
@@ -1474,28 +1474,37 @@ export default class GameService extends Service {
   }
   async _emitCollectionChange(collectionGroup, collection, event) {
     const collectionPara = this.collectionPara.get(collection.id);
-    const gameSummary = serializer.clone(event.data.gameSummary ?? event.data.oldSummary);
+    const gameSummary = event.data.gameSummary ?? event.data.oldSummary;
     const eventType = event.type === 'change:delete'
       ? 'remove'
       : event.data.oldSummary ? 'change' : 'add';
-    const emitChange = playerId => this._emit({
+    const emitChange = (playerId, meta = {}) => this._emit({
       type: 'event',
       userId: playerId,
       body: {
         group: collectionGroup,
         type: eventType,
-        data: gameSummary,
+        data: gameSummary.cloneWithMeta(meta),
       },
     });
 
     for (const player of collectionPara.stats.keys()) {
       const creator = await this._getAuthPlayer(gameSummary.createdBy);
-      if (!gameSummary.startedAt && creator.hasBlocked(player, false))
-        continue;
 
-      gameSummary.creatorACL = player.getRelationship(creator);
+      if (gameSummary.startedAt)
+        emitChange(player.id);
+      else {
+        if (creator.hasBlocked(player, false))
+          continue;
 
-      emitChange(player.id);
+        const { ranked, reason } = await this.data.canPlayRankedGame(gameSummary, creator, player);
+
+        emitChange(player.id, {
+          creatorACL: player.getRelationship(creator),
+          ranked,
+          unrankedReason: reason,
+        });
+      }
     }
   }
   /*

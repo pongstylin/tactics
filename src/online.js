@@ -837,14 +837,14 @@ async function joinGame(arena) {
     return false;
 
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
-  if (arena.creatorACL?.blockedByRule) {
+  if (arena.meta.creatorACL?.blockedByRule) {
     let message;
-    if (arena.creatorACL.blockedByRule === 'guest')
+    if (arena.meta.creatorACL.blockedByRule === 'guest')
       message = `
         Sorry!  <I>${creatorTeam.name}</I> blocked guests from joining their public and lobby games.
         You can verify your account on your <A href="security.html">Account Security</A> page.
       `;
-    else if (arena.creatorACL.blockedByRule === 'new')
+    else if (arena.meta.creatorACL.blockedByRule === 'new')
       message = `
         Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
         You can try again later or create your own game.
@@ -860,15 +860,15 @@ async function joinGame(arena) {
       maxWidth: '300px',
     });
   }
-  if (arena.creatorACL?.type) {
+  if (arena.meta.creatorACL?.type) {
     let proceed = false;
     let message;
     let joinLabel = 'Join Game';
 
-    if (arena.creatorACL.type === 'blocked') {
-      if (arena.creatorACL.name !== creatorTeam.name)
+    if (arena.meta.creatorACL.type === 'blocked') {
+      if (arena.meta.creatorACL.name !== creatorTeam.name)
         message = `
-          You blocked this player under the name ${arena.creatorACL.name}.
+          You blocked this player under the name ${arena.meta.creatorACL.name}.
           You may still play them if you mute them instead.
         `;
       else
@@ -877,9 +877,9 @@ async function joinGame(arena) {
         `;
       joinLabel = 'Mute and Join Game';
     } else {
-      if (arena.creatorACL.name !== creatorTeam.name)
+      if (arena.meta.creatorACL.name !== creatorTeam.name)
         message = `
-          You ${arena.creatorACL.type} this player under the name ${arena.creatorACL.name}.
+          You ${arena.meta.creatorACL.type} this player under the name ${arena.meta.creatorACL.name}.
           Do you still want to join their game?
         `;
       else
@@ -899,8 +899,45 @@ async function joinGame(arena) {
       return false;
   }
 
+  if (arena.ranked && !arena.meta.ranked) {
+    const reason =
+      arena.meta.unrankedReason === 'not verified' ? 'You have not verified your account yet' :
+      arena.meta.unrankedReason === 'same identity' ? `You can't play yourself in a ranked game` :
+      arena.meta.unrankedReason === 'too many games' ? `You already played this player in this style twice in the past week` :
+      'Unknown.  Report this bug';
+
+    popup({ maxWidth:'325px', message:`
+      Sorry!  You cannot join this ranked game.<BR>
+      <BR>
+      Reason: ${reason}.
+    ` });
+    return false;
+  }
+
   const tabContent = state.tabContent.lobby;
-  let { set, randomSide } = state.settings;
+  let { set, ranked, randomSide } = state.settings;
+
+  if (ranked !== 'any') {
+    const expectRanked = ranked === 'no' ? false : true;
+
+    if (arena.meta.ranked !== expectRanked) {
+      const proceed = await popup({
+        message: `
+          This will ${arena.meta.ranked ? '' : 'not '}be a ranked game.<BR>
+          <BR>
+          Join anyway?
+        `,
+        buttons: [
+          { label:'Join', value:true },
+          { label:'Cancel', value:false },
+        ],
+        closeOnCancel: false,
+      }).whenClosed;
+      if (!proceed)
+        return false;
+    }
+  }
+
   if (set === 'ask' && tabContent.sets.length === 1)
     set = tabContent.sets[0].id;
   else if (set === 'ask') {
@@ -2264,16 +2301,16 @@ function renderRankedGame(rankingId, rank, game) {
   divAvatarWrapper.append(imgAvatar);
 
   const rating = [];
-  if (game.rank.rating && opponent.ratings.get(rankingId)) {
+  if (game.meta.rank.rating && opponent.ratings.get(rankingId)) {
     const vsRatings = opponent.ratings.get(rankingId);
     const change = vsRatings[1] - vsRatings[0];
     const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
 
     rating.push(`<SPAN class="rating">${Math.round(vsRatings[0])}</SPAN>`);
     rating.push(`<SPAN class="${change > 0 ? 'up' : 'down'}">${label}</SPAN>`);
-    rating.push(` (${game.rank.rating})`);
+    rating.push(` (${game.meta.rank.rating})`);
   } else {
-    rating.push(`(${game.rank.rating || 'Unranked'})`);
+    rating.push(`(${game.meta.rank.rating || 'Unranked'})`);
   }
 
   const divName = document.createElement('DIV');
