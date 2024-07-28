@@ -141,6 +141,10 @@ export default class GameSummary {
     return this.teams.filter(t => t !== winner);
   }
 
+  get meta() {
+    return this.data.meta ?? {};
+  }
+
   getTurnTimeRemaining(now = Date.now()) {
     if (!this.data.startedAt || this.data.endedAt)
       return false;
