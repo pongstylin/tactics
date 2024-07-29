@@ -837,16 +837,16 @@
       filter: grayscale(1) contrast(0.5);
     }
     .arena:nth-child(4n) .arena-shape .arena-image {
-      transform: scale(1, 1);
+      transform: translate(-1px, -1px) scale(0.9933319091796875, 0.9897918701171875) scale(1, 1);
     }
     .arena:nth-child(4n+1) .arena-shape .arena-image {
-      transform: scale(1, -1);
+      transform: translate(-1px, -1px) scale(0.9933319091796875, 0.9897918701171875) scale(1, -1);
     }
     .arena:nth-child(4n+2) .arena-shape .arena-image {
-      transform: scale(-1, 1);
+      transform: translate(-1px, -1px) scale(0.9933319091796875, 0.9897918701171875) scale(-1, 1);
     }
     .arena:nth-child(4n+3) .arena-shape .arena-image {
-      transform: scale(-1, -1);
+      transform: translate(-1px, -1px) scale(0.9933319091796875, 0.9897918701171875) scale(-1, -1);
     }
     .arena.active:not(.disabled) .arena-shape:hover .arena-image,
     .arena.complete:not(.disabled) .arena-shape:hover .arena-image {
@@ -864,10 +864,12 @@
 
       position: absolute;
       left: 50%;
-      bottom: 21px;
+      bottom: 18px;
       transform: translateX(-50%);
 
-      width: 140px;
+      box-sizing: border-box;
+      width: 100%;
+      padding-left: 1.5px;
     }
     .arena .labels .label {
       --notchSize: 4px;
