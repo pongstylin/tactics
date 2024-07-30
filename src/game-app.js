@@ -443,7 +443,7 @@ $(() => {
     })
     .on('release', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
       if (event.detail.outside)
-        readySpecial.cancel();
+        readySpecial?.cancel();
       else
         readySpecial.release();
 
@@ -1747,7 +1747,7 @@ function resetPlayerBanners() {
       .removeClass('offline online active unavailable')
       .addClass(playerStatus.status)
       .toggleClass('mobile', playerStatus.deviceType === 'mobile')
-      .toggleClass('link', showLink && !game.state.endedAt);
+      .toggleClass('link', showLink && !isMyTeam && !game.state.endedAt);
     const $name = $player.find('.name')
       .toggleClass('link', showLink)
       .text(team.name);
