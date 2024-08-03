@@ -278,14 +278,7 @@ export default class extends FileAdapter {
         const creator = await getPlayer(gameSummary.createdBy);
         if (creator.hasBlocked(player, false))
           continue;
-        const meta = {};
-        meta.creatorACL = player.getRelationship(creator);
-        if (gameSummary.collection && gameSummary.rated) {
-          const { ranked, reason } = await this.canPlayRankedGame(gameSummary, creator, player);
-          meta.ranked = ranked;
-          meta.unrankedReason = reason;
-        }
-        data.push(gameSummary.cloneWithMeta(meta));
+        data.push(gameSummary);
       } else
         data.push(gameSummary);
     }
