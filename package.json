@@ -78,7 +78,7 @@
     "decancer": "^1.6.5",
     "discord.js": "^14.14.1",
     "events": "^3.3.0",
-    "express": "^4.16.4",
+    "express": "^4.19.2",
     "howler": "^2.2.4",
     "impetus": "^0.8.8",
     "isomorphic-fetch": "^3.0.0",
