@@ -170,6 +170,10 @@ export default class Turn extends ActiveModel {
   get isEnded() {
     return (this.data.actions as any).last?.type === 'endTurn';
   }
+  get isForcedEnded() {
+    const lastAction = (this.data.actions as any).last;
+    return lastAction?.type === 'endTurn' && lastAction?.forced === true;
+  }
   get isGameEnded() {
     return (this.data.actions as any).last?.type === 'endGame';
   }
