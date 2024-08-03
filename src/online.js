@@ -920,13 +920,25 @@ async function joinGame(arena) {
   if (ranked !== 'any') {
     const expectRanked = ranked === 'no' ? false : true;
 
-    if (arena.meta.ranked !== expectRanked) {
+    if (ranked === 'ask' || arena.meta.ranked !== expectRanked) {
+      const message = [
+        `This will ${arena.meta.ranked ? '' : 'not '}be a ranked game.`,
+        ``,
+        `Join the game?`,
+      ];
+      if (arena.meta.ranked) {
+        console.log('arena.meta', arena.meta);
+        const creatorId = arena.teams.findIndex(t => !!t);
+        const creator = arena.teams[creatorId];
+        const rank = arena.meta.ranks[creatorId];
+        if (rank.rank)
+          message.splice(1, 0, `${creator.name} has rank #${rank.num} (${rank.rating}) in ${arena.typeName}.`);
+        else
+          message.splice(1, 0, `${creator.name} is unranked in ${arena.typeName}.`);
+      }
+
       const proceed = await popup({
-        message: `
-          This will ${arena.meta.ranked ? '' : 'not '}be a ranked game.<BR>
-          <BR>
-          Join anyway?
-        `,
+        message: message.join('<BR>'),
         buttons: [
           { label:'Join', value:true },
           { label:'Cancel', value:false },

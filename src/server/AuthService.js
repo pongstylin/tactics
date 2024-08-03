@@ -92,6 +92,9 @@ export default class AuthService extends Service {
   getPlayerRank(playerId, rankingId) {
     return this.data.state.identities.findByPlayerId(playerId).getRank(rankingId);
   }
+  getRanking(rankingId) {
+    return this.data.getRanking(rankingId);
+  }
 
   dropClient(client) {
     const clientPara = this.clientPara.get(client.id);

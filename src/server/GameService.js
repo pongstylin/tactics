@@ -967,13 +967,14 @@ export default class GameService extends Service {
 
   async onSearchMyGamesRequest(client, query) {
     const player = this.clientPara.get(client.id).player;
-    return this.data.searchPlayerGames(player, query);
+    return this._searchPlayerGames(player, query);
   }
   async onSearchGameCollectionRequest(client, collectionId, query) {
     if (!this.collections.has(collectionId))
       throw new ServerError(400, 'Unrecognized game collection');
 
     const player = this.clientPara.get(client.id).player;
+
     return this._searchGameCollection(player, collectionId, query);
   }
   async onGetRankedGamesRequest(client, playerId, rankingId) {
@@ -1145,7 +1146,7 @@ export default class GameService extends Service {
       stats: myGames.stats,
     };
     if (params.query)
-      response.results = await this.data.searchPlayerGames(player, params.query);
+      response.results = await this._searchPlayerGames(player, params.query);
 
     this._emit({
       type: 'joinGroup',
@@ -1272,6 +1273,38 @@ export default class GameService extends Service {
     const game = await this.data.getGame(gameId);
     this._attachGame(game);
     return game;
+  }
+  async _cloneGameSummaryWithMeta(gameSummary, player) {
+    const meta = {};
+    const promises = [];
+
+    if (!gameSummary.startedAt && gameSummary.createdBy !== player.id) {
+      const creator = await this._getAuthPlayer(gameSummary.createdBy);
+      meta.creatorACL = player.getRelationship(creator);
+
+      if (gameSummary.collection && gameSummary.rated) {
+        promises.push(this.data.canPlayRankedGame(gameSummary, creator, player).then(({ ranked, reason }) => {
+          meta.ranked = ranked;
+          meta.unrankedReason = reason;
+        }));
+      }
+    }
+
+    promises.push(this.auth.getRanking(gameSummary.type).then(ranks => {
+      meta.ranks = gameSummary.teams.map(t => {
+        if (!t) return null;
+
+        const rankIndex = ranks.findIndex(r => r.playerId === t.playerId);
+        if (rankIndex === -1)
+          return { playerId:t.playerId, name:t.name };
+
+        return { num:rankIndex+1, ...ranks[rankIndex] };
+      });
+    }));
+
+    await Promise.all(promises);
+
+    return gameSummary.cloneWithMeta(meta);
   }
 
   _attachGame(game) {
@@ -1478,34 +1511,18 @@ export default class GameService extends Service {
     const eventType = event.type === 'change:delete'
       ? 'remove'
       : event.data.oldSummary ? 'change' : 'add';
-    const emitChange = (playerId, meta = {}) => this._emit({
+    const emitChange = async player => this._emit({
       type: 'event',
-      userId: playerId,
+      userId: player.id,
       body: {
         group: collectionGroup,
         type: eventType,
-        data: gameSummary.cloneWithMeta(meta),
+        data: await this._cloneGameSummaryWithMeta(gameSummary, player),
       },
     });
 
-    for (const player of collectionPara.stats.keys()) {
-      const creator = await this._getAuthPlayer(gameSummary.createdBy);
-
-      if (gameSummary.startedAt)
-        emitChange(player.id);
-      else {
-        if (creator.hasBlocked(player, false))
-          continue;
-
-        const { ranked, reason } = await this.data.canPlayRankedGame(gameSummary, creator, player);
-
-        emitChange(player.id, {
-          creatorACL: player.getRelationship(creator),
-          ranked,
-          unrankedReason: reason,
-        });
-      }
-    }
+    for (const player of collectionPara.stats.keys())
+      emitChange(player);
   }
   /*
    * When a given collection changes, report stats changes, if any.
@@ -1721,8 +1738,23 @@ export default class GameService extends Service {
     else
       return this.auth.getPlayer(playerId);
   }
+  async _searchPlayerGames(player, query) {
+    const result = await this.data.searchPlayerGames(player, query);
+    return this._applyMetaToSearchResult(player, result);
+  }
   async _searchGameCollection(player, collectionId, query) {
-    return this.data.searchGameCollection(player, collectionId, query, this._getAuthPlayer.bind(this));
+    const result = await this.data.searchGameCollection(player, collectionId, query, this._getAuthPlayer.bind(this));
+    return this._applyMetaToSearchResult(player, result);
+  }
+  async _applyMetaToSearchResult(player, result) {
+    const results = Array.isArray(result) ? result : [ result ];
+
+    await Promise.all(results.map(r =>
+      Promise.all(Array.from(r.hits.entries()).map(([ i, gs ]) => this._cloneGameSummaryWithMeta(gs, player)))
+        .then(hits => r.hits = hits)
+    ));
+
+    return result;
   }
 
   _resolveTeamSet(gameType, game, team) {
