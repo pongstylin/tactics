@@ -927,11 +927,10 @@ async function joinGame(arena) {
         `Join the game?`,
       ];
       if (arena.meta.ranked) {
-        console.log('arena.meta', arena.meta);
         const creatorId = arena.teams.findIndex(t => !!t);
         const creator = arena.teams[creatorId];
         const rank = arena.meta.ranks[creatorId];
-        if (rank.rank)
+        if (rank.num)
           message.splice(1, 0, `${creator.name} has rank #${rank.num} (${rank.rating}) in ${arena.typeName}.`);
         else
           message.splice(1, 0, `${creator.name} is unranked in ${arena.typeName}.`);
