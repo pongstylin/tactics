@@ -285,11 +285,15 @@ export default class extends FileAdapter {
 
     return this._search(data, query);
   }
+  async getRankedGames(rankingId) {
+    // TODO
+    return [];
+  }
   /*
    * Get games completed by a player that are viewable by other players.
    * Not expected to exceed 50 games.
    */
-  async getRankedGames(playerId, rankingId) {
+  async getPlayerRankedGames(playerId, rankingId) {
     const gamesSummary = await this._getPlayerGames(playerId);
     const results = [];
 

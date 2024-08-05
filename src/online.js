@@ -95,6 +95,67 @@ const state = {
   settings: null,
   avatars: new Map(),
 };
+const routes = new Map([
+  [ '#rankings', p => ({
+    route: renderRankings,
+    data: authClient.getTopRanks(),
+  }) ],
+  [ '#rankings/topranks', p => ({
+    route: renderTopRanks,
+    data: authClient.getTopRanks(),
+  }) ],
+  [ '#rankings/:rankingId', p => ({
+    route: () => renderRankingSummary(p.rankingId),
+    data: Promise.all([
+      authClient.getTopRanks(p.rankingId).then(tr => tr.get(p.rankingId)),
+      gameClient.getRankedGames(p.rankingId),
+    ]),
+  }) ],
+  [ '#rankings/:rankingId/all', p => ({
+    route: () => renderRanking(p.rankingId),
+    data: authClient.getRanking(p.rankingId),
+  }) ],
+  [ '#rankings/:playerId/topranks', p => ({
+    route: () => renderPlayerTopRanks(p.playerId),
+    data: authClient.getTopRanks(null, p.playerId),
+  }) ],
+  [ '#rankings/:playerId/:rankingId', p => ({
+    route: () => renderPlayerRankedGames(p.playerId, p.rankingId),
+    data: Promise.all([
+      authClient.getTopRanks(p.rankingId, p.playerId),
+      gameClient.getRankedGames(p.rankingId, p.playerId),
+    ]),
+  }) ],
+]);
+const routeMatcher = Array.from(routes.keys()).map(path => {
+  const parts = path.split('/');
+  const names = [];
+  const pattern = [];
+
+  for (const part of parts) {
+    if (part.startsWith(':')) {
+      names.push(part.slice(1));
+      pattern.push(`([^\\/]+)`);
+    } else {
+      pattern.push(RegExp.escape(part));
+    }
+  }
+
+  const re = new RegExp('^' + pattern.join('/') + '$');
+
+  return r => {
+    const match = r.match(re);
+    if (match) {
+      const routeGetter = routes.get(path);
+      const p = match.slice(1).reduce((p,v,i) => {
+        p[names[i]] = v;
+        return p;
+      }, {});
+      return routeGetter(p);
+    }
+  };
+});
+
 
 const onceClick = () => {
   if (Howler.ctx.state === 'running')
@@ -131,10 +192,6 @@ const pushPublicKey = Uint8Array.from(
   chr => chr.charCodeAt(0),
 );
 
-const setGameTypesState = (gameTypes) => {
-   state.styles = gameTypes;
-}
-
 let avatars;
 let arena;
 const handleAvatarsData = async () => {
@@ -151,8 +208,7 @@ const handleAvatarsData = async () => {
 }
 
 const getDataFromService = Tactics.load(['avatars']).then(async () => {
-  const gameTypesData = await gameClient.getGameTypes()
-  setGameTypesState(gameTypesData);
+  state.styles = await gameClient.getGameTypes()
   await handleAvatarsData();
   await whenDOMReady;
   renderLobby();
@@ -238,10 +294,7 @@ whenDOMReady.then(() => {
     const liTab = event.target.closest('LI:not(.is-active)');
     if (!liTab) return;
 
-    const tab = getTabNameForElement(liTab);
-    if (!tab) return;
-
-    location.hash = '#' + tab;
+    location.hash = liTab.dataset.route;
   });
 
   const getShareGameMessage = async gameId => {
@@ -2046,14 +2099,14 @@ function renderPublicGames() {
 }
 
 async function renderRankings() {
-  const { topranks } = state.tabContent.rankings;
+  const rankingIds = state.tabContent.rankings.data.keys();
+}
+async function renderTopRanks() {
+  const topranks = state.tabContent.rankings.data;
   const header = document.querySelector('.tabContent .rankings HEADER');
-  const divRankings = document.querySelector('.tabContent .rankings');
   const divNotice = divRankings.querySelector('.notice');
-  const divContent = divRankings.querySelector('DIV.topranks');
+  const divContent = document.querySelector('.tabContent .rankings .content');
   divContent.innerHTML = '';
-
-  await fetchAvatars([ ...topranks.values() ].map(rs => rs.map(r => r.playerId)).flat());
 
   header.textContent = 'Rankings';
 
@@ -2081,6 +2134,32 @@ async function renderRankings() {
   for (const view of divRankings.querySelectorAll('DIV.ranking, DIV.rankedGames'))
     view.style.display = 'none';
   divContent.style.display = '';
+}
+async function renderRankingSummary(rankingId) {
+  const [ topranks, games ] = state.tabContent.rankings.data;
+  const header = document.querySelector('.tabContent .rankings HEADER');
+  const divContent = document.querySelector('.tabContent .rankings .content');
+  divContent.innerHTML = '';
+
+  const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
+  const crumbs = [
+    `<SPAN class="link menu">Rankings</SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    `<SPAN>${name}</SPAN>`,
+  ];
+  header.innerHTML = crumbs.join('');
+  header.querySelector('.link.menu').addEventListener('click', event => location.hash = '#rankings');
+
+  await fetchAvatars([
+    ...topranks.map(r => r.playerId),
+    ...games.map(g => g.teams.map(t => t.playerId)).flat(),
+  ]);
+
+  const divRanks = renderRanks(rankingId, topranks);
+  divContent.append(divRanks);
+
+  const divRankedGames = renderRankedGames(games, rankingId);
+  divContent.append(divRankedGames);
 }
 async function renderRanking(rankingId) {
   const { ranks } = state.tabContent.rankings;
@@ -2118,7 +2197,10 @@ async function renderRanking(rankingId) {
     view.style.display = 'none';
   divContent.style.display = '';
 }
-async function renderRankedGames(rankingId, playerId) {
+async function renderPlayerTopRanks(playerId) {
+  await fetchAvatars([ playerId ]);
+}
+async function renderPlayerRankedGames(playerId, rankingId) {
   const { rank, rankedGames } = state.tabContent.rankings;
   if (!rank) {
     location.hash = '#rankings';
@@ -2140,7 +2222,7 @@ async function renderRankedGames(rankingId, playerId) {
   header.querySelector('.link.topranks').addEventListener('click', event => location.hash = '#rankings');
   header.querySelector('.link.ranking').addEventListener('click', event => location.hash = `#rankings/${rankingId}`);
 
-  await fetchAvatars(rankedGames.map(g => g.teams.map(t => t.playerId)).flat());
+  await fetchAvatars([ playerId ]);
 
   const divPlayer = document.createElement('DIV');
   divPlayer.classList.add('player');
@@ -2172,72 +2254,37 @@ async function renderRankedGames(rankingId, playerId) {
   imgAvatar.src = avatar.src;
   divAvatarImage.append(imgAvatar);
 
-  const divRankedGames = document.createElement('DIV');
-  divRankedGames.classList.add('magic-table');
-  divRankedGames.classList.add('rankedGames');
-  divRankedGames.innerHTML = `
-    ${divPlayer.outerHTML}
-    <DIV class="header">
-      <DIV class="group">
-        <DIV class="result"></DIV>
-        <DIV class="avatar"></DIV>
-        <DIV class="name"></DIV>
-        <DIV class="turnCount">Turn Count</DIV>
-        <DIV class="ended">Ended</DIV>
-      </DIV>
-      <DIV class="group">
-        <DIV class="result"></DIV>
-        <DIV class="avatar"></DIV>
-        <DIV class="name"></DIV>
-        <DIV class="turnCount">Turn Count</DIV>
-        <DIV class="ended">Ended</DIV>
-      </DIV>
-    </DIV>
-  `;
-
-  const divBody = document.createElement('DIV');
-  divBody.classList.add('body');
-
-  for (const rankedGame of rankedGames) {
-    divBody.append(renderRankedGame(rankingId, rank, rankedGame));
-    divBody.append(renderRankedGameFooter(rankingId, rank, rankedGame));
-  }
-
-  divRankedGames.append(divBody);
-  divRankedGames.querySelector('.header .group:last-child').style.display = rankedGames.length === 1 ? 'none' : '';
-
+  const divRankedGames = await renderRankedGames(rankedGames, rankingId, playerId);
+  const divHeader = divRankedGames.querySelector('.header');
+  divRankedGames.insertBefore(divPlayer, divHeader);
   divContent.append(divRankedGames);
-
-  for (const view of divRankings.querySelectorAll('DIV.topranks, DIV.ranking'))
-    view.style.display = 'none';
-  divContent.style.display = '';
 }
 function renderRanks(rankingId, ranks) {
+  const rankingName = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
+
   const divRanks = document.createElement('DIV');
-  divRanks.classList.add('magic-table');
   divRanks.classList.add('ranks');
   divRanks.innerHTML = `
     <DIV class="header">
-      <DIV class="group">
-        <DIV class="avatar"></DIV>
-        <DIV class="name"></DIV>
-        <DIV class="gameCount">Game Count</DIV>
-        <DIV class="rank">Rank</DIV>
-      </DIV>
-      <DIV class="group">
-        <DIV class="avatar"></DIV>
-        <DIV class="name"></DIV>
-        <DIV class="gameCount">Game Count</DIV>
-        <DIV class="rank">Rank</DIV>
-      </DIV>
+      <DIV class="caption"><A href="#rankings/${rankingId}">${rankingName}</A></DIV>
+      <DIV class="gameCount">Game Count</DIV>
+      <DIV class="rank">Rank</DIV>
     </DIV>
   `;
 
   const divBody = document.createElement('DIV');
   divBody.classList.add('body');
 
+console.log('ranks', ranks);
   for (const [ r, rank ] of ranks.entries()) {
-    rank.rank ??= r + 1;
+    rank.num ??= r + 1;
+
+    if (r > 0 && ranks[r-1].num < (rank.num - 1)) {
+      const divBreak = document.createElement('DIV');
+      divBreak.classList.add('break');
+      divBody.append(divBreak);
+    }
+
     divBody.append(renderRank(rankingId, rank));
   }
 
@@ -2247,7 +2294,6 @@ function renderRanks(rankingId, ranks) {
 }
 function renderRank(rankingId, rank) {
   const divRank = document.createElement('DIV');
-  divRank.classList.add('row');
   divRank.classList.add('rank');
   divRank.addEventListener('click', event => location.hash = `#rankings/${rankingId}/${rank.playerId}`);
 
@@ -2282,27 +2328,72 @@ function renderRank(rankingId, rank) {
 
   const divRankNum = document.createElement('DIV');
   divRankNum.classList.add('rank');
-  divRankNum.textContent = `#${ rank.rank }`;
+  divRankNum.textContent = `#${ rank.num }`;
   divRank.append(divRankNum);
 
   return divRank;
 }
-function renderRankedGame(rankingId, rank, game) {
-  const opponent = game.teams.find(t => t.playerId !== rank.playerId);
+function renderRankedGames(games, rankingId, playerId = null) {
+  const divRankedGames = document.createElement('DIV');
+  divRankedGames.classList.add('rankedGames');
+  divRankedGames.innerHTML = `
+    <DIV class="header">
+      <DIV class="left"></DIV>
+      <DIV class="right">
+        <LABEL>
+          Show Results
+          <INPUT type="checkbox" />
+        </LABEL>
+      </DIV>
+    </DIV>
+  `;
+
+  const divBody = document.createElement('DIV');
+  divBody.classList.add('body');
+
+  for (const game of games)
+    divBody.append(renderRankedGame(game));
+
+  divRankedGames.append(divBody);
+
+  return divRankedGames;
+}
+function renderRankedGame(game, playerId = null) {
+  const team1 = game.teams.find(t => t.playerId === (playerId ?? game.createdBy));
+  const rank1 = game.meta.ranks.find(r => r.playerId === (playerId ?? game.createdBy));
+  const team2 = game.teams.find(t => t !== team1);
+  const rank2 = game.meta.ranks.find(r => r !== rank1);
+
   const divGame = document.createElement('DIV');
-  divGame.classList.add('row');
-  divGame.classList.add('rankedGame');
+  divGame.classList.add('game');
   divGame.addEventListener('click', event => location.href = `game.html?${game.id}`);
 
+  const divVS = document.createElement('DIV');
+  divVS.classList.add('vs');
+  divVS.append(renderRankedGameAvatar(team1.playerId, 'S'));
+  divVS.append(renderRankedGameTeam(game, team1, rank1));
+  divVS.append(renderRankedGameResult(game));
+  divVS.append(renderRankedGameTeam(game, team2, rank2));
+  divVS.append(renderRankedGameAvatar(team2.playerId, 'W'));
+  divGame.append(divVS);
+
+  divGame.append(renderRankedGameInfo(game));
+
+  return divGame;
+}
+function renderRankedGameAvatar(playerId, direction = 'S') {
   const divAvatar = document.createElement('DIV');
   divAvatar.classList.add('avatar');
-  divGame.append(divAvatar);
+  divAvatar.addEventListener('click', event => {
+    event.stopPropagation();
+    location.hash = `#rankings/${playerId}`;
+  });
 
   const divAvatarWrapper = document.createElement('DIV');
   divAvatar.classList.add('wrapper');
   divAvatar.append(divAvatarWrapper);
 
-  const avatar = getAvatar(opponent.playerId, { withFocus:true });
+  const avatar = getAvatar(playerId, { direction, withFocus:true });
   const imgAvatar = document.createElement('IMG');
   const originY = avatar.y - 22;
   imgAvatar.style.transformOrigin = `${-avatar.x}px ${-originY}px`;
@@ -2311,84 +2402,77 @@ function renderRankedGame(rankingId, rank, game) {
   imgAvatar.src = avatar.src;
   divAvatarWrapper.append(imgAvatar);
 
+  return divAvatar;
+}
+function renderRankedGameTeam(game, team, rank) {
+  const divTeam = document.createElement('DIV');
+  divTeam.classList.add('team');
+  divTeam.classList.toggle('creator', team.playerId === game.createdBy);
+
   const rating = [];
-  if (game.meta.rank.rating && opponent.ratings.get(rankingId)) {
-    const vsRatings = opponent.ratings.get(rankingId);
+  if (rank.rating && team.ratings.get(rankingId)) {
+    const vsRatings = team.ratings.get(rankingId);
     const change = vsRatings[1] - vsRatings[0];
     const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
 
-    rating.push(`<SPAN class="rating">${Math.round(vsRatings[0])}</SPAN>`);
+    rating.push(`<SPAN class="initial">${Math.round(vsRatings[0])}</SPAN>`);
     rating.push(`<SPAN class="${change > 0 ? 'up' : 'down'}">${label}</SPAN>`);
-    rating.push(` (${game.meta.rank.rating})`);
+    rating.push(` <SPAN class="current">(${rank.rating})</SPAN>`);
   } else {
-    rating.push(`(${game.meta.rank.rating || 'Unranked'})`);
+    rating.push(`<SPAN class="current">(${rank.rating || 'Unranked'})</SPAN>`);
   }
 
-  const divName = document.createElement('DIV');
-  divName.classList.add('name');
-  divName.innerHTML = `
-    <DIV>${opponent.name}</DIV>
-    <DIV>${rating.join('')}</DIV>
+  divTeam.innerHTML = `
+    <DIV class="name">${team.name}</DIV>
+    <DIV class="rating">${rating.join('')}</DIV>
   `;
-  divGame.append(divName);
 
+  return divTeam;
+}
+function renderRankedGameResult(game) {
   const divResult = document.createElement('DIV');
   divResult.classList.add('result');
-  divResult.textContent = (
-    game.winnerId === 'draw' ? 'Draw!' :
-    game.winnerId === 'truce' ? 'Truce!' :
-    game.winnerId === game.teams.findIndex(t => t === opponent) ? 'Lose!' :
-    'Win!'
-  );
-  divGame.append(divResult);
 
-  const divTurnCount = document.createElement('DIV');
-  divTurnCount.classList.add('turnCount');
-  divTurnCount.textContent = game.currentTurnId;
-  divGame.append(divTurnCount);
+  if (game.endedAt)
+    divResult.textContent = (
+      game.winnerId === 'draw' ? 'Draw!' :
+      game.winnerId === 'truce' ? 'Truce!' :
+      game.winnerId === game.teams.findIndex(t => t === opponent) ? 'Lose!' :
+      'Win!'
+    );
+  else
+    divResult.textContent = 'VS';
 
-  const divEnded = document.createElement('DIV');
-  divEnded.classList.add('ended');
-  divEnded.append(renderClock(game.endedAt));
-  divGame.append(divEnded);
-
-  return divGame;
+  return divResult;
 }
-function renderRankedGameFooter(rankingId, rank, game) {
-  const myTeam = game.teams.find(t => t.playerId === rank.playerId);
-  const myRatings = myTeam.ratings.get(rankingId);
-
-  const divFooter = document.createElement('DIV');
-  divFooter.classList.add('footer');
+function renderRankedGameInfo(game) {
+  const divInfo = document.createElement('DIV');
+  divInfo.classList.add('info');
 
   const labels = [];
   if (rankingId === 'FORTE')
     labels.push(game.typeName);
+  labels.push(`${game.currentTurnId} Turns`);
   if (!game.randomHitChance)
     labels.push('No Luck');
   if (game.timeLimitName !== 'standard')
     labels.push(game.timeLimitName.toUpperCase('first'));
+  if (!game.rated)
+    labels.push('Unrated');
+  else if (!game.ranked)
+    labels.push('Unranked');
 
   const spnLeft = document.createElement('SPAN');
   spnLeft.classList.add('left');
   spnLeft.textContent = labels.join(', ');
-  divFooter.append(spnLeft);
+  divInfo.append(spnLeft);
 
   const spnRight = document.createElement('SPAN');
   spnRight.classList.add('right');
-  if (myRatings) {
-    const change = myRatings[1] - myRatings[0];
-    const label = Math.abs(Math.round(myRatings[1]) - Math.round(myRatings[0])) || '';
+  spnRight.append(renderClock(game.endedAt));
+  divInfo.append(spnRight);
 
-    spnRight.innerHTML = [
-      `<SPAN class="rating">${Math.round(myRatings[0])}</SPAN>`,
-      `<SPAN class="${change > 0 ? 'up' : 'down'}">${label}</SPAN>`,
-    ].join('');
-  } else
-    spnRight.innerHTML = `Unranked`;
-  divFooter.append(spnRight);
-
-  return divFooter;
+  return divInfo;
 }
 
 function renderGame(game) {
@@ -2695,17 +2779,6 @@ async function showLobby() {
     divLobby.classList.add('is-active');
 }
 
-function getTabNameForElement(el) {
-  if (el.classList.contains('lobby'))
-    return 'lobby';
-  else if (el.classList.contains('yourGames'))
-    return 'yourGames';
-  else if (el.classList.contains('publicGames'))
-    return 'publicGames';
-  else if (el.classList.contains('rankings'))
-    return 'rankings';
-}
-
 async function fetchTabData(tabName) {
   const promises = [];
 
@@ -2877,35 +2950,17 @@ async function fetchTabData(tabName) {
       }),
     );
   } else {
-    const route = location.hash.split('/');
+    const routePath = location.hash;
 
-    if (route.length === 1) {
-      tabContent.route = () => renderRankings();
-
-      promises.push(
-        authClient.getRankings().then(rsp => {
-          tabContent.topranks = rsp;
-        }),
-      );
-    } else if (route.length === 2) {
-      tabContent.route = () => renderRanking(route[1]);
-
-      promises.push(
-        authClient.getRanking(route[1]).then(rsp => {
-          tabContent.ranks = rsp;
-        }),
-      );
-    } else if (route.length === 3) {
-      tabContent.route = () => renderRankedGames(route[1], route[2]);
-
-      promises.push(
-        authClient.getRankings(route[2], route[1]).then(rsp => {
-          tabContent.rank = rsp.get(route[1])?.find(r => r.playerId === route[2]);
-        }),
-        gameClient.getRankedGames(route[2], route[1]).then(rsp => {
-          tabContent.rankedGames = rsp;
-        }),
-      );
+    for (const matcher of routeMatcher) {
+      const route = matcher(routePath);
+      if (route) {
+        promises.push(route.data.then(data => {
+          tabContent.route = route.route;
+          tabContent.data = data;
+        }));
+        break;
+      }
     }
   }
 

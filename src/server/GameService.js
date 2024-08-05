@@ -82,7 +82,7 @@ export default class GameService extends Service {
 
         searchGameCollection: ['string', 'any'],
         searchMyGames: ['any'],
-        getRankedGames: [ 'uuid', 'string' ],
+        getRankedGames: [ 'string', 'uuid | null' ],
 
         getPlayerSets: ['string'],
         getPlayerSet: ['string', 'string'],
@@ -977,20 +977,12 @@ export default class GameService extends Service {
 
     return this._searchGameCollection(player, collectionId, query);
   }
-  async onGetRankedGamesRequest(client, playerId, rankingId) {
-    const gamesSummary = await this.data.getRankedGames(playerId, rankingId);
+  async onGetRankedGamesRequest(client, rankingId, playerId) {
+    const gamesSummary = playerId
+      ? await this.data.getPlayerRankedGames(playerId, rankingId)
+      : await this.data.getRankedGames(rankingId);
 
-    for (const [ i, gameSummary ] of gamesSummary.entries()) {
-      const opponent = gameSummary.teams.find(t => t.playerId !== playerId);
-      const rank = this.auth.getPlayerRank(opponent.playerId, rankingId) ?? {
-        playerId: opponent.playerId,
-        name: opponent.name,
-      };
-
-      gamesSummary[i] = gameSummary.cloneWithMeta({ rank });
-    }
-
-    return gamesSummary;
+    return Promise.all(Array.from(gamesSummary.entries()).map(([ i, gs ]) => this._cloneGameSummaryWithMeta(gs)))
   }
 
   /*
@@ -1274,11 +1266,11 @@ export default class GameService extends Service {
     this._attachGame(game);
     return game;
   }
-  async _cloneGameSummaryWithMeta(gameSummary, player) {
+  async _cloneGameSummaryWithMeta(gameSummary, player = null) {
     const meta = {};
     const promises = [];
 
-    if (!gameSummary.startedAt && gameSummary.createdBy !== player.id) {
+    if (player && !gameSummary.startedAt && gameSummary.createdBy !== player.id) {
       const creator = await this._getAuthPlayer(gameSummary.createdBy);
       meta.creatorACL = player.getRelationship(creator);
 

@@ -302,14 +302,13 @@
       color: red;
     }
 
-    .magic-table {
+    .rankings .content {
       display: flex;
       flex-direction: column;
-      justify-content: space-around;
+      align-items: center;
       width: 100%;
-      max-width: 400px;
     }
-    .magic-table .caption {
+    .ranks .caption {
       margin-top: 8px;
 
       white-space: nowrap;
@@ -319,53 +318,29 @@
       font-size: 1.2em;
       color: #b08d57;
     }
-    .magic-table .header {
+    .ranks .caption A {
+      color: inherit;
+    }
+    .ranks .header {
       display: grid;
-      gap: 8px;
+      grid-template-columns: 70% 15% 15%;
+      align-items: center;
+      text-align: center;
 
       font-weight: bold;
       color: #b08d57;
     }
-    .magic-table .header .group {
-      display: grid;
-      align-items: center;
-      text-align: center;
-    }
-    .magic-table.ranks .header .group {
-      grid-template-columns: 15% 55% 15% 15%;
-    }
-    .magic-table.rankedGames .header .group {
-      grid-template-columns: 15% 40% 15% 15% 15%;
-    }
-    .magic-table .body {
-      display: grid;
-
-      padding-top: 8px;
-    }
-    .magic-table .down {
+    .ranks .down {
       color: #FF0000;
     }
-    .magic-table .down::before {
+    .ranks .down::before {
       content: '\2212';
     }
-    .magic-table .up {
+    .ranks .up {
       color: #00FF00;
     }
-    .magic-table .up::before {
+    .ranks .up::before {
       content: '+';
-    }
-    .magic-table .row {
-      display: grid;
-      align-items: center;
-      text-align: center;
-
-      margin-bottom: 8px;
-      border: 1px solid #444444;
-      padding: 0;
-      height: 60px;
-
-      cursor: pointer;
-      break-inside: avoid;
     }
     .magic-table .footer {
       display: flex;
@@ -376,28 +351,49 @@
 
       background-color: #444444;
     }
-    .magic-table.ranks .row {
+    .ranks {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      width: 100%;
+      max-width: 400px;
+    }
+    .ranks .body {
+      display: grid;
+      gap: 8px;
+
+      padding-top: 8px;
+    }
+    .ranks .body > .rank {
+      display: grid;
       grid-template-columns: 15% 55% 15% 15%;
+      align-items: center;
+      text-align: center;
+
+      border: 2px solid #444444;
+      height: 60px;
+
+      cursor: pointer;
     }
-    .magic-table.rankedGames .row {
-      grid-template-columns: 15% 40% 15% 15% 15%;
-    }
-    .magic-table .row:hover {
+    .ranks .body > .rank:hover {
       border-color: #00FFFF;
     }
-    .magic-table .row .avatar {
+    .ranks .rank .avatar {
       position: relative;
       width: 100%;
       height: 100%;
     }
-    .magic-table .row .avatar DIV {
+    .ranks .rank .avatar DIV {
       display: inline-block;
       position: absolute;
       left: 50%;
       bottom: 0;
     }
-    .magic-table .row .avatar IMG {
+    .ranks .rank .avatar IMG {
       position: absolute;
+    }
+    .ranks .break::before {
+      content: '\299A';
     }
 
     .rankings {
@@ -1014,10 +1010,10 @@
     <DIV id="pn" style="display:none"></DIV>
     <DIV class="tabs" style="display:none">
       <UL>
-        <LI class="yourGames"><span class="label">Your Games</span><span class="badge"></span></LI>
-        <LI class="lobby"><span class="label">Lobby</span><span class="badge"></span></LI>
-        <LI class="publicGames"><span class="label">Public Games</span><span class="badge"></span></LI>
-        <LI class="rankings"><span class="label">Rankings</span><span class="badge"></span></LI>
+        <LI class="yourGames" data-route="#yourGames"><span class="label">Your Games</span><span class="badge"></span></LI>
+        <LI class="lobby" data-route="#lobby"><span class="label">Lobby</span><span class="badge"></span></LI>
+        <LI class="publicGames" data-route="#publicGames"><span class="label">Public Games</span><span class="badge"></span></LI>
+        <LI class="rankings" data-route="#rankings/FORTE"><span class="label">Rankings</span><span class="badge"></span></LI>
       </UL>
     </DIV>
     <DIV class="tabContent">
@@ -1032,12 +1028,7 @@
         <DIV class="notice" style="display:none">
           Only verified accounts may particate in rankings.  To verify your account, go <A href="/security.html">here</A>.
         </DIV>
-        <DIV class="topranks" style="display:none">
-        </DIV>
-        <DIV class="ranking" style="display:none">
-        </DIV>
-        <DIV class="rankedGames" style="display:none">
-        </DIV>
+        <DIV class="content"></DIV>
       </DIV>
       <DIV class="loading">
         <DIV class="label">Please<br>wait...</DIV>
