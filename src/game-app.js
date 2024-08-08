@@ -981,6 +981,9 @@ function initMessages(messages) {
       case 'same identity':
         reason = `both players share the same identity`;
         break;
+      case 'in game':
+        reason = `the players were already playing a ranked game against each other in this style`;
+        break;
       case 'too many games':
         reason = `the players have 2 ranked games against each other in this style within the past week`;
         break;

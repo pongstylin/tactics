@@ -903,6 +903,7 @@ async function joinGame(arena) {
     const reason =
       arena.meta.unrankedReason === 'not verified' ? 'You have not verified your account yet' :
       arena.meta.unrankedReason === 'same identity' ? `You can't play yourself in a ranked game` :
+      arena.meta.unrankedReason === 'in game' ? `You are already playing a ranked game against this player in this style` :
       arena.meta.unrankedReason === 'too many games' ? `You already played this player in this style twice in the past week` :
       'Unknown.  Report this bug';
 

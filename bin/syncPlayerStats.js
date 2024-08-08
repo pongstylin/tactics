@@ -26,10 +26,14 @@ const playerMeta = new Map();
 
   gameEvents.sort((a,b) => a.at - b.at);
 
+  const concurrentGames = new Map();
+
   for (const gameEvent of gameEvents) {
     // Need full game object to sync ranked game team ratings.
+    // Otherwise, approximate game object using indexed data to speed things up.
     const needFullGame = gameEvent.index.ranked && gameEvent.type === 'ended';
     const game = needFullGame ? await gameAdapter._getGame(gameEvent.id) : {
+      id: gameEvent.id,
       state:{
         type: gameEvent.index.type,
         rated: gameEvent.index.rated,
@@ -56,7 +60,20 @@ const playerMeta = new Map();
       },
     };
 
-    // Approximate game object using indexed data to speed things up.
+    if (game.state.ranked) {
+      const concurrentKey = [ game.state.type, ...game.state.teams.map(t => t.playerId).sort() ].join(':');
+      if (game.state.endedAt)
+        concurrentGames.delete(concurrentKey);
+      else if (concurrentGames.has(concurrentKey)) {
+        //concurrentGames.set(gameEvent.id, true);
+        console.log('concurrent ranked game detected', concurrentGames.get(concurrentKey), gameEvent.id);
+      } else
+        concurrentGames.set(concurrentKey, gameEvent.id);
+    }
+
+    if (concurrentGames.has(gameEvent.id))
+      game.state.ranked = false;
+
     await recordGameStats(game);
   }
 
@@ -68,15 +85,14 @@ const playerMeta = new Map();
       continue;
 
     const player = await authAdapter.getPlayer(playerId);
-    const playerStats = await gameAdapter.getPlayerStats(playerId);
     const rankingIds = new Set([
-      ...playerMeta.get(playerId).keys(),
-      ...playerStats.ratings.keys(),
+      ...playerMeta.get(playerId).oldRatings.keys(),
+      ...(playerMeta.get(playerId).newRatings?.keys() ?? []),
     ]);
 
     for (const rankingId of rankingIds) {
-      const oldRating = playerMeta.get(playerId).get(rankingId)?.rating ?? 750;
-      const newRating = playerStats.getRating(rankingId);
+      const oldRating = playerMeta.get(playerId).oldRatings.get(rankingId)?.rating ?? 750;
+      const newRating = playerMeta.get(playerId).newRatings?.get(rankingId)?.rating ?? 750;
 
       if (oldRating !== newRating)
         console.log(`${player.id}: ${player.name}: ${rankingId}: ${oldRating} => ${newRating}`);
@@ -98,7 +114,10 @@ async function recordGameStats(game) {
       continue;
 
     if (playersMap.get(playerStats.playerId).isVerified)
-      playerMeta.set(playerStats.playerId, playerStats.ratings.clone());
+      playerMeta.set(playerStats.playerId, {
+        oldRatings: playerStats.ratings.clone(),
+        newRatings: null,
+      });
     else
       playerMeta.set(playerStats.playerId, null);
 
@@ -110,8 +129,10 @@ async function recordGameStats(game) {
       game.state.teams.forEach(t => t.data.ratings = null);
 
     if (PlayerStats.updateRatings(game, playersStatsMap))
-      for (const playerStats of playersStats)
+      for (const playerStats of playersStats) {
         playersMap.get(playerStats.playerId).identity.setRanks(playerStats.playerId, playerStats.ratings);
+        playerMeta.get(playerStats.playerId).newRatings = playerStats.ratings.clone();
+      }
 
     for (const playerStats of playersStats)
       playerStats.recordGameEnd(game);

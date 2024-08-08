@@ -644,6 +644,8 @@ export default class GameService extends Service {
             throw new ServerError(403, 'Guests cannot join ranked games');
           else if (reason === 'same identity')
             throw new ServerError(403, 'Cannot play yourself in a ranked game');
+          else if (reason === 'in game')
+            throw new ServerError(403, 'You are already playing this person in a ranked game in this style');
           else if (reason === 'too many games')
             throw new ServerError(403, 'You have played this person in a ranked game twice in this style in the past week');
         }
