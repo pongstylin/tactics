@@ -28,6 +28,8 @@ const groups = new Map([
 ]);
 
 let myPlayerId = null;
+let settings = null;
+
 const state = {
   /*
    * Set to false at first, it means we won't wait for audio to be enabled
@@ -116,13 +118,6 @@ window.addEventListener('click', onceClick, { passive:true, capture:true });
 
 const fillArenaQueueMap = new Map();
 
-const settings = new LobbySettingsModal({
-  autoShow: false,
-  hideOnCancel: true,
-}).on('settings', event => {
-  state.settings = event.data;
-});
-
 const pushPublicKey = Uint8Array.from(
   atob(
     config.pushPublicKey
@@ -186,6 +181,13 @@ whenDOMReady.then(() => {
 
     if (await authClient.requireAuth())
       history.replaceState(null, null, '#lobby');
+
+    settings = new LobbySettingsModal({
+      autoShow: false,
+      hideOnCancel: true,
+    }).on('settings', event => {
+      state.settings = event.data;
+    });
   });
 
   const page = document.querySelector('.page');
