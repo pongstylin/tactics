@@ -343,6 +343,8 @@ window.addEventListener('DOMContentLoaded', () => {
             randomFirstTurn: gameOptions.randomFirstTurn,
             // Blocking system must match player preference.
             randomHitChance: gameOptions.randomHitChance,
+            // Rated or not must match player preference
+            rated: gameOptions.rated,
           },
           sort: 'createdAt',
           limit: 1,
@@ -374,6 +376,8 @@ window.addEventListener('DOMContentLoaded', () => {
           randomFirstTurn: gameOptions.randomFirstTurn,
           // Blocking system must match player preference.
           randomHitChance: gameOptions.randomHitChance,
+          // Rated or not must match player preference
+          rated: gameOptions.rated,
         },
         sort: 'createdAt',
         limit: 1,
