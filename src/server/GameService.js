@@ -7,6 +7,7 @@ import Service from '#server/Service.js';
 import ServerError from '#server/Error.js';
 import Timeout from '#server/Timeout.js';
 import Game from '#models/Game.js';
+import GameSummary from '#models/GameSummary.js';
 import Team from '#models/Team.js';
 import Player from '#models/Player.js';
 import PlayerStats from '#models/PlayerStats.js';
@@ -809,7 +810,10 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     const game = await this._getGame(gameId);
 
-    return game.getSyncForPlayer(clientPara?.playerId);
+    const gameData = game.getSyncForPlayer(clientPara?.playerId);
+    gameData.meta = await this._getGameMeta(game, clientPara.player);
+
+    return gameData;
   }
   async onGetTurnDataRequest(client, gameId, ...args) {
     this.throttle(client.address, 'getTurnData', 300, 300);
@@ -1276,24 +1280,47 @@ export default class GameService extends Service {
     this._attachGame(game);
     return game;
   }
-  async _cloneGameSummaryWithMeta(gameSummary, player) {
+  /*
+   * The game argument can be either a Game or GameSummary object.
+   */
+  async _getGameMeta(game, player = null) {
     const meta = {};
+    const data = {};
     const promises = [];
 
-    if (!gameSummary.startedAt && gameSummary.createdBy !== player.id) {
-      const creator = await this._getAuthPlayer(gameSummary.createdBy);
+    if (game instanceof Game)
+      Object.assign(data, {
+        collection: game.collection,
+        createdBy: game.createdBy,
+        rated: game.state.rated,
+        startedAt: game.state.startedAt,
+        teams: game.state.teams,
+        type: game.state.type,
+      });
+    else if (game instanceof GameSummary)
+      Object.assign(data, {
+        collection: game.collection,
+        createdBy: game.createdBy,
+        rated: game.rated,
+        startedAt: game.startedAt,
+        teams: game.teams,
+        type: game.type,
+      });
+
+    if (player && !data.startedAt && data.createdBy !== player.id) {
+      const creator = await this._getAuthPlayer(data.createdBy);
       meta.creatorACL = player.getRelationship(creator);
 
-      if (gameSummary.collection && gameSummary.rated) {
-        promises.push(this.data.canPlayRankedGame(gameSummary, creator, player).then(({ ranked, reason }) => {
+      if (data.collection && data.rated) {
+        promises.push(this.data.canPlayRankedGame(game, creator, player).then(({ ranked, reason }) => {
           meta.ranked = ranked;
           meta.unrankedReason = reason;
         }));
       }
     }
 
-    promises.push(this.auth.getRanking(gameSummary.type).then(ranks => {
-      meta.ranks = gameSummary.teams.map(t => {
+    promises.push(this.auth.getRanking(data.type).then(ranks => {
+      meta.ranks = data.teams.map(t => {
         if (!t) return null;
 
         const rankIndex = ranks.findIndex(r => r.playerId === t.playerId);
@@ -1306,7 +1333,10 @@ export default class GameService extends Service {
 
     await Promise.all(promises);
 
-    return gameSummary.cloneWithMeta(meta);
+    return meta;
+  }
+  async _cloneGameSummaryWithMeta(gameSummary, player) {
+    return gameSummary.cloneWithMeta(this._getGameMeta(gameSummary, player));
   }
 
   _attachGame(game) {
