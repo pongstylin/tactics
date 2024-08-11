@@ -2385,7 +2385,7 @@ function renderRankedGameFooter(rankingId, rank, game) {
 
     spnRight.innerHTML = [
       `<SPAN class="rating">${Math.round(myRatings[0])}</SPAN>`,
-      `<SPAN class="${change > 0 ? 'up' : 'down'}">${label}</SPAN>`,
+      `<SPAN class="${change ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN>`,
     ].join('');
   } else
     spnRight.innerHTML = `Unranked`;
