@@ -2321,7 +2321,7 @@ function renderRankedGame(rankingId, rank, game) {
     const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
 
     rating.push(`<SPAN class="rating">${Math.round(vsRatings[0])}</SPAN>`);
-    rating.push(`<SPAN class="${change > 0 ? 'up' : 'down'}">${label}</SPAN>`);
+    rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN>`);
     rating.push(` (${game.meta.rank.rating})`);
   } else {
     rating.push(`(${game.meta.rank.rating || 'Unranked'})`);
@@ -2385,7 +2385,7 @@ function renderRankedGameFooter(rankingId, rank, game) {
 
     spnRight.innerHTML = [
       `<SPAN class="rating">${Math.round(myRatings[0])}</SPAN>`,
-      `<SPAN class="${change ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN>`,
+      `<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN>`,
     ].join('');
   } else
     spnRight.innerHTML = `Unranked`;
