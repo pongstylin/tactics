@@ -981,6 +981,9 @@ function initMessages(messages) {
       case 'same identity':
         reason = `both players share the same identity`;
         break;
+      case 'in game':
+        reason = `the players were already playing a ranked game against each other in this style`;
+        break;
       case 'too many games':
         reason = `the players have 2 ranked games against each other in this style within the past week`;
         break;
@@ -1585,15 +1588,17 @@ async function showJoinIntro(gameData) {
       person = creatorTeam.name;
 
     const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
-    const rated = gameData.state.rated ? 'rated' : 'unrated';
+    const rated = gameData.collection
+      ? gameData.meta.ranked ? 'ranked' : 'unranked'
+      : gameData.state.rated ? 'rated' : 'unrated';
 
     details.innerHTML = `
       <DIV>This is ${vs} game.</DIV>
+      <DIV>The game is ${rated}.</DIV>
       <DIV>The game style is <I>${gameType.name}</I>.</DIV>
       <DIV>The time limit is set to ${gameData.timeLimitName.toUpperCase('first')}.</DIV>
       <DIV>The first person to move is ${person}.</DIV>
       <DIV>The blocking system is ${blocking}.</DIV>
-      <DIV>The game is ${rated}.</DIV>
     `;
 
     const $mySet = $('#join INPUT[name=setChoice][value=mySet]');

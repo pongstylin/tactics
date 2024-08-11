@@ -635,8 +635,9 @@ export default class Game {
     for (const team of this._teams)
       team.isCurrent = team.id === this.cursor.teamId;
 
-    let actions = this.actions;
-    actions.forEach(action => this._applyAction(action));
+    // Do not use this.actions or expect bugs
+    let actions = this.cursor.actions.slice(0, this.cursor.nextActionId);
+    actions.forEach(a => this._applyAction(board.decodeAction(a)));
 
     this.selectMode = 'move';
 

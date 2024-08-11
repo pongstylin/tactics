@@ -533,12 +533,16 @@ export default class Transport {
       this._expandTeams();
     if (data.state.recentTurns)
       this._syncRecentTurns();
-    this.whenReady.resolve();
+
     if (data.state.startedAt) {
       this._applyState();
+      // In case of error while applying state, resolve readiness after.
+      this.whenReady.resolve();
       this.whenStarted.resolve();
       if (data.state.recentTurns)
         this.whenTurnStarted.resolve();
+    } else {
+      this.whenReady.resolve();
     }
 
     for (const [ eventType, listener ] of this._listeners.entries()) {
@@ -650,7 +654,7 @@ export default class Transport {
   _applyState() {
     const board = this.board;
     board.setState(this.units, this.teams);
-    board.decodeAction(this.actions).forEach(a => board.applyAction(a));
+    this.actions.forEach(a => board.applyAction(board.decodeAction(a)));
   }
   _expandTeams() {
     this._data.state.teams = this._data.state.teams.map(teamData => {
@@ -670,7 +674,7 @@ export default class Transport {
       if (!turnData.units)
         turnData.units = board.getState();
 
-      board.decodeAction(turnData.actions).forEach(a => board.applyAction(a));
+      turnData.actions.forEach(a => board.applyAction(board.decodeAction(a)));
 
       recentTurns[i] = new Turn({
         id: turnId,
