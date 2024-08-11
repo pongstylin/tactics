@@ -19,13 +19,16 @@ import serializer, { unionType } from '#utils/serializer.js';
 const protectedGameIds = new Set();
 const ACTIVE_LIMIT = 120;
 const idleWatcher = function (session, oldIdle) {
+  const clientPara = this.clientPara.get(session.id);
+  const playerPara = this.playerPara.get(clientPara.playerId);
   const newInactive = session.idle > ACTIVE_LIMIT;
   const oldInactive = oldIdle > ACTIVE_LIMIT;
 
-  if (newInactive !== oldInactive) {
-    for (const gameId of session.watchers) {
+  for (const gameId of clientPara.joinedGameGroups) {
+    if (newInactive !== oldInactive)
       this._setGamePlayersStatus(gameId);
-    }
+    if (session.idle < oldIdle && playerPara.notifyGameIds.has(gameId))
+      playerPara.notifyGameIds.delete(gameId);
   }
 };
 
@@ -452,6 +455,7 @@ export default class GameService extends Service {
       const playerId = token.playerId;
       const clientPara = {
         joinedGroups: new Set(),
+        joinedGameGroups: new Set(),
         playerId,
         deviceType: uaparser(client.agent).device.type,
       };
@@ -487,6 +491,7 @@ export default class GameService extends Service {
         player,
         clients: new Set([client.id]),
         joinedGameGroups: new Map(),
+        notifyGameIds: new Set(),
       });
 
       // Let people who needs to know that this player is online.
@@ -811,7 +816,7 @@ export default class GameService extends Service {
     const game = await this._getGame(gameId);
 
     const gameData = game.getSyncForPlayer(clientPara?.playerId);
-    gameData.meta = await this._getGameMeta(game, clientPara.player);
+    gameData.meta = await this._getGameMeta(game, clientPara?.player);
 
     return gameData;
   }
@@ -1024,7 +1029,7 @@ export default class GameService extends Service {
   }
 
   async onJoinGameGroup(client, groupPath, gameId, reference) {
-    const game = await this.data.openGame(gameId);
+    const game = await this._openGame(gameId);
     // Abort if the client is no longer connected.
     if (client.closed) {
       this.data.closeGame(gameId);
@@ -1067,6 +1072,7 @@ export default class GameService extends Service {
 
     const clientPara = this.clientPara.get(client.id);
     clientPara.joinedGroups.add(groupPath);
+    clientPara.joinedGameGroups.add(gameId);
 
     const playerId = clientPara.playerId;
     const playerPara = this.playerPara.get(playerId);
@@ -1095,7 +1101,8 @@ export default class GameService extends Service {
     if (team) {
       game.checkin(team);
       this._setGamePlayersStatus(gameId);
-      this._watchClientIdleForGame(gameId, client);
+      if (clientPara.joinedGameGroups.size === 1)
+        client.session.onIdleChange = this.idleWatcher;
     } else if (firstJoined)
       this._setGamePlayersStatus(gameId);
 
@@ -1274,6 +1281,11 @@ export default class GameService extends Service {
     const games = await this.data.getGames(gameId);
     games.forEach(g => this._attachGame(g));
     return games;
+  }
+  async _openGame(gameId) {
+    const game = await this.data.openGame(gameId);
+    this._attachGame(game);
+    return game;
   }
   async _getGame(gameId) {
     const game = await this.data.getGame(gameId);
@@ -1596,6 +1608,7 @@ export default class GameService extends Service {
 
     const clientPara = this.clientPara.get(client.id);
     clientPara.joinedGroups.delete(groupPath);
+    clientPara.joinedGameGroups.delete(gameId);
 
     const gamePara = this.gamePara.get(gameId);
     gamePara.clients.delete(client.id);
@@ -1626,7 +1639,14 @@ export default class GameService extends Service {
       const lastActiveAt = new Date(checkoutAt - client.session.idle * 1000);
       game.checkout(team, checkoutAt, lastActiveAt);
 
-      this._unwatchClientIdleForGame(gameId, client);
+      if (clientPara.joinedGameGroups.size === 0)
+        delete client.session.onIdleChange;
+    }
+
+    if (playerPara.notifyGameIds.has(gameId)) {
+      playerPara.notifyGameIds.delete(gameId);
+      if (this._notifyYourTurn(game))
+        playerPara.notifyGameIds.clear();
     }
 
     this._emit({
@@ -1897,26 +1917,6 @@ export default class GameService extends Service {
       this._setGamePlayersStatus(game.id);
     }
   }
-  _watchClientIdleForGame(gameId, client) {
-    const session = client.session;
-
-    if (session.watchers)
-      session.watchers.add(gameId);
-    else {
-      session.watchers = new Set([gameId]);
-      session.onIdleChange = this.idleWatcher;
-    }
-  }
-  _unwatchClientIdleForGame(gameId, client) {
-    const session = client.session;
-
-    if (session.watchers.size > 1)
-      session.watchers.delete(gameId);
-    else {
-      delete session.watchers;
-      delete session.onIdleChange;
-    }
-  }
   _getPlayerGameStatus(playerId, game) {
     const playerPara = this.playerPara.get(playerId);
     if (!playerPara || (game.state.endedAt && !playerPara.joinedGameGroups.has(game.id)))
@@ -2064,16 +2064,20 @@ export default class GameService extends Service {
     // Only notify if the current player is not already in-game.
     // Still notify if the current player is in-game, but inactive?
     const playerPara = this.playerPara.get(playerId);
-    if (playerPara && playerPara.joinedGameGroups.has(game.id))
-      return;
+    if (playerPara && playerPara.joinedGameGroups.has(game.id)) {
+      playerPara.notifyGameIds.add(game.id);
+      return false;
+    }
 
     const notification = await this.getYourTurnNotification(playerId);
     // Game count should always be >= 1, but just in case...
     if (notification.gameCount === 0)
-      return;
+      return true;
 
     const urgency = game.state.rated === true && game.state.timeLimit.base < 86400 ? 'high' : 'normal';
 
     this.push.pushNotification(playerId, notification, urgency);
+
+    return true;
   }
 }
