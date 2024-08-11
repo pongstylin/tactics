@@ -757,7 +757,8 @@
       "description": "This custom style invented by still_the_gr8st requires exactly 8 units including a Stone Golem, but excluding a Scout!",
       "customizable": true,
       "limits": {
-        "tiles": { "start":[0,0], "end":[10,4] },
+        "fixedPositions": true,
+        "tiles": { "start":[0,0], "end":[5,4] },
         "points": 8,
         "units": {
           "types": [
@@ -767,7 +768,26 @@
             ["PoisonWisp",     { "max":1 }],
             ["DarkMagicWitch", { "max":1 }],
             ["Berserker",      { "max":1 }],
-            ["StoneGolem",     { "max":1 }]
+            [
+              "StoneGolem",
+              {
+                "max": 1,
+                "required": 1,
+                "rules": {
+                  "maxStone": true
+                },
+                "tiles": [
+                  { "start":[0,0], "end":[5,0] },
+                  [1,1],
+                  {
+                    "adjacentTo": {
+                      "type": "Cleric",
+                      "tiles": [ [2,0], [1,1] ]
+                    }
+                  }
+                ]
+              }
+            ]
           ]
         }
       },
