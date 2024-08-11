@@ -793,11 +793,11 @@
       },
       "sets": [{
         "units": [
-          { "assignment":[7,2], "type":"PoisonWisp" },
+          { "assignment":[7,2], "type":"Knight" },
           { "assignment":[8,2], "type":"Pyromancer" },
-          { "assignment":[6,1], "type":"Knight" },
-          { "assignment":[7,1], "type":"Pyromancer" },
-          { "assignment":[8,1], "type":"DarkMagicWitch" },
+          { "assignment":[6,1], "type":"PoisonWisp" },
+          { "assignment":[7,1], "type":"DarkMagicWitch" },
+          { "assignment":[8,1], "type":"Pyromancer" },
           { "assignment":[6,0], "type":"Berserker" },
           { "assignment":[7,0], "type":"StoneGolem" },
           { "assignment":[8,0], "type":"Cleric" }
