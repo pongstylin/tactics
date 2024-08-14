@@ -359,8 +359,7 @@ export default class Game {
     if (viewed) {
       board.hideMode();
       viewed.activate(selectMode, true);
-    }
-    else if (selected && this.isMyTurn && !this._inReplay) {
+    } else if (selected && this.isMyTurn && !this._inReplay) {
       if (selectMode === 'target')
         // Clear highlight, but not target tile
         board.hideMode();
@@ -635,20 +634,20 @@ export default class Game {
     for (const team of this._teams)
       team.isCurrent = team.id === this.cursor.teamId;
 
-    let actions = this.actions;
-    actions.forEach(action => this._applyAction(action));
+    // Do not use this.actions or expect bugs
+    let actions = this.cursor.actions.slice(0, this.cursor.nextActionId);
+    actions.forEach(a => this._applyAction(board.decodeAction(a)));
 
     this.selectMode = 'move';
 
     if (actions.length) {
-      const unit = actions[0].unit;
-      if (unit?.assignment)
-        this.selected = unit;
+      const selectAction = board.decodeAction(actions[0]);
+      if (selectAction.unit?.assignment)
+        this.selected = selectAction.unit;
     } else if (this._inReplay && this.cursor.actions.length) {
-      actions = board.decodeAction(this.cursor.actions);
-      const unit = actions[0].unit;
-      if (unit?.assignment)
-        this.selected = unit;
+      const selectAction = board.decodeAction(this.cursor.actions[0]);
+      if (selectAction.unit?.assignment)
+        this.selected = selectAction.unit;
     } else
       this.render();
   }
@@ -1270,8 +1269,7 @@ export default class Game {
       actor.deactivate();
       await actor.move(action, speed);
       actor.activate();
-    }
-    else if (actionType === 'attack') {
+    } else if (actionType === 'attack') {
       // Show the player the units that will be attacked.
       const target = action.target;
       const targetTiles = actor.getTargetTiles(target);
@@ -1296,8 +1294,7 @@ export default class Game {
         if (targetUnits.length === 1) {
           actor.setTargetNotice(targetUnits[0], target);
           this.drawCard(targetUnits[0]);
-        }
-        else
+        } else
           this.drawCard(actor);
       }
 
@@ -1313,23 +1310,20 @@ export default class Game {
       await this._playResults(action, speed);
       selected.activate();
       this.drawCard();
-    }
-    else if (actionType === 'turn') {
+    } else if (actionType === 'turn') {
       actor.deactivate();
       await actor.turn(action, speed);
       actor.activate();
-    }
     // Only applicable to Chaos Seed/Dragon
-    else if (actionType === 'phase') {
+    } else if (actionType === 'phase') {
       // Show the user the egg for 1 second before changing color
       this.drawCard(actor);
       await sleep(1000 / speed);
 
       await actor.phase(action, speed);
       await sleep(1000 / speed);
-    }
     // Only applicable to Chaos Seed counter-attack
-    else if (actionType === 'heal') {
+    } else if (actionType === 'heal') {
       // Show the player the unit that will be healed.
       const targetUnit = action.target.assigned;
 
@@ -1347,9 +1341,8 @@ export default class Game {
       actor.deactivate();
       await actor.heal(action, speed);
       await this._playResults(action, speed);
-    }
     // Only applicable to Chaos Seed counter-attack
-    else if (actionType === 'hatch') {
+    } else if (actionType === 'hatch') {
       this.drawCard(actor);
       actor.activate();
       await sleep(2000 / speed);
@@ -1358,8 +1351,7 @@ export default class Game {
       selected.deactivate(); // the target
       await actor.hatch(action, speed);
       await this._playResults(action, speed);
-    }
-    else {
+    } else {
       this.drawCard(actor);
 
       // For counter-attacks, the actor may differ from selected.

@@ -7,6 +7,7 @@ import Service from '#server/Service.js';
 import ServerError from '#server/Error.js';
 import Timeout from '#server/Timeout.js';
 import Game from '#models/Game.js';
+import GameSummary from '#models/GameSummary.js';
 import Team from '#models/Team.js';
 import Player from '#models/Player.js';
 import PlayerStats from '#models/PlayerStats.js';
@@ -18,13 +19,16 @@ import serializer, { unionType } from '#utils/serializer.js';
 const protectedGameIds = new Set();
 const ACTIVE_LIMIT = 120;
 const idleWatcher = function (session, oldIdle) {
+  const clientPara = this.clientPara.get(session.id);
+  const playerPara = this.playerPara.get(clientPara.playerId);
   const newInactive = session.idle > ACTIVE_LIMIT;
   const oldInactive = oldIdle > ACTIVE_LIMIT;
 
-  if (newInactive !== oldInactive) {
-    for (const gameId of session.watchers) {
+  for (const gameId of clientPara.joinedGameGroups) {
+    if (newInactive !== oldInactive)
       this._setGamePlayersStatus(gameId);
-    }
+    if (session.idle < oldIdle && playerPara.notifyGameIds.has(gameId))
+      playerPara.notifyGameIds.delete(gameId);
   }
 };
 
@@ -451,6 +455,7 @@ export default class GameService extends Service {
       const playerId = token.playerId;
       const clientPara = {
         joinedGroups: new Set(),
+        joinedGameGroups: new Set(),
         playerId,
         deviceType: uaparser(client.agent).device.type,
       };
@@ -486,6 +491,7 @@ export default class GameService extends Service {
         player,
         clients: new Set([client.id]),
         joinedGameGroups: new Map(),
+        notifyGameIds: new Set(),
       });
 
       // Let people who needs to know that this player is online.
@@ -644,6 +650,8 @@ export default class GameService extends Service {
             throw new ServerError(403, 'Guests cannot join ranked games');
           else if (reason === 'same identity')
             throw new ServerError(403, 'Cannot play yourself in a ranked game');
+          else if (reason === 'in game')
+            throw new ServerError(403, 'You are already playing this person in a ranked game in this style');
           else if (reason === 'too many games')
             throw new ServerError(403, 'You have played this person in a ranked game twice in this style in the past week');
         }
@@ -807,7 +815,10 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     const game = await this._getGame(gameId);
 
-    return game.getSyncForPlayer(clientPara?.playerId);
+    const gameData = game.getSyncForPlayer(clientPara?.playerId);
+    gameData.meta = await this._getGameMeta(game, clientPara?.player);
+
+    return gameData;
   }
   async onGetTurnDataRequest(client, gameId, ...args) {
     this.throttle(client.address, 'getTurnData', 300, 300);
@@ -1010,7 +1021,7 @@ export default class GameService extends Service {
   }
 
   async onJoinGameGroup(client, groupPath, gameId, reference) {
-    const game = await this.data.openGame(gameId);
+    const game = await this._openGame(gameId);
     // Abort if the client is no longer connected.
     if (client.closed) {
       this.data.closeGame(gameId);
@@ -1053,6 +1064,7 @@ export default class GameService extends Service {
 
     const clientPara = this.clientPara.get(client.id);
     clientPara.joinedGroups.add(groupPath);
+    clientPara.joinedGameGroups.add(gameId);
 
     const playerId = clientPara.playerId;
     const playerPara = this.playerPara.get(playerId);
@@ -1081,7 +1093,8 @@ export default class GameService extends Service {
     if (team) {
       game.checkin(team);
       this._setGamePlayersStatus(gameId);
-      this._watchClientIdleForGame(gameId, client);
+      if (clientPara.joinedGameGroups.size === 1)
+        client.session.onIdleChange = this.idleWatcher;
     } else if (firstJoined)
       this._setGamePlayersStatus(gameId);
 
@@ -1261,29 +1274,57 @@ export default class GameService extends Service {
     games.forEach(g => this._attachGame(g));
     return games;
   }
+  async _openGame(gameId) {
+    const game = await this.data.openGame(gameId);
+    this._attachGame(game);
+    return game;
+  }
   async _getGame(gameId) {
     const game = await this.data.getGame(gameId);
     this._attachGame(game);
     return game;
   }
-  async _cloneGameSummaryWithMeta(gameSummary, player = null) {
+  /*
+   * The game argument can be either a Game or GameSummary object.
+   */
+  async _getGameMeta(game, player = null) {
     const meta = {};
+    const data = {};
     const promises = [];
 
-    if (player && !gameSummary.startedAt && gameSummary.createdBy !== player.id) {
-      const creator = await this._getAuthPlayer(gameSummary.createdBy);
+    if (game instanceof Game)
+      Object.assign(data, {
+        collection: game.collection,
+        createdBy: game.createdBy,
+        rated: game.state.rated,
+        startedAt: game.state.startedAt,
+        teams: game.state.teams,
+        type: game.state.type,
+      });
+    else if (game instanceof GameSummary)
+      Object.assign(data, {
+        collection: game.collection,
+        createdBy: game.createdBy,
+        rated: game.rated,
+        startedAt: game.startedAt,
+        teams: game.teams,
+        type: game.type,
+      });
+
+    if (player && !data.startedAt && data.createdBy !== player.id) {
+      const creator = await this._getAuthPlayer(data.createdBy);
       meta.creatorACL = player.getRelationship(creator);
 
-      if (gameSummary.collection && gameSummary.rated) {
-        promises.push(this.data.canPlayRankedGame(gameSummary, creator, player).then(({ ranked, reason }) => {
+      if (data.collection && data.rated) {
+        promises.push(this.data.canPlayRankedGame(game, creator, player).then(({ ranked, reason }) => {
           meta.ranked = ranked;
           meta.unrankedReason = reason;
         }));
       }
     }
 
-    promises.push(this.auth.getRanking(gameSummary.type).then(ranks => {
-      meta.ranks = gameSummary.teams.map(t => {
+    promises.push(this.auth.getRanking(data.type).then(ranks => {
+      meta.ranks = data.teams.map(t => {
         if (!t) return null;
 
         const rankIndex = ranks.findIndex(r => r.playerId === t.playerId);
@@ -1296,7 +1337,10 @@ export default class GameService extends Service {
 
     await Promise.all(promises);
 
-    return gameSummary.cloneWithMeta(meta);
+    return meta;
+  }
+  async _cloneGameSummaryWithMeta(gameSummary, player) {
+    return gameSummary.cloneWithMeta(await this._getGameMeta(gameSummary, player));
   }
 
   _attachGame(game) {
@@ -1556,6 +1600,7 @@ export default class GameService extends Service {
 
     const clientPara = this.clientPara.get(client.id);
     clientPara.joinedGroups.delete(groupPath);
+    clientPara.joinedGameGroups.delete(gameId);
 
     const gamePara = this.gamePara.get(gameId);
     gamePara.clients.delete(client.id);
@@ -1586,7 +1631,14 @@ export default class GameService extends Service {
       const lastActiveAt = new Date(checkoutAt - client.session.idle * 1000);
       game.checkout(team, checkoutAt, lastActiveAt);
 
-      this._unwatchClientIdleForGame(gameId, client);
+      if (clientPara.joinedGameGroups.size === 0)
+        delete client.session.onIdleChange;
+    }
+
+    if (playerPara.notifyGameIds.has(gameId)) {
+      playerPara.notifyGameIds.delete(gameId);
+      if (this._notifyYourTurn(game))
+        playerPara.notifyGameIds.clear();
     }
 
     this._emit({
@@ -1857,26 +1909,6 @@ export default class GameService extends Service {
       this._setGamePlayersStatus(game.id);
     }
   }
-  _watchClientIdleForGame(gameId, client) {
-    const session = client.session;
-
-    if (session.watchers)
-      session.watchers.add(gameId);
-    else {
-      session.watchers = new Set([gameId]);
-      session.onIdleChange = this.idleWatcher;
-    }
-  }
-  _unwatchClientIdleForGame(gameId, client) {
-    const session = client.session;
-
-    if (session.watchers.size > 1)
-      session.watchers.delete(gameId);
-    else {
-      delete session.watchers;
-      delete session.onIdleChange;
-    }
-  }
   _getPlayerGameStatus(playerId, game) {
     const playerPara = this.playerPara.get(playerId);
     if (!playerPara || (game.state.endedAt && !playerPara.joinedGameGroups.has(game.id)))
@@ -2024,16 +2056,20 @@ export default class GameService extends Service {
     // Only notify if the current player is not already in-game.
     // Still notify if the current player is in-game, but inactive?
     const playerPara = this.playerPara.get(playerId);
-    if (playerPara && playerPara.joinedGameGroups.has(game.id))
-      return;
+    if (playerPara && playerPara.joinedGameGroups.has(game.id)) {
+      playerPara.notifyGameIds.add(game.id);
+      return false;
+    }
 
     const notification = await this.getYourTurnNotification(playerId);
     // Game count should always be >= 1, but just in case...
     if (notification.gameCount === 0)
-      return;
+      return true;
 
     const urgency = game.state.rated === true && game.state.timeLimit.base < 86400 ? 'high' : 'normal';
 
     this.push.pushNotification(playerId, notification, urgency);
+
+    return true;
   }
 }

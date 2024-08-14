@@ -383,6 +383,10 @@ export default class extends FileAdapter {
       if (game instanceof GameSummary && gameSummary.type !== game.type)
         continue;
 
+      // Open games don't prevent playing more ranked games
+      if (!gameSummary.startedAt)
+        continue;
+
       // Old games don't prevent playing more ranked games
       if (gameSummary.startedAt < since)
         continue;
@@ -390,6 +394,9 @@ export default class extends FileAdapter {
       // Only counting games against any of the opponent's accounts.
       if (!gameSummary.teams.some(t => opponent.identity.playerIds.includes(t.playerId)))
         continue;
+
+      if (!gameSummary.endedAt)
+        return { ranked:false, reason:'in game' };
 
       if (--n === 0)
         return { ranked:false, reason:'too many games' };
@@ -816,6 +823,8 @@ export default class extends FileAdapter {
       const games = await Promise.all(gameIds.slice(i, i + 100).map(gId => this._getGame(gId)));
 
       for (const game of games) {
+        if (!this.hasGameType(game.state.type))
+          continue;
         if (!game.state.startedAt)
           continue;
         if (game.state.isPracticeGame)

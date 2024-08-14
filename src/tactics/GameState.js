@@ -47,7 +47,8 @@ export default class GameState {
 
     if (this.turns.length) {
       board.setState(this.units, this.teams);
-      board.decodeAction(this.actions).forEach(a => this._applyAction(a));
+      // Decode actions and apply them one at a time to avoid bugs
+      this.actions.forEach(a => this._applyAction(board.decodeAction(a)));
     }
   }
 
@@ -196,13 +197,17 @@ export default class GameState {
     if (!this.rated)
       return 'not rated';
 
+    if (!this._ranked)
+      return this._unrankedReason;
+
     if (this.winnerId === 'truce')
       return 'truce';
 
     if (this.endedAt && this.losers.some(t => !this.teamHasSeen(t)))
       return 'unseen';
 
-    return this._unrankedReason;
+    // Should not happen
+    return null;
   }
   set unrankedReason(reason) {
     this._unrankedReason = reason;
