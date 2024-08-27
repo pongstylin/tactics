@@ -39,6 +39,9 @@ export default class Identities extends ActiveModel {
     return this.identities.values();
   }
 
+  has(identity) {
+    return this.data.has(identity.id);
+  }
   add(identity) {
     if (this.data.has(identity.id))
       return false;

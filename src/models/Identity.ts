@@ -103,7 +103,7 @@ export default class Identity extends ActiveModel {
   get needsIndex() {
     if (this.expireAt.getTime() <= Date.now())
       return false;
-    if (this.data.name === null && this.data.relationships.size === 0)
+    if (this.name === null && this.data.relationships.size === 0)
       return false;
 
     return true;
