@@ -103,9 +103,14 @@ export default class Identities extends ActiveModel {
   sharesName(name, forIdentity) {
     const curedName = decancer(name);
 
-    for (const identity of this.identities)
+    for (const identity of this.identities) {
       if (identity !== forIdentity && decancer(identity.name) === curedName)
         return true;
+
+      for (const alias of identity.aliases.keys())
+        if (identity !== forIdentity && decancer(alias) === curedName)
+          return true;
+    }
 
     return false;
   }

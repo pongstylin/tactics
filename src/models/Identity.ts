@@ -14,6 +14,7 @@ export default class Identity extends ActiveModel {
   protected data: {
     id: string
     name?: string
+    aliases?: Map<string,Date>
     ranks?: { playerId:number, ratings:Map<string,{ rating:number, gameCount:number }> }
     muted: boolean
     admin: boolean
@@ -33,6 +34,8 @@ export default class Identity extends ActiveModel {
     super();
     this.data = data;
 
+    if (data.aliases === undefined)
+      data.aliases = new Map();
     if (data.relationships === undefined)
       data.relationships = new Map();
   }
@@ -60,8 +63,24 @@ export default class Identity extends ActiveModel {
   set name(name) {
     if (this.data.name === name)
       return;
+
+    if (this.data.name !== undefined) {
+      this.data.aliases.delete(name);
+      this.data.aliases.set(this.data.name, new Date());
+
+      if (this.data.aliases.size > 3) {
+        const oldestAlias = Array.from(this.data.aliases).sort((a,b) => a[1].getTime() - b[1].getTime())[0][0];
+        this.data.aliases.delete(oldestAlias);
+      }
+    }
+
     this.data.name = name;
     this.emit('change:name');
+  }
+  get aliases() {
+    const oneMonthAgo = Date.now() - 30 * 86400;
+
+    return new Map(Array.from(this.data.aliases).filter((a) => a[1].getTime() > oneMonthAgo));
   }
 
   get muted() {
@@ -131,7 +150,15 @@ export default class Identity extends ActiveModel {
   }
 
   merge(identity) {
-    this.name = identity.name;
+    const aliasMap = new Map([ ...this.aliases, ...identity.aliases ]) satisfies typeof this.data.aliases;
+    if (this.data.name !== identity.name) {
+      aliasMap.delete(identity.name);
+      aliasMap.set(this.name, this.data.lastSeenAt);
+    }
+    const aliases = Array.from(aliasMap).sort((a,b) => b[1].getTime() - a[1].getTime());
+
+    this.data.name = identity.name;
+    this.data.aliases = new Map(aliases.slice(0, 3));
     this.data.ranks = identity.data.ranks;
 
     if (identity.lastSeenAt > this.data.lastSeenAt)
@@ -184,6 +211,10 @@ export default class Identity extends ActiveModel {
   toJSON() {
     const json = super.toJSON();
 
+    if (json.aliases.size)
+      json.aliases = [ ...json.aliases ];
+    else
+      delete json.aliases;
     if (json.relationships.size)
       json.relationships = [ ...json.relationships ];
     else
@@ -203,6 +234,17 @@ serializer.addType({
     properties: {
       id: { type:'string', format:'uuid' },
       name: { type:'string' },
+      aliases: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [
+            { type:'string' },
+            { type:'string', subType:'Date' },
+          ],
+        },
+      },
       ranks: {
         type: 'object',
         required: [ 'playerId', 'ratings' ],
