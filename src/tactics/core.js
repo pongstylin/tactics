@@ -302,12 +302,20 @@ window.Tactics = (function () {
         direction: 'S',
         withFocus: false,
         withShadow: false,
+        withHighlight: false,
       }, options);
 
       const unitKey = avatar instanceof Unit
         ? avatar.color === null ? `${avatar.type}:null` : `${avatar.type}:${avatar.team.colorId}`
         : `${avatar.unitType}:${avatar.colorId}`;
-      const cacheKey = `${unitKey}:${options.as}:${options.direction}:${options.withFocus}:${options.withShadow}`;
+      const cacheKey = [
+        unitKey,
+        options.as,
+        options.direction,
+        options.withFocus,
+        options.withShadow,
+        options.withHighlight,
+      ].join(':');
       const cache = this._avatars.cache;
 
       if (!cache.has(cacheKey)) {
@@ -327,6 +335,7 @@ window.Tactics = (function () {
           const superSpriteName = unit.type === 'DragonspeakerMage' ? 'Pyromancer' : spriteName;
           unit.spriteSource = 'avatars';
           unit.spriteName = spriteName;
+          unit.unitSprite = `${superSpriteName}Unit`;
           unit.trimSprite = `${superSpriteName}Trim`;
           unit.shadowSprite = `${superSpriteName}Shadow`;
 

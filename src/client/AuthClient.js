@@ -251,19 +251,35 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
+  getRankings() {
+    return this._server.requestAuthorized(this.name, 'getRankings', [])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRankings();
+        throw error;
+      });
+  }
+  getRanks(rankingId) {
+    return this._server.requestAuthorized(this.name, 'getRanks', [ rankingId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRanks(rankingId);
+        throw error;
+      });
+  }
   getTopRanks(rankingId = null, playerId = this.playerId) {
     return this._server.requestAuthorized(this.name, 'getTopRanks', [ rankingId, playerId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getRankings(rankingId, playerId);
+          return this.getTopRanks(rankingId, playerId);
         throw error;
       });
   }
-  getRanking(gameTypeId = 'FORTE') {
-    return this._server.requestAuthorized(this.name, 'getRanking', [ gameTypeId ])
+  getPlayerRanks(playerId, rankingId) {
+    return this._server.requestAuthorized(this.name, 'getPlayerRanks', [ playerId, rankingId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getRankings(gameTypeId);
+          return this.getPlayerRanks(playerId, rankingId);
         throw error;
       });
   }

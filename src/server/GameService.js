@@ -267,7 +267,9 @@ export default class GameService extends Service {
           continue;
         }
 
-        if (game.state.getTurnTimeRemaining() < 300000) {
+        if (!game.state.startedAt || game.state.endedAt)
+          state.autoSurrender.delete(gameId);
+        else if (game.state.getTurnTimeRemaining() < 300000) {
           protectedGameIds.add(game.id);
           game.state.currentTurn.resetTimeLimit(300);
           state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
@@ -1323,7 +1325,7 @@ export default class GameService extends Service {
       }
     }
 
-    promises.push(this.auth.getRanking(data.type).then(ranks => {
+    promises.push(this.auth.getRanks(data.type).then(ranks => {
       meta.ranks = data.teams.map(t => {
         if (!t) return null;
 

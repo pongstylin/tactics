@@ -106,6 +106,43 @@ export default class Identities extends ActiveModel {
 
     return false;
   }
+
+  getRankings() {
+    const ranks = this.getRanks();
+
+    return Array.from(ranks.entries()).map(([ rId, rs ]) => ({
+      id: rId,
+      numPlayers: rs.length,
+    }));
+  }
+  getRanks(rankingId = null) {
+    const identities = this.identities;
+    const ranksByRankingId = new Map();
+
+    for (const identity of identities)
+      for (const rank of identity.getRanks(rankingId))
+        if (!ranksByRankingId.has(rank.id))
+          ranksByRankingId.set(rank.id, [ rank ]);
+        else
+          ranksByRankingId.get(rank.id).push(rank);
+
+    for (const [ rankingId, ranks ] of ranksByRankingId.entries())
+      ranksByRankingId.set(
+        rankingId,
+        ranks.sort((a,b) => b.rating - a.rating).map((r,i) => ({ num:i+1, ...r })),
+      );
+
+    return ranksByRankingId;
+  }
+  getPlayerRanks(playerId, rankingId = null) {
+    const ranks = Array.from(this.getRanks().values()).flat();
+
+    return (
+      rankingId === null ? ranks.filter(r => r.playerId === playerId) :
+      rankingId === 'FORTE' ? ranks.filter(r => r.playerId === playerId && (r.id === rankingId || r.gameCount > 9)) :
+      ranks.filter(r => r.playerId === playerId && r.id === rankingId)
+    ).sort((a,b) => a.id === 'FORTE' ? -1 : b.id === 'FORTE' ? 1 : b.rating - a.rating);
+  }
 };
 
 serializer.addType({

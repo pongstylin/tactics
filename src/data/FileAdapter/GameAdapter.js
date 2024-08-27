@@ -286,8 +286,10 @@ export default class extends FileAdapter {
     return this._search(data, query);
   }
   async getRankedGames(rankingId) {
-    // TODO
-    return [];
+    const gamesSummary = await this._getGameCollection(`ranked/${rankingId}`);
+    const results = Array.from(gamesSummary.values());
+
+    return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
   }
   /*
    * Get games completed by a player that are viewable by other players.
@@ -496,6 +498,8 @@ export default class extends FileAdapter {
     if (game.collection)
       promises.push(
         this._getGameCollection(game.collection).then(collection => {
+          this.cache.get('collection').add(collection.id, collection);
+
           if (game.state.endedAt) {
             const minTurnId = game.state.initialTurnId + 3;
             if (game.state.currentTurnId < minTurnId) {
@@ -505,6 +509,20 @@ export default class extends FileAdapter {
           }
 
           return collection;
+        }),
+      );
+
+    if (game.state.ranked && game.state.endedAt)
+      promises.push(
+        this._getGameCollection(`ranked/FORTE`).then(rankedGames => {
+          this.cache.get('collection').add(rankedGames.id, rankedGames);
+
+          return rankedGames;
+        }),
+        this._getGameCollection(`ranked/${game.state.type}`).then(rankedGames => {
+          this.cache.get('collection').add(rankedGames.id, rankedGames);
+
+          return rankedGames;
         }),
       );
 

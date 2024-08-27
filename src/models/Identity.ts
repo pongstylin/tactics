@@ -110,23 +110,20 @@ export default class Identity extends ActiveModel {
   }
 
   getRanks(rankingId = null) {
-    return new Map(
-      [ ...(this.data.ranks?.ratings.keys() ?? []) ]
-        .filter(rId => [ null, rId ].includes(rankingId))
-        .map(rId => [ rId, this.getRank(rId) ])
-    );
-  }
-  getRank(rankingId = 'FORTE') {
     const ranks = this.data.ranks;
-    if (!ranks?.ratings.has(rankingId))
-      return null;
+    if (!ranks)
+      return [];
 
-    return {
-      playerId: ranks.playerId,
-      name: this.name,
-      rating: ranks.ratings.get(rankingId).rating,
-      gameCount: ranks.ratings.get(rankingId).gameCount,
-    };
+    return Array.from(ranks.ratings.entries())
+      .filter(([ rId, r ]) => [ null, rId ].includes(rankingId))
+      .sort((a,b) => b[1].rating - a[1].rating)
+      .map(([ rId, r ]) => ({
+        id: rId,
+        playerId: ranks.playerId,
+        name: this.name,
+        rating: r.rating,
+        gameCount: r.gameCount,
+      }));
   }
   setRanks(playerId, ratings) {
     this.data.ranks = { playerId, ratings };
