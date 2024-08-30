@@ -78,7 +78,7 @@ export default class Identity extends ActiveModel {
     this.emit('change:name');
   }
   get aliases() {
-    const oneMonthAgo = Date.now() - 30 * 86400;
+    const oneMonthAgo = Date.now() - 30 * 86400 * 1000;
 
     return new Map(Array.from(this.data.aliases).filter((a) => a[1].getTime() > oneMonthAgo));
   }
@@ -127,6 +127,9 @@ export default class Identity extends ActiveModel {
 
     return true;
   }
+  get rankedPlayerId() {
+    return this.data.ranks?.playerId ?? null;
+  }
 
   getRanks(rankingId = null) {
     const ranks = this.data.ranks;
@@ -137,7 +140,7 @@ export default class Identity extends ActiveModel {
       .filter(([ rId, r ]) => [ null, rId ].includes(rankingId))
       .sort((a,b) => b[1].rating - a[1].rating)
       .map(([ rId, r ]) => ({
-        id: rId,
+        rankingId: rId,
         playerId: ranks.playerId,
         name: this.name,
         rating: r.rating,

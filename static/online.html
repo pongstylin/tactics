@@ -246,14 +246,12 @@
       flex-direction: row;
       align-items: center;
       justify-content: space-between;
-      margin: 8px 0 0;
       border-top-left-radius: 15px;
       border-top-right-radius: 15px;
       box-sizing: border-box;
       width: 100%;
       font-style: italic;
       font-weight: bold;
-      font-size: 1.2em;
       color: #b08d57;
     }
     .tabContent HEADER A {
@@ -262,15 +260,25 @@
     .tabContent HEADER A:hover {
       color: #FFCC00;
     }
+    .tabContent HEADER .left {
+      font-size: 1.2em;
+    }
+    .tabContent HEADER .right {
+      font-style: normal;
+    }
     .tabContent HEADER .sep {
       margin: 0 4px;
     }
     .tabContent HEADER .sep::after {
       content: '•';
     }
-    .tabContent .game-list HEADER {
+    .tabContent > DIV > HEADER {
+      margin: 8px 0 0;
+    }
+    SECTION HEADER {
       margin: 32px 0 8px;
       border-bottom: 1px solid #804a00;
+      min-height: 31px;
     }
     .tabContent .link {
       cursor: pointer;
@@ -280,71 +288,58 @@
       color: #00FFFF;
     }
 
-    .rankings-list .header,
-    .rankings-list .body > .ranking {
-      display: grid;
-      grid-template-columns: 70% 30%;
-    }
-    .rankings-list .body > .ranking .name {
-      padding: 8px;
-      text-align: left;
-
-      font-weight: bold;
-      color: #b08d57;
-    }
-    .rankings-list .body > .ranking:hover .name {
-      color: #FFCC00;
-    }
-
-    .ranks {
+    .rankings .content,
+    SECTION.game-list,
+    SECTION.ranks {
       display: flex;
       flex-direction: column;
       justify-content: space-around;
       width: 100%;
       max-width: 600px;
     }
-    .rankings-list .header,
-    .ranks .header {
+    SECTION.rankings-list HEADER,
+    SECTION.ranks HEADER {
       display: grid;
+      grid-template-columns: 70% 15% 15%;
       align-items: center;
       text-align: center;
 
       font-weight: bold;
       color: #b08d57;
     }
-    .ranks .header {
-      grid-template-columns: 70% 15% 15%;
-    }
-    .rankings-list .header .caption,
-    .ranks .header .caption {
-      margin-top: 8px;
-
+    SECTION.rankings-list HEADER .caption,
+    SECTION.ranks HEADER .caption {
       white-space: nowrap;
       text-align: left;
       font-style: italic;
       font-weight: bold;
       font-size: 1.2em;
     }
-    .rankings-list .header .caption A,
-    .ranks .header .caption A {
+    SECTION.rankings-list HEADER .caption A,
+    SECTION.ranks HEADER .caption A {
       color: inherit;
     }
-    .rankings-list .header .caption A:hover,
-    .ranks .header .caption A:hover {
+    SECTION.rankings-list HEADER .caption A:hover,
+    SECTION.ranks HEADER .caption A:hover {
       color: #FFCC00;
     }
-    .ranks .header .caption .rankNum {
+    SECTION.ranks HEADER .caption .rankNum {
       color: #DED8D5;
     }
-    .rankings-list .body,
-    .ranks .body {
+    SECTION.rankings-list HEADER .playerCount,
+    SECTION.ranks HEADER .gameCount,
+    SECTION.ranks HEADER .rank {
+      font-style: normal;
+    }
+    SECTION.rankings-list .body,
+    SECTION.ranks .body {
       display: grid;
       gap: 8px;
 
       padding-top: 8px;
     }
-    .rankings-list .body > .ranking,
-    .ranks .body > .rank {
+    SECTION.rankings-list .body > .ranking,
+    SECTION.ranks .body > .rank {
       display: grid;
       align-items: center;
       text-align: center;
@@ -353,34 +348,34 @@
 
       cursor: pointer;
     }
-    .ranks .body > .rank {
+    SECTION.ranks .body > .rank {
       grid-template-columns: 15% 55% 15% 15%;
       height: 60px;
     }
-    .rankings-list .body > .ranking:hover,
-    .ranks .body > .rank:hover {
+    SECTION.rankings-list .body > .ranking:hover,
+    SECTION.ranks .body > .rank:hover {
       border-color: #00FFFF;
     }
-    .ranks .rank .avatar {
+    SECTION.ranks .rank .avatar {
       position: relative;
       width: 100%;
       height: 100%;
     }
-    .ranks .rank .avatar DIV {
+    SECTION.ranks .rank .avatar DIV {
       display: inline-block;
       position: absolute;
       left: 50%;
       bottom: 0;
     }
-    .ranks .rank .avatar IMG {
+    SECTION.ranks .rank .avatar IMG {
       position: absolute;
     }
-    .ranks .break {
+    SECTION.ranks .break {
       display: flex;
       flex-direction: column;
       align-items: center;
     }
-    .ranks .break::before {
+    SECTION.ranks .break::before {
       display: block;
       padding: 2px 0;
       transform: rotate(90deg);
@@ -398,24 +393,162 @@
       margin: 8px 0;
       text-align: center;
     }
-    .rankings .content {
+    .tabContent > .yourGames,
+    .tabContent > .publicGames,
+    .tabContent > .rankings {
       display: flex;
       flex-direction: column;
       align-items: center;
+      box-sizing: border-box;
+      padding: 0 8px;
       width: 100%;
-      max-width: 600px;
     }
-    .rankings > .topranks {
+    .rankings > .rankings .search {
+      margin: 16px 0;
+    }
+    .rankings > .rankings .search .label {
+      margin-right: 8px;
+      font-weight: bold;
+      color: #b08d57;
+    }
+    .rankings > .rankings .search INPUT {
+      box-sizing: border-box;
+      border: 0 none;
+      margin-top: 4px;
+      padding: 4px;
+
+      background-color: #222222;
+      color: inherit;
+      flex: 0 0 auto;
+      line-height: 18px;
+    }
+    .rankings > .rankings .search INPUT:focus {
+      outline: 1px solid #b08d57;
+    }
+    .rankings > .rankings .search INPUT::placeholder {
+      padding-left: 4px;
+      color: #b08d57;
+      font-weight: bold;
+      opacity: 1; // Override Firefox default
+      font-style: italic;
+    }
+    .rankings > .rankings .search INPUT:focus::placeholder {
+      opacity: 0;
+    }
+    .rankings > .rankings .matches,
+    .rankings > .rankings .favorites {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .rankings > .rankings .matches {
+      margin-bottom: 8px;
+    }
+    .rankings > .rankings .matches:empty {
+      display: none;
+    }
+    .rankings > .rankings .matches .match,
+    .rankings > .rankings .favorites .favorite {
+      display: flex;
+      flex-direction: row;
+    }
+    .rankings > .rankings .matches .match > SPAN,
+    .rankings > .rankings .favorites .favorite > SPAN {
+      display: inline-block;
+      border: 2px solid #444444;
+      padding: 2px 6px;
+    }
+    .rankings > .rankings .matches .match:not(.selected) > SPAN,
+    .rankings > .rankings .favorites .favorite > SPAN {
+      cursor: pointer;
+    }
+    .rankings > .rankings .matches .match SPAN.identity,
+    .rankings > .rankings .favorites .favorite SPAN.identity {
+      border-top-left-radius: 11px;
+      border-bottom-left-radius: 11px;
+    }
+    .rankings > .rankings .matches .match SPAN.identity.friend::before,
+    .rankings > .rankings .favorites .favorite SPAN.identity.friend::before {
+      margin-right: 4px;
+      font-family: 'Font Awesome 6 Free';
+      font-weight: 900;
+      color: #00FF00;
+      content: "\f500";
+    }
+    .rankings > .rankings .matches .match SPAN.alias,
+    .rankings > .rankings .favorites .favorite SPAN.nickname {
+      margin-left: 6px;
+    }
+    .rankings > .rankings .matches .match SPAN.alias::before,
+    .rankings > .rankings .favorites .favorite SPAN.nickname::before {
+      font-weight: bold;
+      color: #b08d57;
+      content: '( ';
+    }
+    .rankings > .rankings .matches .match SPAN.alias::after,
+    .rankings > .rankings .favorites .favorite SPAN.nickname::after {
+      font-weight: bold;
+      color: #b08d57;
+      content: ' )';
+    }
+    .rankings > .rankings .matches .match SPAN.add,
+    .rankings > .rankings .favorites .favorite SPAN.remove {
+      border-top-right-radius: 11px;
+      border-bottom-right-radius: 11px;
+    }
+    .rankings > .rankings .matches .match:not(.selected) SPAN.add {
+      color: #00FF00;
+    }
+    .rankings > .rankings .favorites .favorite SPAN.remove {
+      color: #FF0000;
+    }
+    .rankings > .rankings .matches .match:not(.selected) > SPAN:hover,
+    .rankings > .rankings .favorites .favorite > SPAN:hover {
+      border-color: #00FFFF;
+      z-index: 1;
+    }
+    .rankings > .rankings .matches .match SPAN.add,
+    .rankings > .rankings .favorites .favorite SPAN.remove {
+      margin-left: -2px;
+    }
+    .rankings > .rankings .matches .match SPAN.add::before {
+      content: '\271A';
+    }
+    .rankings > .rankings .matches .match.selected SPAN.add::before {
+      color: #00FF00;
+      content: '\2714';
+    }
+    .rankings > .rankings .favorites .favorite SPAN.remove::before {
+      content: '\2716';
+    }
+    SECTION.rankings-list HEADER,
+    SECTION.rankings-list .body > .ranking {
+      display: grid;
+      grid-template-columns: 1fr 100px;
+    }
+    SECTION.rankings-list .body > .ranking .name {
+      padding: 8px;
+      text-align: left;
+
+      font-weight: bold;
+      color: #b08d57;
+    }
+    SECTION.rankings-list .body > .ranking:hover .name {
+      color: #FFCC00;
+    }
+
+    .tabContent .rankings > .topranks {
       display: grid;
       align-items: flex-start;
       gap: 12px;
       width: 100%;
       max-width: 100%;
     }
-    .rankings > .topranks:empty {
+    .tabContent .rankings > .topranks:empty {
       grid-template-columns: 1fr;
     }
-    .rankings > .topranks:empty::before {
+    .tabContent .rankings > .topranks:empty::before {
       margin-top: 8px;
       text-align: center;
       content: 'No rankings until more ranked games are played.';
@@ -424,12 +557,12 @@
       box-sizing: border-box;
       width: 100%;
     }
-    .rankings > .content .player {
+    .rankings > .player-summary .player {
       position: relative;
       padding: 40px 0 0 112px;
       min-height: 96px;
     }
-    .rankings > .content .player > .name {
+    .rankings > .player-summary .player > .name {
       position: absolute;
       top: 16px;
       left: 98px;
@@ -440,49 +573,49 @@
       color: #b08d57;
       text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
     }
-    .rankings > .content .player .rank {
+    .rankings > .player-summary .player .rank {
       display: none;
       /* Hanging indent when wrapping text */
       padding-left: 8px;
       text-indent: -8px;
     }
-    .rankings > .content .player .ranks.show-all .show-all {
+    .rankings > .player-summary .player .ranks.show-all .show-all {
       display: none;
     }
-    .rankings > .content .player .ranks.show-all .rank {
+    .rankings > .player-summary .player .ranks.show-all .rank {
       display: block !important;
     }
-    .rankings > .content .player .ranks:not(.show-all) .rank.show {
+    .rankings > .player-summary .player .ranks:not(.show-all) .rank.show {
       display: block !important;
     }
-    .rankings > .content .player .rank > * {
+    .rankings > .player-summary .player .rank > * {
       white-space: nowrap;
     }
-    .rankings > .content .player .rank .name {
+    .rankings > .player-summary .player .rank .name {
       color: #b08d57;
       font-weight: bold;
     }
-    .rankings > .content .player .rank A.name:hover {
+    .rankings > .player-summary .player .rank A.name:hover {
       color: #FFCC00;
     }
-    .rankings > .content .player .rank .name,
-    .rankings > .content .player .rank .num {
+    .rankings > .player-summary .player .rank .name,
+    .rankings > .player-summary .player .rank .num {
       font-size: 1.1em;
     }
-    .rankings > .content .player .rank .gameCount {
+    .rankings > .player-summary .player .rank .gameCount {
       text-align: right;
     }
-    .rankings > .content .player .rank .num,
-    .rankings > .content .player .rank .rating {
+    .rankings > .player-summary .player .rank .num,
+    .rankings > .player-summary .player .rank .rating {
       text-align: center;
     }
-    .rankings > .content .player .rank .gameCount::before {
+    .rankings > .player-summary .player .rank .gameCount::before {
       content: '• ';
     }
-    .rankings > .content .player .rank .forte {
+    .rankings > .player-summary .player .rank .forte {
       color: #00FF00;
     }
-    .rankings > .content .player .avatar-badge {
+    .rankings > .player-summary .player .avatar-badge {
       top: 8px;
       left: 8px;
       width: 80px;
@@ -511,14 +644,6 @@
     }
     .game-list .up::before {
       content: '+';
-    }
-    .game-list .header {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      color: #b08d57;
-      font-weight: bold;
     }
     .game-list .game {
       margin-bottom: 8px;
@@ -681,17 +806,17 @@
     }
 
     @media (min-width:600px) {
-      .rankings > .content .player .rank {
+      .rankings > .player-summary .player .rank {
         padding-left: 0;
         text-indent: 0;
       }
-      .rankings > .content .player .ranks.show-all .rank {
+      .rankings > .player-summary .player .ranks.show-all .rank {
         display: grid !important;
         grid-template-columns: 1.8fr 0.6fr 0.6fr 1fr 1fr;
         gap: 8px;
         align-items: center;
       }
-      .rankings > .content .player .ranks.show-all .rank .gameCount::before {
+      .rankings > .player-summary .player .ranks.show-all .rank .gameCount::before {
         content: '';
       }
 
@@ -739,10 +864,6 @@
       pointer-events: none;
     }
     .page > .tabContent .lobby HEADER {
-      padding: 0 8px;
-    }
-    .page > .tabContent .game-list,
-    .page > .tabContent .rankings {
       padding: 0 8px;
     }
     .page > .tabContent .game-list:empty::before {
@@ -1110,16 +1231,22 @@
         flex-basis: min-content;
       }
     }
-    @media (min-width:820px) and (min-height:600px) {
+    @media (min-width:820px) and (min-height:613px) {
+      BODY {
+        flex-direction: column;
+        justify-content: flex-start;
+      }
       .page {
+        margin-top: 20px;
         width: 820px;
-        height: 600px;
+        height: calc(100% - 5vh);
       }
       .page > .tabContent > DIV {
         overflow-y: auto;
       }
       .page > .tabContent > DIV.lobby .content {
         flex: 1 1 auto;
+        max-height: 420px;
         overflow-y: auto;
       }
       .arenas {
@@ -1137,7 +1264,7 @@
         width: 800px;
       }
     }
-    @media (max-width:819px), (max-height:599px) {
+    @media (max-width:819px), (max-height:612px) {
       BODY {
         flex-direction: column;
         justify-content: flex-start;
@@ -1194,12 +1321,12 @@
       </UL>
     </DIV>
     <DIV class="tabContent">
-      <DIV class="game-list show-results yourGames"></DIV>
+      <DIV class="yourGames"></DIV>
       <DIV class="enterLobby">
         <BUTTON name="enter">Enter Lobby!</BUTTON>
       </DIV>
       <DIV class="lobby"></DIV>
-      <DIV class="game-list publicGames"></DIV>
+      <DIV class="publicGames"></DIV>
       <DIV class="rankings">
         <HEADER></HEADER>
         <DIV class="notice" style="display:none">

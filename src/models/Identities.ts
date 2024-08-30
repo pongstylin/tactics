@@ -100,6 +100,110 @@ export default class Identities extends ActiveModel {
 
     return relationships;
   }
+  /*
+   * Return the 5 best identity matches for the query.
+   *   Exact matches are the best.
+   *   Fuzzy matches are 2nd best.
+   *   Partial matches are 3rd best.
+   *   Among partial matches, the smaller the name/alias the better the match.
+   *   All else being equal, name matches are better than alias matches.
+   */
+  queryRanked(query) {
+    const curedQuery = decancer(query);
+    const typeSeq = [ 'exact', 'fuzzy', 'start', 'partial' ];
+    const lengthSeq = m => m.alias === undefined ? m.name.length : m.alias.length;
+    const aliasSeq = m => m === undefined ? 0 : 1;
+    const matches = [];
+
+    for (const identity of this.identities) {
+      const playerId = identity.rankedPlayerId;
+      if (!playerId) continue;
+
+      const curedName = decancer(identity.name);
+      const identityMatches = [];
+      const match = {
+        type: null,
+        identityId: identity.id,
+        playerId,
+        name: identity.name,
+      };
+
+      if (identity.name === query)
+        match.type = 'exact';
+      else if (curedName === curedQuery)
+        match.type = 'fuzzy';
+      else if (curedName.startsWith(curedQuery))
+        match.type = 'start';
+      else if (curedName.includes(curedQuery))
+        match.type = 'partial';
+
+      if (match.type === 'exact') {
+        matches.push(match);
+        continue;
+      } else if (match.type)
+        identityMatches.push(match);
+
+      for (const alias of identity.aliases.keys()) {
+        const curedAlias = decancer(alias);
+        const aliasMatch = Object.assign({ alias }, match);
+
+        if (alias === query)
+          aliasMatch.type = 'exact';
+        else if (curedAlias === curedQuery)
+          aliasMatch.type = 'fuzzy';
+        else if (curedAlias.startsWith(curedQuery))
+          aliasMatch.type = 'start';
+        else if (curedAlias.includes(curedQuery))
+          aliasMatch.type = 'partial';
+        if (aliasMatch.type)
+          identityMatches.push(aliasMatch);
+      }
+
+      // Use only the best match for a given identity
+      if (identityMatches.length === 1)
+        matches.push(identityMatches[0]);
+      else if (identityMatches.length > 1)
+        matches.push(identityMatches.sort((a,b) => (
+          typeSeq.indexOf(a.type) - typeSeq.indexOf(b.type) ||
+          lengthSeq(a) - lengthSeq(b) ||
+          aliasSeq(a) - aliasSeq(b)
+        ))[0]);
+    }
+
+    return matches.sort((a,b) => (
+      typeSeq.indexOf(a.type) - typeSeq.indexOf(b.type) ||
+      lengthSeq(a) - lengthSeq(b) ||
+      aliasSeq(a) - aliasSeq(b)
+    )).slice(0, 5);
+  }
+  getRanked(playerIds) {
+    const rankedPlayers = new Map();
+    const playerIdSet = new Set(playerIds);
+
+    for (const identity of this.identities) {
+      const rankedPlayerId = identity.rankedPlayerId;
+      if (!rankedPlayerId)
+        continue;
+
+      for (const playerId of identity.playerIds) {
+        if (!playerIdSet.has(playerId))
+          continue;
+
+        playerIdSet.delete(playerId);
+        rankedPlayers.set(playerId, {
+          identityId: identity.id,
+          playerId: rankedPlayerId,
+          name: identity.name,
+        });
+        break;
+      }
+
+      if (playerIdSet.size === 0)
+        break;
+    }
+
+    return rankedPlayers;
+  }
   sharesName(name, forIdentity) {
     const curedName = decancer(name);
 
@@ -129,10 +233,10 @@ export default class Identities extends ActiveModel {
 
     for (const identity of identities)
       for (const rank of identity.getRanks(rankingId))
-        if (!ranksByRankingId.has(rank.id))
-          ranksByRankingId.set(rank.id, [ rank ]);
+        if (!ranksByRankingId.has(rank.rankingId))
+          ranksByRankingId.set(rank.rankingId, [ rank ]);
         else
-          ranksByRankingId.get(rank.id).push(rank);
+          ranksByRankingId.get(rank.rankingId).push(rank);
 
     for (const [ rankingId, ranks ] of ranksByRankingId.entries())
       ranksByRankingId.set(
@@ -143,13 +247,20 @@ export default class Identities extends ActiveModel {
     return ranksByRankingId;
   }
   getPlayerRanks(playerId, rankingId = null) {
+    const identity = this.findByPlayerId(playerId);
+    if (!identity)
+      return [];
+
     const ranks = Array.from(this.getRanks().values()).flat();
 
     return (
-      rankingId === null ? ranks.filter(r => r.playerId === playerId) :
-      rankingId === 'FORTE' ? ranks.filter(r => r.playerId === playerId && (r.id === rankingId || r.gameCount > 9)) :
-      ranks.filter(r => r.playerId === playerId && r.id === rankingId)
-    ).sort((a,b) => a.id === 'FORTE' ? -1 : b.id === 'FORTE' ? 1 : b.rating - a.rating);
+      rankingId === null ? ranks
+        .filter(r => identity.playerIds.includes(r.playerId)) :
+      rankingId === 'FORTE' ? ranks
+        .filter(r => identity.playerIds.includes(r.playerId) && (r.rankingId === rankingId || r.gameCount > 9)) :
+      ranks
+        .filter(r => identity.playerIds.includes(r.playerId) && r.rankingId === rankingId)
+    ).sort((a,b) => a.rankingId === 'FORTE' ? -1 : b.rankingId === 'FORTE' ? 1 : b.rating - a.rating);
   }
 };
 

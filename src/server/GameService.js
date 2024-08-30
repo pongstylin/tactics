@@ -1132,13 +1132,15 @@ export default class GameService extends Service {
       });
 
       playerGames.on('change', myGames.changeListener = async event => {
+        const gameSummary = await this._cloneGameSummaryWithMeta(event.data.gameSummary ?? event.data.oldSummary, player);
+
         if (event.type === 'change:set') {
           if (event.data.oldSummary)
-            emit({ type: 'change', data: event.data.gameSummary });
+            emit({ type:'change', data:gameSummary });
           else
-            emit({ type: 'add', data: event.data.gameSummary });
+            emit({ type:'add', data:gameSummary });
         } else if (event.type === 'change:delete')
-          emit({ type: 'remove', data: event.data.oldSummary });
+          emit({ type:'remove', data:gameSummary});
 
         const newStats = await this._getGameSummaryListStats(playerGames);
         if (newStats.waiting !== stats.waiting || newStats.active !== stats.active)

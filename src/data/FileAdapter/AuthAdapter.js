@@ -161,6 +161,13 @@ export default class extends FileAdapter {
     return authLinks;
   }
 
+  async queryRankedPlayers(query) {
+    return this.state.identities.queryRanked(query);
+  }
+  async getRankedPlayers(playerIds) {
+    return this.state.identities.getRanked(playerIds);
+  }
+
   async getRankings() {
     return this.state.identities.getRankings();
   }

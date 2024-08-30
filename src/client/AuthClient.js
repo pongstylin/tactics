@@ -251,6 +251,24 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
+
+  queryRankedPlayers(query) {
+    return this._server.requestAuthorized(this.name, 'queryRankedPlayers', [ query ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.queryRankedPlayers(query);
+        throw error;
+      });
+  }
+  getRankedPlayers(playerIds) {
+    return this._server.requestAuthorized(this.name, 'getRankedPlayers', [ playerIds ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRankedPlayers(playerIds);
+        throw error;
+      });
+  }
+
   getRankings() {
     return this._server.requestAuthorized(this.name, 'getRankings', [])
       .catch(error => {
