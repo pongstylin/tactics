@@ -251,19 +251,53 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
-  getRankings(playerId = this.playerId, rankingId = null) {
-    return this._server.requestAuthorized(this.name, 'getRankings', [ playerId, rankingId ])
+
+  queryRankedPlayers(query) {
+    return this._server.requestAuthorized(this.name, 'queryRankedPlayers', [ query ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getRankings(playerId, rankingId);
+          return this.queryRankedPlayers(query);
         throw error;
       });
   }
-  getRanking(gameTypeId = 'FORTE') {
-    return this._server.requestAuthorized(this.name, 'getRanking', [ gameTypeId ])
+  getRankedPlayers(playerIds) {
+    return this._server.requestAuthorized(this.name, 'getRankedPlayers', [ playerIds ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getRankings(gameTypeId);
+          return this.getRankedPlayers(playerIds);
+        throw error;
+      });
+  }
+
+  getRankings() {
+    return this._server.requestAuthorized(this.name, 'getRankings', [])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRankings();
+        throw error;
+      });
+  }
+  getRanks(rankingId) {
+    return this._server.requestAuthorized(this.name, 'getRanks', [ rankingId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getRanks(rankingId);
+        throw error;
+      });
+  }
+  getTopRanks(rankingId = null, playerId = this.playerId) {
+    return this._server.requestAuthorized(this.name, 'getTopRanks', [ rankingId, playerId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getTopRanks(rankingId, playerId);
+        throw error;
+      });
+  }
+  getPlayerRanks(playerId, rankingId) {
+    return this._server.requestAuthorized(this.name, 'getPlayerRanks', [ playerId, rankingId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getPlayerRanks(playerId, rankingId);
         throw error;
       });
   }

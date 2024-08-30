@@ -86,7 +86,7 @@ export default class GameService extends Service {
 
         searchGameCollection: ['string', 'any'],
         searchMyGames: ['any'],
-        getRankedGames: [ 'uuid', 'string' ],
+        getRankedGames: [ 'string', 'uuid | null' ],
 
         getPlayerSets: ['string'],
         getPlayerSet: ['string', 'string'],
@@ -267,7 +267,9 @@ export default class GameService extends Service {
           continue;
         }
 
-        if (game.state.getTurnTimeRemaining() < 300000) {
+        if (!game.state.startedAt || game.state.endedAt)
+          state.autoSurrender.delete(gameId);
+        else if (game.state.getTurnTimeRemaining() < 300000) {
           protectedGameIds.add(game.id);
           game.state.currentTurn.resetTimeLimit(300);
           state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
@@ -988,20 +990,12 @@ export default class GameService extends Service {
 
     return this._searchGameCollection(player, collectionId, query);
   }
-  async onGetRankedGamesRequest(client, playerId, rankingId) {
-    const gamesSummary = await this.data.getRankedGames(playerId, rankingId);
+  async onGetRankedGamesRequest(client, rankingId, playerId) {
+    const gamesSummary = playerId
+      ? await this.data.getPlayerRankedGames(playerId, rankingId)
+      : await this.data.getRankedGames(rankingId);
 
-    for (const [ i, gameSummary ] of gamesSummary.entries()) {
-      const opponent = gameSummary.teams.find(t => t.playerId !== playerId);
-      const rank = this.auth.getPlayerRank(opponent.playerId, rankingId) ?? {
-        playerId: opponent.playerId,
-        name: opponent.name,
-      };
-
-      gamesSummary[i] = gameSummary.cloneWithMeta({ rank });
-    }
-
-    return gamesSummary;
+    return Promise.all(Array.from(gamesSummary.entries()).map(([ i, gs ]) => this._cloneGameSummaryWithMeta(gs)))
   }
 
   /*
@@ -1138,13 +1132,15 @@ export default class GameService extends Service {
       });
 
       playerGames.on('change', myGames.changeListener = async event => {
+        const gameSummary = await this._cloneGameSummaryWithMeta(event.data.gameSummary ?? event.data.oldSummary, player);
+
         if (event.type === 'change:set') {
           if (event.data.oldSummary)
-            emit({ type: 'change', data: event.data.gameSummary });
+            emit({ type:'change', data:gameSummary });
           else
-            emit({ type: 'add', data: event.data.gameSummary });
+            emit({ type:'add', data:gameSummary });
         } else if (event.type === 'change:delete')
-          emit({ type: 'remove', data: event.data.oldSummary });
+          emit({ type:'remove', data:gameSummary});
 
         const newStats = await this._getGameSummaryListStats(playerGames);
         if (newStats.waiting !== stats.waiting || newStats.active !== stats.active)
@@ -1331,7 +1327,7 @@ export default class GameService extends Service {
       }
     }
 
-    promises.push(this.auth.getRanking(data.type).then(ranks => {
+    promises.push(this.auth.getRanks(data.type).then(ranks => {
       meta.ranks = data.teams.map(t => {
         if (!t) return null;
 

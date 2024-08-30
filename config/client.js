@@ -57,15 +57,15 @@ const config = {
   chatEndpoint: process.env.CHAT_ENDPOINT ?? local.wsEndpoint,
   pushEndpoint: process.env.PUSH_ENDPOINT ?? local.wsEndpoint,
   pushPublicKey: process.env.PN_PUBLIC_KEY,
+  setItem: (itemName, itemValue) => {
+    localStorage.setItem(itemName, JSON.stringify(itemValue));
+  },
+  getItem: (itemName, itemDefault) => {
+    const itemValue = localStorage.getItem(itemName);
+    return itemValue === null ? itemDefault : JSON.parse(itemValue);
+  },
 };
 
-const setItem = (itemName, itemValue) => {
-  localStorage.setItem(itemName, JSON.stringify(itemValue));
-};
-const getItem = (itemName, itemDefault) => {
-  const itemValue = localStorage.getItem(itemName);
-  return itemValue === null ? itemDefault : JSON.parse(itemValue);
-};
 
 const oppRotation = new Map([
   [ 'N', 'S' ],
@@ -94,13 +94,13 @@ export const gameConfig = {
     if (this._cache.has(itemName))
       return this._cache.get(itemName);
     else if (typeof localStorage !== 'undefined')
-      return getItem(itemName, itemDefault);
+      return config.getItem(itemName, itemDefault);
     return itemDefault;
   },
   _set(itemName, itemValue) {
     this._cache.set(itemName, itemValue);
     if (typeof localStorage !== 'undefined')
-      setItem(itemName, itemValue);
+      config.setItem(itemName, itemValue);
   },
 };
 
@@ -128,18 +128,6 @@ for (const [ propName, propDefault ] of Object.entries(gameConfigProps)) {
   });
 }
 
-/*
- * Temporary migration
- */
-if (typeof localStorage !== 'undefined') {
-  const settings = getItem('settings');
-  if (settings) {
-    for (const [ name, value ] of Object.entries(settings)) {
-      setItem(name, value);
-    }
-    localStorage.removeItem('settings');
-  }
-}
 if (!Object.values(config.auth).find(b => b === true))
   config.auth = false;
 

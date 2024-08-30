@@ -15,6 +15,7 @@ export default class Unit {
       board: board,
       spriteSource: data.type,
       spriteName: null,
+      unitSprite: 'unit',
       trimSprite: 'trim',
       shadowSprite: 'shadow',
       sprite: null,
@@ -539,6 +540,7 @@ export default class Unit {
       direction: 'S',
       withFocus: false,
       withShadow: false,
+      withHighlight: false,
       as: 'frame',
     }, options);
 
@@ -551,6 +553,13 @@ export default class Unit {
     }).container;
 
     frame.filters = this.board.unitsContainer.filters;
+
+    if (options.withHighlight) {
+      const unitContainer = this.getContainerByName(this.unitSprite, frame);
+      const filter = new PIXI.filters.ColorMatrixFilter();
+      filter.brightness(1.6);
+      unitContainer.filters = [ filter ];
+    }
 
     const shadowContainer = this.getContainerByName(this.shadowSprite, frame);
     if (!options.withShadow)
@@ -615,7 +624,7 @@ export default class Unit {
     // Preserve filters, if any
     let filters = Object.values(this.filters);
     if (filters.length)
-      this.getContainerByName('unit', frame.container).filters = filters;
+      this.getContainerByName(this.unitSprite, frame.container).filters = filters;
 
     this.frame.removeChildren();
     this.frame.addChild(frame.container);
@@ -678,8 +687,7 @@ export default class Unit {
     if (reset) {
       frame.position.x = offset[0];
       frame.position.y = offset[1];
-    }
-    else {
+    } else {
       frame.position.x += offset[0];
       frame.position.y += offset[1];
     }
@@ -1564,7 +1572,7 @@ export default class Unit {
         );
 
         // Make sure the shape pulses with the unit.
-        let unitContainer = this.getContainerByName('unit');
+        let unitContainer = this.getContainerByName(this.unitSprite);
         blurFilter.blur = Math.floor(index / 6);
         if (unitContainer.filters)
           container.filters = [blurFilter].concat(unitContainer.filters);
@@ -1589,7 +1597,7 @@ export default class Unit {
       shape.rotation = degrees * Math.PI / 180;
 
       // Make sure the shape pulses with the unit.
-      let unitContainer = this.getContainerByName('unit');
+      let unitContainer = this.getContainerByName(this.unitSprite);
       blurFilter.blur = 4;
       if (unitContainer.filters)
         container.filters = [blurFilter].concat(unitContainer.filters);
@@ -1950,7 +1958,7 @@ export default class Unit {
       if (!(name in filters)) {
         filters[name] = new PIXI.filters[type]();
 
-        let unitContainer = this.getContainerByName('unit');
+        let unitContainer = this.getContainerByName(this.unitSprite);
         unitContainer.filters = Object.values(filters);
       }
     }
@@ -1958,7 +1966,7 @@ export default class Unit {
       if (name in filters) {
         delete filters[name];
 
-        let unitContainer = this.getContainerByName('unit');
+        let unitContainer = this.getContainerByName(this.unitSprite);
         if (unitContainer.filters.length > 1)
           unitContainer.filters = Object.values(filters);
         else

@@ -243,19 +243,42 @@
 
     .tabContent HEADER {
       display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      border-top-left-radius: 15px;
+      border-top-right-radius: 15px;
       box-sizing: border-box;
       width: 100%;
-      margin: 8px 0 0;
       font-style: italic;
       font-weight: bold;
-      font-size: 1.2em;
       color: #b08d57;
+    }
+    .tabContent HEADER A {
+      color: inherit;
+    }
+    .tabContent HEADER A:hover {
+      color: #FFCC00;
+    }
+    .tabContent HEADER .left {
+      font-size: 1.2em;
+    }
+    .tabContent HEADER .right {
+      font-style: normal;
     }
     .tabContent HEADER .sep {
       margin: 0 4px;
     }
     .tabContent HEADER .sep::after {
       content: '•';
+    }
+    .tabContent > DIV > HEADER {
+      margin: 8px 0 0;
+    }
+    SECTION HEADER {
+      margin: 32px 0 8px;
+      border-bottom: 1px solid #804a00;
+      min-height: 31px;
     }
     .tabContent .link {
       cursor: pointer;
@@ -265,139 +288,100 @@
       color: #00FFFF;
     }
 
-    .gameList .game {
-      display: flex;
-      justify-content: space-between;
-      border: 1px solid #444444;
-      margin: 8px 0 0;
-      padding: 8px;
-      cursor: pointer;
-    }
-    .gameList .game .winner {
-      color: #b08d57;
-      font-weight: bold;
-    }
-
-    .gameList .game .left {
-      flex: 1 1 auto;
-      width: 18%;
-      margin: auto 0;
-    }
-    .gameList .game .left SPAN {
-      white-space: nowrap;
-    }
-    .gameList .game .middle {
-      flex: 1 1 auto;
-      text-align: center;
-      margin: auto 0;
-    }
-    .gameList .game .right {
-      flex: 1 1 auto;
-      width: 18%;
-      text-align: right;
-      margin: auto 0;
-    }
-
-    .gameList .game .right.low {
-      color: red;
-    }
-
-    .magic-table {
+    .rankings .content,
+    SECTION.game-list,
+    SECTION.ranks {
       display: flex;
       flex-direction: column;
       justify-content: space-around;
       width: 100%;
-      max-width: 400px;
+      max-width: 600px;
     }
-    .magic-table .caption {
-      margin-top: 8px;
+    SECTION.rankings-list HEADER,
+    SECTION.ranks HEADER {
+      display: grid;
+      grid-template-columns: 70% 15% 15%;
+      align-items: center;
+      text-align: center;
 
+      font-weight: bold;
+      color: #b08d57;
+    }
+    SECTION.rankings-list HEADER .caption,
+    SECTION.ranks HEADER .caption {
       white-space: nowrap;
       text-align: left;
       font-style: italic;
       font-weight: bold;
       font-size: 1.2em;
-      color: #b08d57;
     }
-    .magic-table .header {
+    SECTION.rankings-list HEADER .caption A,
+    SECTION.ranks HEADER .caption A {
+      color: inherit;
+    }
+    SECTION.rankings-list HEADER .caption A:hover,
+    SECTION.ranks HEADER .caption A:hover {
+      color: #FFCC00;
+    }
+    SECTION.ranks HEADER .caption .rankNum {
+      color: #DED8D5;
+    }
+    SECTION.rankings-list HEADER .playerCount,
+    SECTION.ranks HEADER .gameCount,
+    SECTION.ranks HEADER .rank {
+      font-style: normal;
+    }
+    SECTION.rankings-list .body,
+    SECTION.ranks .body {
       display: grid;
       gap: 8px;
 
-      font-weight: bold;
-      color: #b08d57;
-    }
-    .magic-table .header .group {
-      display: grid;
-      align-items: center;
-      text-align: center;
-    }
-    .magic-table.ranks .header .group {
-      grid-template-columns: 15% 55% 15% 15%;
-    }
-    .magic-table.rankedGames .header .group {
-      grid-template-columns: 15% 40% 15% 15% 15%;
-    }
-    .magic-table .body {
-      display: grid;
-
       padding-top: 8px;
     }
-    .magic-table .down {
-      color: #FF0000;
-    }
-    .magic-table .down::before {
-      content: '\2212';
-    }
-    .magic-table .up {
-      color: #00FF00;
-    }
-    .magic-table .up::before {
-      content: '+';
-    }
-    .magic-table .row {
+    SECTION.rankings-list .body > .ranking,
+    SECTION.ranks .body > .rank {
       display: grid;
       align-items: center;
       text-align: center;
 
-      margin-bottom: 8px;
-      border: 1px solid #444444;
-      padding: 0;
-      height: 60px;
+      border: 2px solid #444444;
 
       cursor: pointer;
-      break-inside: avoid;
     }
-    .magic-table .footer {
-      display: flex;
-      flex-direction: row;
-      justify-content: space-between;
-      margin: -8px 0 8px 0;
-      padding: 2px 6px;
-
-      background-color: #444444;
-    }
-    .magic-table.ranks .row {
+    SECTION.ranks .body > .rank {
       grid-template-columns: 15% 55% 15% 15%;
+      height: 60px;
     }
-    .magic-table.rankedGames .row {
-      grid-template-columns: 15% 40% 15% 15% 15%;
-    }
-    .magic-table .row:hover {
+    SECTION.rankings-list .body > .ranking:hover,
+    SECTION.ranks .body > .rank:hover {
       border-color: #00FFFF;
     }
-    .magic-table .row .avatar {
+    SECTION.ranks .rank .avatar {
       position: relative;
       width: 100%;
       height: 100%;
     }
-    .magic-table .row .avatar DIV {
+    SECTION.ranks .rank .avatar DIV {
       display: inline-block;
       position: absolute;
       left: 50%;
       bottom: 0;
     }
-    .magic-table .row .avatar IMG {
+    SECTION.ranks .rank .avatar IMG {
       position: absolute;
+    }
+    SECTION.ranks .break {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    SECTION.ranks .break::before {
+      display: block;
+      padding: 2px 0;
+      transform: rotate(90deg);
+      font-size: 4em;
+      line-height: 0;
+      content: '\299A';
     }
 
     .rankings {
@@ -409,74 +393,368 @@
       margin: 8px 0;
       text-align: center;
     }
-    .rankings > .topranks {
+    .tabContent > .yourGames,
+    .tabContent > .publicGames,
+    .tabContent > .rankings {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+      padding: 0 8px;
+      width: 100%;
+    }
+    .rankings > .rankings .search {
+      margin: 16px 0;
+    }
+    .rankings > .rankings .search .label {
+      margin-right: 8px;
+      font-weight: bold;
+      color: #b08d57;
+    }
+    .rankings > .rankings .search INPUT {
+      box-sizing: border-box;
+      border: 0 none;
+      margin-top: 4px;
+      padding: 4px;
+
+      background-color: #222222;
+      color: inherit;
+      flex: 0 0 auto;
+      line-height: 18px;
+    }
+    .rankings > .rankings .search INPUT:focus {
+      outline: 1px solid #b08d57;
+    }
+    .rankings > .rankings .search INPUT::placeholder {
+      padding-left: 4px;
+      color: #b08d57;
+      font-weight: bold;
+      opacity: 1; // Override Firefox default
+      font-style: italic;
+    }
+    .rankings > .rankings .search INPUT:focus::placeholder {
+      opacity: 0;
+    }
+    .rankings > .rankings .matches,
+    .rankings > .rankings .favorites {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .rankings > .rankings .matches {
+      margin-bottom: 8px;
+    }
+    .rankings > .rankings .matches:empty {
+      display: none;
+    }
+    .rankings > .rankings .matches .match,
+    .rankings > .rankings .favorites .favorite {
+      display: flex;
+      flex-direction: row;
+    }
+    .rankings > .rankings .matches .match > SPAN,
+    .rankings > .rankings .favorites .favorite > SPAN {
+      display: inline-block;
+      border: 2px solid #444444;
+      padding: 2px 6px;
+    }
+    .rankings > .rankings .matches .match:not(.selected) > SPAN,
+    .rankings > .rankings .favorites .favorite > SPAN {
+      cursor: pointer;
+    }
+    .rankings > .rankings .matches .match SPAN.identity,
+    .rankings > .rankings .favorites .favorite SPAN.identity {
+      border-top-left-radius: 11px;
+      border-bottom-left-radius: 11px;
+    }
+    .rankings > .rankings .matches .match SPAN.identity.friend::before,
+    .rankings > .rankings .favorites .favorite SPAN.identity.friend::before {
+      margin-right: 4px;
+      font-family: 'Font Awesome 6 Free';
+      font-weight: 900;
+      color: #00FF00;
+      content: "\f500";
+    }
+    .rankings > .rankings .matches .match SPAN.alias,
+    .rankings > .rankings .favorites .favorite SPAN.nickname {
+      margin-left: 6px;
+    }
+    .rankings > .rankings .matches .match SPAN.alias::before,
+    .rankings > .rankings .favorites .favorite SPAN.nickname::before {
+      font-weight: bold;
+      color: #b08d57;
+      content: '( ';
+    }
+    .rankings > .rankings .matches .match SPAN.alias::after,
+    .rankings > .rankings .favorites .favorite SPAN.nickname::after {
+      font-weight: bold;
+      color: #b08d57;
+      content: ' )';
+    }
+    .rankings > .rankings .matches .match SPAN.add,
+    .rankings > .rankings .favorites .favorite SPAN.remove {
+      border-top-right-radius: 11px;
+      border-bottom-right-radius: 11px;
+    }
+    .rankings > .rankings .matches .match:not(.selected) SPAN.add {
+      color: #00FF00;
+    }
+    .rankings > .rankings .favorites .favorite SPAN.remove {
+      color: #FF0000;
+    }
+    .rankings > .rankings .matches .match:not(.selected) > SPAN:hover,
+    .rankings > .rankings .favorites .favorite > SPAN:hover {
+      border-color: #00FFFF;
+      z-index: 1;
+    }
+    .rankings > .rankings .matches .match SPAN.add,
+    .rankings > .rankings .favorites .favorite SPAN.remove {
+      margin-left: -2px;
+    }
+    .rankings > .rankings .matches .match SPAN.add::before {
+      content: '\271A';
+    }
+    .rankings > .rankings .matches .match.selected SPAN.add::before {
+      color: #00FF00;
+      content: '\2714';
+    }
+    .rankings > .rankings .favorites .favorite SPAN.remove::before {
+      content: '\2716';
+    }
+    SECTION.rankings-list HEADER,
+    SECTION.rankings-list .body > .ranking {
+      display: grid;
+      grid-template-columns: 1fr 100px;
+    }
+    SECTION.rankings-list .body > .ranking .name {
+      padding: 8px;
+      text-align: left;
+
+      font-weight: bold;
+      color: #b08d57;
+    }
+    SECTION.rankings-list .body > .ranking:hover .name {
+      color: #FFCC00;
+    }
+
+    .tabContent .rankings > .topranks {
       display: grid;
       align-items: flex-start;
       gap: 12px;
       width: 100%;
+      max-width: 100%;
     }
-    .rankings > .topranks:empty {
+    .tabContent .rankings > .topranks:empty {
       grid-template-columns: 1fr;
     }
-    .rankings > .topranks:empty::before {
+    .tabContent .rankings > .topranks:empty::before {
       margin-top: 8px;
       text-align: center;
       content: 'No rankings until more ranked games are played.';
     }
-    .rankings > .topranks .magic-table .header .group:last-child {
+    .rankings > .content > * {
+      box-sizing: border-box;
+      width: 100%;
+    }
+    .rankings > .player-summary .player {
+      position: relative;
+      padding: 40px 0 0 112px;
+      min-height: 96px;
+    }
+    .rankings > .player-summary .player > .name {
+      position: absolute;
+      top: 16px;
+      left: 98px;
+
+      font-size: 1.2em;
+      font-style: italic;
+      font-weight: bold;
+      color: #b08d57;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+    .rankings > .player-summary .player .rank {
+      display: none;
+      /* Hanging indent when wrapping text */
+      padding-left: 8px;
+      text-indent: -8px;
+    }
+    .rankings > .player-summary .player .ranks.show-all .show-all {
       display: none;
     }
-    .rankings > .topranks .magic-table .header,
-    .rankings > .topranks .magic-table .body {
-      grid-template-columns: 1fr;
+    .rankings > .player-summary .player .ranks.show-all .rank {
+      display: block !important;
     }
-    .rankings > .ranking,
-    .rankings > .rankedGames {
+    .rankings > .player-summary .player .ranks:not(.show-all) .rank.show {
+      display: block !important;
+    }
+    .rankings > .player-summary .player .rank > * {
+      white-space: nowrap;
+    }
+    .rankings > .player-summary .player .rank .name {
+      color: #b08d57;
+      font-weight: bold;
+    }
+    .rankings > .player-summary .player .rank A.name:hover {
+      color: #FFCC00;
+    }
+    .rankings > .player-summary .player .rank .name,
+    .rankings > .player-summary .player .rank .num {
+      font-size: 1.1em;
+    }
+    .rankings > .player-summary .player .rank .gameCount {
+      text-align: right;
+    }
+    .rankings > .player-summary .player .rank .num,
+    .rankings > .player-summary .player .rank .rating {
+      text-align: center;
+    }
+    .rankings > .player-summary .player .rank .gameCount::before {
+      content: '• ';
+    }
+    .rankings > .player-summary .player .rank .forte {
+      color: #00FF00;
+    }
+    .rankings > .player-summary .player .avatar-badge {
+      top: 8px;
+      left: 8px;
+      width: 80px;
+      height: 80px;
+      pointer-events: none;
+      z-index: -1;
+    }
+    .rankings > .content .game-list {
       display: flex;
       flex-direction: column;
       align-items: center;
+      margin-top: 8px;
       width: 100%;
     }
-    .rankings > .ranking .caption .rank {
-      color: #DED8D5;
+    .rankings > .content .game-list > * {
+      width: 100%;
     }
-    .rankings > .rankedGames .player {
+    .game-list .down {
+      color: #FF0000;
+    }
+    .game-list .down::before {
+      content: '\2212';
+    }
+    .game-list .up {
+      color: #00FF00;
+    }
+    .game-list .up::before {
+      content: '+';
+    }
+    .game-list .game {
+      margin-bottom: 8px;
+    }
+    .game-list .game:active {
+      pointer-events: none;
+    }
+    .game-list .game .vs {
+      display: grid;
+      grid-template-columns: calc(160px * 0.45) 1fr 0% 1fr;
+      align-items: center;
+      text-align: center;
+      height: 60px;
+    }
+    .game-list .game .vs .arena-wrapper {
       position: relative;
-      padding: 8px 0;
-      height: 40px;
+      height: 100%;
     }
-    .rankings > .rankedGames .player .name {
+    .game-list .game .vs .arena-wrapper .arena {
       position: absolute;
-      top: 20px;
-      left: 100px;
+      top: calc(60px - 125px * 0.45 - 1px);
+      transform-origin: top left;
+      transform: scale(0.45);
+    }
+    .game-list .game .vs .arena-wrapper .arena .name,
+    .game-list .game .vs .arena-wrapper .arena .labels {
+      display: none;
+    }
+    .game-list .game .vs .arena-wrapper .arena .arena-shape {
+      pointer-events: auto;
+    }
+    .game-list .game .team.linkable,
+    .game-list .game .invite {
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .game-list .game .team .name {
+      white-space: nowrap;
+    }
+    .game-list .game .team.linkable .name,
+    .game-list .game .invite {
+      color: #00FFFF;
+      text-decoration: underline;
+    }
+    .game-list .game .team.linkable:hover .name,
+    .game-list .game .invite:hover {
+      color: #CCFFFF;
+    }
+    .game-list .game .invite .label {
+      margin-left: 6px;
+    }
+    .game-list .game .vs .result {
+      position: relative;
+      height: 100%;
 
       font-size: 1.2em;
       font-style: italic;
       font-weight: bold;
       color: #b08d57;
     }
-    .rankings > .rankedGames .player .rank {
+    .game-list .game .vs .result SPAN {
+      display: block;
       position: absolute;
-      top: 50px;
-      left: 112px;
-
-      font-size: 1.1em;
+      left: 50%;
+      bottom: 4px;
+      transform: translateX(-50%);
     }
-    .rankings > .rankedGames .player .avatar-badge {
-      top: 8px;
-      left: 8px;
-      width: 80px;
-      height: 80px;
-      pointer-events: none;
+    .game-list .game .info {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      padding: 2px 6px;
+      background-color: #444444;
+    }
+    .game-list .game .info .right {
+      display: flex;
+      flex-direction: row;
+      gap: 4px;
+      align-items: center;
+      white-space: nowrap;
+    }
+    .game-list .game .info .right .clock.low {
+      color: red;
+    }
+    .game-list:not(.show-results) .loser {
+      filter: none !important;
+    }
+    .game-list:not(.show-results) .game .vs .team .rating > *:not(.current),
+    .game-list:not(.show-results) .game .vs .result SPAN {
+      display: none;
+    }
+    .game-list:not(.show-results) .game .vs .result::before {
+      display: block;
+      position: absolute;
+      left: 50%;
+      bottom: 4px;
+      transform: translateX(-50%);
+      content: 'VS';
+    }
+
+    LABEL.show-results {
+      text-decoration: underline;
+    }
+    LABEL.show-results:hover {
+      color: #FFCC00;
     }
 
     @media (min-width:640px) {
       .rankings > .topranks {
         grid-template-columns: 1fr 1fr;
       }
-    }
-    .magic-table .header .group:last-child {
-      display: none;
     }
 
     .popup.account .buttons {
@@ -500,20 +778,14 @@
       margin: 2px 0 2px 6px;
     }
 
-    .gameList .game .share,
-    .gameList .game .copy,
     .popup.brave .copy {
       color: #00FFFF;
       text-decoration: underline;
       user-select: none;
     }
-    .gameList .game .share .fa-copy,
-    .gameList .game .copy .fa-copy,
     .popup.brave .copy .fa-copy {
       cursor: pointer;
     }
-    .gameList .game .share .label,
-    .gameList .game .copy .label,
     .popup.brave .copy .label {
       cursor: pointer;
       margin-left: 6px;
@@ -528,13 +800,39 @@
         color: #00FFFF;
       }
 
-      #auth LI:hover, .gameList .game:hover {
+      #auth LI:hover, .game-list .game:hover {
         border-color: #00FFFF;
       }
+    }
 
-      .gameList .game .share:hover .label,
-      .gameList .game .copy:hover .label {
-        text-decoration: underline;
+    @media (min-width:600px) {
+      .rankings > .player-summary .player .rank {
+        padding-left: 0;
+        text-indent: 0;
+      }
+      .rankings > .player-summary .player .ranks.show-all .rank {
+        display: grid !important;
+        grid-template-columns: 1.8fr 0.6fr 0.6fr 1fr 1fr;
+        gap: 8px;
+        align-items: center;
+      }
+      .rankings > .player-summary .player .ranks.show-all .rank .gameCount::before {
+        content: '';
+      }
+
+      .game-list .game .vs {
+        grid-template-columns: calc(160px * 0.6) 1fr 0% 1fr;
+      }
+      .game-list .game .vs .arena-wrapper .arena {
+        top: calc(82px - 125px * 0.6 - 1px);
+        transform: scale(0.6);
+      }
+      .game-list .game .info {
+        position: relative;
+        left: calc(160px * 0.6 + 1px);
+        box-sizing: border-box;
+        border-top-left-radius: 11px;
+        width: calc(100% - 160px * 0.6);
       }
     }
 
@@ -568,11 +866,7 @@
     .page > .tabContent .lobby HEADER {
       padding: 0 8px;
     }
-    .page > .tabContent .gameList,
-    .page > .tabContent .rankings {
-      padding: 0 8px;
-    }
-    .page > .tabContent .gameList:empty::before {
+    .page > .tabContent .game-list:empty::before {
       display: block;
       text-align: center;
       padding: 8px;
@@ -937,16 +1231,22 @@
         flex-basis: min-content;
       }
     }
-    @media (min-width:820px) and (min-height:600px) {
+    @media (min-width:820px) and (min-height:613px) {
+      BODY {
+        flex-direction: column;
+        justify-content: flex-start;
+      }
       .page {
+        margin-top: 20px;
         width: 820px;
-        height: 600px;
+        height: calc(100% - 5vh);
       }
       .page > .tabContent > DIV {
         overflow-y: auto;
       }
       .page > .tabContent > DIV.lobby .content {
         flex: 1 1 auto;
+        max-height: 420px;
         overflow-y: auto;
       }
       .arenas {
@@ -964,7 +1264,7 @@
         width: 800px;
       }
     }
-    @media (max-width:819px), (max-height:599px) {
+    @media (max-width:819px), (max-height:612px) {
       BODY {
         flex-direction: column;
         justify-content: flex-start;
@@ -1014,30 +1314,25 @@
     <DIV id="pn" style="display:none"></DIV>
     <DIV class="tabs" style="display:none">
       <UL>
-        <LI class="yourGames"><span class="label">Your Games</span><span class="badge"></span></LI>
-        <LI class="lobby"><span class="label">Lobby</span><span class="badge"></span></LI>
-        <LI class="publicGames"><span class="label">Public Games</span><span class="badge"></span></LI>
-        <LI class="rankings"><span class="label">Rankings</span><span class="badge"></span></LI>
+        <LI class="yourGames" data-route="#yourGames"><span class="label">Your Games</span><span class="badge"></span></LI>
+        <LI class="lobby" data-route="#lobby"><span class="label">Lobby</span><span class="badge"></span></LI>
+        <LI class="publicGames" data-route="#publicGames"><span class="label">Public Games</span><span class="badge"></span></LI>
+        <LI class="rankings" data-route="#rankings/FORTE"><span class="label">Rankings</span><span class="badge"></span></LI>
       </UL>
     </DIV>
     <DIV class="tabContent">
-      <DIV class="gameList yourGames"></DIV>
+      <DIV class="yourGames"></DIV>
       <DIV class="enterLobby">
         <BUTTON name="enter">Enter Lobby!</BUTTON>
       </DIV>
       <DIV class="lobby"></DIV>
-      <DIV class="gameList publicGames"></DIV>
+      <DIV class="publicGames"></DIV>
       <DIV class="rankings">
         <HEADER></HEADER>
         <DIV class="notice" style="display:none">
           Only verified accounts may particate in rankings.  To verify your account, go <A href="/security.html">here</A>.
         </DIV>
-        <DIV class="topranks" style="display:none">
-        </DIV>
-        <DIV class="ranking" style="display:none">
-        </DIV>
-        <DIV class="rankedGames" style="display:none">
-        </DIV>
+        <DIV class="content"></DIV>
       </DIV>
       <DIV class="loading">
         <DIV class="label">Please<br>wait...</DIV>

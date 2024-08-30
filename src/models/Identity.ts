@@ -14,6 +14,7 @@ export default class Identity extends ActiveModel {
   protected data: {
     id: string
     name?: string
+    aliases?: Map<string,Date>
     ranks?: { playerId:number, ratings:Map<string,{ rating:number, gameCount:number }> }
     muted: boolean
     admin: boolean
@@ -33,6 +34,8 @@ export default class Identity extends ActiveModel {
     super();
     this.data = data;
 
+    if (data.aliases === undefined)
+      data.aliases = new Map();
     if (data.relationships === undefined)
       data.relationships = new Map();
   }
@@ -60,8 +63,24 @@ export default class Identity extends ActiveModel {
   set name(name) {
     if (this.data.name === name)
       return;
+
+    if (this.data.name !== undefined) {
+      this.data.aliases.delete(name);
+      this.data.aliases.set(this.data.name, new Date());
+
+      if (this.data.aliases.size > 3) {
+        const oldestAlias = Array.from(this.data.aliases).sort((a,b) => a[1].getTime() - b[1].getTime())[0][0];
+        this.data.aliases.delete(oldestAlias);
+      }
+    }
+
     this.data.name = name;
     this.emit('change:name');
+  }
+  get aliases() {
+    const oneMonthAgo = Date.now() - 30 * 86400 * 1000;
+
+    return new Map(Array.from(this.data.aliases).filter((a) => a[1].getTime() > oneMonthAgo));
   }
 
   get muted() {
@@ -103,30 +122,30 @@ export default class Identity extends ActiveModel {
   get needsIndex() {
     if (this.expireAt.getTime() <= Date.now())
       return false;
-    if (this.data.name === null && this.data.relationships.size === 0)
+    if (this.name === null && this.data.relationships.size === 0)
       return false;
 
     return true;
   }
+  get rankedPlayerId() {
+    return this.data.ranks?.playerId ?? null;
+  }
 
   getRanks(rankingId = null) {
-    return new Map(
-      [ ...(this.data.ranks?.ratings.keys() ?? []) ]
-        .filter(rId => [ null, rId ].includes(rankingId))
-        .map(rId => [ rId, this.getRank(rId) ])
-    );
-  }
-  getRank(rankingId = 'FORTE') {
     const ranks = this.data.ranks;
-    if (!ranks?.ratings.has(rankingId))
-      return null;
+    if (!ranks)
+      return [];
 
-    return {
-      playerId: ranks.playerId,
-      name: this.name,
-      rating: ranks.ratings.get(rankingId).rating,
-      gameCount: ranks.ratings.get(rankingId).gameCount,
-    };
+    return Array.from(ranks.ratings.entries())
+      .filter(([ rId, r ]) => [ null, rId ].includes(rankingId))
+      .sort((a,b) => b[1].rating - a[1].rating)
+      .map(([ rId, r ]) => ({
+        rankingId: rId,
+        playerId: ranks.playerId,
+        name: this.name,
+        rating: r.rating,
+        gameCount: r.gameCount,
+      }));
   }
   setRanks(playerId, ratings) {
     this.data.ranks = { playerId, ratings };
@@ -134,7 +153,15 @@ export default class Identity extends ActiveModel {
   }
 
   merge(identity) {
-    this.name = identity.name;
+    const aliasMap = new Map([ ...this.aliases, ...identity.aliases ]) satisfies typeof this.data.aliases;
+    if (this.data.name !== identity.name) {
+      aliasMap.delete(identity.name);
+      aliasMap.set(this.name, this.data.lastSeenAt);
+    }
+    const aliases = Array.from(aliasMap).sort((a,b) => b[1].getTime() - a[1].getTime());
+
+    this.data.name = identity.name;
+    this.data.aliases = new Map(aliases.slice(0, 3));
     this.data.ranks = identity.data.ranks;
 
     if (identity.lastSeenAt > this.data.lastSeenAt)
@@ -187,6 +214,10 @@ export default class Identity extends ActiveModel {
   toJSON() {
     const json = super.toJSON();
 
+    if (json.aliases.size)
+      json.aliases = [ ...json.aliases ];
+    else
+      delete json.aliases;
     if (json.relationships.size)
       json.relationships = [ ...json.relationships ];
     else
@@ -206,6 +237,17 @@ serializer.addType({
     properties: {
       id: { type:'string', format:'uuid' },
       name: { type:'string' },
+      aliases: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [
+            { type:'string' },
+            { type:'string', subType:'Date' },
+          ],
+        },
+      },
       ranks: {
         type: 'object',
         required: [ 'playerId', 'ratings' ],
