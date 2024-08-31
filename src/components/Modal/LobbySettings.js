@@ -27,7 +27,7 @@ export default class LobbySettings extends Modal {
       <DIV class="row col5 createTimeLimit">
         <DIV class="label">Time Limit</DIV>
         <LABEL><INPUT type="radio" name="createTimeLimit" value="ask"> Ask</LABEL>
-        <LABEL><INPUT type="radio" name="createTimeLimit" value="relaxed"> Relaxed</LABEL>
+        <LABEL><INPUT type="radio" name="createTimeLimit" value="pro"> Pro</LABEL>
         <LABEL><INPUT type="radio" name="createTimeLimit" value="standard"> Standard</LABEL>
         <LABEL><INPUT type="radio" name="createTimeLimit" value="blitz"> Blitz</LABEL>
       </DIV>

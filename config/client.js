@@ -74,9 +74,32 @@ const oppRotation = new Map([
   [ 'W', 'E' ],
 ]);
 
+const gameConfigProps = {
+  audio: true,
+  gameSpeed: 'auto',
+  barPosition: 'right',
+  blockingSystem: 'luck',
+  turnTimeLimit: 'standard',
+  ranked: 'any',
+  set: 'ask',
+  randomSide: false,
+  rotation: 'S',
+  teamColorIds: [ 'Blue', 'Yellow', 'Red', 'Green' ],
+};
+
 export const gameConfig = {
   get setsById() {
     return setsById;
+  },
+
+  // Temporary migration
+  get turnTimeLimit() {
+    const turnTimeLimit = this._get('turnTimeLimit', gameConfigProps.turnTimeLimit);
+    if (turnTimeLimit !== 'relaxed')
+      return turnTimeLimit;
+
+    this._set('turnTimeLimit', 'pro');
+    return 'pro';
   },
 
   get myColorId() {
@@ -104,24 +127,13 @@ export const gameConfig = {
   },
 };
 
-const gameConfigProps = {
-  audio: true,
-  gameSpeed: 'auto',
-  barPosition: 'right',
-  blockingSystem: 'luck',
-  turnTimeLimit: 'standard',
-  ranked: 'any',
-  set: 'ask',
-  randomSide: false,
-  rotation: 'S',
-  teamColorIds: [ 'Blue', 'Yellow', 'Red', 'Green' ],
-};
-
 for (const [ propName, propDefault ] of Object.entries(gameConfigProps)) {
   Object.defineProperty(gameConfig, propName, {
-    get() {
-      return this._get(propName, propDefault);
-    },
+    ...(Object.getOwnPropertyDescriptor(gameConfig, propName)?.get ? {} : {
+      get() {
+        return this._get(propName, propDefault);
+      },
+    }),
     set(propValue) {
       this._set(propName, propValue);
     },

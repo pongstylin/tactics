@@ -844,7 +844,7 @@ async function createGame(divArena) {
     createTimeLimit = await popup({
       message: 'Choose turn time limit.',
       buttons: [
-        { label:'Relaxed',  value:'relaxed' },
+        { label:'Pro',  value:'pro' },
         { label:'Standard', value:'standard' },
         { label:'Blitz',    value:'blitz' },
       ],
