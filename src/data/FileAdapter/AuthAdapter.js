@@ -174,6 +174,9 @@ export default class extends FileAdapter {
   async getRanks(rankingId) {
     return this.state.identities.getRanks(rankingId).get(rankingId) ?? [];
   }
+  async isRanked(playerIds) {
+    return this.state.identities.isRanked(playerIds);
+  }
   /*
    * Returns a map of ranking id to a summary of ranks.
    * The summary includes the top 3 ranks and the player's rank, if any.

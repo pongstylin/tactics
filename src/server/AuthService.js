@@ -94,6 +94,9 @@ export default class AuthService extends Service {
   unlinkAuthProvider(provider, userId) {
     return this.data.unlinkAuthProvider(provider, userId);
   }
+  isRanked(playerIds) {
+    return this.data.isRanked(playerIds);
+  }
   getRanks(rankingId) {
     return this.data.getRanks(rankingId);
   }

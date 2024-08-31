@@ -176,6 +176,30 @@ export default class Identities extends ActiveModel {
       aliasSeq(a) - aliasSeq(b)
     )).slice(0, 5);
   }
+  isRanked(playerIds) {
+    const isRanked = new Set();
+    const playerIdSet = new Set(playerIds);
+
+    for (const identity of this.identities) {
+      const rankedPlayerId = identity.rankedPlayerId;
+      if (!rankedPlayerId)
+        continue;
+
+      for (const playerId of identity.playerIds) {
+        if (!playerIdSet.has(playerId))
+          continue;
+
+        playerIdSet.delete(playerId);
+        isRanked.add(playerId);
+        break;
+      }
+
+      if (playerIdSet.size === 0)
+        break;
+    }
+
+    return isRanked;
+  }
   getRanked(playerIds) {
     const rankedPlayers = new Map();
     const playerIdSet = new Set(playerIds);

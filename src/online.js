@@ -2760,7 +2760,7 @@ function renderGameTeam(game, team, rank, linkable = true) {
   const rankingId = game.type;
   const divTeam = document.createElement('DIV');
   divTeam.classList.add('team');
-  divTeam.classList.toggle('linkable', linkable);
+  divTeam.classList.toggle('linkable', linkable && rank.isRanked);
   divTeam.dataset.playerId = team.playerId;
 
   const rating = [];
@@ -2772,8 +2772,10 @@ function renderGameTeam(game, team, rank, linkable = true) {
     rating.push(`<SPAN class="initial">${Math.round(vsRatings[0])}</SPAN>`);
     rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN>`);
     rating.push(` <SPAN class="current">(${rank.rating})</SPAN>`);
-  } else {
+  } else if (rank.isRanked) {
     rating.push(`<SPAN class="current">(${rank.rating || 'Unranked'})</SPAN>`);
+  } else {
+    rating.push(`<SPAN class="current">(Guest)</SPAN>`);
   }
 
   divTeam.innerHTML = `
