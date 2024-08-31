@@ -146,6 +146,20 @@
           {"type":"DarkMagicWitch","assignment":[8,1]},
           {"type":"Pyromancer","assignment":[7,2]}
         ]
+      },{
+        "name":"Man-on-Fire",
+        "units": [
+          {"type":"Cleric","assignment":[8,0]},
+          {"type":"Pyromancer","assignment":[8,1]},
+          {"type":"Assassin","assignment":[4,2]},
+          {"type":"DarkMagicWitch","assignment":[8,2]},
+          {"type":"Pyromancer","assignment":[9,2]},
+          {"type":"Knight","assignment":[5,3]},
+          {"type":"Knight","assignment":[6,4]},
+          {"type":"LightningWard","assignment":[7,4]},
+          {"type":"Knight","assignment":[9,4]},
+          {"type":"Scout","assignment":[10,4]}
+        ]
       }]
     }
   ],
