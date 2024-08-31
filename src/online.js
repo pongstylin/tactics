@@ -145,7 +145,7 @@ const routes = new Map([
   [ '#rankings/:rankingId', p => ({
     route: () => renderRankingSummary(p.rankingId),
     data: Promise.all([
-      authClient.getTopRanks(p.rankingId).then(tr => tr.get(p.rankingId)),
+      authClient.getTopRanks(p.rankingId).then(tr => tr.get(p.rankingId) ?? []),
       gameClient.getRankedGames(p.rankingId),
     ]),
   }) ],
@@ -2341,10 +2341,17 @@ async function renderRankings() {
   divContent.append(secRankings);
 
   const hdrRankings = document.createElement('HEADER');
-  hdrRankings.innerHTML = `
-    <DIV class="caption"><A href="#rankings/topranks">Show All Top Ranks</A></DIV>
-    <DIV class="playerCount">Player Count</DIV>
-  `;
+  if (rankings.length > 1) {
+    hdrRankings.innerHTML = `
+      <DIV class="caption"><A href="#rankings/topranks">Show All Top Ranks</A></DIV>
+      <DIV class="playerCount">Player Count</DIV>
+    `;
+  } else {
+    hdrRankings.innerHTML = `
+      <DIV class="caption">Rankings</DIV>
+      <DIV class="playerCount">Player Count</DIV>
+    `;
+  }
   secRankings.append(hdrRankings);
 
   const divBody = document.createElement('DIV');
@@ -2453,7 +2460,11 @@ async function renderRankingSummary(rankingId) {
   divContent.append(secRanks);
 
   const divCaption = secRanks.querySelector('HEADER .caption');
-  divCaption.innerHTML = `<A href="#rankings/${rankingId}/all">Show All Ranks</A>`;
+  if (topranks.length > 2) {
+    divCaption.innerHTML = `<A href="#rankings/${rankingId}/all">Show All Ranks</A>`;
+  } else {
+    divCaption.innerHTML = `Ranks`;
+  }
 
   const secRankedGames = renderRankedGames(games, rankingId);
   divContent.append(secRankedGames);

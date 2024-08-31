@@ -866,11 +866,25 @@
     .page > .tabContent .lobby HEADER {
       padding: 0 8px;
     }
-    .page > .tabContent .game-list:empty::before {
+    .rankings .body:empty::before {
       display: block;
       text-align: center;
       padding: 8px;
-      content: 'No games!';
+      content: 'No rankings yet!';
+    }
+    .ranks .body:empty::before {
+      display: block;
+      text-align: center;
+      padding: 8px;
+      content: 'No ranks yet!';
+    }
+    .yourGames:empty::before,
+    .publicGames:empty::before,
+    .game-list .body:empty::before {
+      display: block;
+      text-align: center;
+      padding: 8px;
+      content: 'No games yet!';
     }
     .page > .tabContent .loading {
       display: flex;
