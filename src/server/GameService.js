@@ -150,7 +150,7 @@ export default class GameService extends Service {
           'autoSurrender?': 'boolean',
           'rated?': 'boolean',
           'ranked?': 'boolean',
-          'timeLimitName?': `enum([ 'blitz', 'standard', 'relaxed', 'day', 'week' ])`,
+          'timeLimitName?': `enum([ 'blitz', 'standard', 'pro', 'day', 'week' ])`,
           'tags?': 'game:tags',
         },
         forkOptions: unionType(

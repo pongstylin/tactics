@@ -3,18 +3,31 @@ export default {
     type: 'buffered',
     initial: 120,
     base: 30,
+    initialBuffer: 0,
     maxBuffer: 120,
+    resetBuffer: true,
   },
   standard: {
     type: 'legacy',
     initial: 300,
     base: 120,
   },
+  pro: {
+    type: 'buffered',
+    initial: 300,
+    base: 60,
+    initialBuffer: 60,
+    maxBuffer: 300,
+    resetBuffer: false,
+  },
+  // Deprecated
   relaxed: {
     type: 'buffered',
     initial: 300,
     base: 120,
+    initialBuffer: 0,
     maxBuffer: 300,
+    resetBuffer: true,
   },
   day: {
     type: 'fixed',
@@ -88,13 +101,23 @@ export const applyTurnTimeLimit = {
       const previousTurnId = this.getTeamPreviousPlayableTurnId(currentTurn.team);
       const previousTurn = this.turns[previousTurnId];
 
-      // No buffer if this or previous team's turn is the initial turn.
-      // No buffer if previous team's turn lasted longer than base time limit.
-      if (previousTurn && previousTurn.id !== initialTurnId && previousTurn.duration < timeLimit.base) {
-        currentTurn.set('timeBuffer', Math.min(
-          timeLimit.maxBuffer,
-          previousTurn.get('timeBuffer', 0) + Math.max(0, (timeLimit.base / 2) - previousTurn.timeElapsed),
-        ));
+      // No buffer if this is the initial turn.
+      if (previousTurn) {
+        // Apply initial buffer if this is the team's 2nd turn.
+        if (previousTurn.id === initialTurnId)
+          currentTurn.set('timeBuffer', timeLimit.initialBuffer ?? 0);
+        // Add to the buffer if the previous turn was played fast enough.
+        else if (previousTurn.duration < timeLimit.base)
+          currentTurn.set('timeBuffer', Math.min(
+            timeLimit.maxBuffer,
+            previousTurn.get('timeBuffer', 0) + Math.max(0, (timeLimit.base / 2) - previousTurn.timeElapsed),
+          ));
+        // Unless we need to reset the buffer, deduct from the buffer time used.
+        else if (!timeLimit.resetBuffer)
+          currentTurn.set('timeBuffer', Math.max(
+            0,
+            previousTurn.get('timeBuffer', 0) - (previousTurn.timeElapsed - timeLimit.base),
+          ));
       }
     }
 
