@@ -463,6 +463,11 @@ whenDOMReady.then(() => {
         else if (body.type === 'remove')
           unsetLobbyGame(body.data);
       } else if (body.group === '/collections/public') {
+        const isMyGame = body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1;
+        const wasWaiting = state.tabContent.publicGames.games[0].has(body.data.id);
+        if (isMyGame && !wasWaiting)
+          return;
+
         if (body.type === 'add' || body.type === 'change')
           setPublicGame(body.data);
         else if (body.type === 'remove')
@@ -940,7 +945,7 @@ async function cancelGame(arena = state.tabContent.yourGames.lobbyGame) {
   }
 }
 async function joinGame(arena) {
-  if (!await cancelGame())
+  if (arena.collection?.startsWith('lobby/') && !await cancelGame())
     return false;
 
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
@@ -1819,7 +1824,7 @@ async function fillArena(divArena, arena = true) {
     return emptyArena(divArena);
 
   const lobbyGame = state.tabContent.yourGames.lobbyGame;
-  divArena.classList.toggle('disabled', !!lobbyGame?.startedAt && !arena.startedAt);
+  divArena.classList.toggle('disabled', !!lobbyGame?.startedAt && !arena.startedAt && arena.collection?.startsWith('lobby/'));
 
   const oldArena = JSON.parse(divArena.dataset.arena ?? 'null');
   if (JSON.stringify(arena) === JSON.stringify(oldArena))
