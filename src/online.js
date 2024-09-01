@@ -2785,13 +2785,15 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   const defaultRating = rankingId === 'FORTE' ? 0 : 750;
   const rating = [];
   if (rank) {
-    const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
-    const change = vsRatings[1] - vsRatings[0];
-    const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
+    if (game.ranked) {
+      const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
+      const change = vsRatings[1] - vsRatings[0];
+      const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
 
-    rating.push(`<SPAN class="initial">${Math.round(vsRatings[0])}</SPAN>`);
-    rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN>`);
-    rating.push(` <SPAN class="current">(${rank.rating})</SPAN>`);
+      rating.push(`<SPAN class="initial">${Math.round(vsRatings[0])}</SPAN>`);
+      rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN> `);
+    }
+    rating.push(`<SPAN class="current">(${rank.rating})</SPAN>`);
   } else if (rank === null)
     rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
   else if (rank === false)
