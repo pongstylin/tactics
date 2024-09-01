@@ -2599,7 +2599,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
 
     html.push(`<SPAN class="gameCount">${rank.gameCount} Game(s)</SPAN>`);
 
-    if (rankingId === 'FORTE' && rank.rankingId === 'FORTE' && rank.gameCount > 9)
+    if (rankingId === 'FORTE' && rank.rankingId !== 'FORTE' && rank.gameCount > 9)
       html.push(`<SPAN class="forte">+ ${Math.round(rank.rating / divisor)}</SPAN>`);
 
     divRank.innerHTML = html.join(' ');
