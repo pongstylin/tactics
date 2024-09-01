@@ -2577,16 +2577,27 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
     const divRank = document.createElement('DIV');
     divRank.classList.add('rank');
     divRank.classList.toggle('show', rank.rankingId === rankingId);
-    divRank.innerHTML = [
-      rank.rankingId === rankingId
-        ? `<SPAN class="name">${rankName}</SPAN>`
-        : `<A href="#rankings/${playerId}/${rank.rankingId}" class="name">${rankName}</A>`,
-      `<SPAN class="num">${ rank.num === null ? 'Unranked' : `#${rank.num}` }</SPAN>`,
-      `<SPAN class="rating">${ rank.rating === null ? '' : `(${rank.rating})` }</SPAN>`,
-      `<SPAN class="gameCount">${rank.gameCount} Game(s)</SPAN>`,
-      rankingId !== 'FORTE' || rank.rankingId === 'FORTE' || rank.gameCount < 10 ? '' :
-        `<SPAN class="forte">+ ${Math.round(rank.rating / divisor)}</SPAN>`
-    ].join(' ');
+
+    const html = [];
+    if (rank.rankingId === rankingId)
+      html.push(`<SPAN class="name">${rankName}</SPAN>`);
+    else
+      html.push(`<A href="#rankings/${playerId}/${rank.rankingId}" class="name">${rankName}</A>`);
+
+    if (rank.num !== null)
+      html.push(
+        `<SPAN class="num">#${rank.num}</SPAN>`,
+        `<SPAN class="rating">(${rank.rating})</SPAN>`,
+      );
+    else
+      html.push(`<SPAN class="unranked">Unranked</SPAN>`);
+
+    html.push(`<SPAN class="gameCount">${rank.gameCount} Game(s)</SPAN>`);
+
+    if (rankingId === 'FORTE' && rank.rankingId === 'FORTE' && rank.gameCount > 9)
+      html.push(`<SPAN class="forte">+ ${Math.round(rank.rating / divisor)}</SPAN>`);
+
+    divRank.innerHTML = html.join(' ');
     divRanks.append(divRank);
   }
 

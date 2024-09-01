@@ -253,7 +253,7 @@ export default class Identities extends ActiveModel {
   }
   getRanks(rankingIds = []) {
     const identities = this.identities;
-    const ranksByRankingId = new Map();
+    const ranksByRankingId = new Map(rankingIds.map(rId => [ rId, [] ]));
 
     for (const identity of identities)
       for (const rank of identity.getRanks(rankingIds))

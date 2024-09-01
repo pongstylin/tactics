@@ -172,7 +172,7 @@ export default class extends FileAdapter {
     return this.state.identities.getRankings();
   }
   async getRanks(rankingIds) {
-    return this.state.identities.getRanks(rankingIds).get(rankingId) ?? [];
+    return this.state.identities.getRanks(rankingIds);
   }
   async isRanked(playerIds) {
     return this.state.identities.isRanked(playerIds);

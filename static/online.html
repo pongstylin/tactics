@@ -607,12 +607,16 @@
     .rankings > .player-summary .player .rank .num {
       font-size: 1.1em;
     }
+    .rankings > .player-summary .player .rank .num,
+    .rankings > .player-summary .player .rank .rating,
+    .rankings > .player-summary .player .rank .unranked {
+      text-align: center;
+    }
+    .rankings > .player-summary .player .rank .unranked {
+      grid-column: span 2;
+    }
     .rankings > .player-summary .player .rank .gameCount {
       text-align: right;
-    }
-    .rankings > .player-summary .player .rank .num,
-    .rankings > .player-summary .player .rank .rating {
-      text-align: center;
     }
     .rankings > .player-summary .player .rank .gameCount::before {
       content: '• ';
