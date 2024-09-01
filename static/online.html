@@ -538,17 +538,15 @@
       color: #FFCC00;
     }
 
-    .tabContent .rankings > .topranks {
+    .rankings > .topranks {
       display: grid;
+      grid-template-columns: 1fr;
       align-items: flex-start;
       gap: 12px;
       width: 100%;
       max-width: 100%;
     }
-    .tabContent .rankings > .topranks:empty {
-      grid-template-columns: 1fr;
-    }
-    .tabContent .rankings > .topranks:empty::before {
+    .rankings > .topranks:empty::before {
       margin-top: 8px;
       text-align: center;
       content: 'No rankings until more ranked games are played.';
