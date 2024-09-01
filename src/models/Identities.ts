@@ -276,7 +276,7 @@ export default class Identities extends ActiveModel {
 
     for (const playerId of playerIds) {
       const identity = this.findByPlayerId(playerId);
-      if (!identity) {
+      if (!identity?.rankedPlayerId) {
         ranksByPlayerId.set(playerId, false);
         continue;
       }
