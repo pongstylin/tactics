@@ -171,8 +171,8 @@ export default class extends FileAdapter {
   async getRankings() {
     return this.state.identities.getRankings();
   }
-  async getRanks(rankingId) {
-    return this.state.identities.getRanks(rankingId).get(rankingId) ?? [];
+  async getRanks(rankingIds) {
+    return this.state.identities.getRanks(rankingIds).get(rankingId) ?? [];
   }
   async isRanked(playerIds) {
     return this.state.identities.isRanked(playerIds);
@@ -182,7 +182,7 @@ export default class extends FileAdapter {
    * The summary includes the top 3 ranks and the player's rank, if any.
    */
   async getTopRanks(rankingId, playerId) {
-    const rankings = this.state.identities.getRanks(rankingId);
+    const rankings = this.state.identities.getRanks([ rankingId ]);
 
     for (const [ rankingId, ranking ] of rankings.entries())
       rankings.set(rankingId, ranking.filter(r => r.num < 4 || r.playerId === playerId));

@@ -553,13 +553,7 @@ function setMyAvatar(avatar) {
   divAvatar.appendChild(imgAvatar);
 }
 function setYourLobbyGame(gameSummary, skipRender = false) {
-  if (state.activeGameId === gameSummary.id && gameSummary.startedAt) {
-    const newGame = avatars.getSound('newgame').howl;
-    newGame.once('end', () => {
-      location.href = `/game.html?${gameSummary.id}`;
-    });
-    newGame.play();
-  } else if (state.activeGameId === null && gameSummary.startedAt) {
+  if (state.activeGameId !== gameSummary.id && gameSummary.startedAt) {
     state.activeGameId = true;
     popup({
       message: 'You have an active lobby game!',
@@ -612,6 +606,14 @@ function setYourGame(gameSummary) {
     yourGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[1] ]);
   else
     yourGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[0] ]);
+
+  if (state.activeGameId === gameSummary.id && gameSummary.startedAt) {
+    const newGame = avatars.getSound('newgame').howl;
+    newGame.once('end', () => {
+      location.href = `/game.html?${gameSummary.id}`;
+    });
+    newGame.play();
+  }
 
   if (isLobbyGame) {
     const lobbyGame = state.tabContent.yourGames.lobbyGame;
@@ -926,7 +928,7 @@ async function cancelGame(arena = state.tabContent.yourGames.lobbyGame) {
 
   try {
     await gameClient.cancelGame(arena.id);
-    if (arena === state.tabContent.yourGames.lobbyGame)
+    if (arena.id === state.activeGameId)
       state.activeGameId = null;
     return true;
   } catch (e) {
@@ -2522,7 +2524,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
   ];
   header.innerHTML = crumbs.join('');
 
-  if (ranks.length === 0) {
+  if (ranks === false) {
     divContent.innerHTML = 'Either the player is not ranked or does not exist.';
     return;
   }
@@ -2703,7 +2705,7 @@ function renderRankedGames(games, rankingId, playerId = null) {
   divBody.classList.add('body');
 
   for (const game of games)
-    divBody.append(renderGame(game, playerId));
+    divBody.append(renderGame(game, playerId, rankingId));
 
   secRankedGames.append(divBody);
 
@@ -2723,11 +2725,13 @@ function renderShowResults() {
 
   return label;
 }
-function renderGame(game, playerId = null) {
+function renderGame(game, playerId = null, rankingId = null) {
   const team1 = game.teams.find(t => t?.playerId === (playerId ?? game.createdBy));
-  const rank1 = game.meta.ranks.find(r => r.playerId === (playerId ?? game.createdBy));
+  const ranks1 = game.meta.ranks[team1.id];
   const team2 = game.teams.find(t => t !== team1);
-  const rank2 = game.meta.ranks.find(r => r !== rank1);
+  const ranks2 = team2 && game.meta.ranks[team2.id];
+
+  rankingId ??= game.type;
 
   const divGame = document.createElement('DIV');
   divGame.id = game.id;
@@ -2744,10 +2748,10 @@ function renderGame(game, playerId = null) {
   fillArena(divArena, game);
 
   divVS.append(divArenaWrapper);
-  divVS.append(renderGameTeam(game, team1, rank1, team1.playerId !== playerId));
+  divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
   divVS.append(renderGameResult(game, team1.playerId));
   if (team2)
-    divVS.append(renderGameTeam(game, team2, rank2, team2.playerId !== playerId));
+    divVS.append(renderGameTeam(game, team2, ranks2, rankingId, team2.playerId !== playerId));
   else if (game.createdBy === authClient.playerId)
     divVS.append(renderGameInvite(game))
   divGame.append(divVS);
@@ -2756,27 +2760,29 @@ function renderGame(game, playerId = null) {
 
   return divGame;
 }
-function renderGameTeam(game, team, rank, linkable = true) {
-  const rankingId = game.type;
+function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
+  const rank = ranks && (ranks.find(r => r.rankingId === rankingId) ?? null);
   const divTeam = document.createElement('DIV');
   divTeam.classList.add('team');
-  divTeam.classList.toggle('linkable', linkable && rank.isRanked);
+  divTeam.classList.toggle('linkable', linkable && rank !== false);
   divTeam.dataset.playerId = team.playerId;
 
+  const defaultRating = rankingId === 'FORTE' ? 0 : 750;
   const rating = [];
-  if (rank.rating && team.ratings.get(rankingId)) {
-    const vsRatings = team.ratings.get(rankingId);
+  if (rank) {
+    const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
     const change = vsRatings[1] - vsRatings[0];
     const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
 
     rating.push(`<SPAN class="initial">${Math.round(vsRatings[0])}</SPAN>`);
     rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN>`);
     rating.push(` <SPAN class="current">(${rank.rating})</SPAN>`);
-  } else if (rank.isRanked) {
-    rating.push(`<SPAN class="current">(${rank.rating || 'Unranked'})</SPAN>`);
-  } else {
-    rating.push(`<SPAN class="current">(Guest)</SPAN>`);
-  }
+  } else if (rank === null)
+    rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
+  else if (rank === false)
+    rating.push(`<SPAN class="current">(Unranked)</SPAN>`);
+  else
+    rating.push(`<SPAN class="current">(Bugged)</SPAN>`);
 
   divTeam.innerHTML = `
     <DIV class="name">${team.name}</DIV>

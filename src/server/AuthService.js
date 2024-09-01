@@ -97,8 +97,8 @@ export default class AuthService extends Service {
   isRanked(playerIds) {
     return this.data.isRanked(playerIds);
   }
-  getRanks(rankingId) {
-    return this.data.getRanks(rankingId);
+  getPlayerRanks(playerIds, rankingIds) {
+    return this.data.getPlayerRanks(playerIds, rankingIds);
   }
 
   dropClient(client) {
@@ -632,7 +632,7 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    return this.data.getRanks(rankingId);
+    return this.data.getRanks([ rankingId ]);
   }
   async onGetTopRanksRequest(client, rankingId, playerId) {
     if (!this.clientPara.has(client.id))
@@ -644,7 +644,9 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    return this.data.getPlayerRanks(playerId, rankingId);
+    const ranksByPlayerId = await this.data.getPlayerRanks([ playerId ], rankingId ? [ rankingId ] : []);
+
+    return ranksByPlayerId.get(playerId);
   }
 
   async _validateAccessToken(client, token) {

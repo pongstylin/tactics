@@ -65,6 +65,10 @@ export default class GameSummary {
 
     return new GameSummary(data);
   }
+  static fromJSON(data) {
+    data.teams = data.teams.map((t,tId) => t && { ...t, id:tId });
+    return new GameSummary(data);
+  }
 
   get id() {
     return this.data.id;

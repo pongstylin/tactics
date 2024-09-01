@@ -131,13 +131,13 @@ export default class Identity extends ActiveModel {
     return this.data.ranks?.playerId ?? null;
   }
 
-  getRanks(rankingId = null) {
+  getRanks(rankingIds) {
     const ranks = this.data.ranks;
     if (!ranks)
       return [];
 
     return Array.from(ranks.ratings.entries())
-      .filter(([ rId, r ]) => [ null, rId ].includes(rankingId))
+      .filter(([ rId, r ]) => rankingIds.length === 0 || rankingIds.includes(rId))
       .sort((a,b) => b[1].rating - a[1].rating)
       .map(([ rId, r ]) => ({
         rankingId: rId,

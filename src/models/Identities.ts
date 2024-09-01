@@ -251,12 +251,12 @@ export default class Identities extends ActiveModel {
       numPlayers: rs.length,
     }));
   }
-  getRanks(rankingId = null) {
+  getRanks(rankingIds = []) {
     const identities = this.identities;
     const ranksByRankingId = new Map();
 
     for (const identity of identities)
-      for (const rank of identity.getRanks(rankingId))
+      for (const rank of identity.getRanks(rankingIds))
         if (!ranksByRankingId.has(rank.rankingId))
           ranksByRankingId.set(rank.rankingId, [ rank ]);
         else
@@ -270,21 +270,26 @@ export default class Identities extends ActiveModel {
 
     return ranksByRankingId;
   }
-  getPlayerRanks(playerId, rankingId = null) {
-    const identity = this.findByPlayerId(playerId);
-    if (!identity)
-      return [];
+  getPlayerRanks(playerIds, rankingIds) {
+    const ranksByPlayerId = new Map();
+    const ranks = Array.from(this.getRanks(rankingIds).values()).flat();
 
-    const ranks = Array.from(this.getRanks().values()).flat();
+    for (const playerId of playerIds) {
+      const identity = this.findByPlayerId(playerId);
+      if (!identity) {
+        ranksByPlayerId.set(playerId, false);
+        continue;
+      }
 
-    return (
-      rankingId === null ? ranks
-        .filter(r => identity.playerIds.includes(r.playerId)) :
-      rankingId === 'FORTE' ? ranks
-        .filter(r => identity.playerIds.includes(r.playerId) && (r.rankingId === rankingId || r.gameCount > 9)) :
-      ranks
-        .filter(r => identity.playerIds.includes(r.playerId) && r.rankingId === rankingId)
-    ).sort((a,b) => a.rankingId === 'FORTE' ? -1 : b.rankingId === 'FORTE' ? 1 : b.rating - a.rating);
+      const playerIdSet = new Set(identity.playerIds);
+
+      ranksByPlayerId.set(playerId, ranks
+        .filter(r => playerIdSet.has(r.playerId))
+        .sort((a,b) => a.rankingId === 'FORTE' ? -1 : b.rankingId === 'FORTE' ? 1 : b.rating - a.rating)
+      );
+    }
+
+    return ranksByPlayerId;
   }
 };
 

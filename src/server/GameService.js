@@ -1327,18 +1327,14 @@ export default class GameService extends Service {
       }
     }
 
-    promises.push(Promise.all([
-      this.auth.isRanked(data.teams.filter(t => !!t).map(t => t.playerId)),
-      this.auth.getRanks(data.type),
-    ]).then(([ isRanked, ranks ]) => {
-      meta.ranks = data.teams.map(t => {
+    const playerIds = Array.from(new Set(data.teams.filter(t => !!t).map(t => t.playerId)));
+    const rankingIds = [ 'FORTE', game.type ];
+
+    promises.push(this.auth.getPlayerRanks(playerIds, rankingIds).then(ranksByPlayerId => {
+      meta.ranks = data.teams.map((t,i) => {
         if (!t) return null;
 
-        const rankIndex = ranks.findIndex(r => r.playerId === t.playerId);
-        if (rankIndex === -1)
-          return { playerId:t.playerId, name:t.name, isRanked:isRanked.has(t.playerId) };
-
-        return { num:rankIndex+1, ...ranks[rankIndex], isRanked:isRanked.has(t.playerId) };
+        return ranksByPlayerId.get(t.playerId);
       });
     }));
 
