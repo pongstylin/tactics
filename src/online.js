@@ -1027,7 +1027,6 @@ async function joinGame(arena) {
     return false;
   }
 
-  const tabContent = state.tabContent.lobby;
   let { set, ranked, randomSide } = state.settings;
 
   if (ranked !== 'any') {
@@ -1041,8 +1040,9 @@ async function joinGame(arena) {
       ];
       if (arena.meta.ranked) {
         const creator = arena.teams.find(t => !!t);
-        const rank = arena.meta.ranks[creator.id]?.find(r => r.rankingId === arena.type);
-        if (rank.num)
+        const ranks = arena.meta.ranks[creator.id];
+        const rank = ranks && ranks.find(r => r.rankingId === arena.type);
+        if (rank)
           message.splice(1, 0, `${creator.name} has rank #${rank.num} (${rank.rating}) in ${arena.typeName}.`);
         else
           message.splice(1, 0, `${creator.name} is unranked in ${arena.typeName}.`);
@@ -1061,25 +1061,31 @@ async function joinGame(arena) {
     }
   }
 
-  if (set === 'ask' && tabContent.sets.length === 1)
-    set = tabContent.sets[0].id;
-  else if (set === 'ask') {
-    set = await popup({
-      message: 'Choose set.',
-      buttons: [
-        ...tabContent.sets.map(s => ({ label:s.name, value:s.id })),
-        { label:'Random', value:'random' },
-      ],
-    }).whenClosed;
-    if (set === undefined)
-      return false;
+  if (set === 'ask') {
+    const sets = await gameClient.getPlayerSets(arena.type);
+
+    if (sets.length === 1)
+      set = sets[0].id;
+    else {
+      set = await popup({
+        message: 'Choose set.',
+        buttons: [
+          ...sets.map(s => ({ label:s.name, value:s.id })),
+          { label:'Random', value:'random' },
+        ],
+      }).whenClosed;
+      if (set === undefined)
+        return false;
+    }
   }
 
   try {
+    const gameType = await gameClient.getGameType(arena.type);
+
     state.activeGameId = arena.id;
     await gameClient.joinGame(arena.id, {
       set,
-      randomSide: randomSide && !tabContent.gameType.hasFixedPositions,
+      randomSide: randomSide && !gameType.hasFixedPositions,
     });
     return true;
   } catch (e) {
