@@ -151,7 +151,7 @@ const config = {
                   randomFirstTurn: 'const(true)',
                   strictUndo: 'const(false)',
                   autoSurrender: 'const(true)',
-                  turnTimeLimit: `enum([ 'blitz', 'standard', 'relaxed' ])`,
+                  turnTimeLimit: `enum([ 'blitz', 'standard', 'pro' ])`,
                 },
               },
               collections: gameTypeIds.map(gtId => ({

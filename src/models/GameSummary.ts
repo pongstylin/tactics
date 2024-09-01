@@ -65,6 +65,10 @@ export default class GameSummary {
 
     return new GameSummary(data);
   }
+  static fromJSON(data) {
+    data.teams = data.teams.map((t,tId) => t && { ...t, id:tId });
+    return new GameSummary(data);
+  }
 
   get id() {
     return this.data.id;
@@ -141,6 +145,12 @@ export default class GameSummary {
     return this.teams.filter(t => t !== winner);
   }
 
+  get isPracticeGame() {
+    const teams = this.teams;
+    const isMultiplayer = new Set(teams.map(t => t.playerId)).size > 1;
+
+    return !isMultiplayer;
+  }
   get meta() {
     return this.data.meta ?? {};
   }
@@ -152,11 +162,9 @@ export default class GameSummary {
       return Infinity;
 
     const turnTimeLimit = this.data.currentTurnTimeLimit;
-    const turnTimeout = (+this.data.turnStartedAt + turnTimeLimit*1000) - now;
-    const actionTimeLimit = 10000;
-    const actionTimeout = (+this.data.updatedAt + actionTimeLimit) - now;
+    const turnTimeout = this.data.turnStartedAt.getTime() + turnTimeLimit*1000 - Date.now();
 
-    return Math.max(0, turnTimeout, actionTimeout);
+    return Math.max(0, turnTimeout);
   }
 
   cloneWithMeta(meta) {

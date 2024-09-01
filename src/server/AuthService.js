@@ -57,8 +57,13 @@ export default class AuthService extends Service {
         setRelationship: [ 'uuid', 'auth:relationship' ],
         clearRelationship: [ 'uuid' ],
 
-        getRankings: [ 'uuid', 'string | null' ],
-        getRanking: [ 'string' ],
+        queryRankedPlayers: [ 'string' ],
+        getRankedPlayers: [ 'uuid[]' ],
+
+        getRankings: [],
+        getRanks: [ 'string' ],
+        getTopRanks: [ 'string | null', 'uuid' ],
+        getPlayerRanks: [ 'uuid', 'string | null' ],
       },
       definitions: {
         profile: {
@@ -89,11 +94,11 @@ export default class AuthService extends Service {
   unlinkAuthProvider(provider, userId) {
     return this.data.unlinkAuthProvider(provider, userId);
   }
-  getPlayerRank(playerId, rankingId) {
-    return this.data.state.identities.findByPlayerId(playerId).getRank(rankingId);
+  isRanked(playerIds) {
+    return this.data.isRanked(playerIds);
   }
-  getRanking(rankingId) {
-    return this.data.getRanking(rankingId);
+  getPlayerRanks(playerIds, rankingIds) {
+    return this.data.getPlayerRanks(playerIds, rankingIds);
   }
 
   dropClient(client) {
@@ -604,17 +609,46 @@ export default class AuthService extends Service {
     playerA.clearRelationship(playerB);
   }
 
-  async onGetRankingsRequest(client, playerId, rankingId) {
+  async onQueryRankedPlayersRequest(client, query) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    return this.data.getRankings(playerId, rankingId);
+    return this.data.queryRankedPlayers(query);
   }
-  async onGetRankingRequest(client, gameTypeId) {
+  async onGetRankedPlayersRequest(client, playerIds) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    return this.data.getRanking(gameTypeId);
+    return this.data.getRankedPlayers(playerIds);
+  }
+
+  async onGetRankingsRequest(client) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    return this.data.getRankings();
+  }
+  async onGetRanksRequest(client, rankingId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const ranksByRankingId = await this.data.getRanks([ rankingId ]);
+
+    return ranksByRankingId.get(rankingId);
+  }
+  async onGetTopRanksRequest(client, rankingId, playerId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    return this.data.getTopRanks(rankingId, playerId);
+  }
+  async onGetPlayerRanksRequest(client, playerId, rankingId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const ranksByPlayerId = await this.data.getPlayerRanks([ playerId ], rankingId ? [ rankingId ] : []);
+
+    return ranksByPlayerId.get(playerId);
   }
 
   async _validateAccessToken(client, token) {

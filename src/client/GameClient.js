@@ -245,11 +245,11 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  getRankedGames(playerId, gameTypeId) {
-    return this._server.requestAuthorized(this.name, 'getRankedGames', [ playerId, gameTypeId ])
+  getRankedGames(rankingId, playerId) {
+    return this._server.requestAuthorized(this.name, 'getRankedGames', [ rankingId, playerId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getRankedGames(playerId, gameTypeId);
+          return this.getRankedGames(rankingId, playerId);
         throw error;
       });
   }

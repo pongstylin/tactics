@@ -161,42 +161,36 @@ export default class extends FileAdapter {
     return authLinks;
   }
 
+  async queryRankedPlayers(query) {
+    return this.state.identities.queryRanked(query);
+  }
+  async getRankedPlayers(playerIds) {
+    return this.state.identities.getRanked(playerIds);
+  }
+
+  async getRankings() {
+    return this.state.identities.getRankings();
+  }
+  async getRanks(rankingIds) {
+    return this.state.identities.getRanks(rankingIds);
+  }
+  async isRanked(playerIds) {
+    return this.state.identities.isRanked(playerIds);
+  }
   /*
    * Returns a map of ranking id to a summary of ranks.
    * The summary includes the top 3 ranks and the player's rank, if any.
    */
-  async getRankings(playerId, rankingId) {
-    const identities = this.state.identities.values();
-    const rankings = new Map();
-
-    for (const identity of identities)
-      for (const [ rId, rank ] of identity.getRanks(rankingId))
-        if (!rankings.has(rId))
-          rankings.set(rId, [ rank ]);
-        else
-          rankings.get(rId).push(rank);
+  async getTopRanks(rankingId, playerId) {
+    const rankings = this.state.identities.getRanks([ rankingId ]);
 
     for (const [ rankingId, ranking ] of rankings.entries())
-      rankings.set(
-        rankingId,
-        ranking.sort((a,b) => b.rating - a.rating).map((r,i) => ({ rank:i+1, ...r })).filter(r =>
-          r.rank < 4 || r.playerId === playerId
-        ),
-      );
+      rankings.set(rankingId, ranking.filter(r => r.num < 4 || r.playerId === playerId));
 
     return rankings;
   }
-  async getRanking(rankingId) {
-    const identities = this.state.identities.values();
-    const rankings = [];
-
-    for (const identity of identities) {
-      const ranking = identity.getRank(rankingId);
-      if (ranking)
-        rankings.push(ranking);
-    }
-
-    return rankings.sort((a,b) => b.rating - a.rating);
+  async getPlayerRanks(playerId, rankingId) {
+    return this.state.identities.getPlayerRanks(playerId, rankingId);
   }
 
   /*****************************************************************************
