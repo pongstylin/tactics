@@ -20,7 +20,7 @@ import ServerError from '#server/Error.js';
  * Other restrictions are imposed by the validatePlayerName() method.
  */
 XRegExp.install('astral');
-const rUnicodeWhitelist = XRegExp('^(\\pL|\\pN|\\pP|\\pS| )+$');
+const rUnicodeWhitelist = XRegExp('^(\\pL|\\pN|\\pP|\\pS| |\uFE0F)+$');
 const rUnicodeBlacklist = XRegExp('[\\u3164]');
 
 enum Disposition {

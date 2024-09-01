@@ -181,8 +181,8 @@ export default class extends FileAdapter {
    * Returns a map of ranking id to a summary of ranks.
    * The summary includes the top 3 ranks and the player's rank, if any.
    */
-  async getTopRanks(rankingId, playerId) {
-    const rankings = this.state.identities.getRanks([ rankingId ]);
+  async getTopRanks(rankingIds, playerId) {
+    const rankings = this.state.identities.getRanks(rankingIds);
 
     for (const [ rankingId, ranking ] of rankings.entries())
       rankings.set(rankingId, ranking.filter(r => r.num < 4 || r.playerId === playerId));

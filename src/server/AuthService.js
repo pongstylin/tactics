@@ -640,7 +640,7 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    return this.data.getTopRanks(rankingId, playerId);
+    return this.data.getTopRanks(rankingId ? [ rankingId ] : [], playerId);
   }
   async onGetPlayerRanksRequest(client, playerId, rankingId) {
     if (!this.clientPara.has(client.id))
