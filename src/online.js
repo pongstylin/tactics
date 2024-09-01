@@ -1035,9 +1035,8 @@ async function joinGame(arena) {
         `Join the game?`,
       ];
       if (arena.meta.ranked) {
-        const creatorId = arena.teams.findIndex(t => !!t);
-        const creator = arena.teams[creatorId];
-        const rank = arena.meta.ranks[creatorId];
+        const creator = arena.teams.find(t => !!t);
+        const rank = arena.meta.ranks[creator.id]?.find(r => r.rankingId === arena.type);
         if (rank.num)
           message.splice(1, 0, `${creator.name} has rank #${rank.num} (${rank.rating}) in ${arena.typeName}.`);
         else
