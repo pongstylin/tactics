@@ -57,6 +57,9 @@ const config = {
   chatEndpoint: process.env.CHAT_ENDPOINT ?? local.wsEndpoint,
   pushEndpoint: process.env.PUSH_ENDPOINT ?? local.wsEndpoint,
   pushPublicKey: process.env.PN_PUBLIC_KEY,
+  removeItem: (itemName) => {
+    localStorage.removeItem(itemName);
+  },
   setItem: (itemName, itemValue) => {
     localStorage.setItem(itemName, JSON.stringify(itemValue));
   },

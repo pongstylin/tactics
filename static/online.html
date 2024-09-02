@@ -265,6 +265,17 @@
     .tabContent HEADER .right {
       font-style: normal;
     }
+    .tabContent HEADER .right .bookmark {
+      font-weight: normal;
+      font-size: 2em;
+      line-height: 22px;
+    }
+    .tabContent HEADER .right .bookmark::before {
+      content: '\2606';
+    }
+    .tabContent HEADER .right .bookmark.selected::before {
+      content: '\2605';
+    }
     .tabContent HEADER .sep {
       margin: 0 4px;
     }
