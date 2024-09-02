@@ -2005,6 +2005,21 @@ async function renderYourGames() {
       return game;
     });
 
+  const header = document.createElement('HEADER');
+  header.addEventListener('mouseenter', event => {
+    if (event.target.tagName === 'BUTTON')
+      avatars.getSound('focus').howl.play();
+  }, true);
+  header.addEventListener('click', event => {
+    if (event.target.tagName === 'BUTTON')
+      avatars.getSound('select').howl.play();
+  }, true);
+  divTabContent.append(header);
+
+  const spnLabel = document.createElement('SPAN');
+  spnLabel.textContent = 'Your Games';
+  header.appendChild(spnLabel);
+
   /*
    * Lobby Games
    */
@@ -2157,6 +2172,35 @@ async function renderPublicGames() {
   const waitingGames = [ ...tabContent.games[0].values() ];
   const activeGames = [ ...tabContent.games[1].values() ];
   const completeGames = [ ...tabContent.games[2].values() ];
+
+  const header = document.createElement('HEADER');
+  header.addEventListener('mouseenter', event => {
+    if (event.target.tagName === 'BUTTON')
+      avatars.getSound('focus').howl.play();
+  }, true);
+  header.addEventListener('click', event => {
+    if (event.target.tagName === 'BUTTON')
+      avatars.getSound('select').howl.play();
+  }, true);
+  divTabContent.append(header);
+
+  const spnLabel = document.createElement('SPAN');
+  spnLabel.textContent = 'Public Games';
+  header.appendChild(spnLabel);
+
+  const divControls = document.createElement('DIV');
+  divControls.classList.add('controls');
+  header.appendChild(divControls);
+
+  const btnSettings = document.createElement('BUTTON');
+  btnSettings.classList.add('fa');
+  btnSettings.classList.add('fa-cog');
+  btnSettings.name = 'settings';
+  btnSettings.title = 'Settings';
+  btnSettings.addEventListener('click', event => {
+    settings.show();
+  });
+  divControls.appendChild(btnSettings);
 
   /*
    * Waiting for Opponent
@@ -2740,6 +2784,8 @@ function renderShowResults() {
     <INPUT type="checkbox" />
   `;
   label.addEventListener('change', event => {
+    avatars.getSound('select').howl.play();
+
     const divGameList = event.target.closest('.game-list');
     divGameList.classList.toggle('show-results', event.target.checked);
   });
@@ -2892,7 +2938,7 @@ function renderGameInfo(game) {
         return remaining;
       }, 'Time Remaining'));
     else
-      spnRight.append(renderClock(game.startedAt, 'Started At'));
+      spnRight.append(renderClock(game.updatedAt, 'Updated At'));
   } else
     spnRight.append(renderClock(game.createdAt, 'Created At'));
 

@@ -6,7 +6,7 @@ const authClient = Tactics.authClient;
 
 export default class LobbySettings extends Modal {
   constructor(options = {}) {
-    options.title = 'Lobby Settings';
+    options.title = 'Arena Settings';
     options.content = `
       <DIV class="row col3 audio">
         <DIV class="label">Audio</DIV>
