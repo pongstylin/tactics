@@ -235,7 +235,7 @@ const handleAvatarsData = async () => {
 }
 
 const getDataFromService = Tactics.load(['avatars']).then(async () => {
-  state.styles = await gameClient.getGameTypes()
+  state.styles = await gameClient.getGameTypes();
   await handleAvatarsData();
   await whenDOMReady;
   renderLobby();
@@ -328,7 +328,10 @@ whenDOMReady.then(() => {
     const liTab = event.target.closest('LI:not(.is-active)');
     if (!liTab) return;
 
-    location.hash = liTab.dataset.route;
+    if (liTab.classList.contains('rankings'))
+      location.hash = config.getItem('rankingsBookmark', liTab.dataset.route);
+    else
+      location.hash = liTab.dataset.route;
   });
 
   const getShareGameMessage = async gameId => {
@@ -1972,13 +1975,6 @@ async function renderYourGames() {
   const divTabContent = document.querySelector('.tabContent .yourGames');
   divTabContent.innerHTML = '';
 
-  await fetchAvatars(
-    tabContent.games
-      .map(gsm => Array.from(gsm.values())
-        .map(g => g.teams.filter(t => t && t.playerId)
-          .map(t => t.playerId))).flat(3)
-  );
-
   const now = gameClient.serverNow;
   const waitingGames = [ ...tabContent.games[0].values() ];
   const activeGames = [ ...tabContent.games[1].values() ]
@@ -2004,6 +2000,13 @@ async function renderYourGames() {
 
       return game;
     });
+
+  await fetchAvatars(
+    tabContent.games
+      .map(gsm => Array.from(gsm.values())
+        .map(g => g.teams.filter(t => t && t.playerId)
+          .map(t => t.playerId))).flat(3)
+  );
 
   const header = document.createElement('HEADER');
   header.addEventListener('mouseenter', event => {
@@ -2252,20 +2255,47 @@ async function renderPublicGames() {
   }
 }
 
+function initializeRankingsPage(className, crumbs) {
+  const header = document.querySelector('.tabContent .rankings HEADER');
+  header.innerHTML = '';
+
+  const spnLeft = document.createElement('SPAN');
+  spnLeft.classList.add('left');
+  spnLeft.innerHTML = crumbs.join('');
+  header.append(spnLeft);
+
+  const spnRight = document.createElement('SPAN');
+  spnRight.classList.add('right');
+  header.append(spnRight);
+
+  const defaultBookmark = '#rankings/FORTE';
+  const btnBookmark = document.createElement('BUTTON');
+  btnBookmark.classList.add('bookmark');
+  btnBookmark.classList.add('fa');
+  btnBookmark.classList.toggle('selected', location.hash === config.getItem('rankingsBookmark', defaultBookmark));
+  btnBookmark.disabled = location.hash === defaultBookmark && btnBookmark.classList.contains('selected');
+  btnBookmark.title = 'Bookmark';
+  btnBookmark.addEventListener('click', event => {
+    if (btnBookmark.classList.toggle('selected'))
+      config.setItem('rankingsBookmark', location.hash);
+    else
+      config.removeItem('rankingsBookmark');
+    btnBookmark.disabled = location.hash === defaultBookmark && btnBookmark.classList.contains('selected');
+  });
+  spnRight.append(btnBookmark);
+
+  const divContent = document.querySelector('.tabContent .rankings .content');
+  divContent.className = `content ${className}`;
+  divContent.innerHTML = '';
+
+  return divContent;
+}
 async function renderRankings() {
   const tabState = state.tabContent.rankings;
   const [ favoritePlayers, rankings ] = tabState.data;
-  const header = document.querySelector('.tabContent .rankings HEADER');
-  const divContent = document.querySelector('.tabContent .rankings .content');
-  divContent.className = 'content rankings';
-  divContent.innerHTML = '';
-
-  const crumbs = [
-    `<SPAN class="left">`,
-      `<SPAN>Rankings</SPAN>`,
-    `</SPAN>`,
-  ];
-  header.innerHTML = crumbs.join('');
+  const divContent = initializeRankingsPage('rankings', [
+    `<SPAN>Rankings</SPAN>`,
+  ]);
 
   const secFavorites = document.createElement('SECTION');
   divContent.append(secFavorites);
@@ -2462,19 +2492,11 @@ function renderRankingsFavorite(favorite) {
 }
 async function renderTopRanks() {
   const topranks = state.tabContent.rankings.data;
-  const header = document.querySelector('.tabContent .rankings HEADER');
-  const divContent = document.querySelector('.tabContent .rankings .content');
-  divContent.className = 'content topranks';
-  divContent.innerHTML = '';
-
-  const crumbs = [
-    `<SPAN class="left">`,
-      `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
-      '<SPAN class="sep"></SPAN>',
-      `<SPAN>All Top Ranks</SPAN>`,
-    `</SPAN>`,
-  ];
-  header.innerHTML = crumbs.join('');
+  const divContent = initializeRankingsPage('topranks', [
+    `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    `<SPAN>All Top Ranks</SPAN>`,
+  ]);
 
   await fetchAvatars(Array.from(topranks.values()).map(rs => rs.map(r => r.playerId)).flat());
 
@@ -2488,21 +2510,13 @@ async function renderTopRanks() {
 }
 async function renderRankingSummary(rankingId) {
   const [ topranks, games ] = state.tabContent.rankings.data;
-  const header = document.querySelector('.tabContent .rankings HEADER');
-  const divNotice = document.querySelector('.tabContent .rankings .notice');
-  const divContent = document.querySelector('.tabContent .rankings .content');
-  divContent.className = 'content ranking-summary';
-  divContent.innerHTML = '';
-
   const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
-  const crumbs = [
-    `<SPAN class="left">`,
-      `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
-      '<SPAN class="sep"></SPAN>',
-      `<SPAN>${name}</SPAN>`,
-    `</SPAN>`,
-  ];
-  header.innerHTML = crumbs.join('');
+  const divNotice = document.querySelector('.tabContent .rankings .notice');
+  const divContent = initializeRankingsPage('ranking-summary', [
+    `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    `<SPAN>${name}</SPAN>`,
+  ]);
 
   if (!authClient.isVerified)
     divNotice.style.display = '';
@@ -2527,22 +2541,14 @@ async function renderRankingSummary(rankingId) {
 }
 async function renderRanking(rankingId) {
   const ranks = state.tabContent.rankings.data;
-  const header = document.querySelector('.tabContent .rankings HEADER');
-  const divContent = document.querySelector('.tabContent .rankings .content');
-  divContent.className = 'content ranking';
-  divContent.innerHTML = '';
-
   const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
-  const crumbs = [
-    `<SPAN class="left">`,
-      `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
-      '<SPAN class="sep"></SPAN>',
-      `<SPAN><A href="#rankings/${rankingId}">${name}</A></SPAN>`,
-      '<SPAN class="sep"></SPAN>',
-      '<SPAN>All Ranks</SPAN>',
-    `</SPAN>`,
-  ];
-  header.innerHTML = crumbs.join('');
+  const divContent = initializeRankingsPage('ranking', [
+    `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    `<SPAN><A href="#rankings/${rankingId}">${name}</A></SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    '<SPAN>All Ranks</SPAN>',
+  ]);
 
   await fetchAvatars(ranks.map(r => r.playerId));
 
@@ -2557,26 +2563,14 @@ async function renderRanking(rankingId) {
 
   divContent.append(divRanks);
 }
-async function renderPlayerTopRanks(playerId) {
-  await fetchAvatars([ playerId ]);
-}
 async function renderPlayerRankingSummary(rankingId, playerId) {
   const [ ranks, games ] = state.tabContent.rankings.data;
-
-  const header = document.querySelector('.tabContent .rankings HEADER');
-  const divContent = document.querySelector('.tabContent .rankings .content');
-  divContent.className = 'content player-summary';
-  divContent.innerHTML = '';
-
   const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId)?.name ?? rankingId;
-  const crumbs = [
-    `<SPAN class="left">`,
-      `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
-      '<SPAN class="sep"></SPAN>',
-      `<SPAN><A href="#rankings/${rankingId}">${name}</A></SPAN>`,
-    `</SPAN>`,
-  ];
-  header.innerHTML = crumbs.join('');
+  const divContent = initializeRankingsPage('player-summary', [
+    `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
+    '<SPAN class="sep"></SPAN>',
+    `<SPAN><A href="#rankings/${rankingId}">${name}</A></SPAN>`,
+  ]);
 
   if (ranks === false) {
     divContent.innerHTML = 'Either the player is not ranked or does not exist.';

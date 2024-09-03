@@ -231,12 +231,21 @@ export default class GameService extends Service {
         if (protectedGameIds.has(game.id) && !game.state.currentTeam.seen(this.startupAt)) {
           protectedGameIds.delete(game.id);
           game.state.end('truce');
+        } else if (game.state.actions.length) {
+          if (game.state.actions.last.type === 'endTurn') {
+            this.debug(`autoSurrender: ${game.id}: error: Need sync!`);
+            game.state.sync({ type:'willSync' });
+          } else
+            game.state.submitAction({
+              type: 'endTurn',
+              forced: true,
+            });
         } else if (this._getPlayerGameIdle(game.state.currentTeam.playerId, game) > 30)
           game.state.submitAction({
             type: 'surrender',
             declaredBy: 'system',
           });
-        else if (game.state.actions.last?.type !== 'endTurn')
+        else
           game.state.submitAction({
             type: 'endTurn',
             forced: true,
