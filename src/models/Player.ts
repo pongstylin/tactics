@@ -39,7 +39,7 @@ export default class Player extends ActiveModel {
     id: string
     identityId: string
     name: string
-    confirmName: boolean
+    confirmName: string | null
     verified: boolean
     devices: Map<string, any>
     identityToken: IdentityToken | null
@@ -55,7 +55,8 @@ export default class Player extends ActiveModel {
   constructor(data) {
     super();
     this.data = {
-      confirmName: false,
+      name: null,
+      confirmName: null,
       verified: false,
       identityToken: null,
       acl: { newAccounts:null, guestAccounts:null },
@@ -66,10 +67,10 @@ export default class Player extends ActiveModel {
   }
 
   static create(data) {
-    if (!data.name)
+    if (data.name !== undefined && data.name !== null)
+      Player.validatePlayerName(data.name);
+    else if (data.confirmName === undefined || data.confirmName === null)
       throw new Error('Required player name');
-
-    Player.validatePlayerName(data.name);
 
     data.id = uuid();
     data.createdAt = new Date();
@@ -137,6 +138,9 @@ export default class Player extends ActiveModel {
   }
   get name() {
     return this.data.name;
+  }
+  get confirmName() {
+    return this.data.confirmName;
   }
   get devices() {
     return this.data.devices;
@@ -214,13 +218,13 @@ export default class Player extends ActiveModel {
       const newValue = profile[property];
 
       if (property === 'name') {
-        if (oldValue === newValue && this.data.confirmName === false)
+        if (oldValue === newValue && this.data.confirmName === null)
           return;
 
         Player.validatePlayerName(profile.name, this.identity);
 
         this.data.name = profile.name;
-        this.data.confirmName = false;
+        this.data.confirmName = null;
         if (this.data.verified)
           this.identity.name = profile.name;
 
@@ -492,13 +496,14 @@ export default class Player extends ActiveModel {
     const payload:any = {
       subject: this.data.id,
       expiresIn: config.ACCESS_TOKEN_TTL || '1h',
-      name: this.data.name,
       deviceId,
       verified: this.data.verified,
     };
 
-    if (this.data.confirmName)
-      payload.confirmName = true;
+    if (this.data.name !== null)
+      payload.name = this.data.name;
+    else
+      payload.confirmName = this.data.confirmName;
 
     return AccessToken.create(payload);
   }
@@ -540,7 +545,9 @@ export default class Player extends ActiveModel {
     // Convert the devices map to an array.
     json.devices = [ ...json.devices.values() ];
 
-    if (json.confirmName === false)
+    if (json.name === null)
+      delete json.name;
+    if (json.confirmName === null)
       delete json.confirmName;
 
     return json;
@@ -563,8 +570,8 @@ serializer.addType({
           required: [ 'id', 'name', 'token', 'nextToken', 'agents' ],
           properties: {
             id: { type:'string', format:'uuid' },
-            name: { type:[ 'string', 'null' ] },
-            confirmName: { type:'boolean' },
+            name: { type:[ 'string' ] },
+            confirmName: { type:'string' },
             verified: { type:'boolean' },
             token: { $ref:'AccessToken' },
             nextToken: {
