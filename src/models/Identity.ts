@@ -61,12 +61,12 @@ export default class Identity extends ActiveModel {
     return this.data.name ?? null;
   }
   set name(name) {
-    if (this.data.name === name)
+    if (this.name === name)
       return;
 
-    if (this.data.name !== undefined) {
+    if (this.name !== null) {
       this.data.aliases.delete(name);
-      this.data.aliases.set(this.data.name, new Date());
+      this.data.aliases.set(this.name, new Date());
 
       if (this.data.aliases.size > 3) {
         const oldestAlias = Array.from(this.data.aliases).sort((a,b) => a[1].getTime() - b[1].getTime())[0][0];

@@ -264,35 +264,32 @@ export default class AuthService extends Service {
       return;
     }
 
-    let name;
-
-    if (state.provider === 'discord') {
-      const client = new REST({ version:'10',authPrefix:'Bearer' }).setToken(tokenSet.access_token);
-
-      try {
-        const guild = await client.get(Routes.userGuildMember(process.env.DISCORD_GUILD_ID));
-
-        name = guild?.nick ?? userinfo.username;
-      } catch (error) {
-        if (error.status !== 404)
-          console.log('Error while fetching guild:', error);
-        name = userinfo.username;
-      }
-    } else if (state.provider === 'facebook')
-      name = userinfo.name;
-
-    try {
-      Player.validatePlayerName(name);
-    } catch (error) {
-      name = 'Noob';
-    }
-
     const linkedPlayerId = await this.data.getAuthProviderPlayerId(state.provider, userinfo.id);
     let player;
     if (linkedPlayerId) {
       player = await this.data.getPlayer(linkedPlayerId);
     } else {
-      player = await this.data.createPlayer({ name, confirmName:true });
+      const nameCandidates = [ 'Noob' ];
+
+      if (state.provider === 'discord') {
+        nameCandidates.unshift(userinfo.global_name, userinfo.username);
+
+        const client = new REST({ version:'10',authPrefix:'Bearer' }).setToken(tokenSet.access_token);
+
+        try {
+          const guild = await client.get(Routes.userGuildMember(process.env.DISCORD_GUILD_ID));
+          if (guild && guild.nick !== null)
+            nameCandidates.unshift(guild.nick);
+        } catch (error) {
+          if (error.status !== 404)
+            console.log('Error while fetching guild:', error);
+        }
+      } else if (state.provider === 'facebook')
+        nameCandidates.unshift(userinfo.name);
+
+      const name = nameCandidates.find(nc => nc !== undefined && nc !== null);
+
+      player = await this.data.createPlayer({ confirmName:name });
       await this.data.linkAuthProvider(state.provider, userinfo.id, player.id);
     }
 

@@ -53,6 +53,9 @@ export default class AuthClient extends Client {
   get playerName() {
     return this.token && this.token.playerName;
   }
+  get confirmPlayerName() {
+    return this.token && this.token.confirmPlayerName;
+  }
   get deviceId() {
     return this.token && this.token.deviceId;
   }
@@ -356,7 +359,7 @@ export default class AuthClient extends Client {
 
     if (!this.token)
       return auth.showAuth().then(() => true);
-    else if (this.token.confirmPlayerName)
+    else if (this.token.confirmPlayerName !== null)
       return auth.showIdentify().then(() => true);
 
     return false;

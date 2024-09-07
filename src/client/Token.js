@@ -15,10 +15,10 @@ export default class Token {
     return this.claims.sub;
   }
   get playerName() {
-    return this.claims.name;
+    return this.claims.name ?? null;
   }
   get confirmPlayerName() {
-    return this.claims.confirmName;
+    return this.claims.confirmName ?? null;
   }
   get deviceId() {
     return this.claims.deviceId;

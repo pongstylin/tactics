@@ -165,7 +165,7 @@ export default class Auth extends Modal {
     if (!this.data.identifyIsInit)
       this.initIdentify();
     divIdentify.querySelector('BUTTON[name=continue]').classList.toggle('disabled', !authClient.token);
-    this._els.autosave.value = authClient.token ? authClient.playerName : null;
+    this._els.autosave.value = authClient.token ? authClient.confirmPlayerName : null;
 
     divAuth.style.display = 'none';
     divIdentify.style.display = '';
