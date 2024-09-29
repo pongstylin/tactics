@@ -394,6 +394,31 @@
       content: '\299A';
     }
 
+    SECTION.stats > DIV {
+      margin: 0 auto;
+      width: fit-content;
+      text-align: left;
+    }
+    SECTION.stats > DIV:empty::before {
+      content: 'Come back after more games are played!';
+    }
+    SECTION.stats > DIV > DIV {
+      display: flex;
+      flex-direction: row;
+      margin: 4px 0;
+    }
+    SECTION.stats > DIV > DIV > DIV:first-child {
+      width: 100px;
+      flex-shrink: 0;
+    }
+    @media (min-width:550px) {
+      SECTION.stats > DIV > DIV > DIV:last-child {
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+      }
+    }
+
     .rankings {
       display: flex;
       flex-direction: column;

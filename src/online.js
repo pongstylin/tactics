@@ -443,11 +443,12 @@ whenDOMReady.then(() => {
       const yourContent = state.tabContent.yourGames;
       const lobbyContent = state.tabContent.lobby;
       const publicContent = state.tabContent.publicGames;
+      const isMyGame = body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1;
 
       if (body.group === `/myGames/${myPlayerId}`) {
         if (body.type === 'stats') {
           yourContent.stats = body.data;
-          renderStats('my');
+          renderStats(isMyGame ? 'all' : 'my');
         } else if (body.type === 'add' || body.type === 'change')
           setYourGame(body.data);
         else if (body.type === 'remove')
@@ -455,7 +456,7 @@ whenDOMReady.then(() => {
       } else if (body.group === '/collections') {
         if (body.type === 'stats') {
           statsContent.byCollection.set(body.data.collectionId, body.data.stats);
-          renderStats('collections');
+          renderStats(isMyGame ? 'all' : 'collection');
         }
       } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
         if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
@@ -466,7 +467,6 @@ whenDOMReady.then(() => {
         else if (body.type === 'remove')
           unsetLobbyGame(body.data);
       } else if (body.group === '/collections/public') {
-        const isMyGame = body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1;
         const wasWaiting = state.tabContent.publicGames.games[0].has(body.data.id);
         if (isMyGame && !wasWaiting)
           return;
@@ -2405,16 +2405,25 @@ async function renderRankings() {
     if (event.target.closest('.identity'))
       location.href = `#rankings/${data.playerId}/FORTE`;
     else if (event.target.closest('.add:not(.selected)')) {
-      favorites[data.identityId] = true;
+      favorites[data.identityId] = data.active = true;
+      const favoriteIndex = favoritePlayers.findIndex(fp => fp.identityId === data.identityId);
+      if (favoriteIndex > -1)
+        favoritePlayers[favoriteIndex] = data;
+      else
+        favoritePlayers.push(data);
       config.setItem('favoritePlayers', favorites);
 
       divPlayer.classList.add('selected');
       divFavorites.append(renderRankingsFavorite(data));
     } else if (event.target.closest('.remove')) {
-      if (data.type === 'friend')
+      const favoriteIndex = favoritePlayers.findIndex(fp => fp.identityId === data.identityId);
+      if (data.type === 'friend') {
         favorites[data.identityId] = false;
-      else
+        favoritePlayers[favoriteIndex].active = false;
+      } else {
         delete favorites[data.identityId];
+        favoritePlayers.splice(favoriteIndex, 1, 0);
+      }
       config.setItem('favoritePlayers', favorites);
 
       divMatches.querySelector(`.match[data-identity-id="${data.identityId}"]`)?.classList.remove('selected');
@@ -2661,6 +2670,128 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
     divRanks.append(divShowAll);
   }
 
+  const secStats = document.createElement('SECTION');
+  secStats.classList.add('stats');
+  divContent.append(secStats);
+
+  const hdrStats = document.createElement('HEADER');
+  hdrStats.innerHTML = `
+    <DIV class="left">Statistics</DIV>
+  `;
+  secStats.append(hdrStats);
+
+  const statsMap = new Map();
+  for (const game of games) {
+    for (const team of game.teams) {
+      if (team.playerId === playerId)
+        continue;
+
+      if (!statsMap.has(team.playerId))
+        statsMap.set(team.playerId, { playerId:team.playerId, name:team.name, numGames:0, gain:0, loss:0 });
+
+      const myTeam = game.teams.find(t => t.playerId === playerId);
+      const result = game.winnerId === myTeam.id ? 'Win' : game.winnerId === team.id ? 'Lose' : 'Draw';
+      const teamStats = statsMap.get(team.playerId);
+      const myRating = myTeam.ratings.get(game.type);
+      const vsRating = team.ratings.get(game.type);
+      const ratingChange = Math.abs(myRating[1] - myRating[0]);
+      const ratingDiff = myRating[0] - vsRating[0];
+      teamStats.numGames++;
+      if (myRating[1] > myRating[0])
+        teamStats.gain += ratingChange;
+      else
+        teamStats.loss += ratingChange;
+      if (result === 'Win' && (!teamStats.win || ratingDiff < teamStats.win.diff))
+        teamStats.win = { game, name:team.name, gain:ratingChange, diff:ratingDiff };
+      else if (result === 'Lose' && (!teamStats.lose || ratingDiff > teamStats.lose.diff))
+        teamStats.lose = { game, name:team.name, loss:ratingChange, diff:ratingDiff };
+    }
+  }
+  const stats = Array.from(statsMap.values());
+  const gf = stats.sort((a,b) => (a.gain - a.loss) - (b.gain - b.loss) || b.numGames - a.numGames)[0];
+  const ff = stats.sort((a,b) => (b.gain - b.loss) - (a.gain - a.loss) || b.numGames - a.numGames)[0];
+  const wd = stats.filter(s => !!s.lose).sort((a,b) => b.lose.diff - a.lose.diff)[0];
+  const bv = stats.filter(s => !!s.win).sort((a,b) => a.win.diff - b.win.diff)[0];
+
+  const divStats = document.createElement('DIV');
+  secStats.append(divStats);
+
+  if (gf.loss > gf.gain) {
+    const divGF = document.createElement('DIV');
+    const playerLink = `<A href="#rankings/${gf.playerId}/${rankingId}">${gf.name}</A>`;
+    const info = [
+      `${gf.numGames} game(s)`,
+      `+${Math.round(gf.gain)} rating`,
+      `−${Math.round(gf.loss)} rating`,
+    ].join(', ');
+    divGF.innerHTML = `
+      <DIV>Greatest Fear:</DIV>
+      <DIV>
+        <DIV>${playerLink}</DIV>
+        <DIV>${info}</DIV>
+      </DIV>
+    `;
+    divStats.append(divGF);
+  }
+
+  if (ff.gain > ff.loss) {
+    const divFF = document.createElement('DIV');
+    const playerLink = `<A href="#rankings/${ff.playerId}/${rankingId}">${ff.name}</A>`;
+    const info = [
+      `${ff.numGames} game(s)`,
+      `+${Math.round(ff.gain)} rating`,
+      `−${Math.round(ff.loss)} rating`,
+    ].join(', ');
+    divFF.innerHTML = `
+      <DIV>Favorite Food:</DIV>
+      <DIV>
+        <DIV>${playerLink}</DIV>
+        <DIV>${info}</DIV>
+      </DIV>
+    `;
+    divStats.append(divFF);
+  }
+
+  if (wd && wd.lose.diff >= 0 && wd.lose.loss > 0) {
+    const divWD = document.createElement('DIV');
+    const playerLink = `<A href="#rankings/${wd.playerId}/${rankingId}">${wd.name}</A>`;
+    const gameLink = `<A href="/game.html?${wd.lose.game.id}" target="_blank">Watch!</A>`;
+    const info = [
+      `−${Math.round(wd.lose.loss)} rating`,
+      `had +${Math.round(wd.lose.diff)} rating`,
+    ].join(', ');
+    divWD.innerHTML = `
+      <DIV>Worst Defeat:</DIV>
+      <DIV>
+        <DIV class="links">${playerLink} • ${gameLink} • </DIV>
+        <DIV class="info">${info}</DIV>
+      </DIV>
+    `;
+    divWD.querySelector('.links').append(renderDuration(wd.lose.game.currentTurnId));
+    divWD.querySelector('.links').append(renderClock(wd.lose.game.endedAt, 'Ended At'));
+    divStats.append(divWD);
+  }
+
+  if (bv && bv.win.diff <= 0 && bv.win.gain > 0) {
+    const divBV = document.createElement('DIV');
+    const playerLink = `<A href="#rankings/${bv.playerId}/${rankingId}">${bv.name}</A>`;
+    const gameLink = `<A href="/game.html?${bv.win.game.id}" target="_blank">Watch!</A>`;
+    const info = [
+      `+${Math.round(bv.win.gain)} rating`,
+      `had −${Math.abs(Math.round(bv.win.diff))} rating`,
+    ].join(', ');
+    divBV.innerHTML = `
+      <DIV>Best Victory:</DIV>
+      <DIV>
+        <DIV class="links">${playerLink} • ${gameLink} • </DIV>
+        <DIV class="info">${info}</DIV>
+      </DIV>
+    `;
+    divBV.querySelector('.links').append(renderDuration(bv.win.game.currentTurnId));
+    divBV.querySelector('.links').append(renderClock(bv.win.game.endedAt, 'Ended At'));
+    divStats.append(divBV);
+  }
+
   const secRankedGames = await renderRankedGames(games, rankingId, playerId);
   divContent.append(secRankedGames);
 }
@@ -2897,7 +3028,7 @@ function renderGameInfo(game) {
     labels.push(game.timeLimitName.toUpperCase('first'));
 
   if (!game.startedAt)
-    if (game.collection === 'public')
+    if (game.collection === 'public' && state.currentTab !== 'publicGames')
       labels.push('Public');
     else if (!game.collection)
       labels.push('Private');
