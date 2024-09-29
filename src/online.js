@@ -443,11 +443,12 @@ whenDOMReady.then(() => {
       const yourContent = state.tabContent.yourGames;
       const lobbyContent = state.tabContent.lobby;
       const publicContent = state.tabContent.publicGames;
+      const isMyGame = body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1;
 
       if (body.group === `/myGames/${myPlayerId}`) {
         if (body.type === 'stats') {
           yourContent.stats = body.data;
-          renderStats('my');
+          renderStats(isMyGame ? 'all' : 'my');
         } else if (body.type === 'add' || body.type === 'change')
           setYourGame(body.data);
         else if (body.type === 'remove')
@@ -455,7 +456,7 @@ whenDOMReady.then(() => {
       } else if (body.group === '/collections') {
         if (body.type === 'stats') {
           statsContent.byCollection.set(body.data.collectionId, body.data.stats);
-          renderStats('collections');
+          renderStats(isMyGame ? 'all' : 'collection');
         }
       } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
         if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
@@ -466,7 +467,6 @@ whenDOMReady.then(() => {
         else if (body.type === 'remove')
           unsetLobbyGame(body.data);
       } else if (body.group === '/collections/public') {
-        const isMyGame = body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1;
         const wasWaiting = state.tabContent.publicGames.games[0].has(body.data.id);
         if (isMyGame && !wasWaiting)
           return;
