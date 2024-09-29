@@ -2016,23 +2016,28 @@ export default class GameService extends Service {
       inactiveGamesCount: openGamesInfo.length - activeGamesInfo.length,
     };
 
+    // If the player forked a simulation game, provide a link!
     for (const { game } of openGamesInfo) {
-      if (game.forkOf?.gameId !== game.id) continue;
+      if (game.forkOf?.gameId !== fromGameId) continue;
 
       activity.forkGameId = game.id;
       break;
     }
 
-    // Only interested in games where all participants are actively playing.
+    // If the player isn't in game, provide a watch game link if conditions are met.
+    // Conditions:
+    //   All players must be actively playing.
+    //   Must be a public or lobby game.
+    //   Must only be one game.
+    //   Must not have a simulation game open.
+    //
     const activeGamesOfInterest = [];
     for (const { game } of activeGamesInfo) {
       if (game.id === fromGameId) continue;
 
-      // Only collect public or lobby games
       if (!game.collection)
         continue;
 
-      // Only collect games where all participants are active
       const playerIds = new Set(game.state.teams.map(t => t.playerId));
       const inactivePlayerId = [...playerIds].find(pId =>
         pId !== inPlayerId &&
@@ -2049,14 +2054,8 @@ export default class GameService extends Service {
       activeGamesOfInterest.push(game);
     }
 
-    // Only allow access to an active game if they are using a name you have seen before.
-    if (activeGamesOfInterest.length === 1) {
-      const activeGame = activeGamesOfInterest[0];
-      const playerTeamName = activeGame.state.teams.find(t => t.playerId === playerId).name;
-      const aliases = await this.data.listPlayerAliases(inPlayerId, playerId);
-      if (aliases.has(playerTeamName.toLowerCase()))
-        activity.activeGameId = activeGame.id;
-    }
+    if (activeGamesOfInterest.length === 1 && !activity.forkGameId)
+      activity.activeGameId = activeGame.id;
 
     return activity;
   }
