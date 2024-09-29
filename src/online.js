@@ -2906,7 +2906,7 @@ function renderGameInfo(game) {
     labels.push(game.timeLimitName.toUpperCase('first'));
 
   if (!game.startedAt)
-    if (game.collection === 'public')
+    if (game.collection === 'public' && state.currentTab !== 'publicGames')
       labels.push('Public');
     else if (!game.collection)
       labels.push('Private');
