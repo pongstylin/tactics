@@ -2405,16 +2405,25 @@ async function renderRankings() {
     if (event.target.closest('.identity'))
       location.href = `#rankings/${data.playerId}/FORTE`;
     else if (event.target.closest('.add:not(.selected)')) {
-      favorites[data.identityId] = true;
+      favorites[data.identityId] = data.active = true;
+      const favoriteIndex = favoritePlayers.findIndex(fp => fp.identityId === data.identityId);
+      if (favoriteIndex > -1)
+        favoritePlayers[favoriteIndex] = data;
+      else
+        favoritePlayers.push(data);
       config.setItem('favoritePlayers', favorites);
 
       divPlayer.classList.add('selected');
       divFavorites.append(renderRankingsFavorite(data));
     } else if (event.target.closest('.remove')) {
-      if (data.type === 'friend')
+      const favoriteIndex = favoritePlayers.findIndex(fp => fp.identityId === data.identityId);
+      if (data.type === 'friend') {
         favorites[data.identityId] = false;
-      else
+        favoritePlayers[favoriteIndex].active = false;
+      } else {
         delete favorites[data.identityId];
+        favoritePlayers.splice(favoriteIndex, 1, 0);
+      }
       config.setItem('favoritePlayers', favorites);
 
       divMatches.querySelector(`.match[data-identity-id="${data.identityId}"]`)?.classList.remove('selected');
