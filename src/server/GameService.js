@@ -2055,7 +2055,7 @@ export default class GameService extends Service {
     }
 
     if (activeGamesOfInterest.length === 1 && !activity.forkGameId)
-      activity.activeGameId = activeGame.id;
+      activity.activeGameId = activeGamesOfInterest[0].id;
 
     return activity;
   }
