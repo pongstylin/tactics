@@ -160,6 +160,10 @@ const routes = new Map([
       gameClient.getRankedGames(p.rankingId, p.playerId),
     ]),
   }) ],
+  [ '#rankings/**', p => ({
+    route: () => renderRankingPageNotFound(),
+    data: Promise.resolve(),
+  }) ],
 ]);
 const routeMatcher = Array.from(routes.keys()).map(path => {
   const parts = path.split('/');
@@ -170,12 +174,16 @@ const routeMatcher = Array.from(routes.keys()).map(path => {
     if (part.startsWith(':')) {
       names.push(part.slice(1));
       pattern.push(`([^\\/]+)`);
+    } else if (part === '**') {
+      pattern.push('.+');
+    } else if (part === '*') {
+      pattern.push('[^/]+');
     } else {
       pattern.push(RegExp.escape(part));
     }
   }
 
-  const re = new RegExp('^' + pattern.join('/') + '$');
+  const re = new RegExp('^' + pattern.join('/') + '\/?$');
 
   return r => {
     const match = r.match(re);
@@ -185,6 +193,15 @@ const routeMatcher = Array.from(routes.keys()).map(path => {
         p[names[i]] = v;
         return p;
       }, {});
+
+      // Validate rankingId
+      if (p.rankingId && p.rankingId !== 'FORTE' && !state.styles.some(s => s.id === p.rankingId))
+        return false;
+
+      // Validate playerId
+      if (p.playerId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(p.playerId))
+        return false;
+
       return routeGetter(p);
     }
   };
@@ -2289,6 +2306,13 @@ function initializeRankingsPage(className, crumbs) {
   divContent.innerHTML = '';
 
   return divContent;
+}
+async function renderRankingPageNotFound() {
+  const divContent = initializeRankingsPage('rankings', [
+    `<SPAN>Rankings</SPAN>`,
+  ]);
+
+  divContent.innerHTML = 'Page does not exist!';
 }
 async function renderRankings() {
   const tabState = state.tabContent.rankings;
