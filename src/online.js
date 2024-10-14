@@ -1896,7 +1896,7 @@ async function fillArena(divArena, arena = true) {
   if (!arena.startedAt) {
     if (arena.randomHitChance === false)
       labels.push('No Luck');
-    if (arena.timeLimitName !== 'standard')
+    if (arena.timeLimitName && arena.timeLimitName !== 'standard')
       labels.push(arena.timeLimitName.toUpperCase('first'));
     if (arena.ranked)
       labels.push('Ranked');
@@ -1938,8 +1938,10 @@ async function fillTeam(divArena, slot, arena, oldArena) {
     const teamIndex = (topIndex + indexMap.get(slot)) % arena.teams.length;
 
     const team = arena.teams[teamIndex];
-    if (team)
+    if (team?.joinedAt)
       team.isLoser = ![ undefined, teamIndex ].includes(arena.winnerId);
+    else
+      return null;
     return team;
   })();
 
@@ -2005,7 +2007,7 @@ async function renderYourGames() {
   divTabContent.innerHTML = '';
 
   const now = gameClient.serverNow;
-  const waitingGames = [ ...tabContent.games[0].values() ];
+  const pendingGames = [ ...tabContent.games[0].values() ];
   const activeGames = [ ...tabContent.games[1].values() ]
     .map(game => {
       game.turnTimeRemaining = game.getTurnTimeRemaining(now);
@@ -2133,11 +2135,17 @@ async function renderYourGames() {
    */
   const practiceGames = [];
   for (const game of activeGames) {
-    // Exclude games that haven't started yet
-    if (!game.startedAt)
-      continue;
     // Exclude games that aren't practice games
     if (game.teams.find(t => t.playerId !== myPlayerId))
+      continue;
+
+    const divGame = renderGame(game, authClient.playerId);
+
+    practiceGames.push(divGame);
+  }
+  for (const game of pendingGames) {
+    // Exclude games that aren't practice games
+    if (game.teams.find(t => !t || t.playerId !== myPlayerId))
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
@@ -2160,6 +2168,17 @@ async function renderYourGames() {
   /*
    * Waiting for Opponent
    */
+  const waitingGames = [];
+  for (const game of pendingGames) {
+    // Exclude practice games
+    if (!game.teams.some(t => !t || t.playerId !== myPlayerId))
+      continue;
+
+    const divGame = renderGame(game, authClient.playerId);
+
+    waitingGames.push(divGame);
+  }
+
   if (waitingGames.length) {
     const secWaitingGames = document.createElement('SECTION');
     secWaitingGames.classList.add('game-list');
@@ -2169,7 +2188,7 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Waiting for Opponent</SPAN>';
     secWaitingGames.append(header);
 
-    waitingGames.forEach(game => secWaitingGames.appendChild(renderGame(game, authClient.playerId)));
+    waitingGames.forEach(div => secWaitingGames.appendChild(div));
   }
 
   /*
@@ -2978,7 +2997,9 @@ function renderGame(game, playerId = null, rankingId = null) {
   divVS.append(divArenaWrapper);
   divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
   divVS.append(renderGameResult(game, team1.playerId));
-  if (team2)
+  if (game.isPracticeGame && !game.startedAt)
+    divVS.append(renderGameFinishSetup(game));
+  if (team2?.playerId)
     divVS.append(renderGameTeam(game, team2, ranks2, rankingId, team2.playerId !== playerId));
   else if (game.createdBy === authClient.playerId)
     divVS.append(renderGameInvite(game))
@@ -3020,6 +3041,12 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   `;
 
   return divTeam;
+}
+function renderGameFinishSetup(game) {
+  const divFinishSetup = document.createElement('DIV');
+  divFinishSetup.innerHTML = `<A href="game.html?${game.id}">Finish Setup</A>`;
+
+  return divFinishSetup;
 }
 function renderGameInvite(game) {
   const divInvite = document.createElement('DIV');
