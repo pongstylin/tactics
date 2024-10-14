@@ -834,9 +834,21 @@ async function selectArena(event) {
   } else if (divArena.classList.contains('waiting')) {
     const arena = JSON.parse(divArena.dataset.arena);
 
-    if (arena.teams.find(t => t?.playerId === myPlayerId))
+    if (arena.createdBy === myPlayerId) {
+      if (!arena.collection?.startsWith('lobby/')) {
+        const doCancel = await popup({
+          message: 'Are you sure you want to cancel the game?',
+          buttons: [
+            { label:'Yes' },
+            { label:'No' },
+          ],
+        }).whenClosed;
+        if (doCancel !== 'Yes')
+          return;
+      }
+
       cancelGame(arena);
-    else
+    } else
       joinGame(arena);
   } else {
     const arena = JSON.parse(divArena.dataset.arena);
