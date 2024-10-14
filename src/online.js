@@ -2127,18 +2127,8 @@ async function renderYourGames() {
    * Practice Games
    */
   const practiceGames = [];
-  for (const game of activeGames) {
-    // Exclude games that aren't practice games
-    if (game.teams.find(t => t.playerId !== myPlayerId))
-      continue;
-
-    const divGame = renderGame(game, authClient.playerId);
-
-    practiceGames.push(divGame);
-  }
-  for (const game of pendingGames) {
-    // Exclude games that aren't practice games
-    if (game.teams.find(t => !t || t.playerId !== myPlayerId))
+  for (const game of [ ...pendingGames, ...activeGames ]) {
+    if (!game.isPracticeGame)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
@@ -2163,8 +2153,7 @@ async function renderYourGames() {
    */
   const waitingGames = [];
   for (const game of pendingGames) {
-    // Exclude practice games
-    if (!game.teams.some(t => !t || t.playerId !== myPlayerId))
+    if (game.isPracticeGame)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
