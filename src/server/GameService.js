@@ -1526,6 +1526,9 @@ export default class GameService extends Service {
     for (const gameSummary of collection.values()) {
       if (!gameSummary.startedAt) {
         if (player) {
+          if (gameSummary.createdBy === player.id)
+            continue;
+
           const creator = await this._getAuthPlayer(gameSummary.createdBy);
           if (creator.hasBlocked(player, false))
             continue;

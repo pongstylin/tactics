@@ -460,12 +460,12 @@ whenDOMReady.then(() => {
       const yourContent = state.tabContent.yourGames;
       const lobbyContent = state.tabContent.lobby;
       const publicContent = state.tabContent.publicGames;
-      const isMyGame = body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1;
+      const isMyGame = body.data.teams?.some(t => t?.playerId === myPlayerId) ?? false;
 
       if (body.group === `/myGames/${myPlayerId}`) {
         if (body.type === 'stats') {
           yourContent.stats = body.data;
-          renderStats(isMyGame ? 'all' : 'my');
+          renderStats('my');
         } else if (body.type === 'add' || body.type === 'change')
           setYourGame(body.data);
         else if (body.type === 'remove')
@@ -473,7 +473,7 @@ whenDOMReady.then(() => {
       } else if (body.group === '/collections') {
         if (body.type === 'stats') {
           statsContent.byCollection.set(body.data.collectionId, body.data.stats);
-          renderStats(isMyGame ? 'all' : 'collection');
+          renderStats('collections');
         }
       } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
         if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
@@ -1329,15 +1329,8 @@ function renderStats(scope = 'all') {
       if (game.startedAt)
         continue;
 
-      numLobby--;
-
       const styleId = game.collection.slice(6);
       numLobbyByStyle.set(styleId, numLobbyByStyle.get(styleId) - 1);
-    }
-
-    for (const game of yourGames[0].values()) {
-      if (game.collection === 'public')
-        numPublic--;
     }
 
     document.querySelector('.tabs .lobby .badge').textContent = numLobby || '';
