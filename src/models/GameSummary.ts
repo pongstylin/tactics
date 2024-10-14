@@ -147,7 +147,7 @@ export default class GameSummary {
 
   get isPracticeGame() {
     const teams = this.teams;
-    const isMultiplayer = new Set(teams.map(t => t.playerId)).size > 1;
+    const isMultiplayer = new Set(teams.map(t => t?.playerId)).size > 1;
 
     return !isMultiplayer;
   }

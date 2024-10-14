@@ -160,6 +160,10 @@ const routes = new Map([
       gameClient.getRankedGames(p.rankingId, p.playerId),
     ]),
   }) ],
+  [ '#rankings/**', p => ({
+    route: () => renderRankingPageNotFound(),
+    data: Promise.resolve(),
+  }) ],
 ]);
 const routeMatcher = Array.from(routes.keys()).map(path => {
   const parts = path.split('/');
@@ -170,12 +174,16 @@ const routeMatcher = Array.from(routes.keys()).map(path => {
     if (part.startsWith(':')) {
       names.push(part.slice(1));
       pattern.push(`([^\\/]+)`);
+    } else if (part === '**') {
+      pattern.push('.+');
+    } else if (part === '*') {
+      pattern.push('[^/]+');
     } else {
       pattern.push(RegExp.escape(part));
     }
   }
 
-  const re = new RegExp('^' + pattern.join('/') + '$');
+  const re = new RegExp('^' + pattern.join('/') + '\/?$');
 
   return r => {
     const match = r.match(re);
@@ -185,6 +193,15 @@ const routeMatcher = Array.from(routes.keys()).map(path => {
         p[names[i]] = v;
         return p;
       }, {});
+
+      // Validate rankingId
+      if (p.rankingId && p.rankingId !== 'FORTE' && !state.styles.some(s => s.id === p.rankingId))
+        return false;
+
+      // Validate playerId
+      if (p.playerId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(p.playerId))
+        return false;
+
       return routeGetter(p);
     }
   };
@@ -443,12 +460,12 @@ whenDOMReady.then(() => {
       const yourContent = state.tabContent.yourGames;
       const lobbyContent = state.tabContent.lobby;
       const publicContent = state.tabContent.publicGames;
-      const isMyGame = body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1;
+      const isMyGame = body.data.teams?.some(t => t?.playerId === myPlayerId) ?? false;
 
       if (body.group === `/myGames/${myPlayerId}`) {
         if (body.type === 'stats') {
           yourContent.stats = body.data;
-          renderStats(isMyGame ? 'all' : 'my');
+          renderStats('my');
         } else if (body.type === 'add' || body.type === 'change')
           setYourGame(body.data);
         else if (body.type === 'remove')
@@ -456,7 +473,7 @@ whenDOMReady.then(() => {
       } else if (body.group === '/collections') {
         if (body.type === 'stats') {
           statsContent.byCollection.set(body.data.collectionId, body.data.stats);
-          renderStats(isMyGame ? 'all' : 'collection');
+          renderStats('collections');
         }
       } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
         if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
@@ -817,9 +834,21 @@ async function selectArena(event) {
   } else if (divArena.classList.contains('waiting')) {
     const arena = JSON.parse(divArena.dataset.arena);
 
-    if (arena.teams.find(t => t?.playerId === myPlayerId))
+    if (arena.createdBy === myPlayerId) {
+      if (!arena.collection?.startsWith('lobby/')) {
+        const doCancel = await popup({
+          message: 'Are you sure you want to cancel the game?',
+          buttons: [
+            { label:'Yes' },
+            { label:'No' },
+          ],
+        }).whenClosed;
+        if (doCancel !== 'Yes')
+          return;
+      }
+
       cancelGame(arena);
-    else
+    } else
       joinGame(arena);
   } else {
     const arena = JSON.parse(divArena.dataset.arena);
@@ -1300,15 +1329,8 @@ function renderStats(scope = 'all') {
       if (game.startedAt)
         continue;
 
-      numLobby--;
-
       const styleId = game.collection.slice(6);
       numLobbyByStyle.set(styleId, numLobbyByStyle.get(styleId) - 1);
-    }
-
-    for (const game of yourGames[0].values()) {
-      if (game.collection === 'public')
-        numPublic--;
     }
 
     document.querySelector('.tabs .lobby .badge').textContent = numLobby || '';
@@ -1867,7 +1889,7 @@ async function fillArena(divArena, arena = true) {
   if (!arena.startedAt) {
     if (arena.randomHitChance === false)
       labels.push('No Luck');
-    if (arena.timeLimitName !== 'standard')
+    if (arena.timeLimitName && arena.timeLimitName !== 'standard')
       labels.push(arena.timeLimitName.toUpperCase('first'));
     if (arena.ranked)
       labels.push('Ranked');
@@ -1909,8 +1931,10 @@ async function fillTeam(divArena, slot, arena, oldArena) {
     const teamIndex = (topIndex + indexMap.get(slot)) % arena.teams.length;
 
     const team = arena.teams[teamIndex];
-    if (team)
+    if (team?.joinedAt)
       team.isLoser = ![ undefined, teamIndex ].includes(arena.winnerId);
+    else
+      return null;
     return team;
   })();
 
@@ -1976,7 +2000,7 @@ async function renderYourGames() {
   divTabContent.innerHTML = '';
 
   const now = gameClient.serverNow;
-  const waitingGames = [ ...tabContent.games[0].values() ];
+  const pendingGames = [ ...tabContent.games[0].values() ];
   const activeGames = [ ...tabContent.games[1].values() ]
     .map(game => {
       game.turnTimeRemaining = game.getTurnTimeRemaining(now);
@@ -2104,11 +2128,17 @@ async function renderYourGames() {
    */
   const practiceGames = [];
   for (const game of activeGames) {
-    // Exclude games that haven't started yet
-    if (!game.startedAt)
-      continue;
     // Exclude games that aren't practice games
     if (game.teams.find(t => t.playerId !== myPlayerId))
+      continue;
+
+    const divGame = renderGame(game, authClient.playerId);
+
+    practiceGames.push(divGame);
+  }
+  for (const game of pendingGames) {
+    // Exclude games that aren't practice games
+    if (game.teams.find(t => !t || t.playerId !== myPlayerId))
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
@@ -2131,6 +2161,17 @@ async function renderYourGames() {
   /*
    * Waiting for Opponent
    */
+  const waitingGames = [];
+  for (const game of pendingGames) {
+    // Exclude practice games
+    if (!game.teams.some(t => !t || t.playerId !== myPlayerId))
+      continue;
+
+    const divGame = renderGame(game, authClient.playerId);
+
+    waitingGames.push(divGame);
+  }
+
   if (waitingGames.length) {
     const secWaitingGames = document.createElement('SECTION');
     secWaitingGames.classList.add('game-list');
@@ -2140,7 +2181,7 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Waiting for Opponent</SPAN>';
     secWaitingGames.append(header);
 
-    waitingGames.forEach(game => secWaitingGames.appendChild(renderGame(game, authClient.playerId)));
+    waitingGames.forEach(div => secWaitingGames.appendChild(div));
   }
 
   /*
@@ -2289,6 +2330,13 @@ function initializeRankingsPage(className, crumbs) {
   divContent.innerHTML = '';
 
   return divContent;
+}
+async function renderRankingPageNotFound() {
+  const divContent = initializeRankingsPage('rankings', [
+    `<SPAN>Rankings</SPAN>`,
+  ]);
+
+  divContent.innerHTML = 'Page does not exist!';
 }
 async function renderRankings() {
   const tabState = state.tabContent.rankings;
@@ -2942,7 +2990,9 @@ function renderGame(game, playerId = null, rankingId = null) {
   divVS.append(divArenaWrapper);
   divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
   divVS.append(renderGameResult(game, team1.playerId));
-  if (team2)
+  if (game.isPracticeGame && !game.startedAt)
+    divVS.append(renderGameFinishSetup(game));
+  if (team2?.playerId)
     divVS.append(renderGameTeam(game, team2, ranks2, rankingId, team2.playerId !== playerId));
   else if (game.createdBy === authClient.playerId)
     divVS.append(renderGameInvite(game))
@@ -2984,6 +3034,12 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   `;
 
   return divTeam;
+}
+function renderGameFinishSetup(game) {
+  const divFinishSetup = document.createElement('DIV');
+  divFinishSetup.innerHTML = `<A href="game.html?${game.id}">Finish Setup</A>`;
+
+  return divFinishSetup;
 }
 function renderGameInvite(game) {
   const divInvite = document.createElement('DIV');
