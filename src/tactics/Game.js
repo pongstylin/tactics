@@ -1448,14 +1448,14 @@ export default class Game {
     if (!action.results)
       return;
 
-    let showResult = async result => {
+    const showResult = async result => {
       if (result.type === 'summon') return;
 
-      let anim = new Tactics.Animation({ speed });
-      let changes = Object.assign({}, result.changes);
+      const anim = new Tactics.Animation({ speed });
+      const changes = Object.assign({}, result.changes);
 
       // Changed separately
-      let mHealth = changes.mHealth;
+      const mHealth = changes.mHealth;
       delete changes.mHealth;
 
       let unit = result.unit;
@@ -1469,6 +1469,8 @@ export default class Game {
       // This can happen when the Chaos Seed hatches and consumes the unit.
       if (!unit.assignment) return;
 
+      const mArmorChange = changes.mArmor === undefined ? 0 : changes.mArmor - unit.mArmor;
+
       if (Object.keys(changes).length)
         unit.change(changes);
       if (result.results)
@@ -1476,23 +1478,21 @@ export default class Game {
 
       anim.splice(this._animApplyFocusChanges(result));
 
-      if (changes.armored && unit === action.unit) {
+      if (mArmorChange > 0 && unit === action.unit) {
         this.drawCard(unit);
 
-        let caption = 'Armor Up!';
+        const caption = 'Armor Up!';
         anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
-      }
-      else if ('focusing' in changes || changes.barriered === false) {
-        let caption = result.notice;
+      } else if ('focusing' in changes || changes.barriered === false) {
+        const caption = result.notice;
         if (caption)
           anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
-      }
-      // Don't show shrub death.  They are broken apart during attack.
-      else if (unit.type === 'Shrub' && mHealth === -unit.health)
+      } else if (unit.type === 'Shrub' && mHealth === -unit.health)
+        // Don't show shrub death.  They are broken apart during attack.
         return anim.play();
       else if ('armored' in changes)
         return anim.play();
