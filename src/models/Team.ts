@@ -215,11 +215,6 @@ export default class Team extends ActiveModel {
     return new Team(data);
   }
   static createReserve(data, clientPara) {
-    if (!data.playerId)
-      data.playerId = clientPara.playerId;
-
-    if (data.name !== undefined)
-      throw new ServerError(403, 'May not assign a name to a reserved team');
     if (data.set)
       throw new ServerError(403, 'May not assign a set to a reserved team');
 

@@ -9,15 +9,23 @@ window.addEventListener('DOMContentLoaded', () => {
   }, true);
 });
 
+let throttle = null;
+
 export default class Autosave {
   constructor(props) {
     this.props = Object.assign({
       icons: new Map(),
       autoFocus: false,
+      // Normally, when a value is submitted, it is set.
+      // Disable this to control when the value is set.
+      autoSetValue: true,
       hideIcons: false,
       // Normally, a user must press Enter to submit the field.
       // Set this to true to also submit on change/blur.
       submitOnChange: false,
+      // Normally, a user must press Enter to submit the field.
+      // Set this to true to also submit on input
+      submitOnInput: false,
       // Requires a value (can't be null/empty-string)
       isRequired: props.defaultValue === false,
       // A value of 'null' means the default value is nothing.
@@ -56,11 +64,15 @@ export default class Autosave {
     const divAutosave = this._root;
     const spnInput = divAutosave.querySelector('.input SPAN');
     divAutosave.classList.remove('is-saving');
-    divAutosave.classList.add('is-saved');
+    if (value !== null)
+      divAutosave.classList.add('is-saved');
 
-    spnInput.textContent = value;
+    this.data.value = value;
 
-    return this._input.value = this.data.value = value;
+    if (typeof value === 'string') {
+      spnInput.textContent = value;
+      this._input.value = value;
+    }
   }
 
   get disabled() {
@@ -84,7 +96,7 @@ export default class Autosave {
     const input = this._input;
 
     let newValue = input.value.trim().length ? input.value.trim() : null;
-    if (newValue === null && this.props.isRequired) {
+    if (newValue === null && this.isRequired) {
       if (this.props.defaultValue === false)
         newValue = this.data.value;
       else
@@ -92,6 +104,10 @@ export default class Autosave {
     }
 
     return newValue;
+  }
+  set inputValue(value) {
+    this._root.querySelector('.input SPAN').textContent = value;
+    this._input.value = value;
   }
 
   get icons() {
@@ -215,7 +231,7 @@ export default class Autosave {
       };
 
       const newValue = this.inputValue;
-      if (newValue === this.data.value) {
+      if (newValue === this.data.value && this.props.autoSetValue) {
         input.blur();
 
         // Just in case the value was trimmed.
@@ -229,12 +245,14 @@ export default class Autosave {
 
         this.whenSaved = Promise.all(promises)
           .then(() => {
-            this.value = newValue;
-            this._emit({ type:'change', data:newValue });
-            input.blur();
+            if (this.props.autoSetValue) {
+              this.value = newValue;
+              this._emit({ type:'change', data:newValue });
+              input.blur();
+            }
           })
           .catch(error => this.error = error.toString());
-      } else {
+      } else if (this.props.autoSetValue) {
         this.value = newValue;
         this._emit({ type:'change', data:newValue });
         input.blur();
@@ -243,7 +261,7 @@ export default class Autosave {
 
     input.addEventListener('keydown', event => {
       const target = event.target;
-      if (event.keyCode === 13)
+      if (event.keyCode === 13 && !this.props.submitOnInput)
         submit();
       // Allow trap focus to work
       if (event.keyCode !== 9)
@@ -254,6 +272,11 @@ export default class Autosave {
       divAutosave.classList.remove('is-saving');
       divInput.querySelector('SPAN').textContent = input.value;
       divError.textContent = '';
+
+      if (this.props.submitOnInput) {
+        clearTimeout(throttle);
+        throttle = setTimeout(() => submit(), 300);
+      }
     });
     input.addEventListener('change', event => {
       this._emit({ type:'change', data:this.inputValue });
@@ -262,7 +285,7 @@ export default class Autosave {
         submit();
     });
     input.addEventListener('blur', event => {
-      if (this.inputValue === this.data.value)
+      if (this.inputValue === this.data.value && this.props.autoSetValue)
         // Trim
         this.value = this.data.value;
       else

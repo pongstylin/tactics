@@ -57,6 +57,9 @@ const config = {
   chatEndpoint: process.env.CHAT_ENDPOINT ?? local.wsEndpoint,
   pushEndpoint: process.env.PUSH_ENDPOINT ?? local.wsEndpoint,
   pushPublicKey: process.env.PN_PUBLIC_KEY,
+  hasItem: (itemName) => {
+    return localStorage.getItem(itemName) !== null;
+  },
   removeItem: (itemName) => {
     localStorage.removeItem(itemName);
   },
@@ -64,11 +67,12 @@ const config = {
     localStorage.setItem(itemName, JSON.stringify(itemValue));
   },
   getItem: (itemName, itemDefault) => {
-    const itemValue = localStorage.getItem(itemName);
-    return itemValue === null ? itemDefault : JSON.parse(itemValue);
+    const item = JSON.parse(localStorage.getItem(itemName) ?? JSON.stringify(itemDefault));
+
+    return itemDefault !== null && itemDefault !== undefined && itemDefault.constructor === Object
+      ? Object.assign({}, itemDefault, item) : item;
   },
 };
-
 
 const oppRotation = new Map([
   [ 'N', 'S' ],
@@ -79,13 +83,10 @@ const oppRotation = new Map([
 
 const gameConfigProps = {
   audio: true,
-  gameSpeed: 'auto',
   barPosition: 'right',
-  blockingSystem: 'luck',
-  turnTimeLimit: 'standard',
-  ranked: 'any',
-  set: 'ask',
-  randomSide: false,
+  confirmBeforeCreate: false,
+  confirmBeforeJoin: false,
+  gameSpeed: 'auto',
   rotation: 'S',
   teamColorIds: [ 'Blue', 'Yellow', 'Red', 'Green' ],
 };
@@ -93,16 +94,6 @@ const gameConfigProps = {
 export const gameConfig = {
   get setsById() {
     return setsById;
-  },
-
-  // Temporary migration
-  get turnTimeLimit() {
-    const turnTimeLimit = this._get('turnTimeLimit', gameConfigProps.turnTimeLimit);
-    if (turnTimeLimit !== 'relaxed')
-      return turnTimeLimit;
-
-    this._set('turnTimeLimit', 'pro');
-    return 'pro';
   },
 
   get myColorId() {

@@ -65,6 +65,14 @@ export default class GameClient extends Client {
         throw error;
       });
   }
+  declineGame(gameId) {
+    return this._server.requestAuthorized(this.name, 'declineGame', [ gameId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.declineGame(gameId);
+        throw error;
+      });
+  }
 
   joinGame(gameId, options) {
     let args = [gameId];
@@ -245,11 +253,11 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  getRankedGames(rankingId, playerId) {
-    return this._server.requestAuthorized(this.name, 'getRankedGames', [ rankingId, playerId ])
+  getRatedGames(rankingId, playerId) {
+    return this._server.requestAuthorized(this.name, 'getRatedGames', [ rankingId, playerId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getRankedGames(rankingId, playerId);
+          return this.getRatedGames(rankingId, playerId);
         throw error;
       });
   }
@@ -275,6 +283,9 @@ export default class GameClient extends Client {
   }
   watchGame(gameId, reference) {
     return this._server.joinAuthorized(this.name, `/games/${gameId}`, reference);
+  }
+  closeGame(gameId) {
+    return this._server.leave(this.name, `/games/${gameId}`);
   }
   async submitAction(gameId, action) {
     const beforeUnloadListener = event => {

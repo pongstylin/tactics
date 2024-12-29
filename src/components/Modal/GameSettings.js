@@ -9,14 +9,14 @@ export default class GameSettings extends Modal {
     const forkOf = data.game.state.forkOf;
     let identity;
     if (forkOf) {
-      const of = game.ofPracticeGame ? 'practice game' : 'game';
+      const of = game.ofSinglePlayer ? 'single player game' : 'game';
 
       identity = `
         This game is a fork of <A href="/game.html?${forkOf.gameId}#c=${forkOf.turnId},0" target="_blank">that ${of}</A>.
       `;
     } else if (data.game.isBotGame) {
       identity = `This is an AI challenge.`;
-    } else if (data.game.isPracticeGame) {
+    } else if (data.game.isPracticeMode) {
       identity = `This is a practice game.`;
     } else if (data.game.isLocalGame) {
       identity = `This is a local game.`;

@@ -161,11 +161,13 @@ export default class extends FileAdapter {
     return authLinks;
   }
 
-  async queryRankedPlayers(query) {
-    return this.state.identities.queryRanked(query);
+  async queryRatedPlayers(query, myPlayerId) {
+    const myPlayer = await this._getPlayer(myPlayerId);
+    return this.state.identities.queryRated(query, myPlayer);
   }
-  async getRankedPlayers(playerIds) {
-    return this.state.identities.getRanked(playerIds);
+  async getRatedPlayers(playerIds, myPlayerId) {
+    const myPlayer = await this._getPlayer(myPlayerId);
+    return this.state.identities.getRated(playerIds, myPlayer);
   }
 
   async getRankings() {
@@ -173,9 +175,6 @@ export default class extends FileAdapter {
   }
   async getRanks(rankingIds) {
     return this.state.identities.getRanks(rankingIds);
-  }
-  async isRanked(playerIds) {
-    return this.state.identities.isRanked(playerIds);
   }
   /*
    * Returns a map of ranking id to a summary of ranks.

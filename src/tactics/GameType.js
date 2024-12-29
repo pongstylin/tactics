@@ -19,7 +19,7 @@ export default class GameType {
     return this.config.customizable;
   }
   get hasFixedPositions() {
-    return !this.isCustomizable || this.config.limits.fixedPositions;
+    return !this.isCustomizable || !!this.config.limits.fixedPositions;
   }
 
   getUnitTypes() {

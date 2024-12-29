@@ -454,10 +454,13 @@ export default class Game {
   get isFork() {
     return !!this.state.forkOf;
   }
-  get isPracticeGame() {
-    return this.state.isPracticeGame
+  get isSinglePlayer() {
+    return this.state.isSinglePlayer;
   }
-  get ofPracticeGame() {
+  get isPracticeMode() {
+    return this.state.isPracticeMode;
+  }
+  get ofSinglePlayer() {
     if (!this.state.forkOf) return false;
 
     const myTeams = this.state.teams.filter(t => t.forkOf.playerId === this.playerId);

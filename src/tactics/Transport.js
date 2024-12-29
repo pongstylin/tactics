@@ -57,8 +57,8 @@ export default class Transport {
   get randomHitChance() {
     return this._getStateData('randomHitChance');
   }
-  get strictUndo() {
-    return this._getStateData('strictUndo');
+  get undoMode() {
+    return this._getStateData('undoMode');
   }
   get strictFork() {
     return this._getStateData('strictFork');
@@ -69,11 +69,8 @@ export default class Transport {
   get rated() {
     return this._getStateData('rated');
   }
-  get ranked() {
-    return this._getStateData('ranked');
-  }
-  get unrankedReason() {
-    return this._getStateData('unrankedReason');
+  get unratedReason() {
+    return this._getStateData('unratedReason');
   }
   get timeLimitName() {
     return this._getData('timeLimitName');
@@ -89,6 +86,9 @@ export default class Transport {
   }
   get startedAt() {
     return this._getStateData('startedAt');
+  }
+  get drawCounts() {
+    return this._getStateData('drawCounts');
   }
 
   get recentTurns() {
@@ -205,7 +205,13 @@ export default class Transport {
     return this._getData('chatDisabled');
   }
 
-  get isPracticeGame() {
+  get isTournamentMode() {
+    return this.undoMode === 'strict' && this.autoSurrender && this.strictFork === true;
+  }
+  get isPracticeMode() {
+    return this.rated === false && this.undoMode === 'loose';
+  }
+  get isSinglePlayer() {
     const teams = this.teams;
     const hasBot = teams.findIndex(t => !!t.bot) > -1;
     const isMultiplayer = new Set(teams.map(t => t.playerId)).size > 1;
@@ -232,8 +238,8 @@ export default class Transport {
     if (!team || !this.startedAt)
       return null;
 
-    // Practice games can always undo if there is something to undo.
-    if (this.isPracticeGame) {
+    // Single player games can always undo if there is something to undo.
+    if (this.isSinglePlayer) {
       const initialTurnId = this.initialTurnId;
       if (this.currentTurnId === initialTurnId && this.currentTurn.isEmpty)
         return null;
@@ -249,12 +255,12 @@ export default class Transport {
     const teamContextTurnId = this.currentTurnId - ((numTeams + this.currentTeamId - team.id) % numTeams);
     const teamPreviousTurnId = teamContextTurnId - numTeams;
     const lockedTurnId = this.lockedTurnId;
-    const rated = this.rated;
-    const strictUndo = this.strictUndo;
+    const isPracticeMode = this.isPracticeMode;
+    const strictUndo = this.undoMode === 'strict';
     let pointer = false;
 
     if (this.endedAt)
-      return rated ? null : false;
+      return isPracticeMode ? false : null;
 
     /*
      * Walk backward through turns and actions until we reach the undo limit.
@@ -279,8 +285,8 @@ export default class Transport {
           if (this.getTurnTimeRemaining(turnId) < 10000)
             return null;
 
-          // Pass control to the next team 5 seconds after the current turn ends in rated games.
-          if (rated && turn.isEnded && this.seen(team, turn.endedAt.getTime() + 5000) && Date.now() - turn.endedAt >= 5000)
+          // Pass control to the next team 5 seconds after the current turn ends in non-practice games.
+          if (!isPracticeMode && turn.isEnded && this.seen(team, turn.endedAt.getTime() + 5000) && Date.now() - turn.endedAt >= 5000)
             return pointer;
         } else {
           // Can't undo when team's last turn is locked.
@@ -293,9 +299,9 @@ export default class Transport {
 
           // Opponents may not undo current turn without permission.
           // ... except the previous team can undo if:
-          //   1) the game is unrated and the current turn is empty, or
-          //   2) the game is rated and nobody has seen them move.
-          if (rated && this.seen(team, turn.startedAt) || team !== this.previousTeam || !turn.isEmpty)
+          //   1) the game is practice mode and the current turn is empty, or
+          //   2) the game is non-practice mode and nobody has seen them move.
+          if (!isPracticeMode && this.seen(team, turn.startedAt) || team !== this.previousTeam || !turn.isEmpty)
             return pointer;
         }
       } else {
@@ -394,14 +400,14 @@ export default class Transport {
      * Indicate when we will no longer be able to freely undo.
      *   If current team in a strict undo game:
      *     Can't undo 5 seconds after last action is made.
-     *   If current team after turn end in a rated game
+     *   If current team after turn end in a non-practice game
      *     Can't undo 5 seconds after turn ends (next turn is starting)
-     *   If previous team in an unrated game:
+     *   If previous team in an practice game:
      *     Can't undo 10 seconds before previous turn time limit is reached.
      *   If current team before turn ends:
      *     Can't undo 10 seconds before current turn time limit is reached.
      */
-    if (team === currentTurn.team && (this.strictUndo || this.rated && currentTurn.isEnded)) {
+    if (team === currentTurn.team && (this.undoMode === 'strict' || !this.isPracticeMode && currentTurn.isEnded)) {
       const actionTimeout = Math.max(0, 5000 - (this.now - currentTurn.updatedAt));
       const turnTimeout = this.getTurnTimeRemaining();
       const refreshTimeout = Math.min(actionTimeout, turnTimeout);

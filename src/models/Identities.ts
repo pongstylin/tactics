@@ -106,56 +106,73 @@ export default class Identities extends ActiveModel {
    *   Fuzzy matches are 2nd best.
    *   Partial matches are 3rd best.
    *   Among partial matches, the smaller the name/alias the better the match.
-   *   All else being equal, name matches are better than alias matches.
+   *   All else being equal, prefer matches on nicknames before names before aliases.
    */
-  queryRanked(query) {
+  queryRated(query, myPlayer) {
+    const myIdentity = myPlayer.identity;
+    const relationships = this.getRelationships(myPlayer.id);
     const curedQuery = decancer(query);
     const typeSeq = [ 'exact', 'fuzzy', 'start', 'partial' ];
     const lengthSeq = m => m.alias === undefined ? m.name.length : m.alias.length;
-    const aliasSeq = m => m === undefined ? 0 : 1;
+    const textMatchSeq = [ 'nickname', 'name', 'alias' ];
     const matches = [];
 
+    const getMatchType = (text, match) => {
+      const cured = decancer(text);
+
+      if (text === query)
+        match.type = 'exact';
+      else if (cured === curedQuery)
+        match.type = 'fuzzy';
+      else if (cured.startsWith(curedQuery))
+        match.type = 'start';
+      else if (cured.includes(curedQuery))
+        match.type = 'partial';
+      else
+        match.type = 'none';
+      match.text = text;
+
+      return match;
+    };
+
     for (const identity of this.identities) {
-      const playerId = identity.rankedPlayerId;
+      // Ignore guest accounts since they don't have (unique) names.
+      if (identity.name === null) continue;
+
+      const playerId = identity.ratedPlayerId;
       if (!playerId) continue;
 
-      const curedName = decancer(identity.name);
       const identityMatches = [];
+      const reverseType = myIdentity.getRelationship(playerId)?.type;
       const match = {
-        type: null,
         identityId: identity.id,
         playerId,
+        relationship: Object.assign({ reverseType }, identity === myIdentity ? { type:'self' } : relationships.get(identity.id)),
         name: identity.name,
       };
 
-      if (identity.name === query)
-        match.type = 'exact';
-      else if (curedName === curedQuery)
-        match.type = 'fuzzy';
-      else if (curedName.startsWith(curedQuery))
-        match.type = 'start';
-      else if (curedName.includes(curedQuery))
-        match.type = 'partial';
+      if (match.relationship?.name !== undefined) {
+        const nickMatch = getMatchType(match.relationship.name, Object.assign({ textType:'nickname' }, match));
+        if (nickMatch.type === 'exact') {
+          matches.push(nickMatch);
+          continue;
+        } else if (nickMatch.type !== 'none')
+          identityMatches.push(nickMatch);
+      }
 
-      if (match.type === 'exact') {
-        matches.push(match);
+      const nameMatch = getMatchType(identity.name, Object.assign({ textType:'name' }, match));
+      if (nameMatch.type === 'exact') {
+        matches.push(nameMatch);
         continue;
-      } else if (match.type)
-        identityMatches.push(match);
+      } else if (nameMatch.type !== 'none')
+        identityMatches.push(nameMatch);
 
       for (const alias of identity.aliases.keys()) {
-        const curedAlias = decancer(alias);
-        const aliasMatch = Object.assign({ alias }, match);
-
-        if (alias === query)
-          aliasMatch.type = 'exact';
-        else if (curedAlias === curedQuery)
-          aliasMatch.type = 'fuzzy';
-        else if (curedAlias.startsWith(curedQuery))
-          aliasMatch.type = 'start';
-        else if (curedAlias.includes(curedQuery))
-          aliasMatch.type = 'partial';
-        if (aliasMatch.type)
+        const aliasMatch = getMatchType(alias, Object.assign({ textType:'alias' }, match));
+        if (aliasMatch.type === 'exact') {
+          matches.push(aliasMatch);
+          continue;
+        } else if (aliasMatch.type !== 'none')
           identityMatches.push(aliasMatch);
       }
 
@@ -166,57 +183,41 @@ export default class Identities extends ActiveModel {
         matches.push(identityMatches.sort((a,b) => (
           typeSeq.indexOf(a.type) - typeSeq.indexOf(b.type) ||
           lengthSeq(a) - lengthSeq(b) ||
-          aliasSeq(a) - aliasSeq(b)
+          textMatchSeq.indexOf(a.textType) - textMatchSeq.indexOf(b.textType)
         ))[0]);
     }
 
     return matches.sort((a,b) => (
       typeSeq.indexOf(a.type) - typeSeq.indexOf(b.type) ||
       lengthSeq(a) - lengthSeq(b) ||
-      aliasSeq(a) - aliasSeq(b)
+      textMatchSeq.indexOf(a.textType) - textMatchSeq.indexOf(b.textType)
     )).slice(0, 5);
   }
-  isRanked(playerIds) {
-    const isRanked = new Set();
+  getRated(playerIds, myPlayer) {
+    const myIdentity = myPlayer.identity;
+    const relationships = this.getRelationships(myPlayer.id);
+    const ratedPlayers = new Map();
     const playerIdSet = new Set(playerIds);
 
     for (const identity of this.identities) {
-      const rankedPlayerId = identity.rankedPlayerId;
-      if (!rankedPlayerId)
+      // Ignore guest accounts since they don't have (unique) names.
+      if (identity.name === null) continue;
+
+      const ratedPlayerId = identity.ratedPlayerId;
+      if (!ratedPlayerId)
         continue;
 
       for (const playerId of identity.playerIds) {
         if (!playerIdSet.has(playerId))
           continue;
 
-        playerIdSet.delete(playerId);
-        isRanked.add(playerId);
-        break;
-      }
-
-      if (playerIdSet.size === 0)
-        break;
-    }
-
-    return isRanked;
-  }
-  getRanked(playerIds) {
-    const rankedPlayers = new Map();
-    const playerIdSet = new Set(playerIds);
-
-    for (const identity of this.identities) {
-      const rankedPlayerId = identity.rankedPlayerId;
-      if (!rankedPlayerId)
-        continue;
-
-      for (const playerId of identity.playerIds) {
-        if (!playerIdSet.has(playerId))
-          continue;
+        const reverseType = myIdentity.getRelationship(playerId)?.type;
 
         playerIdSet.delete(playerId);
-        rankedPlayers.set(playerId, {
+        ratedPlayers.set(playerId, {
           identityId: identity.id,
-          playerId: rankedPlayerId,
+          playerId: ratedPlayerId,
+          relationship: Object.assign({ reverseType }, identity === myIdentity ? { type:'self' } : relationships.get(identity.id)),
           name: identity.name,
         });
         break;
@@ -226,7 +227,7 @@ export default class Identities extends ActiveModel {
         break;
     }
 
-    return rankedPlayers;
+    return ratedPlayers;
   }
   sharesName(name, forIdentity) {
     const curedName = decancer(name);
@@ -276,7 +277,7 @@ export default class Identities extends ActiveModel {
 
     for (const playerId of playerIds) {
       const identity = this.findByPlayerId(playerId);
-      if (!identity?.rankedPlayerId) {
+      if (!identity?.ratedPlayerId) {
         ranksByPlayerId.set(playerId, false);
         continue;
       }

@@ -23,8 +23,6 @@ const APP_FILES = [
   '/check.min.js',
   '/online.html',
   '/online.min.js',
-  '/createGame.html',
-  '/createGame.min.js',
   '/profile.html',
   '/profile.min.js',
   '/security.html',

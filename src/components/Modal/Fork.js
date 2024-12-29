@@ -44,7 +44,7 @@ export default class Fork extends Modal {
     let forkOf = game.state.forkOf;
     let fork = '';
     if (forkOf) {
-      let of = game.ofPracticeGame ? 'practice game' : 'game';
+      let of = game.ofSinglePlayer ? 'single player game' : 'game';
 
       fork = `
         <DIV>

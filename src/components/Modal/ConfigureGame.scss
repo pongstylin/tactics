@@ -1,0 +1,325 @@
+@media (min-width:400px) {
+  .modal.configureGame {
+    max-width: 380px;
+    min-width: 240px;
+  }
+}
+
+.modal.message-only .content {
+  & > *:not(.message) {
+    display: none !important;
+  }
+}
+
+.modal.configureGame.challenge .content {
+  .audio, .confirm, .vs {
+    display: none;
+  }
+}
+
+.modal.configureGame.createGame .content {
+  .audio, .confirm {
+    display: none;
+  }
+}
+
+// Used for Lobby games
+.modal.configureGame.confirmBeforeCreate .content {
+  .audio, .confirm, .gameType, .visibility, .vs, .timeLimit .long, .timeLimit .label {
+    display: none;
+  }
+}
+
+.modal.configureGame.confirmBeforeJoin .content {
+  .audio, .confirm, .gameType, .visibility, .vs, .timeLimit {
+    display: none;
+  }
+
+  .taglist {
+    grid-template-columns: 97px;
+
+    SPAN:not(.randomSide) {
+      display: none;
+    }
+  }
+}
+
+.modal.configureGame.configurePublic .content {
+  .createGame, .playerName, .gameType, .visibility, .vs, .timeLimit {
+    display: none !important;
+  }
+
+  .taglist {
+    grid-template-columns: 97px;
+
+    SPAN:not(.randomSide) {
+      display: none;
+    }
+  }
+}
+
+.modal.configureGame.configureLobby .content {
+  .playerName, .gameType, .visibility, .vs, .timeLimit .long, .timeLimit .label {
+    display: none !important;
+  }
+}
+
+.modal.configureGame .content {
+  padding: 8px 16px;
+
+  SELECT {
+    box-sizing: border-box;
+    width: 190px;
+    padding: 1px 0;
+  }
+
+  LABEL {
+    padding: 0;
+    margin: 4px 8px 4px 0;
+  }
+
+  DIV {
+    box-sizing: border-box;
+    padding: 4px 0;
+  }
+
+  .row {
+    padding: 4px;
+  }
+  .indent {
+    padding: 0 0 0 12px;
+  }
+  .indent:not(.only):not(.grid):not(.taglist) {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+  .indent.grid.col4 {
+    display: grid;
+    align-items: center;
+    grid-template-columns: auto auto auto auto;
+  }
+  .indent.grid.col4 DIV.col3 > *:last-child {
+    grid-column: span 2;
+  }
+  .indent.grid DIV {
+    display: contents;
+  }
+
+  .audio.broken {
+    .indent > * {
+      display: none;
+    }
+    .indent::after {
+      content: 'Audio is broken in this browser.';
+      color: red;
+      grid-column: span 4;
+      padding: 4px 0;
+      // Fixes an apparent bug in Chrome
+      text-shadow: 0 0 red;
+    }
+  }
+
+  .matches {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 0 0 0;
+  }
+  .matches:empty {
+    display: none;
+  }
+  .matches .match {
+    display: flex;
+    flex-direction: row;
+    padding: 0;
+  }
+  .matches .match > SPAN {
+    display: inline-block;
+    border: 2px solid #444444;
+    padding: 2px 6px;
+  }
+  .matches .match:not(.selected) > SPAN {
+    cursor: pointer;
+  }
+  .matches .match SPAN.player {
+    border-radius: 11px;
+  }
+  .matches .match SPAN.player.friended::before,
+  .matches .match SPAN.player.muted::before,
+  .matches .match SPAN.player.blocked::before {
+    margin-right: 4px;
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+  }
+  .matches .match SPAN.player.friended::before {
+    color: #00FF00;
+    content: "\f500";
+  }
+  .matches .match SPAN.player.muted::before {
+    color: #FF0000;
+    content: "\f131";
+  }
+  .matches .match SPAN.player.blocked::before {
+    color: #FF0000;
+    content: "\f05e";
+  }
+  .matches .match SPAN.text {
+    margin-left: 6px;
+  }
+  .matches .match SPAN.text::before {
+    font-weight: bold;
+    color: #b08d57;
+    content: '( ';
+  }
+  .matches .match SPAN.text::after {
+    font-weight: bold;
+    color: #b08d57;
+    content: ' )';
+  }
+  .matches .match:not(.selected) > SPAN:hover {
+    border-color: #00FFFF;
+    z-index: 1;
+  }
+
+  .taglist {
+    display: grid;
+    grid-template-columns: 97px 65px 66px 72px;
+    gap: 4px;
+    padding-left: 8px;
+  }
+  .taglist SPAN {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .taglist LABEL {
+    display: inline-block;
+    box-sizing: border-box;
+    margin: 0;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 2px;
+    padding: 0 8px;
+    width: 100%;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .taglist LABEL:not(.selected, .required, .disabled) {
+    color: #b08d57;
+    border-color: #b08d57;
+  }
+  .taglist LABEL:not(.selected, .required, .disabled):hover {
+    color: #FFCC00;
+    border-color: #FFCC00;
+  }
+  .taglist LABEL.selected:not(.disabled),
+  .taglist LABEL.required:not(.disabled) {
+    color: #00FFFF;
+    border-color: #00FFFF;
+  }
+  .taglist LABEL.selected:not(.disabled):hover,
+  .taglist LABEL.required:not(.disabled):hover {
+    color: #CCFFFF;
+    border-color: #CCFFFF;
+  }
+  .taglist LABEL.disabled {
+    color: #888888;
+    border-color: #888888;
+  }
+  .taglist LABEL.required,
+  .taglist LABEL.disabled {
+    cursor: auto;
+    pointer-events: none;
+  }
+  .taglist LABEL INPUT {
+    display: none;
+  }
+  .taglist .randomSide {
+    width: 97px;
+  }
+
+  .error {
+    color: #ff0000;
+    text-align: center;
+    font-weight: bold;
+  }
+  .intro:empty,
+  .message:empty {
+    display: none;
+  }
+
+  .buttons {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+    padding: 4px 0;
+    text-align: center;
+  }
+  .buttons .remember {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+
+    .fa-circle-check {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 4px;
+      width: 24px;
+      height: 24px;
+
+      font-size: 1.4em;
+      font-weight: 400;
+    }
+  }
+  .buttons .remember:hover .fa-circle-check {
+    color: #00FF00;
+  }
+  .buttons .remember.saved {
+    cursor: default;
+
+    .fa-circle-check {
+      color: #00FF00;
+      font-weight: 900;
+    }
+  }
+  .change {
+    margin-left: 6px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .fa.fa-info {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+
+    margin: 0 8px;
+    border: 2px solid #00FFFF;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+
+    color: #00FFFF;
+    cursor: pointer;
+  }
+  .fa.fa-info:hover {
+    border-color: #CCFFFF;
+    color: #CCFFFF;
+  }
+}
+
+.popup {
+  UL.info {
+    list-style-type: none;
+    margin: 0;
+    padding: 8px 16px 0;
+  }
+
+  UL.info LI {
+    margin-bottom: 8px;
+  }
+}

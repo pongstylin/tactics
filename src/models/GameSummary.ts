@@ -45,9 +45,8 @@ export default class GameSummary {
       timeLimitName: game.timeLimitName,
       currentTurnId: game.state.currentTurnId,
       currentTurnTimeLimit: game.state.currentTurnTimeLimit,
-      isFork: game.isFork,
+      mode: game.isFork ? 'fork' : game.state.isPracticeMode ? 'practice' : game.state.isTournamentMode ? 'tournament' : null,
       rated: game.state.rated,
-      ranked: game.state.ranked,
       teams: teams.map(t => t && {
         createdAt: t.createdAt,
         joinedAt: t.joinedAt,
@@ -100,14 +99,11 @@ export default class GameSummary {
   get currentTurnTimeLimit() {
     return this.data.currentTurnTimeLimit;
   }
-  get isFork() {
-    return this.data.isFork;
+  get mode() {
+    return this.data.mode;
   }
   get rated() {
     return this.data.rated;
-  }
-  get ranked() {
-    return this.data.ranked;
   }
   get teams() {
     return this.data.teams;
@@ -145,7 +141,13 @@ export default class GameSummary {
     return this.teams.filter(t => t !== winner);
   }
 
-  get isPracticeGame() {
+  get isOpen() {
+    return !this.data.startedAt && this.data.teams.some(t => t === null);
+  }
+  get isChallenge() {
+    return !this.data.startedAt && !this.data.teams.some(t => !t?.playerId);
+  }
+  get isSinglePlayer() {
     const teams = this.teams;
     const isMultiplayer = new Set(teams.map(t => t?.playerId)).size > 1;
 
@@ -182,7 +184,7 @@ serializer.addType({
   schema: {
     type: 'object',
     required: [
-      'id', 'type', 'typeName', 'isFork', 'rated', 'ranked',
+      'id', 'type', 'typeName', 'mode', 'rated',
       'randomFirstTurn', 'randomHitChance', 'timeLimitName', 'startedAt',
       'turnStartedAt', 'endedAt', 'teams', 'createdBy', 'createdAt', 'updatedAt',
     ],
@@ -191,9 +193,8 @@ serializer.addType({
       type: { type:'string' },
       typeName: { type:'string' },
       collection: { type:'string' },
-      isFork: { type:'boolean' },
-      rated: { type:'boolean' },
-      ranked: { type:'boolean' },
+      mode: { type:'string', enum:[ 'Fork', 'Practice', 'Tournament' ] },
+      rated: { type:[ 'boolean', 'null' ] },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
       timeLimitName: { type:[ 'string', 'null' ] },

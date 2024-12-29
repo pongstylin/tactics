@@ -11,6 +11,7 @@ import GameSummary from '#models/GameSummary.js';
 import Team from '#models/Team.js';
 import Player from '#models/Player.js';
 import PlayerStats from '#models/PlayerStats.js';
+import { search, test } from '#utils/jsQuery.js';
 import serializer, { unionType } from '#utils/serializer.js';
 
 // When the server is shut down in the middle of an auto surrender game,
@@ -68,7 +69,8 @@ export default class GameService extends Service {
         tagGame: ['uuid', 'game:tags'],
         forkGame: ['uuid', 'game:forkOptions'],
         cancelGame: ['uuid'],
-        joinGame: `tuple([ 'uuid', 'game:joinTeam' ], 1)`,
+        declineGame: ['uuid'],
+        joinGame: [ 'uuid', 'game:joinTeam' ],
 
         getGameTypes: [],
         getGameTypeConfig: ['string'],
@@ -85,8 +87,8 @@ export default class GameService extends Service {
         clearWLDStats: `tuple([ 'uuid', 'string | null' ], 1)`,
 
         searchGameCollection: ['string', 'any'],
-        searchMyGames: ['any'],
-        getRankedGames: [ 'string', 'uuid | null' ],
+        searchMyGames: [ 'object | array' ],
+        getRatedGames: [ 'string', 'uuid | null' ],
 
         getPlayerSets: ['string'],
         getPlayerSet: ['string', 'string'],
@@ -131,6 +133,7 @@ export default class GameService extends Service {
             'name?': 'string',
             'set?': 'game:setOption',
             'randomSide?': 'boolean',
+            'invite?': 'const(true)',
           },
         ),
         joinTeam: {
@@ -142,15 +145,14 @@ export default class GameService extends Service {
         tags: `dict('string | number | boolean')`,
         options: {
           teams: 'game:newTeam[2] | game:newTeam[4]',
-          'collection?': 'string',
+          'collection?': 'string | null',
           'randomFirstTurn?': 'boolean',
           'randomHitChance?': 'boolean',
-          'strictUndo?': 'boolean',
+          'undoMode?': `enum([ 'strict', 'normal', 'loose' ])`,
           'strictFork?': 'boolean',
           'autoSurrender?': 'boolean',
-          'rated?': 'boolean',
-          'ranked?': 'boolean',
-          'timeLimitName?': `enum([ 'blitz', 'standard', 'pro', 'day', 'week' ])`,
+          'rated?': 'boolean | null',
+          'timeLimitName?': `enum([ null, 'blitz', 'standard', 'pro', 'day', 'week' ])`,
           'tags?': 'game:tags',
         },
         forkOptions: unionType(
@@ -258,7 +260,7 @@ export default class GameService extends Service {
     state.autoCancel.on('expire', async ({ data:items }) => {
       for (const game of await this._getGames(items.keys()))
         if (!game.state.startedAt)
-          game.cancel();
+          game.expire();
     });
 
     if (state.shutdownAt) {
@@ -297,7 +299,7 @@ export default class GameService extends Service {
     state.autoSurrender.pause();
     for (const game of await this._getGames(state.autoCancel.keys()))
       if (!game.state.startedAt)
-        game.cancel();
+        game.expire();
     state.willSync.pause();
     state.shutdownAt = new Date();
 
@@ -435,6 +437,7 @@ export default class GameService extends Service {
       };
       const parent = {
         name: item.name,
+        numActiveGamesPerPlayer: item.numActiveGamesPerPlayer,
         numPendingGamesPerPlayer: item.numPendingGamesPerPlayer,
         parent: item.parent,
       };
@@ -545,34 +548,34 @@ export default class GameService extends Service {
    */
   async onCreateGameRequest(client, gameTypeId, gameOptions) {
     const clientPara = this.clientPara.get(client.id);
-    const playerId = clientPara.playerId;
-    const player = this.playerPara.get(playerId).player;
+    const creatorId = clientPara.playerId;
+    const creator = this.playerPara.get(creatorId).player;
 
     if (gameOptions.collection) {
       await this._validateCreateGameForCollection(gameTypeId, gameOptions);
 
-      if (gameOptions.ranked && !player.isVerified)
-        throw new ServerError(403, 'Guest accounts cannot create ranked games');
-    } else if (gameOptions.ranked)
-      throw new ServerError(403, 'Private games cannot be ranked');
+      if (gameOptions.rated && !creator.isVerified)
+        throw new ServerError(403, 'Guest accounts cannot create rated games');
+    } else if (gameOptions.rated)
+      throw new ServerError(403, 'Private games cannot be rated');
 
-    if (gameOptions.teams.findIndex(t => t?.playerId === playerId && t.set !== undefined) === -1)
+    if (gameOptions.teams.findIndex(t => t?.playerId === creatorId && t.set !== undefined) === -1)
       throw new ServerError(400, 'You must join games that you create');
 
-    const isMultiplayer = gameOptions.teams.findIndex(t => t?.playerId !== playerId) > -1;
-    if (gameOptions.rated && !isMultiplayer)
-      throw new ServerError(400, 'Practice games can\'t be rated');
+    const isMultiplayer = gameOptions.teams.findIndex(t => t?.playerId !== creatorId) > -1;
+    if (!isMultiplayer)
+      if (gameOptions.rated)
+        throw new ServerError(400, 'Practice games can\'t be rated');
+      else
+        gameOptions.rated = false;
 
-    gameOptions.createdBy = playerId;
+    gameOptions.createdBy = creatorId;
     gameOptions.type = gameTypeId;
 
     if (gameOptions.timeLimitName) {
       gameOptions.timeLimit = timeLimit[gameOptions.timeLimitName].clone();
       if (gameOptions.rated && gameOptions.timeLimit.base <= 30)
-        gameOptions.strictUndo = true;
-    } else {
-      if (isMultiplayer)
-        gameOptions.timeLimit = timeLimit.week.clone();
+        gameOptions.undoMode = 'strict';
     }
 
     const game = Game.create({
@@ -587,16 +590,33 @@ export default class GameService extends Service {
       teamData.slot = slot;
 
       if (teamData.playerId) {
-        const player = await this._getAuthPlayer(teamData.playerId);
-        if (!player)
-          throw new ServerError(404, `Team ${slot} has an unrecognized playerId`);
-        if (teamData.name !== undefined && teamData.name !== null)
-          Player.validatePlayerName(teamData.name, player.identity);
+        if (teamData.playerId === creatorId) {
+          if (teamData.name !== undefined && teamData.name !== null)
+            Player.validatePlayerName(teamData.name, creator.identity);
+        } else {
+          const player = await this._getAuthPlayer(teamData.playerId);
+          if (!player)
+            throw new ServerError(404, `Team ${slot} has an unrecognized playerId`);
+          if (teamData.name !== undefined)
+            throw new ServerError(403, 'May not assign a name to a reserved team');
+          teamData.name = player.name;
+
+          if (player.hasBlocked(creator))
+            throw new ServerError(403, 'Sorry!  You are blocked from challenging this player.');
+
+          /*
+           * You can't challenge a blocked player.  But you can downgrade them to muted first.
+           */
+          if (creator.hasBlocked(player, false)) {
+            const relationship = creator.getRelationship(player);
+            creator.mute(player, relationship.name);
+          }
+        }
       } else if (teamData.name !== undefined)
-        throw new ServerError(400, `Team ${slot} playerId field is required a name is present`);
+        throw new ServerError(400, `Team ${slot} playerId field is required if a name is present`);
 
       let team;
-      if (teamData.playerId && teamData.playerId !== playerId)
+      if (teamData.playerId && teamData.playerId !== creatorId)
         team = Team.createReserve(teamData, clientPara);
       else if (teamData.set === undefined && gameType.isCustomizable)
         team = Team.createReserve(teamData, clientPara);
@@ -614,7 +634,7 @@ export default class GameService extends Service {
      * ...unless the player to go first just created the game.
      */
     if (game.state.startedAt)
-      if (game.state.currentTeam.playerId !== playerId)
+      if (game.state.currentTeam.playerId !== creatorId)
         this._notifyYourTurn(game);
 
     return game.id;
@@ -641,7 +661,7 @@ export default class GameService extends Service {
     return newGame.id;
   }
 
-  async onJoinGameRequest(client, gameId, teamData = {}) {
+  async onJoinGameRequest(client, gameId, teamData) {
     this.debug(`joinGame: gameId=${gameId}`);
 
     const clientPara = this.clientPara.get(client.id);
@@ -652,19 +672,26 @@ export default class GameService extends Service {
     const creator = await this._getAuthPlayer(game.createdBy);
 
     if (game.collection) {
-      await this._validateJoinGameForCollection(playerId, this.collections.get(game.collection));
+      const playerIds = new Set(game.state.teams.filter(t => t?.joinedAt).map(t => t.playerId));
+      playerIds.add(playerId);
 
-      if (game.state.ranked) {
-        const { ranked, reason } = await this.data.canPlayRankedGame(game, creator, player);
-        if (!ranked) {
+      await Promise.all([ ...playerIds ].map(pId => this._validateJoinGameForCollection(
+        pId,
+        this.collections.get(game.collection),
+        playerIds.size === game.state.teams.length && gameId,
+      )));
+
+      if (game.state.rated) {
+        const { rated, reason } = await this.data.canPlayRatedGame(game, creator, player);
+        if (!rated) {
           if (reason === 'not verified')
-            throw new ServerError(403, 'Guests cannot join ranked games');
+            throw new ServerError(403, 'Guests cannot join rated games');
           else if (reason === 'same identity')
-            throw new ServerError(403, 'Cannot play yourself in a ranked game');
+            throw new ServerError(403, 'Cannot play yourself in a rated game');
           else if (reason === 'in game')
-            throw new ServerError(403, 'You are already playing this person in a ranked game in this style');
+            throw new ServerError(403, 'You are already playing this person in a rated game in this style');
           else if (reason === 'too many games')
-            throw new ServerError(403, 'You have played this person in a ranked game twice in this style in the past week');
+            throw new ServerError(403, 'You have played this person in a rated game twice in this style in the past week');
         }
       }
     }
@@ -747,14 +774,19 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     const game = await this._getGame(gameId);
     if (clientPara.playerId !== game.createdBy)
-      throw new ServerError(403, 'You cannot cancel other users\' game');
-
-    const gamePara = this.gamePara.get(gameId);
-    if (gamePara)
-      for (const clientId of gamePara.clients.keys())
-        this.onLeaveGameGroup(this.clientPara.get(clientId).client, `/games/${gameId}`, gameId);
+      throw new ServerError(403, `You cannot cancel other players' games`);
 
     game.cancel();
+  }
+  async onDeclineGameRequest(client, gameId) {
+    this.debug(`declineGame: gameId=${gameId}`);
+
+    const clientPara = this.clientPara.get(client.id);
+    const game = await this._getGame(gameId);
+    if (!game.state.getTeamForPlayer(clientPara.playerId))
+      throw new ServerError(403, `You cannot decline other players' games`);
+
+    game.decline();
   }
 
   async onGetGameTypesRequest(client) {
@@ -999,10 +1031,10 @@ export default class GameService extends Service {
 
     return this._searchGameCollection(player, collectionId, query);
   }
-  async onGetRankedGamesRequest(client, rankingId, playerId) {
+  async onGetRatedGamesRequest(client, rankingId, playerId) {
     const gamesSummary = playerId
-      ? await this.data.getPlayerRankedGames(playerId, rankingId)
-      : await this.data.getRankedGames(rankingId);
+      ? await this.data.getPlayerRatedGames(playerId, rankingId)
+      : await this.data.getRatedGames(rankingId);
 
     return Promise.all(Array.from(gamesSummary.entries()).map(([ i, gs ]) => this._cloneGameSummaryWithMeta(gs)))
   }
@@ -1022,7 +1054,7 @@ export default class GameService extends Service {
   }
   onLeaveGroup(client, groupPath) {
     if (groupPath.startsWith('/games/'))
-      return this.onLeaveGameGroup(client, groupPath, groupPath.slice(7));
+      return this.onLeaveGameGroup(client, groupPath, groupPath.slice(7), 'request');
     else if (groupPath.startsWith('/myGames/'))
       return this.onLeaveMyGamesGroup(client, groupPath, groupPath.slice(9));
     else if (groupPath === '/collections' || groupPath.startsWith('/collections/'))
@@ -1127,7 +1159,7 @@ export default class GameService extends Service {
 
     if (!playerPara.myGames) {
       const myGames = playerPara.myGames = {
-        clientIds: new Set(),
+        clientsInfo: new Set(),
       };
       const playerGames = await this.data.openPlayerGames(playerId);
       const stats = myGames.stats = await this._getGameSummaryListStats(playerGames);
@@ -1143,6 +1175,7 @@ export default class GameService extends Service {
       playerGames.on('change', myGames.changeListener = async event => {
         const gameSummary = await this._cloneGameSummaryWithMeta(event.data.gameSummary ?? event.data.oldSummary, player);
 
+console.log(groupPath, event.type, (event.data.gameSummary ?? event.data.oldSummary).id, +new Date());
         if (event.type === 'change:set') {
           if (event.data.oldSummary)
             emit({ type:'change', data:gameSummary });
@@ -1158,7 +1191,7 @@ export default class GameService extends Service {
     }
 
     const myGames = playerPara.myGames;
-    myGames.clientIds.add(client.id);
+    myGames.clientsInfo.add(client.id);
 
     const response = {
       stats: myGames.stats,
@@ -1208,23 +1241,66 @@ export default class GameService extends Service {
     for (const collection of collections) {
       if (!this.collectionPara.has(collection.id)) {
         const collectionGroup = `/collections/${collection.id}`;
-        const emit = event => this._emit({
-          type: 'event',
-          body: {
-            group: collectionGroup,
-            type: event.type,
-            data: event.data,
-          },
-        });
         const changeListener = event => {
-          this._emitCollectionChange(collectionGroup, collection, event);
-          this._emitCollectionStats(collectionGroup, collection);
+          const collectionPara = this.collectionPara.get(collection.id);
+          const gameSummary = event.data.gameSummary ?? event.data.oldSummary;
+console.log(collectionGroup, event.type, gameSummary.id, +new Date());
+          const gameSummaryByPlayer = new Map();
+
+          Promise.all(Array.from(collectionPara.clientsInfo).map(async ([ clientId, clientInfo ]) => {
+            const player = this.clientPara.get(clientId).player;
+
+            // A game can move from not visible to visible if a blocked game moved from waiting to active.
+            const wasVisible = await this._isGameVisible(event.data.oldSummary, player, clientInfo.filters);
+            const isVisible = await this._isGameVisible(event.data.gameSummary, player, clientInfo.filters);
+            const eventType = (
+              !wasVisible && !isVisible ? 'none' :
+              !wasVisible && isVisible ? 'add' :
+              wasVisible && !isVisible ? 'remove' :
+              'change'
+            );
+            if (eventType === 'none')
+              return;
+
+            if (!gameSummaryByPlayer.has(player))
+              gameSummaryByPlayer.set(player, await this._cloneGameSummaryWithMeta(gameSummary, player));
+
+            this._emit({
+              type: 'event',
+              clientId,
+              body: {
+                group: collectionGroup,
+                type: eventType,
+                data: gameSummaryByPlayer.get(player),
+              },
+            });
+
+            const stats = collectionPara.stats.get(player);
+
+            if (!this._adjustGameSummaryListStats(stats, eventType, event.data.gameSummary, event.data.oldSummary))
+              return;
+
+            const parts = collectionGroup.split('/');
+            for (let i = 1; i < parts.length; i++) {
+              const group = parts.slice(0, i + 1).join('/');
+
+              this._emit({
+                type: 'event',
+                clientId,
+                body: {
+                  group,
+                  type: 'stats',
+                  data: { collectionId:collection.id, stats },
+                },
+              });
+            }
+          }));
         };
 
         collection.on('change', changeListener);
 
         this.collectionPara.set(collection.id, {
-          clientIds: new Map(),
+          clientsInfo: new Map(),
           stats: new Map(),
           changeListener,
         });
@@ -1232,15 +1308,23 @@ export default class GameService extends Service {
 
       const collectionPara = this.collectionPara.get(collection.id);
 
-      const clientIds = collectionPara.clientIds;
-      if (clientIds.has(client.id))
-        clientIds.set(client.id, clientIds.get(client.id) + 1);
-      else
-        clientIds.set(client.id, 1);
+      const clientsInfo = collectionPara.clientsInfo;
+      if (!clientsInfo.has(client.id))
+        clientsInfo.set(client.id, { joinCount:0, filters:[] });
+      const clientInfo = clientsInfo.get(client.id);
+      clientInfo.joinCount++;
+
+      if (params.query)
+        if (Array.isArray(params.query))
+          clientInfo.filters.push(params.query.map(q => q.filter));
+        else
+          clientInfo.filters.push(params.query.filter);
+      else if (params.filter)
+        clientInfo.filters.push(params.filter);
 
       const stats = collectionPara.stats;
       if (!stats.has(player))
-        stats.set(player, await this._getGameSummaryListStats(collection, player));
+        stats.set(player, await this._getGameSummaryListStats(collection, player, clientInfo.filters));
     }
 
     clientPara.joinedGroups.add(groupPath);
@@ -1253,9 +1337,8 @@ export default class GameService extends Service {
         throw new ServerError(400, 'Can not query collection stats');
 
     response.stats = new Map();
-    for (const cId of collectionIds) {
+    for (const cId of collectionIds)
       response.stats.set(cId, this.collectionPara.get(cId).stats.get(player));
-    }
 
     this._emit({
       type: 'joinGroup',
@@ -1282,8 +1365,8 @@ export default class GameService extends Service {
       await this._recordGameStats(game);
     return game;
   }
-  async _getGames(gameId) {
-    const games = await this.data.getGames(gameId);
+  async _getGames(gameIds) {
+    const games = await this.data.getGames(gameIds);
     games.forEach(g => this._attachGame(g));
     return games;
   }
@@ -1328,11 +1411,14 @@ export default class GameService extends Service {
       const creator = await this._getAuthPlayer(data.createdBy);
       meta.creatorACL = player.getRelationship(creator);
 
-      if (data.collection && data.rated) {
-        promises.push(this.data.canPlayRankedGame(game, creator, player).then(({ ranked, reason }) => {
-          meta.ranked = ranked;
-          meta.unrankedReason = reason;
+      if (data.rated !== false)
+        promises.push(this.data.canPlayRatedGame(game, creator, player).then(({ rated, reason }) => {
+          meta.rated = rated;
+          meta.unratedReason = reason;
         }));
+      else {
+        meta.rated = false;
+        meta.unratedReason = 'not rated';
       }
     }
 
@@ -1391,6 +1477,12 @@ export default class GameService extends Service {
       state.willSync.delete(game.id);
     });
     game.on('delete', event => {
+      const reason = event.type.slice(7);
+      const gamePara = this.gamePara.get(game.id);
+      if (gamePara)
+        for (const clientId of gamePara.clients.keys())
+          this.onLeaveGameGroup(this.clientPara.get(clientId).client, `/games/${game.id}`, game.id, reason);
+
       this.data.deleteGame(game);
     });
   }
@@ -1466,10 +1558,9 @@ export default class GameService extends Service {
      */
     if (collection.gameOptions) {
       if (collection.gameOptions.defaults)
-        for (const key of Object.keys(collection.gameOptions.defaults)) {
-          if (gameOptions[key] === undefined)
+        for (const key of Object.keys(collection.gameOptions.defaults))
+          if (gameOptions[key] === undefined || gameOptions[key] === null)
             gameOptions[key] = collection.gameOptions.defaults[key];
-        }
 
       try {
         collection.gameOptions.validate?.(gameOptions);
@@ -1486,59 +1577,137 @@ export default class GameService extends Service {
       }
     }
 
-    const playerIds = new Set(gameOptions.teams.filter(t => t?.playerId).map(t => t.playerId));
+    // For now, the presence of a set in a team indicates that the team has been "joined".
+    // But when rematch games are supported, we might want to explicitly indicate a team
+    // is simply "reserved" for a given playerId or otherwise indicate that the player for
+    // a team is "ready".
+    const playerIds = new Set(gameOptions.teams.filter(t => t?.set).map(t => t.playerId));
     await Promise.all([...playerIds].map(pId => this._validateJoinGameForCollection(pId, collection)));
   }
-  async _validateJoinGameForCollection(playerId, collection) {
-    const collectionGroups = this.collectionGroups;
-
-    /*
-     * Validate game limits
-     */
+  /*
+   * Enforce collection limits
+   */
+  async _validateJoinGameForCollection(playerId, collection, startGameId = false) {
     let node = collection;
     while (node) {
-      if (node.numPendingGamesPerPlayer) {
-        const gameCollections = await Promise.all(
-          collectionGroups.get(node.name).map(cId => this.data.getGameCollection(cId))
-        );
+      if (node.numActiveGamesPerPlayer) {
+        const gamesSummary = await this.data.getPlayerPendingGamesInCollection(playerId, node.name);
 
+        const waitingGameIds = [];
         let count = 0;
-        for (const gameCollection of gameCollections) {
-          for (const gameSummary of gameCollection.values()) {
-            if (gameSummary.endedAt)
-              continue;
-            if (gameSummary.teams.findIndex(t => t?.playerId === playerId) === -1)
-              continue;
-
-            count++;
-            if (count === node.numPendingGamesPerPlayer)
-              throw new ServerError(409, 'Too many pending games for this collection');
+        for (const gameSummary of gamesSummary) {
+          // Waiting games do not count against the limit
+          // ... but we'll collect them just in case they need to be cancelled.
+          if (!gameSummary.startedAt) {
+            if (gameSummary.id !== startGameId)
+              waitingGameIds.push(gameSummary.id);
+            continue;
           }
+
+          if (++count === node.numActiveGamesPerPlayer)
+            throw new ServerError(409, `Too many active ${node.name} games.`);
+        }
+
+        if ((count + 1) === node.numActiveGamesPerPlayer && waitingGameIds.length && startGameId) {
+          const games = await this._getGames(waitingGameIds);
+          games.forEach(g => g.cancel());
+        }
+      }
+
+      if (node.numPendingGamesPerPlayer) {
+        const gamesSummary = await this.data.getPlayerPendingGamesInCollection(playerId, node.name);
+
+        const waitingGameIds = [];
+        let count = 0;
+        for (const gameSummary of gamesSummary) {
+          // Waiting games will not count against the limit because they will be cancelled.
+          if (!gameSummary.startedAt) {
+            if (gameSummary.id !== startGameId)
+              waitingGameIds.push(gameSummary.id);
+            continue;
+          }
+
+          if (++count === node.numPendingGamesPerPlayer)
+            throw new ServerError(409, `Too many open or active ${node.name} games.`);
+        }
+
+        if ((count + 1) === node.numPendingGamesPerPlayer && waitingGameIds.length) {
+          const games = await this._getGames(waitingGameIds);
+          games.forEach(g => g.cancel());
         }
       }
 
       node = node.parent;
     }
   }
-  async _getGameSummaryListStats(collection, player = null) {
-    const stats = { waiting: 0, active: 0 };
+  async _isGameVisible(gameSummary, player = null, filters = null) {
+    if (!gameSummary)
+      return false;
+
+    /*
+     * Determine visibility of the game.
+     * Assuming that a game CAN'T change in a way that changes its visibility.
+     */
+    if (!gameSummary.startedAt && player && gameSummary.createdBy !== player.id) {
+      const creator = await this._getAuthPlayer(gameSummary.createdBy);
+      if (creator.hasBlocked(player, false))
+        return false;
+    }
+    if (filters && filters.length && !filters.some(f => test(gameSummary, f)))
+      return false;
+
+    return true;
+  }
+  async _getGameSummaryListStats(collection, player = null, filters = null) {
+    const stats = { waiting:0, active:0 };
 
     for (const gameSummary of collection.values()) {
-      if (!gameSummary.startedAt) {
-        if (player) {
-          if (gameSummary.createdBy === player.id)
-            continue;
+      if (gameSummary.endedAt)
+        continue;
 
-          const creator = await this._getAuthPlayer(gameSummary.createdBy);
-          if (creator.hasBlocked(player, false))
-            continue;
-        }
+      if (!await this._isGameVisible(gameSummary, player, filters))
+        continue;
+
+      if (!gameSummary.startedAt)
         stats.waiting++;
-      } else if (!gameSummary.endedAt)
+      else if (!gameSummary.endedAt)
         stats.active++;
     }
 
     return stats;
+  }
+  _adjustGameSummaryListStats(stats, eventType, gameSummary, oldSummary = null) {
+    if (eventType === 'add') {
+      if (!gameSummary.startedAt)
+        stats.waiting++;
+      else if (!gameSummary.endedAt)
+        stats.active++;
+      else
+        return false;
+    } else if (eventType === 'change') {
+      // If not currently started and not previously started, 1 - 1 = 0 (no change)
+      // If not currently started and was previuusly started, 1 - 0 = 1 (add, never happens)
+      // If currently started and not previously started, 0 - 1 = -1 (sub, game started)
+      // If currently started and previously started, 0 + 0 = 0 (no change)
+      const waitingChange = (!gameSummary.startedAt ? 1 : 0) + (!oldSummary.startedAt ? -1 : 0);
+      const activeChange = (
+        (gameSummary.startedAt && !gameSummary.endedAt ? 1 : 0) +
+        (oldSummary.startedAt && !oldSummary.endedAt ? -1 : 0)
+      );
+      if (waitingChange === 0 && activeChange === 0)
+        return false;
+      stats.waiting += waitingChange;
+      stats.active += activeChange;
+    } else {
+      if (!oldSummary.startedAt)
+        stats.waiting--;
+      else if (!oldSummary.endedAt)
+        stats.active--;
+      else
+        return false;
+    }
+
+    return true;
   }
   _emitGameSync(game) {
     const gamePara = this.gamePara.get(game.id);
@@ -1556,61 +1725,12 @@ export default class GameService extends Service {
       gamePara.emit({ clientId, type: 'sync', data: sync });
     }
   }
-  async _emitCollectionChange(collectionGroup, collection, event) {
-    const collectionPara = this.collectionPara.get(collection.id);
-    const gameSummary = event.data.gameSummary ?? event.data.oldSummary;
-    const eventType = event.type === 'change:delete'
-      ? 'remove'
-      : event.data.oldSummary ? 'change' : 'add';
-    const emitChange = async player => this._emit({
-      type: 'event',
-      userId: player.id,
-      body: {
-        group: collectionGroup,
-        type: eventType,
-        data: await this._cloneGameSummaryWithMeta(gameSummary, player),
-      },
-    });
-
-    for (const player of collectionPara.stats.keys())
-      emitChange(player);
-  }
-  /*
-   * When a given collection changes, report stats changes, if any.
-   */
-  async _emitCollectionStats(collectionGroup, collection) {
-    const collectionPara = this.collectionPara.get(collection.id);
-    const emitStats = (userId, group, data) => this._emit({
-      type: 'event',
-      userId,
-      body: {
-        group,
-        type: 'stats',
-        data,
-      },
-    });
-
-    for (const [player, oldStats] of collectionPara.stats) {
-      const stats = await this._getGameSummaryListStats(collection, player);
-      if (stats.waiting === oldStats.waiting && stats.active === oldStats.active)
-        continue;
-
-      collectionPara.stats.set(player, stats);
-
-      const parts = collectionGroup.split('/');
-      for (let i = 1; i < parts.length; i++) {
-        const group = parts.slice(0, i + 1).join('/');
-
-        emitStats(player.id, group, { collectionId: collection.id, stats });
-      }
-    }
-  }
 
   /*
    * No longer send change events to the client about this game.
    * Only called internally since the client does not yet leave intentionally.
    */
-  onLeaveGameGroup(client, groupPath, gameId) {
+  onLeaveGameGroup(client, groupPath, gameId, reason) {
     const game = this.data.closeGame(gameId);
 
     const clientPara = this.clientPara.get(client.id);
@@ -1665,6 +1785,7 @@ export default class GameService extends Service {
           id: playerId,
           name: clientPara.name,
         },
+        reason,
       },
     });
   }
@@ -1673,9 +1794,9 @@ export default class GameService extends Service {
     const playerPara = this.playerPara.get(playerId);
     const myGames = playerPara.myGames;
 
-    myGames.clientIds.delete(client.id);
+    myGames.clientsInfo.delete(client.id);
 
-    if (myGames.clientIds.size === 0) {
+    if (myGames.clientsInfo.size === 0) {
       const playerGames = this.data.closePlayerGames(playerId);
 
       playerGames.off('change', myGames.changeListener);
@@ -1713,17 +1834,21 @@ export default class GameService extends Service {
 
     for (const collection of collections) {
       const collectionPara = this.collectionPara.get(collection.id);
-      const clientIds = collectionPara.clientIds;
-      const joinCount = clientIds.get(client.id);
-      if (joinCount > 1)
-        clientIds.set(client.id, joinCount - 1);
+      const clientsInfo = collectionPara.clientsInfo;
+      const clientInfo = clientsInfo.get(client.id);
+      if (clientInfo.joinCount > 1)
+        clientInfo.joinCount--;
       else {
-        clientIds.delete(client.id);
+        clientsInfo.delete(client.id);
 
-        if (clientIds.size === 0) {
+        if (clientsInfo.size === 0) {
           collection.off('change', collectionPara.changeListener);
 
           this.collectionPara.delete(collection.id);
+        } else {
+          const playerExists = Array.from(clientsInfo.keys()).some(cId => this.clientPara.get(cId).player === clientPara.player);
+          if (!playerExists)
+            collectionPara.stats.delete(clientPara.player);
         }
       }
     }
@@ -1799,19 +1924,26 @@ export default class GameService extends Service {
   }
   async _searchPlayerGames(player, query) {
     const result = await this.data.searchPlayerGames(player, query);
-    return this._applyMetaToSearchResult(player, result);
+    return this._applyMetaToSearchResult(player, query, result);
   }
   async _searchGameCollection(player, collectionId, query) {
     const result = await this.data.searchGameCollection(player, collectionId, query, this._getAuthPlayer.bind(this));
-    return this._applyMetaToSearchResult(player, result);
+    return this._applyMetaToSearchResult(player, query, result);
   }
-  async _applyMetaToSearchResult(player, result) {
+  async _applyMetaToSearchResult(player, query, result) {
     const results = Array.isArray(result) ? result : [ result ];
 
-    await Promise.all(results.map(r =>
-      Promise.all(Array.from(r.hits.entries()).map(([ i, gs ]) => this._cloneGameSummaryWithMeta(gs, player)))
-        .then(hits => r.hits = hits)
-    ));
+    await Promise.all(results.map(async result => {
+      result.hits = await Promise.all(result.hits.map(gs => this._cloneGameSummaryWithMeta(gs, player)));
+
+      if (result.hits.length && query.metaFilter) {
+        const metaResult = search(result.hits, Object.assign({}, query, {
+          filter: query.metaFilter,
+        }));
+        result.count = metaResult.count;
+        result.hits = metaResult.hits;
+      } 
+    }));
 
     return result;
   }
@@ -1854,7 +1986,7 @@ export default class GameService extends Service {
     } else if (typeof team.set === 'string') {
       const set = this.data.getOpenPlayerSet(team.playerId, gameType, team.set);
       if (set === null)
-        throw new ServerError(412, 'Sorry!  Looks like the selected set no longer exists.');
+        throw new ServerError(412, 'Sorry!  Looks like the set no longer exists.');
       team.set = { units:JSON.clone(set.units) };
     }
   }
@@ -1868,11 +2000,11 @@ export default class GameService extends Service {
     if (teams.findIndex(t => !t?.joinedAt) === -1) {
       const playerIds = new Set(teams.map(t => t.playerId));
       if (playerIds.size > 1) {
-        if (game.state.rated && !game.state.ranked) {
+        if (game.state.rated === null) {
           const players = await Promise.all([ ...playerIds ].map(pId => this._getAuthPlayer(pId)));
-          const { ranked, reason } = await this.data.canPlayRankedGame(game, ...players);
-          game.state.ranked = ranked;
-          game.state.unrankedReason = reason;
+          const { rated, reason } = await this.data.canPlayRatedGame(game, ...players);
+          game.state.rated = rated;
+          game.state.unratedReason = reason;
         }
 
         await this.chat.createRoom(

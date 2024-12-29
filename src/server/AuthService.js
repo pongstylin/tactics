@@ -57,8 +57,8 @@ export default class AuthService extends Service {
         setRelationship: [ 'uuid', 'auth:relationship' ],
         clearRelationship: [ 'uuid' ],
 
-        queryRankedPlayers: [ 'string' ],
-        getRankedPlayers: [ 'uuid[]' ],
+        queryRatedPlayers: [ 'string' ],
+        getRatedPlayers: [ 'uuid[]' ],
 
         getRankings: [],
         getRanks: [ 'string' ],
@@ -93,9 +93,6 @@ export default class AuthService extends Service {
   }
   unlinkAuthProvider(provider, userId) {
     return this.data.unlinkAuthProvider(provider, userId);
-  }
-  isRanked(playerIds) {
-    return this.data.isRanked(playerIds);
   }
   getPlayerRanks(playerIds, rankingIds) {
     return this.data.getPlayerRanks(playerIds, rankingIds);
@@ -606,17 +603,18 @@ export default class AuthService extends Service {
     playerA.clearRelationship(playerB);
   }
 
-  async onQueryRankedPlayersRequest(client, query) {
+  async onQueryRatedPlayersRequest(client, query) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    return this.data.queryRankedPlayers(query);
+console.log('test', this.clientPara.get(client.id).playerId);
+    return this.data.queryRatedPlayers(query, this.clientPara.get(client.id).playerId);
   }
-  async onGetRankedPlayersRequest(client, playerIds) {
+  async onGetRatedPlayersRequest(client, playerIds) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    return this.data.getRankedPlayers(playerIds);
+    return this.data.getRatedPlayers(playerIds, this.clientPara.get(client.id).playerId);
   }
 
   async onGetRankingsRequest(client) {

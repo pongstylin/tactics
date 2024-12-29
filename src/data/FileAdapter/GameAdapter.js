@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import util from 'util';
 
 import migrate, { getLatestVersionNumber } from '#data/migrate.js';
+import { search } from '#utils/jsQuery.js';
 import serializer from '#utils/serializer.js';
 import FileAdapter from '#data/FileAdapter.js';
 
@@ -78,7 +79,6 @@ export default class extends FileAdapter {
 
   async cleanup() {
     while (this._dirtyGames.size) {
-      console.log('waiting on dirty games');
       await Promise.all(Array.from(this._dirtyGames.values()));
     }
 
@@ -267,7 +267,7 @@ export default class extends FileAdapter {
     const playerGames = await this._getPlayerGames(player.id);
     const data = [ ...playerGames.values() ];
 
-    return this._search(data, query);
+    return search(data, query);
   }
   async searchGameCollection(player, group, query, getPlayer) {
     const collection = await this._getGameCollection(group);
@@ -283,24 +283,41 @@ export default class extends FileAdapter {
         data.push(gameSummary);
     }
 
-    return this._search(data, query);
+    return search(data, query);
   }
-  async getRankedGames(rankingId) {
-    const gamesSummary = await this._getGameCollection(`ranked/${rankingId}`);
+  async getRatedGames(rankingId) {
+    const gamesSummary = await this._getGameCollection(`rated/${rankingId}`);
     const results = Array.from(gamesSummary.values());
 
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
+  }
+  async getPlayerPendingGamesInCollection(playerId, collection) {
+    const gamesSummary = await this._getPlayerGames(playerId);
+    const results = [];
+
+    for (const gameSummary of gamesSummary.values()) {
+      if (gameSummary.endedAt)
+        continue;
+      if (gameSummary.createdBy !== playerId)
+        continue;
+      if (!gameSummary.collection?.startsWith(collection))
+        continue;
+
+      results.push(gameSummary);
+    }
+
+    return results;
   }
   /*
    * Get games completed by a player that are viewable by other players.
    * Not expected to exceed 50 games.
    */
-  async getPlayerRankedGames(playerId, rankingId) {
+  async getPlayerRatedGames(playerId, rankingId) {
     const gamesSummary = await this._getPlayerGames(playerId);
     const results = [];
 
     for (const gameSummary of gamesSummary.values()) {
-      if (!gameSummary.endedAt || !gameSummary.ranked)
+      if (!gameSummary.endedAt || !gameSummary.rated)
         continue;
       if (![ 'FORTE', gameSummary.type ].includes(rankingId))
         continue;
@@ -352,20 +369,20 @@ export default class extends FileAdapter {
   /*
    * game can be either a Game or GameSummary object.
    */
-  async canPlayRankedGame(game, player, opponent) {
+  async canPlayRatedGame(game, player, opponent) {
     if (!game.collection)
-      return { ranked:false, reason:'private' };
+      return { rated:false, reason:'private' };
 
     // Both players must be verified
     if (!player.isVerified || !opponent.isVerified)
-      return { ranked:false, reason:'not verified' };
+      return { rated:false, reason:'not verified' };
 
-    // Can't play a ranked game against yourself
+    // Can't play a rated game against yourself
     if (player.identityId === opponent.identityId)
-      return { ranked:false, reason:'same identity' };
+      return { rated:false, reason:'same identity' };
 
     /*
-     * Max of 2 ranked games per week between 2 players.
+     * Max of 2 rated games per week between 2 players.
      */
     const playerGames = await this._getPlayerGames(player.id);
     const since = Date.now() - 7 * 24 * 60 * 60 * 1000; // 1 week ago, in milliseconds
@@ -375,8 +392,8 @@ export default class extends FileAdapter {
 
     // Check this player's games to see if there is too much history with their opponent in too short a time
     for (const gameSummary of playerGames.values()) {
-      // Unranked games don't affect ranking
-      if (!gameSummary.ranked)
+      // Unrated games don't affect ranking
+      if (!gameSummary.rated)
         continue;
 
       // Different styles have different rankings
@@ -385,11 +402,11 @@ export default class extends FileAdapter {
       if (game instanceof GameSummary && gameSummary.type !== game.type)
         continue;
 
-      // Open games don't prevent playing more ranked games
+      // Open games don't prevent playing more rated games
       if (!gameSummary.startedAt)
         continue;
 
-      // Old games don't prevent playing more ranked games
+      // Old games don't prevent playing more rated games
       if (gameSummary.startedAt < since)
         continue;
 
@@ -398,13 +415,13 @@ export default class extends FileAdapter {
         continue;
 
       if (!gameSummary.endedAt)
-        return { ranked:false, reason:'in game' };
+        return { rated:false, reason:'in game' };
 
       if (--n === 0)
-        return { ranked:false, reason:'too many games' };
+        return { rated:false, reason:'too many games' };
     }
 
-    return { ranked:true };
+    return { rated:true };
   }
 
   /*****************************************************************************
@@ -495,7 +512,7 @@ export default class extends FileAdapter {
       );
     }
 
-    if (game.collection)
+    if (game.collection && !game.isReserved)
       promises.push(
         this._getGameCollection(game.collection).then(collection => {
           this.cache.get('collection').add(collection.id, collection);
@@ -512,17 +529,17 @@ export default class extends FileAdapter {
         }),
       );
 
-    if (game.state.ranked && game.state.endedAt)
+    if (game.state.rated && game.state.endedAt)
       promises.push(
-        this._getGameCollection(`ranked/FORTE`).then(rankedGames => {
-          this.cache.get('collection').add(rankedGames.id, rankedGames);
+        this._getGameCollection(`rated/FORTE`).then(ratedGames => {
+          this.cache.get('collection').add(ratedGames.id, ratedGames);
 
-          return rankedGames;
+          return ratedGames;
         }),
-        this._getGameCollection(`ranked/${game.state.type}`).then(rankedGames => {
-          this.cache.get('collection').add(rankedGames.id, rankedGames);
+        this._getGameCollection(`rated/${game.state.type}`).then(ratedGames => {
+          this.cache.get('collection').add(ratedGames.id, ratedGames);
 
-          return rankedGames;
+          return ratedGames;
         }),
       );
 
@@ -597,7 +614,7 @@ export default class extends FileAdapter {
   /*
    * Prune completed games to 50 most recently ended per sub group.
    * Collections only have one completed group.
-   * Player game lists have one group per style among potentially ranked games.
+   * Player game lists have one group per style among potentially rated games.
    * Player game lists have one group for unrated and private games.
    * Prune active games with expired time limits (collections only).
    */
@@ -624,7 +641,7 @@ export default class extends FileAdapter {
         if (!gameSummary.endedAt)
           continue;
 
-        if (gameSummary.ranked) {
+        if (gameSummary.rated) {
           if (groups.has(gameSummary.type))
             groups.get(gameSummary.type).push(gameSummary);
           else
@@ -845,7 +862,7 @@ export default class extends FileAdapter {
           continue;
         if (!game.state.startedAt)
           continue;
-        if (game.state.isPracticeGame)
+        if (game.state.isSinglePlayer)
           continue;
 
         gameIndex.set(game.id, {
@@ -853,7 +870,6 @@ export default class extends FileAdapter {
           endedAt: game.state.endedAt,
           type: game.state.type,
           rated: game.state.rated,
-          ranked: game.state.ranked,
           winnerId: game.state.winnerId,
           teams: game.state.teams.map(t => ({
             playerId: t.playerId,

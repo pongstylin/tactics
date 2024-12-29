@@ -113,10 +113,10 @@ export default class Identity extends ActiveModel {
     return this.data.admin;
   }
   get ttl() {
-    return this.data.lastSeenAt.getTime() + 30 * 86400 * 1000 - Date.now();
+    return this.data.lastSeenAt.getTime() + 36 * 30 * 86400 * 1000 - Date.now();
   }
   get expireAt() {
-    return new Date(this.data.lastSeenAt.getTime() + 30 * 86400 * 1000);
+    return new Date(this.data.lastSeenAt.getTime() + 36 * 30 * 86400 * 1000);
   }
 
   get needsIndex() {
@@ -127,8 +127,17 @@ export default class Identity extends ActiveModel {
 
     return true;
   }
-  get rankedPlayerId() {
-    return this.data.ranks?.playerId ?? null;
+  get ratedPlayerId() {
+    // Only verified players are rated
+    if (this.name === null)
+      return null;
+
+    if (this.data.ranks)
+      return this.data.ranks.playerId;
+    else if (this.data.playerIds.size === 1)
+      return [ ...this.data.playerIds ][0];
+
+    return null;
   }
 
   getRanks(rankingIds) {

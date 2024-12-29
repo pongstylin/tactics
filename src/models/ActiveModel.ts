@@ -50,11 +50,12 @@ abstract class ActiveModel {
     if (typeof event === 'string')
       event = { type:event };
 
+    // Get a local ref to the emitter just in case one of the listeners destroys this model.
+    const emitter = this.emitter;
     const parts = event.type.split(':');
 
-    for (let i = 1; i <= parts.length; i++) {
-      this.emitter.emit(parts.slice(0, i).join(':'), event);
-    }
+    for (let i = 1; i <= parts.length; i++)
+      emitter.emit(parts.slice(0, i).join(':'), event);
   }
 
   toJSON() {

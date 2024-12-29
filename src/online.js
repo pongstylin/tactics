@@ -1,8 +1,7 @@
 import { CLOSE_CLIENT_LOGOUT } from 'client/ServerSocket.js';
 import config from 'config/client.js';
-import Autosave from 'components/Autosave.js';
 import copy from 'components/copy.js';
-import LobbySettingsModal from 'components/Modal/LobbySettings.js';
+import ConfigureGameModal from 'components/Modal/ConfigureGame.js';
 import Setup from 'components/Setup.js';
 import ScrollButton from 'components/ScrollButton.js';
 import share from 'components/share.js';
@@ -28,7 +27,7 @@ const groups = new Map([
 ]);
 
 let myPlayerId = null;
-let settings = null;
+let configureGame = null;
 
 const state = {
   /*
@@ -38,17 +37,6 @@ const state = {
    * will be set to true or a promise that will resolve once audio is enabled.
    */
   whenAudioEnabled: false,
-  /*
-   * This is set to a game ID when you create a lobby game.  Once the game
-   * starts, you will automatically redirect to the game.
-   *
-   * This is set to `true` and you are shown a popup if you have an active lobby
-   * game.  The true value prevents additional popups or redirects.
-   *
-   * This is set to `false` if you select ignore in the popup.  The false value
-   * also prevents additional popups or redirects.
-   */
-  activeGameId: null,
   styles: null,
   // Indicates the currently selected tab
   currentTab: null,
@@ -69,6 +57,8 @@ const state = {
       isLoading: false,
     },
     lobby: {
+      // This is set to your active lobby game ID, if any.
+      activeGameId: null,
       // Indicates we should do a dramatic open of the lobby
       firstOpen: true,
       // The tab can be open, but not synced (spinner is shown)
@@ -81,6 +71,7 @@ const state = {
       selectedStyleId: null,
       selectedGroupId: 'lobby',
       sets: null,
+      view: { gameTypeId:null, arenas:new Array(14).fill(null) },
     },
     publicGames: {
       isOpen: false,
@@ -91,7 +82,6 @@ const state = {
     rankings: {
     },
   },
-  settings: null,
   avatars: new Map(),
 };
 const routes = new Map([
@@ -102,17 +92,17 @@ const routes = new Map([
         const favorites = config.getItem('favoritePlayers', {});
         const friendIds = Array.from(relationships).filter(r => r[1].type === 'friended').map(r => r[0]);
         const playerIds = new Set([ ...Object.keys(favorites), ...friendIds ]);
-        const rankedPlayers = await authClient.getRankedPlayers(playerIds);
+        const ratedPlayers = await authClient.getRatedPlayers([ ...playerIds ]);
         const favoritePlayers = new Map();
 
         for (const [ favoriteId, include ] of Object.entries(favorites)) {
           // A favorite can disappear if the player went inactive for 30 days.
-          if (!rankedPlayers.has(favoriteId)) {
+          if (!ratedPlayers.has(favoriteId)) {
             delete favorites[favoriteId];
             continue;
           }
 
-          const newIdentityId = rankedPlayers.get(favoriteId).identityId;
+          const newIdentityId = ratedPlayers.get(favoriteId).identityId;
           if (favoriteId !== newIdentityId) {
             // Just in case the new identity id is already present, give `true` precedence.
             favorites[newIdentityId] ||= favorites[favoriteId];
@@ -120,7 +110,7 @@ const routes = new Map([
           }
         }
 
-        for (const [ favoriteId, player ] of rankedPlayers) {
+        for (const [ favoriteId, player ] of ratedPlayers) {
           // New friends can be new favorites.
           favorites[player.identityId] ??= true;
 
@@ -146,7 +136,7 @@ const routes = new Map([
     route: () => renderRankingSummary(p.rankingId),
     data: Promise.all([
       authClient.getTopRanks(p.rankingId).then(tr => tr.get(p.rankingId) ?? []),
-      gameClient.getRankedGames(p.rankingId),
+      gameClient.getRatedGames(p.rankingId),
     ]),
   }) ],
   [ '#rankings/:rankingId/all', p => ({
@@ -157,7 +147,7 @@ const routes = new Map([
     route: () => renderPlayerRankingSummary(p.rankingId, p.playerId),
     data: Promise.all([
       authClient.getPlayerRanks(p.playerId),
-      gameClient.getRankedGames(p.rankingId, p.playerId),
+      gameClient.getRatedGames(p.rankingId, p.playerId),
     ]),
   }) ],
   [ '#rankings/**', p => ({
@@ -287,12 +277,15 @@ whenDOMReady.then(() => {
     if (await authClient.requireAuth())
       history.replaceState(null, null, '#lobby');
 
-    settings = new LobbySettingsModal({
+    configureGame = new ConfigureGameModal({
       autoShow: false,
       hideOnCancel: true,
-    }).on('settings', event => {
-      state.settings = event.data;
     });
+  });
+
+  document.querySelector('.page > HEADER A').addEventListener('click', async event => {
+    await configureGame.setGameType(null);
+    configureGame.show('createGame');
   });
 
   const page = document.querySelector('.page');
@@ -368,7 +361,7 @@ whenDOMReady.then(() => {
   };
   const gameClickHandler = async event => {
     const divArenaShape = event.target.closest('.arena-shape');
-    if (divArenaShape) {
+    if (divArenaShape && !divArenaShape.parentNode.classList.contains('disabled')) {
       avatars.getSound('select').howl.play();
 
       selectArena(event);
@@ -388,6 +381,23 @@ whenDOMReady.then(() => {
     }
 
     const link = `game.html?${gameId}`;
+
+    const aDecline = event.target.closest('.decline A');
+    if (aDecline) {
+      popup({
+        message: 'Please confirm that you want to decline this game.',
+        buttons: [
+          {
+            label:'Yes',
+            onClick: () => declineGame(gameId),
+          },
+          {
+            label: 'No',
+          },
+        ],
+        maxWidth: '250px',
+      });
+    }
 
     const spnCopy = event.target.closest('.copy');
     if (spnCopy) {
@@ -460,7 +470,6 @@ whenDOMReady.then(() => {
       const yourContent = state.tabContent.yourGames;
       const lobbyContent = state.tabContent.lobby;
       const publicContent = state.tabContent.publicGames;
-      const isMyGame = body.data.teams?.some(t => t?.playerId === myPlayerId) ?? false;
 
       if (body.group === `/myGames/${myPlayerId}`) {
         if (body.type === 'stats') {
@@ -476,18 +485,11 @@ whenDOMReady.then(() => {
           renderStats('collections');
         }
       } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
-        if (body.data.teams?.findIndex(t => t?.playerId === myPlayerId) > -1)
-          return;
-
         if (body.type === 'add' || body.type === 'change')
           setLobbyGame(body.data);
         else if (body.type === 'remove')
           unsetLobbyGame(body.data);
       } else if (body.group === '/collections/public') {
-        const wasWaiting = state.tabContent.publicGames.games[0].has(body.data.id);
-        if (isMyGame && !wasWaiting)
-          return;
-
         if (body.type === 'add' || body.type === 'change')
           setPublicGame(body.data);
         else if (body.type === 'remove')
@@ -578,88 +580,78 @@ function setMyAvatar(avatar) {
   divAvatar.appendChild(imgAvatar);
 }
 function setYourLobbyGame(gameSummary, skipRender = false) {
-  if (state.activeGameId !== gameSummary.id && gameSummary.startedAt) {
-    state.activeGameId = true;
-    popup({
-      message: 'You have an active lobby game!',
-      buttons: [
-        {
-          label: 'Play Now',
-          onClick: () => location.href = `/game.html?${gameSummary.id}`,
-        },
-        {
-          label: 'Ignore',
-          onClick: () => state.activeGameId = false,
-        },
-      ],
-    });
+  const tabContent = state.tabContent.lobby;
+  const isVisible = (
+    state.currentTab === 'lobby' &&
+    gameSummary.collection === `lobby/${tabContent.selectedStyleId}` &&
+    tabContent.selectedGroupId === 'lobby'
+  );
+
+  if (tabContent.activeGameId !== gameSummary.id && gameSummary.startedAt) {
+    if (isVisible) {
+      const newGame = avatars.getSound('newgame').howl;
+      newGame.once('end', () => {
+        location.href = `game.html?${gameSummary.id}`;
+      });
+      newGame.play();
+    } else {
+      tabContent.activeGameId = gameSummary.id;
+      popup({
+        message: 'You have an active lobby game!',
+        buttons: [
+          {
+            label: 'Play Now',
+            onClick: () => location.href = `game.html?${gameSummary.id}`,
+          },
+          {
+            label: 'Ignore',
+            onClick: () => {},
+          },
+        ],
+      });
+    }
   }
 
-  const styleId = gameSummary.collection.slice(6);
-  state.tabContent.yourGames.lobbyGame = gameSummary;
-
-  if (!skipRender && state.currentTab === 'lobby')
-    if (state.tabContent.lobby.selectedStyleId === styleId)
-      renderLobbyGames();
+  if (isVisible && !skipRender)
+    placeLobbyGame(gameSummary);
 }
 function unsetYourLobbyGame(gameSummary, skipRender = false) {
-  const lobbyGame = state.tabContent.yourGames.lobbyGame;
-  if (!lobbyGame || lobbyGame.id !== gameSummary.id)
-    return;
+  const tabContent = state.tabContent.lobby;
+  const styleId = gameSummary.collection.slice(6);
+  const isVisible = state.currentTab === 'lobby' && tabContent.selectedStyleId === styleId;
 
-  const styleId = lobbyGame.collection.slice(6);
-  state.tabContent.yourGames.lobbyGame = null;
-  state.activeGameId = null;
-
-  if (!skipRender && state.currentTab === 'lobby')
-    if (state.tabContent.lobby.selectedStyleId === styleId)
-      renderLobbyGames();
+  if (!skipRender && isVisible)
+    displaceLobbyGame(gameSummary);
 }
 function setYourGame(gameSummary) {
   const yourGames = state.tabContent.yourGames.games;
-  const isLobbyGame = gameSummary.collection?.startsWith('lobby/');
+  const isVisibleLobbyGame = !gameSummary.endedAt && gameSummary.collection?.startsWith('lobby/') && !gameSummary.isChallenge;
 
   yourGames[0].delete(gameSummary.id);
   yourGames[1].delete(gameSummary.id);
   yourGames[2].delete(gameSummary.id);
   yourGames[3].delete(gameSummary.id);
-  if (gameSummary.endedAt)
-    yourGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[2] ]);
-  else if (isLobbyGame)
+  yourGames[4].delete(gameSummary.id);
+  if (isVisibleLobbyGame)
+    yourGames[4] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[4] ]);
+  else if (gameSummary.endedAt)
     yourGames[3] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[3] ]);
   else if (gameSummary.startedAt)
+    yourGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[2] ]);
+  else if (gameSummary.createdBy === authClient.playerId)
     yourGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[1] ]);
   else
-    yourGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[0] ]);
+    yourGames[0] = new Map([ ...yourGames[0], [ gameSummary.id, gameSummary ] ]);
 
-  if (state.activeGameId === gameSummary.id && gameSummary.startedAt) {
-    const newGame = avatars.getSound('newgame').howl;
-    newGame.once('end', () => {
-      location.href = `/game.html?${gameSummary.id}`;
-    });
-    newGame.play();
-  }
-
-  if (isLobbyGame) {
-    const lobbyGame = state.tabContent.yourGames.lobbyGame;
-    if (lobbyGame) {
-      if (lobbyGame.id === gameSummary.id) {
-        if (gameSummary.endedAt)
-          unsetYourLobbyGame(gameSummary);
-        else
-          setYourLobbyGame(gameSummary);
-      }
-    } else {
-      if (!gameSummary.endedAt)
-        setYourLobbyGame(gameSummary);
-    }
-  }
+  if (isVisibleLobbyGame)
+    setYourLobbyGame(gameSummary);
 
   if (state.currentTab === 'yourGames')
     renderYourGames();
 }
 function unsetYourGame(gameSummary) {
   const yourGames = state.tabContent.yourGames.games;
+  const isVisibleLobbyGame = !gameSummary.endedAt && gameSummary.collection?.startsWith('lobby/') && !gameSummary.isChallenge;
   let isDirty = false;
 
   for (let i = 0; i < yourGames.length; i++) {
@@ -668,11 +660,10 @@ function unsetYourGame(gameSummary) {
   }
 
   if (isDirty) {
-    if (gameSummary.id === state.tabContent.yourGames.lobbyGame?.id)
-      unsetYourLobbyGame(gameSummary);
-
     if (state.currentTab === 'yourGames')
       renderYourGames();
+    else if (isVisibleLobbyGame)
+      unsetYourLobbyGame(gameSummary);
   }
 }
 function setLobbyGame(gameSummary) {
@@ -688,7 +679,7 @@ function setLobbyGame(gameSummary) {
   else if (gameSummary.teams.findIndex(t => t?.playerId === myPlayerId) === -1)
     lobbyGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...lobbyGames[2] ]);
 
-  renderLobbyGames();
+  placeLobbyGame(gameSummary);
 }
 function unsetLobbyGame(gameSummary) {
   const lobbyGames = state.tabContent.lobby.games;
@@ -700,7 +691,97 @@ function unsetLobbyGame(gameSummary) {
   }
 
   if (isDirty)
+    displaceLobbyGame(gameSummary);
+}
+function placeLobbyGame(gameSummary, skipRender = false) {
+  const tabContent = state.tabContent.lobby;
+  const isVisible = state.currentTab === 'lobby' && gameSummary.collection === `lobby/${tabContent.view.gameTypeId}`;
+  if (!isVisible)
+    return;
+
+  const getNextIndex = a => a.indexOf(a.slice().sort((a,b) => {
+    // Use empty arenas first
+    if (!a) return -1;
+    if (!b) return 1;
+    // Use my game last
+    if (a.createdBy === authClient.playerId) return 1;
+    if (b.createdBy === authClient.playerId) return -1;
+    // Use the oldest completed game
+    if (a.endedAt && b.endedAt) return a.endedAt - b.endedAt;
+    // Use a completed game over a pending game
+    if (a.endedAt) return -1;
+    if (b.endedAt) return 1;
+    // Use the oldest started game
+    if (a.startedAt && b.startedAt) return a.startedAt - b.startedAt;
+    // Use a started game over a waiting game
+    if (a.startedAt) return -1;
+    if (b.startedAt) return 1;
+    // Use the NEWEST waiting game
+    return b.createdAt - a.createdAt;
+  })[0]);
+
+  const arenas = tabContent.view.arenas;
+  const nextIndex = getNextIndex(arenas);
+  const oldIndex = arenas.findIndex(a => a?.id === gameSummary.id);
+  const newIndex = gameSummary.tags.arenaIndex ?? -1;
+  const hasPrecedence = (a,b) => {
+    // Take empty slots
+    if (!b) return true;
+    // Displace ended games with pending games.
+    if (b.endedAt && !a.endedAt) return true;
+    // Displace started games with open games.
+    if (b.startedAt && !a.startedAt) return true;
+    // Displace newer waiting games with older waiting games.
+    if (b.createdAt < a.createdAt) return true;
+    // Do not displace.
+    return false;
+  };
+
+  if (oldIndex === -1) {
+    if (newIndex === -1) {
+      arenas[nextIndex] = gameSummary;
+    } else {
+      if (hasPrecedence(gameSummary, arenas[newIndex]))
+        arenas[newIndex] = gameSummary;
+      else
+        arenas[nextIndex] = gameSummary;
+    }
+  } else {
+    if (newIndex === -1) {
+      arenas[oldIndex] = gameSummary;
+    } else if (oldIndex === newIndex) {
+      arenas[oldIndex] = gameSummary;
+    } else if (!gameSummary.startedAt) {
+      if (hasPrecedence(gameSummary, arenas[newIndex])) {
+        arenas[oldIndex] = null;
+        arenas[newIndex] = gameSummary;
+      } else
+        arenas[oldIndex] = gameSummary;
+    } else {
+      arenas[oldIndex] = gameSummary;
+    }
+  }
+
+  const usingSlot = arenas.some(a => a?.createdBy === authClient.playerId);
+
+  if (!usingSlot && !arenas.some(a => a === null)) {
+    const clearIndex = getNextIndex(arenas);
+    arenas[clearIndex] = null;
+  }
+
+  if (!skipRender)
     renderLobbyGames();
+}
+function displaceLobbyGame(gameSummary) {
+  const tabContent = state.tabContent.lobby;
+  const arenas = tabContent.view.arenas;
+  const oldIndex = arenas.findIndex(a => a?.id === gameSummary.id);
+  if (oldIndex === -1)
+    return;
+
+  arenas[oldIndex] = null;
+
+  renderLobbyGames();
 }
 function setPublicGame(gameSummary) {
   const publicGames = state.tabContent.publicGames.games;
@@ -826,16 +907,17 @@ async function selectArena(event) {
 
   if (divArena.classList.contains('empty')) {
     const tabContent = state.tabContent.lobby;
-    const lobbyGame = state.tabContent.yourGames.lobbyGame;
-    if (lobbyGame?.collection === `lobby/${tabContent.selectedStyleId}`)
-      moveGame(divArena);
+    const myLobbyGames = Array.from(state.tabContent.yourGames.games[4].values());
+    const lobbyGame = myLobbyGames.find(gs => gs.collection === `lobby/${tabContent.selectedStyleId}`);
+    if (lobbyGame)
+      moveGame(lobbyGame, divArena);
     else
       createGame(divArena);
   } else if (divArena.classList.contains('waiting')) {
     const arena = JSON.parse(divArena.dataset.arena);
 
     if (arena.createdBy === myPlayerId) {
-      if (!arena.collection?.startsWith('lobby/')) {
+      if (state.currentTab !== 'lobby') {
         const doCancel = await popup({
           message: 'Are you sure you want to cancel the game?',
           buttons: [
@@ -862,79 +944,20 @@ async function selectArena(event) {
   }
 }
 async function createGame(divArena) {
-  if (!await cancelGame())
-    return;
-
   const tabContent = state.tabContent.lobby;
-  let { createBlocking, createTimeLimit, set, ranked, randomSide } = state.settings;
-  if (createBlocking === 'ask') {
-    createBlocking = await popup({
-      message: 'Choose blocking system.',
-      buttons: [
-        { label:'Luck',    value:'luck' },
-        { label:'No Luck', value:'noluck' },
-      ],
-    }).whenClosed;
-    if (createBlocking === undefined)
-      return;
-  }
 
-  if (createTimeLimit === 'ask') {
-    createTimeLimit = await popup({
-      message: 'Choose turn time limit.',
-      buttons: [
-        { label:'Pro',  value:'pro' },
-        { label:'Standard', value:'standard' },
-        { label:'Blitz',    value:'blitz' },
-      ],
-    }).whenClosed;
-    if (createTimeLimit === undefined)
-      return;
-  }
+  await configureGame.setGameType(tabContent.selectedStyleId);
 
-  if (ranked === 'ask') {
-    ranked = await popup({
-      message: 'Should this game be ranked?',
-      buttons: [
-        { label:'Any', value:'any' },
-        { label:'Yes', value:'yes' },
-        { label:'No',  value:'no' },
-      ],
-    }).whenClosed;
-    if (ranked === undefined)
-      return;
+  if (configureGame.confirmBeforeCreate) {
+    await configureGame.show('confirmBeforeCreate', {
+      arenaIndex: parseInt(divArena.dataset.index),
+    });
+    return;
   }
-
-  if (set === 'ask' && tabContent.sets.length === 1)
-    set = tabContent.sets[0].id;
-  else if (set === 'ask') {
-    set = await popup({
-      message: 'Choose set.',
-      buttons: [
-        ...tabContent.sets.map(s => ({ label:s.name, value:s.id })),
-        { label:'Random', value:'random' },
-      ],
-    }).whenClosed;
-    if (set === undefined)
-      return;
-  }
-
-  const myTeam = {
-    playerId: myPlayerId,
-    set,
-    randomSide: randomSide && !tabContent.gameType.hasFixedPositions,
-  };
 
   try {
-    state.activeGameId = await gameClient.createGame(tabContent.selectedStyleId, {
-      collection: `lobby/${tabContent.selectedStyleId}`,
-      randomHitChance: createBlocking === 'luck',
-      timeLimitName: createTimeLimit,
-      teams: [ myTeam, null ],
-      ...(
-        ranked === 'yes' ? { ranked:true } :
-        ranked === 'no' ? { rated:false } : {}
-      ),
+    await gameClient.createGame(tabContent.selectedStyleId, {
+      ...configureGame.createGameOptions('confirmBeforeCreate'),
       tags: {
         arenaIndex: parseInt(divArena.dataset.index),
       },
@@ -944,29 +967,37 @@ async function createGame(divArena) {
       popup('Creating games too quickly.');
     // Ignore cases where we attempted to create multiple open games
     else if (e.code !== 409) {
-      reportError(e);
       popup('Oops!  Something went wrong.');
+      reportError(e);
     }
     return false;
   }
 
   return true;
 }
-async function moveGame(divArena) {
-  const myLobbyGame = state.tabContent.yourGames.lobbyGame;
-
-  gameClient.tagGame(myLobbyGame.id, {
+async function moveGame(lobbyGame, divArena) {
+  gameClient.tagGame(lobbyGame.id, {
     arenaIndex: parseInt(divArena.dataset.index),
   });
 }
-async function cancelGame(arena = state.tabContent.yourGames.lobbyGame) {
+async function cancelGame(arena) {
   if (!arena)
     return true;
 
   try {
     await gameClient.cancelGame(arena.id);
-    if (arena.id === state.activeGameId)
-      state.activeGameId = null;
+    return true;
+  } catch (e) {
+    if (e.code !== 404 && e.code !== 409) {
+      reportError(e);
+      popup('Oops!  Something went wrong.');
+    }
+    return false;
+  }
+}
+async function declineGame(gameId) {
+  try {
+    await gameClient.declineGame(gameId);
     return true;
   } catch (e) {
     if (e.code !== 404 && e.code !== 409) {
@@ -977,8 +1008,7 @@ async function cancelGame(arena = state.tabContent.yourGames.lobbyGame) {
   }
 }
 async function joinGame(arena) {
-  if (arena.collection?.startsWith('lobby/') && !await cancelGame())
-    return false;
+  const tabContent = state.tabContent.lobby;
 
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
   if (arena.meta.creatorACL?.blockedByRule) {
@@ -1004,129 +1034,42 @@ async function joinGame(arena) {
       maxWidth: '300px',
     });
   }
-  if (arena.meta.creatorACL?.type) {
-    let proceed = false;
-    let message;
-    let joinLabel = 'Join Game';
 
-    if (arena.meta.creatorACL.type === 'blocked') {
-      if (arena.meta.creatorACL.name !== creatorTeam.name)
-        message = `
-          You blocked this player under the name ${arena.meta.creatorACL.name}.
-          You may still play them if you mute them instead.
-        `;
-      else
-        message = `
-          You blocked this player, but may still play them if you mute them instead.
-        `;
-      joinLabel = 'Mute and Join Game';
-    } else {
-      if (arena.meta.creatorACL.name !== creatorTeam.name)
-        message = `
-          You ${arena.meta.creatorACL.type} this player under the name ${arena.meta.creatorACL.name}.
-          Do you still want to join their game?
-        `;
-      else
-        proceed = true;
-    }
-
-    if (proceed === false)
-      proceed = await popup({
-        message,
-        buttons: [
-          { label:joinLabel, value:true },
-          { label:'Cancel', value:false },
-        ],
-        maxWidth: '300px',
-      }).whenClosed;
-    if (proceed === false)
-      return false;
-  }
-
-  if (arena.ranked && !arena.meta.ranked) {
+  if (arena.rated && !arena.meta.rated) {
     const reason =
-      arena.meta.unrankedReason === 'not verified' ? 'You have not verified your account yet' :
-      arena.meta.unrankedReason === 'same identity' ? `You can't play yourself in a ranked game` :
-      arena.meta.unrankedReason === 'in game' ? `You are already playing a ranked game against this player in this style` :
-      arena.meta.unrankedReason === 'too many games' ? `You already played this player in this style twice in the past week` :
+      arena.meta.unratedReason === 'not verified' ? 'You have not verified your account yet' :
+      arena.meta.unratedReason === 'same identity' ? `You can't play yourself in a rated game` :
+      arena.meta.unratedReason === 'in game' ? `You are already playing a rated game against this player in this style` :
+      arena.meta.unratedReason === 'too many games' ? `You already played this player in this style twice in the past week` :
       'Unknown.  Report this bug';
 
     popup({ maxWidth:'325px', message:`
-      Sorry!  You cannot join this ranked game.<BR>
+      Sorry!  You cannot join this rated game.<BR>
       <BR>
       Reason: ${reason}.
     ` });
     return false;
   }
 
-  let { set, ranked, randomSide } = state.settings;
+  await configureGame.setGameType(tabContent.selectedStyleId);
 
-  if (ranked !== 'any') {
-    const expectRanked = ranked === 'no' ? false : true;
-
-    if (ranked === 'ask' || arena.meta.ranked !== expectRanked) {
-      const message = [
-        `This will ${arena.meta.ranked ? '' : 'not '}be a ranked game.`,
-        ``,
-        `Join the game?`,
-      ];
-      if (arena.meta.ranked) {
-        const creator = arena.teams.find(t => !!t);
-        const ranks = arena.meta.ranks[creator.id];
-        const rank = ranks && ranks.find(r => r.rankingId === arena.type);
-        if (rank)
-          message.splice(1, 0, `${creator.name} has rank #${rank.num} (${rank.rating}) in ${arena.typeName}.`);
-        else
-          message.splice(1, 0, `${creator.name} is unranked in ${arena.typeName}.`);
-      }
-
-      const proceed = await popup({
-        message: message.join('<BR>'),
-        buttons: [
-          { label:'Join', value:true },
-          { label:'Cancel', value:false },
-        ],
-        closeOnCancel: false,
-      }).whenClosed;
-      if (!proceed)
-        return false;
-    }
-  }
-
-  if (set === 'ask') {
-    const sets = await gameClient.getPlayerSets(arena.type);
-
-    if (sets.length === 1)
-      set = sets[0].id;
-    else {
-      set = await popup({
-        message: 'Choose set.',
-        buttons: [
-          ...sets.map(s => ({ label:s.name, value:s.id })),
-          { label:'Random', value:'random' },
-        ],
-      }).whenClosed;
-      if (set === undefined)
-        return false;
-    }
+  if (
+    configureGame.confirmBeforeJoin ||
+    arena.meta.creatorACL?.type === 'blocked' ||
+    (arena.meta.creatorACL?.name ?? creatorTeam.name) !== creatorTeam.name
+  ) {
+    await configureGame.show('confirmBeforeJoin', { gameSummary:arena });
+    return;
   }
 
   try {
-    const gameType = await gameClient.getGameType(arena.type);
-
-    state.activeGameId = arena.id;
-    await gameClient.joinGame(arena.id, {
-      set,
-      randomSide: randomSide && !gameType.hasFixedPositions,
-    });
+    await gameClient.joinGame(arena.id, configureGame.joinGameOptions('confirmBeforeJoin'));
     return true;
   } catch (e) {
-    state.activeGameId = null;
-
-    // A 403 for a ranked game means ranked rules weren't met
-    if (arena.ranked && e.code === 403) {
+    // A 403 for a rated game means rated rules weren't met
+    if (arena.rated && e.code === 403) {
       popup({ maxWidth:'325px', message:`
-        Sorry!  You cannot join this ranked game.<BR>
+        Sorry!  You cannot join this rated game.<BR>
         <BR>
         Reason: ${e.message}.
       ` });
@@ -1293,7 +1236,10 @@ function renderStats(scope = 'all') {
   if (scope === 'my' || scope === 'all') {
     let numYourTurn = 0;
 
-    for (const game of yourGames[1].values()) {
+    for (const game of yourGames[0].values())
+      numYourTurn++;
+
+    for (const game of yourGames[2].values()) {
       // Exclude games where it is someone else's turn
       if (game.teams[game.currentTeamId].playerId !== myPlayerId)
         continue;
@@ -1307,12 +1253,15 @@ function renderStats(scope = 'all') {
       numYourTurn++;
     }
 
+    if (Array.from(yourGames[4].values()).some(gs => gs.startedAt))
+      numYourTurn++;
+
     document.querySelector('.tabs .yourGames .badge').textContent = numYourTurn || '';
   }
 
   if (scope === 'collections' || scope === 'all') {
     let numLobby = 0;
-    let numPublic = statsByCollection.get('public').waiting;
+    const numPublic = statsByCollection.get('public').waiting;
     const numLobbyByStyle = new Map();
 
     for (const [ collectionId, stats ] of statsByCollection) {
@@ -1323,14 +1272,6 @@ function renderStats(scope = 'all') {
       numLobby += stats.waiting;
 
       numLobbyByStyle.set(styleId, stats.waiting);
-    }
-
-    for (const game of yourGames[3].values()) {
-      if (game.startedAt)
-        continue;
-
-      const styleId = game.collection.slice(6);
-      numLobbyByStyle.set(styleId, numLobbyByStyle.get(styleId) - 1);
     }
 
     document.querySelector('.tabs .lobby .badge').textContent = numLobby || '';
@@ -1382,8 +1323,9 @@ function renderLobby() {
   btnSettings.classList.add('fa-cog');
   btnSettings.name = 'settings';
   btnSettings.title = 'Settings';
-  btnSettings.addEventListener('click', event => {
-    settings.show();
+  btnSettings.addEventListener('click', async event => {
+    await configureGame.setGameType(lobbyState.selectedStyleId);
+    configureGame.show('configureLobby');
   });
   divControls.appendChild(btnSettings);
 
@@ -1398,9 +1340,6 @@ function renderLobby() {
   lobbyState.setup
     .on('change:avatar', async ({ data:avatar }) => {
       setMyAvatar(avatar);
-
-      if (state.tabContent.lobby.lobbyGame)
-        resetLobbyGames();
 
       gameClient.saveMyAvatar(avatar);
     })
@@ -1696,87 +1635,6 @@ function renderArena(index) {
 
   return divArena;
 }
-function getLobbyGames() {
-  const lobbyGame = state.tabContent.yourGames.lobbyGame;
-  const tabContent = state.tabContent.lobby;
-  const arenas = new Array(14).fill(null);
-  // Subtract 1 to reserve an arena.
-  let numRemaining = arenas.length - 1;
-
-  /*
-   * Place my waiting or active lobby game.
-   */
-  if (lobbyGame?.collection === `lobby/${tabContent.selectedStyleId}`) {
-    const index = lobbyGame.tags.arenaIndex;
-
-    arenas[index] = lobbyGame;
-    // Do not subtract from numRemaining to use the reserved arena.
-  }
-
-  /*
-   * Place all waiting games with no conflicts.
-   */
-  const waitingGames = [ ...tabContent.games[0].values() ]
-    .sort((a,b) => a.createdAt - b.createdAt);
-
-  // Cloning the array allows us to use .splice()
-  for (const game of waitingGames.slice()) {
-    if (game.id === lobbyGame?.id) {
-      waitingGames.splice(waitingGames.indexOf(game), 1);
-      continue;
-    }
-
-    const index = game.tags.arenaIndex;
-    if (arenas[index] !== null)
-      continue;
-
-    waitingGames.splice(waitingGames.indexOf(game), 1);
-    arenas[index] = game;
-    if (!--numRemaining) return arenas;
-  }
-
-  /*
-   * Place all waiting games with conflicts.
-   */
-  for (const game of waitingGames) {
-    const index = arenas.indexOf(null);
-
-    arenas[index] = game;
-    if (!--numRemaining) return arenas;
-  }
-
-  /*
-   * Place all active games with no conflicts.
-   */
-  const activeGames = [ ...tabContent.games[1].values() ]
-    .sort((a,b) => b.startedAt - a.startedAt);
-
-  for (const game of activeGames) {
-    const index = game.tags.arenaIndex;
-    if (arenas[index] !== null)
-      continue;
-
-    arenas[index] = game;
-    if (!--numRemaining) return arenas;
-  }
-
-  /*
-   * Place all complete games with no conflicts.
-   */
-  const completeGames = [ ...tabContent.games[2].values() ]
-    .sort((a,b) => b.endedAt - a.endedAt);
-
-  for (const game of completeGames) {
-    const index = game.tags.arenaIndex;
-    if (arenas[index] !== null)
-      continue;
-
-    arenas[index] = game;
-    if (!--numRemaining) return arenas;
-  }
-
-  return arenas;
-}
 async function renderLobbyGames() {
   const divArenas = document.querySelector('.lobby .arenas');
   const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
@@ -1789,18 +1647,18 @@ async function renderLobbyGames() {
     return;
 
   if (!tabContent.selectedStyleId) {
-    const lobbyGame = state.tabContent.yourGames.lobbyGame;
+    const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
     if (lobbyGame)
       selectStyle(lobbyGame.collection.slice(6));
     else
-      selectStyle('freestyle');
+      selectStyle(configureGame.gameTypeId);
   }
 
   if (!tabContent.selectedGroupId)
     selectGroup('lobby');
 
   if (tabContent.selectedGroupId === 'lobby')
-    arenas.push(...getLobbyGames());
+    arenas.push(...tabContent.view.arenas);
   else if (tabContent.selectedGroupId === 'active')
     arenas.push(...Array.from(tabContent.games[1].values()).sort((a,b) => b.startedAt - a.startedAt));
   else if (tabContent.selectedGroupId === 'complete')
@@ -1854,8 +1712,8 @@ async function fillArena(divArena, arena = true) {
   if (arena === true)
     return emptyArena(divArena);
 
-  const lobbyGame = state.tabContent.yourGames.lobbyGame;
-  divArena.classList.toggle('disabled', !!lobbyGame?.startedAt && !arena.startedAt && arena.collection?.startsWith('lobby/'));
+  const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
+  divArena.classList.toggle('disabled', !!lobbyGame && !arena.startedAt && arena.collection?.startsWith('lobby/'));
 
   const oldArena = JSON.parse(divArena.dataset.arena ?? 'null');
   if (JSON.stringify(arena) === JSON.stringify(oldArena))
@@ -1889,12 +1747,14 @@ async function fillArena(divArena, arena = true) {
   if (!arena.startedAt) {
     if (arena.randomHitChance === false)
       labels.push('No Luck');
+    if (arena.rated === true)
+      labels.push('Rated');
+    else if (arena.rated === false && authClient.isVerified && arena.mode !== 'practice')
+      labels.push('Unrated');
+    if (arena.mode)
+      labels.push(arena.mode.toUpperCase('first'));
     if (arena.timeLimitName && arena.timeLimitName !== 'standard')
       labels.push(arena.timeLimitName.toUpperCase('first'));
-    if (arena.ranked)
-      labels.push('Ranked');
-    else if (!arena.rated)
-      labels.push('Unranked');
   }
 
   const divLabels = divArena.querySelector('.labels');
@@ -1973,8 +1833,8 @@ async function fillTeam(divArena, slot, arena, oldArena) {
 }
 async function emptyArena(divArena) {
   if (divArena.classList.contains('empty')) {
-    const lobbyGame = state.tabContent.yourGames.lobbyGame;
-    divArena.classList.toggle('disabled', !!lobbyGame?.startedAt);
+    const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
+    divArena.classList.toggle('disabled', !!lobbyGame);
     return false;
   }
 
@@ -2000,12 +1860,13 @@ async function renderYourGames() {
   divTabContent.innerHTML = '';
 
   const now = gameClient.serverNow;
-  const pendingGames = [ ...tabContent.games[0].values() ];
-  const activeGames = [ ...tabContent.games[1].values() ]
-    .map(game => {
-      game.turnTimeRemaining = game.getTurnTimeRemaining(now);
+  const challenges = Array.from(tabContent.games[0].values());
+  const waitingGames = Array.from(tabContent.games[1].values());
+  const activeGames = Array.from(tabContent.games[2].values())
+    .map(gs => {
+      gs.turnTimeRemaining = gs.getTurnTimeRemaining(now);
 
-      return game;
+      return gs;
     })
     .sort((a, b) => {
       if (a.timeLimitName && !b.timeLimitName)
@@ -2017,12 +1878,13 @@ async function renderYourGames() {
 
       return a.turnTimeRemaining - b.turnTimeRemaining;
     });
-  const completeGames = [ ...tabContent.games[2].values() ];
-  const lobbyGames = [ ...tabContent.games[3].values() ]
-    .map(game => {
-      game.turnTimeRemaining = game.getTurnTimeRemaining(now);
+  const completeGames = Array.from(tabContent.games[3].values());
+  const lobbyGames = Array.from(tabContent.games[4].values())
+    .map(gs => {
+      if (gs.startedAt)
+        gs.turnTimeRemaining = gs.getTurnTimeRemaining(now);
 
-      return game;
+      return gs;
     });
 
   await fetchAvatars(
@@ -2048,24 +1910,25 @@ async function renderYourGames() {
   header.appendChild(spnLabel);
 
   /*
-   * Lobby Games
+   * Active Lobby Game
    */
-  if (lobbyGames.length) {
+  const activeLobbyGame = lobbyGames.find(gs => !!gs.startedAt);
+  if (activeLobbyGame) {
     const secLobbyGames = document.createElement('SECTION');
     secLobbyGames.classList.add('game-list');
     divTabContent.appendChild(secLobbyGames);
 
     const header = document.createElement('HEADER');
-    header.innerHTML = '<SPAN class="left">Current Lobby Game</SPAN>';
+    header.innerHTML = '<SPAN class="left">Active Lobby Game</SPAN>';
     secLobbyGames.append(header);
 
-    lobbyGames.forEach(game => secLobbyGames.appendChild(renderGame(game, authClient.playerId)));
+    secLobbyGames.appendChild(renderGame(activeLobbyGame, authClient.playerId));
   }
 
   /*
    * Your Turn!
    */
-  const myTurnGames = [];
+  const divMyTurnGames = [];
   for (const game of activeGames) {
     // Exclude games where it is someone else's turn
     if (game.teams[game.currentTeamId].playerId !== myPlayerId)
@@ -2079,10 +1942,10 @@ async function renderYourGames() {
 
     const divGame = renderGame(game, authClient.playerId);
 
-    myTurnGames.push(divGame);
+    divMyTurnGames.push(divGame);
   }
 
-  if (myTurnGames.length) {
+  if (divMyTurnGames.length) {
     const secMyTurnGames = document.createElement('SECTION');
     secMyTurnGames.classList.add('game-list');
     divTabContent.appendChild(secMyTurnGames);
@@ -2091,13 +1954,35 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Your Turn!</SPAN>';
     secMyTurnGames.append(header);
 
-    myTurnGames.forEach(div => secMyTurnGames.appendChild(div));
+    divMyTurnGames.forEach(div => secMyTurnGames.appendChild(div));
+  }
+
+  /*
+   * Challenges
+   */
+  const divChallenges = [];
+  for (const game of challenges) {
+    const divGame = renderGame(game, authClient.playerId);
+
+    divChallenges.push(divGame);
+  }
+
+  if (divChallenges.length) {
+    const secChallengeGames = document.createElement('SECTION');
+    secChallengeGames.classList.add('game-list');
+    divTabContent.appendChild(secChallengeGames);
+
+    const header = document.createElement('HEADER');
+    header.innerHTML = '<SPAN class="left">Challenges</SPAN>';
+    secChallengeGames.append(header);
+
+    divChallenges.forEach(div => secChallengeGames.appendChild(div));
   }
 
   /*
    * Their Turn
    */
-  const theirTurnGames = [];
+  const divTheirTurnGames = [];
   for (const game of activeGames) {
     // Exclude games where it is my turn and the turn hasn't ended
     if (game.teams[game.currentTeamId].playerId === myPlayerId && !game.turnEndedAt)
@@ -2108,10 +1993,10 @@ async function renderYourGames() {
 
     const divGame = renderGame(game, authClient.playerId);
 
-    theirTurnGames.push(divGame);
+    divTheirTurnGames.push(divGame);
   }
 
-  if (theirTurnGames.length) {
+  if (divTheirTurnGames.length) {
     const secTheirTurnGames = document.createElement('SECTION');
     secTheirTurnGames.classList.add('game-list');
     divTabContent.appendChild(secTheirTurnGames);
@@ -2120,48 +2005,50 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Their Turn</SPAN>';
     secTheirTurnGames.append(header);
 
-    theirTurnGames.forEach(div => secTheirTurnGames.appendChild(div));
+    divTheirTurnGames.forEach(div => secTheirTurnGames.appendChild(div));
   }
 
   /*
-   * Practice Games
+   * Single Player Games
    */
-  const practiceGames = [];
-  for (const game of [ ...pendingGames, ...activeGames ]) {
-    if (!game.isPracticeGame)
+  const divSinglePlayerGames = [];
+  for (const game of [ ...waitingGames, ...activeGames ]) {
+    if (!game.isSinglePlayer)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
 
-    practiceGames.push(divGame);
+    divSinglePlayerGames.push(divGame);
   }
 
-  if (practiceGames.length) {
-    const secPracticeGames = document.createElement('SECTION');
-    secPracticeGames.classList.add('game-list');
-    divTabContent.appendChild(secPracticeGames);
+  if (divSinglePlayerGames.length) {
+    const secSinglePlayerGames = document.createElement('SECTION');
+    secSinglePlayerGames.classList.add('game-list');
+    divTabContent.appendChild(secSinglePlayerGames);
 
     const header = document.createElement('HEADER');
-    header.innerHTML = '<SPAN class="left">Practice Games</SPAN>';
-    secPracticeGames.append(header);
+    header.innerHTML = '<SPAN class="left">Single Player Games</SPAN>';
+    secSinglePlayerGames.append(header);
 
-    practiceGames.forEach(div => secPracticeGames.appendChild(div));
+    divSinglePlayerGames.forEach(div => secSinglePlayerGames.appendChild(div));
   }
 
   /*
    * Waiting for Opponent
    */
-  const waitingGames = [];
-  for (const game of pendingGames) {
-    if (game.isPracticeGame)
+  const divWaitingGames = [];
+  for (const game of [ ...lobbyGames, ...waitingGames ]) {
+    if (game.isSinglePlayer)
+      continue;
+    if (game.startedAt)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
 
-    waitingGames.push(divGame);
+    divWaitingGames.push(divGame);
   }
 
-  if (waitingGames.length) {
+  if (divWaitingGames.length) {
     const secWaitingGames = document.createElement('SECTION');
     secWaitingGames.classList.add('game-list');
     divTabContent.appendChild(secWaitingGames);
@@ -2170,7 +2057,7 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Waiting for Opponent</SPAN>';
     secWaitingGames.append(header);
 
-    waitingGames.forEach(div => secWaitingGames.appendChild(div));
+    divWaitingGames.forEach(div => secWaitingGames.appendChild(div));
   }
 
   /*
@@ -2230,8 +2117,9 @@ async function renderPublicGames() {
   btnSettings.classList.add('fa-cog');
   btnSettings.name = 'settings';
   btnSettings.title = 'Settings';
-  btnSettings.addEventListener('click', event => {
-    settings.show();
+  btnSettings.addEventListener('click', async event => {
+    await configureGame.setGameType(null);
+    configureGame.show('configurePublic');
   });
   divControls.appendChild(btnSettings);
 
@@ -2380,7 +2268,7 @@ async function renderRankings() {
 
     tabState.searchTimeout = setTimeout(async () => {
       const value = txtSearch.value;
-      const matches = await authClient.queryRankedPlayers(value);
+      const matches = await authClient.queryRatedPlayers(value);
       if (txtSearch.value !== value)
         return;
       if (matches.length === 0) {
@@ -2404,7 +2292,7 @@ async function renderRankings() {
         divMatch.dataset.json = JSON.stringify(favorite);
         divMatches.append(divMatch);
 
-        const showAlias = match.alias !== undefined && match.alias.toLowerCase() !== match.name.toLowerCase();
+        const showText = match.text !== undefined && match.text.toLowerCase() !== match.name.toLowerCase();
 
         const spnIdentity = document.createElement('SPAN');
         spnIdentity.classList.add('identity');
@@ -2412,7 +2300,7 @@ async function renderRankings() {
         spnIdentity.title = 'View Player Ranking';
         spnIdentity.innerHTML = [
           `<SPAN class="name">${match.name}</SPAN>`,
-          !showAlias ? '' : `<SPAN class="alias">${match.alias}</SPAN>`,
+          !showText ? '' : `<SPAN class="text">${match.text}</SPAN>`,
         ].join('');
         divMatch.append(spnIdentity);
 
@@ -2582,8 +2470,8 @@ async function renderRankingSummary(rankingId) {
     divCaption.innerHTML = `Ranks`;
   }
 
-  const secRankedGames = renderRankedGames(games, rankingId);
-  divContent.append(secRankedGames);
+  const secRatedGames = renderRatedGames(games, rankingId);
+  divContent.append(secRatedGames);
 }
 async function renderRanking(rankingId) {
   const ranks = state.tabContent.rankings.data;
@@ -2619,7 +2507,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
   ]);
 
   if (ranks === false) {
-    divContent.innerHTML = 'Either the player is not ranked or does not exist.';
+    divContent.innerHTML = 'Either the player is not rated or does not exist.';
     return;
   }
 
@@ -2632,6 +2520,20 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
   const divAvatarBadge = document.createElement('DIV');
   divAvatarBadge.classList.add('avatar-badge');
   divPlayer.append(divAvatarBadge);
+
+  const aChallenge = document.createElement('A');
+  aChallenge.href = 'javascript:void(0)';
+  aChallenge.classList.add('button');
+  aChallenge.textContent = 'Challenge!';
+  aChallenge.addEventListener('click', async event => {
+    await configureGame.setGameType(rankingId === 'FORTE' ? null : rankingId);
+    configureGame.show('challenge', { challengee:playerId });
+  });
+
+  const divChallenge = document.createElement('DIV');
+  divChallenge.classList.add('challenge');
+  divChallenge.append(aChallenge);
+  divPlayer.append(divChallenge);
 
   const divAvatarImage = document.createElement('DIV');
   divAvatarImage.classList.add('image');
@@ -2685,7 +2587,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
         `<SPAN class="rating">(${rank.rating})</SPAN>`,
       );
     else
-      html.push(`<SPAN class="unranked">Unranked</SPAN>`);
+      html.push(`<SPAN class="unrated">Unrated</SPAN>`);
 
     html.push(`<SPAN class="gameCount">${rank.gameCount} Game(s)</SPAN>`);
 
@@ -2731,17 +2633,20 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
       const teamStats = statsMap.get(team.playerId);
       const myRating = myTeam.ratings.get(game.type);
       const vsRating = team.ratings.get(game.type);
-      const ratingChange = Math.abs(myRating[1] - myRating[0]);
-      const ratingDiff = myRating[0] - vsRating[0];
+      // Always true unless there is bad data
+      if (myRating && vsRating) {
+        const ratingChange = Math.abs(myRating[1] - myRating[0]);
+        const ratingDiff = myRating[0] - vsRating[0];
+        if (myRating[1] > myRating[0])
+          teamStats.gain += ratingChange;
+        else
+          teamStats.loss += ratingChange;
+        if (result === 'Win' && (!teamStats.win || ratingDiff < teamStats.win.diff))
+          teamStats.win = { game, name:team.name, gain:ratingChange, diff:ratingDiff };
+        else if (result === 'Lose' && (!teamStats.lose || ratingDiff > teamStats.lose.diff))
+          teamStats.lose = { game, name:team.name, loss:ratingChange, diff:ratingDiff };
+      }
       teamStats.numGames++;
-      if (myRating[1] > myRating[0])
-        teamStats.gain += ratingChange;
-      else
-        teamStats.loss += ratingChange;
-      if (result === 'Win' && (!teamStats.win || ratingDiff < teamStats.win.diff))
-        teamStats.win = { game, name:team.name, gain:ratingChange, diff:ratingDiff };
-      else if (result === 'Lose' && (!teamStats.lose || ratingDiff > teamStats.lose.diff))
-        teamStats.lose = { game, name:team.name, loss:ratingChange, diff:ratingDiff };
     }
   }
   const stats = Array.from(statsMap.values());
@@ -2829,8 +2734,8 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
     divStats.append(divBV);
   }
 
-  const secRankedGames = await renderRankedGames(games, rankingId, playerId);
-  divContent.append(secRankedGames);
+  const secRatedGames = await renderRatedGames(games, rankingId, playerId);
+  divContent.append(secRatedGames);
 }
 function renderRanks(rankingId, ranks) {
   const rankingName = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
@@ -2905,28 +2810,28 @@ function renderRank(rankingId, rank) {
   divRank.append(divGameCount);
 
   const divRankNum = document.createElement('DIV');
-  divRankNum.classList.add('rank');
+  divRankNum.classList.add('rankNum');
   divRankNum.textContent = `#${ rank.num }`;
   divRank.append(divRankNum);
 
   return divRank;
 }
-function renderRankedGames(games, rankingId, playerId = null) {
+function renderRatedGames(games, rankingId, playerId = null) {
   const rankingName = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId).name;
 
-  const secRankedGames = document.createElement('SECTION');
-  secRankedGames.classList.add('game-list');
+  const secRatedGames = document.createElement('SECTION');
+  secRatedGames.classList.add('game-list');
 
-  const hdrRankedGames = document.createElement('HEADER');
-  hdrRankedGames.innerHTML = `
+  const hdrRatedGames = document.createElement('HEADER');
+  hdrRatedGames.innerHTML = `
     <DIV class="left">
       ${rankingName} Games
     </DIV>
     <DIV class="right">
     </DIV>
   `;
-  hdrRankedGames.querySelector('.right').append(renderShowResults());
-  secRankedGames.append(hdrRankedGames);
+  hdrRatedGames.querySelector('.right').append(renderShowResults());
+  secRatedGames.append(hdrRatedGames);
 
   const divBody = document.createElement('DIV');
   divBody.classList.add('body');
@@ -2934,9 +2839,9 @@ function renderRankedGames(games, rankingId, playerId = null) {
   for (const game of games)
     divBody.append(renderGame(game, playerId, rankingId));
 
-  secRankedGames.append(divBody);
+  secRatedGames.append(divBody);
 
-  return secRankedGames;
+  return secRatedGames;
 }
 function renderShowResults() {
   const label = document.createElement('LABEL');
@@ -2977,11 +2882,14 @@ function renderGame(game, playerId = null, rankingId = null) {
   fillArena(divArena, game);
 
   divVS.append(divArenaWrapper);
-  divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
+  if (game.isChallenge && !team1.joinedAt)
+    divVS.append(renderGameDecline(game));
+  else
+    divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
   divVS.append(renderGameResult(game, team1.playerId));
-  if (game.isPracticeGame && !game.startedAt)
+  if (game.isSinglePlayer && !game.startedAt)
     divVS.append(renderGameFinishSetup(game));
-  if (team2?.playerId)
+  else if (team2?.playerId)
     divVS.append(renderGameTeam(game, team2, ranks2, rankingId, team2.playerId !== playerId));
   else if (game.createdBy === authClient.playerId)
     divVS.append(renderGameInvite(game))
@@ -3001,7 +2909,7 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   const defaultRating = rankingId === 'FORTE' ? 0 : 750;
   const rating = [];
   if (rank) {
-    if (game.ranked) {
+    if (game.rated) {
       const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
       const change = vsRatings[1] - vsRatings[0];
       const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
@@ -3013,7 +2921,7 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   } else if (rank === null)
     rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
   else if (rank === false)
-    rating.push(`<SPAN class="current">(Unranked)</SPAN>`);
+    rating.push(`<SPAN class="current">(Unrated)</SPAN>`);
   else
     rating.push(`<SPAN class="current">(Bugged)</SPAN>`);
 
@@ -3023,6 +2931,13 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   `;
 
   return divTeam;
+}
+function renderGameDecline() {
+  const divDecline = document.createElement('DIV');
+  divDecline.classList.add('decline');
+  divDecline.innerHTML = `<A href="javascript:void(0)">Decline Game</A>`;
+
+  return divDecline;
 }
 function renderGameFinishSetup(game) {
   const divFinishSetup = document.createElement('DIV');
@@ -3072,18 +2987,25 @@ function renderGameInfo(game) {
   if (game.timeLimitName && game.timeLimitName !== 'standard')
     labels.push(game.timeLimitName.toUpperCase('first'));
 
-  if (!game.startedAt)
-    if (game.collection === 'public' && state.currentTab !== 'publicGames')
-      labels.push('Public');
-    else if (!game.collection)
-      labels.push('Private');
+  if (!game.isSinglePlayer) {
+    if (game.mode)
+      labels.push(game.mode.toUpperCase('first'));
 
-  if (game.isFork)
-    labels.push('Fork');
-  else if (!game.rated)
-    labels.push('Unrated');
-  else if (game.collection && game.startedAt && !game.ranked)
-    labels.push('Unranked');
+    if (!game.collection)
+      labels.push('Private');
+    else if (![ 'fork', 'practice' ].includes(game.mode) && game.rated === false)
+      labels.push('Unrated');
+
+    if (!game.startedAt && state.currentTab === 'yourGames') {
+      const opponent = game.teams.find(t => t?.playerId !== game.createdBy);
+      if (!opponent)
+        labels.push('Anybody');
+      else if (!opponent.playerId)
+        labels.push('Share Link');
+      else
+        labels.push('Challenge');
+    }
+  }
 
   const spnLeft = document.createElement('SPAN');
   spnLeft.classList.add('left');
@@ -3098,7 +3020,7 @@ function renderGameInfo(game) {
 
   if (game.endedAt)
     spnRight.append(renderClock(game.endedAt, 'Ended At'));
-  else if (game.startedAt && !game.isPracticeGame) {
+  else if (game.startedAt && !game.isSinglePlayer) {
     const isParticipant = game.teams.some(t => t.playerId === authClient.playerId);
     if (isParticipant)
       spnRight.append(renderClock(spnClock => {
@@ -3309,7 +3231,9 @@ async function fetchTabData(tabName) {
   const statsContent = state.tabContent.stats;
   if (!statsContent.isSynced) {
     if (statsContent.whenSynced.isFinalized) {
-      statsContent.whenSynced = gameClient.joinCollectionStatsGroup().then(rsp => {
+      statsContent.whenSynced = gameClient.joinCollectionStatsGroup({
+        filter: { '$.teams[*].playerId': { not:{ includes:myPlayerId } } },
+      }).then(rsp => {
         statsContent.byCollection = rsp.stats;
         statsContent.isSynced = true;
       });
@@ -3324,9 +3248,21 @@ async function fetchTabData(tabName) {
   const yourContent = state.tabContent.yourGames;
   if (!yourContent.isSynced) {
     const query = [
-      { // Waiting Games (except Lobby games)
+      { // Incoming Challenges
         filter: {
-          collection: { '!':{ '~':/^lobby\// } },
+          createdBy: { not:authClient.playerId },
+          startedAt: null,
+        },
+        sort: { field:'createdAt', order:'asc' },
+        limit: 50,
+      },
+      { // Waiting Games (except Open Lobby Games)
+        filter: {
+          $: { nested:[
+            { collection:{ not:{ startsWith:'lobby/' } } },
+            { isChallenge:true },
+          ] },
+          createdBy: authClient.playerId,
           startedAt: null,
         },
         sort: { field:'updatedAt', order:'desc' },
@@ -3334,24 +3270,25 @@ async function fetchTabData(tabName) {
       },
       { // Active Games (except Lobby games)
         filter: {
-          collection: { '!':{ '~':/^lobby\// } },
-          startedAt: { '!':null },
+          collection: { not:{ startsWith:'lobby/' } },
+          startedAt: { not:null },
           endedAt: null,
         },
         sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
       { // Completed Games
-        filter: { endedAt:{ '!':null } },
+        filter: { endedAt:{ not:null } },
         sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
-      { // Waiting and Active Lobby games
+      { // Open and Active Lobby Games
         filter: {
-          collection: { '~':/^lobby\// },
+          collection: { startsWith:'lobby/' },
+          isChallenge: false,
           endedAt: null,
         },
-        sort: { field:'updatedAt', order:'asc' },
+        sort: { field:'updatedAt', order:'desc' },
         limit: 50,
       },
     ];
@@ -3361,10 +3298,9 @@ async function fetchTabData(tabName) {
         yourContent.stats = rsp.stats;
         yourContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
 
-        if (rsp.results[3].hits.length)
-          setYourLobbyGame(rsp.results[3].hits[0], true);
-        else if (yourContent.lobbyGame)
-          unsetYourLobbyGame(yourContent.lobbyGame, true);
+        const lobbyGame = rsp.results[4].hits.find(gs => !!gs.startedAt);
+        if (lobbyGame)
+          setYourLobbyGame(lobbyGame, true);
 
         yourContent.isSynced = true;
       });
@@ -3377,7 +3313,7 @@ async function fetchTabData(tabName) {
     const query = [
       {
         filter: {
-          'teams[].playerId': { '!':myPlayerId },
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
           startedAt: null,
         },
         sort: { field:'createdAt', order:'asc' },
@@ -3385,8 +3321,8 @@ async function fetchTabData(tabName) {
       },
       {
         filter: {
-          'teams[].playerId': { '!':myPlayerId },
-          startedAt: { '!':null },
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          startedAt: { not:null },
           endedAt: null,
         },
         sort: { field:'startedAt', order:'desc' },
@@ -3394,8 +3330,8 @@ async function fetchTabData(tabName) {
       },
       {
         filter: {
-          'teams[].playerId': { '!':myPlayerId },
-          endedAt: { '!':null },
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          endedAt: { not:null },
         },
         sort: { field:'endedAt', order:'desc' },
         limit: 50,
@@ -3406,6 +3342,17 @@ async function fetchTabData(tabName) {
       gameClient.joinCollectionGroup(`lobby/${styleId}`, { query }).then(rsp => {
         tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
+
+        tabContent.view.gameTypeId = styleId;
+        tabContent.view.arenas.fill(null);
+
+        const yourLobbyGames = Array.from(state.tabContent.yourGames.games[4].values());
+        const yourLobbyGame = yourLobbyGames.find(gs => gs.collection === `lobby/${styleId}`);
+        const games = rsp.results.map(r => r.hits).flat();
+        if (yourLobbyGame)
+          games.push(yourLobbyGame);
+
+        games.sort((a,b) => a.createdAt - b.createdAt).forEach(gs => placeLobbyGame(gs, true));
       });
     const leave = styleId =>
       gameClient.leaveCollectionGroup(`lobby/${styleId}`);
@@ -3418,9 +3365,12 @@ async function fetchTabData(tabName) {
         tabContent.sets = rsp;
       });
 
+    // Make sure your lobby games are known before joining lobby collection group
+    await yourContent.whenSynced;
+
     if (tabContent.selectedStyleId === null) {
-      await yourContent.whenSynced;
-      const styleId = yourContent.lobbyGame?.collection.slice(6) ?? 'freestyle';
+      const lobbyGame = Array.from(yourContent.games[4].values()).find(gs => !!gs.startedAt);
+      const styleId = lobbyGame?.collection.slice(6) ?? configureGame.gameTypeId;
       selectStyle(styleId);
       selectGroup('lobby');
     }
@@ -3442,7 +3392,7 @@ async function fetchTabData(tabName) {
     const query = [
       {
         filter: {
-          'teams[].playerId': { '!':myPlayerId },
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
           startedAt: null,
         },
         sort: { field:'createdAt', order:'asc' },
@@ -3450,8 +3400,8 @@ async function fetchTabData(tabName) {
       },
       {
         filter: {
-          'teams[].playerId': { '!':myPlayerId },
-          startedAt: { '!':null },
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          startedAt: { not:null },
           endedAt: null
         },
         sort: { field:'updatedAt', order:'desc' },
@@ -3459,8 +3409,8 @@ async function fetchTabData(tabName) {
       },
       {
         filter: {
-          'teams[].playerId': { '!':myPlayerId },
-          endedAt: { '!':null },
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          endedAt: { not:null },
         },
         sort: { field:'endedAt', order:'desc' },
         limit: 50,

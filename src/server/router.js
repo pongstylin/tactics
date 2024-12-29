@@ -289,8 +289,8 @@ function joinGroup(serviceName, { client:clientId, body }) {
 }
 
 function leaveGroup(serviceName, { client:clientId, body }) {
-  let groupId = [serviceName, body.group].join(':');
-  let group = groups.get(groupId);
+  const groupId = [serviceName, body.group].join(':');
+  const group = groups.get(groupId);
   if (!group)
     throw new Error('Expected group');
 
@@ -301,26 +301,27 @@ function leaveGroup(serviceName, { client:clientId, body }) {
     /*
      * Does the user ID still exist in the group under a different session?
      */
-    let exists = [...group.values()].find(u => u.id === body.user.id);
+    const exists = [...group.values()].find(u => u.id === body.user.id);
     if (!exists) {
-      let messageBody = {
+      const messageBody = {
         service: serviceName,
         group: body.group,
         user: body.user,
       };
 
-      for (let groupedClientId of group.keys()) {
+      for (const groupedClientId of group.keys()) {
         enqueue(sessions.get(groupedClientId), 'exit', messageBody);
       }
     }
   }
 
   // The session won't exist if the user left as the result of disconnecting.
-  let session = sessions.get(clientId);
+  const session = sessions.get(clientId);
   if (session)
     enqueue(session, 'leave', {
       service: serviceName,
       group: body.group,
+      reason: body.reason,
     });
 }
 
@@ -611,6 +612,10 @@ async function onMessage(data) {
       message: 'Message data is not valid JSON'
     }));
   }
+
+  // TODO
+  //if (message.body)
+  //  message.body = serializer.normalize(message.body);
 
   try {
     if (!validate(message)) {

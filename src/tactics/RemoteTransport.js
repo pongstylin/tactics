@@ -18,6 +18,25 @@ export default class RemoteTransport extends Transport {
 
         this._emit(body);
       })
+      .on('leave', event => {
+        if (event.body.reason === 'request')
+          return;
+
+        const messageByReason = new Map([
+          [ 'expire', 'Oops!  The game expired due to inactivity.' ],
+          [ 'cancel', 'Oops!  You cancelled the game in another tab.' ],
+          [ 'decline', 'Oops!  The challenged player declined the game.' ],
+        ]);
+
+        popup({
+          message: messageByReason.get(event.body.reason) ?? 'Oops!  The game disappeared mysteriously.',
+          buttons: [
+            { label:'Back to Game List', closeOnClick:false, onClick:() => location.href = 'online.html' },
+          ],
+          maxWidth: '250px',
+          closeOnCancel: false,
+        });
+      })
       .on('open', ({ data }) => {
         // Connection may be lost after listening to events, but before joining
         // the game and getting the data.  In that case, resume is a no-op and
@@ -78,6 +97,17 @@ export default class RemoteTransport extends Transport {
       return turn.actions;
 
     return gameClient.getTurnActions(this._data.id, turnId);
+  }
+  async cancel() {
+    // Shouldn't happen
+    if (!this._data) return;
+
+    const gameId = this._data.id;
+
+    await gameClient.closeGame(gameId);
+    await gameClient.cancelGame(gameId);
+
+    location.href = '/online.html';
   }
   submitAction(protoAction) {
     return gameClient.submitAction(this._data.id, protoAction);
@@ -177,9 +207,9 @@ export default class RemoteTransport extends Transport {
       if (error instanceof ServerError)
         if (error.code === 404)
           return popup({
-            message: 'Oops!  The game expired or was cancelled.',
+            message: 'Oops!  The game expired or was cancelled or declined.',
             buttons: [
-              { label:'Back', closeOnClick:false, onClick:() => history.back() },
+              { label:'Back to Game List', closeOnClick:false, onClick:() => location.href = 'online.html' },
             ],
             maxWidth: '250px',
             closeOnCancel: false,

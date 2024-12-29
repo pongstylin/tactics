@@ -423,6 +423,9 @@ export default class ServerSocket {
       message.ack = session.serverMessageId;
       message.idle = getIdle();
     }
+    // TODO
+    //if (message.body)
+    //  message.body = serializer.transform(message.body);
 
     clearTimeout(this._syncTimeout);
     this._syncTimeout = setTimeout(() => this._sendSync(), 5000);
@@ -502,6 +505,7 @@ export default class ServerSocket {
   }
 
   _onMessage({ target:socket, data }, now) {
+const ts = +new Date();
     if (socket !== this._socket)
       return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onMessage');
 
@@ -549,8 +553,8 @@ export default class ServerSocket {
     /*
      * Route the message.
      */
-    if (message.type === 'event')
-      this._emit({ type:'event', body:message.body });
+    if ([ 'event', 'join', 'leave' ].includes(message.type))
+      this._emit({ type:message.type, body:message.body });
     else if (message.type === 'response')
       this._onResponseMessage(message.body);
     else if (message.type === 'sync')

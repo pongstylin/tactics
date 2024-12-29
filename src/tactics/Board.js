@@ -970,7 +970,7 @@ export default class Board {
             els.sfLabel.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
             els.shLabel.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
             els.shield.text = countTurns(unit.mBlocking, m => unit.blocking + m >= 200);
-            notices.push('Protected!');
+            notices.push('Guarding!');
           } else if (willBlockFront) {
             els.sfLabel.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
             els.shLabel.style.fill = '#CCCC00';
@@ -995,7 +995,7 @@ export default class Board {
             els.shield.text =
               unit.blocking === 100 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 100 || m >= unit.blocking);
             if (unit.blocking < 100)
-              notices.push('Protected!');
+              notices.push('Guarding!');
           } else if (canBlockFront) {
             els.sfLabel.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
             els.shLabel.style.fill = '#FF4444';
