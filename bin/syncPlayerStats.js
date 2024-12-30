@@ -29,15 +29,14 @@ const playerMeta = new Map();
   const concurrentGames = new Map();
 
   for (const gameEvent of gameEvents) {
-    // Need full game object to sync ranked game team ratings.
+    // Need full game object to sync rated game team ratings.
     // Otherwise, approximate game object using indexed data to speed things up.
-    const needFullGame = gameEvent.index.ranked && gameEvent.type === 'ended';
+    const needFullGame = gameEvent.index.rated && gameEvent.type === 'ended';
     const game = needFullGame ? await gameAdapter._getGame(gameEvent.id) : {
       id: gameEvent.id,
       state:{
         type: gameEvent.index.type,
         rated: gameEvent.index.rated,
-        ranked: gameEvent.index.ranked,
         startedAt: gameEvent.index.startedAt,
         endedAt: gameEvent.type === 'started' ? null : gameEvent.index.endedAt,
         winnerId: gameEvent.index.winnerId,
@@ -60,19 +59,19 @@ const playerMeta = new Map();
       },
     };
 
-    if (game.state.ranked) {
+    if (game.state.rated) {
       const concurrentKey = [ game.state.type, ...game.state.teams.map(t => t.playerId).sort() ].join(':');
       if (game.state.endedAt)
         concurrentGames.delete(concurrentKey);
       else if (concurrentGames.has(concurrentKey)) {
         //concurrentGames.set(gameEvent.id, true);
-        console.log('concurrent ranked game detected', concurrentGames.get(concurrentKey), gameEvent.id);
+        console.log('concurrent rated game detected', concurrentGames.get(concurrentKey), gameEvent.id);
       } else
         concurrentGames.set(concurrentKey, gameEvent.id);
     }
 
     if (concurrentGames.has(gameEvent.id))
-      game.state.ranked = false;
+      game.state.rated = false;
 
     await recordGameStats(game);
   }
@@ -125,7 +124,7 @@ async function recordGameStats(game) {
   }
 
   if (game.state.endedAt) {
-    if (game.state.ranked)
+    if (game.state.rated)
       game.state.teams.forEach(t => t.data.ratings = null);
 
     if (PlayerStats.updateRatings(game, playersStatsMap))
