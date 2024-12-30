@@ -563,11 +563,15 @@ export default class GameService extends Service {
       throw new ServerError(400, 'You must join games that you create');
 
     const isMultiplayer = gameOptions.teams.findIndex(t => t?.playerId !== creatorId) > -1;
-    if (!isMultiplayer)
+    if (!isMultiplayer) {
       if (gameOptions.rated)
-        throw new ServerError(400, 'Practice games can\'t be rated');
+        throw new ServerError(400, `Single player games can't be rated`);
       else
         gameOptions.rated = false;
+
+      if (gameOptions.timeLimitName)
+        throw new ServerError(400, `Single player games can't have a time limit`);
+    }
 
     gameOptions.createdBy = creatorId;
     gameOptions.type = gameTypeId;
