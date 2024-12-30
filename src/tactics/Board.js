@@ -1892,6 +1892,12 @@ export default class Board {
   _highlightTargetMix(target) {
     let selected = this.selected;
 
+    // Necessary for special attacks
+    this.setHighlight(target, {
+      action: 'target',
+      color: ATTACK_TILE_COLOR,
+    });
+
     // Show target tiles
     selected.getTargetTiles(target).forEach(tile => {
       if (tile === target)
@@ -1917,6 +1923,12 @@ export default class Board {
   _clearTargetMix(target) {
     let selected = this.selected;
     if (selected.aAll) return;
+
+    // Necessary for special attacks
+    this.setHighlight(target, {
+      action: 'attack',
+      color: ATTACK_TILE_COLOR,
+    });
 
     let attackTiles = selected.getAttackTiles();
 
@@ -2015,8 +2027,7 @@ export default class Board {
     if (tile.action === 'attack') {
       if (unit)
         unit.change({ notice:null });
-    }
-    else if (tile.action === 'target') {
+    } else if (tile.action === 'target') {
       if (game.pointerType === 'mouse')
         this._clearTargetMix(tile);
       if (unit)
@@ -2046,6 +2057,9 @@ export default class Board {
   onTargetSelect(tile) {
     let selected = this.selected;
     let target = this.target;
+    if (selected.canSpecial() && (target ?? tile) === selected.assignment)
+      return this._emit({ type:'attackSpecial' });
+
     let action = {
       type: 'attack',
     };

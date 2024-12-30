@@ -30,7 +30,6 @@ var chatMessages = [];
 var playerRequestPopup;
 var timeoutPopup;
 var pointer;
-var readySpecial;
 var turnTimeout;
 
 var buttons = {
@@ -433,22 +432,6 @@ $(() => {
           { game, gameType, team },
         );
       }
-    })
-    /*
-     * Under these conditions a special attack can be triggered:
-     *   1) The unit is enraged and selected in attack mode. (selector)
-     *   2) The attack button is pressed for 2 seconds and released.
-     */
-    .on('press', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
-      readySpecial = game.readySpecial();
-    })
-    .on('release', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
-      if (event.detail.outside)
-        readySpecial?.cancel();
-      else
-        readySpecial.release();
-
-      readySpecial = null;
     })
     .on('mouseover', '#app BUTTON:enabled', event => {
       const $button = $(event.target);
@@ -1957,7 +1940,6 @@ async function startGame() {
       const can_move    = game.canSelectMove();
       const can_attack  = game.canSelectAttack();
       const can_turn    = game.canSelectTurn();
-      const can_special = game.canSelectSpecial();
 
       $('BUTTON[name=select]').removeClass('selected');
       $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
@@ -1975,11 +1957,6 @@ async function startGame() {
       $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
       $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
       $('BUTTON[name=select][value=turn]').prop('disabled', !can_turn);
-
-      if (new_mode === 'attack' && can_special)
-        $('BUTTON[name=select][value=attack]').addClass('ready');
-      else
-        $('BUTTON[name=select][value=attack]').removeClass('ready');
 
       if (new_mode === 'turn' && panzoom.canZoom() && game.selected && !game.viewed)
         $('BUTTON[name=select][value=turn]').addClass('ready');

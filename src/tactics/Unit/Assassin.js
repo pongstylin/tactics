@@ -9,6 +9,20 @@ export default class Assassin extends Unit {
 
     return (this.health + this.mHealth) < 5;
   }
+  setSpecialTargetNotice(targetUnit) {
+    if (targetUnit === this)
+      return targetUnit.change({ notice:'Explode!' });
+
+    return this.setTargetNotice(targetUnit, this.assignment, {
+      power: 99,
+      aType: 'magic',
+      aLOS: false,
+      aPierce: true,
+    });
+  }
+  getTargetUnits(target) {
+    return super.getTargetUnits(target).filter(t => t !== this);
+  }
   getSpecialTargetTiles(target, source) {
     return this.getTargetTiles(target, source);
   }

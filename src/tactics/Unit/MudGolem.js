@@ -9,6 +9,17 @@ export default class MudGolem extends Unit {
 
     return true;
   }
+  setSpecialTargetNotice(targetUnit) {
+    if (targetUnit === this)
+      return targetUnit.change({ notice:'Quake!' });
+    const distance = this.board.getDistance(this.assignment, targetUnit.assignment);
+
+    return this.setTargetNotice(targetUnit, this.assignment, {
+      power: this.power - distance * 5,
+      aType: 'magic',
+      aLOS: false,
+    });
+  }
   getSpecialTargetTiles(target, source = this.assignment) {
     return this.board.getTileRange(source, 1, 3);
   }
