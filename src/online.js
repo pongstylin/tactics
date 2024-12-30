@@ -2521,14 +2521,16 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
   divAvatarBadge.classList.add('avatar-badge');
   divPlayer.append(divAvatarBadge);
 
-  const aChallenge = document.createElement('A');
-  aChallenge.href = 'javascript:void(0)';
-  aChallenge.classList.add('button');
-  aChallenge.textContent = 'Challenge!';
-  aChallenge.addEventListener('click', async event => {
-    await configureGame.setGameType(rankingId === 'FORTE' ? null : rankingId);
-    configureGame.show('challenge', { challengee:playerId });
-  });
+  if (playerId !== authClient.playerId) {
+    const aChallenge = document.createElement('A');
+    aChallenge.href = 'javascript:void(0)';
+    aChallenge.classList.add('button');
+    aChallenge.textContent = 'Challenge!';
+    aChallenge.addEventListener('click', async event => {
+      await configureGame.setGameType(rankingId === 'FORTE' ? null : rankingId);
+      configureGame.show('challenge', { challengee:playerId });
+    });
+  }
 
   const divChallenge = document.createElement('DIV');
   divChallenge.classList.add('challenge');
