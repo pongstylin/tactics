@@ -26,8 +26,8 @@ export default class PlayerStats extends ActiveModel {
    * This method is static because it acts on the rating of more than one player
    */
   static updateRatings(game, playersStatsMap) {
-    // Only update ratings for ranked games.
-    if (!game.state.ranked)
+    // Only update ratings for rated games.
+    if (!game.state.rated)
       return false;
 
     const teamsMeta = game.state.teams.map(t => {
