@@ -1051,7 +1051,7 @@ async function joinGame(arena) {
     return false;
   }
 
-  await configureGame.setGameType(tabContent.selectedStyleId);
+  await configureGame.setGameType(gameSummary.type);
 
   if (
     configureGame.confirmBeforeJoin ||
