@@ -525,6 +525,15 @@ migrationMap.set('game', [
 
     return json;
   },
+  json => {
+    const game = json.$data;
+    const state = game.state;
+
+    if (state.rated)
+      state.undoMode = state.strictUndo ? 'strict' : 'normal';
+
+    return json;
+  },
 ]);
 
 migrationMap.set('sets', [
