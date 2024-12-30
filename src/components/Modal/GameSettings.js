@@ -22,18 +22,17 @@ export default class GameSettings extends Modal {
       identity = `This is a local game.`;
     } else {
       const rated = data.game.state.rated ? 'a rated' : 'an unrated';
-      const ranked = data.game.state.ranked ? 'a ranked' : 'an unranked';
       let vs;
-      if (data.game.collection === 'public')
+      if (data.game.state.strictFork)
+        vs = 'Tournament';
+      else if (data.game.collection === 'public')
         vs = 'Public';
       else if (data.game.collection)
         vs = 'Lobby';
-      else if (data.game.state.strictUndo && data.game.state.strictFork && data.game.state.autoSurrender)
-        vs = 'Tournament';
       else
         vs = 'Private';
 
-      identity = `This is ${data.game.collection ? ranked : rated} ${vs} game.`;
+      identity = `This is ${rated} ${vs} game.`;
     }
 
     const timeLimitLabel = data.game.timeLimitName?.toUpperCase('first') ?? 'None';
