@@ -2530,12 +2530,12 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
       await configureGame.setGameType(rankingId === 'FORTE' ? null : rankingId);
       configureGame.show('challenge', { challengee:playerId });
     });
-  }
 
-  const divChallenge = document.createElement('DIV');
-  divChallenge.classList.add('challenge');
-  divChallenge.append(aChallenge);
-  divPlayer.append(divChallenge);
+    const divChallenge = document.createElement('DIV');
+    divChallenge.classList.add('challenge');
+    divChallenge.append(aChallenge);
+    divPlayer.append(divChallenge);
+  }
 
   const divAvatarImage = document.createElement('DIV');
   divAvatarImage.classList.add('image');
