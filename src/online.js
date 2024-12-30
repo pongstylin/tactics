@@ -1051,7 +1051,7 @@ async function joinGame(arena) {
     return false;
   }
 
-  await configureGame.setGameType(gameSummary.type);
+  await configureGame.setGameType(arena.type);
 
   if (
     configureGame.confirmBeforeJoin ||
