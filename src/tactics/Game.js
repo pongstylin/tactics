@@ -75,11 +75,11 @@ export default class Game {
           this.selected = null;
         }
       })
-      // 'move' and 'attack' events do not yet come from the board.
-      .on('move',    event => this._submitAction(event))
-      .on('attack',  event => this._submitAction(event))
-      .on('turn',    event => this._submitAction(event))
-      .on('endTurn', event => this._submitAction(event))
+      .on('move',        event => this._submitAction(event))
+      .on('attack',      event => this._submitAction(event))
+      .on('attackSpecial', event => this._submitAction(event))
+      .on('turn',        event => this._submitAction(event))
+      .on('endTurn',     event => this._submitAction(event))
       .on('card-change', event => this._emit(event))
       .on('lock-change', event => this._emit(event));
 
@@ -454,10 +454,13 @@ export default class Game {
   get isFork() {
     return !!this.state.forkOf;
   }
-  get isPracticeGame() {
-    return this.state.isPracticeGame
+  get isSinglePlayer() {
+    return this.state.isSinglePlayer;
   }
-  get ofPracticeGame() {
+  get isPracticeMode() {
+    return this.state.isPracticeMode;
+  }
+  get ofSinglePlayer() {
     if (!this.state.forkOf) return false;
 
     const myTeams = this.state.teams.filter(t => t.forkOf.playerId === this.playerId);
@@ -998,39 +1001,6 @@ export default class Game {
     return true;
   }
 
-  /*
-   * Animate the unit getting ready to launch their special attack.
-   * Returns a promise decorated with a couple of useful methods.
-   */
-  readySpecial() {
-    let selected = this.selected;
-    let anim = selected.animReadySpecial();
-    let promise = anim.play();
-
-    // If you release too early, the attack is cancelled.
-    // If you release after ~2 secs then the attack is launched. 
-    promise.release = () => {
-      anim.stop();
-
-      // Make sure the previously selected unit is still selected.
-      // It won't be if the opponent reverted before release.
-      if (anim.state.ready && this.selected === selected) {
-        this._submitAction({type:'attackSpecial'});
-
-        // Set this to false to prevent releasing twice.
-        anim.state.ready = false;
-      }
-    };
-
-    // For the sake of all that's holy, don't attack even if ready!
-    promise.cancel = () => {
-      anim.stop();
-      anim.state.ready = false;
-    };
-
-    return promise;
-  }
-
   pass() {
     this._submitAction({ type:'endTurn' });
   }
@@ -1413,8 +1383,7 @@ export default class Game {
           action: 'move',
           color: MOVE_TILE_COLOR,
         }, true);
-      }
-      else if (action.type === 'attack') {
+      } else if (action.type === 'attack') {
         tracker.attack = unit.getTargetTiles(action.target, tracker.assignment);
         tracker.direction = action.direction;
 
@@ -1422,8 +1391,7 @@ export default class Game {
           action: 'attack',
           color: ATTACK_TILE_COLOR,
         }, true);
-      }
-      else if (action.type === 'attackSpecial') {
+      } else if (action.type === 'attackSpecial') {
         tracker.attack = unit.getSpecialTargetTiles(action.target, tracker.assignment);
         tracker.direction = action.direction;
 
@@ -1431,11 +1399,9 @@ export default class Game {
           action: 'attack',
           color: ATTACK_TILE_COLOR,
         }, true);
-      }
-      else if (action.type === 'turn') {
+      } else if (action.type === 'turn') {
         tracker.direction = action.direction;
-      }
-      else if (action.type === 'endTurn') {
+      } else if (action.type === 'endTurn') {
         if (unit.directional !== false)
           board.showDirection(unit, tracker.assignment, tracker.direction);
       }
@@ -1448,14 +1414,14 @@ export default class Game {
     if (!action.results)
       return;
 
-    let showResult = async result => {
+    const showResult = async result => {
       if (result.type === 'summon') return;
 
-      let anim = new Tactics.Animation({ speed });
-      let changes = Object.assign({}, result.changes);
+      const anim = new Tactics.Animation({ speed });
+      const changes = Object.assign({}, result.changes);
 
       // Changed separately
-      let mHealth = changes.mHealth;
+      const mHealth = changes.mHealth;
       delete changes.mHealth;
 
       let unit = result.unit;
@@ -1469,6 +1435,8 @@ export default class Game {
       // This can happen when the Chaos Seed hatches and consumes the unit.
       if (!unit.assignment) return;
 
+      const mArmorChange = changes.mArmor === undefined ? 0 : changes.mArmor - unit.mArmor;
+
       if (Object.keys(changes).length)
         unit.change(changes);
       if (result.results)
@@ -1476,23 +1444,21 @@ export default class Game {
 
       anim.splice(this._animApplyFocusChanges(result));
 
-      if (changes.armored && unit === action.unit) {
+      if (mArmorChange > 0 && unit === action.unit) {
         this.drawCard(unit);
 
-        let caption = 'Armor Up!';
+        const caption = 'Armor Up!';
         anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
-      }
-      else if ('focusing' in changes || changes.barriered === false) {
-        let caption = result.notice;
+      } else if ('focusing' in changes || changes.barriered === false) {
+        const caption = result.notice;
         if (caption)
           anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
-      }
-      // Don't show shrub death.  They are broken apart during attack.
-      else if (unit.type === 'Shrub' && mHealth === -unit.health)
+      } else if (unit.type === 'Shrub' && mHealth === -unit.health)
+        // Don't show shrub death.  They are broken apart during attack.
         return anim.play();
       else if ('armored' in changes)
         return anim.play();

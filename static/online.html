@@ -96,7 +96,9 @@
       padding: 8px 8px 0 8px;
       font-size: 1.2em;
     }
-    .page > HEADER A, .page > HEADER BUTTON {
+    A.button,
+    .page > HEADER A,
+    .page > HEADER BUTTON {
       display: inline-block;
       border-radius: 2px;
       border: 1px solid #804a00;
@@ -107,7 +109,9 @@
       text-decoration: none;
       text-align: center;
     }
-    .page > HEADER A:hover, .page > HEADER BUTTON:hover {
+    A.button:hover,
+    .page > HEADER A:hover,
+    .page > HEADER BUTTON:hover {
       border-color: #FFCC00;
       color: #FFCC00;
       text-decoration: none;
@@ -511,17 +515,17 @@
       color: #00FF00;
       content: "\f500";
     }
-    .rankings > .rankings .matches .match SPAN.alias,
+    .rankings > .rankings .matches .match SPAN.text,
     .rankings > .rankings .favorites .favorite SPAN.nickname {
       margin-left: 6px;
     }
-    .rankings > .rankings .matches .match SPAN.alias::before,
+    .rankings > .rankings .matches .match SPAN.text::before,
     .rankings > .rankings .favorites .favorite SPAN.nickname::before {
       font-weight: bold;
       color: #b08d57;
       content: '( ';
     }
-    .rankings > .rankings .matches .match SPAN.alias::after,
+    .rankings > .rankings .matches .match SPAN.text::after,
     .rankings > .rankings .favorites .favorite SPAN.nickname::after {
       font-weight: bold;
       color: #b08d57;
@@ -597,7 +601,7 @@
     .rankings > .player-summary .player {
       position: relative;
       padding: 40px 0 0 112px;
-      min-height: 96px;
+      min-height: 124px;
       text-align: left;
     }
     .rankings > .player-summary .player > .name {
@@ -664,6 +668,14 @@
       height: 80px;
       pointer-events: none;
       z-index: -1;
+    }
+    .rankings > .player-summary .player .challenge {
+      position: absolute;
+      top: 100px;
+      left: 8px;
+      width: 80px;
+
+      text-align: center;
     }
     .rankings > .content .game-list {
       display: flex;
@@ -792,6 +804,9 @@
     }
     LABEL.show-results:hover {
       color: #FFCC00;
+    }
+    LABEL.show-results INPUT[type=checkbox] {
+      margin: 0 0 0 0.4em;
     }
 
     @media (min-width:640px) {
@@ -1211,6 +1226,7 @@
       display: flex;
       flex-direction: row;
       flex-wrap: wrap;
+      align-items: center;
       justify-content: center;
 
       position: absolute;
@@ -1220,6 +1236,7 @@
 
       box-sizing: border-box;
       width: 100%;
+      min-height: 33px; /* vertically align a single row a little higher */
       padding-left: 1.5px;
     }
     .arena .labels .label {
@@ -1358,7 +1375,7 @@
   <DIV class="page">
     <HEADER style="display:none">
       <DIV>
-        <A href="/createGame.html">Create Game</A>
+        <A href="javascript:void(0)">Create Game</A>
       </DIV>
       <DIV class="account">
         <SPAN class="warning">!!</SPAN>

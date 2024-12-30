@@ -22,6 +22,7 @@ var playerInfo;
 var progress;
 var gameId = location.search.slice(1).replace(/[&=].*$/, '');
 var gameType;
+var transport;
 var game;
 var muted;
 var lastSeenEventId;
@@ -29,7 +30,6 @@ var chatMessages = [];
 var playerRequestPopup;
 var timeoutPopup;
 var pointer;
-var readySpecial;
 var turnTimeout;
 
 var buttons = {
@@ -197,7 +197,7 @@ var buttons = {
   surrender: () => {
     if (game.isLocalGame)
       popup({
-        message: `End your practice game?`,
+        message: `End your single player game?`,
         buttons: [
           {
             label: 'Yes',
@@ -223,9 +223,9 @@ var buttons = {
         ],
         margin: '16px',
       });
-    else if (!game.state.rated)
+    else if (game.state.undoMode === 'loose')
       popup({
-        message: `Do you surrender?  This is not a rated game so it won't affect your Win/Lose/Draw stats.`,
+        message: `Do you surrender this practice game?  It won't affect your stats.`,
         buttons: [
           {
             label: 'Yes',
@@ -241,7 +241,7 @@ var buttons = {
     else if (game.canTruce())
       popup({
         message: [
-          `If you and your opponent agree to a truce, then this game won't affect your Win/Lose/Draw stats.  `,
+          `If you and your opponent agree to a truce, then this game won't affect your stats.  `,
           `Otherwise, you can surrender.`,
         ].join(''),
         buttons: [
@@ -432,22 +432,6 @@ $(() => {
           { game, gameType, team },
         );
       }
-    })
-    /*
-     * Under these conditions a special attack can be triggered:
-     *   1) The unit is enraged and selected in attack mode. (selector)
-     *   2) The attack button is pressed for 2 seconds and released.
-     */
-    .on('press', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
-      readySpecial = game.readySpecial();
-    })
-    .on('release', '#app BUTTON:enabled[name=select][value=attack].ready', event => {
-      if (event.detail.outside)
-        readySpecial?.cancel();
-      else
-        readySpecial.release();
-
-      readySpecial = null;
     })
     .on('mouseover', '#app BUTTON:enabled', event => {
       const $button = $(event.target);
@@ -859,7 +843,7 @@ async function loadTransportAndGame(gameId, gameData) {
 }
 // Must be authorized first or the game already ended
 async function loadTransport(gameId, gameData) {
-  const transport = new Tactics.RemoteTransport(gameId, gameData);
+  transport = new Tactics.RemoteTransport(gameId, gameData);
   await transport.whenReady;
 
   return transport;
@@ -969,9 +953,17 @@ function initMessages(messages) {
       `Tap link for more info.`,
     ].join('') });
 
-  if (game.state.rated && !game.state.ranked) {
+  if (game.state.undoMode === 'loose')
+    messages.push({ content:[
+      `This is a <a href="javascript:void(0)" class="info-practice">Practice</a> game.  `,
+      `Tap link for more info.`,
+    ].join('') });
+  else if (!game.state.rated && game.state.unratedReason) {
     let reason;
-    switch (game.state.unrankedReason) {
+    switch (game.state.unratedReason) {
+      case 'not rated':
+        reason = `it was disabled by the game creator`;
+        break;
       case 'private':
         reason = `this is a private game`;
         break;
@@ -982,10 +974,10 @@ function initMessages(messages) {
         reason = `both players share the same identity`;
         break;
       case 'in game':
-        reason = `the players were already playing a ranked game against each other in this style`;
+        reason = `the players were already playing a rated game against each other in this style`;
         break;
       case 'too many games':
-        reason = `the players have 2 ranked games against each other in this style within the past week`;
+        reason = `the players have 2 rated games against each other in this style within the past week`;
         break;
       case 'truce':
         reason = `the game ended in a truce`;
@@ -1000,8 +992,8 @@ function initMessages(messages) {
         reason = `of a bug`;
     }
 
-    messages.push({ class:'ranked', content:[
-      `This is <span style="color:red">NOT</span> a <a href="javascript:void(0)" class="info-ranked">Ranked</a> game `,
+    messages.push({ class:'rated', content:[
+      `This is <span style="color:red">NOT</span> a <a href="javascript:void(0)" class="info-rated">Rated</a> game `,
       `because ${reason}.`,
     ].join('') });
   }
@@ -1032,20 +1024,51 @@ function initMessages(messages) {
           succession.  The unit's info card will tell you how long the unit will remain protected.
         </P>
       `, maxWidth:'400px' });
-    else if (event.target.classList.contains('info-ranked'))
+    else if (event.target.classList.contains('info-practice'))
+      popup({ message:`
+        A practice game is a great way to learn especially if you find a helpful partner.  Unlike other
+        games, observers can see the latest moves so that they may offer advice.  Your partner can also
+        see your moves before your turn ends to further enable collaboration.  Finally, undo rules are
+        very relaxed.  There are fewer conditions that require approval and you can revert as many turns
+        of game history as exist.  You can even undo after the game ends!  Practice games do not affect
+        your stats.
+      `, maxWidth:'400px' });
+    else if (event.target.classList.contains('info-draw'))
+      popup({ message:`
+        <P style="margin:0 0 8px 0">
+          To avoid never-ending games, there are 2 conditions that can result in a game ending in draw.
+          The 1st condition requires both players to take no action for 3 turns each for a total of 6
+          turns without action.  The 2nd condition requires both players to not make contact with each
+          other for 15 turns each for a total of 30 turns without contact.
+        </P>
+        <P style="margin:0 0 8px 0">
+          The 1st draw condition can surprise you if you use a unit (e.g. a Dragon Tyrant) to move and
+          attack with a penalty of 3 turns of recovery.  Your opponent can force a draw by optionally
+          using one turn to kill a 2nd unit, if any, then pass 3 times.  If you have no unit to take
+          action while waiting for your 1st unit to recover, then the game will end in a draw.
+        </P>
+        <P style="margin:0 0 8px 0">
+          The 2nd draw condition can be avoided by attacking your opponent.  Almost all attacks will
+          reset the draw counter including physical, magical, paralysis, poison, and quake attacks.
+          However, healing or attacking yourself won't reset it.  Immune attacks won't reset it such
+          as Scout shooting enemy Lightning Ward without doing damage or mud quaking a Poison Wisp.
+          Also, killing shrubs won't reset it.
+        </P>
+      `, maxWidth:'500px' });
+    else if (event.target.classList.contains('info-rated'))
       popup({ message:`
         <P style="margin:0 0 8px 0">
           Players are ranked according to their style skill ratings.
           You can view a player's ratings and rank by clicking their name in the banner.
-          Here are the requirements for playing a ranked game.
+          Here are the requirements for playing a rated game.
         </P>
         <UL style="margin: 0 0 0 24px">
           <LI>Only rated public or lobby games affect rankings.</LI>
-          <LI>A ranked game must be between 2 verified players.</LI>
-          <LI>Only 1 ranked game per opponent per style at a time.</LI>
-          <LI>Only 2 ranked games per opponent per style per week.</LI>
-          <LI>Game will not affect ranking if it ends in a truce.</LI>
-          <LI>Game will not affect ranking if a player doesn't see it.</LI>
+          <LI>A rated game must be between 2 verified players.</LI>
+          <LI>Only 1 rated game per opponent per style at a time.</LI>
+          <LI>Only 2 rated games per opponent per style per week.</LI>
+          <LI>Game will not affect rating if it ends in a truce.</LI>
+          <LI>Game will not affect rating if a player doesn't see it.</LI>
         </UL>
       `, maxWidth:'400px' });
   });
@@ -1080,32 +1103,63 @@ function renderMessage(message) {
     message.content = message.content.replace(gameUrlMatch, '<A href="game.html?$1" target="_blank">Game Link</A>');
 
     $('#messages').append(`
-      <DIV class="message player player-${playerId} ${isMuted} ${message.class ?? ''}">
+      <DIV
+        class="message player player-${playerId} ${isMuted} ${message.class ?? ''}"
+      >
         <SPAN class="player">${playerName}</SPAN>
         <SPAN class="content">${message.content}</SPAN>
       </DIV>
     `);
   } else {
     $('#messages').append(`
-      <DIV class="message system ${message.class ?? ''}">
+      <DIV
+        class="message system ${message.class ?? ''}"
+        data-json='${JSON.stringify(message.data ?? null)}'
+      >
         <SPAN class="content">${message.content}</SPAN>
       </DIV>
     `);
   }
 }
-function refreshRankedMessage() {
+function refreshRatedMessage() {
   const reason =
-    game.state.unrankedReason === 'truce' ? 'the game ended in a truce' :
-    game.state.unrankedReason === 'unseen' ? `the loser didn't open the game in time` :
+    game.state.unratedReason === 'truce' ? 'the game ended in a truce' :
+    game.state.unratedReason === 'unseen' ? `the loser didn't open the game in time` :
     null;
 
   if (reason) {
-    $('#messages .message.ranked').remove();
-    appendMessages([ { class:'ranked', content:[
-      `This is <span style="color:red">NOT</span> a <a href="javascript:void(0)" class="info-ranked">Ranked</a> game `,
+    $('#messages .message.rated').remove();
+    appendMessages([ { class:'rated', content:[
+      `This is <span style="color:red">NOT</span> a <a href="javascript:void(0)" class="info-rated">Rated</a> game `,
       `because ${reason}.`,
     ].join('') } ]);
   }
+}
+function refreshDrawMessage() {
+  const $oldMessage = $('#messages .message.draw');
+  const oldDrawCounts = $oldMessage.data('json');
+
+  if (!game.state.startedAt || game.state.endedAt)
+    return $oldMessage.remove();
+
+  const drawCounts = game.state.drawCounts;
+  if (
+    drawCounts.passedTurnCount === oldDrawCounts?.passedTurnCount &&
+    drawCounts.attackTurnCount === oldDrawCounts?.attackTurnCount
+  ) return;
+
+  $oldMessage.remove();
+
+  const forecast =
+    (drawCounts.passedTurnCount / drawCounts.passedTurnLimit) >= 1/3
+      ? `${drawCounts.passedTurnLimit - drawCounts.passedTurnCount} turns without action` :
+    (drawCounts.attackTurnCount / drawCounts.attackTurnLimit) >= 1/3
+      ? `${drawCounts.attackTurnLimit - drawCounts.attackTurnCount} turns without contact` : null;
+
+  if (forecast)
+    appendMessages([ { class:'draw', data:drawCounts, content:[
+      `The game will <a href="javascript:void(0)" class="info-draw">Draw</a> in ${forecast}.`,
+    ].join('') } ]);
 }
 
 function resetPrompts() {
@@ -1124,13 +1178,14 @@ async function showPublicIntro(gameData) {
   renderShareLink(gameData, document.querySelector('#public .shareLink'));
   renderCancelButton(gameData.id, document.querySelector('#public .cancelButton'));
 
-  const rated = gameData.state.rated ? 'rated' : 'unrated';
-  const vs = gameData.collection === 'public' ? 'Public' : 'Lobby';
+  const state = gameData.state;
+  const collection = gameData.collection === 'public' ? 'Public' : 'Lobby';
+  const mode = state.undoMode === 'loose' ? ' Practice' : state.strictFork ? ' Tournament' : '';
   const $greeting = $('#public .greeting');
   const $subText = $greeting.next();
-  const myTeam = gameData.state.teams.find(t => t?.playerId === authClient.playerId);
+  const myTeam = state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
-  $subText.text($subText.text().replace('{vs}', `${rated} ${vs}`));
+  $subText.text($subText.text().replace('{vs}', `${collection}${mode}`));
 
   const transport = await loadTransport(gameData.id);
 
@@ -1147,13 +1202,12 @@ async function showPrivateIntro(gameData) {
   renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
   const state = gameData.state;
-  const rated = state.rated ? 'rated' : 'unrated';
-  const vs = state.strictUndo && state.strictFork && state.autoSurrender ? 'Tournament' : 'Private';
+  const mode = state.undoMode === 'loose' ? ' Practice' : state.strictFork ? ' Tournament' : '';
   const $greeting = $('#private .greeting');
   const $subText = $greeting.next();
   const myTeam = state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
-  $subText.text($subText.text().replace('{vs}', `${rated} ${vs}`));
+  $subText.text($subText.text().replace('{vs}', `Private${mode}`));
 
   const transport = await loadTransport(gameData.id);
 
@@ -1176,12 +1230,9 @@ function renderCancelButton(gameId, container) {
       buttons: [
         {
           label:'Yes',
-          onClick: () => {
-            gameClient.cancelGame(gameId)
-              .then(() => {
-                location.href = '/online.html';
-              });
-          }
+          onClick: () => transport ? transport.cancel() : gameClient.cancelGame(gameId).then(() => {
+            location.href = '/online.html';
+          }),
         },
         {
           label: 'No'
@@ -1190,7 +1241,7 @@ function renderCancelButton(gameId, container) {
       maxWidth: '250px',
       zIndex: 10,
     });
-  })
+  });
 }
 
 function renderShareLink(gameData, container) {
@@ -1569,15 +1620,18 @@ async function showJoinIntro(gameData) {
     }
     challenge.innerHTML = message.join('  ');
 
-    let vs;
-    if (gameData.collection === 'public')
-      vs = 'a Public';
-    else if (gameData.collection)
-      vs = 'a Lobby';
-    else if (gameData.state.strictUndo && gameData.state.strictFork && gameData.state.autoSurrender)
-      vs = 'a Tournament';
-    else
-      vs = 'a Private';
+    const isForkMode = !!gameData.forkOf;
+    const isPracticeMode =
+      gameData.state.rated === false && gameData.state.undoMode === 'loose';
+    const isTournamentMode =
+      gameData.state.undoMode === 'strict' && gameData.state.strictFork === true && gameData.state.autoSurrender === true;
+
+    const visibility = !gameData.collection ? 'Private' : gameData.collection.split('/')[0].toUpperCase('first');
+    const mode =
+      isForkMode ? 'Fork' :
+      isPracticeMode ? 'Practice' :
+      isTournamentMode ? `${visibility} Tournament` :
+      visibility;
 
     let person;
     if (gameData.state.randomFirstTurn)
@@ -1588,18 +1642,18 @@ async function showJoinIntro(gameData) {
       person = creatorTeam.name;
 
     const blocking = gameData.state.randomHitChance ? 'random' : 'predictable';
-    const rated = gameData.collection
-      ? gameData.meta.ranked ? 'ranked' : 'unranked'
-      : gameData.state.rated ? 'rated' : 'unrated';
+    const rated = gameData.meta.rated ? 'rated' : 'unrated';
 
-    details.innerHTML = `
-      <DIV>This is ${vs} game.</DIV>
-      <DIV>The game is ${rated}.</DIV>
-      <DIV>The game style is <I>${gameType.name}</I>.</DIV>
-      <DIV>The time limit is set to ${gameData.timeLimitName.toUpperCase('first')}.</DIV>
-      <DIV>The first person to move is ${person}.</DIV>
-      <DIV>The blocking system is ${blocking}.</DIV>
-    `;
+    details.innerHTML = [
+      `<DIV>This is a ${mode} game.</DIV>`,
+      `<DIV>The game style is <I>${gameType.name}</I>.</DIV>`,
+      `<DIV>The time limit is set to ${gameData.timeLimitName.toUpperCase('first')}.</DIV>`,
+      !isPracticeMode ? '' :
+        `<DIV>The first person to move is ${person}.</DIV>`,
+      `<DIV>The blocking system is ${blocking}.</DIV>`,
+      !gameData.collection && isPracticeMode && isForkMode ? '' :
+        `<DIV>The game is ${rated}.</DIV>`,
+    ].join('');
 
     const $mySet = $('#join INPUT[name=setChoice][value=mySet]');
     const $sets = $('#join .mySet SELECT');
@@ -1662,7 +1716,7 @@ async function showJoinIntro(gameData) {
       });
     }
 
-    if (gameData.state.rated)
+    if (gameData.state.undoMode !== 'loose')
       $('#join .mirror, #join .same').hide();
 
     return new Promise((resolve, reject) => {
@@ -1762,7 +1816,7 @@ function resetPlayerBanners() {
       if (!$fork.length)
         $fork = $('<SPAN>').insertAfter($name).addClass('fork fa fa-code-branch');
 
-      if (!game.ofPracticeGame) {
+      if (!game.ofSinglePlayer) {
         let $forkName = $player.find('.forkName');
         if (!$forkName.length)
           $forkName = $('<SPAN>').insertAfter($fork).addClass('forkName');
@@ -1872,10 +1926,11 @@ async function startGame() {
     .on('state-change', event => {
       $('BUTTON[name=pass]').prop('disabled', !game.isMyTurn);
       toggleUndoButton();
-      if (game.state.endedAt && game.state.rated) {
+      if (game.state.endedAt && game.state.undoMode !== 'loose') {
         $('BUTTON[name=undo]').hide();
-        refreshRankedMessage();
+        refreshRatedMessage();
       }
+      refreshDrawMessage();
       toggleReplayButtons();
     })
     .on('selectMode-change', event => {
@@ -1885,7 +1940,6 @@ async function startGame() {
       const can_move    = game.canSelectMove();
       const can_attack  = game.canSelectAttack();
       const can_turn    = game.canSelectTurn();
-      const can_special = game.canSelectSpecial();
 
       $('BUTTON[name=select]').removeClass('selected');
       $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
@@ -1903,11 +1957,6 @@ async function startGame() {
       $('BUTTON[name=select][value=move]').prop('disabled', !can_move);
       $('BUTTON[name=select][value=attack]').prop('disabled', !can_attack);
       $('BUTTON[name=select][value=turn]').prop('disabled', !can_turn);
-
-      if (new_mode === 'attack' && can_special)
-        $('BUTTON[name=select][value=attack]').addClass('ready');
-      else
-        $('BUTTON[name=select][value=attack]').removeClass('ready');
 
       if (new_mode === 'turn' && panzoom.canZoom() && game.selected && !game.viewed)
         $('BUTTON[name=select][value=turn]').addClass('ready');
@@ -2277,7 +2326,9 @@ function toggleReplayButtons() {
 
   $('BUTTON[name=forward]').prop('disabled', atCurrent);
   $('BUTTON[name=end]').prop('disabled', atCurrent);
-  $('BUTTON[name=fork]').prop('disabled', (game.state.strictUndo && !game.state.endedAt) || atEnd);
+  $('BUTTON[name=fork]').prop('disabled', (
+    (game.state.strictFork || game.state.undoMode === 'strict') && !game.state.endedAt
+  ) || atEnd);
 }
 
 function setCursorAlert() {

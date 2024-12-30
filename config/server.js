@@ -126,36 +126,36 @@ const config = {
               name: 'public',
               gameOptions: {
                 defaults: {
-                  strictUndo: false,
+                  randomFirstTurn: true,
+                  undoMode: 'normal',
                   autoSurrender: false,
-                  rated: true,
+                  rated: null,
+                  timeLimitName: 'week',
                 },
                 schema: {
-                  strictUndo: 'const(false)',
-                  autoSurrender: 'const(false)',
+                  timeLimitName: `enum([ 'week', 'day' ])`,
                 },
               },
             },
             {
               name: 'lobby',
-              numPendingGamesPerPlayer: 1,
+              numActiveGamesPerPlayer: 1,
               gameOptions: {
                 defaults: {
                   randomFirstTurn: true,
-                  strictUndo: false,
+                  undoMode: 'normal',
                   autoSurrender: true,
-                  rated: true,
-                  turnTimeLimit: 'standard',
+                  rated: null,
+                  timeLimitName: 'standard',
                 },
                 schema: {
-                  randomFirstTurn: 'const(true)',
-                  strictUndo: 'const(false)',
                   autoSurrender: 'const(true)',
-                  turnTimeLimit: `enum([ 'blitz', 'standard', 'pro' ])`,
+                  timeLimitName: `enum([ 'blitz', 'standard', 'pro' ])`,
                 },
               },
               collections: gameTypeIds.map(gtId => ({
                 name: gtId,
+                numPendingGamesPerPlayer: 1,
                 gameType: gtId,
               })),
             },

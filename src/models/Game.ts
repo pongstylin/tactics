@@ -19,11 +19,10 @@ const stateKeys = new Set([
   'type',
   'randomFirstTurn',
   'randomHitChance',
-  'strictUndo',
+  'undoMode',
   'strictFork',
   'autoSurrender',
   'rated',
-  'ranked',
   'timeLimit',
   'teams',
 ]);
@@ -128,6 +127,19 @@ export default class Game extends ActiveModel {
   }
   get createdAt() {
     return this.data.createdAt;
+  }
+
+  /*
+   * If a game hasn't started yet, it is...
+   *   ... "open" if there is a null slot in the team list.
+   *   ... "reserved" if there is no null slot in the team list.
+   */
+  get isReserved() {
+    const state = this.data.state;
+    if (state.startedAt)
+      return false;
+
+    return !state.teams.some(t => t === null);
   }
 
   getTeamForPlayer(playerId) {
@@ -258,7 +270,7 @@ export default class Game extends ActiveModel {
   }
   submitUndoRequest(request, receivedAt = Date.now()) {
     const state = this.data.state;
-    if (state.endedAt && state.rated)
+    if (state.endedAt && state.undoMode !== 'loose')
       throw new ServerError(409, 'Game already ended');
 
     // Determine the team that is making the request.
@@ -285,7 +297,7 @@ export default class Game extends ActiveModel {
     const state = this.data.state;
     if (state.endedAt)
       throw new ServerError(409, 'Game already ended');
-    if (!state.rated)
+    if (state.undoMode === 'loose')
       throw new ServerError(403, 'Truce not required for this game');
 
     return true;
@@ -393,17 +405,16 @@ export default class Game extends ActiveModel {
     forkGameData.createdAt = new Date();
     forkGameData.id = uuid();
     forkGameData.forkOf = { gameId:this.data.id, turnId:forkGameData.state.currentTurnId };
-    forkGameData.state.strictUndo = false;
+    forkGameData.state.undoMode = 'loose';
     forkGameData.state.strictFork = false;
     forkGameData.state.autoSurrender = false;
     forkGameData.state.rated = false;
-    forkGameData.state.ranked = false;
 
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
     forkGameData.state.turns.forEach(t => t.team = teams[t.id % teams.length]);
 
     if (vs === 'you') {
-      if (!this.data.state.endedAt && this.data.state.rated) {
+      if (!this.data.state.endedAt && this.data.state.undoMode !== 'loose') {
         const myTeam = this.data.state.teams.find(t => t.playerId === clientPara.playerId);
         if (myTeam) {
           myTeam.setUsedSim();
@@ -438,7 +449,25 @@ export default class Game extends ActiveModel {
       throw new ServerError(409, 'Game already started');
 
     this.isCancelled = true;
-    this.emit('delete');
+    this.emit('delete:cancel');
+  }
+  expire() {
+    if (this.isCancelled === true)
+      return;
+    if (this.state.startedAt)
+      throw new ServerError(409, 'Game already started');
+
+    this.isCancelled = true;
+    this.emit('delete:expire');
+  }
+  decline() {
+    if (this.isCancelled === true)
+      return;
+    if (this.state.startedAt)
+      throw new ServerError(409, 'Game already started');
+
+    this.isCancelled = true;
+    this.emit('delete:decline');
   }
 
   getSyncForPlayer(playerId, reference) {
@@ -485,7 +514,9 @@ export default class Game extends ActiveModel {
 
     // Only some data is mutable after game creation.
     for (const key of Object.keys(state))
-      if (![ 'teams', 'startedAt', 'ranked', 'unrankedReason', 'lockedTurnId', 'currentTurnId', 'recentTurns' ].includes(key))
+      if (![
+        'teams', 'startedAt', 'rated', 'unratedReason', 'lockedTurnId', 'currentTurnId', 'recentTurns', 'drawCounts'
+      ].includes(key))
         delete state[key];
 
     if (reference === 'creation')
@@ -495,11 +526,11 @@ export default class Game extends ActiveModel {
     delete state.teams;
     delete state.startedAt;
 
-    // Lazy implementation.  We know ranked / unrankedReason hasn't changed if game hasn't ended.
+    // Lazy implementation.  We know rated / unratedReason hasn't changed if game hasn't ended.
     // But we should also delete if client has seen end game state.
     if (!this.state.endedAt) {
-      delete state.ranked;
-      delete state.unrankedReason;
+      delete state.rated;
+      delete state.unratedReason;
     }
 
     this._pruneGameState(gameData, reference);
@@ -519,9 +550,9 @@ export default class Game extends ActiveModel {
     const fromActionsAt = reference.slice(REF_ACTION_AT).map(d => new Date(d));
     const fromTurn = fromTurnId === toTurnId ? toTurn : this.data.state.turns[fromTurnId]?.getDigest();
 
-    // locked turn id does not progress in unrated games
+    // locked turn id does not progress in practice games
     // Otherwise, if turns have not progressed, locked turn id hasn't either.
-    if (!this.data.state.rated || toTurnId <= fromTurnId)
+    if (this.data.state.undoMode === 'loose' || toTurnId <= fromTurnId)
       delete state.lockedTurnId;
 
     // Only patch the from turn if it wasn't reverted or if it is recent enough.

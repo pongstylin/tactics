@@ -50,6 +50,7 @@ UL.choices {
   }
 }
 
+INPUT[type=checkbox],
 INPUT[type=radio] {
   padding: 0;
   margin: 0;
@@ -65,6 +66,7 @@ LABEL:first-child {
   padding: 4px 4px 4px 0;
 }
 
+LABEL INPUT[type=checkbox]:first-child,
 LABEL INPUT[type=radio]:first-child {
   margin: 0 0.4em 0 0;
 }

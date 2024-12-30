@@ -511,6 +511,20 @@ migrationMap.set('game', [
 
     return json;
   },
+  json => {
+    const game = json.$data;
+    const state = game.state;
+
+    state.undoMode = !game.rated ? 'loose' : state.strictUndo ? 'strict' : 'normal';
+    state.rated = state.ranked;
+    state.unratedReason = state.unrankedReason;
+
+    delete state.strictUndo;
+    delete state.ranked;
+    delete state.unrankedReason;
+
+    return json;
+  },
 ]);
 
 migrationMap.set('sets', [

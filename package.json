@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "1.22.3",
+  "version": "1.23.0",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
@@ -49,6 +49,7 @@
     "webpack-cli": "^4.9.2"
   },
   "dependencies": {
+    "@metrichor/jmespath": "^0.3.1",
     "@pixi/canvas-display": "^6.5.10",
     "@pixi/canvas-graphics": "^6.5.10",
     "@pixi/canvas-renderer": "^6.5.10",

@@ -20,20 +20,20 @@ export default class GameState {
     // Clone the stateData since we'll be modifying it.
     stateData = Object.assign({}, stateData);
 
-    if ('ranked' in stateData) {
-      stateData._ranked = stateData.ranked;
-      delete stateData.ranked;
+    if ('rated' in stateData) {
+      stateData._rated = stateData.rated;
+      delete stateData.rated;
     }
 
-    if ('unrankedReason' in stateData) {
-      stateData._unrankedReason = stateData.unrankedReason;
-      delete stateData.unrankedReason;
+    if ('unratedReason' in stateData) {
+      stateData._unratedReason = stateData.unratedReason;
+      delete stateData.unratedReason;
     }
 
     Object.assign(this,
       {
-        rated: false,
-        _ranked: false,
+        _rated: false,
+        undoMode: 'normal',
         turns: [],
       },
       stateData,
@@ -74,7 +74,7 @@ export default class GameState {
       {
         randomFirstTurn: true,
         randomHitChance: true,
-        strictUndo: false,
+        undoMode: 'normal',
         strictFork: false,
         autoSurrender: false,
         timeLimit: null,
@@ -180,25 +180,22 @@ export default class GameState {
     return this.teams[this.previousTeamId];
   }
 
-  get ranked() {
+  get rated() {
     return (
-      this._ranked &&
+      this._rated &&
       this.winnerId !== 'truce' &&
       (!this.endedAt || !this.losers.some(t => !this.teamHasSeen(t)))
     );
   }
-  set ranked(ranked) {
-    this._ranked = ranked;
+  set rated(rated) {
+    this._rated = rated;
   }
-  get unrankedReason() {
-    if (this.ranked)
+  get unratedReason() {
+    if (this.rated)
       return;
 
-    if (!this.rated)
-      return 'not rated';
-
-    if (!this._ranked)
-      return this._unrankedReason;
+    if (!this._rated)
+      return this._unratedReason ?? 'not rated';
 
     if (this.winnerId === 'truce')
       return 'truce';
@@ -209,8 +206,8 @@ export default class GameState {
     // Should not happen
     return null;
   }
-  set unrankedReason(reason) {
-    this._unrankedReason = reason;
+  set unratedReason(reason) {
+    this._unratedReason = reason;
   }
 
   get lockedTurnId() {
@@ -219,8 +216,8 @@ export default class GameState {
 
     const minLockedTurnId = this.initialTurnId;
 
-    // Only rated games can have a fluid locked turn ID.
-    if (this.rated) {
+    // Only non-practice games can have a fluid locked turn ID.
+    if (!this.isPracticeMode) {
       const maxLockedTurnId = this.turns.length - 1;
       for (let turnId = maxLockedTurnId; turnId > minLockedTurnId; turnId--)
         if (this.turns[turnId].isLocked)
@@ -274,12 +271,18 @@ export default class GameState {
       })
     );
   }
-  get isPracticeGame() {
+  get isSinglePlayer() {
     const teams = this.teams;
     const hasBot = teams.findIndex(t => !!t.bot) > -1;
     const isMultiplayer = new Set(teams.map(t => t.playerId)).size > 1;
 
     return !hasBot && !isMultiplayer;
+  }
+  get isPracticeMode() {
+    return this.rated === false && this.undoMode === 'loose';
+  }
+  get isTournamentMode() {
+    return this.undoMode === 'strict' && this.strictFork === true && this.autoSurrender === true;
   }
 
   get selected() {
@@ -476,12 +479,11 @@ export default class GameState {
       type: this.type,
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
-      strictUndo: this.strictUndo,
+      undoMode: this.undoMode,
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
       rated: this.rated,
-      ranked: this.ranked,
-      unrankedReason: this.unrankedReason,
+      unratedReason: this.unratedReason,
       timeLimit: this.timeLimit,
 
       teams: this.teams.map(t => t && t.getData(!!this.startedAt)),
@@ -490,6 +492,7 @@ export default class GameState {
       startedAt: this.startedAt,
       lockedTurnId: this.lockedTurnId,
       currentTurnId: this.currentTurnId,
+      drawCounts: this.calcDrawCounts(this.currentTurnId, true),
     };
 
     if (this.startedAt)
@@ -514,8 +517,8 @@ export default class GameState {
     }
 
     // Everybody sees the game start and end
-    // Everybody sees everything in unrated games.
-    if (!this.startedAt || this.endedAt || !this.rated)
+    // Everybody sees everything in practice games.
+    if (!this.startedAt || this.endedAt || this.isPracticeMode)
       return data;
 
     if (team) {
@@ -524,14 +527,16 @@ export default class GameState {
         const context = this.getUndoPointer(this.currentTeam, true);
         if (context) {
           data.currentTurnId = context.turnId;
+          data.drawCounts = this.calcDrawCounts(context.turnId, true);
           data.recentTurns = Object.clone([ this.turns[data.currentTurnId] ]);
           data.recentTurns.last.nextActionId = context.actionId;
           data.recentTurns.last.isCurrent = true;
         }
       }
     } else {
-      // Observer(s) don't see real recent turns in rated games
+      // Observer(s) don't see real recent turns in non-practice games
       data.currentTurnId = this.lockedTurnId;
+      data.drawCounts = this.calcDrawCounts(this.lockedTurnId);
       data.recentTurns = Object.clone([ this.turns[data.currentTurnId] ]);
       data.recentTurns.last.nextActionId = 0;
       data.recentTurns.last.isCurrent = true;
@@ -803,7 +808,10 @@ export default class GameState {
     }
   }
 
-  calcDrawCounts() {
+  calcDrawCounts(turnId = this.currentTurnId, useEffectiveTurnId = false) {
+    if (turnId === null)
+      return null;
+
     const counts = {
       // If all teams pass their turns 3 times, draw!
       passedTurnLimit: this.teams.length * 3,
@@ -813,7 +821,7 @@ export default class GameState {
       attackTurnCount: 0,
     };
     const initialTurnId = this.initialTurnId;
-    const stopTurnId = this.currentTurnId;
+    const stopTurnId = useEffectiveTurnId && this.turns[turnId].isEnded ? turnId + 1 : turnId;
     const startTurnId = Math.max(initialTurnId, stopTurnId - counts.attackTurnLimit);
     const turns = this.turns.slice(startTurnId, stopTurnId).reverse();
 
@@ -1025,8 +1033,8 @@ export default class GameState {
     if (!team || !this.startedAt)
       return null;
 
-    // Practice games can always undo if there is something to undo.
-    if (this.isPracticeGame) {
+    // Single player games can always undo if there is something to undo.
+    if (this.isSinglePlayer) {
       const initialTurnId = this.initialTurnId;
       if (this.currentTurnId === initialTurnId && this.currentTurn.isEmpty)
         return null;
@@ -1042,13 +1050,13 @@ export default class GameState {
     const teamContextTurnId = this.currentTurnId - ((numTeams + this.currentTeamId - team.id) % numTeams);
     const teamPreviousTurnId = teamContextTurnId - numTeams;
     const lockedTurnId = this.lockedTurnId;
-    const rated = this.rated;
-    const strictUndo = this.strictUndo;
+    const isPracticeMode = this.isPracticeMode;
+    const strictUndo = this.undoMode === 'strict';
     const turns = this.turns;
     let pointer = false;
 
     if (this.endedAt)
-      return rated ? null : false;
+      return isPracticeMode ? false : null;
 
     /*
      * Walk backward through turns and actions until we reach the undo limit.
@@ -1071,8 +1079,8 @@ export default class GameState {
           if (this.getTurnTimeRemaining(turnId) < 10000)
             return null;
 
-          // Pass control to the next team 5 seconds after the current turn ends in rated games.
-          if (rated && turn.isEnded && this.seen(team, turn.endedAt.getTime() + 5000) && Date.now() - turn.endedAt >= 5000)
+          // Pass control to the next team 5 seconds after the current turn ends in non-practice games.
+          if (!isPracticeMode && turn.isEnded && this.seen(team, turn.endedAt.getTime() + 5000) && Date.now() - turn.endedAt >= 5000)
             return pointer;
         } else {
           // Can't undo when team's last turn is locked.
@@ -1084,10 +1092,10 @@ export default class GameState {
             return null;
 
           // Opponents may not undo current turn without permission.
-          // ... except the previous team can undo an empty turn in:
-          //   1) unrated games, or
-          //   2) rated games where nobody has seen them move yet.
-          if (rated && this.seen(team, turn.startedAt) || team !== this.previousTeam || !turn.isEmpty)
+          // ... except the previous team can undo if:
+          //   1) the game is practice mode and the current turn is empty, or
+          //   2) the game is non-practice mode and nobody has seen them move.
+          if (!isPracticeMode && this.seen(team, turn.startedAt) || team !== this.previousTeam || !turn.isEmpty)
             return pointer;
         }
       } else {
@@ -1246,8 +1254,8 @@ export default class GameState {
       return;
 
     if (this.currentTurn.isEnded && (
-      // Opponent can see a turn end immediately in unrated games.
-      !this.rated ||
+      // Opponent can see a turn end immediately in practice games.
+      this.isPracticeMode ||
       // Opponent can see a turn end 5 seconds after it ended.
       Date.now() - this.currentTurn.endedAt >= 5000 ||
       // Opponent can see a turn end within 10 seconds of time limit expiration
@@ -1263,12 +1271,12 @@ export default class GameState {
 
     this._emit({ type:'sync', data:originalEvent });
 
-    // Only active rated games require scheduling a sync after a timeout.
-    if (!this.endedAt && this.rated)
+    // Only active non-practice games require scheduling a sync after a timeout.
+    if (!this.endedAt && !this.isPracticeMode)
       this.willSync();
   }
   /*
-   * Some things in active rated games are deferred for a period of time.
+   * Some things in active non-practice games are deferred for a period of time.
    * This lets the current team freely undo without making the opponent watch.
    * But this privilege has a time limit.
    *
@@ -1293,7 +1301,7 @@ export default class GameState {
     const currentTurnTimeout = Math.max(0, this.getTurnTimeRemaining() - 10000);
     const turnEndTimeout = Math.min(targetTurnTimeout, currentTurnTimeout);
     const actionTimeout = Math.max(0, 5000 - (Date.now() - currentTurn.updatedAt));
-    const timeout = currentTurn.isEnded || this.strictUndo ? Math.min(turnEndTimeout, actionTimeout) : turnEndTimeout;
+    const timeout = currentTurn.isEnded || this.undoMode === 'strict' ? Math.min(turnEndTimeout, actionTimeout) : turnEndTimeout;
 
     if (timeout)
       this._emit({ type:'willSync', data:timeout });
@@ -1330,22 +1338,21 @@ export default class GameState {
       type: this.type,
       randomFirstTurn: this.randomFirstTurn,
       randomHitChance: this.randomHitChance,
-      strictUndo: this.strictUndo,
+      undoMode: this.undoMode,
       strictFork: this.strictFork,
       autoSurrender: this.autoSurrender,
-      rated: this.rated,
-      ranked: this._ranked,
-      unrankedReason: this._unrankedReason,
+      rated: this._rated,
+      unratedReason: this._unratedReason,
       timeLimit: this.timeLimit,
 
       teams: this.teams,
       turns: this.turns.map(t => t.toJSON()),
     };
 
-    if (!data.rated)
+    if (data.undoMode === 'normal')
+      delete data.undoMode;
+    if (data.rated === false)
       delete data.rated;
-    if (!data.ranked)
-      delete data.ranked;
 
     return data;
   }
@@ -1354,7 +1361,7 @@ export default class GameState {
    * Private Methods
    ****************************************************************************/
   /*
-   * In rated games, every team may undo at most their previous playable turn.
+   * In non-practice games, every team may undo at most their previous playable turn.
    */
   _getLockedTurnId() {
     const turnIds = this.teams.map(t => this.getTeamPreviousPlayableTurnId(t)).filter(tId => tId !== null);
@@ -1592,7 +1599,7 @@ export default class GameState {
     this._board.setInitialState();
     this.previousTurn.isCurrent = false;
 
-    if (this.rated) {
+    if (!this.isPracticeMode) {
       const oldLockedTurnId = this.lockedTurnId;
       const newLockedTurnId = this._getLockedTurnId();
       if (newLockedTurnId > oldLockedTurnId) {
@@ -1647,12 +1654,11 @@ serializer.addType({
       type: { type:'string' },
       randomFirstTurn: { type:'boolean' },
       randomHitChance: { type:'boolean' },
-      strictUndo: { type:'boolean' },
+      undoMode: { type:'string' },
       strictFork: { type:'boolean' },
       autoSurrender: { type:'boolean' },
       rated: { type:'boolean' },
-      ranked: { type:'boolean' },
-      unrankedReason: { type:'string' },
+      unratedReason: { type:'string' },
       timeLimit: {
         type: 'object',
         required: [ 'type' ],

@@ -8,6 +8,8 @@ import { AccessToken } from 'client/Token.js';
 const LOCAL_ENDPOINT = '/local.json';
 let auth = null;
 
+const reUUIDv4 = new RegExp(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+
 export default class AuthClient extends Client {
   constructor(server) {
     super('auth', server);
@@ -255,19 +257,28 @@ export default class AuthClient extends Client {
       });
   }
 
-  queryRankedPlayers(query) {
-    return this._server.requestAuthorized(this.name, 'queryRankedPlayers', [ query ])
+  queryRatedPlayers(query) {
+    return this._server.requestAuthorized(this.name, 'queryRatedPlayers', [ query ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.queryRankedPlayers(query);
+          return this.queryRatedPlayers(query);
         throw error;
       });
   }
-  getRankedPlayers(playerIds) {
-    return this._server.requestAuthorized(this.name, 'getRankedPlayers', [ playerIds ])
+  async getRatedPlayer(playerId) {
+    const players = await this.getRatedPlayers([ playerId ]);
+
+    return players.get(playerId);
+  }
+  async getRatedPlayers(inPlayerIds) {
+    const playerIds = inPlayerIds.filter(pId => reUUIDv4.test(pId));
+    if (playerIds.length === 0)
+      return new Map();
+
+    return this._server.requestAuthorized(this.name, 'getRatedPlayers', [ playerIds ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getRankedPlayers(playerIds);
+          return this.getRatedPlayers(playerIds);
         throw error;
       });
   }

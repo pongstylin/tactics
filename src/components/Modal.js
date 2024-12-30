@@ -11,6 +11,7 @@ export default class Modal {
       data,
       whenHidden: null,
       whenClosed: null,
+      isCancelled: false,
 
       _overlay: null,
       _els: {
@@ -163,6 +164,7 @@ export default class Modal {
     this.whenHidden = null;
   }
   show(onShow) {
+    this.isCancelled = false;
     trapFocus(this._els.modal);
     this._overlay.show();
     this._els.modal.focus();
@@ -186,6 +188,7 @@ export default class Modal {
     let doDefault = true;
     const preventDefault = () => doDefault = false;
 
+    this.isCancelled = true;
     this._emit({
       type: 'cancel',
       target,

@@ -87,12 +87,18 @@ export default class Unit {
       // Dark Magic Witch, Beast Rider, Dragon Tyrant, Chaos Dragon
       // All existing units have a minimum range of 1.
       return board.getTileLinearRange(source, range[1]);
-    else if (range)
-      return board.getTileRange(source, ...range);
-    else
+    else if (range) {
+      const tiles = board.getTileRange(source, ...range);
+      if (this.canSpecial() && !tiles.some(t => t === source))
+        tiles.unshift(source);
+      return tiles;
+    } else
       return [];
   }
   getTargetTiles(target, source = this.assignment) {
+    if (target === source && this.canSpecial())
+      return this.getSpecialTargetTiles();
+
     if (this.aLOS === true)
       return this.getLOSTargetTiles(target, source);
     else if (this.aAll === true)
@@ -112,7 +118,7 @@ export default class Unit {
       return targets;
     }
 
-    return [target];
+    return [ target ];
   }
   getSpecialTargetTiles() {
     return [];
@@ -153,8 +159,7 @@ export default class Unit {
       let unit = this.getLOSTargetUnit(target);
       if (unit)
         target_units.push(unit);
-    }
-    else
+    } else
       target_units = this.getTargetTiles(target)
         .filter(tile => !!tile.assigned)
         .map(tile => tile.assigned);
@@ -228,31 +233,37 @@ export default class Unit {
    * This method calculates what might happen if this unit attacked a target unit.
    * This helps bots make a decision on the best choice to make.
    */
-  calcAttack(targetUnit, from, target) {
+  calcAttack(targetUnit, from, target, stats = null) {
     if (!from)
       from = this.assignment;
     if (!target)
       target = targetUnit.assignment;
 
+    stats ??= {
+      power: Math.max(0, this.power + this.mPower),
+      aType: this.aType,
+      aLOS: this.aLOS,
+      aPierce: false,
+    };
+
     const calc     = {};
-    const power    = Math.max(0, this.power + this.mPower);
-    const armor    = Math.max(0, Math.min(100, targetUnit.armor + targetUnit.mArmor));
+    const armor    = stats.aPierce ? 0 : Math.max(0, Math.min(100, targetUnit.armor + targetUnit.mArmor));
     const blocking = targetUnit.blocking + targetUnit.mBlocking;
 
     // Equality check the unit ID since targetUnit may be a clone.
-    if (this.aLOS && this.getLOSTargetUnit(target, from).id !== targetUnit.id) {
+    if (stats.aLOS && this.getLOSTargetUnit(target, from).id !== targetUnit.id) {
       // Armor reduces melee/magic damage.
-      calc.damage = Math.round(power * (100 - armor) / 100);
+      calc.damage = Math.round(stats.power * (100 - armor) / 100);
 
       // Another unit is in the way.  No chance to hit target unit.
       calc.chance = 0;
       calc.miss = 'miss';
     } else if (
       (
-        /^(melee|magic|heal)$/.test(this.aType) &&
+        /^(melee|magic|heal)$/.test(stats.aType) &&
         targetUnit.barriered
       ) || (
-        this.aType === 'melee' &&
+        stats.aType === 'melee' &&
         targetUnit.blocking === 100 &&
         targetUnit.directional === false &&
         !targetUnit.paralyzed &&
@@ -262,9 +273,9 @@ export default class Unit {
       calc.miss = 'immune';
       calc.chance = 0;
       calc.damage = 0;
-    } else if (this.aType === 'melee') {
+    } else if (stats.aType === 'melee') {
       // Armor reduces magic damage.
-      calc.damage = Math.round(power * (100 - armor) / 100);
+      calc.damage = Math.round(stats.power * (100 - armor) / 100);
 
       if (targetUnit.paralyzed || targetUnit.focusing || !targetUnit.canBlock())
         calc.chance = 100;
@@ -307,21 +318,21 @@ export default class Unit {
           calc.penalty = 100*factor - targetUnit.blocking;
         }
       }
-    } else if (this.aType === 'magic') {
+    } else if (stats.aType === 'magic') {
       // Armor reduces magic damage.
-      calc.damage = Math.round(power * (100 - armor) / 100);
+      calc.damage = Math.round(stats.power * (100 - armor) / 100);
 
       // Magic can only be stopped by barriers.
       calc.chance = 100;
-    } else if (this.aType === 'heal') {
+    } else if (stats.aType === 'heal') {
       // Armor has no effect on heal power.
-      calc.damage = -power;
+      calc.damage = -stats.power;
 
       // Healing can only be stopped by barriers.
       calc.chance = 100;
     } else {
       // The attack type is the name of an effect.
-      calc.effect = this.aType;
+      calc.effect = stats.aType;
 
       // Not even barriers can stop effects.
       calc.chance = 100;
@@ -1659,8 +1670,11 @@ export default class Unit {
       options,
     );
   }
-  setTargetNotice(targetUnit, target) {
-    let calc = this.calcAttack(targetUnit, null, target);
+  setTargetNotice(targetUnit, target, stats = null) {
+    if (this.canSpecial() && (target ?? this.assignment) === this.assignment && !stats)
+      return this.setSpecialTargetNotice(targetUnit);
+
+    let calc = this.calcAttack(targetUnit, null, target, stats);
     let chance =
       calc.chance === 100 ? 'Hit' :
       calc.chance === 0 ? `${calc.miss.toUpperCase('first')}` :
@@ -1679,6 +1693,9 @@ export default class Unit {
       notice = `-${calc.damage} • ${chance}`;
 
     targetUnit.change({ notice });
+  }
+  setSpecialTargetNotice(targetUnit) {
+    return;
   }
   /*
    * Certain actions can break certain status effects.
