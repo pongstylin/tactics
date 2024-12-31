@@ -228,7 +228,6 @@ export default class ConfigureGame extends Modal {
     return cache.get(this.data.gameTypeId).config.clone();
   }
   set styleConfigData(config) {
-console.log('set', config);
     Object.assign(cache.get(this.data.gameTypeId).config, config);
   }
   get styleConfigOverrides() {
@@ -239,7 +238,7 @@ console.log('set', config);
     return {};
   }
   get adjustedStyleConfig() {
-    return Object.assign({}, this.styleConfigData, this.styleConfigOverrides());
+    return Object.assign({}, this.styleConfigData, this.styleConfigOverrides);
   }
   get confirmBeforeCreate() {
     return gameConfig.confirmBeforeCreate;
