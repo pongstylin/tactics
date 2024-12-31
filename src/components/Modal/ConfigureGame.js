@@ -225,16 +225,21 @@ export default class ConfigureGame extends Modal {
     return cache.get(this.data.gameTypeId).sets = sets;
   }
   get styleConfigData() {
-    return cache.get(this.data.gameTypeId).config;
+    return cache.get(this.data.gameTypeId).config.clone();
   }
   set styleConfigData(config) {
-    return cache.get(this.data.gameTypeId).config = config;
+console.log('set', config);
+    Object.assign(cache.get(this.data.gameTypeId).config, config);
+  }
+  get styleConfigOverrides() {
+    if (this.data.view === 'challenge')
+      return { vs:'challenge', challengee:this.data.props.challengee };
+    else if (![ 'challenge', 'createGame' ].includes(this.data.view))
+      return { collection:'public', vs:'anybody' };
+    return {};
   }
   get adjustedStyleConfig() {
-    return Object.assign({}, this.styleConfigData,
-      this.data.view === 'challenge'  ? { vs:'challenge', challengee:this.data.props.challengee } :
-      ![ 'challenge', 'createGame' ].includes(this.data.view) ? { collection:'public', vs:'anybody' } : {}
-    );
+    return Object.assign({}, this.styleConfigData, this.styleConfigOverrides());
   }
   get confirmBeforeCreate() {
     return gameConfig.confirmBeforeCreate;
@@ -277,32 +282,33 @@ export default class ConfigureGame extends Modal {
           throw new Error(`Unable to challenge player: ${props.challengee}`);
 
         this.title = `Challenge ${opponent.name}`;
-        this._applyStyleConfig('long');
+        this.data.timeLimitType = 'long';
         break;
       case 'createGame':
         this.title = 'Create Game';
-        this._applyStyleConfig('long');
+        this.data.timeLimitType = 'long';
         break;
       case 'confirmBeforeCreate':
         this.title = 'Confirm Create Game';
-        this._applyStyleConfig('short');
+        this.data.timeLimitType = 'short';
         break;
       case 'confirmBeforeJoin':
         this.title = 'Confirm Join Game';
-        this._applyStyleConfig();
+        this.data.timeLimitType = null;
         break;
       case 'configureLobby':
         this.title = 'Arena Settings';
-        this._applyStyleConfig('short');
+        this.data.timeLimitType = 'short';
         break;
       case 'configurePublic':
         this.title = 'Arena Settings';
-        this._applyStyleConfig();
+        this.data.timeLimitType = null;
         break;
       default:
         throw new TypeError(`Unrecognized view '${view}'`);
     }
 
+    this._applyStyleConfig();
     return super.show();
   }
 
@@ -699,8 +705,10 @@ export default class ConfigureGame extends Modal {
 
     whenReady.resolve();
   }
-  async _applyStyleConfig(timeLimitType = null) {
-    const { gameType, sets, config } = cache.get(this.data.gameTypeId);
+  async _applyStyleConfig() {
+    const gameType = this.gameType;
+    const sets = this.sets;
+    const config = this.styleConfigData;
     const { aChangeLink, selSet } = this._els;
 
     if (this.data.view === 'confirmBeforeJoin') {
@@ -788,6 +796,8 @@ export default class ConfigureGame extends Modal {
       }
     }
 
+    Object.assign(config, this.styleConfigOverrides);
+
     const opponent = await authClient.getRatedPlayer(config.challengee);
     if (opponent && opponent.relationship?.type !== 'self') {
       config.vs = 'challenge';
@@ -799,7 +809,7 @@ export default class ConfigureGame extends Modal {
       challengee.value = null;
     }
 
-    const timeLimitName = timeLimitType ? config[`${timeLimitType}TimeLimitName`] : config.timeLimitName;
+    const timeLimitName = this.data.timeLimitType ? config[`${this.data.timeLimitType}TimeLimitName`] : config.timeLimitName;
 
     this.root.querySelector('SELECT[name=type]').value = config.gameTypeId;
     this.root.querySelector(`INPUT[name=collection][value=${config.collection}]`).checked = true;
@@ -828,16 +838,18 @@ export default class ConfigureGame extends Modal {
     const randomHitChance = this.root.querySelector('INPUT[name=randomHitChance]:checked')?.value ?? 'true';
     const slot = this.root.querySelector('INPUT[name=slot]:checked')?.value ?? 'random';
     const randomSide = this.root.querySelector('INPUT[name=randomSide]:checked:not(:disabled)')?.value ?? 'false';
-    const rated = this.root.querySelector('INPUT[name=rated]:checked')?.value ?? 'auto';
-    const rules = this.root.querySelector('INPUT[name=rules]:checked')?.value ?? null;
+    const rated = this.root.querySelector('LABEL.selected INPUT[name=rated]:checked')?.value ?? 'auto';
+    const rules = this.root.querySelector('LABEL.selected INPUT[name=rules]:checked')?.value ?? null;
     const styleConfigData = {
       gameTypeId,
       collection,
       vs,
       set,
       timeLimitName,
-      shortTimeLimitName: [ 'week', 'day' ].includes(timeLimitName) ? this.styleConfigData.shortTimeLimitName : timeLimitName,
-      longTimeLimitName: [ 'week', 'day' ].includes(timeLimitName) ? timeLimitName : this.styleConfigData.longTimeLimitName,
+      shortTimeLimitName:
+        [ 'pro', 'standard', 'blitz' ].includes(timeLimitName) ? timeLimitName : this.styleConfigData.shortTimeLimitName,
+      longTimeLimitName:
+        [ 'week', 'day' ].includes(timeLimitName) ? timeLimitName : this.styleConfigData.longTimeLimitName,
       randomHitChance: randomHitChance === 'true',
       slot: slot === 'random' ? 'random' : parseInt(slot),
       randomSide: randomSide === 'true',
@@ -855,6 +867,9 @@ export default class ConfigureGame extends Modal {
 
       styleConfigData.challengee = challengee.value.playerId;
     }
+
+    for (const key of Object.keys(this.styleConfigOverrides))
+      delete styleConfigData[key];
 
     return styleConfigData;
   }
