@@ -4,10 +4,11 @@ const authClient = Tactics.authClient;
 
 const styleConfig = {
   save(styleConfigData) {
+    // Beware!  timeLimitName can be null for single player games
     if (styleConfigData.timeLimitName)
       if ([ 'week', 'day' ].includes(styleConfigData.timeLimitName))
         styleConfigData.longTimeLimitName = styleConfigData.timeLimitName;
-      else
+      else if ([ 'pro', 'standard', 'blitz' ].includes(styleConfigData.timeLimitName))
         styleConfigData.shortTimeLimitName = styleConfigData.timeLimitName;
 
     this._default = Object.assign(this._default ?? {}, styleConfigData, {
@@ -46,6 +47,11 @@ const styleConfig = {
 
   makeCreateGameOptions(gameType, { name, timerType, styleConfigData }) {
     styleConfigData = Object.assign(this.get(gameType.id), styleConfigData);
+
+    if (styleConfigData.vs === 'yourself') {
+      styleConfigData.rules = 'practice';
+      styleConfigData.rated = null;
+    }
 
     const timeLimitName = timerType ? styleConfigData[`${timerType}TimeLimitName`] : styleConfigData.timeLimitName;
     const collection = styleConfigData.collection !== 'public' ? null : (
