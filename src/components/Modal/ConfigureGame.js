@@ -241,13 +241,13 @@ export default class ConfigureGame extends Modal {
     return Object.assign({}, this.styleConfigData, this.styleConfigOverrides);
   }
   get confirmBeforeCreate() {
-    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId))
+    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId) && styleConfig.get(this.data.gameTypeId).set !== 'random')
       return true;
 
     return gameConfig.confirmBeforeCreate;
   }
   get confirmBeforeJoin() {
-    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId))
+    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId) && styleConfig.get(this.data.gameTypeId).set !== 'random')
       return true;
 
     return gameConfig.confirmBeforeJoin;
