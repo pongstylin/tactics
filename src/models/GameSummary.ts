@@ -111,6 +111,9 @@ export default class GameSummary {
   get currentTeamId() {
     return this.data.currentTeamId;
   }
+  get currentTeam() {
+    return this.data.teams[this.data.currentTeamId];
+  }
   get tags() {
     return this.data.tags;
   }

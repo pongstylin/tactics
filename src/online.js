@@ -626,12 +626,15 @@ function unsetYourLobbyGame(gameSummary, skipRender = false) {
 function setYourGame(gameSummary) {
   const yourGames = state.tabContent.yourGames.games;
   const isVisibleLobbyGame = !gameSummary.endedAt && gameSummary.collection?.startsWith('lobby/') && !gameSummary.isChallenge;
+  let oldSummary = null;
 
-  yourGames[0].delete(gameSummary.id);
-  yourGames[1].delete(gameSummary.id);
-  yourGames[2].delete(gameSummary.id);
-  yourGames[3].delete(gameSummary.id);
-  yourGames[4].delete(gameSummary.id);
+  for (let i = 0; i < yourGames.length; i++) {
+    if (yourGames[i].has(gameSummary.id)) {
+      oldSummary = yourGames[i].get(gameSummary.id);
+      yourGames[i].delete(gameSummary.id);
+    }
+  }
+
   if (isVisibleLobbyGame)
     yourGames[4] = new Map([ [ gameSummary.id, gameSummary ], ...yourGames[4] ]);
   else if (gameSummary.endedAt)
@@ -645,6 +648,13 @@ function setYourGame(gameSummary) {
 
   if (isVisibleLobbyGame)
     setYourLobbyGame(gameSummary);
+  else if (!oldSummary?.startedAt && gameSummary.startedAt && gameSummary.currentTeam.playerId === authClient.playerId) {
+    const newGame = avatars.getSound('newgame').howl;
+    newGame.once('end', () => {
+      location.href = `game.html?${gameSummary.id}`;
+    });
+    newGame.play();
+  }
 
   if (state.currentTab === 'yourGames')
     renderYourGames();
@@ -654,10 +664,9 @@ function unsetYourGame(gameSummary) {
   const isVisibleLobbyGame = !gameSummary.endedAt && gameSummary.collection?.startsWith('lobby/') && !gameSummary.isChallenge;
   let isDirty = false;
 
-  for (let i = 0; i < yourGames.length; i++) {
+  for (let i = 0; i < yourGames.length; i++)
     if (yourGames[i].delete(gameSummary.id))
       isDirty = true;
-  }
 
   if (isDirty) {
     if (state.currentTab === 'yourGames')
@@ -1931,13 +1940,13 @@ async function renderYourGames() {
   const divMyTurnGames = [];
   for (const game of activeGames) {
     // Exclude games where it is someone else's turn
-    if (game.teams[game.currentTeamId].playerId !== myPlayerId)
+    if (game.currentTeam.playerId !== myPlayerId)
       continue;
     // Exclude games where it is my turn, but it ended
     if (game.turnEndedAt)
       continue;
-    // Exclude practice games
-    if (!game.teams.find(t => t.playerId !== myPlayerId))
+    // Exclude single player games
+    if (game.isSinglePlayer)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
@@ -1985,10 +1994,10 @@ async function renderYourGames() {
   const divTheirTurnGames = [];
   for (const game of activeGames) {
     // Exclude games where it is my turn and the turn hasn't ended
-    if (game.teams[game.currentTeamId].playerId === myPlayerId && !game.turnEndedAt)
+    if (game.currentTeam.playerId === myPlayerId && !game.turnEndedAt)
       continue;
-    // Exclude practice games
-    if (!game.teams.find(t => t.playerId !== myPlayerId))
+    // Exclude single player games
+    if (game.isSinglePlayer)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);

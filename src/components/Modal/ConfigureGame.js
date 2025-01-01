@@ -241,9 +241,15 @@ export default class ConfigureGame extends Modal {
     return Object.assign({}, this.styleConfigData, this.styleConfigOverrides);
   }
   get confirmBeforeCreate() {
+    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId))
+      return true;
+
     return gameConfig.confirmBeforeCreate;
   }
   get confirmBeforeJoin() {
+    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId))
+      return true;
+
     return gameConfig.confirmBeforeJoin;
   }
 
