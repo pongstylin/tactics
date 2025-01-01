@@ -487,8 +487,15 @@ whenDOMReady.then(() => {
       } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
         if (body.type === 'add' || body.type === 'change')
           setLobbyGame(body.data);
-        else if (body.type === 'remove')
+        else if (body.type === 'remove') {
+          // A game can be removed from the lobby list when you join it.
+          // This is because the lobby excludes your games from the list.
+          // But our own active lobby games should remain visible.
+          if (body.data.teams.some(t => t.playerId === authClient.playerId))
+            return;
+
           unsetLobbyGame(body.data);
+        }
       } else if (body.group === '/collections/public') {
         if (body.type === 'add' || body.type === 'change')
           setPublicGame(body.data);
@@ -654,7 +661,8 @@ function setYourGame(gameSummary) {
       location.href = `game.html?${gameSummary.id}`;
     });
     newGame.play();
-  }
+  } else if (!oldSummary?.endedAt && gameSummary.endedAt && gameSummary.collection?.startsWith('lobby/'))
+    unsetYourLobbyGame(gameSummary);
 
   if (state.currentTab === 'yourGames')
     renderYourGames();

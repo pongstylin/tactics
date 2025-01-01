@@ -1179,7 +1179,6 @@ export default class GameService extends Service {
       playerGames.on('change', myGames.changeListener = async event => {
         const gameSummary = await this._cloneGameSummaryWithMeta(event.data.gameSummary ?? event.data.oldSummary, player);
 
-console.log(groupPath, event.type, (event.data.gameSummary ?? event.data.oldSummary).id, +new Date());
         if (event.type === 'change:set') {
           if (event.data.oldSummary)
             emit({ type:'change', data:gameSummary });
@@ -1248,7 +1247,6 @@ console.log(groupPath, event.type, (event.data.gameSummary ?? event.data.oldSumm
         const changeListener = event => {
           const collectionPara = this.collectionPara.get(collection.id);
           const gameSummary = event.data.gameSummary ?? event.data.oldSummary;
-console.log(collectionGroup, event.type, gameSummary.id, +new Date());
           const gameSummaryByPlayer = new Map();
 
           Promise.all(Array.from(collectionPara.clientsInfo).map(async ([ clientId, clientInfo ]) => {
