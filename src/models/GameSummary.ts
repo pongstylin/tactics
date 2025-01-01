@@ -135,6 +135,11 @@ export default class GameSummary {
   get winnerId() {
     return this.data.winnerId;
   }
+  get creator() {
+    return this.data.teams.filter(t => t?.playerId === this.data.createdBy).sort((a,b) => (
+      (a.joinedAt ?? 0) - (b.joinedAt ?? 0)
+    ))[0] ?? null;
+  }
   get winner() {
     const winnerId = this.data.winnerId;
     return typeof winnerId === 'number' ? this.teams[winnerId] : null;
