@@ -16,7 +16,7 @@ const styleConfig = {
     });
 
     config.setItem('defaultStyleConfig', this._default);
-    config.setItem(`${styleConfigData.gameTypeId}StyleConfig`, styleConfigData);
+    config.setItem(`${styleConfigData.gameTypeId}StyleConfig`, Object.assign(this.get(styleConfigData.gameTypeId), styleConfigData));
   },
 
   getDefault() {
