@@ -298,7 +298,7 @@ export default class ConfigureGame extends Modal {
         this.data.timeLimitType = 'short';
         break;
       case 'confirmBeforeJoin':
-        this.title = 'Confirm Join Game';
+        this.title = `Want to play ${props.gameSummary.creator.name}?`;
         this.data.timeLimitType = null;
         break;
       case 'configureLobby':
@@ -495,7 +495,7 @@ export default class ConfigureGame extends Modal {
     } else if (this.data.view === 'confirmBeforeCreate') {
       btnSubmit.textContent = 'Create Game';
     } else if (this.data.view === 'confirmBeforeJoin') {
-      if (this.data.props.gameSummary.meta.creatorACL.type === 'blocked')
+      if (this.data.props.gameSummary.meta.creator.relationship.type === 'blocked')
         btnSubmit.textContent = 'Mute and Join Game';
       else
         btnSubmit.textContent = 'Join Game';
@@ -751,8 +751,10 @@ export default class ConfigureGame extends Modal {
         return `This will not be a rated game because ${reason}.`;
       })();
 
-      if (gs.meta.creatorACL.type)
-        messages.push(`You ${gs.meta.creatorACL.type} this player as ${gs.meta.creatorACL.name}.`);
+      messages.push(`They created their account ${getElapsed(gs.meta.creator.createdAt)} ago.`);
+
+      if (gs.meta.creator.relationship.type)
+        messages.push(`You ${gs.meta.creator.relationship.type} this player as ${gs.meta.creator.relationship.name}.`);
 
       if (ranks) {
         const forteRank = ranks.find(r => r.rankingId === 'FORTE');
@@ -760,11 +762,11 @@ export default class ConfigureGame extends Modal {
         const provisional = styleRank && styleRank.gameCount < 10 ? ' provisional' : '';
 
         if (forteRank)
-          messages.push(`Player has Forte rank #${forteRank.num} (${forteRank.rating}).`);
+          messages.push(`They have Forte rank #${forteRank.num} (${forteRank.rating}).`);
         if (styleRank)
-          messages.push(`Player has${provisional} style rank #${styleRank.num} (${styleRank.rating}).`);
+          messages.push(`They have${provisional} style rank #${styleRank.num} (${styleRank.rating}).`);
         else
-          messages.push(`Player is unranked in this style.`);
+          messages.push(`They are unranked in this style.`);
       }
 
       this.root.querySelector('.intro').innerHTML = `
@@ -1042,7 +1044,7 @@ export default class ConfigureGame extends Modal {
           // Ignore games where we do not meet their rated requirements
           $: { not:{ nested:{ rated:true, 'meta.rated':false } } },
           // Ignore games created by players we blocked
-          'meta.creatorACL.type': { not:'blocked' },
+          'meta.creator.relationship.type': { not:'blocked' },
         },
         sort: 'createdAt',
         // We only need one, but use of 'metaFilter' encourages a higher limit
@@ -1209,7 +1211,7 @@ async function acceptChallenge(query, youTeam) {
     const result = await gameClient.searchMyGames(query);
     if (!result.count) return;
 
-    const hits = result.hits.filter(h => h.meta.creatorACL?.type !== 'blocked');
+    const hits = result.hits.filter(h => h.meta.creator.relationship?.type !== 'blocked');
     if (!hits.length) return;
 
     gameSummary = hits[0];
@@ -1233,4 +1235,23 @@ async function acceptChallenge(query, youTeam) {
     reportError(error);
     return;
   }
+}
+
+function getElapsed(date) {
+  if (typeof date === 'string')
+    date = new Date(date);
+
+  const diff = (Date.now() - date) / 1000;
+
+  let elapsed;
+  if (diff > 86400)
+    elapsed = `${Math.floor(diff / 86400)} day(s)`;
+  else if (diff > 3600)
+    elapsed = `${Math.floor(diff / 3600)} hour(s)`;
+  else if (diff > 60)
+    elapsed = `${Math.floor(diff / 60)} minute(s)`;
+  else
+    elapsed = `seconds`;
+
+  return elapsed;
 }

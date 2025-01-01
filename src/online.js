@@ -20,6 +20,7 @@ const gameClient = Tactics.gameClient;
 const pushClient = Tactics.pushClient;
 const popup = Tactics.popup;
 
+const arenaGameSummary = new WeakMap();
 const groups = new Map([
   [ 'lobby',    'Lobby' ],
   [ 'active',   'Active Games' ],
@@ -590,12 +591,11 @@ function setYourLobbyGame(gameSummary, skipRender = false) {
   const tabContent = state.tabContent.lobby;
   const isVisible = (
     state.currentTab === 'lobby' &&
-    gameSummary.collection === `lobby/${tabContent.selectedStyleId}` &&
-    tabContent.selectedGroupId === 'lobby'
+    gameSummary.collection === `lobby/${tabContent.selectedStyleId}`
   );
 
   if (tabContent.activeGameId !== gameSummary.id && gameSummary.startedAt) {
-    if (isVisible) {
+    if (isVisible && tabContent.selectedGroupId === 'lobby') {
       const newGame = avatars.getSound('newgame').howl;
       newGame.once('end', () => {
         location.href = `game.html?${gameSummary.id}`;
@@ -931,7 +931,7 @@ async function selectArena(event) {
     else
       createGame(divArena);
   } else if (divArena.classList.contains('waiting')) {
-    const arena = JSON.parse(divArena.dataset.arena);
+    const arena = arenaGameSummary.get(divArena);
 
     if (arena.createdBy === myPlayerId) {
       if (state.currentTab !== 'lobby') {
@@ -950,7 +950,7 @@ async function selectArena(event) {
     } else
       joinGame(arena);
   } else {
-    const arena = JSON.parse(divArena.dataset.arena);
+    const arena = arenaGameSummary.get(divArena);
     const link = `/game.html?${arena.id}`;
 
     // Support common open-new-tab semantics
@@ -1028,14 +1028,14 @@ async function joinGame(arena) {
   const tabContent = state.tabContent.lobby;
 
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
-  if (arena.meta.creatorACL?.blockedByRule) {
+  if (arena.meta.creator.relationship?.blockedByRule) {
     let message;
-    if (arena.meta.creatorACL.blockedByRule === 'guest')
+    if (arena.meta.creator.relationship.blockedByRule === 'guest')
       message = `
         Sorry!  <I>${creatorTeam.name}</I> blocked guests from joining their public and lobby games.
         You can verify your account on your <A href="security.html">Account Security</A> page.
       `;
-    else if (arena.meta.creatorACL.blockedByRule === 'new')
+    else if (arena.meta.creator.relationship.blockedByRule === 'new')
       message = `
         Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
         You can try again later or create your own game.
@@ -1072,8 +1072,8 @@ async function joinGame(arena) {
 
   if (
     configureGame.confirmBeforeJoin ||
-    arena.meta.creatorACL?.type === 'blocked' ||
-    (arena.meta.creatorACL?.name ?? creatorTeam.name) !== creatorTeam.name
+    arena.meta.creator.relationship?.type === 'blocked' ||
+    (arena.meta.creator.relationship?.name ?? creatorTeam.name) !== creatorTeam.name
   ) {
     await configureGame.show('confirmBeforeJoin', { gameSummary:arena });
     return;
@@ -1732,11 +1732,11 @@ async function fillArena(divArena, arena = true) {
   const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
   divArena.classList.toggle('disabled', !!lobbyGame && !arena.startedAt && arena.collection?.startsWith('lobby/'));
 
-  const oldArena = JSON.parse(divArena.dataset.arena ?? 'null');
-  if (JSON.stringify(arena) === JSON.stringify(oldArena))
+  const oldArena = arenaGameSummary.get(divArena) ?? null;
+  if (arena === oldArena)
     return false;
 
-  divArena.dataset.arena = JSON.stringify(arena);
+  arenaGameSummary.set(divArena, arena);
   divArena.classList.remove('empty');
   divArena.classList.toggle('waiting', !arena.startedAt);
   divArena.classList.toggle('active', !!arena.startedAt && !arena.endedAt);
@@ -1855,9 +1855,9 @@ async function emptyArena(divArena) {
     return false;
   }
 
-  const oldArena = JSON.parse(divArena.dataset.arena);
+  const oldArena = arenaGameSummary.get(divArena);
 
-  delete divArena.dataset.arena;
+  arenaGameSummary.delete(divArena);
   divArena.classList.remove('waiting');
   divArena.classList.remove('active');
   divArena.classList.remove('complete');

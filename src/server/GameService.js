@@ -1411,7 +1411,10 @@ export default class GameService extends Service {
 
     if (player && !data.startedAt && data.createdBy !== player.id) {
       const creator = await this._getAuthPlayer(data.createdBy);
-      meta.creatorACL = player.getRelationship(creator);
+      meta.creator = {
+        relationship: player.getRelationship(creator),
+        createdAt: creator.createdAt,
+      };
 
       if (data.rated !== false)
         promises.push(this.data.canPlayRatedGame(game, creator, player).then(({ rated, reason }) => {
