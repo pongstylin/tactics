@@ -655,7 +655,11 @@ function setYourGame(gameSummary) {
 
   if (isVisibleLobbyGame)
     setYourLobbyGame(gameSummary);
-  else if (!oldSummary?.startedAt && gameSummary.startedAt && gameSummary.currentTeam.playerId === authClient.playerId) {
+  else if (
+    gameSummary.collection &&
+    gameSummary.currentTeam.playerId === authClient.playerId &&
+    !oldSummary?.startedAt && gameSummary.startedAt
+  ) {
     const newGame = avatars.getSound('newgame').howl;
     newGame.once('end', () => {
       location.href = `game.html?${gameSummary.id}`;
@@ -2940,7 +2944,7 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   } else if (rank === null)
     rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
   else if (rank === false)
-    rating.push(`<SPAN class="current">(Unrated)</SPAN>`);
+    rating.push(`<SPAN class="current">(Guest)</SPAN>`);
   else
     rating.push(`<SPAN class="current">(Bugged)</SPAN>`);
 
@@ -3006,7 +3010,10 @@ function renderGameInfo(game) {
   if (game.timeLimitName && game.timeLimitName !== 'standard')
     labels.push(game.timeLimitName.toUpperCase('first'));
 
-  if (!game.isSinglePlayer) {
+  if (game.isSinglePlayer) {
+    if (game.mode === 'fork')
+      labels.push(game.mode.toUpperCase('first'));
+  } else {
     if (game.mode)
       labels.push(game.mode.toUpperCase('first'));
 

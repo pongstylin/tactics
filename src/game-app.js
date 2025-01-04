@@ -1150,15 +1150,22 @@ function refreshDrawMessage() {
 
   $oldMessage.remove();
 
-  const forecast =
-    (drawCounts.passedTurnCount / drawCounts.passedTurnLimit) >= 1/3
-      ? `${drawCounts.passedTurnLimit - drawCounts.passedTurnCount} turns without action` :
-    (drawCounts.attackTurnCount / drawCounts.attackTurnLimit) >= 1/3
-      ? `${drawCounts.attackTurnLimit - drawCounts.attackTurnCount} turns without contact` : null;
+  const forecasts = [];
 
-  if (forecast)
+  if ((drawCounts.passedTurnCount / drawCounts.passedTurnLimit) >= 1/3) {
+    const turnsRemaining = drawCounts.passedTurnLimit - drawCounts.passedTurnCount;
+    forecasts.push({ turnsRemaining, text:`${turnsRemaining} turns without action` });
+  }
+  if ((drawCounts.attackTurnCount / drawCounts.attackTurnLimit) >= 1/3) {
+    const turnsRemaining = drawCounts.attackTurnLimit - drawCounts.attackTurnCount;
+    forecasts.push({ turnsRemaining, text:`${turnsRemaining} turns without contact` });
+  }
+
+  forecasts.sort((a,b) => a.turnsRemaining - b.turnsRemaining);
+
+  if (forecasts.length)
     appendMessages([ { class:'draw', data:drawCounts, content:[
-      `The game will <a href="javascript:void(0)" class="info-draw">Draw</a> in ${forecast}.`,
+      `The game will <a href="javascript:void(0)" class="info-draw">Draw</a> in ${forecasts[0].text}.`,
     ].join('') } ]);
 }
 
