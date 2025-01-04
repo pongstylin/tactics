@@ -134,10 +134,8 @@ export default class Identity extends ActiveModel {
 
     if (this.data.ranks)
       return this.data.ranks.playerId;
-    else if (this.data.playerIds.size === 1)
-      return [ ...this.data.playerIds ][0];
 
-    return null;
+    return ([ ...this.data.playerIds ] as any).last;
   }
 
   getRanks(rankingIds) {

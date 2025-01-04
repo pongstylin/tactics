@@ -571,6 +571,11 @@ export default class GameService extends Service {
 
       if (gameOptions.timeLimitName)
         throw new ServerError(400, `Single player games can't have a time limit`);
+    } else if (gameOptions.undoMode === 'loose') {
+      if (gameOptions.rated)
+        throw new ServerError(400, `Practice games can't be rated`);
+      else
+        gameOptions.rated = false;
     }
 
     gameOptions.createdBy = creatorId;
