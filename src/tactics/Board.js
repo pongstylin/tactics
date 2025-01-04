@@ -943,7 +943,7 @@ export default class Board {
         const blocking = unit.blocking + mBlocking;
         const countTurns = (modifier, canContinue) => {
           let numTurns = 0;
-          while (modifier && canContinue(modifier = Math.abs(modifier * 0.9) < 0.2 ? 0 : modifier * 0.9))
+          while (modifier && canContinue(modifier = Math.abs(modifier * 0.9) < 2 ? 0 : modifier * 0.9))
             numTurns++;
           const numCycles = numTurns / this.teamsUnits.length;
           const intCycles = unit.team.isCurrent ? Math.ceil(numCycles) : Math.floor(numCycles);

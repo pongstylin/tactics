@@ -656,9 +656,9 @@ function setYourGame(gameSummary) {
   if (isVisibleLobbyGame)
     setYourLobbyGame(gameSummary);
   else if (
-    gameSummary.collection &&
-    gameSummary.currentTeam.playerId === authClient.playerId &&
-    !oldSummary?.startedAt && gameSummary.startedAt
+    !gameSummary.isSinglePlayer &&
+    !oldSummary?.startedAt && gameSummary.startedAt &&
+    gameSummary.currentTeam.playerId === authClient.playerId
   ) {
     const newGame = avatars.getSound('newgame').howl;
     newGame.once('end', () => {
