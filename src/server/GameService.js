@@ -680,6 +680,15 @@ export default class GameService extends Service {
     const gameType = await this.data.getGameType(game.state.type);
     const creator = await this._getAuthPlayer(game.createdBy);
 
+    if (game.state.startedAt)
+      throw new ServerError(409, 'The game has already started.');
+
+    if (creator.hasBlocked(player, !!game.collection))
+      throw new ServerError(403, 'You are blocked from joining this game.');
+
+    if (teamData.name !== undefined && teamData.name !== null)
+      Player.validatePlayerName(teamData.name, player.identity);
+
     if (game.collection) {
       const playerIds = new Set(game.state.teams.filter(t => t?.joinedAt).map(t => t.playerId));
       playerIds.add(playerId);
@@ -704,15 +713,6 @@ export default class GameService extends Service {
         }
       }
     }
-
-    if (game.state.startedAt)
-      throw new ServerError(409, 'The game has already started.');
-
-    if (creator.hasBlocked(player, !!game.collection))
-      throw new ServerError(403, 'You are blocked from joining this game.');
-
-    if (teamData.name !== undefined && teamData.name !== null)
-      Player.validatePlayerName(teamData.name, player.identity);
 
     /*
      * You can't play a blocked player.  But you can downgrade them to muted first.
