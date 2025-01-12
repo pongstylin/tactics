@@ -531,7 +531,7 @@ export default class Unit {
   }
   draw(skipPosition = false) {
     this.frame = new PIXI.Container();
-    this.frame.name = 'frame';
+    this.frame.label = 'frame';
 
     this.pixi = new PIXI.Container();
     this.pixi.data = {};
@@ -587,7 +587,7 @@ export default class Unit {
     let avatar;
     if (options.as === 'image') {
       const bounds = frame.getLocalBounds();
-      const avatarCanvas = options.renderer.plugins.extract.canvas(frame);
+      const avatarCanvas = options.renderer.extract.canvas(frame);
       avatar = {
         x: bounds.x,
         y: bounds.y,
@@ -595,14 +595,8 @@ export default class Unit {
       };
     } else if (options.as === 'sprite') {
       const bounds = frame.getLocalBounds();
-      frame.position.x = -bounds.x;
-      frame.position.y = -bounds.y;
-
-      const frameContainer = new PIXI.Container();
-      frameContainer.addChild(frame);
-
-      const avatarCanvas = options.renderer.plugins.extract.canvas(frameContainer);
-      avatar = PIXI.Sprite.from(avatarCanvas);
+      const avatarTexture = options.renderer.extract.texture(frame);
+      avatar = PIXI.Sprite.from(avatarTexture);
       avatar.x = bounds.x;
       avatar.y = bounds.y;
     } else
@@ -683,7 +677,7 @@ export default class Unit {
     for (let child of container.children) {
       if (!(child instanceof PIXI.Container)) continue;
 
-      if (child.name === name)
+      if (child.label === name)
         return child;
 
       let hit = this.getContainerByName(name, child);
@@ -963,7 +957,7 @@ export default class Unit {
     if (!this.hasBarrier()) {
       let barrier = Tactics.getSprite('Barrier');
       let container = new PIXI.Container();
-      container.name = 'Barrier';
+      container.label = 'Barrier';
       this.pixi.addChild(container)
 
       container.addChild(barrier.renderFrame({
@@ -1040,7 +1034,7 @@ export default class Unit {
     let container = this.getContainerByName('Barrier', this.pixi);
     if (!container) {
       container = new PIXI.Container();
-      container.name = 'Barrier';
+      container.label = 'Barrier';
       anim.addFrame(() => this.pixi.addChild(container));
     }
 
@@ -1662,8 +1656,7 @@ export default class Unit {
       {
         fontFamily:      'Arial',
         fontSize:        '12px',
-        stroke:          0,
-        strokeThickness: 3,
+        stroke:          { color:0x000000, width:3 },
         letterSpacing:   0,
         fill:            options.color,
       },
@@ -1973,7 +1966,12 @@ export default class Unit {
 
     if (type) {
       if (!(name in filters)) {
-        filters[name] = new PIXI.filters[type]();
+        if (type === 'ColorMatrixFilter')
+          filters[name] = new PIXI.filters.ColorMatrixFilter();
+        else if (type === 'BlurFilter')
+          filters[name] = new PIXI.filters.BlurFilter();
+        else
+          throw new Error(`Unsupported filter: ${name}`);
 
         let unitContainer = this.getContainerByName(this.unitSprite);
         unitContainer.filters = Object.values(filters);
@@ -2023,7 +2021,7 @@ export default class Unit {
     options = options || {};
 
     text.split('').forEach((v, i) => {
-      let letter = new PIXI.Text(v, style);
+      let letter = new PIXI.Text({ text:v, style });
       letter.position.x = w;
       w += letter.width;
 

@@ -1,5 +1,3 @@
-import { Renderer } from '@pixi/core';
-import { Container } from '@pixi/display';
 import emitter from 'utils/emitter.js';
 
 import { gameConfig } from 'config/client.js';
@@ -23,21 +21,7 @@ export default class Game {
     if (!state)
       throw new TypeError('Required game state');
 
-    const renderer = new Renderer({
-      width: Tactics.width,
-      height: Tactics.height,
-      backgroundAlpha: 0,
-    });
-
-    // Let's not go crazy with the move events.
-    renderer.plugins.interaction.moveWhenInside = true;
-
-    // Save battery life by updating manually.
-    renderer.plugins.interaction.useSystemTicker = false;
-
     const board = new Board();
-    board.initCard();
-    board.draw();
     board
       .on('focus', ({ tile, unit }) => {
         Tactics.playSound('focus');
@@ -83,22 +67,6 @@ export default class Game {
       .on('card-change', event => this._emit(event))
       .on('lock-change', event => this._emit(event));
 
-    /*
-     * Disable tile selection while pinching is in progress
-     */
-    const panzoom = PanZoom({ target:renderer.view })
-      .on('start', () => {
-        board.tilesContainer.interactive = false;
-        board.tilesContainer.interactiveChildren = false;
-      })
-      .on('stop', () => {
-        // Delay interactivity to prevent tap events triggered by release.
-        setTimeout(() => {
-          board.tilesContainer.interactive = true;
-          board.tilesContainer.interactiveChildren = true;
-        }, 100);
-      });
-
     const whilePlaying = Promise.resolve();
     whilePlaying.state = 'stopped';
 
@@ -131,10 +99,10 @@ export default class Game {
       // Actions are actively being played until this promise resolves
       _whilePlaying: whilePlaying,
 
-      _renderer: renderer,
+      _renderer: null,
       _rendering: false,
-      _canvas: renderer.view,
-      _stage: new Container(),
+      _canvas: null,
+      _stage: new PIXI.Container(),
       _animators: {},
 
       _selectMode: 'move',
@@ -143,12 +111,40 @@ export default class Game {
       _notice: null,
       _board: board,
 
-      _panzoom: panzoom,
+      _panzoom: null,
     });
+  }
 
+  async init() {
+    const renderer = this._renderer = await PIXI.autoDetectRenderer({
+      width: Tactics.width,
+      height: Tactics.height,
+      backgroundAlpha: 0,
+    });
+    const canvas = this._canvas = renderer.canvas;
+
+    const board = this.board;
+    await board.initCard();
+    board.draw();
     this._stage.addChild(board.pixi);
 
-    Tactics.game = this;
+    /*
+     * Disable tile selection while pinching is in progress
+     */
+    this._panzoom = PanZoom({ target:canvas })
+      .on('start', () => {
+        board.tilesContainer.interactive = false;
+        board.tilesContainer.interactiveChildren = false;
+      })
+      .on('stop', () => {
+        // Delay interactivity to prevent tap events triggered by release.
+        setTimeout(() => {
+          board.tilesContainer.interactive = true;
+          board.tilesContainer.interactiveChildren = true;
+        }, 100);
+      });
+
+    return Tactics.game = this;
   }
 
   /*****************************************************************************
@@ -1606,10 +1602,7 @@ export default class Game {
 
     this._board.sortUnits();
 
-    // This is a hammer.  Without it, the mouse cursor will not change to a
-    // pointer and back when needed without moving the mouse.
-    renderer.plugins.interaction.update();
-
+    renderer.events.updateCursor();
     renderer.render(this._stage);
 
     this._rendering = false;

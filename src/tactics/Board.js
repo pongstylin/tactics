@@ -79,13 +79,16 @@ export default class Board {
     });
   }
 
-  initCard() {
-    let card = {
-      renderer: new PIXI.CanvasRenderer({
+  async initCard() {
+    const card = {
+      renderer: await PIXI.autoDetectRenderer({
         width: 176,
         height: 100,
         backgroundAlpha: 0,
       }),
+      get canvas() {
+        return this.renderer.canvas;
+      },
       stage: new PIXI.Container(),
       rendering: false,
       render: () => {
@@ -97,21 +100,13 @@ export default class Board {
           card.rendering = false;
         });
       },
-      updatePointer: () => {
-        let interaction = card.renderer.plugins.interaction;
-        interaction.didMove = false;
-        interaction.update();
-      },
+      updatePointer: () => card.renderer.events.updateCursor(),
     };
 
-    // Save battery life by updating manually.
-    card.renderer.plugins.interaction.useSystemTicker = false;
-
-    card.canvas = card.renderer.view;
-
     card.stage.hitArea = new PIXI.Polygon([0,0, 175,0, 175,99, 0,99]);
-    card.stage.interactive = card.stage.buttonMode = true;
-    card.stage.pointertap = () => {
+    card.stage.interactive = true;
+    card.stage.cursor = 'pointer';
+    card.stage.on('pointertap', () => {
       const els = card.elements;
 
       if (els.layer1.visible) {
@@ -125,18 +120,17 @@ export default class Board {
       }
 
       this.eraseCard();
-    };
+    });
 
     card.mask = new PIXI.Graphics();
-    card.mask.drawRect(0,0,88,46);
+    card.mask.rect(0,0,88,46);
 
     card.elements = Tactics.draw({
       textStyle: {
         fontFamily: 'Arial',
         fontSize: '11px',
         fill: 'white',
-        stroke: 0,
-        strokeThickness: 3,
+        stroke: { width:3, color:0x000000 },
       },
       context: card.stage,
       children: {
@@ -167,22 +161,18 @@ export default class Board {
         divider: {
           type: 'G',
           draw: pixi => {
-            pixi.lineTextureStyle({
-              width: 1,
-              gradient: {
-                type: 'linear',
-                beginPoint: new PIXI.Point(0, 0),
-                endPoint: new PIXI.Point(176, 0),
-                colorStops: [
-                  [0,    '#000000'],
-                  [0.09, '#FFFFFF'],
-                  [0.62, '#FFEECC'],
-                  [1,    '#000000'],
-                ],
-              },
-            });
+            const colorStops = [
+              [0,    '#000000'],
+              [0.09, '#FFFFFF'],
+              [0.62, '#FFEECC'],
+              [1,    '#000000'],
+            ];
+            const fill = new PIXI.FillGradient(0, 0, 176, 0);
+            colorStops.forEach(cs => fill.addColorStop(...cs));
+
             pixi.moveTo(0, 60.5);
             pixi.lineTo(176, 60.5);
+            pixi.stroke({ width:1, fill });
           }
         },
         lower: {
@@ -240,7 +230,7 @@ export default class Board {
             },
           }
         }
-      }
+      },
     });
 
     return this.card = card;
@@ -650,7 +640,7 @@ export default class Board {
     // blank tile to cancel current selection, if sensible.  Ultimately, this
     // functionality needs to be provided by an 'undo' button.
     tilesContainer.interactive = true;
-    tilesContainer.pointertap = event => {
+    tilesContainer.on('pointertap', event => {
       if (this.locked === true) return;
 
       if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data))
@@ -662,7 +652,7 @@ export default class Board {
           target: null,
           pointerEvent: event.data.originalEvent,
         });
-    };
+    });
 
     /*
      * A select event occurs when a unit and/or an action tile is selected.
@@ -745,8 +735,7 @@ export default class Board {
     let canvas;
     if (healthBarData) {
       canvas = healthBarData.canvas;
-    }
-    else {
+    } else {
       // The canvas and base texture is only created once.
       canvas = document.createElement('canvas');
       canvas.width  = healthBarWidth;
@@ -759,10 +748,10 @@ export default class Board {
       if (healthBarData.texture)
         healthBarData.texture.destroy();
 
-      let ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      let gradient = ctx.createLinearGradient(0, 0, healthBarWidth, 0);
+      const gradient = ctx.createLinearGradient(0, 0, healthBarWidth, 0);
       gradient.addColorStop(0.0, options.startColor);
       gradient.addColorStop(0.6, options.shineColor);
       gradient.addColorStop(1.0, options.endColor);
@@ -775,31 +764,31 @@ export default class Board {
       ctx.closePath();
       ctx.fill();
 
-      if (healthBarData.baseTexture)
-        healthBarData.baseTexture.update();
+      if (healthBarData.canvasSource)
+        healthBarData.canvasSource.update();
       else
-        healthBarData.baseTexture = new PIXI.BaseTexture(canvas);
+        healthBarData.canvasSource = new PIXI.CanvasSource({ resource:canvas });
 
-      let frame = new PIXI.Rectangle();
+      const frame = new PIXI.Rectangle();
       frame.width  = options.size * healthBarWidth;
       frame.height = healthBarHeight;
 
-      healthBarData.texture = new PIXI.Texture(healthBarData.baseTexture, frame);
+      healthBarData.texture = new PIXI.Texture({ source:healthBarData.canvasSource, frame });
       healthBarData.size    = options.size;
     }
 
     return new PIXI.Sprite(healthBarData.texture);
   }
   drawHealth(unit) {
-    var currentHealth = Math.max(0, unit.health + unit.mHealth);
-    var healthRatio = currentHealth / unit.health;
-    var toColorCode = num => '#' + parseInt(num).toString(16);
-    var gradientStartColor = Tactics.utils.getColorStop(0xFF0000, 0xc2f442, healthRatio);
-    var gradientShineColor = Tactics.utils.getColorStop(gradientStartColor, 0xFFFFFF, 0.7);
-    var gradientEndColor = gradientStartColor;
+    const currentHealth = Math.max(0, unit.health + unit.mHealth);
+    const healthRatio = currentHealth / unit.health;
+    const toColorCode = num => '#' + parseInt(num).toString(16);
+    const gradientStartColor = Tactics.utils.getColorStop(0xFF0000, 0xc2f442, healthRatio);
+    const gradientShineColor = Tactics.utils.getColorStop(gradientStartColor, 0xFFFFFF, 0.7);
+    const gradientEndColor = gradientStartColor;
 
     // Create the health bar sprites
-    var healthBarSprite;
+    let healthBarSprite;
     if (healthRatio > 0)
       healthBarSprite = this.createGradientSpriteForHealthBar({
         id:         'healthBar',
@@ -808,7 +797,7 @@ export default class Board {
         shineColor: toColorCode(gradientShineColor),
         endColor:   toColorCode(gradientEndColor),
       });
-    var underlayBarSprite = this.createGradientSpriteForHealthBar({
+    const underlayBarSprite = this.createGradientSpriteForHealthBar({
       id:         'underlayHealthBar',
       size:       1,
       startColor: '#006600',
@@ -820,36 +809,35 @@ export default class Board {
     underlayBarSprite.alpha = 0.5;
 
     // Create the health text
-    var textOptions = {
+    const textOptions = {
       fontFamily: 'Arial',
       fontSize: '12px',
-      stroke: 0,
-      strokeThickness: 3,
+      stroke: { width:3, color:0x000000 },
       letterSpacing: 1,
       fill: 'white',
     };
-    var currentHealthText = new PIXI.Text(
-      currentHealth,
-      textOptions,
-    );
+    const currentHealthText = new PIXI.Text({
+      text: currentHealth,
+      style: textOptions,
+    });
     currentHealthText.x = 28;
     currentHealthText.y = -15;
     currentHealthText.anchor.x = 1;
-    var dividedByText = new PIXI.Text(
-      '/',
-      {...textOptions, fontSize: '20px'}
-    );
+    const dividedByText = new PIXI.Text({
+      text: '/',
+      style: { ...textOptions, fontSize: '20px' },
+    });
     dividedByText.x = 27;
     dividedByText.y = -16;
-    var totalHealthText = new PIXI.Text(
-      unit.health,
-      textOptions,
-    );
+    const totalHealthText = new PIXI.Text({
+      text: unit.health,
+      style: textOptions,
+    });
     totalHealthText.x = 34;
     totalHealthText.y = -9;
 
     // Add everything to a container
-    var container = new PIXI.Container();
+    const container = new PIXI.Container();
     container.addChild(underlayBarSprite);
     if (healthBarSprite)
       container.addChild(healthBarSprite);
@@ -1027,7 +1015,7 @@ export default class Board {
       //
       els.name.text = unit.name;
 
-      els.notice.text = notice;
+      els.notice.text = notice ?? '';
 
       //
       //  Draw the first layer of the bottom part of the card.
@@ -1047,7 +1035,6 @@ export default class Board {
             els.mBlock.style.fill = '#FF4444';
           }
 
-          els.block.updateText();
           els.mBlock.position.x = els.block.position.x + els.block.width;
         } else {
           els.block.text = unit.blocking+'%';
@@ -1069,7 +1056,6 @@ export default class Board {
           els.mPower.style.fill = '#FF4444';
         }
 
-        els.power.updateText();
         els.mPower.position.x = els.power.position.x + els.power.width;
       } else {
         els.mPower.text = '';
@@ -1086,7 +1072,6 @@ export default class Board {
           els.mArmor.style.fill = '#FF0000';
         }
 
-        els.armor.updateText();
         els.mArmor.position.x = els.armor.position.x + els.armor.width;
       } else {
         els.mArmor.text = '';
@@ -1127,7 +1112,7 @@ export default class Board {
       els.notice.anchor.x = 0.5;
       els.notice.style.fontSize = '12px';
       els.notice.text = defaultNotice.title;
-      els.noticeBody.text = defaultNotice.body;
+      els.noticeBody.text = defaultNotice.body ?? '';
 
       if (els.healthBar.children.length)
         els.healthBar.removeChildren();
@@ -1143,12 +1128,15 @@ export default class Board {
       this.eraseCard();
 
     if (unit) {
-      let mask = new PIXI.Graphics();
-      mask.drawRect(0, 0, 150, 60);
+      const avatar = Tactics.drawAvatar(unit, { renderer:card.renderer, as:'sprite' }, a => {
+        const mask = new PIXI.Graphics();
+        mask.rect(0, 0, 150, 60);
+        mask.fill();
 
-      let avatar = Tactics.drawAvatar(unit, { as:'sprite' });
-      avatar.y += Math.min(76, Math.max(54, -avatar.y));
-      avatar.mask = mask;
+        a.y += Math.min(76, Math.max(54, -a.y));
+        a.mask = mask;
+        return a;
+      });
 
       els.avatar.removeChildren();
       els.avatar.addChild(avatar);
@@ -1165,7 +1153,7 @@ export default class Board {
 
       els.name.style.fill = nameColor;
 
-      card.stage.buttonMode = true;
+      card.stage.cursor = 'pointer';
       card.render();
     }
 
@@ -1194,7 +1182,7 @@ export default class Board {
     let carded = this.carded;
     if (!carded) return;
 
-    card.stage.buttonMode = false;
+    card.stage.cursor = null;
 
     carded.off('change', card.listener);
     this._emit({ type:'card-change', ovalue:carded, nvalue:null });
@@ -1981,8 +1969,7 @@ export default class Board {
         this._highlightTargetMix(tile);
       else if (unit)
         selected.setTargetNotice(unit);
-    }
-    else if (tile.action === 'target') {
+    } else if (tile.action === 'target') {
       if (unit)
         selected.setTargetNotice(unit);
     }

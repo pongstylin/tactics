@@ -278,6 +278,8 @@ whenDOMReady.then(() => {
     if (await authClient.requireAuth())
       history.replaceState(null, null, '#lobby');
 
+    await Tactics.makeAvatarRenderer();
+
     configureGame = new ConfigureGameModal({
       autoShow: false,
       hideOnCancel: true,

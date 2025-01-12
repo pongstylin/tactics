@@ -308,14 +308,12 @@ var buttons = {
       if (isEdge && $app.hasClass('with-inlineChat')) {
         $chat.css({ height:'' });
         $app.addClass('chat-closing');
-      }
-      else {
+      } else {
         $app.addClass('chat-closing');
       }
 
       tick();
-    }
-    else {
+    } else {
       let finish = () => {
         $app.toggleClass('chat-open chat-opening');
         updateChatButton();
@@ -851,7 +849,7 @@ async function loadTransport(gameId, gameData) {
 async function loadGame(transport) {
   await loadResources(transport);
 
-  return new Tactics.Game(transport, authClient.playerId ?? false);
+  return new Tactics.Game(transport, authClient.playerId ?? false).init();
 }
 async function loadResources(gameState) {
   const unitTypes = gameType.getUnitTypes();

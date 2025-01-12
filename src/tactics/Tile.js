@@ -2,7 +2,6 @@
   Philosophy:
     A tile should have no awareness of the overall board.
 */
-
 import emitter from '#utils/emitter.js';
 
 export const TILE_WIDTH  = 88;
@@ -43,32 +42,32 @@ export default class Tile {
     let pixi = this.pixi = new PIXI.Graphics();
     pixi.position = new PIXI.Point(...this.position);
 
-    pixi.alpha = 0;
-    pixi.lineStyle(1,0xFFFFFF,1);
-    pixi.beginFill(0xFFFFFF,1);
-
     // Clone the points array, cause it gets messed up otherwise.
-    pixi.drawPolygon(points.slice());
+    pixi.poly(points.slice());
     pixi.hitArea = new PIXI.Polygon(points.slice());
 
+    pixi.alpha = 0;
+    pixi.fill({ color:0xFFFFFF, alpha:1 });
+    pixi.stroke({ width:1, color:0xFFFFFF, alpha:1 });
+
     pixi.interactive = true;
-    pixi.buttonMode  = false;
-    pixi.pointertap  = this.onSelect.bind(this);
-    pixi.pointerover = this.onFocus.bind(this);
-    pixi.pointerout  = this.onBlur.bind(this);
+    pixi.cursor = null;
+    pixi.on('pointertap', this.onSelect.bind(this));
+    pixi.on('pointerover', this.onFocus.bind(this));
+    pixi.on('pointerout', this.onBlur.bind(this));
 
     // Drag events are only supported for mouse pointers
-    pixi.mousedown      = this.onDragStart.bind(this);
-    pixi.mouseup        = this.onDragDrop.bind(this);
-    pixi.mouseupoutside = this.onDragCancel.bind(this);
+    pixi.on('mousedown', this.onDragStart.bind(this));
+    pixi.on('mouseup', this.onDragDrop.bind(this));
+    pixi.on('mouseupoutside', this.onDragCancel.bind(this));
 
     // PIXI does not emit 'pointerover' or 'pointerout' events for touch pointers.
     // Use 'touchmove' to simulate focus events.
     // Use 'touchend' to simulate blur events.
     // The board object will handle blurring as the touch pointer moves.
-    pixi.touchmove       = this.onFocus.bind(this);
-    pixi.touchend        = this.onBlur.bind(this);
-    pixi.touchendoutside = this.onBlur.bind(this);
+    pixi.on('touchmove', this.onFocus.bind(this));
+    pixi.on('touchend', this.onBlur.bind(this));
+    pixi.on('touchendoutside', this.onBlur.bind(this));
 
     pixi.data = { type:'Tile', x:this.x, y:this.y };
 
@@ -140,21 +139,21 @@ export default class Tile {
     return this;
   }
   set_interactive(interactive) {
-    if (this.pixi.buttonMode === interactive)
+    if ((this.pixi.cursor === 'pointer') === interactive)
       return;
 
     // A focused tile should be blurred before becoming interactive.
     if (this.focused && !interactive)
       this._emit({ type:'blur', target:this });
 
-    this.pixi.buttonMode = interactive;
+    this.pixi.cursor = interactive ? 'pointer' : null;
 
     // A focused tile should be focused after becoming interactive.
     if (this.focused && interactive)
       this._emit({ type:'focus', target:this });
   }
   is_interactive() {
-    return this.pixi.buttonMode;
+    return this.pixi.cursor === 'pointer';
   }
   setAlpha(alpha) {
     this.pixi.alpha = alpha;
@@ -172,7 +171,7 @@ export default class Tile {
     this.pixi.alpha = 0;
   }
   onSelect(event) {
-    if (this.pixi.buttonMode) {
+    if (this.pixi.cursor === 'pointer') {
       // Prevent the board object from receiving this event.
       event.stopPropagation();
 

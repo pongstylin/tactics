@@ -11,6 +11,49 @@ export default class ChaosSeed extends Unit {
     });
   }
 
+  draw(skipPosition = false) {
+    Tactics.makeCanvasSourceFromURL('https://legacy.taorankings.com/images/death.png').then(src => {
+      this._deathAnimation = [
+        [
+          {src,pos:{x: 0  ,y:-16  },scale:{x:1.416,y:1.5  },alpha:0.5 }
+        ],
+        [
+          {src,pos:{x: 0  ,y:-28  },scale:{x:1.167,y:2.166},alpha:0.69},
+          {src,pos:{x:-1  ,y:-18  },scale:{x:1.418,y:1.583},alpha:0.5 }
+        ],
+        [
+          {src,pos:{x:-0.5,y:-41  },scale:{x:0.956,y:2.833},alpha:0.35},
+          {src,pos:{x:-2  ,y:-27.5},scale:{x:1.251,y:2.126},alpha:0.69},
+          {src,pos:{x: 2  ,y:-18  },scale:{x:0.917,y:1.5  },alpha:0.5 }
+        ],
+        [
+          {src,pos:{x: 0.5,y:-21  },scale:{x:1.123,y:1.417},alpha:0.5 },
+          {src,pos:{x:-2  ,y:-38  },scale:{x:1.084,y:2.668},alpha:0.35},
+          {src,pos:{x: 2  ,y:-32  },scale:{x:0.750,y:2.417},alpha:0.69}
+        ],
+        [
+          {src,pos:{x:-0.8,y:-31.7},scale:{x:0.978,y:1.938},alpha:0.69},
+          {src,pos:{x: 1  ,y:-24  },scale:{x:0.999,y:1.417},alpha:0.5 },
+          {src,pos:{x: 2  ,y:-46.5},scale:{x:0.584,y:3.291},alpha:0.35}
+        ],
+        [
+          {src,pos:{x:-2  ,y:-43.5},scale:{x:0.832,y:2.459},alpha:0.35},
+          {src,pos:{x: 0  ,y:-36.5},scale:{x:1    ,y:1.958},alpha:0.69},
+          {src,pos:{x: 1  ,y:-27  },scale:{x:0.998,y:1.5  },alpha:0.5 }
+        ],
+        [
+          {src,pos:{x:-0.5,y:-48.5},scale:{x:0.958,y:2.458},alpha:0.35},
+          {src,pos:{x: 0  ,y:-38.5},scale:{x:0.915,y:2.126},alpha:0.69}
+        ],
+        [
+          {src,pos:{x:-0.5,y:-50  },scale:{x:0.791,y:2.752},alpha:0.35}
+        ],
+      ];
+    });
+
+    return super.draw(skipPosition);
+  }
+
   drawStand(direction) {
     super.drawStand(direction);
 
@@ -502,7 +545,7 @@ export default class ChaosSeed extends Unit {
 
           anim.splice(i, new Tactics.Animation.fromData(
             board.unitsContainer,
-            Tactics.animations.death,
+            this._deathAnimation,
             {x:x, y:y, s:2, a:ao},
           ));
         });
