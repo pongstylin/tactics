@@ -278,7 +278,7 @@ var buttons = {
   },
   chat: () => {
     let $app = $('#app');
-    if ($app.hasClass('chat-opening') || $app.hasClass('chat-closing'))
+    if ($app.hasClass('for-practice') || $app.hasClass('chat-opening') || $app.hasClass('chat-closing'))
       return;
 
     let $chat = $('#chat');
@@ -2317,7 +2317,7 @@ function toggleUndoButton() {
   $('BUTTON[name=undo]').toggleClass('request', !!canUndo?.approve);
 
   // If we are only able to undo for a limited time, set a timer to disable it.
-  if (canUndo?.refreshTimeout)
+  if (canUndo?.refreshTimeout && canUndo.refreshTimeout < Infinity)
     undoTimeout = setTimeout(toggleUndoButton, canUndo.refreshTimeout);
 }
 
