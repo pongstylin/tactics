@@ -862,7 +862,7 @@ export default class extends FileAdapter {
           continue;
         if (!game.state.startedAt)
           continue;
-        if (game.state.isSinglePlayer)
+        if (game.state.isSimulation)
           continue;
 
         gameIndex.set(game.id, {

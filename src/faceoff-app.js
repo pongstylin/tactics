@@ -88,7 +88,7 @@ var buttons = {
               momentPopup.close();
               $('BUTTON[name=surrender]').removeClass('ready');
 
-              game.play(-1);
+              game.play(0);
             });
           },
         },
@@ -326,7 +326,7 @@ async function startGame() {
   progress.hide();
   $('#app').addClass('show');
 
-  game.play(-1);
+  game.play(0);
 }
 
 function toggleUndoButton() {

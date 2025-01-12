@@ -658,7 +658,7 @@ function setYourGame(gameSummary) {
   if (isVisibleLobbyGame)
     setYourLobbyGame(gameSummary);
   else if (
-    !gameSummary.isSinglePlayer &&
+    !gameSummary.isSimulation &&
     !oldSummary?.startedAt && gameSummary.startedAt &&
     gameSummary.currentTeam.playerId === authClient.playerId
   ) {
@@ -1960,7 +1960,7 @@ async function renderYourGames() {
     if (game.turnEndedAt)
       continue;
     // Exclude single player games
-    if (game.isSinglePlayer)
+    if (game.isSimulation)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
@@ -2011,7 +2011,7 @@ async function renderYourGames() {
     if (game.currentTeam.playerId === myPlayerId && !game.turnEndedAt)
       continue;
     // Exclude single player games
-    if (game.isSinglePlayer)
+    if (game.isSimulation)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
@@ -2036,7 +2036,7 @@ async function renderYourGames() {
    */
   const divSinglePlayerGames = [];
   for (const game of [ ...waitingGames, ...activeGames ]) {
-    if (!game.isSinglePlayer)
+    if (!game.isSimulation)
       continue;
 
     const divGame = renderGame(game, authClient.playerId);
@@ -2061,7 +2061,7 @@ async function renderYourGames() {
    */
   const divWaitingGames = [];
   for (const game of [ ...lobbyGames, ...waitingGames ]) {
-    if (game.isSinglePlayer)
+    if (game.isSimulation)
       continue;
     if (game.startedAt)
       continue;
@@ -2912,7 +2912,7 @@ function renderGame(game, playerId = null, rankingId = null) {
   else
     divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
   divVS.append(renderGameResult(game, team1.playerId));
-  if (game.isSinglePlayer && !game.startedAt)
+  if (game.isSimulation && !game.startedAt)
     divVS.append(renderGameFinishSetup(game));
   else if (team2?.playerId)
     divVS.append(renderGameTeam(game, team2, ranks2, rankingId, team2.playerId !== playerId));
@@ -3012,7 +3012,7 @@ function renderGameInfo(game) {
   if (game.timeLimitName && game.timeLimitName !== 'standard')
     labels.push(game.timeLimitName.toUpperCase('first'));
 
-  if (game.isSinglePlayer) {
+  if (game.isSimulation) {
     if (game.mode === 'fork')
       labels.push(game.mode.toUpperCase('first'));
   } else {
@@ -3048,7 +3048,7 @@ function renderGameInfo(game) {
 
   if (game.endedAt)
     spnRight.append(renderClock(game.endedAt, 'Ended At'));
-  else if (game.startedAt && !game.isSinglePlayer) {
+  else if (game.startedAt && !game.isSimulation) {
     const isParticipant = game.teams.some(t => t.playerId === authClient.playerId);
     if (isParticipant)
       spnRight.append(renderClock(spnClock => {

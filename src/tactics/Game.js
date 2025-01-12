@@ -450,8 +450,8 @@ export default class Game {
   get isFork() {
     return !!this.state.forkOf;
   }
-  get isSinglePlayer() {
-    return this.state.isSinglePlayer;
+  get isSimulation() {
+    return this.state.isSimulation;
   }
   get isPracticeMode() {
     return this.state.isPracticeMode;

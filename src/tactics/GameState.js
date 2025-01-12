@@ -272,6 +272,9 @@ export default class GameState {
     );
   }
   get isSinglePlayer() {
+    return new Set(this.teams.map(t => t.playerId)).size === 1;
+  }
+  get isSimulation() {
     const teams = this.teams;
     const hasBot = teams.findIndex(t => !!t.bot) > -1;
     const isMultiplayer = new Set(teams.map(t => t.playerId)).size > 1;
@@ -1034,7 +1037,7 @@ export default class GameState {
       return null;
 
     // Single player games can always undo if there is something to undo.
-    if (this.isSinglePlayer) {
+    if (this.isSimulation) {
       const initialTurnId = this.initialTurnId;
       if (this.currentTurnId === initialTurnId && this.currentTurn.isEmpty)
         return null;
@@ -1254,6 +1257,8 @@ export default class GameState {
       return;
 
     if (this.currentTurn.isEnded && (
+      // Offline apps should not delay start turns
+      this.isSinglePlayer ||
       // Opponent can see a turn end immediately in practice games.
       this.isPracticeMode ||
       // Opponent can see a turn end 5 seconds after it ended.

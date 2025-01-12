@@ -211,7 +211,7 @@ export default class Transport {
   get isPracticeMode() {
     return this.rated === false && this.undoMode === 'loose';
   }
-  get isSinglePlayer() {
+  get isSimulation() {
     const teams = this.teams;
     const hasBot = teams.findIndex(t => !!t.bot) > -1;
     const isMultiplayer = new Set(teams.map(t => t.playerId)).size > 1;
@@ -239,7 +239,7 @@ export default class Transport {
       return null;
 
     // Single player games can always undo if there is something to undo.
-    if (this.isSinglePlayer) {
+    if (this.isSimulation) {
       const initialTurnId = this.initialTurnId;
       if (this.currentTurnId === initialTurnId && this.currentTurn.isEmpty)
         return null;

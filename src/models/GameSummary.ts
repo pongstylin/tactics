@@ -155,11 +155,8 @@ export default class GameSummary {
   get isChallenge() {
     return !this.data.startedAt && !this.data.teams.some(t => !t?.playerId);
   }
-  get isSinglePlayer() {
-    const teams = this.teams;
-    const isMultiplayer = new Set(teams.map(t => t?.playerId)).size > 1;
-
-    return !isMultiplayer;
+  get isSimulation() {
+    return new Set(this.teams.map(t => t?.playerId)).size === 1;
   }
   get meta() {
     return this.data.meta ?? {};
