@@ -777,6 +777,11 @@ export default class ConfigureGame extends Modal {
       this.root.querySelector('.intro').innerHTML = '';
     }
 
+    selSet.disabled = sets.length === 1;
+
+    if (sets.length === 1 && config.set === 'random')
+      config.set = sets[0].id;
+
     if (config.set === 'random')
       aChangeLink.style.display = 'none';
     else {
@@ -786,8 +791,6 @@ export default class ConfigureGame extends Modal {
       else
         aChangeLink.textContent = 'View Set';
     }
-
-    selSet.disabled = sets.length === 1;
 
     for (const setId of gameConfig.setsById.keys()) {
       const setOption = selSet.querySelector(`OPTION[value="${setId}"]`);
