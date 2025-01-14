@@ -224,7 +224,6 @@ export default class Tile {
     });
   }
   onFocus(event) {
-    if (!this.is_interactive()) return;
     if (this.focused) return;
 
     this.focused = true;
@@ -237,7 +236,6 @@ export default class Tile {
     });
   }
   onBlur(event) {
-    if (!this.is_interactive()) return;
     if (!this.focused) return;
 
     // Chrome has been observed posting "pointerleave" events after a "click".

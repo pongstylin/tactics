@@ -1957,6 +1957,8 @@ export default class Board {
 
     if (tile.isDropTarget)
       return this._emit({ ...event, type:'dragFocus' });
+    else if (!tile.is_interactive())
+      return;
 
     /*
      * Brighten the tile to show that it is being focused.
@@ -2003,6 +2005,8 @@ export default class Board {
 
     if (tile.isDropTarget)
       return this._emit({ ...event, type:'dragBlur' });
+    else if (!tile.is_interactive())
+      return;
 
     /*
      * Darken the tile when no longer focused.
