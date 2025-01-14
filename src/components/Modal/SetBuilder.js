@@ -1060,8 +1060,12 @@ export default class SetBuilder extends Modal {
     const unit = event.targetUnit;
 
     this._dragSource = event;
+    this._dragSource.pointerEvent = {
+      clientX: event.pointerEvent.clientX,
+      clientY: event.pointerEvent.clientY,
+    };
 
-    this._stage.interactive = true;
+    this._content.interactive = true;
     this.renderBoard();
   }
   _onDragFocus(event) {
@@ -1089,13 +1093,14 @@ export default class SetBuilder extends Modal {
       if (dist < 5) return;
 
       dragAvatar = new PIXI.Container();
+      dragAvatar.eventMode = 'none';
       dragAvatar.addChild(Tactics.drawAvatar(dragUnit, { as:'frame', direction:dragUnit.direction }));
 
       this.selected = null;
 
       // Avatar is behind trash can.
-      const trashIndex = this._stage.getChildIndex(this._trash);
-      this._stage.addChildAt(this._dragAvatar = dragAvatar, trashIndex);
+      const trashIndex = this._content.getChildIndex(this._trash);
+      this._content.addChildAt(this._dragAvatar = dragAvatar, trashIndex);
 
       board.dismiss(dragUnit);
       this._enableTrash(false);
@@ -1115,10 +1120,9 @@ export default class SetBuilder extends Modal {
       dragUnit.getContainerByName('shadow', dragAvatar).alpha = 1;
 
       if (pixiEvent)
-        dragAvatar.position = pixiEvent.data.getLocalPosition(this._stage);
+        dragAvatar.position = pixiEvent.data.getLocalPosition(this._content);
       this._onTrashBlur();
-    }
-    else if (!this._trashIsFocused()) {
+    } else if (!this._trashIsFocused()) {
       // There can be a very brief delay between the old tile blurring and a new
       // tile focusing.  So, only focus trash if appropriate after a delay.
       setTimeout(() => {
@@ -1126,8 +1130,7 @@ export default class SetBuilder extends Modal {
         if (this._dragAvatar !== dragAvatar) return;
 
         // Skip if cursor has moved back over a drop target
-        const focusedTile = board.focusedTile;
-        if (focusedTile && focusedTile.isDropTarget) return;
+        if (board.focusedTile?.isDropTarget) return;
 
         // Hide shadow while over trash can
         dragUnit.getContainerByName('shadow', dragAvatar).alpha = 0;
@@ -1144,19 +1147,17 @@ export default class SetBuilder extends Modal {
     this.renderBoard();
   }
   /*
-   * If cancelled === true:
-   *   It means the unit was dropped outside a valid tile or on the origin tile.
-   *   If tile is defined, it is the latter.
+   * If target === null:
+   *   It means the unit wasn't dropped on a valid drop target.
    * else
-   *   The unit was dropped on an empty or occupied tile.
-   *   If occupied, the units are swapped.
+   *   The target is a valid drop tile.
    */
-  _onDragDrop({ pixiEvent, target:tile, cancelled }) {
+  _onDragDrop({ pixiEvent, target:tile }) {
     const dragSource = this._dragSource;
     if (!dragSource) return;
 
     this._dragSource = null;
-    this._stage.interactive = false;
+    this._content.interactive = false;
 
     if (this._dragAvatar) {
       Tactics.playSound('select');
@@ -1169,21 +1170,19 @@ export default class SetBuilder extends Modal {
       });
 
       const dragUnit = dragSource.targetUnit;
-      if (cancelled) {
-        if (tile) {
-          this._board.assign(dragUnit, tile);
+      if (!tile) {
+        this.removeUnit(dragUnit);
+        this.killUnits();
+      } else if (tile === dragSource.target) {
+        // Make sure the unit is focused after assignment
+        this._board.clearHighlight(tile);
 
-          // Prevent tap event from firing
-          tile.set_interactive(false);
-          setTimeout(() => {
-            tile.set_interactive(true);
-            this._highlightPlaces();
-            this._setUnitsState();
-          });
-        } else {
-          this.removeUnit(dragUnit);
-          this.killUnits();
-        }
+        // Prevent tap event from firing
+        setTimeout(() => {
+          this._board.assign(dragUnit, tile);
+          this._highlightPlaces();
+          this.renderBoard();
+        });
       } else {
         // Make sure the unit is focused after assignment
         this._board.clearHighlight(tile);

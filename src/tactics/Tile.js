@@ -188,7 +188,6 @@ export default class Tile {
   }
   onDragStart(event) {
     if (!this.assigned || !this.assigned.draggable) return;
-    this.isDragging = true;
 
     this._emit({
       type: 'dragStart',
@@ -199,62 +198,37 @@ export default class Tile {
     });
   }
   onDragDrop(event) {
-    if (this.isDragging) return this.onDragCancel(event);
     if (!this.isDropTarget) return;
 
     this._emit({
       type: 'dragDrop',
       target: this,
-      cancelled: false,
       pixiEvent: event,
       pointerEvent: event.data.originalEvent,
     });
   }
   /*
-   * Dragging can be cancelled in two ways:
-   *   1) Drag never left (or returned to) origin.
-   *
-   *   In this case, the drop target is the origin and it was triggered by a
-   *   'mouseup' event.
-   *
-   *   2) Drag was dropped outside the origin.
-   *
-   *   In this case, the drop target is null and it was triggered by a
-   *   'mouseupoutside' event.  This event is also delayed so that another tile
-   *   might detect a drag drop event and be handled first.  This way, the
-   *   cancellation event may be ignored since it wasn't truly cancelled.
+   * If the mouse releases anywhere other than origin tile, this will be fired.
+   * But, we should ignore cases where the mouse was released on a valid drop target.
+   * This is accomplished by ignoring cases where the tile is no longer being dragged.
+   * A call to onDragDrop happens first and the Board object will clear the flag.
    */
-  onDragCancel(event) {
+  onDragCancel(event, target = null) {
     if (!this.isDragging) return;
-    this.isDragging = false;
 
-    // Generate event data early since 'event' may change before timeout.
-    let dragCancelEvent = {
+    this._emit({
       type: 'dragDrop',
-      target: event.type === 'mouseup' ? this : null,
-      cancelled: true,
+      target: null,
       pixiEvent: event,
       pointerEvent: event.data.originalEvent,
-    };
-
-    if (dragCancelEvent.target)
-      this._emit(dragCancelEvent);
-    else
-      setTimeout(() => this._emit(dragCancelEvent));
+    });
   }
-  /*
-   * All tiles are interactive at all times so that we can keep track of the
-   * currently focused tile even if it isn't in buttonMode (yet).
-   *
-   * But events are only emitted when in buttonMode.
-   */
   onFocus(event) {
+    if (!this.is_interactive()) return;
     if (this.focused) return;
 
     this.focused = true;
 
-    // Events are posted even if not interactive so that the board can track
-    // the currently focused tile.
     this._emit({
       type: 'focus',
       target: this,
@@ -263,6 +237,7 @@ export default class Tile {
     });
   }
   onBlur(event) {
+    if (!this.is_interactive()) return;
     if (!this.focused) return;
 
     // Chrome has been observed posting "pointerleave" events after a "click".
@@ -275,10 +250,8 @@ export default class Tile {
 
     this.focused = false;
 
-    // Events are posted even if not interactive so that the board can track
-    // the currently focused tile.
     this._emit({
-      type:   'blur',
+      type: 'blur',
       target: this,
     });
   }

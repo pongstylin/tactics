@@ -57,6 +57,7 @@ export default class Board {
       unitsContainer: null,
       locked: 'readonly',
       focusedTile: null,
+      draggingTile: null,
 
       card:        null,
       carded:      null,
@@ -697,8 +698,19 @@ export default class Board {
         if (!tile.painted || tile.painted === 'focus')
           tile.set_interactive(false);
       });
-      tile.on('dragStart', event => this._emit(event));
-      tile.on('dragDrop',  event => this._emit(event));
+      tile.on('dragStart', event => {
+        // Should not happen...
+        if (this.draggingTile)
+          this.draggingTile.isDragging = false;
+        this.draggingTile = tile;
+        this.draggingTile.isDragging = true;
+        this._emit(event)
+      });
+      tile.on('dragDrop', event => {
+        this.draggingTile.isDragging = false;
+        this.draggingTile = null;
+        this._emit(event);
+      });
       tile.draw();
 
       tilesContainer.addChild(tile.pixi);
@@ -1945,15 +1957,13 @@ export default class Board {
 
     if (tile.isDropTarget)
       return this._emit({ ...event, type:'dragFocus' });
-    else if (!tile.is_interactive())
-      return;
 
     /*
      * Brighten the tile to show that it is being focused.
      */
     let highlighted = this._highlighted.get(tile);
     if (highlighted && highlighted.onFocus)
-      return highlighted.onFocus(event);
+      highlighted.onFocus(event);
     else if (tile.action)
       tile.setAlpha(0.6);
     else if (tile.painted && tile.painted !== 'focus')
@@ -1993,15 +2003,13 @@ export default class Board {
 
     if (tile.isDropTarget)
       return this._emit({ ...event, type:'dragBlur' });
-    else if (!tile.is_interactive())
-      return;
 
     /*
      * Darken the tile when no longer focused.
      */
     let highlighted = this._highlighted.get(tile);
     if (highlighted && highlighted.onBlur)
-      return highlighted.onBlur(event);
+      highlighted.onBlur(event);
     else if (tile.action)
       tile.setAlpha(0.3);
     else if (tile.painted && tile.painted !== 'focus')
