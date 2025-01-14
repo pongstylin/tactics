@@ -57,7 +57,6 @@ export default class SetBuilder extends Modal {
     this.on('cancel', this._onCancel.bind(this));
 
     const board = new Board();
-    board.draw();
     board.on('card-tap', () => {
       popup({
         title: 'Set Management Tips',
@@ -147,9 +146,6 @@ export default class SetBuilder extends Modal {
           cardCanvas.classList.remove('show');
       });
 
-    const countsContainer = new PIXI.Container();
-    countsContainer.position = board.pixi.position.clone();
-
     const core = Tactics.getSprite('core');
 
     const trash = core.renderFrame({ spriteName:'Trash' }).container;
@@ -171,9 +167,6 @@ export default class SetBuilder extends Modal {
     );
 
     const content = new PIXI.Container();
-    content.addChild(board.pixi);
-    content.addChild(countsContainer);
-    content.addChild(trash);
     content.on('mousemove', event => this._onDragMove({
       type: 'dragMove',
       target: null,
@@ -194,7 +187,6 @@ export default class SetBuilder extends Modal {
       _canvas: null,
       _stage: stage,
       _content: content,
-      _countsContainer: countsContainer,
       _trash: trash,
       _dragSource: null,
       _dragAvatar: null,
@@ -213,13 +205,17 @@ export default class SetBuilder extends Modal {
   }
 
   async init() {
+    const board = this._board;
     const data = this.data;
     const width = Tactics.width - TILE_WIDTH*2;
     const height = Tactics.height - TILE_HEIGHT*2;
     const renderer = this._renderer = await PIXI.autoDetectRenderer({ width, height, backgroundAlpha:0 });
     const canvas = this._canvas = renderer.canvas;
 
-    await this.board.initCard();
+    await board.initCard();
+    board.draw();
+    this._content.addChild(board.pixi);
+    this._content.addChild(this._trash);
 
     canvas.classList.add('board');
     // Allow a user to blur another element when clicking this one
