@@ -450,7 +450,7 @@ export default class ConfigureGame extends Modal {
 
     this._setRadioState(radPractice, 'required', vsYourself);
     this._setRadioState(radTournament, 'disabled', vsYourself);
-    this._setRadioState(radRandomSide, 'disabled', this.gameType.hasFixedPositions);
+    this._setRadioState(radRandomSide, 'disabled', vsYourself || this.gameType.hasFixedPositions);
 
     const isPractice = radPractice.checked;
 
