@@ -147,6 +147,7 @@ const routes = new Map([
   [ '#rankings/:playerId/:rankingId', p => ({
     route: () => renderPlayerRankingSummary(p.rankingId, p.playerId),
     data: Promise.all([
+      authClient.getRatedPlayers([ p.playerId ]).then(pm => pm.get(p.playerId)),
       authClient.getPlayerRanks(p.playerId),
       gameClient.getRatedGames(p.rankingId, p.playerId),
     ]),
@@ -2521,7 +2522,7 @@ async function renderRanking(rankingId) {
   divContent.append(divRanks);
 }
 async function renderPlayerRankingSummary(rankingId, playerId) {
-  const [ ranks, games ] = state.tabContent.rankings.data;
+  const [ player, ranks, games ] = state.tabContent.rankings.data;
   const name = rankingId === 'FORTE' ? 'Forte' : state.styles.find(s => s.id === rankingId)?.name ?? rankingId;
   const divContent = initializeRankingsPage('player-summary', [
     `<SPAN><A href="#rankings">Rankings</A></SPAN>`,
@@ -2575,7 +2576,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
 
   const divPlayerName = document.createElement('DIV');
   divPlayerName.classList.add('name');
-  divPlayerName.textContent = ranks[0].name;
+  divPlayerName.textContent = player.name;
   divPlayer.append(divPlayerName);
 
   const divRanks = document.createElement('DIV');
@@ -2634,129 +2635,132 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
     divRanks.append(divShowAll);
   }
 
-  const secStats = document.createElement('SECTION');
-  secStats.classList.add('stats');
-  divContent.append(secStats);
+  if (games.length) {
+    const secStats = document.createElement('SECTION');
+    secStats.classList.add('stats');
+    divContent.append(secStats);
 
-  const hdrStats = document.createElement('HEADER');
-  hdrStats.innerHTML = `
-    <DIV class="left">Statistics</DIV>
-  `;
-  secStats.append(hdrStats);
+    const hdrStats = document.createElement('HEADER');
+    hdrStats.innerHTML = `
+      <DIV class="left">Statistics</DIV>
+    `;
+    secStats.append(hdrStats);
 
-  const statsMap = new Map();
-  for (const game of games) {
-    for (const team of game.teams) {
-      if (team.playerId === playerId)
-        continue;
+    const statsMap = new Map();
+    for (const game of games) {
+      for (const team of game.teams) {
+        if (team.playerId === playerId)
+          continue;
 
-      if (!statsMap.has(team.playerId))
-        statsMap.set(team.playerId, { playerId:team.playerId, name:team.name, numGames:0, gain:0, loss:0 });
+        if (!statsMap.has(team.playerId))
+          statsMap.set(team.playerId, { playerId:team.playerId, name:team.name, numGames:0, gain:0, loss:0 });
 
-      const myTeam = game.teams.find(t => t.playerId === playerId);
-      const result = game.winnerId === myTeam.id ? 'Win' : game.winnerId === team.id ? 'Lose' : 'Draw';
-      const teamStats = statsMap.get(team.playerId);
-      const myRating = myTeam.ratings.get(game.type);
-      const vsRating = team.ratings.get(game.type);
-      // Always true unless there is bad data
-      if (myRating && vsRating) {
-        const ratingChange = Math.abs(myRating[1] - myRating[0]);
-        const ratingDiff = myRating[0] - vsRating[0];
-        if (myRating[1] > myRating[0])
-          teamStats.gain += ratingChange;
-        else
-          teamStats.loss += ratingChange;
-        if (result === 'Win' && (!teamStats.win || ratingDiff < teamStats.win.diff))
-          teamStats.win = { game, name:team.name, gain:ratingChange, diff:ratingDiff };
-        else if (result === 'Lose' && (!teamStats.lose || ratingDiff > teamStats.lose.diff))
-          teamStats.lose = { game, name:team.name, loss:ratingChange, diff:ratingDiff };
+        const myTeam = game.teams.find(t => t.playerId === playerId);
+        const result = game.winnerId === myTeam.id ? 'Win' : game.winnerId === team.id ? 'Lose' : 'Draw';
+        const teamStats = statsMap.get(team.playerId);
+        const myRating = myTeam.ratings.get(game.type);
+        const vsRating = team.ratings.get(game.type);
+        // Always true unless there is bad data
+        if (myRating && vsRating) {
+          const ratingChange = Math.abs(myRating[1] - myRating[0]);
+          const ratingDiff = myRating[0] - vsRating[0];
+          if (myRating[1] > myRating[0])
+            teamStats.gain += ratingChange;
+          else
+            teamStats.loss += ratingChange;
+          if (result === 'Win' && (!teamStats.win || ratingDiff < teamStats.win.diff))
+            teamStats.win = { game, name:team.name, gain:ratingChange, diff:ratingDiff };
+          else if (result === 'Lose' && (!teamStats.lose || ratingDiff > teamStats.lose.diff))
+            teamStats.lose = { game, name:team.name, loss:ratingChange, diff:ratingDiff };
+        }
+        teamStats.numGames++;
       }
-      teamStats.numGames++;
     }
-  }
-  const stats = Array.from(statsMap.values());
-  const gf = stats.sort((a,b) => (a.gain - a.loss) - (b.gain - b.loss) || b.numGames - a.numGames)[0];
-  const ff = stats.sort((a,b) => (b.gain - b.loss) - (a.gain - a.loss) || b.numGames - a.numGames)[0];
-  const wd = stats.filter(s => !!s.lose).sort((a,b) => b.lose.diff - a.lose.diff)[0];
-  const bv = stats.filter(s => !!s.win).sort((a,b) => a.win.diff - b.win.diff)[0];
 
-  const divStats = document.createElement('DIV');
-  secStats.append(divStats);
+    const stats = Array.from(statsMap.values());
+    const gf = stats.sort((a,b) => (a.gain - a.loss) - (b.gain - b.loss) || b.numGames - a.numGames)[0];
+    const ff = stats.sort((a,b) => (b.gain - b.loss) - (a.gain - a.loss) || b.numGames - a.numGames)[0];
+    const wd = stats.filter(s => !!s.lose).sort((a,b) => b.lose.diff - a.lose.diff)[0];
+    const bv = stats.filter(s => !!s.win).sort((a,b) => a.win.diff - b.win.diff)[0];
 
-  if (gf.loss > gf.gain) {
-    const divGF = document.createElement('DIV');
-    const playerLink = `<A href="#rankings/${gf.playerId}/${rankingId}">${gf.name}</A>`;
-    const info = [
-      `${gf.numGames} game(s)`,
-      `+${Math.round(gf.gain)} rating`,
-      `−${Math.round(gf.loss)} rating`,
-    ].join(', ');
-    divGF.innerHTML = `
-      <DIV>Greatest Fear:</DIV>
-      <DIV>
-        <DIV>${playerLink}</DIV>
-        <DIV>${info}</DIV>
-      </DIV>
-    `;
-    divStats.append(divGF);
-  }
+    const divStats = document.createElement('DIV');
+    secStats.append(divStats);
 
-  if (ff.gain > ff.loss) {
-    const divFF = document.createElement('DIV');
-    const playerLink = `<A href="#rankings/${ff.playerId}/${rankingId}">${ff.name}</A>`;
-    const info = [
-      `${ff.numGames} game(s)`,
-      `+${Math.round(ff.gain)} rating`,
-      `−${Math.round(ff.loss)} rating`,
-    ].join(', ');
-    divFF.innerHTML = `
-      <DIV>Favorite Food:</DIV>
-      <DIV>
-        <DIV>${playerLink}</DIV>
-        <DIV>${info}</DIV>
-      </DIV>
-    `;
-    divStats.append(divFF);
-  }
+    if (gf.loss > gf.gain) {
+      const divGF = document.createElement('DIV');
+      const playerLink = `<A href="#rankings/${gf.playerId}/${rankingId}">${gf.name}</A>`;
+      const info = [
+        `${gf.numGames} game(s)`,
+        `+${Math.round(gf.gain)} rating`,
+        `−${Math.round(gf.loss)} rating`,
+      ].join(', ');
+      divGF.innerHTML = `
+        <DIV>Greatest Fear:</DIV>
+        <DIV>
+          <DIV>${playerLink}</DIV>
+          <DIV>${info}</DIV>
+        </DIV>
+      `;
+      divStats.append(divGF);
+    }
 
-  if (wd && wd.lose.diff >= 0 && wd.lose.loss > 0) {
-    const divWD = document.createElement('DIV');
-    const playerLink = `<A href="#rankings/${wd.playerId}/${rankingId}">${wd.name}</A>`;
-    const gameLink = `<A href="/game.html?${wd.lose.game.id}" target="_blank">Watch!</A>`;
-    const info = [
-      `−${Math.round(wd.lose.loss)} rating`,
-      `had +${Math.round(wd.lose.diff)} rating`,
-    ].join(', ');
-    divWD.innerHTML = `
-      <DIV>Worst Defeat:</DIV>
-      <DIV>
-        <DIV class="links">${playerLink} • ${gameLink} • </DIV>
-        <DIV class="info">${info}</DIV>
-      </DIV>
-    `;
-    divWD.querySelector('.links').append(renderDuration(wd.lose.game.currentTurnId));
-    divWD.querySelector('.links').append(renderClock(wd.lose.game.endedAt, 'Ended At'));
-    divStats.append(divWD);
-  }
+    if (ff.gain > ff.loss) {
+      const divFF = document.createElement('DIV');
+      const playerLink = `<A href="#rankings/${ff.playerId}/${rankingId}">${ff.name}</A>`;
+      const info = [
+        `${ff.numGames} game(s)`,
+        `+${Math.round(ff.gain)} rating`,
+        `−${Math.round(ff.loss)} rating`,
+      ].join(', ');
+      divFF.innerHTML = `
+        <DIV>Favorite Food:</DIV>
+        <DIV>
+          <DIV>${playerLink}</DIV>
+          <DIV>${info}</DIV>
+        </DIV>
+      `;
+      divStats.append(divFF);
+    }
 
-  if (bv && bv.win.diff <= 0 && bv.win.gain > 0) {
-    const divBV = document.createElement('DIV');
-    const playerLink = `<A href="#rankings/${bv.playerId}/${rankingId}">${bv.name}</A>`;
-    const gameLink = `<A href="/game.html?${bv.win.game.id}" target="_blank">Watch!</A>`;
-    const info = [
-      `+${Math.round(bv.win.gain)} rating`,
-      `had −${Math.abs(Math.round(bv.win.diff))} rating`,
-    ].join(', ');
-    divBV.innerHTML = `
-      <DIV>Best Victory:</DIV>
-      <DIV>
-        <DIV class="links">${playerLink} • ${gameLink} • </DIV>
-        <DIV class="info">${info}</DIV>
-      </DIV>
-    `;
-    divBV.querySelector('.links').append(renderDuration(bv.win.game.currentTurnId));
-    divBV.querySelector('.links').append(renderClock(bv.win.game.endedAt, 'Ended At'));
-    divStats.append(divBV);
+    if (wd && wd.lose.diff >= 0 && wd.lose.loss > 0) {
+      const divWD = document.createElement('DIV');
+      const playerLink = `<A href="#rankings/${wd.playerId}/${rankingId}">${wd.name}</A>`;
+      const gameLink = `<A href="/game.html?${wd.lose.game.id}" target="_blank">Watch!</A>`;
+      const info = [
+        `−${Math.round(wd.lose.loss)} rating`,
+        `had +${Math.round(wd.lose.diff)} rating`,
+      ].join(', ');
+      divWD.innerHTML = `
+        <DIV>Worst Defeat:</DIV>
+        <DIV>
+          <DIV class="links">${playerLink} • ${gameLink} • </DIV>
+          <DIV class="info">${info}</DIV>
+        </DIV>
+      `;
+      divWD.querySelector('.links').append(renderDuration(wd.lose.game.currentTurnId));
+      divWD.querySelector('.links').append(renderClock(wd.lose.game.endedAt, 'Ended At'));
+      divStats.append(divWD);
+    }
+
+    if (bv && bv.win.diff <= 0 && bv.win.gain > 0) {
+      const divBV = document.createElement('DIV');
+      const playerLink = `<A href="#rankings/${bv.playerId}/${rankingId}">${bv.name}</A>`;
+      const gameLink = `<A href="/game.html?${bv.win.game.id}" target="_blank">Watch!</A>`;
+      const info = [
+        `+${Math.round(bv.win.gain)} rating`,
+        `had −${Math.abs(Math.round(bv.win.diff))} rating`,
+      ].join(', ');
+      divBV.innerHTML = `
+        <DIV>Best Victory:</DIV>
+        <DIV>
+          <DIV class="links">${playerLink} • ${gameLink} • </DIV>
+          <DIV class="info">${info}</DIV>
+        </DIV>
+      `;
+      divBV.querySelector('.links').append(renderDuration(bv.win.game.currentTurnId));
+      divBV.querySelector('.links').append(renderClock(bv.win.game.endedAt, 'Ended At'));
+      divStats.append(divBV);
+    }
   }
 
   const secRatedGames = await renderRatedGames(games, rankingId, playerId);
