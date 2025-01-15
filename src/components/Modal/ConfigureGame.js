@@ -751,10 +751,10 @@ export default class ConfigureGame extends Modal {
         return `This will not be a rated game because ${reason}.`;
       })();
 
-      messages.push(`They created their account ${getElapsed(gs.meta.creator.createdAt)} ago.`);
-
       if (gs.meta.creator.relationship.type)
         messages.push(`You ${gs.meta.creator.relationship.type} this player as ${gs.meta.creator.relationship.name}.`);
+
+      messages.push(`They created their account ${getElapsed(gs.meta.creator.createdAt)} ago.`);
 
       if (ranks) {
         const forteRank = ranks.find(r => r.rankingId === 'FORTE');
