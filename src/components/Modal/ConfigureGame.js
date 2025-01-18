@@ -742,7 +742,7 @@ export default class ConfigureGame extends Modal {
               reason = `you are already playing a rated game against this player in this style`;
               break;
             case 'too many games':
-              reason = `you played 2 rated games against this player in this style within the past week`;
+              reason = `you have 2 rated games against this player in this style within the past week`;
               break;
             default:
               reason = `of a bug`;

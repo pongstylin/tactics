@@ -414,7 +414,8 @@ export default class extends FileAdapter {
       if (!gameSummary.teams.some(t => opponent.identity.playerIds.includes(t.playerId)))
         continue;
 
-      if (!gameSummary.endedAt)
+      // Disallow concurrent rated games unless one is correspondance and the other is a real time game.
+      if (!gameSummary.endedAt && gameSummary.collection === game.collection)
         return { rated:false, reason:'in game' };
 
       if (--n === 0)
