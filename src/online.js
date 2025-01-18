@@ -3025,6 +3025,8 @@ function renderGameInfo(game) {
 
     if (!game.collection)
       labels.push('Private');
+    else if (game.rated === true)
+      labels.push('Rated');
     else if (![ 'fork', 'practice' ].includes(game.mode) && game.rated === false)
       labels.push('Unrated');
 
