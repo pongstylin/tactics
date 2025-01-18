@@ -243,7 +243,8 @@ export default class RemoteTransport extends Transport {
     const state = this._data.state;
     const recentTurns = state.recentTurns;
     const team = this.getTeamForPlayer(authClient.playerId);
-    const pointer = this.getUndoPointer(team) || { turnId:state.currentTurnId };
+    // Use a minimum of the previous turn id to allow for efficient turn progression.
+    const pointer = this.getUndoPointer(team) || { turnId:state.previousTurnId };
     while (recentTurns[0].id < pointer.turnId)
       recentTurns.shift();
   }
