@@ -131,7 +131,7 @@ export default class Setup {
     this.sets = new Map(sets.map(s => [ s.id, s ]));
 
     if (!this._setBuilder) {
-      this._setBuilder = new Tactics.SetBuilder({ gameType });
+      this._setBuilder = await (new Tactics.SetBuilder({ gameType })).init();
       this.els.sets.classList.add(`rotation-${this._setBuilder.board.rotation}`);
       this.colorIds = gameConfig.teamColorIds;
       this.renderColorIds();

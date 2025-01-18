@@ -1,3 +1,13 @@
+/*
+const orig = { setTimeout, setInterval, requestAnimationFrame };
+
+for (const fnName of Object.keys(orig))
+  window[fnName] = (...args) => {
+    console.log(fnName, ...args, new Error().stack);
+    return orig[fnName].apply(window, args);
+  };
+*/
+
 import 'plugins/index.js';
 import 'plugins/promise.js';
 

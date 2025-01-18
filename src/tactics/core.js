@@ -1,6 +1,5 @@
 import 'howler';
 import 'plugins/pixi.js';
-import { Rectangle } from '@pixi/math';
 
 import config, { gameConfig } from 'config/client.js';
 import ServerError from 'server/Error.js';
@@ -44,7 +43,7 @@ window.Tactics = (function () {
     Game: Game,
     SetBuilder,
     ServerError: ServerError,
-    _avatars: { cache:new Map() },
+    _avatars: { cache:new WeakMap() },
 
     load: async function (unitTypes, cb = () => {}) {
       if (!Array.isArray(unitTypes))
@@ -198,13 +197,13 @@ window.Tactics = (function () {
 
       progress.close();
 
-      return new SetBuilder(data).show();
+      return (await new SetBuilder(data).init()).show();
     },
     draw: function (data) {
       const types = new Map([
-        [ 'C', 'Container' ],
-        [ 'G', 'Graphics' ],
-        [ 'T', 'Text' ],
+        [ 'C', PIXI.Container ],
+        [ 'G', PIXI.Graphics ],
+        [ 'T', PIXI.Text ],
       ]);
       const elements = {};
       const context = data.context;
@@ -212,10 +211,10 @@ window.Tactics = (function () {
       if (!data.children) return;
 
       for (const [ name, pData ] of Object.entries(data.children)) {
-        const cls = types.get(pData.type);
+        const constructor = types.get(pData.type);
         let pixi;
 
-        if (cls == 'Text') {
+        if (constructor === PIXI.Text) {
           const style = Object.assign({}, data.textStyle, pData.style);
 
           if ('w' in pData) {
@@ -223,9 +222,9 @@ window.Tactics = (function () {
             style.wordWrapWidth = pData.w;
           }
 
-          pixi = new PIXI[cls](pData.text ?? '', style);
+          pixi = new constructor({ text:pData.text ?? '', style });
         } else
-          pixi = new PIXI[cls]();
+          pixi = new constructor();
 
         if ('x'        in pData) pixi.position.x = pData.x;
         if ('y'        in pData) pixi.position.y = pData.y;
@@ -234,7 +233,8 @@ window.Tactics = (function () {
           Object.assign(pixi.anchor, pData.anchor);
         }
         if ('onSelect' in pData) {
-          pixi.interactive = pixi.buttonMode = true;
+          pixi.interactive = true;
+          pixi.cursor = 'pointer';
           pixi.hitArea = new PIXI.Rectangle(0, 0, pData.w, pData.h);
           pixi.click = pixi.tap = () => pData.onSelect.call(pixi,pixi);
         }
@@ -256,48 +256,14 @@ window.Tactics = (function () {
     createLocalGame: function (stateData) {
       let transport = LocalTransport.createGame(stateData);
 
-      return transport.whenReady.then(() => new Game(transport));
+      return transport.whenReady.then(() => new Game(transport).init());
     },
-    animations: {
-      death: [
-        [
-          {src:'death.png',pos:{x: 0  ,y:-16  },scale:{x:1.416,y:1.5  },alpha:0.5 }
-        ],
-        [
-          {src:'death.png',pos:{x: 0  ,y:-28  },scale:{x:1.167,y:2.166},alpha:0.69},
-          {src:'death.png',pos:{x:-1  ,y:-18  },scale:{x:1.418,y:1.583},alpha:0.5 }
-        ],
-        [
-          {src:'death.png',pos:{x:-0.5,y:-41  },scale:{x:0.956,y:2.833},alpha:0.35},
-          {src:'death.png',pos:{x:-2  ,y:-27.5},scale:{x:1.251,y:2.126},alpha:0.69},
-          {src:'death.png',pos:{x: 2  ,y:-18  },scale:{x:0.917,y:1.5  },alpha:0.5 }
-        ],
-        [
-          {src:'death.png',pos:{x: 0.5,y:-21  },scale:{x:1.123,y:1.417},alpha:0.5 },
-          {src:'death.png',pos:{x:-2  ,y:-38  },scale:{x:1.084,y:2.668},alpha:0.35},
-          {src:'death.png',pos:{x: 2  ,y:-32  },scale:{x:0.750,y:2.417},alpha:0.69}
-        ],
-        [
-          {src:'death.png',pos:{x:-0.8,y:-31.7},scale:{x:0.978,y:1.938},alpha:0.69},
-          {src:'death.png',pos:{x: 1  ,y:-24  },scale:{x:0.999,y:1.417},alpha:0.5 },
-          {src:'death.png',pos:{x: 2  ,y:-46.5},scale:{x:0.584,y:3.291},alpha:0.35}
-        ],
-        [
-          {src:'death.png',pos:{x:-2  ,y:-43.5},scale:{x:0.832,y:2.459},alpha:0.35},
-          {src:'death.png',pos:{x: 0  ,y:-36.5},scale:{x:1    ,y:1.958},alpha:0.69},
-          {src:'death.png',pos:{x: 1  ,y:-27  },scale:{x:0.998,y:1.5  },alpha:0.5 }
-        ],
-        [
-          {src:'death.png',pos:{x:-0.5,y:-48.5},scale:{x:0.958,y:2.458},alpha:0.35},
-          {src:'death.png',pos:{x: 0  ,y:-38.5},scale:{x:0.915,y:2.126},alpha:0.69}
-        ],
-        [
-          {src:'death.png',pos:{x:-0.5,y:-50  },scale:{x:0.791,y:2.752},alpha:0.35}
-        ],
-      ],
+    async makeAvatarRenderer() {
+      this._avatars.renderer = await PIXI.autoDetectRenderer({});
     },
-    drawAvatar(avatar, options) {
+    drawAvatar(avatar, options, transform = null) {
       options = Object.assign({
+        renderer: avatar instanceof Unit ? Tactics.game.renderer : this._avatars.renderer,
         as: 'image',
         direction: 'S',
         withFocus: false,
@@ -306,7 +272,7 @@ window.Tactics = (function () {
       }, options);
 
       const unitKey = avatar instanceof Unit
-        ? avatar.color === null ? `${avatar.type}:null` : `${avatar.type}:${avatar.team.colorId}`
+        ? avatar.color === null ? `${avatar.type}:null` : `${avatar.type}:${avatar.color.toString()}`
         : `${avatar.unitType}:${avatar.colorId}`;
       const cacheKey = [
         unitKey,
@@ -316,17 +282,19 @@ window.Tactics = (function () {
         options.withShadow,
         options.withHighlight,
       ].join(':');
-      const cache = this._avatars.cache;
+
+      if (!this._avatars.cache.has(options.renderer))
+        this._avatars.cache.set(options.renderer, new Map());
+
+      const cache = this._avatars.cache.get(options.renderer);
 
       if (!cache.has(cacheKey)) {
         let unit;
         if (avatar instanceof Unit)
           unit = avatar;
-        else if (AnimatedSprite.has('avatars')) {
-          if (!this._avatars.renderer) {
+        else if (options.as === 'image' && AnimatedSprite.has('avatars')) {
+          if (!this._avatars.board)
             this._avatars.board = new Board().draw();
-            this._avatars.renderer = new PIXI.Renderer();
-          }
 
           unit = unitFactory(avatar.unitType, this._avatars.board);
           unit.color = colorFilterMap.get(avatar.colorId);
@@ -338,18 +306,19 @@ window.Tactics = (function () {
           unit.unitSprite = `${superSpriteName}Unit`;
           unit.trimSprite = `${superSpriteName}Trim`;
           unit.shadowSprite = `${superSpriteName}Shadow`;
-
-          options.renderer = this._avatars.renderer;
         } else if (Tactics.game) {
           unit = unitFactory(avatar.unitType, Tactics.game.board);
           unit.color = colorFilterMap.get(avatar.colorId);
         } else
           throw new Error('Unable to render avatar');
 
-        cache.set(cacheKey, unit.drawAvatar(options));
+        if (transform)
+          cache.set(cacheKey, transform(unit.drawAvatar(options)));
+        else
+          cache.set(cacheKey, unit.drawAvatar(options));
       }
 
-      return options.as === 'sprite' ? cache.get(cacheKey).clone() : cache.get(cacheKey);
+      return cache.get(cacheKey);
     },
     getAvatarImage(avatar, options) {
       const avatarImageData = this.drawAvatar(avatar, Object.assign({ withFocus:true }, options));
@@ -361,6 +330,38 @@ window.Tactics = (function () {
       imgAvatar.src = avatarImageData.src;
 
       return imgAvatar;
+    },
+    shrinkDataURI(dataURI) {
+      let parts = dataURI.slice(5).split(';base64,');
+      let mimeType = parts[0];
+      let base64Data = parts[1];
+      let byteString = atob(base64Data);
+      let bytesCount = byteString.length;
+      let bytes = new Uint8Array(bytesCount);
+      for (let i = 0; i < bytesCount; i++) {
+        bytes[i] = byteString[i].charCodeAt(0);
+      }
+      let blob = new Blob([bytes], { type:mimeType });
+
+      return URL.createObjectURL(blob);
+    },
+    makeCanvasSourceFromURL(url) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+        image.src = url;
+      }).then(image => {
+        const canvas = document.createElement('CANVAS');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context = canvas.getContext('2d');
+        context.drawImage(image, 0, 0, image.width, image.height);
+        return new PIXI.CanvasSource({ resource:canvas });
+      });
+    },
+    makeCanvasSourceFromDataURI(uri) {
+      return this.makeCanvasSourceFromURL(Tactics.shrinkDataURI(uri));
     },
   });
 

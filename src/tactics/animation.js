@@ -274,14 +274,9 @@
     return self;
   };
 
-  Tactics.Animation.fromData = function (container, framesData, data) {
-    let frames;
-    let frame;
-
-    data = data || {};
-
-    frames = framesData.map(dataObjs => {
-      let frame = new PIXI.Container();
+  Tactics.Animation.fromData = function (container, framesData, data = {}) {
+    const frames = framesData.map(dataObjs => {
+      const frame = new PIXI.Container();
 
       if (data.x) frame.position.x = data.x;
       if (data.y) frame.position.y = data.y;
@@ -289,7 +284,7 @@
       if (data.a) frame.alpha = data.a;
 
       dataObjs.forEach(obj => {
-        let sprite = PIXI.Sprite.from('https://legacy.taorankings.com/images/'+obj.src);
+        const sprite = PIXI.Sprite.from(obj.src);
 
         if (obj.pos) {
           sprite.position.x = obj.pos.x || 0;
@@ -310,6 +305,8 @@
 
       return frame;
     });
+
+    let frame;
 
     return new Tactics.Animation({frames: [
       {

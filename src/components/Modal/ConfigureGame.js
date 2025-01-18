@@ -450,7 +450,7 @@ export default class ConfigureGame extends Modal {
 
     this._setRadioState(radPractice, 'required', vsYourself);
     this._setRadioState(radTournament, 'disabled', vsYourself);
-    this._setRadioState(radRandomSide, 'disabled', this.gameType.hasFixedPositions);
+    this._setRadioState(radRandomSide, 'disabled', vsYourself || this.gameType.hasFixedPositions);
 
     const isPractice = radPractice.checked;
 
@@ -742,7 +742,7 @@ export default class ConfigureGame extends Modal {
               reason = `you are already playing a rated game against this player in this style`;
               break;
             case 'too many games':
-              reason = `you played 2 rated games against this player in this style within the past week`;
+              reason = `you have 2 rated games against this player in this style within the past week`;
               break;
             default:
               reason = `of a bug`;
@@ -751,10 +751,10 @@ export default class ConfigureGame extends Modal {
         return `This will not be a rated game because ${reason}.`;
       })();
 
-      messages.push(`They created their account ${getElapsed(gs.meta.creator.createdAt)} ago.`);
-
       if (gs.meta.creator.relationship.type)
         messages.push(`You ${gs.meta.creator.relationship.type} this player as ${gs.meta.creator.relationship.name}.`);
+
+      messages.push(`They created their account ${getElapsed(gs.meta.creator.createdAt)} ago.`);
 
       if (ranks) {
         const forteRank = ranks.find(r => r.rankingId === 'FORTE');
@@ -777,6 +777,11 @@ export default class ConfigureGame extends Modal {
       this.root.querySelector('.intro').innerHTML = '';
     }
 
+    selSet.disabled = sets.length === 1;
+
+    if (sets.length === 1 && config.set === 'random')
+      config.set = sets[0].id;
+
     if (config.set === 'random')
       aChangeLink.style.display = 'none';
     else {
@@ -786,8 +791,6 @@ export default class ConfigureGame extends Modal {
       else
         aChangeLink.textContent = 'View Set';
     }
-
-    selSet.disabled = sets.length === 1;
 
     for (const setId of gameConfig.setsById.keys()) {
       const setOption = selSet.querySelector(`OPTION[value="${setId}"]`);

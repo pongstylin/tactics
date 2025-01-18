@@ -179,7 +179,7 @@ export default class ChaosDragon extends Unit {
     streaks1.filters = [filter1];
     container.addChild(streaks1);
 
-    filter2.blur = 4;
+    filter2.strength = 4;
     streaks2.filters = [filter2];
     container.addChild(streaks2);
 
@@ -263,10 +263,6 @@ export default class ChaosDragon extends Unit {
       let deviation = alpha === 1 ? 9 : 19;
       let midpoint  = (deviation + 1) / 2;
 
-      streaks1.lineStyle(1, 0x8888FF, alpha);
-      streaks2.lineStyle(2, 0xFFFFFF, alpha);
-      streaks3.lineStyle(2, 0xFFFFFF, alpha);
-
       streaks1.moveTo(start.x, start.y);
       streaks2.moveTo(start.x, start.y);
       streaks3.moveTo(start.x, start.y);
@@ -291,6 +287,10 @@ export default class ChaosDragon extends Unit {
         streaks2.lineTo(x, y);
         streaks3.lineTo(x, y);
       });
+
+      streaks1.stroke({ width:1, color:0x8888FF, alpha });
+      streaks2.stroke({ width:2, color:0xFFFFFF, alpha });
+      streaks3.stroke({ width:2, color:0xFFFFFF, alpha });
     }
 
     return this;

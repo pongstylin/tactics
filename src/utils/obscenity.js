@@ -18,6 +18,7 @@ export default {
   hasMatch: text => {
     return matcher.hasMatch(text)
       || matcher.hasMatch(decancer(text))
-      || matcher.hasMatch(decancer(text).replace(/l/g, 'I'));
+      || matcher.hasMatch(decancer(text).replace(/l/g, 'I'))
+      || matcher.hasMatch(decancer(text).replace(/!/g, 'I'));
   },
 };

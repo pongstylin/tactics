@@ -1,25 +1,4 @@
-import { Texture } from '@pixi/core';
-import { Rectangle } from '@pixi/math';
-import { Container } from '@pixi/display';
-import { Sprite } from '@pixi/sprite';
-import { ColorMatrixFilter } from '@pixi/filter-color-matrix';
-
 import emitter from 'utils/emitter.js';
-
-function shrinkDataURI(dataURI) {
-  let parts = dataURI.slice(5).split(';base64,');
-  let mimeType = parts[0];
-  let base64Data = parts[1];
-  let byteString = atob(base64Data);
-  let bytesCount = byteString.length;
-  let bytes = new Uint8Array(bytesCount);
-  for (let i = 0; i < bytesCount; i++) {
-    bytes[i] = byteString[i].charCodeAt(0);
-  }
-  let blob = new Blob([bytes], { type:mimeType });
-
-  return URL.createObjectURL(blob);
-}
 
 /*
  * Every AnimatedSprite has a PIXI container.
@@ -42,146 +21,128 @@ export default class AnimatedSprite {
     if (this.spriteMap.has(spriteName))
       return;
 
-    let spriteData = this.dataMap.get(spriteName);
+    const spriteData = this.dataMap.get(spriteName);
+    const promises = [];
 
     if (spriteData.imports)
-      for (let i = 0; i < spriteData.imports.length; i++) {
-        await this.load(spriteData.imports[i]);
-      }
+      promises.push(...spriteData.imports.map(importData => this.load(importData)));
 
-    await new Promise((resolve, reject) => {
-      let loading = 0;
-      let loaded = -1;
-      let progress = () => {
-        loaded++;
-        if (loading === loaded)
-          resolve();
-      };
+    if (spriteData.images) {
+      const imagePromises = spriteData.images.map(() => new Promise());
 
-      if (spriteData.images)
-        for (let i = 0; i < spriteData.images.length; i++) {
-          let image = spriteData.images[i];
-          if (typeof image === 'string')
-            image = spriteData.images[i] = { src:image };
+      spriteData.images.forEach(async (imageData, i) => {
+        if (typeof imageData === 'string')
+          imageData = spriteData.images[i] = { src:imageData };
 
-          if (!image.name)
-            image.name = [];
-          else if (typeof image.name === 'string')
-            image.name = [image.name];
+        if (!imageData.name)
+          imageData.name = [];
+        else if (typeof imageData.name === 'string')
+          imageData.name = [ imageData.name ];
 
-          if (image.type === 'sheet') {
-            if (image.src.startsWith('data:')) {
-              image.texture = Texture.from( shrinkDataURI(image.src) ).baseTexture;
-              if (!image.texture.valid) {
-                loading++;
-                image.texture
-                  .on('loaded', progress)
-                  .on('error', () =>
-                    reject(new Error(
-                      `Failed to load sprite:${spriteName}/images/${i}`
-                    ))
-                  );
-              }
+        if (imageData.type === 'sheet') {
+          if (imageData.src.startsWith('data:')) {
+            try {
+              imageData.canvasSource = await Tactics.makeCanvasSourceFromDataURI(imageData.src);
+            } catch (e) {
+              imagePromises[i].reject(new Error(`Failed to load sprite:${spriteName}/images/${i}`));
             }
-            else
-              throw 'Unsupported image source for sheet';
-          }
-          else if (image.type === 'frame') {
-            image.texture = new PIXI.Texture(
-              spriteData.images[image.src].texture,
-              new Rectangle(image.x, image.y, image.width, image.height),
-            );
-          }
-          // By default the image is a texture
-          else if (image.type === undefined) {
-            if (image.src.startsWith('sprite:'))
-              image.texture = AnimatedSprite.get(image.src).texture;
-            else if (image.src.startsWith('data:')) {
-              image.texture = Texture.from( shrinkDataURI(image.src) );
-              if (!image.texture.baseTexture.valid) {
-                loading++;
-                image.texture.baseTexture
-                  .on('loaded', progress)
-                  .on('error', () =>
-                    reject(new Error(
-                      `Failed to load sprite:${spriteName}/images/${i}`
-                    ))
-                  );
-              }
+          } else
+            imagePromises[i].reject('Unsupported image source for sheet');
+        } else if (imageData.type === 'frame') {
+          imageData.texture = new PIXI.Texture({
+            source: (await imagePromises[imageData.src]).canvasSource,
+            frame: new PIXI.Rectangle(imageData.x, imageData.y, imageData.width, imageData.height),
+          });
+        } else if (imageData.type === undefined) {
+          // By default the imageData is a texture
+          if (imageData.src.startsWith('sprite:'))
+            imageData.texture = AnimatedSprite.get(imageData.src).texture;
+          else if (imageData.src.startsWith('data:')) {
+            try {
+              const source = await Tactics.makeCanvasSourceFromDataURI(imageData.src);
+              imageData.texture = new PIXI.Texture({ source });
+            } catch (e) {
+              imagePromises[i].reject(new Error(`Failed to load sprite:${spriteName}/images/${i}`));
             }
-            else
-              throw 'Unsupported image source';
-          }
+          } else
+            imagePromises[i].reject('Unsupported image source');
+        } else if (imageData.type === 'image') {
           // Ordinary images are not used in sprites
-          else if (image.type === 'image') {
-            image.src = shrinkDataURI(image.src);
-            continue;
-          }
-          else
-            throw 'Unsupported image type';
+          imageData.src = Tactics.shrinkDataURI(imageData.src);
+          return imagePromises[i].resolve(imageData);
+        } else
+          imagePromises[i].reject('Unsupported image type');
 
-          delete image.src;
-        }
+        delete imageData.src;
 
-      if (spriteData.sounds) {
-        const VOLUME_SCALE = parseFloat(process.env.VOLUME_SCALE) || 1;
+        imagePromises[i].resolve(imageData);
+      });
 
-        for (let i = 0; i < spriteData.sounds.length; i++) {
-          let sound = spriteData.sounds[i];
-          if (typeof sound === 'string')
-            sound = spriteData.sounds[i] = { src:sound };
+      promises.push(...imagePromises);
+    }
 
-          if (!sound.name)
-            sound.name = [];
-          else if (typeof sound.name === 'string')
-            sound.name = [sound.name];
+    if (spriteData.sounds) {
+      const VOLUME_SCALE = parseFloat(process.env.VOLUME_SCALE) || 1;
+      const soundPromises = spriteData.sounds.map(() => new Promise());
 
-          const isURL = sound.src instanceof URL;
-          const isDataURL = !isURL && sound.src.startsWith('data:');
-          const isSpriteURI = !isURL && sound.src.startsWith('sprite:');
-          const isCustom = sound.volume !== undefined || sound.rate !== undefined;
+      spriteData.sounds.forEach(async (soundData, i) => {
+        if (typeof soundData === 'string')
+          soundData = spriteData.sounds[i] = { src:soundData };
 
-          if (isURL || isDataURL || isCustom) {
-            if (isURL)
-              sound.src = sound.src.toString();
-            else if (isDataURL)
-              sound.src = shrinkDataURI(sound.src);
-            else if (isSpriteURI)
-              sound.src = AnimatedSprite.get(sound.src).howl._src;
+        if (!soundData.name)
+          soundData.name = [];
+        else if (typeof soundData.name === 'string')
+          soundData.name = [soundData.name];
 
-            const soundName = sound.name[0] || i;
+        const isURL = soundData.src instanceof URL;
+        const isDataURL = !isURL && soundData.src.startsWith('data:');
+        const isSpriteURI = !isURL && soundData.src.startsWith('sprite:');
+        const isCustom = soundData.volume !== undefined || soundData.rate !== undefined;
 
-            loading++;
-            sound.howl = new Howl({
-              src: [ sound.src ],
+        if (isURL || isDataURL || isCustom) {
+          if (isURL)
+            soundData.src = soundData.src.toString();
+          else if (isDataURL)
+            soundData.src = Tactics.shrinkDataURI(soundData.src);
+          else if (isSpriteURI)
+            soundData.src = AnimatedSprite.get(soundData.src).howl._src;
+
+          const soundName = soundData.name[0] || i;
+
+          await new Promise((resolve, reject) => {
+            soundData.howl = new Howl({
+              src: [ soundData.src ],
               format: 'mp3',
-              volume: (sound.volume || 1) * VOLUME_SCALE,
-              rate: sound.rate || 1,
-              sprite: sound.sprite,
-              onload: progress,
+              volume: (soundData.volume || 1) * VOLUME_SCALE,
+              rate: soundData.rate || 1,
+              sprite: soundData.sprite,
+              onload: resolve,
               onloaderror: (id, error) => {
                 if (error === 'Decoding audio data failed.') {
                   if (!Tactics.audioBroken)
                     console.warn('Audio is broken in this browser');
                   Tactics.audioBroken = true;
-                  progress();
                 } else
-                  reject(new Error(
+                  soundPromises[i].reject(new Error(
                     `Failed to load sprite:${spriteName}/sounds/${soundName}: ${id}, ${error}`
                   ));
               },
             });
-          }
-          else if (isSpriteURI)
-            sound.howl = AnimatedSprite.get(sound.src).howl;
-          else
-            throw 'Unsupported sound source';
-          delete sound.src;
-        }
-      }
+          });
+        } else if (isSpriteURI)
+          soundData.howl = AnimatedSprite.get(soundData.src).howl;
+        else
+          soundPromises.reject('Unsupported sound source');
 
-      progress();
-    });
+        delete soundData.src;
+
+        soundPromises[i].resolve(soundData);
+      });
+
+      promises.push(...soundPromises);
+    }
+
+    await Promise.all(promises);
 
     this.spriteMap.set(spriteName, new AnimatedSprite(spriteData));
   }
@@ -978,8 +939,8 @@ export default class AnimatedSprite {
   _renderFrame(sprites, name, frames, frameId, options) {
     let frameIndex = frameId % frames.length;
     let scripts = [];
-    let container = new Container();
-    container.name = name;
+    let container = new PIXI.Container();
+    container.label = name;
 
     let frameData = frames[frameIndex];
     if (options.styles && options.styles[name]) {
@@ -1065,7 +1026,7 @@ export default class AnimatedSprite {
 
           scripts.push(...spriteFrame.scripts);
           layer = spriteFrame.container;
-          let style = options.styles[layer.name];
+          let style = options.styles[layer.label];
 
           if (layerData.transform)
             applyTransform(layer, mergeTransforms(subFrameData.transform, layerData.transform));
@@ -1077,7 +1038,7 @@ export default class AnimatedSprite {
           layer = PIXI.Sprite.from(this._data.images[layerData.imageId].texture);
 
           if (layerData.name !== undefined)
-            layer.name = layerData.name;
+            layer.label = layerData.name;
           if (layerData.transform)
             applyTransform(layer, layerData.transform);
           if (layerData.color)
@@ -1110,8 +1071,8 @@ export default class AnimatedSprite {
           );
 
           scripts.push(...buttonUpFrame.scripts);
-          layer = new Container();
-          layer.name = layerData.name;
+          layer = new PIXI.Container();
+          layer.label = layerData.name;
           /*
            * Adding both states to the container since swapping children or even
            * visibility can cause the over/out events to rapidly alternate.
@@ -1122,16 +1083,16 @@ export default class AnimatedSprite {
 
           if (options.onButtonEvent) {
             layer.interactive = true;
-            layer.buttonMode = true;
-            layer.pointertap = () => {
+            layer.cursor = 'pointer';
+            layer.on('pointertap', () => {
               buttonDownFrame.scripts.forEach(s => s());
 
               options.onButtonEvent({
                 type: 'select',
                 name: layerData.name,
               });
-            };
-            layer.pointerover = () => {
+            });
+            layer.on('pointerover', () => {
               buttonUpFrame.container.alpha = 0;
               buttonOverFrame.container.alpha = 1;
 
@@ -1141,8 +1102,8 @@ export default class AnimatedSprite {
                 type: 'focus',
                 name: layerData.name,
               });
-            };
-            layer.pointerout = () => {
+            });
+            layer.on('pointerout', () => {
               buttonUpFrame.container.alpha = 1;
               buttonOverFrame.container.alpha = 0;
 
@@ -1150,7 +1111,7 @@ export default class AnimatedSprite {
                 type: 'blur',
                 name: layerData.name,
               });
-            };
+            });
           }
 
           if (layerData.transform)
@@ -1246,16 +1207,15 @@ function mergeTransforms(...matrices) {
 
   return r;
 }
-function applyTransform(displayObject, transform = [1,0,0,1,0,0]) {
-  displayObject.setTransform(
-    transform[4],
-    transform[5],
-    transform[0],
-    transform[3],
-    0,
-    transform[1],
-    transform[2],
-  );
+function applyTransform(container, transform = [1,0,0,1,0,0]) {
+  container.setFromMatrix(new PIXI.Matrix(
+    transform[0], // scaleX
+    transform[2], // skewY
+    transform[1], // skewX
+    transform[3], // scaleY
+    transform[4], // x
+    transform[5], // y
+  ));
 }
 
 function normalizeColor(data, fromColor) {
@@ -1333,20 +1293,21 @@ function mergeColors(...colorMatrices) {
 
   return r;
 }
-function setFilter(displayObject, name, seq, filter) {
+function setFilter(container, name, seq, filter) {
   filter.name = name;
   filter.seq = seq;
 
-  if (!displayObject.filters)
-    displayObject.filters = [filter];
+  const filters = container.filters ? container.filters.slice() : [];
 
-  let index = displayObject.filters.findIndex(f => f.name === name);
+  let index = filters.findIndex(f => f.name === name);
   if (index > -1)
-    displayObject.filters[index] = filter;
+    filters[index] = filter;
   else {
-    displayObject.filters.push(filter);
-    displayObject.filters.sort((a, b) => a.seq - b.seq);
+    filters.push(filter);
+    filters.sort((a, b) => a.seq - b.seq);
   }
+
+  container.filters = filters;
 }
 function clearFilter(displayObject, name) {
   if (!displayObject.filters) return;
@@ -1360,7 +1321,7 @@ function clearFilter(displayObject, name) {
 }
 function applyColor(displayObject, color) {
   if (color && color.join() !== '0,0,0,0,1,1,1,1') {
-    let filter = new ColorMatrixFilter();
+    let filter = new PIXI.filters.ColorMatrixFilter();
     filter.matrix[4]  = Math.min(255, color[0]) / 255;
     filter.matrix[9]  = Math.min(255, color[1]) / 255;
     filter.matrix[14] = Math.min(255, color[2]) / 255;
@@ -1376,7 +1337,7 @@ function applyColor(displayObject, color) {
 }
 function applyEffects(displayObject, effects) {
   if (effects && Object.keys(effects).length > 0) {
-    let filter = new ColorMatrixFilter();
+    let filter = new PIXI.filters.ColorMatrixFilter();
 
     for (let effect of effects) {
       if (effect.args)

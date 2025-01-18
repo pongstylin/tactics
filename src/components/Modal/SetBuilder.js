@@ -1,6 +1,3 @@
-import { Container } from '@pixi/display';
-import { Renderer } from '@pixi/core';
-
 import { gameConfig } from 'config/client.js';
 import Modal from 'components/Modal.js';
 import Autosave from 'components/Autosave.js';
@@ -40,13 +37,14 @@ const template = `
 export default class SetBuilder extends Modal {
   constructor(data = {}, options = {}) {
     options.content = template;
+    options.autoOpen = false;
     options.autoShow = false;
     options.hideOnCancel = true;
     options.title = title;
 
     super(options, Object.assign({
-      gameType: null,
-      set: null,
+      gameType: data.gameType ?? null,
+      set: data.set ?? null,
       colorId: data.colorId ?? gameConfig.myColorId,
       rotation: data.rotation ?? gameConfig.rotation,
     }));
@@ -55,39 +53,10 @@ export default class SetBuilder extends Modal {
       _team: null,
       _unitPicker: null,
     });
-    Object.assign(this._els, {
-      field: this._els.content.querySelector('.field'),
-      card: this._els.content.querySelector('.card'),
-      save: this._els.content.querySelector('BUTTON[name=save]'),
-      clear: this._els.content.querySelector('BUTTON[name=clear]'),
-      reset: this._els.content.querySelector('BUTTON[name=reset]'),
-      rotate: this._els.content.querySelector('BUTTON[name=rotate]'),
-      flip: this._els.content.querySelector('BUTTON[name=flip]'),
-      share: this._els.content.querySelector('BUTTON[name=share]'),
-    });
-    this.root.classList.add('setBuilder');
-    this._els.save.addEventListener('click', this._onSave.bind(this));
-    this._els.clear.addEventListener('click', this._onClear.bind(this));
-    this._els.reset.addEventListener('click', this._onReset.bind(this));
-    this._els.rotate.addEventListener('click', this._onRotate.bind(this));
-    this._els.flip.addEventListener('click', this._onFlip.bind(this));
-    this._els.share.addEventListener('click', this._onShare.bind(this));
 
     this.on('cancel', this._onCancel.bind(this));
 
-    const width = Tactics.width - TILE_WIDTH*2;
-    const height = Tactics.height - TILE_HEIGHT*2;
-    const renderer = new Renderer({ width, height, backgroundAlpha:0 });
-
-    // Let's not go crazy with the move events.
-    renderer.plugins.interaction.moveWhenInside = true;
-
-    // Save battery life by updating manually.
-    renderer.plugins.interaction.useSystemTicker = false;
-
     const board = new Board();
-    board.initCard();
-    board.draw();
     board.on('card-tap', () => {
       popup({
         title: 'Set Management Tips',
@@ -177,15 +146,12 @@ export default class SetBuilder extends Modal {
           cardCanvas.classList.remove('show');
       });
 
-    const countsContainer = new PIXI.Container();
-    countsContainer.position = board.pixi.position.clone();
-
     const core = Tactics.getSprite('core');
 
     const trash = core.renderFrame({ spriteName:'Trash' }).container;
-    trash.pointertap  = this._onTrashSelect.bind(this);
-    trash.pointerover = this._onTrashFocus.bind(this);
-    trash.pointerout  = this._onTrashBlur.bind(this);
+    trash.on('pointertap', this._onTrashSelect.bind(this));
+    trash.on('pointerover', this._onTrashFocus.bind(this));
+    trash.on('pointerout', this._onTrashBlur.bind(this));
     trash.alpha = 0;
 
     const trashFocus = core.renderFrame({ spriteName:'Focus' }).container;
@@ -200,27 +166,27 @@ export default class SetBuilder extends Modal {
       trashSprite.position.y * trashScale,
     );
 
-    const stage = new PIXI.Container();
-    stage.addChild(board.pixi);
-    stage.addChild(countsContainer);
-    stage.addChild(trash);
-    stage.mousemove = event => this._onDragMove({
+    const content = new PIXI.Container();
+    content.on('mousemove', event => this._onDragMove({
       type: 'dragMove',
       target: null,
       pixiEvent: event,
       pointerEvent: event.data.originalEvent,
-    });
+    }));
+
+    const stage = new PIXI.Container();
+    stage.addChild(content);
 
     Object.assign(this, {
       // Crude tracking of the pointer type being used.  Ideally, this should
       // reflect the last pointer type to fire an event on the board.
       pointerType: 'ontouchstart' in window ? 'touch' : 'mouse',
 
-      _renderer: renderer,
+      _renderer: null,
       _rendering: false,
-      _canvas: renderer.view,
+      _canvas: null,
       _stage: stage,
-      _countsContainer: countsContainer,
+      _content: content,
       _trash: trash,
       _dragSource: null,
       _dragAvatar: null,
@@ -228,35 +194,66 @@ export default class SetBuilder extends Modal {
       _animators: {},
 
       _board: board,
-      _stage: stage,
 
       _resizeListener: this.resize.bind(this),
     });
-
-    this._canvas.classList.add('board');
-    // Allow a user to blur another element when clicking this one
-    this._canvas.tabIndex = -1;
-
-    this._els.card.appendChild(board.card.canvas);
-    this._els.field.appendChild(this._canvas);
-
-    this._canvas.addEventListener('contextmenu', event => event.preventDefault());
 
     this.on('attach', () => {
       this.resize();
       window.addEventListener('resize', this._resizeListener);
     });
+  }
 
-    // Allow the Animation class to render frames.
-    Tactics.game = this;
+  async init() {
+    const board = this._board;
+    const data = this.data;
+    const width = Tactics.width - TILE_WIDTH*2;
+    const height = Tactics.height - TILE_HEIGHT*2;
+    const renderer = this._renderer = await PIXI.autoDetectRenderer({ width, height, backgroundAlpha:0 });
+    const canvas = this._canvas = renderer.canvas;
+
+    await board.initCard();
+    board.draw();
+    this._content.addChild(board.pixi);
+    this._content.addChild(this._trash);
+
+    canvas.classList.add('board');
+    // Allow a user to blur another element when clicking this one
+    canvas.tabIndex = -1;
+
+    canvas.addEventListener('contextmenu', event => event.preventDefault());
+
+    this.open();
+    Object.assign(this._els, {
+      field: this._els.content.querySelector('.field'),
+      card: this._els.content.querySelector('.card'),
+      save: this._els.content.querySelector('BUTTON[name=save]'),
+      clear: this._els.content.querySelector('BUTTON[name=clear]'),
+      reset: this._els.content.querySelector('BUTTON[name=reset]'),
+      rotate: this._els.content.querySelector('BUTTON[name=rotate]'),
+      flip: this._els.content.querySelector('BUTTON[name=flip]'),
+      share: this._els.content.querySelector('BUTTON[name=share]'),
+    });
+    this.root.classList.add('setBuilder');
+    this._els.field.appendChild(canvas);
+    this._els.card.appendChild(this.board.card.canvas);
+    this._els.save.addEventListener('click', this._onSave.bind(this));
+    this._els.clear.addEventListener('click', this._onClear.bind(this));
+    this._els.reset.addEventListener('click', this._onReset.bind(this));
+    this._els.rotate.addEventListener('click', this._onRotate.bind(this));
+    this._els.flip.addEventListener('click', this._onFlip.bind(this));
+    this._els.share.addEventListener('click', this._onShare.bind(this));
 
     if (data.gameType !== undefined && data.gameType !== null)
       this.gameType = data.gameType;
     if (data.set !== undefined && data.set !== null)
       this.set = data.set;
 
-    this.rotateBoard(this.data.rotation);
+    this.rotateBoard(data.rotation);
     this._renderButtons();
+
+    // Allow the Animation class to render frames.
+    return Tactics.game = this;
   }
 
   /*****************************************************************************
@@ -624,7 +621,7 @@ export default class SetBuilder extends Modal {
   rotateBoard(rotation) {
     const renderer = this._renderer;
     const board = this._board;
-    const stage = this._stage;
+    const content = this._content;
     const trash = this._trash;
 
     this.root.classList.remove(`rotation-${board.rotation}`);
@@ -633,28 +630,28 @@ export default class SetBuilder extends Modal {
     this.root.classList.add(`rotation-${board.rotation}`);
 
     if (board.rotation === 'N') {
-      stage.position.set(0, 0);
+      content.position.set(0, 0);
 
       const leftPoint = board.getTile(0, 4).getBottom().clone();
       leftPoint.set(
-        leftPoint.x + stage.position.x + board.pixi.position.x - 1,
-        leftPoint.y + stage.position.y + board.pixi.position.y - 1,
+        leftPoint.x + content.position.x + board.pixi.position.x - 1,
+        leftPoint.y + content.position.y + board.pixi.position.y - 1,
       );
       const rightPoint = board.getTile(10, 4).getRight().clone();
       rightPoint.set(
-        rightPoint.x + stage.position.x + board.pixi.position.x - 1,
-        rightPoint.y + stage.position.y + board.pixi.position.y - 1,
+        rightPoint.x + content.position.x + board.pixi.position.x - 1,
+        rightPoint.y + content.position.y + board.pixi.position.y - 1,
       );
       board.sprite.mask = new PIXI.Graphics();
-      board.sprite.mask.lineStyle(1, 0xFFFFFF, 1);
-      board.sprite.mask.beginFill(0xFFFFFF, 1);
-      board.sprite.mask.drawPolygon([
+      board.sprite.mask.poly([
         leftPoint.x, leftPoint.y,
         rightPoint.x, rightPoint.y,
         rightPoint.x, 0,
         0, 0,
         0, Tactics.height,
       ]);
+      board.sprite.mask.fill({ color:0xFFFFFF, alpha:1 });
+      board.sprite.mask.stroke({ width:1, color:0xFFFFFF, alpha:1 });
 
       const tilePoint = board.getTile(5, 0).getCenter();
       trash.position.set(
@@ -662,28 +659,29 @@ export default class SetBuilder extends Modal {
         tilePoint.y + board.pixi.position.y - TILE_HEIGHT,
       );
     } else if (board.rotation === 'S') {
-      stage.position.set(renderer.width - Tactics.width, renderer.height - Tactics.height);
+      content.position.set(renderer.width - Tactics.width, renderer.height - Tactics.height);
 
       const leftPoint = board.getTile(0, 6).getLeft().clone();
       leftPoint.set(
-        leftPoint.x + stage.position.x + board.pixi.position.x - 1,
-        leftPoint.y + stage.position.y + board.pixi.position.y - 1,
+        leftPoint.x + content.position.x + board.pixi.position.x - 1,
+        leftPoint.y + content.position.y + board.pixi.position.y - 1,
       );
       const rightPoint = board.getTile(10, 6).getTop().clone();
       rightPoint.set(
-        rightPoint.x + stage.position.x + board.pixi.position.x - 1,
-        rightPoint.y + stage.position.y + board.pixi.position.y - 1,
+        rightPoint.x + content.position.x + board.pixi.position.x - 1,
+        rightPoint.y + content.position.y + board.pixi.position.y - 1,
       );
+
       board.sprite.mask = new PIXI.Graphics();
-      board.sprite.mask.lineStyle(1, 0xFFFFFF, 1);
-      board.sprite.mask.beginFill(0xFFFFFF, 1);
-      board.sprite.mask.drawPolygon([
+      board.sprite.mask.poly([
         leftPoint.x, leftPoint.y,
         rightPoint.x, rightPoint.y,
         Tactics.width, rightPoint.y,
         Tactics.width, Tactics.height,
         0, Tactics.height,
       ]);
+      board.sprite.mask.fill({ color:0xFFFFFF, alpha:1 });
+      board.sprite.mask.stroke({ width:1, color:0xFFFFFF, alpha:1 });
 
       const tilePoint = board.getTile(5, 10).getCenter();
       trash.position.set(
@@ -691,28 +689,28 @@ export default class SetBuilder extends Modal {
         tilePoint.y + board.pixi.position.y + TILE_HEIGHT,
       );
     } else if (board.rotation === 'E') {
-      stage.position.set(renderer.width - Tactics.width, 0);
+      content.position.set(renderer.width - Tactics.width, 0);
 
       const leftPoint = board.getTile(6, 0).getLeft().clone();
       leftPoint.set(
-        leftPoint.x + stage.position.x + board.pixi.position.x - 1,
-        leftPoint.y + stage.position.y + board.pixi.position.y - 1,
+        leftPoint.x + content.position.x + board.pixi.position.x - 1,
+        leftPoint.y + content.position.y + board.pixi.position.y - 1,
       );
       const rightPoint = board.getTile(6, 10).getBottom().clone();
       rightPoint.set(
-        rightPoint.x + stage.position.x + board.pixi.position.x - 1,
-        rightPoint.y + stage.position.y + board.pixi.position.y - 1,
+        rightPoint.x + content.position.x + board.pixi.position.x - 1,
+        rightPoint.y + content.position.y + board.pixi.position.y - 1,
       );
       board.sprite.mask = new PIXI.Graphics();
-      board.sprite.mask.lineStyle(1, 0xFFFFFF, 1);
-      board.sprite.mask.beginFill(0xFFFFFF, 1);
-      board.sprite.mask.drawPolygon([
+      board.sprite.mask.poly([
         leftPoint.x, leftPoint.y,
         rightPoint.x, rightPoint.y,
         Tactics.width, rightPoint.y,
         Tactics.width, 0,
         0, 0,
       ]);
+      board.sprite.mask.fill({ color:0xFFFFFF, alpha:1 });
+      board.sprite.mask.stroke({ width:1, color:0xFFFFFF, alpha:1 });
 
       const tilePoint = board.getTile(10, 5).getCenter();
       trash.position.set(
@@ -720,28 +718,28 @@ export default class SetBuilder extends Modal {
         tilePoint.y + board.pixi.position.y - TILE_HEIGHT,
       );
     } else if (board.rotation === 'W') {
-      stage.position.set(0, renderer.height - Tactics.height);
+      content.position.set(0, renderer.height - Tactics.height);
 
       const leftPoint = board.getTile(4, 0).getTop().clone();
       leftPoint.set(
-        leftPoint.x + stage.position.x + board.pixi.position.x - 1,
-        leftPoint.y + stage.position.y + board.pixi.position.y - 1,
+        leftPoint.x + content.position.x + board.pixi.position.x - 1,
+        leftPoint.y + content.position.y + board.pixi.position.y - 1,
       );
       const rightPoint = board.getTile(4, 10).getRight().clone();
       rightPoint.set(
-        rightPoint.x + stage.position.x + board.pixi.position.x - 1,
-        rightPoint.y + stage.position.y + board.pixi.position.y - 1,
+        rightPoint.x + content.position.x + board.pixi.position.x - 1,
+        rightPoint.y + content.position.y + board.pixi.position.y - 1,
       );
       board.sprite.mask = new PIXI.Graphics();
-      board.sprite.mask.lineStyle(1, 0xFFFFFF, 1);
-      board.sprite.mask.beginFill(0xFFFFFF, 1);
-      board.sprite.mask.drawPolygon([
+      board.sprite.mask.poly([
         leftPoint.x, leftPoint.y,
         rightPoint.x, rightPoint.y,
         rightPoint.x, Tactics.height,
         0, Tactics.height,
         0, 0,
       ]);
+      board.sprite.mask.fill({ color:0xFFFFFF, alpha:1 });
+      board.sprite.mask.stroke({ width:1, color:0xFFFFFF, alpha:1 });
 
       const tilePoint = board.getTile(0, 5).getCenter();
       trash.position.set(
@@ -1058,8 +1056,12 @@ export default class SetBuilder extends Modal {
     const unit = event.targetUnit;
 
     this._dragSource = event;
+    this._dragSource.pointerEvent = {
+      clientX: event.pointerEvent.clientX,
+      clientY: event.pointerEvent.clientY,
+    };
 
-    this._stage.interactive = true;
+    this._content.interactive = true;
     this.renderBoard();
   }
   _onDragFocus(event) {
@@ -1087,13 +1089,14 @@ export default class SetBuilder extends Modal {
       if (dist < 5) return;
 
       dragAvatar = new PIXI.Container();
+      dragAvatar.eventMode = 'none';
       dragAvatar.addChild(Tactics.drawAvatar(dragUnit, { as:'frame', direction:dragUnit.direction }));
 
       this.selected = null;
 
       // Avatar is behind trash can.
-      const trashIndex = this._stage.getChildIndex(this._trash);
-      this._stage.addChildAt(this._dragAvatar = dragAvatar, trashIndex);
+      const trashIndex = this._content.getChildIndex(this._trash);
+      this._content.addChildAt(this._dragAvatar = dragAvatar, trashIndex);
 
       board.dismiss(dragUnit);
       this._enableTrash(false);
@@ -1113,10 +1116,9 @@ export default class SetBuilder extends Modal {
       dragUnit.getContainerByName('shadow', dragAvatar).alpha = 1;
 
       if (pixiEvent)
-        dragAvatar.position = pixiEvent.data.getLocalPosition(this._stage);
+        dragAvatar.position = pixiEvent.data.getLocalPosition(this._content);
       this._onTrashBlur();
-    }
-    else if (!this._trashIsFocused()) {
+    } else if (!this._trashIsFocused()) {
       // There can be a very brief delay between the old tile blurring and a new
       // tile focusing.  So, only focus trash if appropriate after a delay.
       setTimeout(() => {
@@ -1124,8 +1126,7 @@ export default class SetBuilder extends Modal {
         if (this._dragAvatar !== dragAvatar) return;
 
         // Skip if cursor has moved back over a drop target
-        const focusedTile = board.focusedTile;
-        if (focusedTile && focusedTile.isDropTarget) return;
+        if (board.focusedTile?.isDropTarget) return;
 
         // Hide shadow while over trash can
         dragUnit.getContainerByName('shadow', dragAvatar).alpha = 0;
@@ -1142,19 +1143,17 @@ export default class SetBuilder extends Modal {
     this.renderBoard();
   }
   /*
-   * If cancelled === true:
-   *   It means the unit was dropped outside a valid tile or on the origin tile.
-   *   If tile is defined, it is the latter.
+   * If target === null:
+   *   It means the unit wasn't dropped on a valid drop target.
    * else
-   *   The unit was dropped on an empty or occupied tile.
-   *   If occupied, the units are swapped.
+   *   The target is a valid drop tile.
    */
-  _onDragDrop({ pixiEvent, target:tile, cancelled }) {
+  _onDragDrop({ pixiEvent, target:tile }) {
     const dragSource = this._dragSource;
     if (!dragSource) return;
 
     this._dragSource = null;
-    this._stage.interactive = false;
+    this._content.interactive = false;
 
     if (this._dragAvatar) {
       Tactics.playSound('select');
@@ -1167,21 +1166,19 @@ export default class SetBuilder extends Modal {
       });
 
       const dragUnit = dragSource.targetUnit;
-      if (cancelled) {
-        if (tile) {
-          this._board.assign(dragUnit, tile);
+      if (!tile) {
+        this.removeUnit(dragUnit);
+        this.killUnits();
+      } else if (tile === dragSource.target) {
+        // Make sure the unit is focused after assignment
+        this._board.clearHighlight(tile);
 
-          // Prevent tap event from firing
-          tile.set_interactive(false);
-          setTimeout(() => {
-            tile.set_interactive(true);
-            this._highlightPlaces();
-            this._setUnitsState();
-          });
-        } else {
-          this.removeUnit(dragUnit);
-          this.killUnits();
-        }
+        // Prevent tap event from firing
+        setTimeout(() => {
+          this._board.assign(dragUnit, tile);
+          this._highlightPlaces();
+          this.renderBoard();
+        });
       } else {
         // Make sure the unit is focused after assignment
         this._board.clearHighlight(tile);
@@ -1197,13 +1194,13 @@ export default class SetBuilder extends Modal {
 
   _enableTrash(buttonMode = true) {
     this._trash.interactive = true;
-    this._trash.buttonMode = buttonMode;
+    this._trash.cursor = buttonMode ? 'pointer' : null;
     this._trash.alpha = 1;
   }
   _disableTrash() {
     this._onTrashBlur();
     this._trash.interactive = false;
-    this._trash.buttonMode = false;
+    this._trash.cursor = null;
     this._trash.alpha = 0.6;
   }
 
@@ -1340,10 +1337,7 @@ export default class SetBuilder extends Modal {
 
     this._board.sortUnits();
 
-    // This is a hammer.  Without it, the mouse cursor will not change to a
-    // pointer and back when needed without moving the mouse.
-    renderer.plugins.interaction.update();
-
+    renderer.events.updateCursor();
     renderer.render(this._stage);
     this._rendering = false;
   }

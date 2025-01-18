@@ -278,7 +278,7 @@ var buttons = {
   },
   chat: () => {
     let $app = $('#app');
-    if ($app.hasClass('chat-opening') || $app.hasClass('chat-closing'))
+    if ($app.hasClass('for-practice') || $app.hasClass('chat-opening') || $app.hasClass('chat-closing'))
       return;
 
     let $chat = $('#chat');
@@ -308,14 +308,12 @@ var buttons = {
       if (isEdge && $app.hasClass('with-inlineChat')) {
         $chat.css({ height:'' });
         $app.addClass('chat-closing');
-      }
-      else {
+      } else {
         $app.addClass('chat-closing');
       }
 
       tick();
-    }
-    else {
+    } else {
       let finish = () => {
         $app.toggleClass('chat-open chat-opening');
         updateChatButton();
@@ -851,7 +849,7 @@ async function loadTransport(gameId, gameData) {
 async function loadGame(transport) {
   await loadResources(transport);
 
-  return new Tactics.Game(transport, authClient.playerId ?? false);
+  return new Tactics.Game(transport, authClient.playerId ?? false).init();
 }
 async function loadResources(gameState) {
   const unitTypes = gameType.getUnitTypes();
@@ -2317,7 +2315,7 @@ function toggleUndoButton() {
   $('BUTTON[name=undo]').toggleClass('request', !!canUndo?.approve);
 
   // If we are only able to undo for a limited time, set a timer to disable it.
-  if (canUndo?.refreshTimeout)
+  if (canUndo?.refreshTimeout && canUndo.refreshTimeout < Infinity)
     undoTimeout = setTimeout(toggleUndoButton, canUndo.refreshTimeout);
 }
 

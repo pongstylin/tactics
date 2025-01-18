@@ -1,87 +1,66 @@
-/*
- * Some Tactics classes are shared between the client and server.  Some of them
- * requires PIXI classes.  But, PIXI requires the 'document' object to load
- * modules successfully.  So, provide an alternate, global access point.
- */
 import {
-  Renderer, BatchRenderer,
-  BaseTexture, Texture,
-  extensions
-} from '@pixi/core';
-import { InteractionManager } from '@pixi/interaction';
-import { Container } from '@pixi/display';
-import { Sprite } from '@pixi/sprite';
-import { Graphics } from '@pixi/graphics';
-import { Text } from '@pixi/text';
-import { Rectangle, Polygon, Point } from '@pixi/math';
-import { ColorMatrixFilter } from '@pixi/filter-color-matrix';
-import { BlurFilter } from '@pixi/filter-blur';
-import { CanvasRenderer } from '@pixi/canvas-renderer';
-import { CanvasSpriteRenderer } from '@pixi/canvas-sprite';
-import { CanvasGraphicsRenderer } from '@pixi/canvas-graphics';
-import '@pixi/canvas-display';
-import '@pixi/canvas-text';
-import { Extract } from '@pixi/extract';
-import { settings } from '@pixi/settings';
-
-settings.CAN_UPLOAD_SAME_BUFFER = false;
-
-extensions.add(Extract);
-extensions.add(BatchRenderer);
-extensions.add(InteractionManager);
-extensions.add(CanvasSpriteRenderer);
-extensions.add(CanvasGraphicsRenderer);
-extensions.add(InteractionManager);
-
-window.PIXI = {
-  Renderer,
-  CanvasRenderer,
-  BaseTexture,
-  Texture,
-  Container,
-  Sprite,
-  Graphics,
-  Text,
-  Rectangle,
-  Polygon,
+  Matrix,
   Point,
-  filters: { ColorMatrixFilter, BlurFilter },
-};
+  Polygon,
+  Rectangle,
+
+  Container,
+  FillGradient,
+  Graphics,
+  Sprite,
+  Text,
+
+  autoDetectRenderer,
+  CanvasSource,
+  Texture,
+
+  BlurFilter,
+  ColorMatrixFilter,
+
+  EventSystem,
+  Ticker,
+} from 'pixi.js';
+
+if (EventSystem.prototype.updateCursor)
+  throw new Error('EventSystem has a conflicting updateCursor method');
+Object.defineProperty(EventSystem.prototype, 'updateCursor', {
+  value: function () {
+    const rootBoundary = this.rootBoundary;
+    if (!rootBoundary.rootTarget)
+      return;
+
+    const pointer = this.pointer;
+    if (pointer.pointerType === 'mouse') {
+      const target = rootBoundary.hitTest(pointer.global.x, pointer.global.y);
+      this.setCursor(target?.cursor ?? null);
+    }
+  },
+});
+
+for (const tickerName of [ 'shared', 'system' ]) {
+  const ticker = Ticker[tickerName];
+  ticker.autoStart = false;
+  ticker.stop();
+}
 
 /*
- * Add support for gradient line styles in canvas graphics
+ * While pixi.js no longer requires the DOM to import modules, importing it will
+ * bloat bundle sizes when PIXI isn't technically used.  So, a global is used
+ * instead.
  */
-const superCalcCanvasStyle = CanvasGraphicsRenderer.prototype._calcCanvasStyle;
-if (superCalcCanvasStyle) {
-  CanvasGraphicsRenderer.prototype._calcCanvasStyle = function _calcCanvasStyle(style, tint) {
-    if (!style.texture && style.gradient)
-      return superCalcCanvasStyle.call(this, style, tint);
+window.PIXI = {
+  autoDetectRenderer,
+  filters: { ColorMatrixFilter, BlurFilter },
 
-		const gradient = this.renderer.context.createLinearGradient(
-	    style.gradient.beginPoint.x,
-			style.gradient.beginPoint.y,
-			style.gradient.endPoint.x,
-			style.gradient.endPoint.y,
-		);
-		for (let i = 0; i < style.gradient.colorStops.length; i++) {
-			gradient.addColorStop(...style.gradient.colorStops[i]);
-		}
-
-		return gradient;
-  };
-}
-
-import { LineStyle } from '@pixi/graphics';
-
-const superClone = LineStyle.prototype.clone;
-if (superClone) {
-  LineStyle.prototype.clone = function clone() {
-    const obj = superClone.call(this);
-    obj.gradient = this.gradient;
-
-    return obj;
-  };
-}
-
-if (!superCalcCanvasStyle || !superClone)
-  console.warn('Unit info card gradient is broken');
+  CanvasSource,
+  Container,
+  FillGradient,
+  Graphics,
+  Matrix,
+  Point,
+  Polygon,
+  Rectangle,
+  Sprite,
+  Text,
+  Texture,
+};
