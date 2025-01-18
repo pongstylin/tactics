@@ -230,7 +230,7 @@ const pushPublicKey = Uint8Array.from(
 
 let avatars;
 let arena;
-const handleAvatarsData = async () => {
+const handleAvatarsData = () => {
   avatars = Tactics.getSprite('avatars');
   arena = avatars.getImage('arena');
   ScrollButton.config.icons = {
@@ -245,7 +245,8 @@ const handleAvatarsData = async () => {
 
 const getDataFromService = Tactics.load(['avatars']).then(async () => {
   state.styles = await gameClient.getGameTypes();
-  await handleAvatarsData();
+  handleAvatarsData();
+  await Tactics.makeAvatarRenderer();
   await whenDOMReady;
   renderLobby();
 });
@@ -278,8 +279,6 @@ whenDOMReady.then(() => {
 
     if (await authClient.requireAuth())
       history.replaceState(null, null, '#lobby');
-
-    await Tactics.makeAvatarRenderer();
 
     configureGame = new ConfigureGameModal({
       autoShow: false,
@@ -659,6 +658,7 @@ function setYourGame(gameSummary) {
   if (isVisibleLobbyGame)
     setYourLobbyGame(gameSummary);
   else if (
+    gameSummary.createdBy !== authClient.playerId &&
     !gameSummary.isSimulation &&
     !oldSummary?.startedAt && gameSummary.startedAt &&
     gameSummary.currentTeam.playerId === authClient.playerId
