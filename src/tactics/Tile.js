@@ -175,7 +175,7 @@ export default class Tile {
       // Prevent the board object from receiving this event.
       event.stopPropagation();
 
-      let pointerEvent = event.data.originalEvent;
+      const pointerEvent = event.data.originalEvent;
 
       this._emit({
         type: pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2
