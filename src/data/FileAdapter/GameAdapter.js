@@ -57,7 +57,6 @@ export default class extends FileAdapter {
       _gameTypes: null,
 
       _dirtyGames: new Map(),
-      _syncingPlayerGames: new Map(),
     });
   }
 
@@ -292,7 +291,7 @@ export default class extends FileAdapter {
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
   }
   async getPlayerPendingGamesInCollection(playerId, collection) {
-    const gamesSummary = await this._getPlayerGames(playerId);
+    const gamesSummary = await this._getPlayerGames(playerId, true);
     const results = [];
 
     for (const gameSummary of gamesSummary.values()) {
@@ -478,14 +477,13 @@ export default class extends FileAdapter {
    *
    * When a game object changes, the game summary is *eventually* consistent.
    * However, sometimes we may want to wait until it IS consistent.  For this
-   * reason, we maintain the 'syncingPlayerGames' property.
+   * reason, we maintain the '_dirtyGames' property.
    */
   _updateGameSummary(game) {
     const dirtyGames = this._dirtyGames;
     if (dirtyGames.has(game.id))
       return dirtyGames.get(game.id);
 
-    const syncingPlayerGames = this._syncingPlayerGames;
     // Get a unique list of player IDs from the teams.
     const playerIds = new Set(
       game.state.teams.filter(t => !!t?.playerId).map(t => t.playerId)
@@ -493,14 +491,6 @@ export default class extends FileAdapter {
     const promises = [];
 
     for (const playerId of playerIds) {
-      if (syncingPlayerGames.has(playerId)) {
-        syncingPlayerGames.get(playerId).count++;
-      } else {
-        const sync = { count:1 };
-        sync.promise = new Promise(resolve => sync.resolve = resolve);
-        syncingPlayerGames.set(playerId, sync);
-      }
-
       promises.push(
         this._getPlayerGames(playerId).then(playerGames => {
           // Normally, player games are cached when a player authenticates.
@@ -567,17 +557,6 @@ export default class extends FileAdapter {
             gameSummaryList.delete(game.id);
         } else
           gameSummaryList.set(game.id, summary);
-
-        if (syncingPlayerGames.has(gameSummaryList.id)) {
-          const sync = syncingPlayerGames.get(gameSummaryList.id);
-
-          if (sync.count === 1) {
-            syncingPlayerGames.delete(gameSummaryList.id);
-            sync.resolve(gameSummaryList);
-          } else {
-            sync.count--;
-          }
-        }
       }
     });
 
@@ -695,11 +674,8 @@ export default class extends FileAdapter {
    * Player Games Management
    */
   async _getPlayerGames(playerId, consistent = false) {
-    if (consistent) {
-      const sync = this._syncingPlayerGames.get(playerId);
-      if (sync)
-        return sync.promise;
-    }
+    if (consistent)
+      await Promise.all(Array.from(this._dirtyGames.values()));
 
     if (this.cache.get('playerGames').has(playerId))
       return this.cache.get('playerGames').get(playerId);
