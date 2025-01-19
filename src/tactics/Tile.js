@@ -198,7 +198,7 @@ export default class Tile {
     });
   }
   onDragDrop(event) {
-    if (!this.isDropTarget) return;
+    if (!this.isDragging && !this.isDropTarget) return;
 
     this._emit({
       type: 'dragDrop',
