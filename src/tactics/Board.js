@@ -646,7 +646,7 @@ export default class Board {
       if (this.locked === true) return;
 
       // Debug cases where the target isn't actually a tile.  What is it then?
-      if (!event.data.target) {
+      if (!event.target.data) {
         const path = [ event.target ];
         while (path.last.parent)
           path.push(path.last.parent);
