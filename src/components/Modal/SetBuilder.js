@@ -1290,9 +1290,12 @@ export default class SetBuilder extends Modal {
 
           this.moveUnit(unit, tile);
         } else {
-          const unitType = await this._unitPicker.pick();
-          Tactics.playSound('select');
-          this.placeUnit(unitType, tile);
+          // Prevent this touch from turning into a click on the modal.
+          setTimeout(async () => {
+            const unitType = await this._unitPicker.pick();
+            Tactics.playSound('select');
+            this.placeUnit(unitType, tile);
+          });
         }
       },
     });

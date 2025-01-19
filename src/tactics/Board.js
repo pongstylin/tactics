@@ -634,15 +634,27 @@ export default class Board {
     sprite.filters = [lightFilter];
     pixi.addChild(sprite);
 
-    let tilesContainer = this.tilesContainer = new PIXI.Container();
+    const tilesContainer = this.tilesContainer = new PIXI.Container();
     let tiles = this.tiles;
 
+    tilesContainer.label = 'tiles';
     // The tiles container is interactive since we want to detect a tap on a
     // blank tile to cancel current selection, if sensible.  Ultimately, this
     // functionality needs to be provided by an 'undo' button.
     tilesContainer.interactive = true;
     tilesContainer.on('pointertap', event => {
       if (this.locked === true) return;
+
+      // Debug cases where the target isn't actually a tile.  What is it then?
+      if (!event.data.target) {
+        const path = [ event.target ];
+        while (path.last.parent)
+          path.push(path.last.parent);
+        report({
+          type: 'debug',
+          data: path.map(p => [ p.label, p.constructor.name ]),
+        });
+      }
 
       if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data))
         Tactics.game.selectMode = 'attack'; 

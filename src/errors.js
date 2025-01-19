@@ -144,6 +144,7 @@ function report(data, now) {
   } catch (e) {
     var error = 'Stringify report failed: ' + e;
     error = error.replace(/"/g, '\\"');
+    error = error.replace(/\n/g, '\\n');
 
     sendReport('{"error":"' + error + '"}');
   }

@@ -175,7 +175,7 @@ export default class Tile {
       // Prevent the board object from receiving this event.
       event.stopPropagation();
 
-      let pointerEvent = event.data.originalEvent;
+      const pointerEvent = event.data.originalEvent;
 
       this._emit({
         type: pointerEvent.pointerType === 'mouse' && pointerEvent.button === 2
@@ -198,7 +198,7 @@ export default class Tile {
     });
   }
   onDragDrop(event) {
-    if (!this.isDropTarget) return;
+    if (!this.isDragging && !this.isDropTarget) return;
 
     this._emit({
       type: 'dragDrop',
