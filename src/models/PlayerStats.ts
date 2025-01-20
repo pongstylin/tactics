@@ -174,7 +174,7 @@ export default class PlayerStats extends ActiveModel {
     if (!game.state.endedAt)
       throw new Error('Game has not ended');
     // Skip WLD stats for practice games.
-    if (!game.state.isPracticeMode)
+    if (game.state.isPracticeMode)
       return;
 
     const myTeams = game.state.teams.filter(t => t.playerId === this.data.playerId);
