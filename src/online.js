@@ -1,4 +1,3 @@
-import { CLOSE_CLIENT_LOGOUT } from 'client/ServerSocket.js';
 import config from 'config/client.js';
 import copy from 'components/copy.js';
 import ConfigureGameModal from 'components/Modal/ConfigureGame.js';
