@@ -212,6 +212,11 @@ export default class SetBuilder extends Modal {
     const renderer = this._renderer = await PIXI.autoDetectRenderer({ width, height, backgroundAlpha:0 });
     const canvas = this._canvas = renderer.canvas;
 
+    // Prevent click after touchend
+    // Fixes a bug where PIXI now fires the pointertap event after touchend and before click.
+    // But if that involves showing a popup, then the click can fire on the popup!
+    canvas.addEventListener('touchend', event => event.preventDefault());
+
     await board.initCard();
     board.draw();
     this._content.addChild(board.pixi);
@@ -1291,11 +1296,9 @@ export default class SetBuilder extends Modal {
           this.moveUnit(unit, tile);
         } else {
           // Prevent this touch from turning into a click on the modal.
-          setTimeout(async () => {
-            const unitType = await this._unitPicker.pick();
-            Tactics.playSound('select');
-            this.placeUnit(unitType, tile);
-          });
+          const unitType = await this._unitPicker.pick();
+          Tactics.playSound('select');
+          this.placeUnit(unitType, tile);
         }
       },
     });

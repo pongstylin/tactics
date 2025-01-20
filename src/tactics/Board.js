@@ -644,17 +644,7 @@ export default class Board {
     tilesContainer.interactive = true;
     tilesContainer.on('pointertap', event => {
       if (this.locked === true) return;
-
-      // Debug cases where the target isn't actually a tile.  What is it then?
-      if (!event.target.data) {
-        const path = [ event.target ];
-        while (path.last.parent)
-          path.push(path.last.parent);
-        report({
-          type: 'debug',
-          data: path.map(p => [ p.label, p.constructor.name ]),
-        });
-      }
+      if (event.target.label === 'tiles') return;
 
       if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data))
         Tactics.game.selectMode = 'attack'; 

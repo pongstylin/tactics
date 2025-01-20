@@ -40,6 +40,7 @@ export default class Tile {
   // Public methods
   draw() {
     let pixi = this.pixi = new PIXI.Graphics();
+    pixi.label = 'Tile';
     pixi.position = new PIXI.Point(...this.position);
 
     // Clone the points array, cause it gets messed up otherwise.
