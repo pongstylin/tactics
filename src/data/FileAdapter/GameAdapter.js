@@ -1,5 +1,4 @@
 import fs from 'fs/promises';
-import util from 'util';
 
 import migrate, { getLatestVersionNumber } from '#data/migrate.js';
 import { search } from '#utils/jsQuery.js';
@@ -503,7 +502,7 @@ export default class extends FileAdapter {
       );
     }
 
-    if (game.collection && !game.isReserved)
+    if (game.collection)
       promises.push(
         this._getGameCollection(game.collection).then(collection => {
           this.cache.get('collection').add(collection.id, collection);
@@ -543,6 +542,8 @@ export default class extends FileAdapter {
       for (const gameSummaryList of gameSummaryLists) {
         if (!gameSummaryList) continue;
 
+        const isCollectionList = !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(gameSummaryList.id);
+
         // Avoid adding and immediately removing a game to the main list.
         if (game.state.startedAt) {
           const clone = serializer.clone(gameSummaryList);
@@ -555,7 +556,8 @@ export default class extends FileAdapter {
               this._pruneGameSummaryList(gameSummaryList);
           } else if (gameSummaryList.has(game.id))
             gameSummaryList.delete(game.id);
-        } else
+        // If the game hasn't started, make sure to omit reserved games from collection lists
+        } else if (!isCollectionList || !game.isReserved)
           gameSummaryList.set(game.id, summary);
       }
     });
