@@ -907,7 +907,20 @@ export default class ConfigureGame extends Modal {
     this.root.querySelector(`INPUT[name=collection][value=${config.collection}]`).checked = true;
     this.root.querySelector(`INPUT[name=vs][value=${config.vs}`).checked = true;
     selSet.value = config.set;
-    this.root.querySelector(`INPUT[name=timeLimitName][value=${timeLimitName}]`).checked = true;
+    if (timeLimitName)
+      this.root.querySelector(`INPUT[name=timeLimitName][value=${timeLimitName}]`).checked = true;
+    else
+      report({
+        type: 'debug',
+        message: `timeLimitName is mysteriously falsey`,
+        view: this.data.view,
+        timeLimitName,
+        timeLimitType: this.data.timeLimitType,
+        gameTypeId: this.data.gameTypeId,
+        savedConfig: styleConfig.get(this.data.gameTypeId),
+        cachedConfig: cache.get(this.data.gameTypeId).config,
+        adjustedConfig: config,
+      });
 
     this._setRadioState(this.root.querySelector('INPUT[name=randomSide]'), 'selected', config.randomSide);
     this._setRadioState(this.root.querySelector('INPUT[name=randomHitChance'), 'selected', !config.randomHitChance);
