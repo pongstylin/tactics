@@ -146,6 +146,10 @@ export default class GameState {
     return this.turns.last?.team ?? null;
   }
   get turnStartedAt() {
+    // Useful for fork games.
+    if (this.teams.some(t => !t?.joinedAt))
+      return null;
+
     return this.turns.last?.startedAt ?? null;
   }
   get turnEndedAt() {

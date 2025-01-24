@@ -3022,11 +3022,13 @@ function renderGameInfo(game) {
     if (game.mode)
       labels.push(game.mode.toUpperCase('first'));
 
-    if (!game.collection)
+    const isGuestGame = game.meta.ranks.some(r => r === false);
+
+    if (!game.collection && game.mode !== 'fork')
       labels.push('Private');
     else if (!game.startedAt && game.rated === true)
       labels.push('Rated');
-    else if (![ 'fork', 'practice' ].includes(game.mode) && game.rated === false)
+    else if (![ 'fork', 'practice' ].includes(game.mode) && game.rated === false && !isGuestGame)
       labels.push('Unrated');
 
     if (!game.startedAt && state.currentTab === 'yourGames') {
