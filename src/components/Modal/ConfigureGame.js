@@ -22,6 +22,7 @@ const challengee = new Autosave({
   maxLength: 20,
 });
 const cache = new Map();
+const inApp = window.matchMedia('(display-mode:standalone)').matches;
 
 export default class ConfigureGame extends Modal {
   constructor(options = {}) {
@@ -66,6 +67,7 @@ export default class ConfigureGame extends Modal {
         <DIV class="indent">
           <LABEL class="vs-anybody"><INPUT type="radio" name="vs" value="anybody" checked> Anybody</LABEL>
           <LABEL class="vs-yourself" style="display:none"><INPUT type="radio" name="vs" value="yourself"> Yourself</LABEL>
+          <LABEL class="vs-same"><INPUT type="radio" name="vs" value="same"> Same</LABEL>
           <LABEL><INPUT type="radio" name="vs" value="invite"> Share Link</LABEL>
           <LABEL><INPUT type="radio" name="vs" value="challenge"> Challenge</LABEL>
         </DIV>
@@ -73,6 +75,10 @@ export default class ConfigureGame extends Modal {
           <DIV class="search"></DIV>
           <DIV class="matches"></DIV>
         </DIV>
+      </DIV>
+      <DIV class="as">
+        <DIV>Who would you like to play as?</DIV>
+        <DIV class="indent"></DIV>
       </DIV>
       <DIV class="set">
         <DIV>Choose set: <A href="javascript:void(0)" class="change" style="display:none">View Set</A><SPAN class="fa fa-info set"></SPAN></DIV>
@@ -102,7 +108,7 @@ export default class ConfigureGame extends Modal {
           </DIV>
         </DIV>
       </DIV>
-      <DIV>
+      <DIV class="customize">
         <DIV>Customize your game:<SPAN class="fa fa-info customize"></DIV>
         <DIV class="indent taglist">
           <SPAN class="randomSide"><LABEL><INPUT type="radio" name="randomSide" value="true">Random Side</LABEL></SPAN>
@@ -233,6 +239,8 @@ export default class ConfigureGame extends Modal {
   get styleConfigOverrides() {
     if (this.data.view === 'challenge')
       return { vs:'challenge', challengee:this.data.props.challengee };
+    else if (this.data.view === 'forkGame')
+      return { collection:'private' };
     else if (![ 'challenge', 'createGame' ].includes(this.data.view))
       return { collection:'public', vs:'anybody' };
     return {};
@@ -260,11 +268,16 @@ export default class ConfigureGame extends Modal {
 
     return styleConfig.makeCreateGameOptions(this.gameType, { name:teamName.value, styleConfigData, timerType });
   }
-  joinGameOptions(view = this.data.view) {
+  joinGameOptions(view = this.data.view, props = this.data.props) {
     this.data.view = view;
+    this.data.props = props;
     const styleConfigData = this.adjustedStyleConfig;
 
-    const myTeam = styleConfig.makeMyTeam(this.gameType, { name:teamName.value, styleConfigData });
+    const myTeam = styleConfig.makeMyTeam(this.gameType, {
+      name: teamName.value,
+      isFork: props.gameSummary.mode === 'fork',
+      styleConfigData,
+    });
     delete myTeam.playerId;
 
     return myTeam;
@@ -275,6 +288,7 @@ export default class ConfigureGame extends Modal {
     this.data.props = props;
     this.root.classList.toggle('challenge', view === 'challenge');
     this.root.classList.toggle('createGame', view === 'createGame');
+    this.root.classList.toggle('forkGame', view === 'forkGame');
     this.root.classList.toggle('confirmBeforeCreate', view === 'confirmBeforeCreate');
     this.root.classList.toggle('confirmBeforeJoin', view === 'confirmBeforeJoin');
     this.root.classList.toggle('configureLobby', view === 'configureLobby');
@@ -291,6 +305,11 @@ export default class ConfigureGame extends Modal {
         break;
       case 'createGame':
         this.title = 'Create Game';
+        this.data.timeLimitType = 'long';
+        break;
+      case 'forkGame':
+        await this.setGameType(props.game.state.type);
+        this.title = 'Fork the game?';
         this.data.timeLimitType = 'long';
         break;
       case 'confirmBeforeCreate':
@@ -422,23 +441,36 @@ export default class ConfigureGame extends Modal {
     if (radConfirmBeforeJoin.checked !== gameConfig.confirmBeforeJoin)
       gameConfig.confirmBeforeJoin = radConfirmBeforeJoin.checked;
 
+    const collection = this.root.querySelector('INPUT[name=collection]:checked').value;
     const radRandomSide = this.root.querySelector('INPUT[name=randomSide]');
     const radPractice = this.root.querySelector('INPUT[name=rules][value=practice]');
     const radTournament = this.root.querySelector('INPUT[name=rules][value=tournament]');
     const radRated = this.root.querySelector('INPUT[name=rated][value=true]');
     const radUnrated = this.root.querySelector('INPUT[name=rated][value=false]');
 
-    const collection = this.root.querySelector('INPUT[name=collection]:checked').value;
-    if (collection === 'public') {
-      this.root.querySelector('.vs-anybody').style.display = '';
-      this.root.querySelector('.vs-yourself').style.display = 'none';
-      if (this.root.querySelector('INPUT[name=vs][value=yourself').checked)
-        this.root.querySelector('INPUT[name=vs][value=anybody]').checked = true;
-    } else {
+    if (this.data.view === 'forkGame') {
+      const game = this.data.props.game;
+      const showSame = !game.isSimulation && game.myTeam;
+
       this.root.querySelector('.vs-anybody').style.display = 'none';
       this.root.querySelector('.vs-yourself').style.display = '';
+      this.root.querySelector('.vs-same').style.display = showSame ? '' : 'none';
       if (this.root.querySelector('INPUT[name=vs][value=anybody').checked)
         this.root.querySelector('INPUT[name=vs][value=yourself]').checked = true;
+    } else {
+      if (collection === 'public') {
+        this.root.querySelector('.vs-anybody').style.display = '';
+        this.root.querySelector('.vs-yourself').style.display = 'none';
+        if (this.root.querySelector('INPUT[name=vs][value=yourself').checked)
+          this.root.querySelector('INPUT[name=vs][value=anybody]').checked = true;
+      } else {
+        this.root.querySelector('.vs-anybody').style.display = 'none';
+        this.root.querySelector('.vs-yourself').style.display = '';
+        if (this.root.querySelector('INPUT[name=vs][value=anybody').checked)
+          this.root.querySelector('INPUT[name=vs][value=yourself]').checked = true;
+      }
+
+      this.root.querySelector('.vs-same').style.display = 'none';
     }
 
     const vsAnybody = this.root.querySelector('INPUT[name=vs][value=anybody').checked;
@@ -458,6 +490,9 @@ export default class ConfigureGame extends Modal {
     this._setRadioState(radUnrated, 'required', !authClient.isVerified || isPractice || collection === 'private');
 
     this.root.querySelectorAll('INPUT[name=slot]').forEach(e => this._setRadioState(e, 'disabled', !isPractice));
+    this.root.querySelectorAll('INPUT[name=as]').forEach(rad => {
+      rad.disabled = vsYourself;
+    });
     this.root.querySelectorAll('INPUT[name=timeLimitName]').forEach(rad => {
       rad.disabled = vsYourself;
     });
@@ -492,6 +527,8 @@ export default class ConfigureGame extends Modal {
         btnSubmit.textContent = 'Unblock & Create Game';
       else
         btnSubmit.textContent = 'Create Game';
+    } else if (this.data.view === 'forkGame') {
+      btnSubmit.textContent = 'Fork Game';
     } else if (this.data.view === 'confirmBeforeCreate') {
       btnSubmit.textContent = 'Create Game';
     } else if (this.data.view === 'confirmBeforeJoin') {
@@ -773,6 +810,51 @@ export default class ConfigureGame extends Modal {
         <DIV>${ratedMessage}</DIV>
         ${ messages.length ? `<DIV>${messages.join('<BR>')}</DIV>` : '' }
       `;
+    } else if (this.data.view === 'forkGame') {
+      const game = this.data.props.game;
+      const forkOf = game.state.forkOf;
+      const turnNumber = game.turnId + 1;
+      const messages = [];
+
+      if (forkOf) {
+        const of = game.ofSinglePlayer ? 'single player game' : 'game';
+
+        messages.push(`
+          This game is a fork of <A href="/game.html?${forkOf.gameId}#c=${forkOf.turnId},0" target="_blank">that ${of}</A>.
+        `);
+      }
+
+      messages.push(`
+        You are about to create a game playable from the beginning of turn ${turnNumber}.
+        ${ inApp ? '' : 'It will be opened in a new tab or window.' }
+      `);
+
+      this.root.querySelector('.intro').innerHTML = messages.map(m => `<DIV>${m}</DIV>`).join('');
+
+      const as = game.teams.findIndex(t => game.isMyTeam(t));
+      const divAs = this.root.querySelector('.as .indent');
+      divAs.innerHTML = '';
+
+      for (let team of game.teams) {
+        let teamMoniker;
+        if (team.name && game.teams.filter(t => t.name === team.name).length === 1)
+          teamMoniker = team.name;
+        else
+          teamMoniker = team.colorId;
+
+        const label = document.createElement('LABEL');
+        label.innerHTML = `
+          <INPUT
+            type="radio"
+            name="as"
+            value="${team.id}"
+            ${as === team.id ? 'checked' : ''}
+          >
+          ${teamMoniker}
+        `;
+
+        divAs.appendChild(label);
+      }
     } else {
       this.root.querySelector('.intro').innerHTML = '';
     }
@@ -909,6 +991,8 @@ export default class ConfigureGame extends Modal {
         await this._submitCreateGame();
       else if (this.data.view === 'createGame')
         await this._submitCreateGame();
+      else if (this.data.view === 'forkGame')
+        await this._submitForkGame();
       else if (this.data.view === 'confirmBeforeCreate')
         await this._submitConfirmBeforeCreate();
       else if (this.data.view === 'confirmBeforeJoin')
@@ -1130,6 +1214,22 @@ export default class ConfigureGame extends Modal {
 
     if (styleConfigData.vs === 'yourself')
       location.href = `game.html?${gameId}`;
+  }
+  async _submitForkGame() {
+    const game = this.data.props.game;
+    const styleConfigData = this._compileStyleConfig();
+    const vs = styleConfigData.vs;
+    const as = this.root.querySelector('INPUT[name=as]:checked').value;
+
+    const newGameId = await Tactics.gameClient.forkGame(game.id, {
+      turnId: game.turnId,
+      vs: vs === 'challenge' ? styleConfigData.challengee : vs,
+      as: vs === 'yourself' ? undefined : parseInt(as),
+      timeLimitName: vs === 'yourself' ? undefined : styleConfigData.timeLimitName,
+    });
+
+    const target = inApp ? window : window.open();
+    target.location.href = `/game.html?${newGameId}`;
   }
 
   _submitConfirmBeforeCreate() {

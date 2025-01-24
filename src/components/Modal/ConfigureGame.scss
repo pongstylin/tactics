@@ -12,26 +12,36 @@
 }
 
 .modal.configureGame.challenge .content {
-  .audio, .confirm, .vs {
+  .audio, .confirm, .vs, .as {
     display: none;
   }
 }
 
 .modal.configureGame.createGame .content {
-  .audio, .confirm {
+  .audio, .confirm, .as {
     display: none;
+  }
+}
+
+.modal.configureGame.forkGame .content {
+  .audio, .confirm, .gameType, .visibility, .set, .timeLimit .short, .customize, .remember {
+    display: none !important;
+  }
+
+  .buttons {
+    justify-content: end;
   }
 }
 
 // Used for Lobby games
 .modal.configureGame.confirmBeforeCreate .content {
-  .audio, .confirm, .gameType, .visibility, .vs, .timeLimit .long, .timeLimit .label {
+  .audio, .confirm, .gameType, .visibility, .vs, .as, .timeLimit .long, .timeLimit .label {
     display: none;
   }
 }
 
 .modal.configureGame.confirmBeforeJoin .content {
-  .audio, .confirm, .gameType, .visibility, .vs, .timeLimit {
+  .audio, .confirm, .gameType, .visibility, .vs, .as, .timeLimit {
     display: none;
   }
 
@@ -45,7 +55,7 @@
 }
 
 .modal.configureGame.configurePublic .content {
-  .createGame, .playerName, .gameType, .visibility, .vs, .timeLimit {
+  .createGame, .playerName, .gameType, .visibility, .vs, .as, .timeLimit {
     display: none !important;
   }
 
@@ -240,6 +250,9 @@
     width: 97px;
   }
 
+  .intro {
+    display: block;
+  }
   .error {
     color: #ff0000;
     text-align: center;

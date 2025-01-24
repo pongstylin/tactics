@@ -1086,7 +1086,7 @@ async function joinGame(arena) {
   }
 
   try {
-    await gameClient.joinGame(arena.id, configureGame.joinGameOptions('confirmBeforeJoin'));
+    await gameClient.joinGame(arena.id, configureGame.joinGameOptions('confirmBeforeJoin', { gameSummary:arena }));
     return true;
   } catch (e) {
     // A 403 for a rated game means rated rules weren't met

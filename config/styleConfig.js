@@ -86,13 +86,13 @@ const styleConfig = {
 
     return gameOptionsData;
   },
-  makeMyTeam(gameType, { name, styleConfigData }) {
+  makeMyTeam(gameType, { name, isFork, styleConfigData }) {
     styleConfigData = Object.assign({}, this.get(gameType.id), styleConfigData);
 
     return {
       playerId: authClient.playerId,
       name,
-      set: styleConfigData.set,
+      set: isFork ? undefined : styleConfigData.set,
       randomSide: gameType.hasFixedPositions ? false : styleConfigData.randomSide,
     };
   },

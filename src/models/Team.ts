@@ -359,6 +359,10 @@ export default class Team extends ActiveModel {
     });
   }
 
+  reserve(data) {
+    this.data.playerId = data.playerId;
+    this.data.name = data.name ?? null;
+  }
   join(data, clientPara, game = null, gameType = null) {
     if (this.data.joinedAt)
       throw new ServerError(409, 'This team has already been joined');

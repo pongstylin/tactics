@@ -8,7 +8,7 @@ import GameSettingsModal from 'components/Modal/GameSettings.js';
 import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
 import PlayerInfoModal from 'components/Modal/PlayerInfo.js';
 import PlayerInfoSelfModal from 'components/Modal/PlayerInfoSelf.js';
-import ForkModal from 'components/Modal/Fork.js';
+import ConfigureGame from 'components/Modal/ConfigureGame.js';
 import sleep from 'utils/sleep.js';
 
 const ServerError = Tactics.ServerError;
@@ -386,9 +386,7 @@ var buttons = {
     $('#game').toggleClass('is-busy');
     return false;
   },
-  fork: async () => {
-    new ForkModal({ game });
-  },
+  fork: () => new ConfigureGame({ autoShow:false }).show('forkGame', { game }),
   resume: async () => {
     wakelock.toggle(!game.state.endedAt);
 
