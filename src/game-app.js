@@ -643,7 +643,7 @@ async function initGame() {
       gameType = await gameClient.getGameType(gameData.state.type);
 
       // An account is not required to view an ended game.
-      if (gameData.state.recentTurns?.last.actions.last.type === 'endGame')
+      if (gameData.state.recentTurns?.last.actions.last?.type === 'endGame')
         return loadTransportAndGame(gameId, gameData);
 
       // An account is required before joining or watching an active game.
