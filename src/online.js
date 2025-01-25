@@ -283,6 +283,7 @@ whenDOMReady.then(() => {
       autoShow: false,
       hideOnCancel: true,
     });
+    await configureGame.setGameType();
   });
 
   document.querySelector('.page > HEADER A').addEventListener('click', async event => {
