@@ -224,6 +224,11 @@ export default class ConfigureGame extends Modal {
     return this.data.gameTypeId;
   }
   get gameType() {
+    report({
+      type: 'debug',
+      message: `ConfigureGame-3`,
+      type: this.data.gameTypeId,
+    });
     return cache.get(this.data.gameTypeId).gameType;
   }
   get sets() {
@@ -310,6 +315,11 @@ export default class ConfigureGame extends Modal {
         this.data.timeLimitType = 'long';
         break;
       case 'forkGame':
+        report({
+          type: 'debug',
+          message: `ConfigureGame-1`,
+          type: props.game.state.type,
+        });
         await this.setGameType(props.game.state.type);
         this.title = 'Fork the game?';
         this.data.timeLimitType = 'long';
@@ -739,6 +749,11 @@ export default class ConfigureGame extends Modal {
       if (config.set !== 'default' && config.set !== 'random' && !sets.some(s => s.id === config.set))
         config.set = 'default';
 
+      report({
+        type: 'debug',
+        message: `ConfigureGame-2`,
+        type: gameTypeId,
+      });
       cache.set(gameTypeId, { gameType, sets, config });
     } else {
       // Refresh sets just in case they have changed
