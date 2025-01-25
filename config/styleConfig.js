@@ -12,11 +12,29 @@ const styleConfig = {
         styleConfigData.shortTimeLimitName = styleConfigData.timeLimitName;
 
     this._default = Object.assign(this._default ?? {}, styleConfigData, {
-      set: styleConfigData.set === 'random' ? 'random' : 'default',
+      set: styleConfigData.set === 'random' ? 'random' : this._default.set ?? styleConfigData.set,
     });
 
+    if (!this._default.vs) {
+      this._default.vs = 'public';
+      report({
+        type: 'debug',
+        message: 'Restored vs in default config',
+      });
+    }
+
+    const style = Object.assign(this.get(styleConfigData.gameTypeId), styleConfigData);
+
+    if (!style.vs) {
+      style.vs = 'public';
+      report({
+        type: 'debug',
+        message: `Restored vs in ${style.gameTypeId} config`,
+      });
+    }
+
     config.setItem('defaultStyleConfig', this._default);
-    config.setItem(`${styleConfigData.gameTypeId}StyleConfig`, Object.assign(this.get(styleConfigData.gameTypeId), styleConfigData));
+    config.setItem(`${style.gameTypeId}StyleConfig`, style);
   },
 
   getDefault() {
