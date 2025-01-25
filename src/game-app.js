@@ -8,7 +8,7 @@ import GameSettingsModal from 'components/Modal/GameSettings.js';
 import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
 import PlayerInfoModal from 'components/Modal/PlayerInfo.js';
 import PlayerInfoSelfModal from 'components/Modal/PlayerInfoSelf.js';
-import ForkModal from 'components/Modal/Fork.js';
+import ConfigureGame from 'components/Modal/ConfigureGame.js';
 import sleep from 'utils/sleep.js';
 
 const ServerError = Tactics.ServerError;
@@ -386,9 +386,7 @@ var buttons = {
     $('#game').toggleClass('is-busy');
     return false;
   },
-  fork: async () => {
-    new ForkModal({ game });
-  },
+  fork: () => new ConfigureGame({ autoShow:false }).show('forkGame', { game }),
   resume: async () => {
     wakelock.toggle(!game.state.endedAt);
 
@@ -645,7 +643,7 @@ async function initGame() {
       gameType = await gameClient.getGameType(gameData.state.type);
 
       // An account is not required to view an ended game.
-      if (gameData.state.endedAt)
+      if (gameData.state.recentTurns?.last.actions.last.type === 'endGame')
         return loadTransportAndGame(gameId, gameData);
 
       // An account is required before joining or watching an active game.
@@ -1207,12 +1205,16 @@ async function showPrivateIntro(gameData) {
   renderCancelButton(gameData.id, document.querySelector('#private .cancelButton'));
 
   const state = gameData.state;
-  const mode = state.undoMode === 'loose' ? ' Practice' : state.strictFork ? ' Tournament' : '';
+  const vs = (
+    gameData.forkOf ? 'Fork' :
+    state.undoMode === 'loose' ? 'Private Practice' :
+    state.strictFork ? 'Private Tournament' : ''
+  );
   const $greeting = $('#private .greeting');
   const $subText = $greeting.next();
   const myTeam = state.teams.find(t => t?.playerId === authClient.playerId);
   $greeting.text($greeting.text().replace('{teamName}', myTeam.name));
-  $subText.text($subText.text().replace('{vs}', `Private${mode}`));
+  $subText.text($subText.text().replace('{vs}', vs));
 
   const transport = await loadTransport(gameData.id);
 

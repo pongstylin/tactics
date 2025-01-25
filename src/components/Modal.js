@@ -175,6 +175,8 @@ export default class Modal {
   close() {
     if (!this.isOpen) return;
 
+    this.hide();
+
     if (this.options.onClose)
       this.options.onClose();
     this.whenClosed.resolve(this);

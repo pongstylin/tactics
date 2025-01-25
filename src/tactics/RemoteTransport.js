@@ -63,7 +63,7 @@ export default class RemoteTransport extends Transport {
     this._watchForDataChanges();
 
     // For now, joining ended games is ok... unless not authorized.
-    if (gameData && gameData.state.endedAt && !authClient.token) {
+    if (gameData && gameData.state.recentTurns?.last.actions.last.type === 'endGame' && !authClient.token) {
       this._makeReady(gameData);
 
       const playerIds = new Set(gameData.state.teams.map(t => t.playerId));

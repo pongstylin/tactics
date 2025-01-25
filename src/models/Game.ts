@@ -366,7 +366,7 @@ export default class Game extends ActiveModel {
     this.emit('change:cancelPlayerRequest');
   }
 
-  fork(clientPara, { turnId, vs, as }) {
+  fork(clientPara, { turnId, vs, as, timeLimitName }) {
     if (this.state.strictFork && !this.state.endedAt)
       throw new ServerError(403, 'Forking is restricted for this game until it ends.');
 
@@ -378,7 +378,7 @@ export default class Game extends ActiveModel {
     if (turnId > forkGameData.state.currentTurnId)
       turnId = forkGameData.state.currentTurnId;
     if (vs === undefined)
-      vs = 'you';
+      vs = 'yourself';
 
     /*
      * If necessary, roll back to the previous playable turn.
@@ -413,7 +413,7 @@ export default class Game extends ActiveModel {
     const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
     forkGameData.state.turns.forEach(t => t.team = teams[t.id % teams.length]);
 
-    if (vs === 'you') {
+    if (vs === 'yourself') {
       if (!this.data.state.endedAt && this.data.state.undoMode !== 'loose') {
         const myTeam = this.data.state.teams.find(t => t.playerId === clientPara.playerId);
         if (myTeam) {
@@ -428,15 +428,25 @@ export default class Game extends ActiveModel {
       forkGameData.state.timeLimit = null;
       forkGameData.state.currentTurn.timeLimit = null;
       forkGameData.state.start();
-    } else if (vs === 'private') {
+    } else {
       if (teams[as] === undefined)
         throw new ServerError(400, "Invalid 'as' option value");
 
       teams[as].join({}, clientPara);
 
-      forkGameData.timeLimitName = 'day';
-      forkGameData.state.timeLimit = timeLimit.day.clone();
-      forkGameData.state.currentTurn.timeLimit = 86400;
+      const vsIndex = (as + 1) % teams.length;
+      if (vs === 'same') {
+        const opponents = teams.filter(t => t.forkOf.playerId !== clientPara.playerId);
+        if (opponents.length !== 1)
+          throw new ServerError(400, `There is no 'same' opponent`);
+
+        teams[vsIndex].reserve(opponents[0].forkOf);
+      } else if (vs !== 'invite')
+        teams[vsIndex].reserve(vs);
+
+      forkGameData.timeLimitName = timeLimitName;
+      forkGameData.state.timeLimit = timeLimit[timeLimitName].clone();
+      forkGameData.state.currentTurn.timeLimit = forkGameData.state.timeLimit.base;
     }
 
     return new Game(forkGameData);

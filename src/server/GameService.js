@@ -157,13 +157,14 @@ export default class GameService extends Service {
         },
         forkOptions: unionType(
           {
-            'vs?': `const('you')`,
             'turnId?': 'integer(0)',
+            'vs?': `const('yourself')`,
           },
           {
-            vs: `const('private')`,
-            as: `integer(0,4)`,
             'turnId?': 'integer(0)',
+            vs: `enum([ 'same', 'invite' ]) | uuid`,
+            as: `integer(0,4)`,
+            'timeLimitName?': `enum([ 'day', 'week' ])`,
           },
         ),
         newAction: unionType(
@@ -660,6 +661,13 @@ export default class GameService extends Service {
 
   async onForkGameRequest(client, gameId, options) {
     this.debug(`forkGame: gameId=${gameId}; turnId=${options.turnId}, vs=${options.vs}, as=${options.as}`);
+
+    if (![ 'yourself', 'same', 'invite' ].includes(options.vs)) {
+      const player = await this._getAuthPlayer(options.vs);
+      if (!player)
+        throw new ServerError(409, `Team ${slot} has an unrecognized playerId`);
+      options.vs = { playerId:player.id, name:player.name };
+    }
 
     const clientPara = this.clientPara.get(client.id);
     const game = await this._getGame(gameId);
@@ -1959,7 +1967,7 @@ export default class GameService extends Service {
   }
 
   _resolveTeamSet(gameType, game, team) {
-    const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt < b.joinedAt)[0];
+    const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt - b.joinedAt)[0];
 
     if (!gameType.isCustomizable || team.set === null) {
       const set = gameType.getDefaultSet();
