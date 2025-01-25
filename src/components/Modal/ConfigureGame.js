@@ -835,11 +835,12 @@ export default class ConfigureGame extends Modal {
 
       this.root.querySelector('.intro').innerHTML = messages.map(m => `<DIV>${m}</DIV>`).join('');
 
-      const as = game.teams.findIndex(t => game.isMyTeam(t));
+      const myTeamIndex = game.teams.findIndex(t => game.isMyTeam(t));
+      const as = myTeamIndex === -1 ? 0 : myTeamIndex;
       const divAs = this.root.querySelector('.as .indent');
       divAs.innerHTML = '';
 
-      for (let team of game.teams) {
+      for (const team of game.teams) {
         let teamMoniker;
         if (team.name && game.teams.filter(t => t.name === team.name).length === 1)
           teamMoniker = team.name;
@@ -907,24 +908,26 @@ export default class ConfigureGame extends Modal {
 
     const timeLimitName = this.data.timeLimitType ? config[`${this.data.timeLimitType}TimeLimitName`] : config.timeLimitName;
 
-    this.root.querySelector('SELECT[name=type]').value = config.gameTypeId;
-    this.root.querySelector(`INPUT[name=collection][value=${config.collection}]`).checked = true;
-    this.root.querySelector(`INPUT[name=vs][value=${config.vs}`).checked = true;
-    selSet.value = config.set;
-    if (timeLimitName)
+    try {
+      this.root.querySelector('SELECT[name=type]').value = config.gameTypeId;
+      this.root.querySelector(`INPUT[name=collection][value=${config.collection}]`).checked = true;
+      this.root.querySelector(`INPUT[name=vs][value=${config.vs}`).checked = true;
+      selSet.value = config.set;
       this.root.querySelector(`INPUT[name=timeLimitName][value=${timeLimitName}]`).checked = true;
-    else
+    } catch (e) {
       report({
         type: 'debug',
+        error: e,
         message: `timeLimitName is mysteriously falsey`,
         view: this.data.view,
-        timeLimitName,
-        timeLimitType: this.data.timeLimitType,
         gameTypeId: this.data.gameTypeId,
+        timeLimitType: this.data.timeLimitType,
+        timeLimitName,
         savedConfig: styleConfig.get(this.data.gameTypeId),
         cachedConfig: cache.get(this.data.gameTypeId).config,
         adjustedConfig: config,
       });
+    }
 
     this._setRadioState(this.root.querySelector('INPUT[name=randomSide]'), 'selected', config.randomSide);
     this._setRadioState(this.root.querySelector('INPUT[name=randomHitChance'), 'selected', !config.randomHitChance);
