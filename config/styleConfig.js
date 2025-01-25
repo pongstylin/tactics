@@ -2,6 +2,24 @@ import config, { gameConfig } from 'config/client.js';
 
 const authClient = Tactics.authClient;
 
+/*
+ * In theory, the bug that caused the bad data was fixed...
+ * ...and this data fix is temporary.
+ */
+function getRepairedConfig(key) {
+  const configData = config.getItem(key);
+
+  if (!configData.vs) {
+    config.setItem(key, Object.assign(configData, { vs:'public' }));
+    report({
+      type: 'debug',
+      message: `Restored vs in ${key}`,
+    });
+  }
+
+  return configData;
+}
+
 const styleConfig = {
   save(styleConfigData) {
     // Beware!  timeLimitName can be null for single player games
@@ -15,26 +33,8 @@ const styleConfig = {
       set: styleConfigData.set === 'random' ? 'random' : this._default.set ?? styleConfigData.set,
     });
 
-    if (!this._default.vs) {
-      this._default.vs = 'public';
-      report({
-        type: 'debug',
-        message: 'Restored vs in default config',
-      });
-    }
-
-    const style = Object.assign(this.get(styleConfigData.gameTypeId), styleConfigData);
-
-    if (!style.vs) {
-      style.vs = 'public';
-      report({
-        type: 'debug',
-        message: `Restored vs in ${style.gameTypeId} config`,
-      });
-    }
-
     config.setItem('defaultStyleConfig', this._default);
-    config.setItem(`${style.gameTypeId}StyleConfig`, style);
+    config.setItem(`${styleConfigData.gameTypeId}StyleConfig`, Object.assign(this.get(styleConfigData.gameTypeId), styleConfigData));
   },
 
   getDefault() {
@@ -54,7 +54,7 @@ const styleConfig = {
   },
   get(gameTypeId = null) {
     if (this.has(gameTypeId))
-      return config.getItem(`${gameTypeId}StyleConfig`);
+      return getRepairedConfig(`${gameTypeId}StyleConfig`);
 
     const defaultConfig = Object.assign({}, this._default);
     if (gameTypeId)
@@ -121,7 +121,7 @@ const styleConfig = {
 
 (() => {
   if (config.hasItem('defaultStyleConfig'))
-    return styleConfig._default = config.getItem('defaultStyleConfig');
+    return styleConfig._default = getRepairedConfig('defaultStyleConfig');
 
   const defaultStyleConfig = {
     gameTypeId: 'freestyle',
