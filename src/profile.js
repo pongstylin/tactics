@@ -179,7 +179,7 @@ function renderACL() {
           onClick: async blockIcon => {
             if (blockIcon.active) {
               await authClient.clearRelationship(playerId);
-              blockIcon.active = true;
+              blockIcon.active = false;
             } else {
               popup({
                 title: `Block <I>${relationship.name}</I>?`,
