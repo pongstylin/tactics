@@ -334,7 +334,8 @@ export default class ConfigureGame extends Modal {
         throw new TypeError(`Unrecognized view '${view}'`);
     }
 
-    this._applyStyleConfig();
+    await this._applyStyleConfig();
+
     return super.show();
   }
 
