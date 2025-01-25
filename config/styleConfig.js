@@ -9,8 +9,8 @@ const authClient = Tactics.authClient;
 function getRepairedConfig(key) {
   const configData = config.getItem(key);
 
-  if (!configData.vs) {
-    config.setItem(key, Object.assign(configData, { vs:'public' }));
+  if (!configData.vs || configData.vs === 'public') {
+    config.setItem(key, Object.assign(configData, { vs:'anybody' }));
     report({
       type: 'debug',
       message: `Restored vs in ${key}`,
