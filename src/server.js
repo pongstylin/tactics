@@ -1,3 +1,6 @@
+import { Readable } from 'readable-stream';
+global.ReadableStream = Readable;
+
 import { WebSocketServer } from 'ws';
 import util from 'util';
 import DebugLogger from 'debug';
