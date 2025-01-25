@@ -93,7 +93,8 @@ const styleConfig = {
       playerId: authClient.playerId,
       name,
       set: isFork ? undefined : styleConfigData.set,
-      randomSide: gameType.hasFixedPositions ? false : styleConfigData.randomSide,
+      randomSide: gameType.hasFixedPositions || [ 'same', 'mirror' ].includes(styleConfigData.set)
+        ? false : styleConfigData.randomSide,
     };
   },
 

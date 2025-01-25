@@ -50,7 +50,7 @@ export default class ConfigureGame extends Modal {
       <DIV class="gameType">
         <DIV>What game style do you want to play?<SPAN class="fa fa-info style"></SPAN></DIV>
         <DIV class="indent">
-          <SELECT name="type" disabled>
+          <SELECT name="type">
             <OPTION>Please wait...</OPTION>
           </SELECT><SPAN class="fa fa-info selected-style"></SPAN>
         </DIV>
@@ -83,11 +83,13 @@ export default class ConfigureGame extends Modal {
       <DIV class="set">
         <DIV>Choose set: <A href="javascript:void(0)" class="change" style="display:none">View Set</A><SPAN class="fa fa-info set"></SPAN></DIV>
         <DIV class="indent">
-          <SELECT name="set" disabled>
+          <SELECT name="set">
             <OPTION value="default">Please wait...</OPTION>
             <OPTION value="alt1">Alternate 1</OPTION>
             <OPTION value="alt2">Alternate 2</OPTION>
             <OPTION value="alt3">Alternate 3</OPTION>
+            <OPTION value="same">Same</OPTION>
+            <OPTION value="mirror">Mirror</OPTION>
             <OPTION value="random">Random</OPTION>
           </SELECT>
         </DIV>
@@ -566,9 +568,6 @@ export default class ConfigureGame extends Modal {
       this.sets.splice(setIndex, 1);
       setOption.style.display = 'none';
       selSet.selectedIndex = 0;
-
-      if (this.sets.length === 1)
-        selSet.disabled = true;
     }
 
     this.data.changeInProgress = false;
@@ -753,6 +752,9 @@ export default class ConfigureGame extends Modal {
     const config = this.styleConfigData;
     const { aChangeLink, selSet } = this._els;
 
+    selSet.querySelector('OPTION[value=same]').style.display = 'none';
+    selSet.querySelector('OPTION[value=mirror]').style.display = 'none';
+
     if (this.data.view === 'confirmBeforeJoin') {
       const gs = this.data.props.gameSummary;
       const creatorIndex = gs.teams.findIndex(t => t.playerId === gs.createdBy);
@@ -810,6 +812,11 @@ export default class ConfigureGame extends Modal {
         <DIV>${ratedMessage}</DIV>
         ${ messages.length ? `<DIV>${messages.join('<BR>')}</DIV>` : '' }
       `;
+
+      if (gs.mode === 'practice') {
+        selSet.querySelector('OPTION[value=same]').style.display = '';
+        selSet.querySelector('OPTION[value=mirror]').style.display = '';
+      }
     } else if (this.data.view === 'forkGame') {
       const game = this.data.props.game;
       const forkOf = game.state.forkOf;
@@ -859,8 +866,6 @@ export default class ConfigureGame extends Modal {
       this.root.querySelector('.intro').innerHTML = '';
     }
 
-    selSet.disabled = sets.length === 1;
-
     if (sets.length === 1 && config.set === 'random')
       config.set = sets[0].id;
 
@@ -883,10 +888,12 @@ export default class ConfigureGame extends Modal {
       } else {
         setOption.style.display = 'none';
         setOption.textContent = gameConfig.setsById.get(setId);
-        if (config.set === setId)
-          config.set = 'default';
       }
     }
+
+    const selectedSetOption = selSet.querySelector(`OPTION[value="${config.set}"]`);
+    if (selectedSetOption.style.display === 'none')
+      config.set = 'default';
 
     Object.assign(config, this.styleConfigOverrides);
 
