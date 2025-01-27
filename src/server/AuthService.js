@@ -607,7 +607,6 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-console.log('test', this.clientPara.get(client.id).playerId);
     return this.data.queryRatedPlayers(query, this.clientPara.get(client.id).playerId);
   }
   async onGetRatedPlayersRequest(client, playerIds) {
