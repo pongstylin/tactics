@@ -263,7 +263,7 @@ window.Tactics = (function () {
     },
     drawAvatar(avatar, options, transform = null) {
       options = Object.assign({
-        renderer: avatar instanceof Unit ? Tactics.game.renderer : Tactics.game.renderer ?? this._avatars.renderer,
+        renderer: avatar instanceof Unit ? Tactics.game.renderer : Tactics.game?.renderer ?? this._avatars.renderer,
         as: 'image',
         direction: 'S',
         withFocus: false,
