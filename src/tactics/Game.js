@@ -401,21 +401,6 @@ export default class Game {
   get activeTeams() {
     return this._teams.filter(team => !!team.units.length);
   }
-  get winningTeams() {
-    return this.teams.filter(team =>
-      !!team.units.find(unit => {
-        // Wards don't count.
-        if (unit.type === 'BarrierWard' || unit.type === 'LightningWard')
-          return false;
-
-        // Paralyzed units don't count.
-        if (unit.paralyzed)
-          return false;
-
-        return true;
-      })
-    );
-  }
   /*
    * Find first team in play order starting with current team that is my team.
    */

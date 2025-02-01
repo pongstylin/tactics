@@ -4,6 +4,7 @@ import Turn from '#models/Turn.js';
 import ServerError from '#server/Error.js';
 import Board from '#tactics/Board.js';
 import botFactory from '#tactics/botFactory.js';
+import GameType from '#tactics/GameType.js';
 import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
 
@@ -32,6 +33,7 @@ export default class GameState {
 
     Object.assign(this,
       {
+        gameType: null,
         _rated: false,
         undoMode: 'normal',
         turns: [],
@@ -257,23 +259,16 @@ export default class GameState {
     return this.teams.filter(t => !!t.units.length);
   }
   get winningTeams() {
-    return this.teams.filter(team =>
-      !!team.units.find(unit => {
-        // Wards don't count.
-        if (unit.type === 'BarrierWard' || unit.type === 'LightningWard')
-          return false;
+    if (!this.gameType)
+      this.gameType = new GameType({ config:{} });
 
-        // Shrubs don't count.
-        if (unit.type === 'Shrub')
-          return false;
+    return this.gameType.getWinningTeams(this.teams);
+  }
+  get losingTeams() {
+    if (!this.gameType)
+      this.gameType = new GameType({ config:{} });
 
-        // Paralyzed units don't count.
-        if (unit.paralyzed)
-          return false;
-
-        return true;
-      })
-    );
+    return this.gameType.getLosingTeams(this.teams);
   }
   get isSinglePlayer() {
     return new Set(this.teams.map(t => t.playerId)).size === 1;
@@ -679,7 +674,7 @@ export default class GameState {
             return true;
           if ((this.moved || !unit.canMove()) && !unit.canTurn())
             return true;
-          if (this.winningTeams.length < 2)
+          if (this.winningTeams.length)
             return true;
         };
 
@@ -744,11 +739,11 @@ export default class GameState {
       throw error;
     }
 
-    // Find teams that has a unit that keeps it alive.
+    // Determine if the game has ended due to the presence of winner(s)
     const winners = this.winningTeams;
-    if (winners.length === 0)
+    if (winners.length === this.teams.length)
       return this.end('draw');
-    else if (winners.length === 1)
+    else if (winners.length)
       return this.end(winners[0].id);
 
     if (endTurn) {
@@ -1391,15 +1386,22 @@ export default class GameState {
     const attacked    = this.attacked;
     const teams       = this.teams;
     const currentTeam = this.currentTeam;
+    const losingTeams = this.losingTeams;
     const results     = action.results = [];
 
     // Per turn mBlocking decay rate is based on the number of teams.
     // It is calculated such that a full turn cycle is still a 20% reduction.
     const decay = teams.length;
 
-    teams.forEach(team => {
-      team.units.forEach(unit => {
+    for (const team of teams) {
+      for (const unit of team.units) {
         const result = { unit, changes:{} };
+
+        if (losingTeams.includes(team)) {
+          result.changes.mHealth = -unit.health;
+          results.push(result);
+          continue;
+        }
 
         // Adjust recovery for the outgoing team.
         if (team === currentTeam) {
@@ -1448,8 +1450,8 @@ export default class GameState {
 
         if (Object.keys(result.changes).length)
           results.push(result);
-      });
-    });
+      }
+    }
 
     this._board.trigger({
       type: 'endTurn',

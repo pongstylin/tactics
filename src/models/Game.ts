@@ -387,7 +387,7 @@ export default class Game extends ActiveModel {
     forkGameData.state.autoPass(true);
 
     while (turnId > 0) {
-      if (forkGameData.state.winningTeams.length < 2) {
+      if (forkGameData.state.winningTeams.length) {
         forkGameData.state.revert(--turnId);
         continue;
       }

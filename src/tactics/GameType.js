@@ -4,6 +4,44 @@ import unitDataMap from '#tactics/unitData.js';
 import { calcPowerModifiers } from '#tactics/Unit/DragonspeakerMage.js';
 import serializer from '#utils/serializer.js';
 
+/*
+ * Since, in theory, a game can have more than 2 players, tests are written
+ * to determine if a given team can no longer continue... has lost.
+ */
+const endGameConditionByType = new Map([
+  [ 'default', myTeam => !myTeam.units.some(unit => {
+    // Wards don't count.
+    if (unit.type === 'BarrierWard' || unit.type === 'LightningWard')
+      return false;
+
+    // Shrubs don't count.
+    if (unit.type === 'Shrub')
+      return false;
+
+    // Paralyzed units don't count.
+    if (unit.paralyzed)
+      return false;
+
+    return true;
+  })],
+  [ 'placement', function (myTeam, data, oppTeams) {
+    // If the unit that must be placed is dead, we lost
+    if (endGameConditionByType.get('dead').call(this, myTeam, data, oppTeams))
+      return true;
+
+    const board = myTeam.units[0].board;
+
+    // If the unit is placed correctly by another team, we lost
+    return oppTeams.some(team => {
+      const rotation = board.getRotation(board.rotation, board.getDegree(board.rotation, team.position));
+      const tiles = this._getTileLimit(board, data.tiles, rotation);
+
+      return team.units.some(u => u.type === data.unitType && tiles.has(u.assignment));
+    });
+  }],
+  [ 'dead', (myTeam, data) => !myTeam.units.some(u => u.type === data.unitType) ],
+]);
+
 export default class GameType {
   constructor(data) {
     Object.assign(this, data);
@@ -20,6 +58,32 @@ export default class GameType {
   }
   get hasFixedPositions() {
     return !this.isCustomizable || !!this.config.limits.fixedPositions;
+  }
+
+  getWinningTeams(teams) {
+    const losingTeams = this.getLosingTeams(teams);
+    // All teams win if all teams lose.  This is a draw.
+    if (losingTeams.length === teams.length)
+      return teams;
+
+    const runningTeams = teams.filter(t => !losingTeams.includes(t));
+    // If more than one team hasn't lost, game is not over.
+    if (runningTeams.length > 1)
+      return [];
+
+    // The one team won.
+    return runningTeams;
+  }
+
+  getLosingTeams(teams) {
+    const endGameCondition =
+      !this.config.endGameCondition ? { type:'default' } :
+      Array.isArray(this.config.endGameCondition) ? this.config.endGameCondition :
+      [ this.config.endGameCondition ];
+
+    return teams.filter(t => endGameCondition.some(egc =>
+      endGameConditionByType.get(egc.type).call(this, t, egc, teams.filter(ot => ot !== t))
+    ));
   }
 
   getUnitTypes() {
@@ -251,11 +315,11 @@ export default class GameType {
     return { id:this.id, config:this.config };
   }
 
-  _getTileLimit(board, tileLimit) {
+  _getTileLimit(board, tileLimit, rotation = board.rotation) {
     if (!tileLimit)
       return new Set([...Object.values(board.tiles)]);
 
-    const degree = board.getDegree('N', board.rotation);
+    const degree = board.getDegree('N', rotation);
     const tiles = new Set();
 
     if (!Array.isArray(tileLimit))
@@ -273,8 +337,7 @@ export default class GameType {
             tiles.add(tile);
           }
         }
-      }
-      else if (limit.adjacentTo) {
+      } else if (limit.adjacentTo) {
         let adjacentTo = limit.adjacentTo;
         if (typeof adjacentTo === 'string')
           adjacentTo = { type:adjacentTo };
@@ -293,8 +356,7 @@ export default class GameType {
               tiles.add(context[direction]);
           }
         }
-      }
-      else if (Array.isArray(limit)) {
+      } else if (Array.isArray(limit)) {
         const tile = board.getTileRotation(limit, degree);
         if (!tile) continue;
 
@@ -381,12 +443,37 @@ serializer.addType({
             },
             additionalProperties: false,
           },
+          endGameCondition: {
+            oneOf: [
+              { type:'array', items:{ $ref:'#/definitions/endGameCondition' } },
+              { $ref:'#/definitions/endGameCondition' }
+            ],
+          },
         },
         additionalProperties: false,
       },
     },
     additionalProperties: false,
     definitions: {
+      endGameCondition: {
+        type: 'object',
+        required: [ 'type' ],
+        oneOf: [
+          {
+            properties: {
+              type: { type:'string', const:'placement' },
+              unitType: { type:'string' },
+              tiles: { $ref:'#/definitions/tiles' },
+            },
+          },
+          {
+            properties: {
+              type: { type:'string', const:'dead' },
+              unitType: { type:'string' },
+            },
+          },
+        ],
+      },
       coords: {
         type: 'array',
         minItems: 2,
