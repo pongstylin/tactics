@@ -77,7 +77,7 @@ export default class GameType {
 
   getLosingTeams(teams) {
     const endGameCondition =
-      !this.config.endGameCondition ? { type:'default' } :
+      !this.config.endGameCondition ? [{ type:'default' }] :
       Array.isArray(this.config.endGameCondition) ? this.config.endGameCondition :
       [ this.config.endGameCondition ];
 

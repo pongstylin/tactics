@@ -80,6 +80,7 @@ const oppRotation = new Map([
   [ 'S', 'N' ],
   [ 'W', 'E' ],
 ]);
+const directions = [ 'N', 'E', 'S', 'W' ];
 
 const gameConfigProps = {
   audio: true,
@@ -104,6 +105,10 @@ export const gameConfig = {
   },
   get oppColorId() {
     return this.teamColorIds[0];
+  },
+
+  getTeamColorId(team) {
+    return this.teamColorIds[directions.indexOf(team.position)];
   },
 
   _cache: new Map(),

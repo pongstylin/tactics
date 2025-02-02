@@ -1079,6 +1079,7 @@ async function joinGame(arena) {
 
   if (
     configureGame.confirmBeforeJoin ||
+    arena.mode === 'fork' ||
     arena.meta.creator.relationship?.type === 'blocked' ||
     (arena.meta.creator.relationship?.name ?? creatorTeam.name) !== creatorTeam.name
   ) {
