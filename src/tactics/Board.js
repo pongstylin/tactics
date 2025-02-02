@@ -1985,7 +1985,7 @@ export default class Board {
         selected.setTargetNotice(unit);
     } else if (tile.action === 'target') {
       if (unit)
-        selected.setTargetNotice(unit);
+        selected.setTargetNotice(unit, this.target);
     }
 
     /*

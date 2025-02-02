@@ -152,25 +152,6 @@ export default class Transport {
       atEnd: currentTurn.isGameEnded,
     };
   }
-  get winningTeams() {
-    return this.board.teams.filter(team =>
-      !!team.units.find(unit => {
-        // Wards don't count.
-        if (unit.type === 'BarrierWard' || unit.type === 'LightningWard')
-          return false;
-
-        // Shrubs don't count.
-        if (unit.type === 'Shrub')
-          return false;
-
-        // Paralyzed units don't count.
-        if (unit.paralyzed)
-          return false;
-
-        return true;
-      })
-    );
-  }
 
   get lockedTurnId() {
     return this._getStateData('lockedTurnId');

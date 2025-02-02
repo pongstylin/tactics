@@ -437,6 +437,7 @@ export default class extends FileAdapter {
       game.on('change', event => this._onGameChange(game));
       return data;
     });
+    game.state.gameType = this.getGameType(game.state.type);
     await this._updateGameSummary(game);
   }
   async _getGame(gameId) {
@@ -449,6 +450,7 @@ export default class extends FileAdapter {
       if (data === undefined) return;
 
       const game = serializer.normalize(migrate('game', data));
+      game.state.gameType = this.getGameType(game.state.type);
       game.on('change', event => this._onGameChange(game));
       return game;
     });

@@ -143,15 +143,22 @@ export default class ConfigureGame extends Modal {
       styleConfigData: null,
     });
 
+    const content = this._els.content;
+
     Object.assign(this._els, {
-      divPlayerSetup: this.root.querySelector('.playerName .indent'),
-      btnSubmit: this.root.querySelector('BUTTON[name=submit]'),
-      divMessage: this.root.querySelector('.message'),
-      divSearch: this.root.querySelector('.vs .search'),
-      divMatches: this.root.querySelector('.vs .matches'),
-      selGameType: this.root.querySelector('SELECT[name=type]'),
-      selSet: this.root.querySelector('SELECT[name=set]'),
-      aChangeLink: this.root.querySelector('.change'),
+      divPlayerSetup: content.querySelector('.playerName .indent'),
+      btnSubmit: content.querySelector('BUTTON[name=submit]'),
+      divMessage: content.querySelector('.message'),
+      divSearch: content.querySelector('.vs .search'),
+      divMatches: content.querySelector('.vs .matches'),
+      selGameType: content.querySelector('SELECT[name=type]'),
+      selSet: content.querySelector('SELECT[name=set]'),
+      aChangeLink: content.querySelector('.change'),
+
+      set: content.querySelector('.set'),
+      customize: content.querySelector('.customize'),
+      buttons: content.querySelector('.buttons'),
+      remember: content.querySelector('.remember'),
     });
     this.root.classList.add('configureGame');
 
@@ -751,18 +758,47 @@ export default class ConfigureGame extends Modal {
 
     selSet.querySelector('OPTION[value=same]').style.display = 'none';
     selSet.querySelector('OPTION[value=mirror]').style.display = 'none';
+    this._els.set.style.display = '';
+    this._els.customize.style.display = '';
+    this._els.remember.style.display = '';
+    this._els.buttons.style.justifyContent = '';
 
     if (this.data.view === 'confirmBeforeJoin') {
       const gs = this.data.props.gameSummary;
       const creatorIndex = gs.teams.findIndex(t => t.playerId === gs.createdBy);
       const ranks = gs.meta.ranks[creatorIndex];
       const messages = [];
-      const ratedMessage = (() => {
+      const ratedMessage = await (async () => {
         if (gs.meta.rated)
           return `This will be a rated game.`;
 
         let reason;
-        if (!authClient.isVerified)
+        if (gs.mode === 'fork') {
+          const gameData = await gameClient.getGameData(gs.id);
+          const forkOf = gameData.forkOf;
+          const playerIds = new Set(gameData.state.teams.map(t => t.forkOf.playerId));
+          const of = playerIds.size === 1 ? 'single player game' : 'game';
+
+          reason =
+            `this game is a fork of <A href="/game.html?${forkOf.gameId}#c=${forkOf.turnId},0" target="_blank">that ${of}</A>`;
+
+          const getName = team => {
+            if (team.forkOf.playerId === team.playerId)
+              return team.playerId === authClient.playerId ? 'yourself' : 'themself';
+            if (team.forkOf.name && gameData.state.teams.filter(t => t.forkOf.name === team.forkOf.name).length === 1)
+              return team.name;
+            // This color moniker can be wrong in cases where the player participated in the origin game.
+            // This is due to how the Game class rotates the board.
+            return gameConfig.getTeamColorId(team);
+          };
+          const theirTeam = gameData.state.teams.find(t => !!t.joinedAt);
+          const theirName = getName(theirTeam);
+          const yourTeam = gameData.state.teams.find(t => !t.joinedAt);
+          const yourName = getName(yourTeam);
+
+          messages.push(`They will play as ${theirName}.`);
+          messages.push(`You will play as ${yourName}.`);
+        } else if (!authClient.isVerified)
           reason = `you are a guest`;
         else if (!ranks)
           reason = `they are a guest`;
@@ -787,33 +823,40 @@ export default class ConfigureGame extends Modal {
         return `This will not be a rated game because ${reason}.`;
       })();
 
-      if (gs.meta.creator.relationship.type)
-        messages.push(`You ${gs.meta.creator.relationship.type} this player as ${gs.meta.creator.relationship.name}.`);
+      if (gs.mode === 'fork') {
+        this._els.set.style.display = 'none';
+        this._els.customize.style.display = 'none';
+        this._els.remember.style.display = 'none';
+        this._els.buttons.style.justifyContent = 'end';
+      } else {
+        if (gs.meta.creator.relationship.type)
+          messages.push(`You ${gs.meta.creator.relationship.type} this player as ${gs.meta.creator.relationship.name}.`);
 
-      messages.push(`They created their account ${getElapsed(gs.meta.creator.createdAt)} ago.`);
+        messages.push(`They created their account ${getElapsed(gs.meta.creator.createdAt)} ago.`);
 
-      if (ranks) {
-        const forteRank = ranks.find(r => r.rankingId === 'FORTE');
-        const styleRank = ranks.find(r => r.rankingId === this.gameTypeId);
-        const provisional = styleRank && styleRank.gameCount < 10 ? ' provisional' : '';
+        if (ranks) {
+          const forteRank = ranks.find(r => r.rankingId === 'FORTE');
+          const styleRank = ranks.find(r => r.rankingId === this.gameTypeId);
+          const provisional = styleRank && styleRank.gameCount < 10 ? ' provisional' : '';
 
-        if (forteRank)
-          messages.push(`They have Forte rank #${forteRank.num} (${forteRank.rating}).`);
-        if (styleRank)
-          messages.push(`They have${provisional} style rank #${styleRank.num} (${styleRank.rating}).`);
-        else
-          messages.push(`They are unranked in this style.`);
+          if (forteRank)
+            messages.push(`They have Forte rank #${forteRank.num} (${forteRank.rating}).`);
+          if (styleRank)
+            messages.push(`They have${provisional} style rank #${styleRank.num} (${styleRank.rating}).`);
+          else
+            messages.push(`They are unranked in this style.`);
+        }
+
+        if (gs.mode === 'practice') {
+          selSet.querySelector('OPTION[value=same]').style.display = '';
+          selSet.querySelector('OPTION[value=mirror]').style.display = '';
+        }
       }
 
       this.root.querySelector('.intro').innerHTML = `
         <DIV>${ratedMessage}</DIV>
         ${ messages.length ? `<DIV>${messages.join('<BR>')}</DIV>` : '' }
       `;
-
-      if (gs.mode === 'practice') {
-        selSet.querySelector('OPTION[value=same]').style.display = '';
-        selSet.querySelector('OPTION[value=mirror]').style.display = '';
-      }
     } else if (this.data.view === 'forkGame') {
       const game = this.data.props.game;
       const forkOf = game.state.forkOf;
@@ -998,7 +1041,7 @@ export default class ConfigureGame extends Modal {
 
     this.styleConfigData = styleConfigData;
     styleConfig.save(styleConfigData);
-    this.root.querySelector('.remember').classList.add('saved');
+    this._els.remember.classList.add('saved');
   }
 
   async _submit() {

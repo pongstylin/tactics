@@ -371,6 +371,7 @@ export default class Game extends ActiveModel {
       throw new ServerError(403, 'Forking is restricted for this game until it ends.');
 
     const forkGameData = serializer.clone(this.data);
+    forkGameData.state.gameType = this.state.gameType;
     delete forkGameData.collection;
 
     if (turnId === undefined)
@@ -387,7 +388,7 @@ export default class Game extends ActiveModel {
     forkGameData.state.autoPass(true);
 
     while (turnId > 0) {
-      if (forkGameData.state.winningTeams.length < 2) {
+      if (forkGameData.state.winningTeams.length) {
         forkGameData.state.revert(--turnId);
         continue;
       }

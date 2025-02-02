@@ -179,17 +179,15 @@ export default class GameStateCursor {
   /*
    * Pains are taken to request as little data as possible.
    */
-  async _getCursorData(turnId, nextActionId, skipAutoPassedTurns = false, skipTurnData) {
+  async _getCursorData(turnId, nextActionId = -1, skipAutoPassedTurns = false, skipTurnData) {
     const state = this.state;
     const stateTurnId = state.currentTurnId;
     let turnData;
 
-    if (turnId < 0) {
+    if (turnId < 0)
       turnId = Math.max(0, this.state.currentTurnId + turnId + 1);
-    } else if (turnId > this.state.currentTurnId) {
+    else if (turnId > this.state.currentTurnId)
       turnId = this.state.currentTurnId;
-      nextActionId = -1;
-    }
 
     // Data for the current turn is already available.
     if (turnId === stateTurnId) {
