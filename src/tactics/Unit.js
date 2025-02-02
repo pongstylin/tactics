@@ -1579,7 +1579,7 @@ export default class Unit {
     );
   }
   setTargetNotice(targetUnit, target, stats = null) {
-    if (this.canSpecial() && (target ?? this.assignment) === this.assignment && !stats)
+    if (this.canSpecial() && (target ?? targetUnit.assignment) === this.assignment && !stats)
       return this.setSpecialTargetNotice(targetUnit);
 
     let calc = this.calcAttack(targetUnit, null, target, stats);
