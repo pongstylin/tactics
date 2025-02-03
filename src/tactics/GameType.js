@@ -50,6 +50,9 @@ export default class GameType {
   get name() {
     return this.config.name;
   }
+  get notice() {
+    return this.config.notice ?? null;
+  }
   get description() {
     return this.config.description;
   }

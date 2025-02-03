@@ -943,6 +943,9 @@ function resetChatStatus(playerId) {
   }
 }
 function initMessages(messages) {
+  if (gameType.notice)
+    messages.push({ content:gameType.notice });
+
   if (game.state.randomHitChance === false)
     messages.push({ content:[
       `This is a <a href="javascript:void(0)" class="info-no-luck">No Luck</a> game.  `,
