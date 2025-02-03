@@ -462,6 +462,7 @@
     "furgyRace",
     {
       "name": "Furgy Race",
+      "notice": "Race your Furgon to the other side of the board or kill theirs to win.",
       "description": "You may use a Furgon and one other unit for support.  The first team to race their Furgon to the opposite side of the board wins... but killing the enemy Furgon will work just as well.",
       "customizable": true,
       "limits": {
