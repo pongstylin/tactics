@@ -821,6 +821,7 @@
     "silverstone",
     {
       "name": "Silverstone",
+      "archived": true,
       "description": "This custom style invented by still_the_gr8st requires exactly 8 units including a Stone Golem, but excluding a Scout!",
       "customizable": true,
       "limits": {
@@ -868,6 +869,149 @@
           { "assignment":[4,0], "type":"Berserker" },
           { "assignment":[3,0], "type":"StoneGolem" },
           { "assignment":[2,0], "type":"Cleric" }
+        ]
+      }]
+    }
+  ],
+  [
+    "AshTrae",
+    {
+      "name": "Fortress Builder",
+      "description": "This custom style invented by Lord Ash is based on having a fortress made of wards and a common area to fight in.",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,3] },
+        "points": 20,
+        "units": {
+          "types": [
+            ["LightningWard",     { "required":7, "max":10 } ],
+            ["BarrierWard",       { "required":3, "max":5  } ],
+            ["Scout",             { "required":2, "max":2  } ],
+            ["Knight",            { "required":2, "max":2  } ],
+            ["GolemAmbusher",     { "required":2, "max":2  } ],
+            ["Cleric",            { "required":1, "max":1  } ],
+            ["DarkMagicWitch",    { "required":1, "max":1  } ],
+
+            ["Assassin",          { "max":2 }],
+            ["StoneGolem",        { "max":2 }],
+            ["Pyromancer",        { "max":2 }],
+            ["Enchantress",       { "max":2 }],
+            ["MudGolem",          { "max":2 }],
+            ["PoisonWisp",        { "max":2 }],
+            ["FrostGolem",        { "max":2 }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
+            ["Furgon",            { "max":2 }],
+            ["DragonspeakerMage", { "max":2 }],
+            ["BeastRider",        { "max":2 }],
+            ["Berserker",         { "max":2 }]
+          ]
+        }
+      },
+      "sets": [{
+        "id": "default",
+        "name": "Default",
+        "units": [
+          { "assignment":[6, 2], "type":"LightningWard" },
+          { "assignment":[5, 2], "type":"BarrierWard" },
+          { "assignment":[3, 2], "type":"BarrierWard" },
+          { "assignment":[10, 3], "type":"LightningWard" },
+          { "assignment":[9, 3], "type":"LightningWard" },
+          { "assignment":[8, 3], "type":"LightningWard" },
+          { "assignment":[7, 3], "type":"LightningWard" },
+          { "assignment":[6, 3], "type":"LightningWard" },
+          { "assignment":[2, 3], "type":"LightningWard" },
+          { "assignment":[1, 3], "type":"BarrierWard" },
+
+          { "assignment":[6, 0], "type":"DragonTyrant" },
+          { "assignment":[8, 0], "type":"Cleric" },
+          { "assignment":[1, 1], "type":"Scout" },
+          { "assignment":[8, 1], "type":"DarkMagicWitch" },
+          { "assignment":[9, 1], "type":"Scout" },
+          { "assignment":[2, 2], "type":"GolemAmbusher" },
+          { "assignment":[4, 2], "type":"Knight" },
+          { "assignment":[8, 2], "type":"GolemAmbusher" },
+          { "assignment":[0, 3], "type":"Knight" }
+        ]
+      }]
+    }
+  ],
+  [
+    "golemRush",
+    {
+      "name": "Golem Rush",
+      "notice": "Race a Stone Golem to the other side of the board or capture all of theirs to win.",
+      "description": "This custom style invented by the_gr8est is inspired by Furgy Race and TAO 100.  Rush a Stone Golem to your opponent's back wall or capture all enemy Stone Golems to win.",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 100,
+        "units": {
+          "types": [
+            [ "StoneGolem",     { "max":3, "points":25, "tiles":{ "start":[0,4], "end":[10,4] }, "required":3 } ],
+            [ "DragonTyrant",   { "max":1, "points":12, "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Knight",         { "max":1, "points":10, "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "FrostGolem",     { "max":1, "points":10, "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Scout",          { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "PoisonWisp",     { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Berserker",      { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "MudGolem",       { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Cleric",         { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "BeastRider",     { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "GolemAmbusher",  { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Assassin",       { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "LightningWard",  { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "DarkMagicWitch", { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Pyromancer",     { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Enchantress",    { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "BarrierWard",    { "max":1, "points":5,  "tiles":{ "start":[0,0], "end":[10,2] } } ]
+          ]
+        }
+      },
+      "endGameCondition": {
+        "type": "placement",
+        "unitType": "StoneGolem",
+        "tiles": { "start":[0,10], "end":[10,10] }
+      },
+      "sets": [{
+        "name": "Default",
+        "units": [
+          { "assignment":[4,4], "type":"StoneGolem" },
+          { "assignment":[5,4], "type":"StoneGolem" },
+          { "assignment":[6,4], "type":"StoneGolem" },
+          { "assignment":[4,2], "type":"DarkMagicWitch" },
+          { "assignment":[5,2], "type":"DragonTyrant" },
+          { "assignment":[6,2], "type":"Assassin" }
+        ]
+      }, {
+        "name": "Default",
+        "units": [
+          { "assignment":[4,4], "type":"StoneGolem" },
+          { "assignment":[5,4], "type":"StoneGolem" },
+          { "assignment":[6,4], "type":"StoneGolem" },
+          { "assignment":[4,2], "type":"GolemAmbusher" },
+          { "assignment":[5,2], "type":"Enchantress" },
+          { "assignment":[6,2], "type":"Assassin" },
+          { "assignment":[5,1], "type":"BarrierWard" }
+        ]
+      }, {
+        "name": "Default",
+        "units": [
+          { "assignment":[4,4], "type":"StoneGolem" },
+          { "assignment":[5,4], "type":"StoneGolem" },
+          { "assignment":[6,4], "type":"StoneGolem" },
+          { "assignment":[4,2], "type":"MudGolem" },
+          { "assignment":[5,2], "type":"PoisonWisp" },
+          { "assignment":[6,2], "type":"BeastRider" }
+        ]
+      }, {
+        "name": "Default",
+        "units": [
+          { "assignment":[4,4], "type":"StoneGolem" },
+          { "assignment":[5,4], "type":"StoneGolem" },
+          { "assignment":[6,4], "type":"StoneGolem" },
+          { "assignment":[4,2], "type":"Scout" },
+          { "assignment":[5,2], "type":"Pyromancer" },
+          { "assignment":[6,2], "type":"Knight" }
         ]
       }]
     }
