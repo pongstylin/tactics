@@ -938,7 +938,7 @@
   [
     "golemRush",
     {
-      "name": "Golem Rush",
+      "name": "Stone Rush",
       "notice": "Race a Stone Golem to the other side of the board or capture all of theirs to win.",
       "description": "This custom style invented by the_gr8est is inspired by Furgy Race and TAO 100.  Rush a Stone Golem to your opponent's back wall or capture all enemy Stone Golems to win.",
       "customizable": true,
