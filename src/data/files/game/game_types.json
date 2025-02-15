@@ -71,6 +71,19 @@
           {"type":"Knight","assignment":[8,4]},
           {"type":"DragonTyrant","assignment":[10,4]}
         ]
+      },{
+        "name": "Eliminator Rush",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-24 },
+          { "assignment":[1, 4], "type":"Scout" },
+          { "assignment":[3, 4], "type":"Pyromancer", "mPower":12 },
+          { "assignment":[4, 4], "type":"Knight" },
+          { "assignment":[5, 4], "type":"MudGolem" },
+          { "assignment":[6, 4], "type":"Knight" },
+          { "assignment":[7, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[9, 4], "type":"Scout" }
+        ]
       }]
     }
   ],
