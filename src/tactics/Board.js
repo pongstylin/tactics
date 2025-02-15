@@ -1233,8 +1233,8 @@ export default class Board {
       unit.color = colorFilterMap.get(team.colorId);
     unit.stand();
 
-    this.assign(unit, unit.assignment);
     unit.initialState = unit.toJSON();
+    this.assign(unit, unit.assignment);
 
     team.units.push(unit);
     unit.attach();
