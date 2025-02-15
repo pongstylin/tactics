@@ -1,4 +1,5 @@
 import ActiveModel from '#models/ActiveModel.js';
+import GameType from '#tactics/GameType.js';
 import ServerError from '#server/Error.js';
 import serializer from '#utils/serializer.js';
 
@@ -29,6 +30,7 @@ export default class Identity extends ActiveModel {
     // Used to sync player.identityId when identities are merged.
     playerIds: Set<string>
   }
+  protected gameTypes: Map<string,GameType>
 
   constructor(data) {
     super();
@@ -138,7 +140,7 @@ export default class Identity extends ActiveModel {
     return ([ ...this.data.playerIds ] as any).last;
   }
 
-  getRanks(rankingIds) {
+  getRanks(rankingIds = []) {
     const ranks = this.data.ranks;
     if (!ranks)
       return [];
@@ -156,7 +158,26 @@ export default class Identity extends ActiveModel {
   }
   setRanks(playerId, ratings) {
     this.data.ranks = { playerId, ratings };
+    this.pruneRanks();
     this.emit('change:setRanks');
+  }
+  pruneRanks(gameTypes = null) {
+    gameTypes = gameTypes ? this.gameTypes = gameTypes : this.gameTypes;
+
+    const ranks = this.data.ranks;
+    if (!gameTypes || !ranks)
+      return;
+
+    const numRatings = ranks.ratings.size;
+
+    for (const ratingId of ranks.ratings.keys())
+      if (!gameTypes.has(ratingId) || gameTypes.get(ratingId).archive)
+        ranks.ratings.delete(ratingId);
+
+    if (numRatings === ranks.ratings.size)
+      return;
+
+    this.emit('change:pruneRanks');
   }
 
   merge(identity) {

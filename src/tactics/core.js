@@ -348,6 +348,7 @@ window.Tactics = (function () {
     makeCanvasSourceFromURL(url) {
       return new Promise((resolve, reject) => {
         const image = new Image();
+        image.crossOrigin = 'anonymous';
         image.onload = () => resolve(image);
         image.onerror = () => reject(new Error(`Failed to load image: ${url}`));
         image.src = url;

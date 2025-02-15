@@ -82,6 +82,10 @@ export default class AuthService extends Service {
     });
   }
 
+  syncRankings(gameTypes) {
+    this.data.syncRankings(gameTypes);
+  }
+
   openPlayer(playerId) {
     return this.data.openPlayer(playerId);
   }
