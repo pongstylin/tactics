@@ -214,9 +214,8 @@ export default class GameService extends Service {
     if (!state.willSync)
       state.willSync = new Timeout(`${this.name}WillSync`);
     state.willSync.on('expire', async ({ data:items }) => {
-      for (const game of await this._getGames(items.keys())) {
+      for (const game of await this._getGames(items.keys()))
         game.state.sync({ type:'willSync' });
-      }
     });
 
     if (!state.autoSurrender)
@@ -291,6 +290,8 @@ export default class GameService extends Service {
 
       state.autoSurrender.resume();
     }
+
+    this.auth.syncRankings(this.data.getGameTypesById());
 
     return super.initialize();
   }
@@ -969,6 +970,7 @@ export default class GameService extends Service {
     const gameTypesById = await this.data.getGameTypesById();
     const me = await this._getAuthPlayer(inPlayerId);
     const them = await this._getAuthPlayer(forPlayerId);
+    const ranks = me.identity.getRanks();
     const globalStats = await this.data.getPlayerStats(forPlayerId);
     const localStats = await this.data.getPlayerInfo(inPlayerId, forPlayerId);
 
@@ -990,11 +992,11 @@ export default class GameService extends Service {
       ]),
       relationship: me.getRelationship(them),
       stats: {
-        ratings: [ ...globalStats.ratings ].map(([ gtId, r ]) => ({
-          gameTypeId: gtId,
-          gameTypeName: gtId === 'FORTE' ? 'Forte' : gameTypesById.get(gtId).name,
-          rating: r.rating,
-          gameCount: r.gameCount,
+        ratings: ranks.map(rank => ({
+          gameTypeId: rank.rankingId,
+          gameTypeName: rank.rankingId === 'FORTE' ? 'Forte' : gameTypesById.get(rank.rankingId).name,
+          rating: rank.rating,
+          gameCount: rank.gameCount,
         })).sort((a,b) => b.rating - a.rating),
         aliases: [...localStats.aliases.values()]
           .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())

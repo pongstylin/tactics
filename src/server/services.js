@@ -52,20 +52,16 @@ const servicesReady = Promise.all(
   /*
    * Now that all services are instantiated, enable each service to access the others.
    */
-  for (const serviceA of services.values()) {
-    for (const [ serviceName, serviceB ] of services) {
-      if (serviceA === serviceB) continue;
-
-      serviceA[serviceName] = serviceB;
-    }
-  }
+  for (const serviceA of services.values())
+    for (const [ serviceName, serviceB ] of services)
+      if (serviceA !== serviceB)
+        serviceA[serviceName] = serviceB;
 
   /*
    * Now that all services are ready, initialize them.
    */
-  for (const service of services.values()) {
+  for (const service of services.values())
     service.initialize();
-  }
 }).catch(error => {
   console.error(error);
   process.exit(1);

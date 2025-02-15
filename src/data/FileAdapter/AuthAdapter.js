@@ -33,6 +33,7 @@ export default class extends FileAdapter {
           },
         ],
       ]),
+      gameTypes: null,
     });
   }
 
@@ -55,6 +56,14 @@ export default class extends FileAdapter {
     Player.identities = this.state.identities;
 
     return this;
+  }
+
+  syncRankings(gameTypes) {
+    const identityCache = this.cache.get('identity');
+    this.gameTypes = gameTypes;
+
+    for (const identity of identityCache.values())
+      identity.pruneRanks(gameTypes);
   }
 
   /*****************************************************************************
@@ -271,6 +280,7 @@ export default class extends FileAdapter {
       const identity = data === undefined
         ? Identity.create(player)
         : serializer.normalize(migrate('identity', data));
+      identity.pruneRanks(this.gameTypes);
 
       return this._subscribeIdentity(identity);
     });
