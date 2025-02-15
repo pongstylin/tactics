@@ -171,7 +171,7 @@ export default class Identity extends ActiveModel {
     const numRatings = ranks.ratings.size;
 
     for (const ratingId of ranks.ratings.keys())
-      if (!gameTypes.has(ratingId) || gameTypes.get(ratingId).archive)
+      if (!gameTypes.has(ratingId) || gameTypes.get(ratingId).archived)
         ranks.ratings.delete(ratingId);
 
     if (numRatings === ranks.ratings.size)
