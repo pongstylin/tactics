@@ -1016,6 +1016,7 @@ export default class GameService extends Service {
   async onGetMyInfoRequest(client) {
     const playerId = this.clientPara.get(client.id).playerId;
     const player = await this._getAuthPlayer(playerId);
+    const ranks = player.identity.getRanks();
     const gameTypesById = await this.data.getGameTypesById();
     const myStats = await this.data.getPlayerStats(playerId);
 
@@ -1024,12 +1025,12 @@ export default class GameService extends Service {
       completed: myStats.completed,
       isVerified: player.isVerified,
       stats: {
-        ratings: [ ...myStats.ratings ].map(([ gtId, r ]) => ({
-          gameTypeId: gtId,
-          gameTypeName: gtId === 'FORTE' ? 'Forte' : gameTypesById.get(gtId).name,
-          rating: r.rating,
-          gameCount: r.gameCount,
-        })).sort((a,b) => b.rating - a.rating),
+        ratings: ranks.map(rank => ({
+          gameTypeId: rank.rankingId,
+          gameTypeName: rank.rankingId === 'FORTE' ? 'Forte' : gameTypesById.get(rank.rankingId).name,
+          rating: rank.rating,
+          gameCount: rank.gameCount,
+        })),
       },
     };
   }
