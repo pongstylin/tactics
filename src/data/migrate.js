@@ -107,6 +107,14 @@ migrationMap.set('identity', [
 
     return json;
   },
+  json => {
+    const data = json.$data;
+
+    if (data.ranks)
+      data.ranks.ratings = data.ranks.ratings.filter(r => r.rankingId !== 'FORTE');
+
+    return json;
+  },
 ]);
 
 migrationMap.set('game', [
