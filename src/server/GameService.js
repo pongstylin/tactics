@@ -997,7 +997,7 @@ export default class GameService extends Service {
           gameTypeName: rank.rankingId === 'FORTE' ? 'Forte' : gameTypesById.get(rank.rankingId).name,
           rating: rank.rating,
           gameCount: rank.gameCount,
-        })).sort((a,b) => b.rating - a.rating),
+        })),
         aliases: [...localStats.aliases.values()]
           .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
           .sort((a, b) =>

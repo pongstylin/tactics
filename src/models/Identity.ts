@@ -157,7 +157,7 @@ export default class Identity extends ActiveModel {
     if (!ranks)
       return [];
     else if (rankingIds.length === 0)
-      return ranks.ratings;
+      return ranks.ratings.slice();
 
     return ranks.ratings.filter(r => rankingIds.includes(r.rankingId));
   }
@@ -266,9 +266,12 @@ export default class Identity extends ActiveModel {
     json.playerIds = [ ...json.playerIds ];
 
     if (json.ranks)
-      json.ranks.ratings = json.ranks.ratings
-        .filter(r => r.rankingId !== 'FORTE')
-        .map(({ rankingId, rating, gameCount }) => ({ rankingId, rating, gameCount }));
+      json.ranks = {
+        playerId: json.ranks.playerId,
+        ratings: json.ranks.ratings
+          .filter(r => r.rankingId !== 'FORTE')
+          .map(({ rankingId, rating, gameCount }) => ({ rankingId, rating, gameCount })),
+      };
 
     return json;
   }
