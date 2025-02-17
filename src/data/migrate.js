@@ -115,6 +115,14 @@ migrationMap.set('identity', [
 
     return json;
   },
+  json => {
+    const data = json.$data;
+
+    if (data.ranks)
+      data.ranks.ratings.sort((a,b) => b.rating - a.rating);
+
+    return json;
+  },
 ]);
 
 migrationMap.set('game', [
