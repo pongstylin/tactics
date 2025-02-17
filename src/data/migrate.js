@@ -94,6 +94,21 @@ migrationMap.set('player', [
   },
 ]);
 
+migrationMap.set('identity', [
+  json => {
+    const data = json.$data;
+
+    if (data.ranks)
+      data.ranks.ratings = data.ranks.ratings.map(([ rId, r ]) => ({
+        rankingId: rId,
+        rating: r.rating,
+        gameCount: r.gameCount,
+      }));
+
+    return json;
+  },
+]);
+
 migrationMap.set('game', [
   /*
    * Added turnTimeLimit to game state.  When blank, should be null.

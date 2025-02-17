@@ -1,5 +1,6 @@
 import ActiveModel from '#models/ActiveModel.js';
 import GameType from '#tactics/GameType.js';
+import { addForteRank } from '#models/PlayerStats.js';
 import ServerError from '#server/Error.js';
 import serializer from '#utils/serializer.js';
 
@@ -16,7 +17,10 @@ export default class Identity extends ActiveModel {
     id: string
     name?: string
     aliases?: Map<string,Date>
-    ranks?: { playerId:number, ratings:Map<string,{ rating:number, gameCount:number }> }
+    ranks?: {
+      playerId:number,
+      ratings:{ rankingId:string, playerId:string, name:string, rating:number, gameCount:number }[]
+    }
     muted: boolean
     admin: boolean
     lastSeenAt: Date
@@ -40,6 +44,14 @@ export default class Identity extends ActiveModel {
       data.aliases = new Map();
     if (data.relationships === undefined)
       data.relationships = new Map();
+    if (data.ranks)
+      data.ranks.ratings = addForteRank(data.ranks.ratings.map(r => ({
+        rankingId: r.rankingId,
+        playerId: data.ranks.playerId,
+        name: this.name,
+        rating: r.rating,
+        gameCount: r.gameCount,
+      })));
   }
 
   static create(player) {
@@ -144,19 +156,22 @@ export default class Identity extends ActiveModel {
     const ranks = this.data.ranks;
     if (!ranks)
       return [];
+    else if (rankingIds.length === 0)
+      return ranks.ratings;
 
-    return Array.from(ranks.ratings.entries())
-      .filter(([ rId, r ]) => rankingIds.length === 0 || rankingIds.includes(rId))
+    return ranks.ratings.filter(r => rankingIds.includes(r.rankingId));
+  }
+  setRanks(playerId, ratingsMap) {
+    const ratings = addForteRank(Array.from(ratingsMap.entries())
       .sort((a,b) => b[1].rating - a[1].rating)
       .map(([ rId, r ]) => ({
         rankingId: rId,
-        playerId: ranks.playerId,
+        playerId,
         name: this.name,
         rating: r.rating,
         gameCount: r.gameCount,
-      }));
-  }
-  setRanks(playerId, ratings) {
+      })));
+
     this.data.ranks = { playerId, ratings };
     this.pruneRanks();
     this.emit('change:setRanks');
@@ -168,13 +183,11 @@ export default class Identity extends ActiveModel {
     if (!gameTypes || !ranks)
       return;
 
-    const numRatings = ranks.ratings.size;
+    const ratings = ranks.ratings.filter(r => (
+      r.rankingId === 'FORTE' || (gameTypes.has(r.rankingId) && !gameTypes.get(r.rankingId).config.archived)
+    ));
 
-    for (const rankingId of ranks.ratings.keys())
-      if (rankingId !== 'FORTE' && !gameTypes.has(rankingId) || gameTypes.get(rankingId).config.archived)
-        ranks.ratings.delete(rankingId);
-
-    if (numRatings === ranks.ratings.size)
+    if (ratings.length === ranks.ratings.length)
       return;
 
     this.emit('change:pruneRanks');
@@ -252,6 +265,11 @@ export default class Identity extends ActiveModel {
       delete json.relationships;
     json.playerIds = [ ...json.playerIds ];
 
+    if (json.ranks)
+      json.ranks.ratings = json.ranks.ratings
+        .filter(r => r.rankingId !== 'FORTE')
+        .map(({ rankingId, rating, gameCount }) => ({ rankingId, rating, gameCount }));
+
     return json;
   }
 };
@@ -283,13 +301,14 @@ serializer.addType({
           playerId: { type:'string', format:'uuid' },
           ratings: {
             type: 'array',
-            subType: 'Map',
             items: {
-              type: 'array',
-              items: [
-                { type:'string', format:'uuid' },
-                { type:'number' },
-              ],
+              type: 'object',
+              required: [ 'rankingId', 'rating', 'gameCount' ],
+              properties: {
+                rankingId: { type:'string' },
+                rating: { type:'number' },
+                gameCount: { type:'number' },
+              },
             },
           },
         },
