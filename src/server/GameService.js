@@ -970,7 +970,7 @@ export default class GameService extends Service {
     const gameTypesById = await this.data.getGameTypesById();
     const me = await this._getAuthPlayer(inPlayerId);
     const them = await this._getAuthPlayer(forPlayerId);
-    const ranks = me.identity.getRanks();
+    const ranks = them.identity.getRanks();
     const globalStats = await this.data.getPlayerStats(forPlayerId);
     const localStats = await this.data.getPlayerInfo(inPlayerId, forPlayerId);
 

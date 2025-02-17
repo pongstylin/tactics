@@ -32,10 +32,9 @@ export default class PlayerStats extends ActiveModel {
 
     const teamsMeta = game.state.teams.map(t => {
       const stats = playersStatsMap.get(t.playerId);
-      const forteRating = stats._getRatingInfo('FORTE').rating;
       const ratingInfo = stats._getRatingInfo(game.state.type);
 
-      return { id:t.id, stats, forteRating, ...ratingInfo };
+      return { id:t.id, stats, ...ratingInfo };
     });
 
     teamsMeta.sort((a,b) => game.state.winnerId === a.id ? -1 : game.state.winnerId === b.id ? 1 : 0);
@@ -46,18 +45,20 @@ export default class PlayerStats extends ActiveModel {
 
     for (const [ t, teamMeta ] of teamsMeta.entries()) {
       const team = game.state.teams[teamMeta.id];
+      const stats = teamMeta.stats;
+      const oldForte = stats.calcForteRating();
+      const oldRating = teamMeta.rating;
 
-      teamMeta.stats.setRating(
+      stats.setRating(
         game.state.type,
         Math.max(100, _computeElo(...ratings, k[t], isDraw)[t]),
       );
 
-      const newRatingsInfo = teamMeta.stats._getRatingsInfo();
-      const newForte = newRatingsInfo.get('FORTE')?.rating ?? 0;
-      const newRating = newRatingsInfo.get(game.state.type).rating;
+      const newForte = stats.calcForteRating();
+      const newRating = stats._getRatingInfo(game.state.type).rating;
 
       if (newForte)
-        team.setRating('FORTE', teamMeta.forteRating, newForte);
+        team.setRating('FORTE', oldForte, newForte);
       team.setRating(game.state.type, teamMeta.rating, newRating);
     }
 
@@ -97,6 +98,21 @@ export default class PlayerStats extends ActiveModel {
     ratingInfo.rating = rating;
 
     this.emit('change:setRating');
+  }
+
+  calcForteRating() {
+    const ratingsInfo = [ ...this._getRatingsInfo().values() ].sort((a,b) => b.rating - a.rating);
+
+    let weight = 1.0;
+    let rating = 0;
+    for (const ratingInfo of ratingsInfo) {
+      if (ratingInfo.gameCount > 9) {
+        weight /= 2;
+        rating += Math.round(ratingInfo.rating * weight);
+      }
+    }
+
+    return rating;
   }
 
   recordGameStart(game) {
@@ -288,17 +304,6 @@ export default class PlayerStats extends ActiveModel {
     if (persist)
       myStats.ratings = ratingsInfo;
 
-    if (!persist) {
-      const forteRating = _calcForteRating(ratingsInfo);
-      const gameCount = [ ...ratingsInfo.values() ].reduce((sum, ri) => sum += ri.gameCount, 0);
-      const updatedAt = Math.max(...[ ratingsInfo.values() ].map(ri => ri.updatedat));
-      if (forteRating)
-        return new Map([
-          [ 'FORTE', { rating:forteRating, gameCount, updatedAt:new Date(updatedAt) } ],
-          ...ratingsInfo,
-        ]);
-    }
-
     return ratingsInfo;
   }
   _getRatingInfo(rankingId, persist = false) {
@@ -315,20 +320,36 @@ export default class PlayerStats extends ActiveModel {
   }
 };
 
-function _calcForteRating(ratingsInfo) {
-  const sortedRatingsInfo = [ ...ratingsInfo.values() ].sort((a,b) => b.rating - a.rating);
+/*
+ * `ranks` is expected to be presorted
+ */
+export function addForteRank(ranks) {
+  if (ranks.length === 0)
+    return ranks;
 
   let weight = 1.0;
   let rating = 0;
-  for (const ratingInfo of sortedRatingsInfo) {
-    if (ratingInfo.gameCount >= 10) {
+  let gameCount = 0;
+
+  for (const rank of ranks) {
+    if (rank.gameCount > 9) {
       weight /= 2;
-      rating += ratingInfo.rating * weight;
+      rating += Math.round(rank.rating * weight);
     }
+    gameCount += rank.gameCount;
   }
 
-  return rating;
-};
+  if (rating)
+    ranks.unshift({
+      rankingId: 'FORTE',
+      playerId: ranks[0].playerId,
+      name: ranks[0].name,
+      rating,
+      gameCount,
+    });
+
+  return ranks;
+}
 
 // Inspired by: https://www.geeksforgeeks.org/elo-rating-algorithm/
 function _probability(rating1, rating2) {
