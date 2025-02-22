@@ -127,10 +127,10 @@ export default class Identity extends ActiveModel {
     return this.data.admin;
   }
   get ttl() {
-    return this.data.lastSeenAt.getTime() + 36 * 30 * 86400 * 1000 - Date.now();
+    return this.data.lastSeenAt.getTime() + 30 * 86400 * 1000 - Date.now();
   }
   get expireAt() {
-    return new Date(this.data.lastSeenAt.getTime() + 36 * 30 * 86400 * 1000);
+    return new Date(this.data.lastSeenAt.getTime() + 30 * 86400 * 1000);
   }
 
   get needsIndex() {
