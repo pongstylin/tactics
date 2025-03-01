@@ -190,6 +190,7 @@ export default class Identity extends ActiveModel {
     if (ratings.length === ranks.ratings.length)
       return;
 
+    ranks.ratings = ratings;
     this.emit('change:pruneRanks');
   }
 
