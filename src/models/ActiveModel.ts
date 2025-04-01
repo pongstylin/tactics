@@ -15,9 +15,19 @@ type RegEvtArgs = [EventType, EventCB]
 abstract class ActiveModel {
   protected abstract data: any
   private emitter: EventEmitter
+  public isClean: boolean = true
 
-  constructor() {
-    this.emitter = new EventEmitter()
+  constructor(props = {}) {
+    Object.assign(this, {
+      emitter: new EventEmitter(),
+    }, props);
+  }
+
+  clean(force = false) {
+    if (!force && this.isClean)
+      return false;
+
+    return this.isClean = true;
   }
 
   on(...args: RegEvtArgs) {
@@ -53,6 +63,9 @@ abstract class ActiveModel {
     // Get a local ref to the emitter just in case one of the listeners destroys this model.
     const emitter = this.emitter;
     const parts = event.type.split(':');
+
+    if (parts[0] === 'change')
+      this.isClean = false;
 
     for (let i = 1; i <= parts.length; i++)
       emitter.emit(parts.slice(0, i).join(':'), event);

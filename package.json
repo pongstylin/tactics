@@ -50,6 +50,8 @@
     "webpack-cli": "^4.10.0"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.751.0",
+    "@aws-sdk/lib-dynamodb": "^3.751.0",
     "@metrichor/jmespath": "^0.3.1",
     "ajv": "^8.8.2",
     "ajv-formats": "^2.1.1",

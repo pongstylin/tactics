@@ -35,6 +35,7 @@ export default class GameState {
       {
         gameType: null,
         _rated: false,
+        _unratedReason: null,
         undoMode: 'normal',
         turns: [],
       },
@@ -271,7 +272,7 @@ export default class GameState {
     return this.gameType.getLosingTeams(this.teams);
   }
   get isSinglePlayer() {
-    return new Set(this.teams.map(t => t.playerId)).size === 1;
+    return new Set(this.teams.map(t => t && t.playerId)).size === 1;
   }
   get isSimulation() {
     const teams = this.teams;
@@ -1357,6 +1358,8 @@ export default class GameState {
       delete data.undoMode;
     if (data.rated === false)
       delete data.rated;
+    if (data.unratedReason === null)
+      delete data.unratedReason;
 
     return data;
   }

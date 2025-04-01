@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import DebugLogger from 'debug';
 
 import config from '#config/server.js';
+import migrate from '#data/migrate.js';
 import ServerError from '#server/Error.js';
 import Timeout from '#server/Timeout.js';
 import emitter from '#utils/emitter.js';
@@ -149,6 +150,7 @@ export default class FileAdapter {
         Object.assign({}, config.buffer, fileConfig.buffer),
       );
 
+      fileConfig.whenSaved = new WeakMap();
       this.cache.set(fileType, cache);
       this.buffer.set(fileType, buffer);
 
@@ -160,7 +162,11 @@ export default class FileAdapter {
         }
       });
       buffer.on('expire', async ({ data:items }) => {
-        await Promise.all([ ...items.values() ].map(i => this[fileConfig.saver](i)));
+        await Promise.all([ ...items.values() ].map(item => {
+          const whenSaved = (fileConfig.whenSaved.get(item) ?? Promise.resolve()).then(() => this[fileConfig.saver](item));
+          fileConfig.whenSaved.set(item, whenSaved);
+          return whenSaved;
+        }));
         for (const [ itemId, item ] of items) {
           this.debugV(`${buffer.name}:expire=${itemId}; destroy=${!cache.has(itemId)}`);
           if (!cache.has(itemId))
@@ -241,6 +247,12 @@ export default class FileAdapter {
     }
 
     return this;
+  }
+
+  migrate(type, data, migrateProps) {
+    if (typeof data !== 'object' || data === null) return data;
+
+    return serializer.normalize(migrate(type, data, migrateProps));
   }
 
   /*

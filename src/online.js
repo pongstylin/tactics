@@ -3004,7 +3004,7 @@ function renderGameResult(game, playerId) {
     spnResult.textContent = (
       game.winnerId === 'draw' ? 'Draw!' :
       game.winnerId === 'truce' ? 'Truce!' :
-      game.winnerId === game.teams.findIndex(t => t.playerId === playerId) ? 'Win!' : 'Lose!'
+      game.winner?.playerId === playerId ? 'Win!' : 'Lose!'
     );
   else
     spnResult.textContent = 'VS';
