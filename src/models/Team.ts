@@ -93,8 +93,8 @@ export default class Team extends ActiveModel {
   public isCurrent: boolean
   public units: any[][]
 
-  constructor(data) {
-    super();
+  constructor(data, props = undefined) {
+    super(props);
     this.data = Object.assign({
       // The position of the team in the teams array post game start
       id: null,
@@ -212,7 +212,7 @@ export default class Team extends ActiveModel {
 
     data.createdAt = new Date();
 
-    return new Team(data);
+    return new Team(data, { isClean:true });
   }
   static createReserve(data, clientPara) {
     if (data.set)
@@ -228,7 +228,11 @@ export default class Team extends ActiveModel {
     return this.data.id;
   }
   set id(id) {
+    if (this.data.id === id)
+      return;
+
     this.data.id = id;
+    this.emit('change:id');
   }
   get slot() {
     return this.data.slot;
@@ -243,7 +247,11 @@ export default class Team extends ActiveModel {
     return this.data.set;
   }
   set set(set) {
+    if (this.data.set === set)
+      return;
+
     this.data.set = set;
+    this.emit('change:set');
   }
   get randomSide() {
     return this.data.randomSide;
@@ -252,19 +260,31 @@ export default class Team extends ActiveModel {
     return this.data.position;
   }
   set position(position) {
+    if (this.data.position === position)
+      return;
+
     this.data.position = position;
+    this.emit('change:position');
   }
   get colorId() {
     return this.data.colorId;
   }
   set colorId(colorId) {
+    if (this.data.colorId === colorId)
+      return;
+
     this.data.colorId = colorId;
+    this.emit('change:colorId');
   }
   get useRandom() {
     return this.data.useRandom;
   }
   set useRandom(useRandom) {
+    if (this.data.useRandom === useRandom)
+      return;
+
     this.data.useRandom = useRandom;
+    this.emit('change:useRandom');
   }
   get forkOf() {
     return this.data.forkOf;
@@ -273,10 +293,14 @@ export default class Team extends ActiveModel {
     return this.data.bot;
   }
   /*
-   * Used to set bot to 'false' in the Chaos hallenge
+   * Used to set bot to 'false' in the Chaos challenge
    */
   set bot(bot) {
+    if (this.data.bot === bot)
+      return;
+
     this.data.bot = bot;
+    this.emit('change:bot');
   }
   get usedUndo() {
     return this.data.usedUndo === true;
@@ -297,19 +321,31 @@ export default class Team extends ActiveModel {
     return this.data.checkinAt;
   }
   set checkinAt(checkinAt) {
+    if (this.data.checkinAt?.getTime() === checkinAt?.getTime())
+      return;
+
     this.data.checkinAt = checkinAt;
+    this.emit('change:checkinAt');
   }
   get checkoutAt() {
     return this.data.checkoutAt;
   }
   set checkoutAt(checkoutAt) {
+    if (this.data.checkoutAt?.getTime() === checkoutAt?.getTime())
+      return;
+
     this.data.checkoutAt = checkoutAt;
+    this.emit('change:checkoutAt');
   }
   get lastActiveAt() {
     return this.data.lastActiveAt;
   }
   set lastActiveAt(lastActiveAt) {
+    if (this.data.lastActiveAt?.getTime() === lastActiveAt?.getTime())
+      return;
+
     this.data.lastActiveAt = lastActiveAt;
+    this.emit('change:lastActiveAt');
   }
 
   /*
@@ -335,10 +371,18 @@ export default class Team extends ActiveModel {
   }
 
   setUsedUndo() {
+    if (this.data.usedUndo)
+      return;
+
     this.data.usedUndo = true;
+    this.emit('change:usedUndo');
   }
   setUsedSim() {
+    if (this.data.usedSim)
+      return;
+
     this.data.usedSim = true;
+    this.emit('change:usedSim');
   }
   setRating(rankingId, oldRating, newRating) {
     if (!this.data.ratings)

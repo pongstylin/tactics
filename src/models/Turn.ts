@@ -60,6 +60,7 @@ export default class Turn extends ActiveModel {
   static create(props:CreateProps) {
     return new Turn(Object.assign({
       isCurrent: true,
+      isClean: false,
     }, props, {
       data: Object.assign({
         // The date the turn started

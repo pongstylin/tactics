@@ -1,9 +1,8 @@
 import fs from 'fs/promises';
 
-import { getLatestVersionNumber } from '#data/migrate.js';
 import { search } from '#utils/jsQuery.js';
 import serializer from '#utils/serializer.js';
-import FileAdapter from '#data/FileAdapter.js';
+import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 
 import GameType from '#tactics/GameType.js';
 import Game from '#models/Game.js';
@@ -14,7 +13,7 @@ import PlayerSets from '#models/PlayerSets.js';
 import PlayerAvatars from '#models/PlayerAvatars.js';
 import ServerError from '#server/Error.js';
 
-export default class extends FileAdapter {
+export default class extends DynamoDBAdapter {
   constructor(options = {}) {
     super({
       name: options.name ?? 'game',
@@ -76,9 +75,8 @@ export default class extends FileAdapter {
   }
 
   async cleanup() {
-    while (this._dirtyGames.size) {
+    while (this._dirtyGames.size)
       await Promise.all(Array.from(this._dirtyGames.values()));
-    }
 
     return super.cleanup();
   }
@@ -103,17 +101,12 @@ export default class extends FileAdapter {
    * This opens the player's game and set list.
    */
   async openPlayer(playerId) {
-    const playerStats = await this._getPlayerStats(playerId);
-    this.cache.get('playerStats').open(playerId, playerStats);
-
-    const playerGames = await this._getPlayerGames(playerId);
-    this.cache.get('playerGames').open(playerId, playerGames);
-
-    const playerSets = await this._getPlayerSets(playerId);
-    this.cache.get('playerSets').open(playerId, playerSets);
-
-    const playerAvatars = await this._getPlayerAvatars(playerId);
-    this.cache.get('playerAvatars').open(playerId, playerAvatars);
+    await Promise.all([
+      this._getPlayerStats(playerId).then(playerStats => this.cache.get('playerStats').open(playerId, playerStats)),
+      this._getPlayerGames(playerId).then(playerGames => this.cache.get('playerGames').open(playerId, playerGames)),
+      this._getPlayerSets(playerId).then(playerSets => this.cache.get('playerSets').open(playerId, playerSets)),
+      this._getPlayerAvatars(playerId).then(playerAvatars => this.cache.get('playerAvatars').open(playerId, playerAvatars)),
+    ]);
   }
   closePlayer(playerId) {
     this.cache.get('playerStats').close(playerId);
@@ -201,8 +194,16 @@ export default class extends FileAdapter {
     this.buffer.get('game').delete(game.id);
     game.destroy();
 
+    const dependents = [];
+    if (game.collection)
+      dependents.push([{ type:'collection' }, { type:'gameSummary', id:game.id }]);
+
+    const playerIds = new Set(game.state.teams.filter(t => t?.playerId).map(t => t.playerId));
+    for (const playerId of playerIds)
+      dependents.push([{ type:'playerGames', id:playerId }, { type:'gameSummary', id:game.id }]);
+
     this._clearGameSummary(game);
-    this.deleteFile(`game_${game.id}`);
+    await this.deleteItemParts({ id:game.id, type:'game' }, game, dependents);
   }
 
   getOpenPlayerSets(playerId, gameType) {
@@ -430,14 +431,16 @@ export default class extends FileAdapter {
    * Game Management
    */
   async _createGame(game) {
-    await this.createFile(`game_${game.id}`, () => {
-      const data = serializer.transform(game);
-      data.version = getLatestVersionNumber('game');
-
-      this._attachGame(game);
-      return data;
-    });
+    await this.createItemParts({
+      id: game.id,
+      type: 'game',
+      indexes: {
+        GPK0: 'game',
+        GSK0: 'instance&' + new Date().toISOString(),
+      },
+    }, game, () => game.toParts(true));
     game.state.gameType = this.getGameType(game.state.type);
+    this._attachGame(game);
     await this._updateGameSummary(game);
   }
   async _getGame(gameId) {
@@ -446,12 +449,17 @@ export default class extends FileAdapter {
     else if (this.buffer.get('game').has(gameId))
       return this.buffer.get('game').get(gameId);
 
-    return this.getFile(`game_${gameId}`, data => {
-      if (data === undefined) return;
+    return this.getItemParts({
+      id: gameId,
+      type: 'game',
+      name: `game_${gameId}`,
+    }, parts => {
+      if (parts.size === 0) return;
 
-      const game = this.migrate('game', data);
+      const game = Game.fromParts(parts);
       game.state.gameType = this.getGameType(game.state.type);
       this._attachGame(game);
+
       return game;
     });
   }
@@ -472,13 +480,15 @@ export default class extends FileAdapter {
       this.buffer.get('game').add(game.id, game);
     this._updateGameSummary(game);
   }
-  async _saveGame(game) {
-    await this.putFile(`game_${game.id}`, () => {
-      const data = serializer.transform(game);
-      data.version = getLatestVersionNumber('game');
-
-      return data;
-    });
+  async _saveGame(game, { fromFile = false } = {}) {
+    await this.putItemParts({
+      id: game.id,
+      type: 'game',
+      indexes: {
+        GPK0: 'game',
+        GSK0: 'instance&' + new Date().toISOString(),
+      },
+    }, game, () => game.toParts(fromFile));
   }
 
   /*
@@ -665,25 +675,20 @@ export default class extends FileAdapter {
     else if (this.buffer.get('playerStats').has(playerId))
       return this.buffer.get('playerStats').get(playerId);
 
-    return this.getFile(`player_${playerId}_stats`, data => {
-      const playerStats = data === undefined
-        ? PlayerStats.create(playerId)
-        : this.migrate('stats', data, { playerId });
+    const playerStats = await this.getItem({
+      id: playerId,
+      type: 'playerStats',
+      name: `player_${playerId}_stats`,
+    }, { playerId }, () => PlayerStats.create(playerId));
+    playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
 
-      playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
-      return playerStats;
-    });
+    return playerStats;
   }
   async _savePlayerStats(playerStats) {
     const playerId = playerStats.playerId;
+    playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
 
-    await this.putFile(`player_${playerId}_stats`, () => {
-      const data = serializer.transform(playerStats);
-      data.version = getLatestVersionNumber('stats');
-
-      playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
-      return data;
-    });
+    await this.putItem({ id:playerId, type:'playerStats' }, playerStats);
   }
 
   /*
@@ -698,24 +703,64 @@ export default class extends FileAdapter {
     else if (this.buffer.get('playerGames').has(playerId))
       return this.buffer.get('playerGames').get(playerId);
 
-    return this.getFile(`player_${playerId}_games`, data => {
-      const playerGames = data === undefined
-        ? GameSummaryList.create(playerId)
-        : serializer.normalize(data);
+    return this.queryItemChildren({
+      id: playerId,
+      type: 'playerGames',
+      name: `player_${playerId}_games`,
+      query: {
+        indexKey: 'LSK0',
+        order: 'DESC',
+        limit: 100,
+      },
+    }, gamesSummary => {
+      const playerGames = new GameSummaryList({
+        id: playerId,
+        gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
+      });
 
-      playerGames.once('change', () => this.buffer.get('playerGames').add(playerId, playerGames));
+      playerGames.once('change:set', () => this.buffer.get('playerGames').add(playerId, playerGames));
       return playerGames;
     });
   }
-  async _savePlayerGames(playerGames) {
-    const playerId = playerGames.id;
+  async _savePlayerGames(playerGames, { fromFile = false } = {}) {
+    const newGamesSummary = playerGames.toNewValues(fromFile);
 
-    await this.putFile(`player_${playerId}_games`, () => {
-      const data = serializer.transform(playerGames);
+    // Since deletions do not necessarily require deleting from DDB, only listen for additions.
+    playerGames.once('change:set', () => this.buffer.get('playerGames').add(playerGames.id, playerGames));
 
-      playerGames.once('change', () => this.buffer.get('playerGames').add(playerId, playerGames));
-      return data;
+    const children = newGamesSummary.map(gs => {
+      const stageDate = (
+        gs.endedAt ? `c=${gs.endedAt.toISOString()}` :
+        gs.startedAt ? `b=${gs.createdAt.toISOString()}` :
+        `a=${gs.createdAt.toISOString()}`
+      );
+      const collection = gs.collection && gs.collection.split('/')[0];
+      const rated = gs.endedAt && gs.rated;
+
+      return {
+        id: gs.id,
+        type: 'gameSummary',
+        indexData: gs,
+        indexes: {
+          GPK0: `game#${gs.id}`,
+          GSK0: `child`,
+          LSK0: `${stageDate}`,
+          LSK1: `${gs.type}&${stageDate}`,
+          LSK2: collection ? `${stageDate}` : undefined,
+          LSK3: collection ? `${gs.type}&${stageDate}` : undefined,
+          LSK4: collection ? `${collection}&${stageDate}` : undefined,
+          LSK5: collection ? `${collection}&${gs.type}&${stageDate}` : undefined,
+          LSK6: rated ? `${stageDate}` : undefined,
+          LSK7: rated ? `${gs.type}&${stageDate}` : undefined,
+        },
+      };
     });
+
+    await this.putItemChildren({
+      id: playerGames.id,
+      type: 'playerGames',
+      name: `player_${playerGames.id}_games`,
+    }, children);
   }
 
   /*
@@ -727,25 +772,20 @@ export default class extends FileAdapter {
     else if (this.buffer.get('playerSets').has(playerId))
       return this.buffer.get('playerSets').get(playerId);
 
-    return this.getFile(`player_${playerId}_sets`, data => {
-      const playerSets = data === undefined
-        ? PlayerSets.create(playerId)
-        : this.migrate('sets', data, { playerId });
+    const playerSets = await this.getItem({
+      id: playerId,
+      type: 'playerSets',
+      name: `player_${playerId}_sets`,
+    }, { playerId }, () => PlayerSets.create(playerId));
+    playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
 
-      playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
-      return playerSets;
-    });
+    return playerSets;
   }
   async _savePlayerSets(playerSets) {
     const playerId = playerSets.playerId;
+    playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
 
-    await this.putFile(`player_${playerId}_sets`, () => {
-      const data = serializer.transform(playerSets);
-      data.version = getLatestVersionNumber('sets');
-
-      playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
-      return data;
-    });
+    await this.putItem({ id:playerId, type:'playerSets' }, playerSets);
   }
 
   /*
@@ -757,26 +797,20 @@ export default class extends FileAdapter {
     else if (this.buffer.get('playerAvatars').has(playerId))
       return this.buffer.get('playerAvatars').get(playerId);
 
-    return this.getFile(`player_${playerId}_avatars`, data => {
-      const playerAvatars = data === undefined
-        ? PlayerAvatars.create(playerId)
-        : this.migrate('avatars', data, { playerId });
+    const playerAvatars = await this.getItem({
+      id: playerId,
+      type: 'playerAvatars',
+      name: `player_${playerId}_avatars`,
+    }, { playerId }, () => PlayerAvatars.create(playerId));
+    playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
 
-      this.buffer.get('playerAvatars').add(playerId, playerAvatars);
-      playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
-      return playerAvatars;
-    });
+    return playerAvatars;
   }
   async _savePlayerAvatars(playerAvatars) {
     const playerId = playerAvatars.playerId;
+    playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
 
-    await this.putFile(`player_${playerId}_avatars`, () => {
-      const data = serializer.transform(playerAvatars);
-      data.version = getLatestVersionNumber('avatars');
-
-      playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
-      return data;
-    });
+    await this.putItem({ id:playerId, type:'playerAvatars' }, playerAvatars);
   }
 
   /*
@@ -788,125 +822,72 @@ export default class extends FileAdapter {
     else if (this.buffer.get('collection').has(collectionId))
       return this.buffer.get('collection').get(collectionId);
 
-    return this.getFile(`collection/${collectionId}`, data => {
-      const collection = data === undefined
-        ? GameSummaryList.create(collectionId)
-        : serializer.normalize(data);
+    const parts = collectionId.split('/');
 
-      collection.once('change', () => this.buffer.get('collection').add(collectionId, collection));
+    return this.queryItemChildren({
+      type: 'collection',
+      name: `collection/${collectionId}`,
+      query: {
+        ...(collectionId === 'rated/FORTE' ? {
+          indexKey: 'LSK4',
+        } : parts[0] === 'rated' ? {
+          indexKey: 'LSK5',
+          indexValue: `${parts[1]}&`,
+        } : parts[0] === 'public' ? {
+          indexKey: 'LSK2',
+          indexValue: `${parts[0]}&`,
+        } : {
+          indexKey: 'LSK3',
+          indexValue: `${parts[0]}&${parts[1]}&`,
+        }),
+        order: 'DESC',
+        limit: 100,
+      },
+    }, gamesSummary => {
+      const collection = new GameSummaryList({
+        id: collectionId,
+        gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
+      });
+
+      collection.once('change:set', () => this.buffer.get('collection').add(collectionId, collection));
       return collection;
     });
   }
-  async _saveGameCollection(collection) {
-    const collectionId = collection.id;
+  async _saveGameCollection(collection, { fromFile = false } = {}) {
+    const newGamesSummary = collection.toNewValues(fromFile);
 
-    await this.putFile(`collection/${collectionId}`, () => {
-      const data = serializer.transform(collection);
+    // Since deletions do not necessarily require deleting from DDB, only listen for additions.
+    collection.once('change:set', () => this.buffer.get('collection').add(collection.id, collection));
 
-      collection.once('change', () => this.buffer.get('collection').add(collectionId, collection));
-      return data;
-    });
-  }
+    const children = newGamesSummary.map(gs => {
+      const stageDate = (
+        gs.endedAt ? `c=${gs.endedAt.toISOString()}` :
+        gs.startedAt ? `b=${gs.createdAt.toISOString()}` :
+        `a=${gs.createdAt.toISOString()}`
+      );
+      const collection = gs.collection && gs.collection.split('/')[0];
+      const rated = gs.endedAt && gs.rated;
 
-  /*****************************************************************************
-   * Not intended for use by application.
-   ****************************************************************************/
-  async listAllGameIds(since = null) {
-    const fileNames = await fs.readdir(this.filesDir);
-    const regex = /^game_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
-    const gameIds = [];
-
-    for (let i=0; i<fileNames.length; i++) {
-      let match = regex.exec(fileNames[i]);
-      if (!match) continue;
-
-      if (since) {
-        const mtime = (await fs.stat(`${this.filesDir}/${fileNames[i]}`)).mtime;
-        if (mtime < since)
-          continue;
-      }
-
-      gameIds.push(match[1]);
-    }
-
-    return gameIds;
-  }
-
-  /*
-   * Used by syncPlayerStats
-   */
-  async indexAllGames() {
-    const indexAt = new Date();
-    const indexStat = await this.statFile('game_index', true);
-    const lastIndexAt = indexStat && new Date(indexStat.mtime);
-    const gameIds = await this.listAllGameIds(lastIndexAt);
-    const gameIndex = await this.getFile('game_index', data => {
-      if (data === undefined)
-        return new Map();
-      return serializer.normalize(data);
+      return {
+        id: gs.id,
+        type: 'gameSummary',
+        indexData: gs,
+        indexes: {
+          GPK0: `game#${gs.id}`,
+          GSK0: `child`,
+          LSK0: `${stageDate}`,
+          LSK1: `${gs.type}&${stageDate}`,
+          LSK2: `${collection}&${stageDate}`,
+          LSK3: `${collection}&${gs.type}&${stageDate}`,
+          LSK4: rated ? `${stageDate}` : undefined,
+          LSK5: rated ? `${gs.type}&${stageDate}` : undefined,
+        },
+      };
     });
 
-    for (let i = 0; i < gameIds.length; i += 100) {
-      console.log(`indexAllGames: ${i} through ${i+100} of ${gameIds.length}`);
-      const games = await Promise.all(gameIds.slice(i, i + 100).map(gId => this._getGame(gId)));
-
-      for (const game of games) {
-        if (!this.hasGameType(game.state.type))
-          continue;
-        if (!game.state.startedAt)
-          continue;
-        if (game.state.isSimulation)
-          continue;
-
-        gameIndex.set(game.id, {
-          startedAt: game.state.startedAt,
-          endedAt: game.state.endedAt,
-          type: game.state.type,
-          rated: game.state.rated,
-          winnerId: game.state.winnerId,
-          teams: game.state.teams.map(t => ({
-            playerId: t.playerId,
-            name: t.name,
-            usedUndo: t.usedUndo,
-            usedSim: t.usedSim,
-            hasPlayed: game.state.teamHasPlayed(t),
-          })),
-        });
-      }
-    }
-
-    if (gameIds.length) {
-      await this.putFile('game_index', serializer.transform(gameIndex));
-      await fs.utimes(`${this.filesDir}/game_index.json`, indexAt, indexAt);
-    }
-
-    return gameIndex;
-  }
-
-  async archivePlayer(playerId) {
-    await Promise.all([
-      this.archiveFile(`player_${playerId}_stats`),
-      this.archiveFile(`player_${playerId}_games`),
-      this.archiveFile(`player_${playerId}_sets`),
-      this.archiveFile(`player_${playerId}_avatars`),
-    ]);
-  }
-
-  async archiveGame(gameId) {
-    try {
-      const game = await this._getGame(gameId);
-      if (game.collection)
-        await Promise.all([
-          this.getGameCollection(game.collection).then(gsl => gsl.delete(game.id)),
-          this.archiveFile(`game_${gameId}`),
-        ]);
-      else
-        await this.archiveFile(`game_${gameId}`);
-    } catch (e) {
-      if (e.message.startsWith('Corrupt:'))
-        await this.deleteFile(`game_${gameId}`);
-      else
-        throw e;
-    }
+    await this.putItemChildren({
+      type: 'collection',
+      name: `collection/${collection.id}`,
+    }, children);
   }
 };

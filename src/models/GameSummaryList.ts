@@ -7,10 +7,12 @@ export default class GameSummaryList extends ActiveModel {
     id: string
     gamesSummary: Map<string, GameSummary>
   }
+  protected dirtyGamesSummary: Map<string, GameSummary>;
 
   constructor(data) {
     super();
     this.data = data;
+    this.dirtyGamesSummary = new Map();
   }
 
   static create(id) {
@@ -23,10 +25,10 @@ export default class GameSummaryList extends ActiveModel {
   get id() {
     return this.data.id;
   }
-
   get size() {
     return this.data.gamesSummary.size;
   }
+
   keys() {
     return this.data.gamesSummary.keys();
   }
@@ -48,6 +50,7 @@ export default class GameSummaryList extends ActiveModel {
     }
 
     gamesSummary.set(gameId, gameSummary);
+    this.dirtyGamesSummary.set(gameId, gameSummary);
     this.emit({
       type: 'change:set',
       data: { gameId, gameSummary, oldSummary },
@@ -64,12 +67,23 @@ export default class GameSummaryList extends ActiveModel {
     if (!oldSummary) return false;
 
     this.data.gamesSummary.delete(gameId);
+    this.dirtyGamesSummary.delete(gameId);
     this.emit({
       type: 'change:delete',
       data: { gameId, oldSummary },
     });
 
     return true;
+  }
+
+  toNewValues(force) {
+    if (!this.clean(force))
+      return [];
+
+    const values = Array.from(force ? this.data.gamesSummary.values() : this.dirtyGamesSummary.values());
+    this.dirtyGamesSummary.clear();
+
+    return values;
   }
 };
 

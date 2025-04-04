@@ -1154,7 +1154,8 @@ export default class GameService extends Service {
 
     const team = game.getTeamForPlayer(playerId);
     if (team) {
-      game.checkin(team);
+      if (!game.state.isSinglePlayer)
+        game.checkin(team);
       this._setGamePlayersStatus(gameId);
       if (clientPara.joinedGameGroups.size === 1)
         client.session.onIdleChange = this.idleWatcher;
@@ -1248,9 +1249,8 @@ export default class GameService extends Service {
     );
     // Abort if the client is no longer connected.
     if (client.closed) {
-      for (const cId of collectionIds) {
+      for (const cId of collectionIds)
         this.data.closeGameCollection(cId);
-      }
       return;
     }
 
@@ -1785,7 +1785,8 @@ export default class GameService extends Service {
 
       const checkoutAt = new Date();
       const lastActiveAt = new Date(checkoutAt - client.session.idle * 1000);
-      game.checkout(team, checkoutAt, lastActiveAt);
+      if (!game.state.isSinglePlayer)
+        game.checkout(team, checkoutAt, lastActiveAt);
 
       if (clientPara.joinedGameGroups.size === 0)
         delete client.session.onIdleChange;
@@ -2021,11 +2022,10 @@ export default class GameService extends Service {
     if (teams.findIndex(t => !t?.joinedAt) === -1) {
       const playerIds = new Set(teams.map(t => t.playerId));
       if (playerIds.size > 1) {
-        if (game.state.rated === null) {
+        if (game.rated === null) {
           const players = await Promise.all([ ...playerIds ].map(pId => this._getAuthPlayer(pId)));
           const { rated, reason } = await this.data.canPlayRatedGame(game, ...players);
-          game.state.rated = rated;
-          game.state.unratedReason = reason;
+          game.setRated(rated, reason);
         }
 
         await this.chat.createRoom(
