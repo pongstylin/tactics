@@ -119,7 +119,7 @@ const config = {
       'game',
       {
         module: '#server/GameService.js',
-        dataAdapterModule: '#data/FileAdapter/GameAdapter.js',
+        dataAdapterModule: '#data/DynamoDBAdapter/GameAdapter.js',
         config: {
           collections: [
             {
