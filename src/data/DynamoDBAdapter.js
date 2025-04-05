@@ -165,7 +165,8 @@ export default class DynamoDBAdapter extends FileAdapter {
     if (args.length === 2 && typeof args[1] === 'function')
       args = [ args[0], undefined, args[1] ];
 
-    const queueKey = args[0].name ?? [
+    const queueKey = [
+      args[0].name ?? '',
       args[0].query.indexKey ?? 'SK',
       args[0].query.indexValue ?? '',
       args[0].query.order ?? 'ASC',
@@ -625,7 +626,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       new Promise(async (resolve, reject) => {
         const items = [];
 
-        while (items.length < key.query.limit) {
+        while (items.length < (key.query.limit ?? Infinity)) {
           const rsp = await this._send(new QueryCommand(input));
           if (!rsp.Items.length)
             break;
