@@ -703,24 +703,47 @@ export default class extends DynamoDBAdapter {
     else if (this.buffer.get('playerGames').has(playerId))
       return this.buffer.get('playerGames').get(playerId);
 
-    return this.queryItemChildren({
-      id: playerId,
-      type: 'playerGames',
-      name: `player_${playerId}_games`,
-      query: {
-        indexKey: 'LSK0',
-        order: 'DESC',
-        limit: 100,
-      },
-    }, gamesSummary => {
-      const playerGames = new GameSummaryList({
-        id: playerId,
-        gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
-      });
+    const gamesSummary = [];
 
-      playerGames.once('change:set', () => this.buffer.get('playerGames').add(playerId, playerGames));
-      return playerGames;
+    await Promise.all([
+      this.queryItemChildren({
+        id: playerId,
+        type: 'playerGames',
+        name: `player_${playerId}_games`,
+        query: {
+          indexKey: 'LSK0',
+          indexValue: `a=`,
+        },
+      }, gss => gamesSummary.push(...gss)),
+      this.queryItemChildren({
+        id: playerId,
+        type: 'playerGames',
+        name: `player_${playerId}_games`,
+        query: {
+          indexKey: 'LSK0',
+          indexValue: `b=`,
+        },
+      }, gss => gamesSummary.push(...gss)),
+      this.queryItemChildren({
+        id: playerId,
+        type: 'playerGames',
+        name: `player_${playerId}_games`,
+        query: {
+          indexKey: 'LSK0',
+          indexValue: `c=`,
+          order: 'DESC',
+          limit: 50,
+        },
+      }, gss => gamesSummary.push(...gss)),
+    ]);
+
+    const playerGames = new GameSummaryList({
+      id: playerId,
+      gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
     });
+
+    playerGames.once('change:set', () => this.buffer.get('playerGames').add(playerId, playerGames));
+    return playerGames;
   }
   async _savePlayerGames(playerGames, { fromFile = false } = {}) {
     const newGamesSummary = playerGames.toNewValues(fromFile);
