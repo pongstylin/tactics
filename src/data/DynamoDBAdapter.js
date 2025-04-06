@@ -165,13 +165,13 @@ export default class DynamoDBAdapter extends FileAdapter {
     if (args.length === 2 && typeof args[1] === 'function')
       args = [ args[0], undefined, args[1] ];
 
-    const queueKey = [
+    const queueKey = JSON.stringify([
       args[0].name ?? '',
       args[0].query.indexKey ?? 'SK',
       args[0].query.indexValue ?? '',
       args[0].query.order ?? 'ASC',
       args[0].query.limit ?? 0,
-    ].join('&');
+    ]);
     return this._pushItemQueue({ key:queueKey, method:'_queryItemChildren', args });
   }
   putItemChildren(...args) {
@@ -606,13 +606,13 @@ export default class DynamoDBAdapter extends FileAdapter {
       Select: key.query.indexKey ? 'ALL_PROJECTED_ATTRIBUTES' : 'ALL_ATTRIBUTES',
       IndexName: key.query.indexKey ? `PK-${key.query.indexKey}` : undefined,
       KeyConditionExpression: 'PK = :PV' + (
-        key.query.expression ? ` AND ${key.query.expression}` :
-        key.query.indexValue ? ` AND begins_with(${key.query.indexKey}, :SV)` :
+        key.query.indexValue?.[0] === 'beginsWith' ? ` AND begins_with(${key.query.indexKey}, :SV)` :
+        key.query.indexValue?.[0] === 'gt' ? ` AND ${key.query.indexKey} > :SV` :
         ''
       ),
       ExpressionAttributeValues: {
         ':PV': key.PK,
-        ':SV': key.query.indexKey ? key.query.indexValue : key.SK,
+        ':SV': key.query.indexKey ? key.query.indexValue?.[1] : key.SK,
       },
       ScanIndexForward: key.query.order === 'ASC',
       Limit: key.query.limit,
@@ -677,6 +677,8 @@ export default class DynamoDBAdapter extends FileAdapter {
     if (typeof key === 'string')
       key = { PK:key, name:key };
 
+    if (key.query && typeof key.query.indexValue === 'string')
+      key.query.indexValue = [ 'beginsWith', key.query.indexValue ];
     if (key.query && !key.query.order)
       key.query.order = 'ASC';
 
