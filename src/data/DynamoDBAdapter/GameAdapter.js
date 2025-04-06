@@ -286,6 +286,8 @@ export default class extends DynamoDBAdapter {
   }
   async getRatedGames(rankingId) {
     const gamesSummary = await this._getGameCollection(`rated/${rankingId}`);
+    this.cache.get('collection').add(gamesSummary.id, gamesSummary);
+
     const results = Array.from(gamesSummary.values());
 
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
@@ -312,17 +314,13 @@ export default class extends DynamoDBAdapter {
    * Not expected to exceed 50 games.
    */
   async getPlayerRatedGames(playerId, rankingId) {
-    const gamesSummary = await this._getPlayerGames(playerId);
+    const gamesSummary = await this._getPlayerRatedGames(playerId, rankingId);
+    this.cache.get('collection').add(gamesSummary.id, gamesSummary);
+
     const results = [];
 
-    for (const gameSummary of gamesSummary.values()) {
-      if (!gameSummary.endedAt || !gameSummary.rated)
-        continue;
-      if (![ 'FORTE', gameSummary.type ].includes(rankingId))
-        continue;
-
+    for (const gameSummary of gamesSummary.values())
       results.push(gameSummary);
-    }
 
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
   }
@@ -526,10 +524,11 @@ export default class extends DynamoDBAdapter {
       );
     }
 
+    const collectionCache = this.cache.get('collection');
     if (game.collection)
       promises.push(
         this._getGameCollection(game.collection).then(collection => {
-          this.cache.get('collection').add(collection.id, collection);
+          collectionCache.add(collection.id, collection);
 
           if (game.state.endedAt) {
             const minTurnId = game.state.initialTurnId + 3;
@@ -543,19 +542,19 @@ export default class extends DynamoDBAdapter {
         }),
       );
 
-    if (game.state.rated && game.state.endedAt)
-      promises.push(
-        this._getGameCollection(`rated/FORTE`).then(ratedGames => {
-          this.cache.get('collection').add(ratedGames.id, ratedGames);
+    // Sync resident ephemeral collections
+    if (game.state.rated && game.state.endedAt) {
+      const collectionIds = [
+        `rated/FORTE`,
+        `rated/${game.state.type}`,
+        ...Array.from(playerIds).map(pId => [
+          `rated/${pId}/FORTE`,
+          `rated/${pId}/${game.state.type}`,
+        ]).flat(),
+      ].filter(cId => collectionCache.has(cId));
 
-          return ratedGames;
-        }),
-        this._getGameCollection(`rated/${game.state.type}`).then(ratedGames => {
-          this.cache.get('collection').add(ratedGames.id, ratedGames);
-
-          return ratedGames;
-        }),
-      );
+      promises.push(...collectionIds.map(cId => collectionCache.get(cId)));
+    }
 
     const promise = Promise.all(promises).then(gameSummaryLists => {
       const gameType = this._gameTypes.get(game.state.type);
@@ -703,7 +702,9 @@ export default class extends DynamoDBAdapter {
     else if (this.buffer.get('playerGames').has(playerId))
       return this.buffer.get('playerGames').get(playerId);
 
+    const gameTypeIds = Array.from(this._gameTypes.keys());
     const gamesSummary = [];
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
     await Promise.all([
       this.queryItemChildren({
@@ -713,6 +714,8 @@ export default class extends DynamoDBAdapter {
         query: {
           indexKey: 'LSK0',
           indexValue: `a=`,
+          order: 'DESC',
+          limit: 50,
         },
       }, gss => gamesSummary.push(...gss)),
       this.queryItemChildren({
@@ -722,6 +725,8 @@ export default class extends DynamoDBAdapter {
         query: {
           indexKey: 'LSK0',
           indexValue: `b=`,
+          order: 'DESC',
+          limit: 50,
         },
       }, gss => gamesSummary.push(...gss)),
       this.queryItemChildren({
@@ -731,6 +736,17 @@ export default class extends DynamoDBAdapter {
         query: {
           indexKey: 'LSK0',
           indexValue: `c=`,
+          order: 'DESC',
+          limit: 50,
+        },
+      }, gss => gamesSummary.push(...gss)),
+      this.queryItemChildren({
+        id: playerId,
+        type: 'playerGames',
+        name: `player_${playerId}_games`,
+        query: {
+          indexKey: 'LSK4',
+          indexValue: [ 'gt', threeDaysAgo.toISOString() ],
           order: 'DESC',
           limit: 50,
         },
@@ -757,7 +773,7 @@ export default class extends DynamoDBAdapter {
         gs.startedAt ? `b=${gs.createdAt.toISOString()}` :
         `a=${gs.createdAt.toISOString()}`
       );
-      const collection = gs.collection && gs.collection.split('/')[0];
+      const practice = [ 'fork', 'practice' ].includes(gs.mode);
       const rated = gs.endedAt && gs.rated;
 
       return {
@@ -767,14 +783,12 @@ export default class extends DynamoDBAdapter {
         indexes: {
           GPK0: `game#${gs.id}`,
           GSK0: `child`,
-          LSK0: `${stageDate}`,
-          LSK1: `${gs.type}&${stageDate}`,
-          LSK2: collection ? `${stageDate}` : undefined,
-          LSK3: collection ? `${gs.type}&${stageDate}` : undefined,
-          LSK4: collection ? `${collection}&${stageDate}` : undefined,
-          LSK5: collection ? `${collection}&${gs.type}&${stageDate}` : undefined,
-          LSK6: rated ? `${stageDate}` : undefined,
-          LSK7: rated ? `${gs.type}&${stageDate}` : undefined,
+          LSK0: !practice ? `${stageDate}` : undefined,
+          LSK1: !practice ? `${gs.type}&${stageDate}` : undefined,
+          LSK2: rated ? `${stageDate}` : undefined,
+          LSK3: rated ? `${gs.type}&${stageDate}` : undefined,
+          LSK4: practice ? `${gs.updatedAt.toISOString()}` : undefined,
+          LSK5: practice ? `${gs.type}&${gs.updatedAt.toISOString()}` : undefined,
         },
       };
     });
@@ -786,6 +800,32 @@ export default class extends DynamoDBAdapter {
     }, children);
   }
 
+  /*
+   * Player Rated Games
+   */
+  async _getPlayerRatedGames(playerId, rankingId) {
+    const gslId = `rated/${playerId}/${rankingId}`;
+    if (this.cache.get('collection').has(gslId))
+      return this.cache.get('collection').get(gslId);
+
+    const gameTypeIds = Array.from(this._gameTypes.keys());
+    const gamesSummary = await this.queryItemChildren({
+      id: playerId,
+      type: 'playerGames',
+      name: `player_${playerId}_games`,
+      query: {
+        indexKey: rankingId === 'FORTE' ? 'LSK2' : 'LSK3',
+        indexValue: rankingId === 'FORTE' ? undefined : `${rankingId}&`,
+        order: 'DESC',
+        limit: 50,
+      },
+    });
+
+    return new GameSummaryList({
+      id: gslId,
+      gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
+    });
+  }
   /*
    * Player Sets Management
    */
@@ -872,7 +912,8 @@ export default class extends DynamoDBAdapter {
         gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
       });
 
-      collection.once('change:set', () => this.buffer.get('collection').add(collectionId, collection));
+      if (parts[0] !== 'rated')
+        collection.once('change:set', () => this.buffer.get('collection').add(collectionId, collection));
       return collection;
     });
   }
