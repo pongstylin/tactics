@@ -45,6 +45,13 @@ const TABLE_NAME = process.env.DDB_TABLE;
 const itemMeta = new WeakMap();
 const keyOfItem = r => `${r.PK}:${r.SK}`;
 const keyOfRequest = r => r.DeleteRequest ? keyOfItem(r.DeleteRequest.Key) : keyOfItem(r.PutRequest.Item);
+const filterOpByName = new Map([
+  [ 'eq',  '='  ],
+  [ 'lt',  '<'  ],
+  [ 'lte', '<=' ],
+  [ 'gt',  '>'  ],
+  [ 'gte', '>=' ],
+]);
 
 export default class DynamoDBAdapter extends FileAdapter {
   constructor(props) {
@@ -699,6 +706,54 @@ export default class DynamoDBAdapter extends FileAdapter {
       PF: item.indexFilter ?? undefined,
       ...Object.assign({}, key?.indexes, item.indexes),
     };
+  }
+  async *_query(query) {
+    const input = {
+      TableName: TABLE_NAME,
+      Select: query.attributes ? 'SPECIFIC_ATTRIBUTES' : query.indexName ? 'ALL_PROJECTED_ATTRIBUTES' : 'ALL_ATTRIBUTES',
+      ProjectionExpression: query.attributes ? query.attributes.join(', ') : undefined,
+      IndexName: query.indexName ?? undefined,
+      KeyConditionExpression: null,
+      ExpressionAttributeValues: {},
+      ScanIndexForward: (query.order ?? 'ASC') === 'ASC',
+      Limit: query.limit,
+      // This is effective due to local caching.
+      ConsistentRead: false,
+      ReturnConsumedCapacity: 'NONE',
+    };
+
+    const aliasByValue = new Map();
+    const conditions = [];
+    for (let [ attribute, filter ] of Object.entries(query.filters)) {
+      if (typeof filter === 'string')
+        filter = { eq:filter };
+
+      for (const [ op, value ] of Object.entries(filter)) {
+        if (op === 'beginsWith') {
+          const valueAlias = aliasByValue.has(value) ? aliasByValue.get(value) : `:V${aliasByValue.size}`;
+          aliasByValue.set(value, valueAlias);
+          input.ExpressionAttributeValues[valueAlias] = value;
+
+          conditions.push(`begins_with(${attribute}, ${valueAlias})`);
+        } else if (filterOpByName.has(op)) {
+          const valueAlias = aliasByValue.has(value) ? aliasByValue.get(value) : `:V${aliasByValue.size}`;
+          aliasByValue.set(value, valueAlias);
+          input.ExpressionAttributeValues[valueAlias] = value;
+
+          conditions.push(`${attribute} ${filterOpByName.get(op)} ${valueAlias}`);
+        } else
+          throw new Error(`Unsupported condition '${op}'`);
+      }
+    }
+    input.KeyConditionExpression = conditions.join(' AND ');
+
+    do {
+      const rsp = await this._send(new QueryCommand(input));
+      for (const item of rsp.Items)
+        yield item;
+
+      input.ExclusiveStartKey = rsp.LastEvaluatedKey;
+    } while (input.ExclusiveStartKey);
   }
   _compress(str) {
     // Avoid compressing already compressed data when reprocessing items.

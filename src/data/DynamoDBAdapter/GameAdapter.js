@@ -455,7 +455,7 @@ export default class extends DynamoDBAdapter {
       if (parts.size === 0) return;
 
       const game = Game.fromParts(parts);
-      game.state.gameType = this.getGameType(game.state.type);
+      game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
       this._attachGame(game);
 
       return game;
@@ -953,5 +953,24 @@ export default class extends DynamoDBAdapter {
       type: 'collection',
       name: `collection/${collection.id}`,
     }, children);
+  }
+
+  /*****************************************************************************
+   * Not intended for use by application.
+   ****************************************************************************/
+  async *listAllGameIds(since = null) {
+    const children = this._query({
+      indexName: 'GPK0-GSK0',
+      attributes: [ 'PK' ],
+      filters: {
+        GPK0: 'game',
+        GSK0: since
+          ? { gt:`instance&${since.toISOString()}` }
+          : { beginsWith:`instance&` },
+      },
+    });
+
+    for await (const child of children)
+      yield child.PK.slice(5);
   }
 };
