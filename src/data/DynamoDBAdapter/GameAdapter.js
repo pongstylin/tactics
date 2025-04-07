@@ -500,7 +500,7 @@ export default class extends DynamoDBAdapter {
    * However, sometimes we may want to wait until it IS consistent.  For this
    * reason, we maintain the '_dirtyGames' property.
    */
-  _updateGameSummary(game) {
+  _updateGameSummary(game, force = false) {
     const dirtyGames = this._dirtyGames;
     if (dirtyGames.has(game.id))
       return dirtyGames.get(game.id);
@@ -533,7 +533,7 @@ export default class extends DynamoDBAdapter {
           if (game.state.endedAt) {
             const minTurnId = game.state.initialTurnId + 3;
             if (game.state.currentTurnId < minTurnId) {
-              collection.delete(game.id);
+              collection.prune(game.id);
               return;
             }
           }
@@ -569,19 +569,12 @@ export default class extends DynamoDBAdapter {
 
         // Avoid adding and immediately removing a game to the main list.
         if (game.state.startedAt) {
-          const clone = serializer.clone(gameSummaryList);
-          clone.set(game.id, summary);
-          this._pruneGameSummaryList(clone);
-
-          if (clone.has(game.id)) {
-            gameSummaryList.set(game.id, summary);
-            if (game.state.endedAt)
-              this._pruneGameSummaryList(gameSummaryList);
-          } else if (gameSummaryList.has(game.id))
-            gameSummaryList.delete(game.id);
+          gameSummaryList.set(game.id, summary, force);
+          if (game.state.endedAt)
+            this._pruneGameSummaryList(gameSummaryList);
         // If the game hasn't started, make sure to omit reserved games from collection lists
         } else if (!isCollectionList || !game.isReserved)
-          gameSummaryList.set(game.id, summary);
+          gameSummaryList.set(game.id, summary, force);
       }
     });
 
@@ -627,6 +620,7 @@ export default class extends DynamoDBAdapter {
     // Hacky
     const isCollectionList = !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(gameSummaryList.id);
     const groups = new Map([ [ 'completed', [] ] ]);
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
     if (isCollectionList) {
       const now = Date.now();
@@ -636,9 +630,9 @@ export default class extends DynamoDBAdapter {
           groups.get('completed').push(gameSummary);
         else if (gameSummary.startedAt) {
           if (!gameSummary.timeLimitName)
-            gameSummaryList.delete(gameSummary.id);
+            gameSummaryList.prune(gameSummary.id);
           else if (gameSummary.getTurnTimeRemaining(now) === 0)
-            gameSummaryList.delete(gameSummary.id);
+            gameSummaryList.prune(gameSummary.id);
         }
       }
     } else {
@@ -661,7 +655,7 @@ export default class extends DynamoDBAdapter {
 
       if (gamesSummary.length > 50)
         for (const gameSummary of gamesSummary.slice(50))
-          gameSummaryList.delete(gameSummary.id);
+          gameSummaryList.prune(gameSummary.id);
     }
   }
 
@@ -773,7 +767,7 @@ export default class extends DynamoDBAdapter {
         gs.startedAt ? `b=${gs.createdAt.toISOString()}` :
         `a=${gs.createdAt.toISOString()}`
       );
-      const practice = [ 'fork', 'practice' ].includes(gs.mode);
+      const practice = gs.isSimulation;
       const rated = gs.endedAt && gs.rated;
 
       return {
@@ -904,7 +898,7 @@ export default class extends DynamoDBAdapter {
           indexValue: `${parts[0]}&${parts[1]}&`,
         }),
         order: 'DESC',
-        limit: 100,
+        limit: 50,
       },
     }, gamesSummary => {
       const collection = new GameSummaryList({

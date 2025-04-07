@@ -12,7 +12,7 @@ for await (const gameId of dataAdapter.listAllGameIds()) {
   console.log('gameType', game.state.type);
   if (!gameTypeMap.has(game.state.type))
     continue;
-  await dataAdapter._updateGameSummary(game);
+  await dataAdapter._updateGameSummary(game, true);
 }
 
 console.log('Flushing changes to disk');
