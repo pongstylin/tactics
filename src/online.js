@@ -2940,7 +2940,7 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   divTeam.classList.toggle('linkable', linkable && !!ranks);
   divTeam.dataset.playerId = team.playerId;
 
-  const rank = ranks?.find(r => r.rankingId === rankingId) ?? null;
+  const rank = ranks && (ranks.find(r => r.rankingId === rankingId) ?? null);
   const defaultRating = rankingId === 'FORTE' ? 0 : 750;
   const rating = [];
 
