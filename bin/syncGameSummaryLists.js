@@ -10,11 +10,12 @@ const gameTypeMap = new Map(gameTypes);
 const dataAdapter = new GameAdapter();
 await dataAdapter.bootstrap();
 
+const since = process.argv[2] ? new Date(process.argv[2]) : null;
 const queue = [];
 let numProcessed = 0;
 
 //queue.push('efaf63a4-4f78-45fc-8fdd-73f28a1bfe8f');
-for await (const gameId of dataAdapter.listAllGameIds()) {
+for await (const gameId of dataAdapter.listAllGameIds(since)) {
   queue.push(gameId);
   if (queue.length === 100)
     await sync();
