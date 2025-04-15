@@ -1,21 +1,39 @@
 import '#plugins/index.js';
 import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
 import gameTypes from '#data/files/game/game_types.json' assert { type:'json' };
+import Timeout from '#server/Timeout.js';
+
+// Required for DynamoDBAdapter
+const ticker = setInterval(Timeout.tick, 5000);
 
 const gameTypeMap = new Map(gameTypes);
 const dataAdapter = new GameAdapter();
 await dataAdapter.bootstrap();
 
+const queue = [];
+let numProcessed = 0;
+
+//queue.push('efaf63a4-4f78-45fc-8fdd-73f28a1bfe8f');
 for await (const gameId of dataAdapter.listAllGameIds()) {
-  console.log('gameId', gameId);
-  const game = await dataAdapter._getGame(gameId);
-  console.log('gameType', game.state.type);
-  if (!gameTypeMap.has(game.state.type))
-    continue;
-  await dataAdapter._updateGameSummary(game, true);
+  queue.push(gameId);
+  if (queue.length === 100)
+    await sync();
 }
 
-console.log('Flushing changes to disk');
-await dataAdapter.cleanup();
+if (queue.length)
+  await sync();
 
+await dataAdapter.cleanup();
+clearInterval(ticker);
 console.log('Sync complete');
+
+async function sync() {
+  await Promise.all(queue.map(qId => dataAdapter._getGame(qId).then(game => {
+    if (!gameTypeMap.has(game.state.type))
+      return;
+    return dataAdapter._updateGameSummary(game, true);
+  }).catch(error => console.error(error))));
+  await dataAdapter.flush();
+  console.log('synced', numProcessed += queue.length);
+  queue.length = 0;
+}

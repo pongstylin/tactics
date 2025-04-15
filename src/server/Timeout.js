@@ -4,6 +4,7 @@ import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
 
 const timeouts = new Map();
+const intervals = [];
 
 export default class Timeout {
   constructor(name, config = {}) {
@@ -30,9 +31,29 @@ export default class Timeout {
 
   static tick() {
     const now = Date.now();
-    for (let itemTimeout of timeouts.values()) {
+    for (let itemTimeout of timeouts.values())
       itemTimeout._tick(now);
+
+    if (intervals[0].expireAt <= Date.now()) {
+      for (const interval of intervals.slice()) {
+        if (interval.expireAt > Date.now())
+          break;
+        interval.expireAt += interval.duration;
+        interval.callback();
+      }
+      intervals.sort((a,b) => a.expireAt - b.expireAt);
     }
+  }
+
+  static setInterval(callback, duration, delay = true) {
+    intervals.push({
+      callback,
+      duration,
+      expireAt: typeof delay === 'number' ? Date.now() + delay : Date.now() + duration,
+    });
+    if (!delay)
+      callback();
+    intervals.sort((a,b) => a.expireAt - b.expireAt);
   }
 
   static fromJSON(data) {

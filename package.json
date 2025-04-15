@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "1.31.3",
+  "version": "1.31.4",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
@@ -77,6 +77,7 @@
     "utf-8-validate": "^5.0.2",
     "uuid": "^9.0.1",
     "web-push": "^3.6.6",
+    "workerpool": "^9.2.0",
     "ws": "^8.16.0",
     "xregexp": "^5.1.1"
   }
