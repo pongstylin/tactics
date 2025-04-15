@@ -230,14 +230,17 @@ export default class FileAdapter {
     stateBuffer.add(this.name, this.state);
   }
 
-  async cleanup() {
+  async flush() {
     const promises = [];
 
     for (const [ fileType, fileConfig ] of this.fileTypes)
       for (const item of this.buffer.get(fileType).clear())
         promises.push(this[fileConfig.saver](item));
 
-    await Promise.all(promises);
+    return Promise.all(promises);
+  }
+  async cleanup() {
+    await this.flush();
 
     if (this.hasState) {
       stateBuffer.pause();

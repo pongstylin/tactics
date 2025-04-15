@@ -277,7 +277,13 @@ export default class Identities extends ActiveModel {
 
     for (const playerId of playerIds) {
       const identity = this.findByPlayerId(playerId);
-      if (!identity?.ratedPlayerId) {
+      // Inactive check
+      if (!identity) {
+        ranksByPlayerId.set(playerId, null);
+        continue;
+      }
+      // Unrated check
+      if (!identity.ratedPlayerId) {
         ranksByPlayerId.set(playerId, false);
         continue;
       }

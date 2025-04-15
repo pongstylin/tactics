@@ -13,6 +13,7 @@
  * GPK#: The partition key for a global index where # is a numeric placeholder for 0-9 (string, optional)
  * GSK#: The sort key for a global index where # is a numeric placeholder for 0-9 (string, optional)
  */
+import os from 'os';
 import zlib from 'zlib';
 import {
   ConditionalCheckFailedException,
@@ -29,6 +30,7 @@ import {
   ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import DebugLogger from 'debug';
+import workerpool from 'workerpool';
 
 import config from '#config/server.js';
 import FileAdapter from '#data/FileAdapter.js';
@@ -41,6 +43,31 @@ import sleep from '#utils/sleep.js';
 const client = new DynamoDBClient({ region:process.env.AWS_DEFAULT_REGION });
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DDB_TABLE;
+const workerData = { throttleBuffer:new SharedArrayBuffer(4) };
+const throttle = new Int32Array(workerData.throttleBuffer);
+const WCU_INDEX = 0;
+const WCU_THROTTLE_PERIOD = 60; // 1 minute
+const WCU_LIMIT = parseInt(process.env.DDB_WCU_LIMIT ?? '25') * WCU_THROTTLE_PERIOD;
+const workerQueue = {
+  max: os.cpus().length * 2,
+  size: 0,
+};
+const pool = workerpool.pool(`./src/data/DynamoDBAdapter/worker.js`, {
+  minWorkers: 'max',
+  maxQueueSize: workerQueue.max,
+  workerType: 'thread',
+  workerThreadOpts: { workerData },
+});
+
+// Limit WCU within a period of 1 minute
+Timeout.setInterval(() => {
+  const wcu = Atomics.load(throttle, WCU_INDEX);
+  const nextWCU = Math.max(0, wcu - WCU_LIMIT);
+
+  Atomics.store(throttle, WCU_INDEX, nextWCU);
+  if (nextWCU < WCU_LIMIT)
+    Atomics.notify(throttle, WCU_INDEX);
+}, WCU_THROTTLE_PERIOD * 1000);
 
 const itemMeta = new WeakMap();
 const keyOfItem = r => `${r.PK}:${r.SK}`;
@@ -58,7 +85,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     super(props);
 
     this.itemQueue = new Map();
-    this.whenCompressed = Promise.resolve();
     this._triggerItemQueueTimeout = null;
   }
 
@@ -67,6 +93,14 @@ export default class DynamoDBAdapter extends FileAdapter {
   // additional items.  The final step is normalizing the object.
   async migrate(item, props) {
     return serializer.parse(await this._decompress(item.D ?? item.PD));
+  }
+
+  async cleanup() {
+    await super.cleanup();
+
+    pool.terminate();
+
+    return this;
   }
 
   /*
@@ -181,15 +215,17 @@ export default class DynamoDBAdapter extends FileAdapter {
     ]);
     return this._pushItemQueue({ key:queueKey, method:'_queryItemChildren', args });
   }
-  putItemChildren(...args) {
+  putItemChildren(key, children) {
     if (this.readonly)
       return;
+    if (children.length === 0)
+      return;
 
-    args[0] = this._processKey(args[0]);
-    args[1] = args[1].map(c => this._processItem(c, args[0]));
+    key = this._processKey(key);
+    children = children.map(c => this._processItem(c, key));
 
-    const queueKey = 'write:' + (args[0].name ?? args[0].PK);
-    return this._pushItemQueue({ key:queueKey, method:'_putItemChildren', args });
+    const queueKey = 'write:' + (key.name ?? key.PK);
+    return this._pushItemQueue({ key:queueKey, method:'_putItemChildren', args:[ key, children ] });
   }
 
   /*
@@ -203,8 +239,18 @@ export default class DynamoDBAdapter extends FileAdapter {
       if (this.itemQueue.has(op.key)) {
         const op2 = this.itemQueue.get(op.key);
         if (op.method === op2.method) {
+          // These operations are expected to be identical
           if (op.method === '_getItem' || op.method === '_getItemParts' || op.method === '_queryItemChildren')
             return op2.promise;
+
+          // Either schedule a put after this put or provide the latest data for this put.
+          if (op.method === '_putItem') {
+            if (op2.processing)
+              return op2.promise.finally(() => this._pushItemQueue(op));
+            op2.args = op.args;
+            return op2.promise;
+          }
+
           throw new Error(`Concurrent operation: ${op.key}: method=${op.method}`);
         }
 
@@ -246,26 +292,29 @@ export default class DynamoDBAdapter extends FileAdapter {
       return;
 
     const getItemOps = [];
-    const putItemOps = [];
+    const writeItemOps = [];
     const deleteItemOps = [];
     const otherItemOps = [];
 
     for (const op of queue) {
       if (op.processing)
         continue;
-      op.processing = true;
 
       switch (op.method) {
         case '_getItem':
+          op.processing = true;
           getItemOps.push(op);
           break;
+        case '_createItem':
         case '_putItem':
-          putItemOps.push(op);
+          writeItemOps.push(op);
           break;
         case '_deleteItem':
+          op.processing = true;
           deleteItemOps.push(op);
           break;
         default:
+          op.processing = true;
           otherItemOps.push(op);
       }
     }
@@ -273,8 +322,11 @@ export default class DynamoDBAdapter extends FileAdapter {
     if (getItemOps.length)
       this._getItemBatch(getItemOps);
 
-    if (putItemOps.length || deleteItemOps.length)
-      this._writeItemBatch(putItemOps, deleteItemOps);
+    if (writeItemOps.length)
+      this._writeItemExec(writeItemOps);
+
+    if (deleteItemOps.length)
+      this._writeItemBatch(deleteItemOps);
 
     if (otherItemOps.length)
       otherItemOps.forEach(op => this[op.method](...op.args)
@@ -334,18 +386,11 @@ export default class DynamoDBAdapter extends FileAdapter {
       }
     }));
   }
-  async _writeItemBatch(putOps, deleteOps) {
-    const ops = putOps.concat(deleteOps);
-    const requests = await Promise.all(
-      putOps.map(async op => ({
-        PutRequest: { Item:Object.assign({}, op.args[0], {
-          D: op.args[0].D ? await this._compress(op.args[0].D) : undefined,
-          PD: op.args[0].PD ? await this._compress(op.args[0].PD) : undefined,
-        }) },
-      })).concat(deleteOps.map(op => ({
-        DeleteRequest: { Key:{ PK:op.args[0].PK, SK:op.args[0].SK } },
-      })))
-    );
+  async _writeItemBatch(deleteOps) {
+    const requests = deleteOps.map(op => ({
+      DeleteRequest: { Key:{ PK:op.args[0].PK, SK:op.args[0].SK } },
+    }));
+
     const chunks = [];
     for (let i = 0; i < requests.length; i += 25)
       chunks.push(requests.slice(i, i+25));
@@ -358,7 +403,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       }));
       const delayed = new Map((rsp.UnprocessedItems[TABLE_NAME] ?? []).map(i => [ keyOfItem(i), i ]));
 
-      for (const op of ops) {
+      for (const op of deleteOps) {
         const itemKey = keyOfItem(op.args[0]);
 
         if (delayed.has(itemKey)) {
@@ -423,41 +468,32 @@ export default class DynamoDBAdapter extends FileAdapter {
 
   /*
    * Single-Part Items
+   *
+   * Saving of items is delegated to a worker pool since it includes compression.
+   * The worker pool will throttle saving of items to a target WCU limit.
    */
-  async _createItem(item) {
-    await Promise.all([
-      item.D && this._compress(item.D).then(c => item.D = c),
-      item.PD && this._compress(item.PD).then(c => item.PD = c),
-    ]);
+  _writeItemExec(writeOps) {
+    // Prioritize create over put
+    writeOps.sort((a,b) => a.method === '_createItem' ? -1 : b.method === '_createItem' ? 1 : 0);
 
-    try {
-      await this._send(new PutCommand({
-        TableName: TABLE_NAME,
-        Item: item,
-        ConditionExpression: 'attribute_not_exists(PK)',
-        ReturnValues: 'NONE',
-        ReturnConsumedCapacity: 'NONE',
-        ReturnItemCollectionMetrics: 'NONE',
-      }));
-    } catch (error) {
-      if (error instanceof ConditionalCheckFailedException)
-        throw new ServerError(409, `Item exists: ${item.PK}, ${item.SK}`);
-      throw error;
+    for (let i = workerQueue.size; i < workerQueue.max; i++) {
+      if (writeOps.length === 0)
+        break;
+
+      const op = writeOps.shift();
+      const method = op.method.slice(1);
+      const item = op.args[0];
+
+      workerQueue.size++;
+      op.processing = true;
+      pool.exec(method, [ item ], {
+        on: op.reject,
+      }).then(op.resolve, op.reject).finally(() => {
+        workerQueue.size--;
+        this.itemQueue.delete(op.key)
+        this._triggerItemQueue();
+      });
     }
-  }
-  async hasItem(key) {
-    const rsp = await this._send(new GetCommand({
-      TableName: TABLE_NAME,
-      Key: {
-        PK: key.PK,
-        SK: key.SK,
-      },
-      ConsistentRead: false,
-      ProjectionExpression: 'X', // Effectively means to return nothing
-      ReturnConsumedCapacity: 'NONE',
-    }));
-
-    return !!rsp.Item;
   }
 
   /*
@@ -661,9 +697,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     return obj;
   }
   async _putItemChildren(key, children) {
-    if (children.length === 0)
-      return;
-
     const ops = children.map(child => (child.D ?? child.PD ?? null) === null ? ({
       key: 'write:' + keyOfItem({ PK:key.PK, SK:child.PK }),
       method: '_deleteItem',
@@ -754,27 +787,6 @@ export default class DynamoDBAdapter extends FileAdapter {
 
       input.ExclusiveStartKey = rsp.LastEvaluatedKey;
     } while (input.ExclusiveStartKey);
-  }
-  _compress(str) {
-    // Avoid compressing already compressed data when reprocessing items.
-    if (Buffer.isBuffer(str))
-      return str;
-    if (typeof str !== 'string')
-      throw new Error('Unable to compress');
-
-    return this.whenCompressed = this.whenCompressed.then(() => new Promise(resolve => {
-      zlib.brotliCompress(str, {
-        params: {
-          [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
-          [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
-          [zlib.constants.BROTLI_PARAM_SIZE_HINT]: str.length,
-        },
-      }, (error, compressed) => {
-        if (error)
-          console.error('Error while compressing:', error);
-        resolve(compressed);
-      });
-    }));
   }
   _decompress(data) {
     if (!(data instanceof Uint8Array))

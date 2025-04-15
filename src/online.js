@@ -2935,30 +2935,32 @@ function renderGame(game, playerId = null, rankingId = null) {
   return divGame;
 }
 function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
-  const rank = ranks && (ranks.find(r => r.rankingId === rankingId) ?? null);
   const divTeam = document.createElement('DIV');
   divTeam.classList.add('team');
-  divTeam.classList.toggle('linkable', linkable && rank !== false);
+  divTeam.classList.toggle('linkable', linkable && !!ranks);
   divTeam.dataset.playerId = team.playerId;
 
+  const rank = ranks?.find(r => r.rankingId === rankingId) ?? null;
   const defaultRating = rankingId === 'FORTE' ? 0 : 750;
   const rating = [];
-  if (rank) {
-    if (game.rated) {
-      const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
-      const change = vsRatings[1] - vsRatings[0];
-      const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
 
-      rating.push(`<SPAN class="initial">${Math.round(vsRatings[0])}</SPAN>`);
-      rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN> `);
-    }
-    rating.push(`<SPAN class="current">(${rank.rating})</SPAN>`);
-  } else if (rank === null)
-    rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
-  else if (rank === false)
+  if (game.rated) {
+    const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
+    const change = vsRatings[1] - vsRatings[0];
+    const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
+
+    rating.push(`<SPAN class="initial">${Math.round(vsRatings[0])}</SPAN>`);
+    rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN> `);
+  }
+
+  if (ranks === null)
+    rating.push(`<SPAN class="current">(Inactive)</SPAN>`);
+  else if (ranks === false)
     rating.push(`<SPAN class="current">(Guest)</SPAN>`);
+  else if (rank)
+    rating.push(`<SPAN class="current">(${rank.rating})</SPAN>`);
   else
-    rating.push(`<SPAN class="current">(Bugged)</SPAN>`);
+    rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
 
   divTeam.innerHTML = `
     <DIV class="name">${team.name}</DIV>
