@@ -2531,8 +2531,8 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
     `<SPAN><A href="#rankings/${rankingId}">${name}</A></SPAN>`,
   ]);
 
-  if (ranks === false) {
-    divContent.innerHTML = 'Either the player is not rated or does not exist.';
+  if (!ranks) {
+    divContent.innerHTML = 'Either the player is not rated, inactive, or does not exist.';
     return;
   }
 
