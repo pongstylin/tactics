@@ -577,7 +577,7 @@ export default class DynamoDBAdapter extends FileAdapter {
     await this._pushItemQueue(createItem);
     await this._pushItemQueue(ops);
     const ts2 = Date.now();
-    this.debugV(`_createItemParts: ${keyOfItem(item)}`, ts2 - ts1);
+    this.debugV(`_createItemParts: ${keyOfItem(key)}`, ts2 - ts1);
   }
   async _getItemParts(key, transform, migrateProps) {
     const items = await this._queryItemParts(key);
