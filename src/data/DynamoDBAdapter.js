@@ -272,6 +272,9 @@ export default class DynamoDBAdapter extends FileAdapter {
     return returnType === 'single' ? promises[0] : Promise.all(promises);
   }
   async _triggerItemQueue() {
+    if (this.itemQueue.size === 0)
+      return;
+
     // Allow multiple concurrent requests to be processed together
     if (!this._triggerItemQueueTimeout)
       this._triggerItemQueueTimeout = setTimeout(() => {
@@ -318,6 +321,13 @@ export default class DynamoDBAdapter extends FileAdapter {
           otherItemOps.push(op);
       }
     }
+    this.debug([
+      `queue: total=${queue.length}`,
+      `getItem=${getItemOps.length}`,
+      `writeItem=${writeItemOps.length}`,
+      `deleteItem=${deleteItemOps.length}`,
+      `otherItem=${otherItemOps.length}`,
+    ].join('; '));
 
     if (getItemOps.length)
       this._getItemBatch(getItemOps);
@@ -486,11 +496,14 @@ export default class DynamoDBAdapter extends FileAdapter {
 
       workerQueue.size++;
       op.processing = true;
+      op.execStartAt = Date.now();
       pool.exec(method, [ item ], {
         on: op.reject,
       }).then(op.resolve, op.reject).finally(() => {
+        op.execEndAt = Date.now();
+        this.debugV(`${method}: ${keyOfItem(item)}`, op.execEndAt - op.execStartAt);
         workerQueue.size--;
-        this.itemQueue.delete(op.key)
+        this.itemQueue.delete(op.key);
         this._triggerItemQueue();
       });
     }
@@ -559,11 +572,12 @@ export default class DynamoDBAdapter extends FileAdapter {
       throw new Error(`Missing root part`);
 
     // Safer but slower
-    //const createItem = ops.splice(createItemIdx, 1)[0];
-    //await this._pushItemQueue(createItem);
-    //await this._pushItemQueue(ops);
-
-    await this._writeItemBatch(ops, []);
+    const createItem = ops.splice(createItemIdx, 1)[0];
+    const ts = Date.now();
+    await this._pushItemQueue(createItem);
+    await this._pushItemQueue(ops);
+    const ts2 = Date.now();
+    this.debugV(`_createItemParts: ${keyOfItem(item)}`, ts2 - ts1);
   }
   async _getItemParts(key, transform, migrateProps) {
     const items = await this._queryItemParts(key);
