@@ -573,7 +573,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     // Safer but slower
     const createItem = ops.splice(createItemIdx, 1)[0];
-    const ts = Date.now();
+    const ts1 = Date.now();
     await this._pushItemQueue(createItem);
     await this._pushItemQueue(ops);
     const ts2 = Date.now();
