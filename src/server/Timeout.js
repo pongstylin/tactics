@@ -34,7 +34,7 @@ export default class Timeout {
     for (let itemTimeout of timeouts.values())
       itemTimeout._tick(now);
 
-    if (intervals[0].expireAt <= Date.now()) {
+    if (intervals.length && intervals[0].expireAt <= Date.now()) {
       for (const interval of intervals.slice()) {
         if (interval.expireAt > Date.now())
           break;

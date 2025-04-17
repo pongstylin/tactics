@@ -434,6 +434,8 @@ export default class extends DynamoDBAdapter {
         GPK0: 'game',
         GSK0: 'instance&' + new Date().toISOString(),
       },
+      // The player awaits.  So prioritize this over asynchronous game saving.
+      priority: 1,
     }, game, () => game.toParts(true));
     game.state.gameType = this.getGameType(game.state.type);
     this._attachGame(game);
@@ -962,5 +964,20 @@ export default class extends DynamoDBAdapter {
 
     for await (const child of children)
       yield child.PK.slice(5);
+  }
+  async *listAllGameSummaryKeys(since = null) {
+    const children = this._query({
+      indexName: 'GPK0-GSK0',
+      attributes: [ 'PK', 'SK' ],
+      filters: {
+        GPK0: 'gameSummary',
+        GSK0: since
+          ? { gt:`instance&${since.toISOString()}` }
+          : { beginsWith:`instance&` },
+      },
+    });
+
+    for await (const child of children)
+      yield [ child.PK, child.SK ];
   }
 };
