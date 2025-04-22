@@ -122,6 +122,28 @@ export default class Game extends ActiveModel {
   get createdAt() {
     return this.data.createdAt;
   }
+  get updatedAt() {
+    const createdAt = this.createdAt;
+    const turnStartedAt = this.state.turnStartedAt;
+    const actions = this.state.actions;
+    const endedAt = this.state.endedAt;
+
+    if (endedAt)
+      return endedAt;
+    else if (actions?.length)
+      return actions.last.createdAt;
+    else
+      return turnStartedAt || createdAt;
+  }
+  get startedAt() {
+    return this.state.startedAt;
+  }
+  get turnStartedAt() {
+    return this.state.turnStartedAt;
+  }
+  get endedAt() {
+    return this.state.endedAt;
+  }
 
   /*
    * If a game hasn't started yet, it is...

@@ -11,35 +11,20 @@ export default class GameSummary {
     this.data = data;
   }
 
-  static create(gameType, game) {
-    const createdAt = game.createdAt;
-    const turnStartedAt = game.state.turnStartedAt;
-    const endedAt = game.state.endedAt;
-    const teams = game.state.teams;
-    const actions = game.state.actions;
-    const turns = game.state.turns;
-
-    let updatedAt;
-    if (endedAt)
-      updatedAt = endedAt;
-    else if (actions?.length)
-      updatedAt = actions.last.createdAt;
-    else
-      updatedAt = turnStartedAt || createdAt;
-
+  static create(game) {
     const data:any = {
       id: game.id,
-      type: gameType.id,
+      type: game.state.type,
       collection: game.collection,
-      typeName: gameType.name,
+      typeName: game.state.gameType.name,
       createdBy: game.createdBy,
-      createdAt,
-      updatedAt,
-      startedAt: game.state.startedAt,
-      endedAt,
+      createdAt: game.createdAt,
+      updatedAt: game.updatedAt,
+      startedAt: game.startedAt,
+      endedAt: game.endedAt,
       randomFirstTurn: game.state.randomFirstTurn,
       randomHitChance: game.state.randomHitChance,
-      turnStartedAt,
+      turnStartedAt: game.state.turnStartedAt,
       // This value is only non-null for 5 seconds after a rated game turn ends
       turnEndedAt: game.state.turnEndedAt,
       timeLimitName: game.timeLimitName,
@@ -47,7 +32,7 @@ export default class GameSummary {
       currentTurnTimeLimit: game.state.currentTurnTimeLimit,
       mode: game.isFork ? 'fork' : game.state.isPracticeMode ? 'practice' : game.state.isTournamentMode ? 'tournament' : null,
       rated: game.state.rated,
-      teams: teams.map(t => t && {
+      teams: game.state.teams.map(t => t && {
         createdAt: t.createdAt,
         joinedAt: t.joinedAt,
         playerId: t.playerId,
@@ -57,9 +42,9 @@ export default class GameSummary {
       tags: { ...game.tags },
     };
 
-    if (endedAt)
+    if (data.endedAt)
       data.winnerId = game.state.winnerId;
-    else if (turnStartedAt)
+    else if (data.turnStartedAt)
       data.currentTeamId = game.state.currentTeamId;
 
     return new GameSummary(data);
@@ -174,6 +159,12 @@ export default class GameSummary {
     return Math.max(0, turnTimeout);
   }
 
+  equals(gs) {
+    if (!(gs instanceof GameSummary))
+      return false;
+
+    return JSON.stringify(this) === JSON.stringify(gs);
+  }
   cloneWithMeta(meta) {
     return new GameSummary({ ...this.data, meta });
   }
