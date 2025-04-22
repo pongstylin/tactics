@@ -548,8 +548,7 @@ export default class extends FileAdapter {
       );
 
     const promise = Promise.all(promises).then(gameSummaryLists => {
-      const gameType = this._gameTypes.get(game.state.type);
-      const summary = GameSummary.create(gameType, game);
+      const summary = GameSummary.create(game);
       if (dirtyGames.get(game.id) === promise)
         dirtyGames.delete(game.id);
 

@@ -11,6 +11,8 @@ import PlayerSets from '#models/PlayerSets.js';
 import PlayerAvatars from '#models/PlayerAvatars.js';
 import ServerError from '#server/Error.js';
 
+const gameSummaryCache = new WeakMap();
+
 export default class extends DynamoDBAdapter {
   constructor(options = {}) {
     super({
@@ -40,12 +42,10 @@ export default class extends DynamoDBAdapter {
         ],
         [
           'playerGames', {
-            saver: '_savePlayerGames',
           },
         ],
         [
           'collection', {
-            saver: '_saveGameCollection',
           },
         ],
       ]),
@@ -434,6 +434,8 @@ export default class extends DynamoDBAdapter {
         GPK0: 'game',
         GSK0: 'instance&' + new Date().toISOString(),
       },
+      // The player awaits.  So prioritize this over asynchronous game saving.
+      priority: 1,
     }, game, () => game.toParts(true));
     game.state.gameType = this.getGameType(game.state.type);
     this._attachGame(game);
@@ -454,6 +456,7 @@ export default class extends DynamoDBAdapter {
 
       const game = Game.fromParts(parts);
       game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
+      gameSummaryCache.set(game, GameSummary.create(game));
       this._attachGame(game);
 
       return game;
@@ -474,17 +477,76 @@ export default class extends DynamoDBAdapter {
   _onGameChange(game) {
     if (!this.buffer.get('game').has(game.id))
       this.buffer.get('game').add(game.id, game);
+
     this._updateGameSummary(game);
   }
-  async _saveGame(game, { fromFile = false } = {}) {
-    await this.putItemParts({
-      id: game.id,
-      type: 'game',
-      indexes: {
-        GPK0: 'game',
-        GSK0: 'instance&' + new Date().toISOString(),
-      },
-    }, game, () => game.toParts(fromFile));
+  async _saveGame(game, { fromFile = false, sync = false } = {}) {
+    const children = [];
+    const ogs = gameSummaryCache.get(game);
+    const gs = GameSummary.create(game);
+    const ts = new Date().toISOString();
+    if (sync || !gs.equals(ogs)) {
+      const collection = gs.collection && gs.collection.split('/')[0];
+      const stageDate = (
+        gs.endedAt ? `c=${gs.endedAt.toISOString()}` :
+        gs.startedAt ? `b=${gs.createdAt.toISOString()}` :
+        `a=${gs.createdAt.toISOString()}`
+      );
+      const practice = gs.isSimulation;
+      const rated = gs.endedAt && gs.rated;
+      children.push(...game.state.playerIds.map(pId => ({
+        id: pId,
+        type: 'playerGames',
+        childId: gs.id,
+        childType: 'gameSummary',
+        indexData: gs,
+        indexes: {
+          GPK0: 'gameSummary',
+          GSK0: `instance&${ts}`,
+          GPK1: `game#${gs.id}`,
+          GSK1: `child`,
+          LSK0: !practice ? `${stageDate}` : undefined,
+          LSK1: !practice ? `${gs.type}&${stageDate}` : undefined,
+          LSK2: rated ? `${stageDate}` : undefined,
+          LSK3: rated ? `${gs.type}&${stageDate}` : undefined,
+          LSK4: practice ? `${gs.updatedAt.toISOString()}` : undefined,
+          LSK5: practice ? `${gs.type}&${gs.updatedAt.toISOString()}` : undefined,
+        },
+      })));
+      if (collection) {
+        children.push({
+          type: 'collection',
+          childId: gs.id,
+          childType: 'gameSummary',
+          indexData: gs,
+          indexes: {
+            GPK0: 'gameSummary',
+            GSK0: `instance&${ts}`,
+            GPK1: `game#${gs.id}`,
+            GSK1: `child`,
+            LSK0: `${stageDate}`,
+            LSK1: `${gs.type}&${stageDate}`,
+            LSK2: `${collection}&${stageDate}`,
+            LSK3: `${collection}&${gs.type}&${stageDate}`,
+            LSK4: rated ? `${stageDate}` : undefined,
+            LSK5: rated ? `${gs.type}&${stageDate}` : undefined,
+          },
+        });
+      }
+    }
+
+    await Promise.all([
+      this.putItemParts({
+        id: game.id,
+        type: 'game',
+        indexes: {
+          GPK0: 'game',
+          GSK0: `instance&${ts}`,
+        },
+      }, game, () => game.toParts(fromFile)),
+      ...children.map(c => this.putItemChild(c)),
+    ]);
+    gameSummaryCache.set(game, gs);
   }
 
   /*
@@ -555,8 +617,7 @@ export default class extends DynamoDBAdapter {
     }
 
     const promise = Promise.all(promises).then(gameSummaryLists => {
-      const gameType = this._gameTypes.get(game.state.type);
-      const summary = GameSummary.create(gameType, game);
+      const summary = GameSummary.create(game);
       if (dirtyGames.get(game.id) === promise)
         dirtyGames.delete(game.id);
 
@@ -745,48 +806,7 @@ export default class extends DynamoDBAdapter {
       gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
     });
 
-    playerGames.once('change:set', () => this.buffer.get('playerGames').add(playerId, playerGames));
     return playerGames;
-  }
-  async _savePlayerGames(playerGames, { fromFile = false } = {}) {
-    const newGamesSummary = playerGames.toNewValues(fromFile);
-
-    // Since deletions do not necessarily require deleting from DDB, only listen for additions.
-    playerGames.once('change:set', () => this.buffer.get('playerGames').add(playerGames.id, playerGames));
-
-    const children = newGamesSummary.map(gs => {
-      const stageDate = (
-        gs.endedAt ? `c=${gs.endedAt.toISOString()}` :
-        gs.startedAt ? `b=${gs.createdAt.toISOString()}` :
-        `a=${gs.createdAt.toISOString()}`
-      );
-      const practice = gs.isSimulation;
-      const rated = gs.endedAt && gs.rated;
-
-      return {
-        id: gs.id,
-        type: 'gameSummary',
-        indexData: gs,
-        indexes: {
-          GPK0: 'gameSummary',
-          GSK0: 'instance&' + new Date().toISOString(),
-          GPK1: `game#${gs.id}`,
-          GSK1: `child`,
-          LSK0: !practice ? `${stageDate}` : undefined,
-          LSK1: !practice ? `${gs.type}&${stageDate}` : undefined,
-          LSK2: rated ? `${stageDate}` : undefined,
-          LSK3: rated ? `${gs.type}&${stageDate}` : undefined,
-          LSK4: practice ? `${gs.updatedAt.toISOString()}` : undefined,
-          LSK5: practice ? `${gs.type}&${gs.updatedAt.toISOString()}` : undefined,
-        },
-      };
-    });
-
-    await this.putItemChildren({
-      id: playerGames.id,
-      type: 'playerGames',
-      name: `player_${playerGames.id}_games`,
-    }, children);
   }
 
   /*
@@ -901,48 +921,7 @@ export default class extends DynamoDBAdapter {
       gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
     });
 
-    if (parts[0] !== 'rated')
-      collection.once('change:set', () => this.buffer.get('collection').add(collectionId, collection));
     return collection;
-  }
-  async _saveGameCollection(collection, { fromFile = false } = {}) {
-    const newGamesSummary = collection.toNewValues(fromFile);
-
-    // Since deletions do not necessarily require deleting from DDB, only listen for additions.
-    collection.once('change:set', () => this.buffer.get('collection').add(collection.id, collection));
-
-    const children = newGamesSummary.map(gs => {
-      const stageDate = (
-        gs.endedAt ? `c=${gs.endedAt.toISOString()}` :
-        gs.startedAt ? `b=${gs.createdAt.toISOString()}` :
-        `a=${gs.createdAt.toISOString()}`
-      );
-      const collection = gs.collection && gs.collection.split('/')[0];
-      const rated = gs.endedAt && gs.rated;
-
-      return {
-        id: gs.id,
-        type: 'gameSummary',
-        indexData: gs,
-        indexes: {
-          GPK0: 'gameSummary',
-          GSK0: 'instance&' + new Date().toISOString(),
-          GPK1: `game#${gs.id}`,
-          GSK1: `child`,
-          LSK0: `${stageDate}`,
-          LSK1: `${gs.type}&${stageDate}`,
-          LSK2: `${collection}&${stageDate}`,
-          LSK3: `${collection}&${gs.type}&${stageDate}`,
-          LSK4: rated ? `${stageDate}` : undefined,
-          LSK5: rated ? `${gs.type}&${stageDate}` : undefined,
-        },
-      };
-    });
-
-    await this.putItemChildren({
-      type: 'collection',
-      name: `collection/${collection.id}`,
-    }, children);
   }
 
   /*****************************************************************************
@@ -962,5 +941,21 @@ export default class extends DynamoDBAdapter {
 
     for await (const child of children)
       yield child.PK.slice(5);
+  }
+  async *listAllGameSummaryKeys(since = null, order = 'ASC') {
+    const children = this._query({
+      indexName: 'GPK0-GSK0',
+      attributes: [ 'PK', 'SK' ],
+      filters: {
+        GPK0: 'gameSummary',
+        GSK0: since
+          ? { gt:`instance&${since.toISOString()}` }
+          : { beginsWith:`instance&` },
+      },
+      order,
+    });
+
+    for await (const child of children)
+      yield [ child.PK, child.SK ];
   }
 };

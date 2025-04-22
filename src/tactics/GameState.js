@@ -256,6 +256,9 @@ export default class GameState {
     return this.teams.filter(t => t.id !== winnerId);
   }
 
+  get playerIds() {
+    return Array.from(new Set(this.teams.filter(t => !!t?.playerId).map(t => t.playerId)));
+  }
   get activeTeams() {
     return this.teams.filter(t => !!t.units.length);
   }

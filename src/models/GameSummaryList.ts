@@ -7,12 +7,10 @@ export default class GameSummaryList extends ActiveModel {
     id: string
     gamesSummary: Map<string, GameSummary>
   }
-  protected dirtyGamesSummary: Map<string, GameSummary>;
 
   constructor(data) {
     super();
     this.data = data;
-    this.dirtyGamesSummary = new Map();
   }
 
   static create(id) {
@@ -39,18 +37,13 @@ export default class GameSummaryList extends ActiveModel {
     return this.data.gamesSummary.entries();
   }
 
-  set(gameId, gameSummary, force = false) {
+  set(gameId, gameSummary) {
     const gamesSummary = this.data.gamesSummary;
     const oldSummary = gamesSummary.get(gameId);
-    if (!force && oldSummary) {
-      const summaryA = JSON.stringify(oldSummary);
-      const summaryB = JSON.stringify(gameSummary);
-      if (summaryA === summaryB)
-        return false;
-    }
+    if (gameSummary.equals(oldSummary))
+      return false;
 
     gamesSummary.set(gameId, gameSummary);
-    this.dirtyGamesSummary.set(gameId, gameSummary);
     this.emit({
       type: 'change:set',
       data: { gameId, gameSummary, oldSummary },
@@ -69,7 +62,7 @@ export default class GameSummaryList extends ActiveModel {
 
     this.data.gamesSummary.delete(gameId);
     this.emit({
-      type: 'change:delete',
+      type: 'change:prune',
       data: { gameId, oldSummary },
     });
 
@@ -82,23 +75,12 @@ export default class GameSummaryList extends ActiveModel {
     if (!oldSummary) return false;
 
     this.data.gamesSummary.delete(gameId);
-    this.dirtyGamesSummary.delete(gameId);
     this.emit({
       type: 'change:delete',
       data: { gameId, oldSummary },
     });
 
     return true;
-  }
-
-  toNewValues(force) {
-    if (!this.clean(force))
-      return [];
-
-    const values = Array.from(force ? this.data.gamesSummary.values() : this.dirtyGamesSummary.values());
-    this.dirtyGamesSummary.clear();
-
-    return values;
   }
 };
 

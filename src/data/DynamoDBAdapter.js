@@ -164,7 +164,7 @@ export default class DynamoDBAdapter extends FileAdapter {
     const queueKey = 'write:' + (key.name ?? key.PK);
     return this._pushItemQueue({ key:queueKey, method:'_createItemParts', args:[ key, obj, parts ] });
   }
-  getItemParts(key, transform, migrateProps = undefined) {
+  getItemParts(key, transform = p => p, migrateProps = undefined) {
     key = this._processKey(key);
 
     const queueKey = key.name ?? key.PK;
@@ -214,6 +214,15 @@ export default class DynamoDBAdapter extends FileAdapter {
       args[0].query.limit ?? 0,
     ]);
     return this._pushItemQueue({ key:queueKey, method:'_queryItemChildren', args });
+  }
+  putItemChild(key) {
+    if (this.readonly)
+      return;
+
+    const item = this._processItem(key);
+
+    const queueKey = 'write:' + keyOfItem(item);
+    return this._pushItemQueue({ key:queueKey, method:'_putItem', args:[ item ] });
   }
   putItemChildren(key, children) {
     if (this.readonly)
@@ -483,8 +492,7 @@ export default class DynamoDBAdapter extends FileAdapter {
    * The worker pool will throttle saving of items to a target WCU limit.
    */
   _writeItemExec(writeOps) {
-    // Prioritize create over put
-    writeOps.sort((a,b) => a.method === '_createItem' ? -1 : b.method === '_createItem' ? 1 : 0);
+    writeOps.sort((a,b) => (b.priority ?? 0) - (a.priority ?? 0));
 
     for (let i = workerQueue.size; i < workerQueue.max; i++) {
       if (writeOps.length === 0)
@@ -565,13 +573,13 @@ export default class DynamoDBAdapter extends FileAdapter {
       key: 'write:' + keyOfItem({ PK:key.PK, SK:k }),
       method: k === '/' ? '_createItem' : '_putItem',
       args: [ Object.assign(this._processItem(p), { PK:key.PK, SK:k }) ],
+      priority: key.priority ?? 0,
     }));
 
     const createItemIdx = ops.findIndex(o => o.method === '_createItem');
     if (createItemIdx === -1)
       throw new Error(`Missing root part`);
 
-    // Safer but slower
     const createItem = ops.splice(createItemIdx, 1)[0];
     const ts1 = Date.now();
     await this._pushItemQueue(createItem);
@@ -739,7 +747,7 @@ export default class DynamoDBAdapter extends FileAdapter {
     return Object.assign({
       // If PK is not supplied, a type and id is required.
       PK: key.id ? `${key.type}#${key.id}` : key.type,
-      SK: '/',
+      SK: key.childId ? `${key.childType}#${key.childId}` : key.childType ? key.childType : '/',
     }, key);
   }
   _processItem(item, key = null) {
