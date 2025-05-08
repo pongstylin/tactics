@@ -1,15 +1,12 @@
-import fs from 'fs';
+import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 
-import serializer from '#utils/serializer.js';
-import FileAdapter from '#data/FileAdapter.js';
-import migrate, { getLatestVersionNumber } from '#data/migrate.js';
-
+import '#server/AccessToken.js';
 import Identities from '#models/Identities.js';
 import Identity from '#models/Identity.js';
 import Player from '#models/Player.js';
 import Provider from '#models/Provider.js';
 
-export default class extends FileAdapter {
+export default class extends DynamoDBAdapter {
   constructor(options = {}) {
     super({
       name: 'auth',
@@ -20,6 +17,11 @@ export default class extends FileAdapter {
         [
           'player', {
             saver: '_savePlayer',
+          },
+        ],
+        [
+          'playerDevice', {
+            saver: '_savePlayerDevice',
           },
         ],
         [
@@ -82,12 +84,16 @@ export default class extends FileAdapter {
     const player = await this._getPlayer(playerId);
     this.cache.get('player').open(playerId, player);
     this.cache.get('identity').open(player.identityId, player.identity);
+    for (const device of player.devices.values())
+      this.cache.get('playerDevice').open(device.id);
     return player;
   }
   closePlayer(playerId) {
     const player = this.cache.get('player').close(playerId);
     const expireAt = new Date(Math.max(this.cache.get('player').getExpireAt(playerId), player.identity.expireAt));
     this.cache.get('identity').close(player.identityId, expireAt);
+    for (const device of player.devices.values())
+      this.cache.get('playerDevice').close(device.id, expireAt);
     return player;
   }
   async getPlayer(playerId) {
@@ -101,20 +107,20 @@ export default class extends FileAdapter {
   }
 
   async createPlayerDevice(player, device) {
-    player.addDevice(device);
+    await this._createPlayerDevice(player, device);
     return device;
   }
   async getAllPlayerDevices(playerId) {
     const player = await this.getPlayer(playerId);
-    return Array.from(player.devices.values());
+    return this._getAllPlayerDevices(player);
   }
   async getPlayerDevice(playerId, deviceId) {
     const player = await this.getPlayer(playerId);
-    return player.getDevice(deviceId);
+    return this._getPlayerDevice(player, deviceId);
   }
   async removePlayerDevice(playerId, deviceId) {
     const player = await this.getPlayer(playerId);
-    player.removeDevice(deviceId);
+    await this._removePlayerDevice(player, deviceId);
   }
 
   async linkAuthProvider(providerId, memberId, newLinkPlayerId) {
@@ -217,25 +223,15 @@ export default class extends FileAdapter {
    * Private Interface
    ****************************************************************************/
   async _createPlayer(player) {
-    const buffer = this.buffer.get('player');
-
     player.identity = Identity.create(player);
 
     await Promise.all([
-      this.createFile(`player_${player.id}`, () => {
-        const data = serializer.transform(player);
-        data.version = getLatestVersionNumber('player');
-
-        this._subscribePlayer(player);
-        return data;
-      }),
+      this.createItem({ id:player.id, type:'player' }, player),
       this._createIdentity(player.identity),
     ]);
+    this._subscribePlayer(player);
   }
   async _getPlayer(playerId) {
-    if (typeof playerId !== 'string')
-      throw new TypeError(`Expected playerId to be a string, got ${typeof playerId}`);
-
     const cache = this.cache.get('player');
     const buffer = this.buffer.get('player');
 
@@ -244,57 +240,129 @@ export default class extends FileAdapter {
     else if (buffer.has(playerId))
       return buffer.get(playerId);
 
-    return this.getFile(`player_${playerId}`, async data => {
-      if (data === undefined) return;
-
-      const player = serializer.normalize(migrate('player', data));
-
-      player.identity = await this._getIdentity(player.identityId, player);
-
-      return this._subscribePlayer(player);
+    const player = await this.getItem({
+      id: playerId,
+      type: 'player',
+      name: `player_${playerId}`,
     });
+    player.identity = await this._getIdentity(player.identityId, player);
+
+    return this._subscribePlayer(player);
   }
   async _subscribePlayer(player) {
     const buffer = this.buffer.get('player');
+    const deviceBuffer = this.buffer.get('playerDevice');
 
-    player.on('change', event => buffer.has(player.id) || buffer.add(player.id, player));
-    player.on('device', event => buffer.has(player.id) || buffer.add(player.id, player));
-    player.on('device:add', event => {
-      /*
-       * Only maintain the 10 most recently used devices
-       */
-      if (player.devices.size > 10) {
-        const devices = [ ...this.data.devices.values() ].sort((a,b) => a.checkoutAt - b.checkoutAt);
-        while (devices.length > 10)
-          player.removeDevice(devices.shift().id);
-      }
-    });
-    player.on('device:remove', event => this._emit({
-      type: 'player:removeDevice',
-      data: { player, deviceId:event.device.id },
-    }));
+    player.on('change', () => buffer.has(player.id) || buffer.add(player.id, player));
+    player.on('device:change', ({ device }) => deviceBuffer.has(device.id) || deviceBuffer.add(device.id, device));
 
     return player;
   }
   async _savePlayer(player) {
-    const buffer = this.buffer.get('player');
+    const clone = player.cloneWithoutDevices();
 
-    await this.putFile(`player_${player.id}`, () => {
-      const data = serializer.transform(player);
-      data.version = getLatestVersionNumber('player');
+    await this.putItem({
+      id: player.id,
+      type: 'player',
+      data: clone,
+      ttl: clone.ttl,
+    });
+  }
 
-      return data;
+  async _createPlayerDevice(player, device) {
+    this._addPlayerDevice(player, device);
+
+    await this.createItem({
+      id: device.player.id,
+      type: 'player',
+      childId: device.id,
+      childType: 'device',
+      data: device,
+      // Make sure the device is deleted before the player
+      ttl: device.ttl - 7 * 86400,
+    });
+  }
+  async _addPlayerDevice(player, device) {
+    // Redundant, but prevents destroying the device if it is not in the cache
+    const playerCache = this.cache.get('player');
+    const deviceCache = this.cache.get('playerDevice');
+    if (playerCache.isOpen(player.id))
+      deviceCache.open(device.id, device);
+    else
+      deviceCache.add(device.id, device, playerCache.getExpireAt(player.id));
+
+    device.player = player;
+    player.addDevice(device);
+  }
+  async _getAllPlayerDevices(player) {
+    if (player.hasAllDevices)
+      return Array.from(player.devices.values());
+
+    const devices = await this.queryItemChildren({
+      id: player.id,
+      type: 'player',
+      query: {
+        indexValue: `device#`,
+      },
+    });
+    devices.forEach(d => this._addPlayerDevice(player, d));
+    player.hasAllDevices = true;
+
+    return devices;
+  }
+  async _getPlayerDevice(player, deviceId) {
+    if (player.hasAllDevices)
+      return player.getDevice(deviceId);
+    if (player.devices.has(deviceId))
+      return player.getDevice(deviceId);
+
+    const device = await this.getItem({
+      id: player.id,
+      type: 'player',
+      childId: deviceId,
+      childType: 'device',
+    }, {}, null);
+    if (device)
+      this._addPlayerDevice(player, device);
+
+    return device;
+  }
+  async _savePlayerDevice(device) {
+    await this.putItem({
+      id: device.player.id,
+      type: 'player',
+      childId: device.id,
+      childType: 'device',
+      data: device,
+      // Make sure the device is deleted before the player
+      ttl: device.ttl - 7 * 86400,
+    });
+  }
+  async _removePlayerDevice(player, deviceId) {
+    const device = player.getDevice(deviceId);
+    if (!device)
+      return;
+    player.removeDevice(deviceId);
+
+    this.cache.get('playerDevice').delete(deviceId);
+    this.buffer.get('playerDevice').delete(deviceId);
+    device.destroy();
+
+    this._emit({
+      type: 'player:removeDevice',
+      data: { player, deviceId },
+    });
+    await this.deleteItem({
+      id: player.id,
+      type: 'player',
+      childId: deviceId,
+      childType: 'device',
     });
   }
 
   async _createIdentity(identity) {
-    await this.createFile(`identity_${identity.id}`, () => {
-      const data = serializer.transform(identity);
-      data.version = getLatestVersionNumber('identity');
-
-      this._subscribeIdentity(identity);
-      return data;
-    });
+    await this.createItem({ id:identity.id, type:'identity' }, identity);
+    this._subscribeIdentity(identity);
   }
   async _getIdentity(identityId, player = null) {
     const cache = this.cache.get('identity');
@@ -305,26 +373,24 @@ export default class extends FileAdapter {
     else if (buffer.has(identityId))
       return buffer.get(identityId);
 
-    return this.getFile(`identity_${identityId}`, data => {
-      if (data === undefined && player === null) return;
+    const identity = await this.getItem({
+      id: identityId,
+      type: 'identity',
+      name: `identity_${identityId}`,
+    }, {}, () => player ? Identity.create(player) : undefined);
+    identity.pruneRanks(this.gameTypes);
 
-      const identity = data === undefined
-        ? Identity.create(player)
-        : serializer.normalize(migrate('identity', data));
-      identity.pruneRanks(this.gameTypes);
-
-      return this._subscribeIdentity(identity);
-    });
+    return this._subscribeIdentity(identity);
   }
   async _saveIdentity(identity) {
-    const buffer = this.buffer.get('identity');
+    identity.once('change', () => this.buffer.get('identity').add(identity.id, identity));
 
-    await this.putFile(`identity_${identity.id}`, () => {
-      const data = serializer.transform(identity);
-      data.version = getLatestVersionNumber('identity');
-
-      identity.once('change', () => buffer.add(identity.id, identity));
-      return data;
+    await this.putItem({
+      id: identity.id,
+      type: 'identity',
+      data: identity,
+      // Make sure the identity is deleted after the player
+      ttl: identity.ttl + 7 * 86400,
     });
   }
   async _deleteIdentity(identity) {
@@ -337,7 +403,7 @@ export default class extends FileAdapter {
       buffer.delete(identity.id);
     identity.destroy();
 
-    await this.deleteFile(`identity_${identity.id}`);
+    await this.deleteItem({ id:identity.id, type:'identity' });
   }
   _subscribeIdentity(identity) {
     const identities = this.state.identities;
@@ -362,91 +428,32 @@ export default class extends FileAdapter {
     else if (buffer.has(providerId))
       return buffer.get(providerId);
 
-    return this.getFile(`provider_${providerId}`, data => {
-      const provider = data === undefined
-        ? Provider.create(providerId)
-        : serializer.normalize(migrate('provider', data));
+    const provider = await this.getItem({
+      id: providerId,
+      type: 'provider',
+      name: `provider_${providerId}`,
+    }, {}, () => Provider.create(providerId));
 
-      provider.once('change', () => buffer.add(providerId, provider));
-      return provider;
-    });
+    provider.once('change', () => buffer.add(providerId, provider));
+    return provider;
   }
   async _saveProvider(provider) {
-    const buffer = this.buffer.get('provider');
+    provider.once('change', () => this.buffer.get('provider').add(provider.id, provider));
 
-    await this.putFile(`provider_${provider.id}`, () => {
-      const data = serializer.transform(provider);
-
-      provider.once('change', () => buffer.add(provider.id, provider));
-      return data;
+    await this.putItem({
+      id: provider.id,
+      type: 'provider',
+      data: provider,
     });
-  }
-
-  /*
-   * Only used for testing right now.
-   */
-  async deletePlayer(playerId) {
-    await this.deleteFile(`player_${playerId}`);
-    //await this.deleteFile(`player_${playerId}_sets`);
-    //await this.deleteFile(`player_${playerId}_games`);
-    //await this.deleteFile(`identity_${player.identityId}`);
-    // Also need to delete all other players in this identity.
   }
 
   /*
    * Not intended for use by applications.
    */
   listAllPlayerIds() {
-    return new Promise((resolve, reject) => {
-      const playerIds = [];
-      const regex = /^player_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
-
-      fs.readdir(this.filesDir, (err, fileNames) => {
-        for (let i=0; i<fileNames.length; i++) {
-          const match = regex.exec(fileNames[i]);
-          if (!match) continue;
-
-          playerIds.push(match[1]);
-        }
-
-        resolve(playerIds);
-      });
-    });
+    throw new Error('Not implemented');
   }
   listAllIdentityIds() {
-    return new Promise((resolve, reject) => {
-      const identityIds = [];
-      const regex = /^identity_(.{8}-.{4}-.{4}-.{4}-.{12})\.json$/;
-
-      fs.readdir(this.filesDir, (err, fileNames) => {
-        for (let i=0; i<fileNames.length; i++) {
-          const match = regex.exec(fileNames[i]);
-          if (!match) continue;
-
-          identityIds.push(match[1]);
-        }
-
-        resolve(identityIds);
-      });
-    });
-  }
-
-  async archivePlayer(playerId) {
-    try {
-      const filesToArchive = [ `player_${playerId}` ];
-
-      const player = await this._getPlayer(playerId);
-      if (player.identity.playerIds.length === 1)
-        filesToArchive.push(`identity_${player.identityId}`);
-      else
-        player.identity.deletePlayerId(playerId);
-
-      await Promise.all(filesToArchive.map(f => this.archiveFile(f)));
-    } catch (e) {
-      if (e.message.startsWith('Corrupt:'))
-        await this.deleteFile(`player_${playerId}`);
-      else
-        throw e;
-    }
+    throw new Error('Not implemented');
   }
 };

@@ -1,4 +1,5 @@
 import ActiveModel from '#models/ActiveModel.js';
+import type Player from '#models/Player.js';
 import serializer from '#utils/serializer.js';
 
 import setsById from '#config/sets.js';
@@ -9,6 +10,7 @@ export default class PlayerSets extends ActiveModel {
     playerId: string
     sets: any[]
   }
+  public player: Player | null = null;
 
   constructor(data) {
     super();
@@ -89,6 +91,18 @@ export default class PlayerSets extends ActiveModel {
     }
 
     return this.get(gameType, setId);
+  }
+
+  get ttl() {
+    if (this.player)
+      return this.player.ttl;
+    else
+      console.log(`Warning: PlayerSets (${this.playerId}) has no player reference`);
+
+    // Delete the object after 12 months of inactivity (worst case)
+    const days = 12 * 30;
+
+    return Math.round(Date.now() / 1000) + days * 86400;
   }
 };
 

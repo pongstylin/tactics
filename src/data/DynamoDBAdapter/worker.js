@@ -1,4 +1,3 @@
-import { Buffer } from 'buffer';
 import { workerData } from 'worker_threads';
 import zlib from 'zlib';
 
@@ -9,12 +8,7 @@ import {
 import {
   DynamoDBDocumentClient,
 
-  BatchGetCommand,
-  BatchWriteCommand,
-  GetCommand,
   PutCommand,
-  QueryCommand,
-  ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import workerpool from 'workerpool';
 import ServerError from '#server/Error.js';
@@ -22,15 +16,6 @@ import ServerError from '#server/Error.js';
 const client = new DynamoDBClient({ region:process.env.AWS_DEFAULT_REGION });
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DDB_TABLE;
-const indexKeys = new Set([
-  'GPK0',
-  'LSK0',
-  'LSK1',
-  'LSK2',
-  'LSK3',
-  'LSK4',
-  'LSK5',
-]);
 const throttle = new Int32Array(workerData.throttleBuffer);
 const WCU_INDEX = 0;
 const WCU_THROTTLE_PERIOD = 60; // 1 minute

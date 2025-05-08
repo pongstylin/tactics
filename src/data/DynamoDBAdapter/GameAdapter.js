@@ -2,7 +2,6 @@ import { search } from '#utils/jsQuery.js';
 import serializer from '#utils/serializer.js';
 import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 
-import GameType from '#tactics/GameType.js';
 import Game from '#models/Game.js';
 import GameSummary from '#models/GameSummary.js';
 import GameSummaryList from '#models/GameSummaryList.js';
@@ -98,19 +97,33 @@ export default class extends DynamoDBAdapter {
   /*
    * This opens the player's game and set list.
    */
-  async openPlayer(playerId) {
+  async openPlayer(player) {
     await Promise.all([
-      this._getPlayerStats(playerId).then(playerStats => this.cache.get('playerStats').open(playerId, playerStats)),
-      this._getPlayerGames(playerId).then(playerGames => this.cache.get('playerGames').open(playerId, playerGames)),
-      this._getPlayerSets(playerId).then(playerSets => this.cache.get('playerSets').open(playerId, playerSets)),
-      this._getPlayerAvatars(playerId).then(playerAvatars => this.cache.get('playerAvatars').open(playerId, playerAvatars)),
+      this._getPlayerStats(player).then(playerStats => this.cache.get('playerStats').open(player.id, playerStats)),
+      this._getPlayerGames(player.id).then(playerGames => this.cache.get('playerGames').open(player.id, playerGames)),
+      this._getPlayerSets(player).then(playerSets => this.cache.get('playerSets').open(player.id, playerSets)),
+      this._getPlayerAvatars(player).then(playerAvatars => this.cache.get('playerAvatars').open(player.id, playerAvatars)),
     ]);
   }
-  closePlayer(playerId) {
-    this.cache.get('playerStats').close(playerId);
-    this.cache.get('playerGames').close(playerId);
-    this.cache.get('playerSets').close(playerId);
-    this.cache.get('playerAvatars').close(playerId);
+  closePlayer(player) {
+    this.cache.get('playerStats').close(player.id);
+    this.cache.get('playerGames').close(player.id);
+    this.cache.get('playerSets').close(player.id);
+    this.cache.get('playerAvatars').close(player.id);
+
+    /*
+     * Refresh the TTL of player objects if needed as players check out.
+     */
+    for (const itemType of [ 'playerStats', 'playerSets', 'playerAvatars' ]) {
+      const obj = this.cache.get(itemType).get(player.id);
+      const itemMeta = this.getItemMeta(obj);
+      // The obj won't have meta if it was just created and not saved
+      if (!itemMeta.item)
+        continue;
+      // Subtract the 1 week so this TTL doesn't end up being too close to the player TTL.
+      if (!itemMeta.item.TTL || (itemMeta.item.TTL - 7 * 86400) < player.ttl)
+        this.buffer.get(itemType).add(obj.playerId, obj);
+    }
   }
 
   async openPlayerGames(playerId) {
@@ -133,28 +146,22 @@ export default class extends DynamoDBAdapter {
     return this.cache.get('collection').add(collectionId, collection);
   }
 
-  async getPlayerStats(myPlayerId, vsPlayerId) {
-    const playerStats = await this._getPlayerStats(myPlayerId);
+  async getPlayerStats(myPlayer) {
+    const playerStats = await this._getPlayerStats(myPlayer);
 
-    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    this.cache.get('playerStats').add(myPlayer.id, playerStats);
     return playerStats;
   }
-  async getPlayerInfo(myPlayerId, vsPlayerId) {
-    const playerStats = await this._getPlayerStats(myPlayerId);
+  async getPlayerInfo(myPlayer, vsPlayerId) {
+    const playerStats = await this._getPlayerStats(myPlayer);
 
-    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    this.cache.get('playerStats').add(myPlayer.id, playerStats);
     return playerStats.get(vsPlayerId);
   }
-  async listPlayerAliases(inPlayerId, forPlayerId) {
-    const playerStats = await this._getPlayerStats(inPlayerId);
+  async clearPlayerWLDStats(myPlayer, vsPlayerId, gameTypeId) {
+    const playerStats = await this._getPlayerStats(myPlayer);
 
-    this.cache.get('playerStats').add(inPlayerId, playerStats);
-    return playerStats.get(forPlayerId).aliases;
-  }
-  async clearPlayerWLDStats(myPlayerId, vsPlayerId, gameTypeId) {
-    const playerStats = await this._getPlayerStats(myPlayerId);
-
-    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    this.cache.get('playerStats').add(myPlayer.id, playerStats);
     return playerStats.clearWLDStats(vsPlayerId, gameTypeId);
   }
 
@@ -201,7 +208,8 @@ export default class extends DynamoDBAdapter {
       dependents.push([{ type:'playerGames', id:playerId }, { type:'gameSummary', id:game.id }]);
 
     this._clearGameSummary(game);
-    await this.deleteItemParts({ id:game.id, type:'game' }, game, dependents);
+    if (game.isPersisted)
+      await this.deleteItemParts({ id:game.id, type:'game' }, game, dependents);
   }
 
   getOpenPlayerSets(playerId, gameType) {
@@ -218,46 +226,50 @@ export default class extends DynamoDBAdapter {
 
     return playerSets.get(gameType, setId);
   }
-  async getPlayerSets(playerId, gameType) {
+  async getPlayerSets(player, gameType) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(playerId);
+    const playerSets = await this._getPlayerSets(player);
     return playerSets.list(gameType);
   }
   /*
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getPlayerSet(playerId, gameType, setId) {
+  async getPlayerSet(player, gameType, setId) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(playerId);
+    const playerSets = await this._getPlayerSets(player);
     return playerSets.get(gameType, setId);
   }
   /*
    * Setting the default set for a game type involves REPLACING the first set
    * for a given game type.
    */
-  async setPlayerSet(playerId, gameType, set) {
+  async setPlayerSet(player, gameType, set) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(playerId);
+    const playerSets = await this._getPlayerSets(player);
     playerSets.set(gameType, set);
   }
-  async unsetPlayerSet(playerId, gameType, setId) {
+  async unsetPlayerSet(player, gameType, setId) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(playerId);
+    const playerSets = await this._getPlayerSets(player);
     return playerSets.unset(gameType, setId);
   }
 
-  async getPlayerAvatars(playerId) {
-    const playerAvatars = await this._getPlayerAvatars(playerId);
-    return this.cache.get('playerAvatars').add(playerId, playerAvatars);
+  async getPlayerAvatars(player, playerId = null) {
+    const playerAvatars = await this._getPlayerAvatars(player, playerId);
+    return this.cache.get('playerAvatars').add(player, playerAvatars);
+  }
+  async listPlayersAvatar(playerIds) {
+    const playerAvatars = await Promise.all(playerIds.map(pId => this.getPlayerAvatars(null, pId)));
+    return playerAvatars.map(pa => pa.avatar);
   }
 
   async searchPlayerGames(player, query) {
@@ -290,14 +302,14 @@ export default class extends DynamoDBAdapter {
 
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
   }
-  async getPlayerPendingGamesInCollection(playerId, collection) {
-    const gamesSummary = await this._getPlayerGames(playerId, true);
+  async getPlayerPendingGamesInCollection(player, collection) {
+    const gamesSummary = await this._getPlayerGames(player.id, true);
     const results = [];
 
     for (const gameSummary of gamesSummary.values()) {
       if (gameSummary.endedAt)
         continue;
-      if (gameSummary.createdBy !== playerId)
+      if (gameSummary.createdBy !== player.id)
         continue;
       if (!gameSummary.collection?.startsWith(collection))
         continue;
@@ -427,19 +439,16 @@ export default class extends DynamoDBAdapter {
    * Game Management
    */
   async _createGame(game) {
-    await this.createItemParts({
-      id: game.id,
-      type: 'game',
-      indexes: {
-        GPK0: 'game',
-        GSK0: 'instance&' + new Date().toISOString(),
-      },
-      // The player awaits.  So prioritize this over asynchronous game saving.
-      priority: 1,
-    }, game, () => game.toParts(true));
+    if (this.cache.get('game').has(game.id) || this.buffer.get('game').has(game.id))
+      throw new Error('Game already exists');
+
     game.state.gameType = this.getGameType(game.state.type);
     this._attachGame(game);
-    await this._updateGameSummary(game);
+    // Save the game asynchronously.  This does mean that I trust that the game
+    // does not already exist in storage.  One benefit is a person jumping their
+    // avatar up and down in the lobby does not hammer storage.
+    this.setItemMeta(game, { partPaths:[] });
+    this._onGameChange(game);
   }
   async _getGame(gameId) {
     if (this.cache.get('game').has(gameId))
@@ -447,20 +456,34 @@ export default class extends DynamoDBAdapter {
     else if (this.buffer.get('game').has(gameId))
       return this.buffer.get('game').get(gameId);
 
-    return this.getItemParts({
-      id: gameId,
-      type: 'game',
-      name: `game_${gameId}`,
-    }, parts => {
-      if (parts.size === 0) return;
+    try {
+      return await this.getItemParts({
+        id: gameId,
+        type: 'game',
+        name: `game_${gameId}`,
+      }, parts => {
+        if (parts.size === 0) return;
+  
+        const game = Game.fromParts(parts);
+        game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
+        gameSummaryCache.set(game, GameSummary.create(game));
+        this._attachGame(game);
+  
+        return game;
+      });
+    } catch (error) {
+      if (error.code === 404) {
+        for (const group of [ 'collection', 'playerGames' ])
+          for (const gsl of this.cache.get(group).values())
+            if (gsl.has(gameId)) {
+              console.log(`Warning: Found game summary for deleted game: `, gameId, gsl.id);
+              gsl.delete(gameId);
+              this.deleteItem({ type:group, id:gsl.id, childType:'gameSummary', childId:gameId });
+            }
+      }
 
-      const game = Game.fromParts(parts);
-      game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
-      gameSummaryCache.set(game, GameSummary.create(game));
-      this._attachGame(game);
-
-      return game;
-    });
+      throw error;
+    }
   }
   _attachGame(game) {
     // Detect changes to game object
@@ -474,18 +497,11 @@ export default class extends DynamoDBAdapter {
     });
     game.state.teams.forEach(t => t?.on('change', () => this._onGameChange(game)));
   }
-  _onGameChange(game) {
-    if (!this.buffer.get('game').has(game.id))
-      this.buffer.get('game').add(game.id, game);
-
-    this._updateGameSummary(game);
-  }
-  async _saveGame(game, { fromFile = false, sync = false } = {}) {
+  _saveGameSummary(game, ts, force = false) {
     const children = [];
     const ogs = gameSummaryCache.get(game);
     const gs = GameSummary.create(game);
-    const ts = new Date().toISOString();
-    if (sync || !gs.equals(ogs)) {
+    if (force || !gs.equals(ogs)) {
       const collection = gs.collection && gs.collection.split('/')[0];
       const stageDate = (
         gs.endedAt ? `c=${gs.endedAt.toISOString()}` :
@@ -535,6 +551,20 @@ export default class extends DynamoDBAdapter {
       }
     }
 
+    return Promise.all(children.map(c => this.putItem(c))).then(() => {
+      gameSummaryCache.set(game, gs);
+    });
+  }
+  _onGameChange(game) {
+    if (!this.buffer.get('game').has(game.id))
+      this.buffer.get('game').add(game.id, game);
+
+    this._updateGameSummary(game);
+  }
+  async _saveGame(game, { fromFile = false, sync = false } = {}) {
+    const ts = new Date().toISOString();
+    game.isPersisted = true;
+
     await Promise.all([
       this.putItemParts({
         id: game.id,
@@ -543,10 +573,9 @@ export default class extends DynamoDBAdapter {
           GPK0: 'game',
           GSK0: `instance&${ts}`,
         },
-      }, game, () => game.toParts(fromFile)),
-      ...children.map(c => this.putItemChild(c)),
+      }, game, game.toParts(fromFile)),
+      this._saveGameSummary(game, ts, sync),
     ]);
-    gameSummaryCache.set(game, gs);
   }
 
   /*
@@ -626,7 +655,6 @@ export default class extends DynamoDBAdapter {
 
         const isCollectionList = !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(gameSummaryList.id);
 
-        // Avoid adding and immediately removing a game to the main list.
         if (game.state.startedAt) {
           gameSummaryList.set(game.id, summary, isSync);
           if (game.state.endedAt)
@@ -715,18 +743,19 @@ export default class extends DynamoDBAdapter {
   /*
    * Player Stats Management
    */
-  async _getPlayerStats(playerId) {
-    if (this.cache.get('playerStats').has(playerId))
-      return this.cache.get('playerStats').get(playerId);
-    else if (this.buffer.get('playerStats').has(playerId))
-      return this.buffer.get('playerStats').get(playerId);
+  async _getPlayerStats(player) {
+    if (this.cache.get('playerStats').has(player.id))
+      return this.cache.get('playerStats').get(player.id);
+    else if (this.buffer.get('playerStats').has(player.id))
+      return this.buffer.get('playerStats').get(player.id);
 
     const playerStats = await this.getItem({
-      id: playerId,
+      id: player.id,
       type: 'playerStats',
-      name: `player_${playerId}_stats`,
-    }, { playerId }, () => PlayerStats.create(playerId));
-    playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
+      name: `player_${player.id}_stats`,
+    }, { playerId:player.id }, () => PlayerStats.create(player.id));
+    playerStats.player = player;
+    playerStats.once('change', () => this.buffer.get('playerStats').add(player.id, playerStats));
 
     return playerStats;
   }
@@ -734,7 +763,14 @@ export default class extends DynamoDBAdapter {
     const playerId = playerStats.playerId;
     playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
 
-    await this.putItem({ id:playerId, type:'playerStats' }, playerStats);
+    await this.putItem({
+      id: playerId,
+      type: 'playerStats',
+      data: playerStats,
+      // Make sure player stats expires after the player so add 1 week.
+      // Add another month to avoid needing to refresh the TTL when nothing else changed.
+      ttl: playerStats.ttl + (7 + 30) * 86400,
+    });
   }
 
   /*
@@ -746,10 +782,7 @@ export default class extends DynamoDBAdapter {
 
     if (this.cache.get('playerGames').has(playerId))
       return this.cache.get('playerGames').get(playerId);
-    else if (this.buffer.get('playerGames').has(playerId))
-      return this.buffer.get('playerGames').get(playerId);
 
-    const gameTypeIds = Array.from(this._gameTypes.keys());
     const gamesSummary = [];
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
@@ -835,21 +868,23 @@ export default class extends DynamoDBAdapter {
       gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
     });
   }
+
   /*
    * Player Sets Management
    */
-  async _getPlayerSets(playerId) {
-    if (this.cache.get('playerSets').has(playerId))
-      return this.cache.get('playerSets').get(playerId);
-    else if (this.buffer.get('playerSets').has(playerId))
-      return this.buffer.get('playerSets').get(playerId);
+  async _getPlayerSets(player) {
+    if (this.cache.get('playerSets').has(player.id))
+      return this.cache.get('playerSets').get(player.id);
+    else if (this.buffer.get('playerSets').has(player.id))
+      return this.buffer.get('playerSets').get(player.id);
 
     const playerSets = await this.getItem({
-      id: playerId,
+      id: player.id,
       type: 'playerSets',
-      name: `player_${playerId}_sets`,
-    }, { playerId }, () => PlayerSets.create(playerId));
-    playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
+      name: `player_${player.id}_sets`,
+    }, { playerId:player.id }, () => PlayerSets.create(player.id));
+    playerSets.player = player;
+    playerSets.once('change', () => this.buffer.get('playerSets').add(player.id, playerSets));
 
     return playerSets;
   }
@@ -857,24 +892,44 @@ export default class extends DynamoDBAdapter {
     const playerId = playerSets.playerId;
     playerSets.once('change', () => this.buffer.get('playerSets').add(playerId, playerSets));
 
-    await this.putItem({ id:playerId, type:'playerSets' }, playerSets);
+    await this.putItem({
+      id: playerId,
+      type: 'playerSets',
+      data: playerSets,
+      // Make sure player sets expires after the player so add 1 week.
+      // Add another month to avoid needing to refresh the TTL when nothing else changed.
+      ttl: playerSets.ttl + (7 + 30) * 86400,
+    });
   }
 
   /*
    * Player Avatars Management
    */
-  async _getPlayerAvatars(playerId) {
-    if (this.cache.get('playerAvatars').has(playerId))
-      return this.cache.get('playerAvatars').get(playerId);
-    else if (this.buffer.get('playerAvatars').has(playerId))
-      return this.buffer.get('playerAvatars').get(playerId);
+  async _getPlayerAvatars(player, playerId) {
+    playerId ??= player.id;
+    const cachedPlayerAvatars = (() => {
+      if (this.cache.get('playerAvatars').has(playerId))
+        return this.cache.get('playerAvatars').get(playerId);
+      else if (this.buffer.get('playerAvatars').has(playerId))
+        return this.buffer.get('playerAvatars').get(playerId);
+    })();
+    if (cachedPlayerAvatars) {
+      // The player may not be set if originally cached via listPlayersAvatar()
+      if (player && !cachedPlayerAvatars.player)
+        cachedPlayerAvatars.player = player;
+      return cachedPlayerAvatars;
+    }
 
     const playerAvatars = await this.getItem({
       id: playerId,
       type: 'playerAvatars',
       name: `player_${playerId}_avatars`,
     }, { playerId }, () => PlayerAvatars.create(playerId));
+    playerAvatars.player = player;
     playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
+
+    if (!playerAvatars.isClean)
+      this.buffer.get('playerAvatars').add(playerId, playerAvatars);
 
     return playerAvatars;
   }
@@ -882,7 +937,14 @@ export default class extends DynamoDBAdapter {
     const playerId = playerAvatars.playerId;
     playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
 
-    await this.putItem({ id:playerId, type:'playerAvatars' }, playerAvatars);
+    await this.putItem({
+      id: playerId,
+      type: 'playerAvatars',
+      data: playerAvatars,
+      // Make sure player avatars expires after the player so add 1 week.
+      // Add another month to avoid needing to refresh the TTL when nothing else changed.
+      ttl: playerAvatars.ttl + (7 + 30) * 86400,
+    });
   }
 
   /*
@@ -891,8 +953,6 @@ export default class extends DynamoDBAdapter {
   async _getGameCollection(collectionId, empty = false) {
     if (this.cache.get('collection').has(collectionId))
       return this.cache.get('collection').get(collectionId);
-    else if (this.buffer.get('collection').has(collectionId))
-      return this.buffer.get('collection').get(collectionId);
 
     const parts = collectionId.split('/');
     const gamesSummary = empty ? [] : await this.queryItemChildren({

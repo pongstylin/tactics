@@ -1,6 +1,6 @@
 import { search as jp } from '@metrichor/jmespath';
-import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
 import '#plugins/index.js';
+import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
 
 const gameId = process.argv[2];
 const path = process.argv[3];

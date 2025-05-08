@@ -127,7 +127,10 @@ export default class Identity extends ActiveModel {
     return this.data.admin;
   }
   get ttl() {
-    return this.data.lastSeenAt.getTime() + 30 * 86400 * 1000 - Date.now();
+    // Delete the object after 3 or 12 months of inactivity depending on verification status.
+    const days = (this.data.name === null ? 3 : 12) * 30;
+
+    return Math.round(this.data.lastSeenAt.getTime() / 1000) + days * 86400;
   }
   get expireAt() {
     return new Date(this.data.lastSeenAt.getTime() + 30 * 86400 * 1000);

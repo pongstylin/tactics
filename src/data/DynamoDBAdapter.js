@@ -16,7 +16,6 @@
 import os from 'os';
 import zlib from 'zlib';
 import {
-  ConditionalCheckFailedException,
   DynamoDBClient,
 } from "@aws-sdk/client-dynamodb";
 import {
@@ -24,21 +23,16 @@ import {
 
   BatchGetCommand,
   BatchWriteCommand,
-  GetCommand,
-  PutCommand,
   QueryCommand,
   ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
-import DebugLogger from 'debug';
 import workerpool from 'workerpool';
 
-import config from '#config/server.js';
 import FileAdapter from '#data/FileAdapter.js';
 import ServerError from '#server/Error.js';
 import Timeout from '#server/Timeout.js';
 import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
-import sleep from '#utils/sleep.js';
 
 const client = new DynamoDBClient({ region:process.env.AWS_DEFAULT_REGION });
 const docClient = DynamoDBDocumentClient.from(client);
@@ -92,6 +86,10 @@ export default class DynamoDBAdapter extends FileAdapter {
   // item type and migrate as needed.  Migrations may retrieve and mutate
   // additional items.  The final step is normalizing the object.
   async migrate(item, props) {
+    if (!(item.D ?? item.PD)) {
+      console.log('Item is missing data!', item, new Error().stack);
+      throw new ServerError(500, 'Item is malformed');
+    }
     return serializer.parse(await this._decompress(item.D ?? item.PD));
   }
 
@@ -107,16 +105,16 @@ export default class DynamoDBAdapter extends FileAdapter {
    * All save operations must serialize objects before queueing the operations.
    * This allows objects to change and schedule another save while a save operation is in progress.
    */
-  createItem(key, obj) {
+  createItem(item, obj) {
     if (this.readonly)
       return;
 
-    const item = this._processItem(Object.assign({}, key, {
-      data: obj,
-    }));
+    if (!item.data && !item.indexData)
+      item.data = obj;
+    item = this._processItem(item);
 
-    const queueKey = key.name ?? keyOfItem(item);
-    return this._pushItemQueue({ key:queueKey, method:'_createItem', args:[ item ] });
+    const queueKey = 'write:' + keyOfItem(item);
+    return this._pushItemQueue({ key:queueKey, method:'_createItem', args:[ item, obj ] });
   }
   getItem(key, migrateProps, defaultValue = undefined) {
     key = this._processKey(key);
@@ -124,16 +122,16 @@ export default class DynamoDBAdapter extends FileAdapter {
     const queueKey = keyOfItem(key);
     return this._pushItemQueue({ key:queueKey, method:'_getItem', args:[ key, migrateProps, defaultValue ] });
   }
-  putItem(key, obj) {
+  putItem(item, obj) {
     if (this.readonly)
       return;
 
-    const item = this._processItem(Object.assign({}, key, {
-      data: obj,
-    }));
+    if (!item.data && !item.indexData)
+      item.data = obj;
+    item = this._processItem(item);
 
     const queueKey = 'write:' + keyOfItem(item);
-    return this._pushItemQueue({ key:queueKey, method:'_putItem', args:[ item ] });
+    return this._pushItemQueue({ key:queueKey, method:'_putItem', args:[ item, obj ] });
   }
   deleteItem(key) {
     if (this.readonly)
@@ -145,24 +143,31 @@ export default class DynamoDBAdapter extends FileAdapter {
     return this._pushItemQueue({ key:queueKey, method:'_deleteItem', args:[ key ] });
   }
 
-  createItemParts(key, obj, transform) {
+  createItemParts(key, obj, parts) {
     if (this.readonly)
       return;
+    if (!parts.has('/'))
+      throw new Error(`Required root part when creating ${key.PK}`);
 
-    key = this._processKey(key);
+    const { PK } = this._processKey(key);
 
-    const parts = transform(obj);
-    if (parts.size === 0)
-      return;
+    const ops = Array.from(parts).map(([ path, part ]) => ({
+      key: 'write:' + keyOfItem({ PK, SK:path }),
+      method: path === '/' ? '_createItem' : '_putItem',
+      args: [
+        this._processItem(Object.assign({}, key, part, {
+          path,
+          indexes: Object.assign(path === '/' ? key.indexes ?? {} : {}, part.indexes),
+        })),
+        path === '/' ? obj : null,
+      ],
+      priority: key.priority ?? 0,
+    }));
 
-    for (const [ partKey, part ] of parts.entries()) {
-      part.data = serializer.stringify(part.data);
-      if (key.indexes && partKey === '/')
-        part.indexes = Object.assign(part.indexes ?? {}, key.indexes);
-    }
+    this.setItemMeta(obj, { partPaths:parts.keys() });
 
     const queueKey = 'write:' + (key.name ?? key.PK);
-    return this._pushItemQueue({ key:queueKey, method:'_createItemParts', args:[ key, obj, parts ] });
+    return this._pushItemQueue({ key:queueKey, method:'_createItemParts', args:[ ops ] });
   }
   getItemParts(key, transform = p => p, migrateProps = undefined) {
     key = this._processKey(key);
@@ -170,24 +175,42 @@ export default class DynamoDBAdapter extends FileAdapter {
     const queueKey = key.name ?? key.PK;
     return this._pushItemQueue({ key:queueKey, method:'_getItemParts', args:[ key, transform, migrateProps ] });
   }
-  putItemParts(key, obj, transform) {
+  putItemParts(key, obj, parts) {
     if (this.readonly)
       return;
+    if (!parts.has('/'))
+      throw new Error(`Required root part when putting ${key.PK}`);
 
-    key = this._processKey(key);
+    const { PK } = this._processKey(key);
 
-    const parts = transform(obj);
-    if (parts.size === 0)
-      return;
+    const ops = Array.from(parts).filter(([ _, p ]) => p.isDirty).map(([ path, part ]) => ({
+      key: 'write:' + keyOfItem({ PK, SK:path }),
+      method: '_putItem',
+      args: [
+        this._processItem(Object.assign({}, key, part, {
+          path,
+          indexes: Object.assign(path === '/' ? key.indexes ?? {} : {}, part.indexes),
+        })),
+        path === '/' ? obj : null,
+      ],
+      priority: key.priority ?? 0,
+    }));
 
-    for (const [ partKey, part ] of parts.entries()) {
-      part.data = serializer.stringify(part.data);
-      if (key.indexes && partKey === '/')
-        part.indexes = Object.assign(part.indexes ?? {}, key.indexes);
-    }
+    if (this.hasItemMeta(obj, 'partPaths')) {
+      for (const path of this.getItemMeta(obj).partPaths)
+        if (!parts.has(path))
+          ops.push({
+            key: 'write:' + keyOfItem({ PK:key.PK, SK:path }),
+            method: '_deleteItem',
+            args: [ { PK:key.PK, SK:path }, null ],
+          });
+    } else
+      console.log(`Warning: Expected partPaths in item meta when putting ${key.PK}`)
+
+    this.setItemMeta(obj, { partPaths:parts.keys() });
 
     const queueKey = 'write:' + (key.name ?? key.PK);
-    return this._pushItemQueue({ key:queueKey, method:'_putItemParts', args:[ key, obj, parts ] });
+    return this._pushItemQueue({ key:queueKey, method:'_putItemParts', args:[ ops ] });
   }
   deleteItemParts(key, obj, dependents) {
     if (this.readonly)
@@ -215,15 +238,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     ]);
     return this._pushItemQueue({ key:queueKey, method:'_queryItemChildren', args });
   }
-  putItemChild(key) {
-    if (this.readonly)
-      return;
-
-    const item = this._processItem(key);
-
-    const queueKey = 'write:' + keyOfItem(item);
-    return this._pushItemQueue({ key:queueKey, method:'_putItem', args:[ item ] });
-  }
   putItemChildren(key, children) {
     if (this.readonly)
       return;
@@ -235,6 +249,31 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     const queueKey = 'write:' + (key.name ?? key.PK);
     return this._pushItemQueue({ key:queueKey, method:'_putItemChildren', args:[ key, children ] });
+  }
+
+  hasItemMeta(obj, key = null) {
+    if (!itemMeta.has(obj))
+      return false;
+    return key ? key in itemMeta.get(obj) : true;
+  }
+  getItemMeta(obj, key = null, defaultValue = null) {
+    if (!itemMeta.has(obj))
+      return key ? defaultValue : {};
+    return key ? itemMeta.get(obj)[key] ?? defaultValue : itemMeta.get(obj);
+  }
+  setItemMeta(obj, newMeta) {
+    if (!obj)
+      return;
+    const meta = itemMeta.get(obj) ?? {};
+    itemMeta.set(obj, Object.assign(meta, newMeta));
+  }
+  deleteItemMeta(obj, key = null) {
+    if (!obj || !itemMeta.has(obj))
+      return;
+    if (key)
+      delete itemMeta.get(obj)[key];
+    else
+      itemMeta.delete(obj);
   }
 
   /*
@@ -389,7 +428,9 @@ export default class DynamoDBAdapter extends FileAdapter {
         let obj;
 
         if (items.has(itemKey)) {
-          obj = await this.migrate(items.get(itemKey), migrateProps);
+          const item = items.get(itemKey);
+          obj = await this.migrate(item, migrateProps);
+          this.setItemMeta(obj, { item });
         } else {
           obj = await this._loadItemFromFile(key, migrateProps);
 
@@ -424,6 +465,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
       for (const op of deleteOps) {
         const itemKey = keyOfItem(op.args[0]);
+        const obj = op.args[1] ?? null;
 
         if (delayed.has(itemKey)) {
           op.processing = false;
@@ -431,7 +473,9 @@ export default class DynamoDBAdapter extends FileAdapter {
           continue;
         }
 
+        this.debugV(`_deleteItem: ${itemKey}`);
         this.itemQueue.delete(op.key);
+        if (obj) this.deleteItemMeta(obj);
         if (op.resolve)
           op.resolve();
       }
@@ -500,13 +544,23 @@ export default class DynamoDBAdapter extends FileAdapter {
 
       const op = writeOps.shift();
       const method = op.method.slice(1);
-      const item = op.args[0];
+      const [ item, obj ] = op.args;
+      if (!(item.D ?? item.PD)) {
+        console.log('Item is missing data!', method, item);
+        op.reject(new ServerError(500, 'Item is missing data!'));
+        this.itemQueue.delete(op.key);
+        this._triggerItemQueue();
+        continue;
+      }
 
       workerQueue.size++;
       op.processing = true;
       op.execStartAt = Date.now();
       pool.exec(method, [ item ], {
         on: op.reject,
+      }).then(rsp => {
+        if (obj) this.setItemMeta(obj, { item });
+        return rsp;
       }).then(op.resolve, op.reject).finally(() => {
         op.execEndAt = Date.now();
         this.debugV(`${method}: ${keyOfItem(item)}`, op.execEndAt - op.execStartAt);
@@ -566,26 +620,15 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     return items;
   }
-  async _createItemParts(key, obj, parts) {
-    itemMeta.set(obj, parts.keys());
-
-    const ops = Array.from(parts).map(([ k, p ]) => ({
-      key: 'write:' + keyOfItem({ PK:key.PK, SK:k }),
-      method: k === '/' ? '_createItem' : '_putItem',
-      args: [ Object.assign(this._processItem(p), { PK:key.PK, SK:k }) ],
-      priority: key.priority ?? 0,
-    }));
-
+  async _createItemParts(ops) {
     const createItemIdx = ops.findIndex(o => o.method === '_createItem');
-    if (createItemIdx === -1)
-      throw new Error(`Missing root part`);
-
     const createItem = ops.splice(createItemIdx, 1)[0];
+
     const ts1 = Date.now();
     await this._pushItemQueue(createItem);
     await this._pushItemQueue(ops);
     const ts2 = Date.now();
-    this.debugV(`_createItemParts: ${keyOfItem(key)}`, ts2 - ts1);
+    this.debugV(`_createItemParts: ${keyOfItem(createItem.args[0])}`, ts2 - ts1);
   }
   async _getItemParts(key, transform, migrateProps) {
     const items = await this._queryItemParts(key);
@@ -597,7 +640,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       obj = transform(parts);
 
       // Save the part keys to aid in saving or deleting the item.
-      itemMeta.set(obj, parts.keys());
+      this.setItemMeta(obj, { partPaths:parts.keys() });
     } else {
       obj = await this._loadItemFromFile(key, migrateProps);
       if (!obj) {
@@ -609,44 +652,25 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     return obj;
   }
-  async _putItemParts(key, obj, parts) {
-    const ops = Array.from(parts).filter(([ k, p ]) => p.isDirty).map(([ k, p ]) => ({
-      key: 'write:' + keyOfItem({ PK:key.PK, SK:k }),
-      method: '_putItem',
-      args: [ Object.assign(this._processItem(p), { PK:key.PK, SK:k }) ],
-    }));
-
-    if (itemMeta.has(obj)) {
-      for (const partKey of itemMeta.get(obj))
-        if (!parts.has(partKey))
-          ops.push({
-            key: 'write:' + keyOfItem({ PK:key.PK, SK:partKey }),
-            method: '_deleteItem',
-            args: [{ PK:key.PK, SK:partKey }],
-          });
-    } else {
-      // itemMeta would only be set when loading an object from file.
-      const numItems = await this._countItemParts(key);
-      if (numItems)
-        throw new Error(`Expected itemMeta when putting ${key.PK}`);
-    }
-
-    itemMeta.set(obj, parts.keys());
-
+  async _putItemParts(ops) {
+    // Why the extra step?  Queuing this operation as a single item enables duplicate/conflict management.
     return this._pushItemQueue(ops);
   }
   async _deleteItemParts(key, obj, dependents) {
     const ops = [];
 
-    if (!itemMeta.has(obj))
+    if (!this.hasItemMeta(obj, 'partPaths'))
       throw new Error(`Expected itemMeta when deleting ${key.PK}`);
     //const items = await this._queryItemParts(key, true);
 
-    for (const partKey of itemMeta.get(obj))
+    for (const partKey of this.getItemMeta(obj).partPaths)
       ops.push({
         key: 'write:' + keyOfItem({ PK:key.PK, SK:partKey }),
         method: '_deleteItem',
-        args: [{ PK:key.PK, SK:partKey }],
+        args: [
+          { PK:key.PK, SK:partKey },
+          partKey === '/' ? obj : null,
+        ],
       });
 
     for (const dependent of dependents)
@@ -656,7 +680,7 @@ export default class DynamoDBAdapter extends FileAdapter {
         args: [{ PK:dependent[0].PK, SK:dependent[1].PK }],
       });
 
-    itemMeta.delete(obj);
+    this.deleteItemMeta(obj, 'partPaths');
 
     return this._pushItemQueue(ops);
   }
@@ -665,19 +689,18 @@ export default class DynamoDBAdapter extends FileAdapter {
    * Item Children
    */
   async _queryItemChildren(key, migrateProps, transform = d => d) {
-    const typeDef = this.fileTypes.get(key.type);
     const input = {
       TableName: TABLE_NAME,
       Select: key.query.indexKey ? 'ALL_PROJECTED_ATTRIBUTES' : 'ALL_ATTRIBUTES',
       IndexName: key.query.indexKey ? `PK-${key.query.indexKey}` : undefined,
       KeyConditionExpression: 'PK = :PV' + (
-        key.query.indexValue?.[0] === 'beginsWith' ? ` AND begins_with(${key.query.indexKey}, :SV)` :
-        key.query.indexValue?.[0] === 'gt' ? ` AND ${key.query.indexKey} > :SV` :
+        key.query.indexValue?.[0] === 'beginsWith' ? ` AND begins_with(${key.query.indexKey ?? 'SK'}, :SV)` :
+        key.query.indexValue?.[0] === 'gt' ? ` AND ${key.query.indexKey ?? 'SK'} > :SV` :
         ''
       ),
       ExpressionAttributeValues: {
         ':PV': key.PK,
-        ':SV': key.query.indexKey ? key.query.indexValue?.[1] : key.SK,
+        ':SV': key.query.indexValue ? key.query.indexValue?.[1] : key.SK,
       },
       ScanIndexForward: key.query.order === 'ASC',
       Limit: key.query.limit,
@@ -747,18 +770,19 @@ export default class DynamoDBAdapter extends FileAdapter {
     return Object.assign({
       // If PK is not supplied, a type and id is required.
       PK: key.id ? `${key.type}#${key.id}` : key.type,
-      SK: key.childId ? `${key.childType}#${key.childId}` : key.childType ? key.childType : '/',
+      SK: key.childId ? `${key.childType}#${key.childId}` : key.childType ? key.childType : key.path ?? '/',
     }, key);
   }
   _processItem(item, key = null) {
     item = this._processKey(item);
 
     return {
-      PK: item.PK,
-      SK: item.SK,
-      D:  typeof item.data      === 'string' ? item.data      : item.data      ? serializer.stringify(item.data)      : undefined,
-      PD: typeof item.indexData === 'string' ? item.indexData : item.indexData ? serializer.stringify(item.indexData) : undefined,
-      PF: item.indexFilter ?? undefined,
+      PK:  item.PK,
+      SK:  item.SK,
+      D:   item.data      ? serializer.stringify(item.data)      : undefined,
+      PD:  item.indexData ? serializer.stringify(item.indexData) : undefined,
+      PF:  item.indexFilter ?? undefined,
+      TTL: item.ttl ?? undefined,
       ...Object.assign({}, key?.indexes, item.indexes),
     };
   }

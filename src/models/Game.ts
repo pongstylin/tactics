@@ -1,5 +1,4 @@
 import { v4 as uuid } from 'uuid';
-import util from 'util';
 
 import timeLimit from '#config/timeLimit.js';
 import ActiveModel from '#models/ActiveModel.js';
@@ -475,8 +474,19 @@ export default class Game extends ActiveModel {
     if (this.state.startedAt)
       throw new ServerError(409, 'Game already started');
 
+    const whenDeleted = {} as {
+      promise: Promise<any>
+      resolve: (value:any) => void
+      reject: (reason?:any) => void
+    };
+    whenDeleted.promise = new Promise((resolve, reject) => {
+      whenDeleted.resolve = resolve;
+      whenDeleted.reject = reject;
+    });
+
     this.isCancelled = true;
-    this.emit('delete:cancel');
+    this.emit({ type:'delete:cancel', whenDeleted });
+    return whenDeleted;
   }
   expire() {
     if (this.isCancelled === true)
@@ -484,8 +494,19 @@ export default class Game extends ActiveModel {
     if (this.state.startedAt)
       throw new ServerError(409, 'Game already started');
 
+    const whenDeleted = {} as {
+      promise: Promise<any>
+      resolve: (value:any) => void
+      reject: (reason?:any) => void
+    };
+    whenDeleted.promise = new Promise((resolve, reject) => {
+      whenDeleted.resolve = resolve;
+      whenDeleted.reject = reject;
+    });
+
     this.isCancelled = true;
-    this.emit('delete:expire');
+    this.emit({ type:'delete:expire', whenDeleted });
+    return whenDeleted;
   }
   decline() {
     if (this.isCancelled === true)
@@ -493,8 +514,19 @@ export default class Game extends ActiveModel {
     if (this.state.startedAt)
       throw new ServerError(409, 'Game already started');
 
+    const whenDeleted = {} as {
+      promise: Promise<any>
+      resolve: (value:any) => void
+      reject: (reason?:any) => void
+    };
+    whenDeleted.promise = new Promise((resolve, reject) => {
+      whenDeleted.resolve = resolve;
+      whenDeleted.reject = reject;
+    });
+
     this.isCancelled = true;
-    this.emit('delete:decline');
+    this.emit({ type:'delete:decline', whenDeleted });
+    return whenDeleted.promise;
   }
 
   getSyncForPlayer(playerId, reference) {
@@ -684,7 +716,9 @@ export default class Game extends ActiveModel {
 
     gameData.state = GameState.fromJSON(gameData.state);
 
-    return new Game(gameData);
+    const game = new Game(gameData);
+    game.isPersisted = true;
+    return game;
   }
 };
 

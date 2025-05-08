@@ -1,4 +1,5 @@
 import ActiveModel from '#models/ActiveModel.js';
+import type Player from '#models/Player.js';
 import serializer from '#utils/serializer.js';
 
 const DEFAULT_RATING = 750.0;
@@ -8,6 +9,7 @@ export default class PlayerStats extends ActiveModel {
     playerId: string
     stats: Map<string, any>
   }
+  public player: Player | null = null;
 
   constructor(data) {
     super();
@@ -79,6 +81,18 @@ export default class PlayerStats extends ActiveModel {
     } ]));
 
     return ratings;
+  }
+
+  get ttl() {
+    if (this.player)
+      return this.player.ttl;
+    else
+      console.log(`Warning: PlayerStats (${this.playerId}) has no player reference`);
+
+    // Delete the object after 12 months of inactivity (worst case)
+    const days = 12 * 30;
+
+    return Math.round(Date.now() / 1000) + days * 86400;
   }
 
   get(playerId) {
