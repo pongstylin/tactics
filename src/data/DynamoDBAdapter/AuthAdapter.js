@@ -258,7 +258,7 @@ export default class extends DynamoDBAdapter {
 
     return player;
   }
-  async _savePlayer(player) {
+  async _savePlayer(player, { fromFile }) {
     const clone = player.cloneWithoutDevices();
 
     await this.putItem({
@@ -267,6 +267,8 @@ export default class extends DynamoDBAdapter {
       data: clone,
       ttl: clone.ttl,
     });
+    if (fromFile)
+      await Promise.all(Array.from(player.devices.values()).map(device => this._savePlayerDevice(device)));
   }
 
   async _createPlayerDevice(player, device) {
