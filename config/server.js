@@ -112,7 +112,7 @@ const config = {
       'auth',
       {
         module: '#server/AuthService.js',
-        dataAdapterModule: '#data/FileAdapter/AuthAdapter.js',
+        dataAdapterModule: '#data/DynamoDBAdapter/AuthAdapter.js',
       },
     ],
     [
