@@ -534,7 +534,7 @@ async function showTabs() {
   const page = document.querySelector('.page');
   const header = page.querySelector('HEADER');
   const divPN = page.querySelector('#pn');
-  const isAccountAtRisk = await authClient.isAccountAtRisk();
+  const isAccountAtRisk = !authClient.isVerified;
 
   myPlayerId = authClient.playerId;
   setMyName();

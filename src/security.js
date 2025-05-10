@@ -72,34 +72,9 @@ function renderPage() {
 }
 
 function renderAccountAtRisk() {
-  const isAccountAtRisk = () => {
-    // Not at risk if they (assumedly) saved an active identity token somewhere.
-    if (identityToken)
-      return false;
+  const isAccountAtRisk = !authClient.isVerified;
 
-    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-    for (const device of devices) {
-      if (device.id === authClient.deviceId)
-        continue;
-
-      // Not at risk if another device has been used in the past 7 days.
-      if (device.checkoutAt > oneWeekAgo)
-        return false;
-    }
-
-    if (config.auth) {
-      for (const isLinked of hasAuthProviderLinks.values()) {
-        // Not at risk if an auth provider was linked
-        if (isLinked)
-          return false;
-      }
-    }
-
-    return true;
-  };
-
-  document.body.classList.toggle('account-is-at-risk', isAccountAtRisk());
+  document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
 }
 function renderAuthProviders() {
   if (!config.auth)

@@ -235,7 +235,9 @@ export default class FileAdapter {
 
     for (const [ fileType, fileConfig ] of this.fileTypes)
       for (const item of this.buffer.get(fileType).clear())
-        promises.push(this[fileConfig.saver](item));
+        promises.push(this[fileConfig.saver](item).catch(error => {
+          console.log(`Error while saving ${fileType} item: ${error}`);
+        }));
 
     return Promise.all(promises);
   }

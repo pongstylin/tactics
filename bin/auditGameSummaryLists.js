@@ -5,12 +5,12 @@ import Timeout from '#server/Timeout.js';
 
 // Required for DynamoDBAdapter
 const ticker = setInterval(Timeout.tick, 5000);
+const readonly = true;
 
-const dataAdapter = new GameAdapter();
+const dataAdapter = new GameAdapter({ readonly });
 await dataAdapter.bootstrap();
 
 const since = process.argv[2] ? new Date(process.argv[2]) : null;
-const dryrun = false;
 const gameCache = new Map();
 const itemsToDelete = new Set();
 const gamesToSync = new Map();
@@ -29,21 +29,17 @@ for await (const [ PK, SK ] of dataAdapter.listAllGameSummaryKeys(since, 'DESC')
 
   if (gameParts.size === 0) {
     console.log('Game not found: ', PK, gameId);
-    if (!dryrun)
-      await dataAdapter.deleteItem({ PK, SK });
+    await dataAdapter.deleteItem({ PK, SK });
   } else if (!gameParts.has('/')) {
     console.log('Game broken: ', PK, gameId);
-    if (!dryrun) {
-      await dataAdapter.deleteItem({ PK, SK });
-      await Promise.all(Array.from(gameParts.keys()).map(k => dataAdapter.deleteItem({ PK:`game#${gameId}`, SK:k })));
-    }
+    await dataAdapter.deleteItem({ PK, SK });
+    await Promise.all(Array.from(gameParts.keys()).map(k => dataAdapter.deleteItem({ PK:`game#${gameId}`, SK:k })));
   } else {
     const game = await dataAdapter._getGame(gameId);
 
     if (needsSync(game, await dataAdapter.getItem({ PK, SK }))) {
       console.log('Game needs sync: ', PK, gameId);
-      if (!dryrun)
-        await dataAdapter._saveGame(game, { sync:true });
+      await dataAdapter._saveGame(game, { sync:true });
     }
   }
 

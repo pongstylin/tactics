@@ -16,6 +16,7 @@ abstract class ActiveModel {
   protected abstract data: any
   private emitter: EventEmitter
   public isClean: boolean = true
+  public isPersisted: boolean = false
 
   constructor(props = {}) {
     Object.assign(this, {

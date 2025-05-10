@@ -342,6 +342,11 @@ function closeGroup(serviceName, { body }) {
 }
 
 function logout(serviceName, { clientId }) {
+  // Only expected to happen when something else went wrong first.
+  if (!sessions.has(clientId)) {
+    console.log('Warning: Attempt to logout a session that does not exist!', clientId);
+    return;
+  }
   const client = sessions.get(clientId).client;
 
   closeClient(client, CLOSE_CLIENT_LOGOUT);

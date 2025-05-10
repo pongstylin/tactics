@@ -47,8 +47,6 @@ export default class AuthService extends Service {
         removeDevice: [ 'uuid' ],
         logout: [],
 
-        isAccountAtRisk: [],
-
         toggleGlobalMute: [ 'uuid' ],
         getACL: [],
         setACL: [ 'auth:acl' ],
@@ -107,7 +105,7 @@ export default class AuthService extends Service {
     if (!clientPara) return;
 
     const player = this.data.getOpenPlayer(clientPara.playerId);
-    player.checkout(client, clientPara.device.id);
+    player.checkout(client, clientPara.device);
     this.data.closePlayer(player.id);
 
     this.clientPara.delete(client.id);
@@ -152,15 +150,13 @@ export default class AuthService extends Service {
       throw new ServerError(501, 'Unsupported change of device');
 
     this.clientPara.set(client.id, clientPara);
-    player.checkin();
+    player.checkin(client, clientPara.device);
   }
 
   async onRegisterRequest(client, playerData) {
     // An authorized player cannot register an account.
     if (this.clientPara.has(client.id))
       throw new ServerError(403, 'Already registered');
-
-    const player = Player.create(playerData);
 
     /*
      * More than one client may be registered to a given IP address, e.g.
@@ -169,9 +165,9 @@ export default class AuthService extends Service {
      */
     this.throttle(client.address, 'register', 1, 30);
 
-    const device = player.addDevice(client);
-
-    await this.data.createPlayer(player);
+    const player = await this.data.createPlayer(playerData);
+    const device = player.createDevice(client);
+    await this.data.createPlayerDevice(player, device);
 
     return player.getAccessToken(device.id);
   }
@@ -294,9 +290,17 @@ export default class AuthService extends Service {
       await this.data.linkAuthProvider(state.provider, userinfo.id, player.id);
     }
 
+    if (!state.deviceId) {
+      const device = player.createDevice(client);
+      await this.data.createPlayerDevice(player, device);
+      state.deviceId = device.id;
+    }
+
     // state.deviceId is set by AuthClient.openAuthProvider() when available.
     // Necessary because logging in does not log in all tabs.
-    const device = player.getDevice(state.deviceId) ?? player.addDevice(client);
+    const device = await this.data.getPlayerDevice(player.id, state.deviceId);
+    if (!device)
+      throw new ServerError(404, 'Device not found');
 
     return device.token;
   }
@@ -330,17 +334,18 @@ export default class AuthService extends Service {
 
     return player.getIdentityToken();
   }
-  onGetDevicesRequest(client) {
+  async onGetDevicesRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
     const player = this.data.getOpenPlayer(clientPara.playerId);
+    const devices = await this.data.getAllPlayerDevices(player.id);
 
-    return [...player.devices].map(([deviceId, device]) => ({
-      id: deviceId,
+    return devices.map(device => ({
+      id: device.id,
       name: device.name,
-      agents: [...device.agents].map(([agent, addresses]) => {
+      agents: Array.from(device.agents.entries()).map(([agent, addresses]) => {
         const digest = uaparser(agent);
 
         if (digest.os.name === undefined)
@@ -404,8 +409,10 @@ export default class AuthService extends Service {
       throw new ServerError(400, 'To add a device, you must first logout');
 
     const player = await this.data.getPlayer(token.playerId);
+    const device = player.createDevice(client, token);
+    await this.data.createPlayerDevice(player, device);
 
-    return player.addDevice(client, token).token;
+    return device.token;
   }
   async onSetDeviceNameRequest(client, deviceId, deviceName) {
     if (!this.clientPara.has(client.id))
@@ -425,7 +432,7 @@ export default class AuthService extends Service {
 
     const player = this.data.getOpenPlayer(clientPara.playerId);
 
-    this.removeDevice(player, deviceId);
+    await this.removeDevice(player, deviceId);
   }
   async onLogoutRequest(client) {
     if (!this.clientPara.has(client.id))
@@ -434,21 +441,17 @@ export default class AuthService extends Service {
     const { playerId, device } = this.clientPara.get(client.id);
     const player = this.data.getOpenPlayer(playerId);
 
-    this.removeDevice(player, device.id);
+    await this.removeDevice(player, device.id);
   }
-  removeDevice(player, deviceId) {
+  async removeDevice(player, deviceId) {
     /*
      * Logout all clients on this device.
      */
-    for (const [ clientId, { device } ] of this.clientPara.entries()) {
+    for (const [ clientId, { device } ] of this.clientPara.entries())
       if (device.id === deviceId)
-        this._emit({
-          type: 'logout',
-          clientId,
-        });
-    }
+        this._emit({ type:'logout', clientId });
 
-    player.removeDevice(deviceId);
+    await this.data.removePlayerDevice(player.id, deviceId);
   }
 
   async onIsAccountAtRiskRequest(client) {
@@ -655,15 +658,14 @@ export default class AuthService extends Service {
         throw new ServerError(401, 'Player deleted');
       throw error;
     });
-    const device = player.getDevice(token.deviceId);
-
+    const device = await this.data.getPlayerDevice(token.playerId, token.deviceId);
     if (!device)
       throw new ServerError(401, 'Device deleted');
 
     if (token.equals(device.token)) {
       this.debug(`Accepted token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
     } else if (token.equals(device.nextToken)) {
-      player.activateAccessToken(client, token);
+      player.activateAccessToken(token);
       this.debug(`Activate token: playerId=${player.id}; deviceId=${device.id}; token-sig=${token.signature}`);
     } else {
       // This should never happen unless tokens are leaked and used without permission.

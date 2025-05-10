@@ -299,11 +299,11 @@ export default class GameService extends Service {
   async cleanup() {
     const state = this.data.state;
     state.autoSurrender.pause();
-    for (const game of await this._getGames(state.autoCancel.keys()))
-      if (!game.state.startedAt)
-        game.expire();
     state.willSync.pause();
     state.shutdownAt = new Date();
+
+    const games = await this._getGames(state.autoCancel.keys());
+    await Promise.all(games.filter(g => !g.state.startedAt).map(g => g.expire()));
 
     return super.cleanup();
   }
@@ -335,26 +335,26 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara) return;
 
-    const playerId = clientPara.playerId;
-    this.auth.closePlayer(playerId);
-    this.data.closePlayer(playerId);
+    const player = clientPara.player;
+    this.auth.closePlayer(player.id);
+    this.data.closePlayer(player);
 
-    const playerPara = this.playerPara.get(playerId);
+    const playerPara = this.playerPara.get(player.id);
     if (playerPara.clients.size > 1)
       playerPara.clients.delete(client.id);
     else {
-      this.playerPara.delete(playerId);
-      this.push.hasAnyPushSubscription(playerId).then(extended => {
+      this.playerPara.delete(player.id);
+      this.push.hasAnyPushSubscription(player.id).then(extended => {
         // Make sure the player is still logged out
-        if (!this.playerPara.has(playerId))
-          this._closeAutoCancel(playerId, extended);
+        if (!this.playerPara.has(player.id))
+          this._closeAutoCancel(player.id, extended);
       });
     }
 
     this.clientPara.delete(client.id);
 
     // Let people who needs to know about a potential status change.
-    this._setPlayerGamesStatus(playerId);
+    this._setPlayerGamesStatus(player.id);
   }
 
   /*
@@ -473,16 +473,15 @@ export default class GameService extends Service {
         joinedGroups: new Set(),
         joinedGameGroups: new Set(),
         playerId,
+        player: await this.auth.openPlayer(playerId),
         deviceType: uaparser(client.agent).device.type,
       };
+      await this.data.openPlayer(clientPara.player);
 
-      await Promise.all([
-        this.auth.openPlayer(playerId),
-        this.data.openPlayer(playerId),
-      ]).then(([player]) => clientPara.player = player);
+      // Did the connection close while fetching data?
       if (client.closed) {
         this.auth.closePlayer(playerId);
-        this.data.closePlayer(playerId);
+        this.data.closePlayer(clientPara.player);
         return;
       }
 
@@ -602,7 +601,7 @@ export default class GameService extends Service {
 
       if (teamData.playerId) {
         if (teamData.playerId === creatorId) {
-          if (teamData.name !== undefined && teamData.name !== null)
+          if (teamData.name !== undefined && teamData.name !== null && teamData.name !== creator.name)
             Player.validatePlayerName(teamData.name, creator.identity);
         } else {
           const player = await this._getAuthPlayer(teamData.playerId);
@@ -695,7 +694,7 @@ export default class GameService extends Service {
     if (creator.hasBlocked(player, !!game.collection))
       throw new ServerError(403, 'You are blocked from joining this game.');
 
-    if (teamData.name !== undefined && teamData.name !== null)
+    if (teamData.name !== undefined && teamData.name !== null && teamData.name !== player.name)
       Player.validatePlayerName(teamData.name, player.identity);
 
     if (game.collection) {
@@ -825,46 +824,46 @@ export default class GameService extends Service {
   async onGetPlayerSetsRequest(client, gameTypeId) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.getPlayerSets(clientPara.playerId, gameTypeId);
+    return this.data.getPlayerSets(clientPara.player, gameTypeId);
   }
   async onGetPlayerSetRequest(client, gameTypeId, setId) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.getPlayerSet(clientPara.playerId, gameTypeId, setId);
+    return this.data.getPlayerSet(clientPara.player, gameTypeId, setId);
   }
   async onSavePlayerSetRequest(client, gameTypeId, set) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.setPlayerSet(clientPara.playerId, gameTypeId, set);
+    return this.data.setPlayerSet(clientPara.player, gameTypeId, set);
   }
   async onDeletePlayerSetRequest(client, gameTypeId, setId) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.unsetPlayerSet(clientPara.playerId, gameTypeId, setId);
+    return this.data.unsetPlayerSet(clientPara.player, gameTypeId, setId);
   }
 
   async onGetMyAvatarRequest(client) {
     const clientPara = this.clientPara.get(client.id);
-    const playerAvatars = await this.data.getPlayerAvatars(clientPara.playerId);
+    const playerAvatars = await this.data.getPlayerAvatars(clientPara.player);
 
     return playerAvatars.avatar;
   }
   async onSaveMyAvatarRequest(client, avatar) {
     const clientPara = this.clientPara.get(client.id);
-    const playerAvatars = await this.data.getPlayerAvatars(clientPara.playerId);
+    const playerAvatars = await this.data.getPlayerAvatars(clientPara.player);
 
     playerAvatars.avatar = avatar;
   }
   async onGetMyAvatarListRequest(client) {
     const clientPara = this.clientPara.get(client.id);
-    const playerAvatars = await this.data.getPlayerAvatars(clientPara.playerId);
+    const playerAvatars = await this.data.getPlayerAvatars(clientPara.player);
 
     return playerAvatars.list;
   }
   async onGetPlayersAvatarRequest(client, playerIds) {
-    const playersAvatar = await Promise.all(playerIds.map(pId => this.data.getPlayerAvatars(pId)));
+    const playersAvatar = await this.data.listPlayersAvatar(playerIds);
 
-    return playersAvatar.map(pa => pa.avatar);
+    return playersAvatar;
   }
 
   async onGetGameRequest(client, gameId) {
@@ -971,8 +970,8 @@ export default class GameService extends Service {
     const me = await this._getAuthPlayer(inPlayerId);
     const them = await this._getAuthPlayer(forPlayerId);
     const ranks = them.identity.getRanks();
-    const globalStats = await this.data.getPlayerStats(forPlayerId);
-    const localStats = await this.data.getPlayerInfo(inPlayerId, forPlayerId);
+    const globalStats = await this.data.getPlayerStats(them);
+    const localStats = await this.data.getPlayerInfo(me, forPlayerId);
 
     return {
       createdAt: them.createdAt,
@@ -1018,7 +1017,7 @@ export default class GameService extends Service {
     const player = await this._getAuthPlayer(playerId);
     const ranks = player.identity.getRanks();
     const gameTypesById = await this.data.getGameTypesById();
-    const myStats = await this.data.getPlayerStats(playerId);
+    const myStats = await this.data.getPlayerStats(player);
 
     return {
       createdAt: player.createdAt,
@@ -1035,8 +1034,8 @@ export default class GameService extends Service {
     };
   }
   async onClearWLDStatsRequest(client, vsPlayerId, gameTypeId) {
-    const playerId = this.clientPara.get(client.id).playerId;
-    await this.data.clearPlayerWLDStats(playerId, vsPlayerId, gameTypeId);
+    const player = this.clientPara.get(client.id).player;
+    await this.data.clearPlayerWLDStats(player, vsPlayerId, gameTypeId);
   }
 
   async onSearchMyGamesRequest(client, query) {
@@ -1504,15 +1503,13 @@ export default class GameService extends Service {
         for (const clientId of gamePara.clients.keys())
           this.onLeaveGameGroup(this.clientPara.get(clientId).client, `/games/${game.id}`, game.id, reason);
 
-      this.data.deleteGame(game);
+      this.data.deleteGame(game).then(event.whenDeleted.resolve, event.whenDeleted.reject);
     });
   }
   async _recordGameStats(game) {
     const playerIds = Array.from(new Set([ ...game.state.teams.map(t => t.playerId) ]));
-    const [ players, playersStats ] = await Promise.all([
-      Promise.all(playerIds.map(pId => this._getAuthPlayer(pId))),
-      Promise.all(playerIds.map(pId => this.data.getPlayerStats(pId))),
-    ]);
+    const players = await Promise.all(playerIds.map(pId => this._getAuthPlayer(pId)));
+    const playersStats = await Promise.all(players.map(p => this.data.getPlayerStats(p)));
     const playersMap = new Map(players.map(p => [ p.id, p ]));
     const playersStatsMap = new Map(playersStats.map(ps => [ ps.playerId, ps ]));
 

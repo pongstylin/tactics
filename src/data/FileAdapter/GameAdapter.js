@@ -5,7 +5,6 @@ import { search } from '#utils/jsQuery.js';
 import serializer from '#utils/serializer.js';
 import FileAdapter from '#data/FileAdapter.js';
 
-import GameType from '#tactics/GameType.js';
 import Game from '#models/Game.js';
 import GameSummary from '#models/GameSummary.js';
 import GameSummaryList from '#models/GameSummaryList.js';
@@ -102,24 +101,24 @@ export default class extends FileAdapter {
   /*
    * This opens the player's game and set list.
    */
-  async openPlayer(playerId) {
-    const playerStats = await this._getPlayerStats(playerId);
-    this.cache.get('playerStats').open(playerId, playerStats);
+  async openPlayer(player) {
+    const playerStats = await this._getPlayerStats(player.id);
+    this.cache.get('playerStats').open(player.id, playerStats);
 
-    const playerGames = await this._getPlayerGames(playerId);
-    this.cache.get('playerGames').open(playerId, playerGames);
+    const playerGames = await this._getPlayerGames(player.id);
+    this.cache.get('playerGames').open(player.id, playerGames);
 
-    const playerSets = await this._getPlayerSets(playerId);
-    this.cache.get('playerSets').open(playerId, playerSets);
+    const playerSets = await this._getPlayerSets(player.id);
+    this.cache.get('playerSets').open(player.id, playerSets);
 
-    const playerAvatars = await this._getPlayerAvatars(playerId);
-    this.cache.get('playerAvatars').open(playerId, playerAvatars);
+    const playerAvatars = await this._getPlayerAvatars(player.id);
+    this.cache.get('playerAvatars').open(player.id, playerAvatars);
   }
-  closePlayer(playerId) {
-    this.cache.get('playerStats').close(playerId);
-    this.cache.get('playerGames').close(playerId);
-    this.cache.get('playerSets').close(playerId);
-    this.cache.get('playerAvatars').close(playerId);
+  closePlayer(player) {
+    this.cache.get('playerStats').close(player.id);
+    this.cache.get('playerGames').close(player.id);
+    this.cache.get('playerSets').close(player.id);
+    this.cache.get('playerAvatars').close(player.id);
   }
 
   async openPlayerGames(playerId) {
@@ -142,28 +141,22 @@ export default class extends FileAdapter {
     return this.cache.get('collection').add(collectionId, collection);
   }
 
-  async getPlayerStats(myPlayerId, vsPlayerId) {
-    const playerStats = await this._getPlayerStats(myPlayerId);
+  async getPlayerStats(myPlayer) {
+    const playerStats = await this._getPlayerStats(myPlayer.id);
 
-    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    this.cache.get('playerStats').add(myPlayer.id, playerStats);
     return playerStats;
   }
-  async getPlayerInfo(myPlayerId, vsPlayerId) {
-    const playerStats = await this._getPlayerStats(myPlayerId);
+  async getPlayerInfo(myPlayer, vsPlayerId) {
+    const playerStats = await this._getPlayerStats(myPlayer.id);
 
-    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    this.cache.get('playerStats').add(myPlayer.id, playerStats);
     return playerStats.get(vsPlayerId);
   }
-  async listPlayerAliases(inPlayerId, forPlayerId) {
-    const playerStats = await this._getPlayerStats(inPlayerId);
+  async clearPlayerWLDStats(myPlayer, vsPlayerId, gameTypeId) {
+    const playerStats = await this._getPlayerStats(myPlayer.id);
 
-    this.cache.get('playerStats').add(inPlayerId, playerStats);
-    return playerStats.get(forPlayerId).aliases;
-  }
-  async clearPlayerWLDStats(myPlayerId, vsPlayerId, gameTypeId) {
-    const playerStats = await this._getPlayerStats(myPlayerId);
-
-    this.cache.get('playerStats').add(myPlayerId, playerStats);
+    this.cache.get('playerStats').add(myPlayer.id, playerStats);
     return playerStats.clearWLDStats(vsPlayerId, gameTypeId);
   }
 
@@ -219,46 +212,50 @@ export default class extends FileAdapter {
 
     return playerSets.get(gameType, setId);
   }
-  async getPlayerSets(playerId, gameType) {
+  async getPlayerSets(player, gameType) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(playerId);
+    const playerSets = await this._getPlayerSets(player.id);
     return playerSets.list(gameType);
   }
   /*
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getPlayerSet(playerId, gameType, setId) {
+  async getPlayerSet(player, gameType, setId) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(playerId);
+    const playerSets = await this._getPlayerSets(player.id);
     return playerSets.get(gameType, setId);
   }
   /*
    * Setting the default set for a game type involves REPLACING the first set
    * for a given game type.
    */
-  async setPlayerSet(playerId, gameType, set) {
+  async setPlayerSet(player, gameType, set) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(playerId);
+    const playerSets = await this._getPlayerSets(player.id);
     playerSets.set(gameType, set);
   }
-  async unsetPlayerSet(playerId, gameType, setId) {
+  async unsetPlayerSet(player, gameType, setId) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(playerId);
+    const playerSets = await this._getPlayerSets(player.id);
     return playerSets.unset(gameType, setId);
   }
 
-  async getPlayerAvatars(playerId) {
-    const playerAvatars = await this._getPlayerAvatars(playerId);
-    return this.cache.get('playerAvatars').add(playerId, playerAvatars);
+  async getPlayerAvatars(player, playerId = null) {
+    const playerAvatars = await this._getPlayerAvatars(playerId ?? player.id);
+    return this.cache.get('playerAvatars').add(player.id, playerAvatars);
+  }
+  async listPlayersAvatar(playerIds) {
+    const playerAvatars = await Promise.all(playerIds.map(pId => this.getPlayerAvatars(null, pId)));
+    return playerAvatars.map(pa => pa.avatar);
   }
 
   async searchPlayerGames(player, query) {
@@ -761,7 +758,8 @@ export default class extends FileAdapter {
         ? PlayerAvatars.create(playerId)
         : this.migrate('avatars', data, { playerId });
 
-      this.buffer.get('playerAvatars').add(playerId, playerAvatars);
+      if (!playerAvatars.isClean)
+        this.buffer.get('playerAvatars').add(playerId, playerAvatars);
       playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
       return playerAvatars;
     });

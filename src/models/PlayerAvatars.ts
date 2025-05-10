@@ -1,4 +1,5 @@
 import ActiveModel from '#models/ActiveModel.js';
+import type Player from '#models/Player.js';
 import serializer from '#utils/serializer.js';
 import unitData from '#tactics/unitData.js';
 import { colorFilterMap } from '#tactics/colorMap.js';
@@ -9,10 +10,11 @@ export default class PlayerAvatars extends ActiveModel {
     playerId: string
     unitType: string
     colorId: string
-    avatars: any[]
+    avatars: string[]
     createdAt: Date
     updatedAt: Date
   }
+  public player: Player | null = null;
 
   constructor(data) {
     super();
@@ -23,7 +25,7 @@ export default class PlayerAvatars extends ActiveModel {
     const unitTypes:any = [ ...unitData ].filter(([k,d]) => d.tier === 1).map(([k,d]) => k);
     const colorIds:any = [ ...colorFilterMap.keys() ];
 
-    return new PlayerAvatars({
+    const playerAvatars = new PlayerAvatars({
       playerId,
       unitType: unitTypes.random(),
       colorId: colorIds.random(),
@@ -31,6 +33,11 @@ export default class PlayerAvatars extends ActiveModel {
       createdAt: new Date(),
       updatedAt: null,
     });
+    // Creating a new instance of PlayerAvatars is not idempotent
+    // so we flag it as dirty to make sure it gets saved
+    playerAvatars.isClean = false;
+
+    return playerAvatars;
   }
 
   get playerId() {
@@ -64,6 +71,31 @@ export default class PlayerAvatars extends ActiveModel {
     const unitTypes = [ ...unitData ].filter(([k,d]) => d.tier <= tier).sort((a,b) => a[1].tier - b[1].tier).map(([k,d]) => k);
 
     return unitTypes.concat(this.data.avatars);
+  }
+
+  get ttl() {
+    if (this.player)
+      return this.player.ttl;
+    else
+      console.log(`Warning: PlayerAvatars (${this.playerId}) has no player reference`);
+
+    // Delete the object after 12 months of inactivity (worst case)
+    const days = 12 * 30;
+
+    return Math.round(Date.now() / 1000) + days * 86400;
+  }
+
+  grant(unitType:string) {
+    if (this.data.avatars.includes(unitType))
+      return;
+
+    if (!unitData.has(unitType))
+      throw new ServerError(400, 'Unrecognized unit type');
+    if (this.list.includes(unitType))
+      throw new ServerError(403, 'Already granted unit type');
+
+    this.data.avatars.push(unitType);
+    this.emit('change:grant');
   }
 };
 

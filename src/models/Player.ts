@@ -3,6 +3,7 @@ import XRegExp from 'xregexp';
 import getTextWidth from 'string-pixel-width';
 
 import ActiveModel from '#models/ActiveModel.js';
+import PlayerDevice from '#models/PlayerDevice.js';
 import Identities from '#models/Identities.js';
 import Identity from '#models/Identity.js';
 import obscenity from '#utils/obscenity.js';
@@ -20,7 +21,7 @@ import ServerError from '#server/Error.js';
  * Other restrictions are imposed by the validatePlayerName() method.
  */
 XRegExp.install('astral');
-const rUnicodeWhitelist = XRegExp('^(\\pL|\\pN|\\pP|\\pS| |\uFE0F)+$');
+const rUnicodeWhitelist = XRegExp('^(\\pL|\\pN|\\pP|\\pS| |\uFE0F|\uD83E|\uDE76)+$');
 const rUnicodeBlacklist = XRegExp('[\\u3164]');
 
 enum Disposition {
@@ -34,6 +35,8 @@ interface ACL {
   guestAccounts: Disposition | null
 }
 
+const listeners = new WeakMap();
+
 export default class Player extends ActiveModel {
   protected data: {
     id: string
@@ -41,7 +44,7 @@ export default class Player extends ActiveModel {
     name: string
     confirmName: string | null
     verified: boolean
-    devices: Map<string, any>
+    devices: Map<string, PlayerDevice>
     identityToken: IdentityToken | null
     acl: ACL
     authProviderLinks: Map<string, string>
@@ -51,6 +54,7 @@ export default class Player extends ActiveModel {
   }
   static identities: Identities
   public identity: Identity
+  public hasAllDevices: boolean = false
 
   constructor(data) {
     super();
@@ -64,6 +68,8 @@ export default class Player extends ActiveModel {
 
       ...data,
     };
+
+    data.devices.forEach(d => this._subscribeDevice(d));
   }
 
   static create(data) {
@@ -84,7 +90,13 @@ export default class Player extends ActiveModel {
     // Map the devices array to a map.
     data.devices = new Map(data.devices.map(d => [ d.id, d ]));
 
-    return new Player(data);
+    const player = new Player(data);
+
+    // This will always be true under the file adapter and false for the DynamoDB adapter.
+    // The DynamoDB adapter will set it to true when loading all devices.
+    player.hasAllDevices = data.devices.size > 0;
+
+    return player;
   }
 
   /*
@@ -171,8 +183,15 @@ export default class Player extends ActiveModel {
   get createdAt() {
     return this.data.createdAt;
   }
+
   get lastSeenAt() {
     return this.data.checkinAt > this.data.checkoutAt ? new Date() : this.data.checkoutAt;
+  }
+  get ttl() {
+    // Delete the object after 3 or 12 months of inactivity depending on verification status.
+    const days = (this.data.verified ? 12 : 3) * 30;
+
+    return Math.round(this.lastSeenAt.getTime() / 1000) + days * 86400;
   }
 
   get isNew() {
@@ -245,7 +264,7 @@ export default class Player extends ActiveModel {
     return false;
   }
   refreshAccessToken(deviceId) {
-    const device = this.data.devices.get(deviceId);
+    const device = this.getDevice(deviceId);
     const token = device.token;
     const nextToken = device.nextToken;
 
@@ -260,43 +279,43 @@ export default class Player extends ActiveModel {
       else
         device.nextToken = this.createAccessToken(device.id);
 
-    this.emit('change:refreshAccessToken');
-
     return true;
   }
-  activateAccessToken(client, token) {
-    const now = new Date();
+  activateAccessToken(token) {
     const device = this.getDevice(token.deviceId);
-    if (device.agents.has(client.agent))
-      device.agents.get(client.agent).set(client.address, now);
-    else
-      device.agents.set(client.agent, new Map([[client.address, now]]));
-
-    device.token = token;
-    device.nextToken = null;
-
-    this.emit('change:activateAccessToken');
+    device.activateAccessToken(token);
 
     return true;
   }
 
-  checkin() {
-    this.data.checkinAt = new Date();
+  checkin(client, device) {
+    device.checkin(client, this.data.checkinAt = new Date());
     this.emit('change:checkin');
-    this.identity.lastSeenAt = this.data.checkinAt;
+    this.identity.lastSeenAt = this.lastSeenAt;
   }
-  checkout(client, deviceId) {
-    const now = Date.now();
-    const checkoutAt = new Date(now - client.session.idle * 1000);
+  checkout(client, device) {
+    const checkoutAt = new Date(Date.now() - client.session.idle * 1000);
+    device.checkout(client, checkoutAt);
     if (checkoutAt > this.data.checkoutAt) {
       this.data.checkoutAt = checkoutAt;
-      this.data.devices.get(deviceId).checkoutAt = checkoutAt;
       this.emit('change:checkout');
-      this.identity.lastSeenAt = this.data.checkoutAt;
     }
+    this.identity.lastSeenAt = this.lastSeenAt;
   }
 
-  addDevice(client, token = null) {
+  _subscribeDevice(device) {
+    const listener = event => this.emit({
+      type: 'device:change',
+      device,
+      originalEvent: event,
+    });
+    listeners.set(device, listener);
+    device.on('change', listener);
+  }
+  _unsubscribeDevice(device) {
+    device.off('change', listeners.get(device));
+  }
+  createDevice(client, token = null) {
     if (token) {
       if (!token.equals(this.data.identityToken))
         throw new ServerError(403, 'Identity token was revoked');
@@ -304,52 +323,34 @@ export default class Player extends ActiveModel {
       this.clearIdentityToken();
     }
 
-    const now = new Date();
-    const deviceId = uuid();
-    const device = {
-      id: deviceId,
-      name: null,
-      token: this.createAccessToken(deviceId),
-      nextToken: null,
-      agents: new Map([[
-        client.agent,
-        new Map([[client.address, now]]),
-      ]]),
-      createdAt: now,
-      checkoutAt: now,
-    };
-    this.data.devices.set(deviceId, device);
-
-    /*
-     * Only maintain the 10 most recently used devices
-     */
-    if (this.data.devices.size > 10) {
-      const devices = [ ...this.data.devices.values() ].sort((a,b) => a.checkoutAt - b.checkoutAt);
-      while (devices.length > 10)
-        this.removeDevice(devices.shift().id);
-    }
-
-    this.emit('change:addDevice');
+    const device = PlayerDevice.create(client);
+    device.token = this.createAccessToken(device.id);
+    this.emit({
+      type: 'device:create',
+      device,
+    });
+    this._subscribeDevice(device);
 
     return device;
+  }
+  addDevice(device:PlayerDevice) {
+    if (this.data.devices.has(device.id))
+      return false;
+
+    this.data.devices.set(device.id, device);
+    this._subscribeDevice(device);
+
+    return true;
   }
   getDevice(deviceId) {
     return this.data.devices.get(deviceId);
   }
   setDeviceName(deviceId, name) {
-    if (name !== null) {
-      if (typeof name !== 'string')
-        throw new ServerError(400, 'Expected device name');
-      if (name.length > 20)
-        throw new ServerError(400, 'Device name may not exceed 20 characters');
-    }
-
     const device = this.getDevice(deviceId);
     if (!device)
       throw new ServerError(404, 'No such device');
 
     device.name = name;
-    this.emit('change:setDeviceName');
 
     return true;
   }
@@ -357,10 +358,13 @@ export default class Player extends ActiveModel {
     if (!this.data.devices.has(deviceId))
       return false;
 
+    const device = this.getDevice(deviceId);
+
+    this._unsubscribeDevice(device);
     this.data.devices.delete(deviceId);
     this.emit({
-      type: 'change:removeDevice',
-      data: { deviceId },
+      type: 'device:remove',
+      device,
     });
 
     return true;
@@ -508,7 +512,7 @@ export default class Player extends ActiveModel {
     return AccessToken.create(payload);
   }
   getAccessToken(deviceId) {
-    const device = this.data.devices.get(deviceId);
+    const device = this.getDevice(deviceId);
 
     return device.nextToken || device.token;
   }
@@ -539,6 +543,12 @@ export default class Player extends ActiveModel {
     this.emit('change:clearIdentityToken');
   }
 
+  cloneWithoutDevices() {
+    const clone = serializer.clone(this);
+    clone.data.devices = new Map();
+
+    return clone;
+  }
   toJSON() {
     const json = super.toJSON();
 
@@ -563,51 +573,11 @@ serializer.addType({
     properties: {
       id: { type:'string', format:'uuid' },
       name: { type:'string' },
+      confirmName: { type:'string' },
+      verified: { type:'boolean' },
       devices: {
         type: 'array',
-        items: {
-          type: 'object',
-          required: [ 'id', 'name', 'token', 'nextToken', 'agents' ],
-          properties: {
-            id: { type:'string', format:'uuid' },
-            name: { type:[ 'string' ] },
-            confirmName: { type:'string' },
-            verified: { type:'boolean' },
-            token: { $ref:'AccessToken' },
-            nextToken: {
-              oneOf: [
-                { type:'null' },
-                { $ref:'AccessToken' },
-              ],
-            },
-            agents: {
-              type: 'array',
-              subType: 'Map',
-              items: {
-                type: 'array',
-                items: [
-                  { type:'string', format:'uuid' },
-                  {
-                    type: 'array',
-                    subType: 'Map',
-                    items: {
-                      type: 'array',
-                      items: [
-                        { type:'string' },
-                        { type:'string', subType:'Date' },
-                      ],
-                      additionalItems: false,
-                    },
-                  },
-                ],
-                additionalItems: false,
-              },
-            },
-            createdAt: { type:'string', subType:'Date' },
-            checkoutAt: { type:'string', subType:'Date' },
-          },
-          additionalProperties: false,
-        },
+        items: { $ref:'PlayerDevice' },
       },
       acl: {
         type: 'object',
@@ -635,6 +605,7 @@ serializer.addType({
         ],
       },
       createdAt: { type:'string', subType:'Date' },
+      checkinAt: { type:'string', subType:'Date' },
       checkoutAt: { type:'string', subType:'Date' },
     },
     additionalProperties: false,

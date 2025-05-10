@@ -191,15 +191,6 @@ export default class AuthClient extends Client {
       });
   }
 
-  isAccountAtRisk() {
-    return this._server.requestAuthorized(this.name, 'isAccountAtRisk')
-      .catch(error => {
-        if (error === 'Connection reset')
-          return this.isAccountAtRisk();
-        throw error;
-      });
-  }
-
   toggleGlobalMute(playerId) {
     return this._server.requestAuthorized(this.name, 'toggleGlobalMute', [ playerId ])
       .catch(error => {

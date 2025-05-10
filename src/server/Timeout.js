@@ -155,6 +155,9 @@ export default class Timeout {
   getExpireAt(itemId) {
     return this._opened.get(itemId)?.expireAt ?? this._closed.get(itemId)?.expireAt;
   }
+  isOpen(itemId) {
+    return this._opened.has(itemId);
+  }
   getOpen(itemId) {
     if (!this._opened.has(itemId))
       throw new Error(`${this.name}: ${itemId} is not open`);
@@ -212,8 +215,10 @@ export default class Timeout {
   }
   close(itemId, ttl = null) {
     const opened = this._opened;
-    if (!opened.has(itemId))
-      throw new Error(`${this.name}: Attempted to close an item '${itemId}' that is not open`);
+    if (!opened.has(itemId)) {
+      console.log(`Warning: ${this.name}: Attempted to close an item '${itemId}' that is not open`);
+      return;
+    }
 
     const itemTimeout = opened.get(itemId);
     itemTimeout.openCount--;
