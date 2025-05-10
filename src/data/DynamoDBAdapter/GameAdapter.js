@@ -265,7 +265,7 @@ export default class extends DynamoDBAdapter {
 
   async getPlayerAvatars(player, playerId = null) {
     const playerAvatars = await this._getPlayerAvatars(player, playerId);
-    return this.cache.get('playerAvatars').add(player, playerAvatars);
+    return this.cache.get('playerAvatars').add(player.id, playerAvatars);
   }
   async listPlayersAvatar(playerIds) {
     const playerAvatars = await Promise.all(playerIds.map(pId => this.getPlayerAvatars(null, pId)));

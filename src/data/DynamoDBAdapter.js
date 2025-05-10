@@ -200,16 +200,16 @@ export default class DynamoDBAdapter extends FileAdapter {
       for (const path of this.getItemMeta(obj).partPaths)
         if (!parts.has(path))
           ops.push({
-            key: 'write:' + keyOfItem({ PK:key.PK, SK:path }),
+            key: 'write:' + keyOfItem({ PK, SK:path }),
             method: '_deleteItem',
-            args: [ { PK:key.PK, SK:path }, null ],
+            args: [ { PK, SK:path }, null ],
           });
     } else
       console.log(`Warning: Expected partPaths in item meta when putting ${key.PK}`)
 
     this.setItemMeta(obj, { partPaths:parts.keys() });
 
-    const queueKey = 'write:' + (key.name ?? key.PK);
+    const queueKey = 'write:' + (key.name ?? PK);
     return this._pushItemQueue({ key:queueKey, method:'_putItemParts', args:[ ops ] });
   }
   deleteItemParts(key, obj, dependents) {

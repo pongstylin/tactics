@@ -88,13 +88,17 @@ export default class Player extends ActiveModel {
   }
   static fromJSON(data) {
     // Map the devices array to a map.
-    data.devices = new Map(data.devices.map(d => [ d.id, d ]));
+    data.devices = new Map(data.devices.map(d => [ d.id, new PlayerDevice(d) ]));
 
     const player = new Player(data);
 
     // This will always be true under the file adapter and false for the DynamoDB adapter.
     // The DynamoDB adapter will set it to true when loading all devices.
-    player.hasAllDevices = data.devices.size > 0;
+    if (data.devices.size > 0) {
+      player.hasAllDevices = true;
+      for (const device of player.devices.values())
+        device.player = player;
+    }
 
     return player;
   }

@@ -449,6 +449,9 @@ export default class FileAdapter {
     const fqName = `${this.filesDir}/${name}.json`;
 
     return fs.unlink(fqName).catch(error => {
+      if (error.code === 'ENOENT')
+        return null;
+
       console.log('deleteFile', error);
       throw new ServerError(500, 'Delete failed');
     });
