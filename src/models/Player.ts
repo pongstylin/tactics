@@ -88,7 +88,7 @@ export default class Player extends ActiveModel {
   }
   static fromJSON(data) {
     // Map the devices array to a map.
-    data.devices = new Map(data.devices.map(d => [ d.id, new PlayerDevice(d) ]));
+    data.devices = new Map(data.devices.map(d => [ d.id, d ]));
 
     const player = new Player(data);
 
