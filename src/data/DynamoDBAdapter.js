@@ -415,7 +415,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       const keys = new Map((rsp.UnprocessedKeys[TABLE_NAME] ?? []).map(k => [ keyOfItem(k), k ]));
       const items = new Map((rsp.Responses[TABLE_NAME] ?? []).map(i => [ keyOfItem(i), i ]));
 
-      for (const op of ops) {
+      for (const op of chunk) {
         const [ key, migrateProps, defaultValue ] = op.args;
         const itemKey = keyOfItem(key);
 
