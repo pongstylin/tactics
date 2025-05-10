@@ -45,6 +45,7 @@ const WCU_LIMIT = parseInt(process.env.DDB_WCU_LIMIT ?? '25') * WCU_THROTTLE_PER
 const workerQueue = {
   max: os.cpus().length * 2,
   size: 0,
+  serviceCount: 0,
 };
 const pool = workerpool.pool(`./src/data/DynamoDBAdapter/worker.js`, {
   minWorkers: 'max',
@@ -65,7 +66,6 @@ Timeout.setInterval(() => {
 
 const itemMeta = new WeakMap();
 const keyOfItem = r => `${r.PK}:${r.SK}`;
-const keyOfRequest = r => r.DeleteRequest ? keyOfItem(r.DeleteRequest.Key) : keyOfItem(r.PutRequest.Item);
 const filterOpByName = new Map([
   [ 'eq',  '='  ],
   [ 'lt',  '<'  ],
@@ -80,6 +80,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     this.itemQueue = new Map();
     this._triggerItemQueueTimeout = null;
+    workerQueue.serviceCount++;
   }
 
   // No migrations yet.  The item PK and SK values will be used to determine the
@@ -96,7 +97,8 @@ export default class DynamoDBAdapter extends FileAdapter {
   async cleanup() {
     await super.cleanup();
 
-    pool.terminate();
+    if (--workerQueue.serviceCount === 0)
+      pool.terminate();
 
     return this;
   }
