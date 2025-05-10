@@ -258,7 +258,7 @@ export default class extends DynamoDBAdapter {
 
     return player;
   }
-  async _savePlayer(player, { fromFile }) {
+  async _savePlayer(player, { fromFile = false } = {}) {
     const clone = player.cloneWithoutDevices();
 
     await this.putItem({
