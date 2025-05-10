@@ -74,7 +74,7 @@ function renderPage() {
 function renderAccountAtRisk() {
   const isAccountAtRisk = !authClient.isVerified;
 
-  document.body.classList.toggle('account-is-at-risk', isAccountAtRisk());
+  document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
 }
 function renderAuthProviders() {
   if (!config.auth)

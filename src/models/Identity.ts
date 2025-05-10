@@ -1,10 +1,7 @@
 import ActiveModel from '#models/ActiveModel.js';
 import GameType from '#tactics/GameType.js';
 import { addForteRank } from '#models/PlayerStats.js';
-import ServerError from '#server/Error.js';
 import serializer from '#utils/serializer.js';
-
-const RELATIONSHIP_TYPES = [ 'friend', 'mute', 'block' ];
 
 interface Relationship {
   type: string | null
@@ -133,13 +130,13 @@ export default class Identity extends ActiveModel {
     return Math.round(this.data.lastSeenAt.getTime() / 1000) + days * 86400;
   }
   get expireAt() {
-    return new Date(this.data.lastSeenAt.getTime() + 30 * 86400 * 1000);
+    const days = this.data.name === null ? 7 : 30;
+
+    return new Date(this.data.lastSeenAt.getTime() + days * 86400 * 1000);
   }
 
   get needsIndex() {
     if (this.expireAt.getTime() <= Date.now())
-      return false;
-    if (this.name === null && this.data.relationships.size === 0)
       return false;
 
     return true;

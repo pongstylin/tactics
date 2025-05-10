@@ -437,7 +437,7 @@ export default class DynamoDBAdapter extends FileAdapter {
           if (!obj) {
             obj = typeof defaultValue === 'function' ? defaultValue() : defaultValue;
             if (obj === undefined)
-              throw new ServerError(404, `Item Not Found: ${key.PK}`);
+              op.reject(new ServerError(404, `Item Not Found: ${key.PK}`));
           }
         }
 
@@ -700,7 +700,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       ),
       ExpressionAttributeValues: {
         ':PV': key.PK,
-        ':SV': key.query.indexValue ? key.query.indexValue?.[1] : key.SK,
+        ':SV': key.query.indexValue?.[1],
       },
       ScanIndexForward: key.query.order === 'ASC',
       Limit: key.query.limit,
