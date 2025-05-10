@@ -303,14 +303,14 @@ export default class extends DynamoDBAdapter {
 
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
   }
-  async getPlayerPendingGamesInCollection(player, collection) {
-    const gamesSummary = await this._getPlayerGames(player.id, true);
+  async getPlayerPendingGamesInCollection(playerId, collection) {
+    const gamesSummary = await this._getPlayerGames(playerId, true);
     const results = [];
 
     for (const gameSummary of gamesSummary.values()) {
       if (gameSummary.endedAt)
         continue;
-      if (gameSummary.createdBy !== player.id)
+      if (gameSummary.createdBy !== playerId)
         continue;
       if (!gameSummary.collection?.startsWith(collection))
         continue;
