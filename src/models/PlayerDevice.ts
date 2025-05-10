@@ -10,7 +10,7 @@ export default class PlayerDevice extends ActiveModel {
   protected data: {
     id: string
     name: string | null
-    token: AccessToken
+    token: AccessToken | null
     nextToken: AccessToken | null
     agents: Map<string, Map<string, Date>>
     createdAt: Date
