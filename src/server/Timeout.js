@@ -146,7 +146,7 @@ export default class Timeout {
 
     return item;
   }
-  sync(itemId, item, target, targetId) {
+  sync(target, targetId, itemId, item, expireAt = null) {
     this._opened.delete(itemId);
     this._closed.delete(itemId);
     if (target._opened.has(targetId)) {
@@ -155,6 +155,8 @@ export default class Timeout {
       this.log('sync', `open=${itemId}; openCount=${itemTimeout.openCount}`);
     } else if (target._closed.has(targetId)) {
       const itemTimeout = Object.assign({}, target._closed.get(targetId), { item });
+      if (expireAt)
+        itemTimeout.expireAt = new Date(Math.max(expireAt, itemTimeout.expireAt));
       this._addSorted(itemId, itemTimeout);
       this.log('sync', `add=${itemId}; expireAt=${itemTimeout.expireAt.toISOString()}`);
     } else {
