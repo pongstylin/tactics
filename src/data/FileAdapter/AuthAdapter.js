@@ -79,15 +79,16 @@ export default class extends FileAdapter {
     return player;
   }
   async openPlayer(playerId) {
+    const playerCache = this.cache.get('player');
     const player = await this._getPlayer(playerId);
-    this.cache.get('player').open(playerId, player);
-    this.cache.get('identity').open(player.identityId, player.identity);
+    playerCache.open(playerId, player);
+    this.cache.get('identity').sync(player.identityId, player.identity, playerCache, playerId);
     return player;
   }
   closePlayer(playerId) {
-    const player = this.cache.get('player').close(playerId);
-    const expireAt = new Date(Math.max(this.cache.get('player').getExpireAt(playerId), player.identity.expireAt));
-    this.cache.get('identity').close(player.identityId, expireAt);
+    const playerCache = this.cache.get('player');
+    const player = playerCache.close(playerId);
+    this.cache.get('identity').sync(player.identityId, player.identity, playerCache, playerId);
     return player;
   }
   async getPlayer(playerId) {

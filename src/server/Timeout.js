@@ -146,17 +146,26 @@ export default class Timeout {
 
     return item;
   }
+  sync(itemId, item, target, targetId) {
+    this._opened.delete(itemId);
+    this._closed.delete(itemId);
+    if (target._opened.has(targetId)) {
+      const itemTimeout = Object.assign({}, target._opened.get(targetId), { item });
+      this._opened.set(itemId, itemTimeout);
+      this.log('sync', `open=${itemId}; openCount=${itemTimeout.openCount}`);
+    } else if (target._closed.has(targetId)) {
+      const itemTimeout = Object.assign({}, target._closed.get(targetId), { item });
+      this._addSorted(itemId, itemTimeout);
+      this.log('sync', `add=${itemId}; expireAt=${itemTimeout.expireAt.toISOString()}`);
+    } else {
+      this.log('sync', `delete=${itemId}`);
+    }
+  }
   has(itemId) {
     return this._opened.has(itemId) || this._closed.has(itemId);
   }
   get(itemId) {
     return this._opened.get(itemId)?.item ?? this._closed.get(itemId)?.item;
-  }
-  getExpireAt(itemId) {
-    return this._opened.get(itemId)?.expireAt ?? this._closed.get(itemId)?.expireAt;
-  }
-  isOpen(itemId) {
-    return this._opened.has(itemId);
   }
   getOpen(itemId) {
     if (!this._opened.has(itemId))

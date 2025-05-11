@@ -81,19 +81,20 @@ export default class extends DynamoDBAdapter {
     return player;
   }
   async openPlayer(playerId) {
+    const playerCache = this.cache.get('player');
     const player = await this._getPlayer(playerId);
-    this.cache.get('player').open(playerId, player);
-    this.cache.get('identity').open(player.identityId, player.identity);
+    playerCache.open(playerId, player);
+    this.cache.get('identity').sync(player.identityId, player.identity, playerCache, playerId);
     for (const device of player.devices.values())
-      this.cache.get('playerDevice').open(device.id);
+      this.cache.get('playerDevice').sync(device.id, device, playerCache, playerId);
     return player;
   }
   closePlayer(playerId) {
-    const player = this.cache.get('player').close(playerId);
-    const expireAt = new Date(Math.max(this.cache.get('player').getExpireAt(playerId), player.identity.expireAt));
-    this.cache.get('identity').close(player.identityId, expireAt);
+    const playerCache = this.cache.get('player');
+    const player = playerCache.close(playerId);
+    this.cache.get('identity').sync(player.identityId, player.identity, playerCache, playerId);
     for (const device of player.devices.values())
-      this.cache.get('playerDevice').close(device.id, expireAt);
+      this.cache.get('playerDevice').sync(device.id, device, playerCache, playerId);
     return player;
   }
   async getPlayer(playerId) {
@@ -288,10 +289,7 @@ export default class extends DynamoDBAdapter {
     // Redundant, but prevents destroying the device if it is not in the cache
     const playerCache = this.cache.get('player');
     const deviceCache = this.cache.get('playerDevice');
-    if (playerCache.isOpen(player.id))
-      deviceCache.open(device.id, device);
-    else
-      deviceCache.add(device.id, device, playerCache.getExpireAt(player.id));
+    deviceCache.sync(device.id, device, playerCache, player.id);
 
     device.player = player;
     player.addDevice(device);

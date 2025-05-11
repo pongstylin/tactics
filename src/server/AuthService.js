@@ -122,7 +122,7 @@ export default class AuthService extends Service {
    * before adding the client to the clientPara.
    */
   async onAuthorize(client, { token }) {
-    const { player, device } = await this._validateAccessToken(client, token);
+    const { player, device } = await this._validateAccessToken(token);
     if (client.closed)
       return;
 
@@ -522,7 +522,7 @@ export default class AuthService extends Service {
       else
         throw new ServerError(401, 'Required access token');
 
-    const { player, device } = await this._validateAccessToken(client, token);
+    const { player, device } = await this._validateAccessToken(token);
 
     if (player.refreshAccessToken(device.id)) {
       const newToken = player.getAccessToken(device.id);
@@ -652,7 +652,7 @@ export default class AuthService extends Service {
     return ranksByPlayerId.get(playerId);
   }
 
-  async _validateAccessToken(client, token) {
+  async _validateAccessToken(token) {
     const player = await this.data.getPlayer(token.playerId).catch(error => {
       if (error.code === 404)
         throw new ServerError(401, 'Player deleted');
