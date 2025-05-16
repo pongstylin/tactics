@@ -51,9 +51,13 @@ export default class extends DynamoDBAdapter {
         identities.archive(identity);
     });
 
-    identities.setValues(await Promise.all(identities.getIds().map(iId => this._getIdentity(iId))));
-    for (const identity of identities.values())
-      cache.add(identity.id, identity, identity.expireAt)
+    await Promise.all(identities.getIds().map(iId => this._getIdentity(iId).then(identity => {
+      identities.addValue(identity);
+      cache.add(identity.id, identity, identity.expireAt);
+    }).catch(() => {
+      identities.deleteId(iId);
+      console.warn(`Warning: Failed to load identity: ${iId}`);
+    })));
 
     Player.identities = this.state.identities;
 

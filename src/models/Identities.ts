@@ -31,8 +31,18 @@ export default class Identities extends ActiveModel {
   getIds() {
     return [ ...this.data ];
   }
-  setValues(identities) {
+  deleteId(identityId:string) {
+    this.data.delete(identityId);
+    this.emit({
+      type: 'change:deleteId',
+      data: { identityId },
+    });
+  }
+  setValues(identities:Identity[]) {
     this.identities = new Set(identities);
+  }
+  addValue(identity:Identity) {
+    this.identities.add(identity);
   }
 
   values() {

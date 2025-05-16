@@ -956,26 +956,26 @@ export default class extends DynamoDBAdapter {
       return this.cache.get('collection').get(collectionId);
 
     const parts = collectionId.split('/');
-    const gamesSummary = empty ? [] : await this.queryItemChildren({
+    const gamesSummary = empty ? [] : (await Promise.all([
+      collectionId === 'rated/FORTE' ? {
+        indexKey: 'LSK4',
+      } : parts[0] === 'rated' ? {
+        indexKey: 'LSK5',
+        indexValue: `${parts[1]}&`,
+      } : parts.length === 2 ? [
+        { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&a=` },
+        { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&b=` },
+        { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&c=` },
+      ] : [
+        { indexKey:'LSK2', indexValue:`${parts[0]}&a=` },
+        { indexKey:'LSK2', indexValue:`${parts[0]}&b=` },
+        { indexKey:'LSK2', indexValue:`${parts[0]}&c=` },
+      ],
+    ].flat().map(query => this.queryItemChildren({
       type: 'collection',
       name: `collection/${collectionId}`,
-      query: {
-        ...(collectionId === 'rated/FORTE' ? {
-          indexKey: 'LSK4',
-        } : parts[0] === 'rated' ? {
-          indexKey: 'LSK5',
-          indexValue: `${parts[1]}&`,
-        } : parts[0] === 'public' ? {
-          indexKey: 'LSK2',
-          indexValue: `${parts[0]}&`,
-        } : {
-          indexKey: 'LSK3',
-          indexValue: `${parts[0]}&${parts[1]}&`,
-        }),
-        order: 'DESC',
-        limit: 50,
-      },
-    });
+      query: Object.assign(query, { order:'DESC', limit:50 }),
+    })))).flat();
 
     const collection = new GameSummaryList({
       id: collectionId,
