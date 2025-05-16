@@ -498,7 +498,7 @@ export default class extends DynamoDBAdapter {
     });
     game.state.teams.forEach(t => t?.on('change', () => this._onGameChange(game)));
   }
-  _saveGameSummary(game, ts, force = false) {
+  _saveGameSummary(game, force = false, ts = new Date().toISOString()) {
     const children = [];
     const ogs = gameSummaryCache.get(game);
     const gs = GameSummary.create(game);
@@ -575,7 +575,7 @@ export default class extends DynamoDBAdapter {
           GSK0: `instance&${ts}`,
         },
       }, game, game.toParts(fromFile)),
-      this._saveGameSummary(game, ts, sync),
+      this._saveGameSummary(game, sync, ts),
     ]);
   }
 

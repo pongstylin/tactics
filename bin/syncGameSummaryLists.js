@@ -14,7 +14,7 @@ const since = process.argv[2] ? new Date(process.argv[2]) : null;
 const queue = [];
 let numProcessed = 0;
 
-//queue.push('efaf63a4-4f78-45fc-8fdd-73f28a1bfe8f');
+// queue.push('c8eab32e-d96f-4ffa-9120-2e88abeb2faf');
 for await (const gameId of dataAdapter.listAllGameIds(since)) {
   queue.push(gameId);
   if (queue.length === 100)
@@ -32,7 +32,7 @@ async function sync() {
   await Promise.all(queue.map(qId => dataAdapter._getGame(qId).then(game => {
     if (!gameTypeMap.has(game.state.type))
       return;
-    return dataAdapter._updateGameSummary(game, true);
+    return dataAdapter._saveGameSummary(game, true);
   }).catch(error => console.error(error))));
   await dataAdapter.flush();
   console.log('synced', numProcessed += queue.length);
