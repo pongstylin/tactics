@@ -498,7 +498,7 @@ export default class extends DynamoDBAdapter {
     });
     game.state.teams.forEach(t => t?.on('change', () => this._onGameChange(game)));
   }
-  _saveGameSummary(game, ts, force = false) {
+  _saveGameSummary(game, force = false, ts = new Date().toISOString()) {
     const children = [];
     const ogs = gameSummaryCache.get(game);
     const gs = GameSummary.create(game);
@@ -506,7 +506,7 @@ export default class extends DynamoDBAdapter {
       const collection = gs.collection && gs.collection.split('/')[0];
       const stageDate = (
         gs.endedAt ? `c=${gs.endedAt.toISOString()}` :
-        gs.startedAt ? `b=${gs.createdAt.toISOString()}` :
+        gs.startedAt ? `b=${gs.updatedAt.toISOString()}` :
         `a=${gs.createdAt.toISOString()}`
       );
       const practice = gs.isSimulation;
@@ -575,7 +575,7 @@ export default class extends DynamoDBAdapter {
           GSK0: `instance&${ts}`,
         },
       }, game, game.toParts(fromFile)),
-      this._saveGameSummary(game, ts, sync),
+      this._saveGameSummary(game, sync, ts),
     ]);
   }
 
@@ -658,8 +658,7 @@ export default class extends DynamoDBAdapter {
 
         if (game.state.startedAt) {
           gameSummaryList.set(game.id, summary, isSync);
-          if (game.state.endedAt)
-            this._pruneGameSummaryList(gameSummaryList);
+          this._pruneGameSummaryList(gameSummaryList);
         // If the game hasn't started, make sure to omit reserved games from collection lists
         } else if (!isCollectionList || !game.isReserved)
           gameSummaryList.set(game.id, summary, isSync);
@@ -955,6 +954,7 @@ export default class extends DynamoDBAdapter {
     if (this.cache.get('collection').has(collectionId))
       return this.cache.get('collection').get(collectionId);
 
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const parts = collectionId.split('/');
     const gamesSummary = empty ? [] : (await Promise.all([
       collectionId === 'rated/FORTE' ? {
@@ -968,7 +968,7 @@ export default class extends DynamoDBAdapter {
         { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&c=` },
       ] : [
         { indexKey:'LSK2', indexValue:`${parts[0]}&a=` },
-        { indexKey:'LSK2', indexValue:`${parts[0]}&b=` },
+        { indexKey:'LSK2', indexValue:[ 'between', `${parts[0]}&b=${oneWeekAgo.toISOString()}`, `${parts[0]}&c=` ] },
         { indexKey:'LSK2', indexValue:`${parts[0]}&c=` },
       ],
     ].flat().map(query => this.queryItemChildren({
@@ -981,6 +981,7 @@ export default class extends DynamoDBAdapter {
       id: collectionId,
       gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
     });
+    this._pruneGameSummaryList(collection);
 
     return collection;
   }

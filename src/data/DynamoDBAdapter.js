@@ -23,11 +23,13 @@ import {
 
   BatchGetCommand,
   BatchWriteCommand,
+  GetCommand,
   QueryCommand,
   ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 import workerpool from 'workerpool';
 
+import config from '#config/server.js';
 import FileAdapter from '#data/FileAdapter.js';
 import ServerError from '#server/Error.js';
 import Timeout from '#server/Timeout.js';
@@ -74,6 +76,15 @@ const filterOpByName = new Map([
   [ 'gte', '>=' ],
 ]);
 
+const stateBuffer = new Timeout('ddbState', config.buffer).on('expire', async ({ data:items }) => {
+  for (const [ itemId, item ] of items)
+    DynamoDBAdapter._putItem({
+      PK: `state#${itemId}`,
+      SK: '/',
+      D: serializer.stringify(item),
+    });
+});
+
 export default class DynamoDBAdapter extends FileAdapter {
   constructor(props) {
     super(props);
@@ -83,19 +94,97 @@ export default class DynamoDBAdapter extends FileAdapter {
     workerQueue.serviceCount++;
   }
 
+  static _getItem(key, defaultValue) {
+    return docClient.send(new GetCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        PK: key.PK,
+        SK: key.SK,
+      },
+      ConsistentRead: false,
+    })).then(rsp => {
+      if (rsp.Item)
+        return DynamoDBAdapter.migrate(rsp.Item);
+      if (defaultValue === undefined)
+        throw new ServerError(404, `Item Not Found: ${key.PK}`);
+      return typeof defaultValue === 'function' ? defaultValue() : defaultValue;
+    });
+  }
+  static _putItem(item) {
+    return new Promise((resolve, reject) => {
+      pool.exec('putItem', [ item ], {
+        on: reject,
+      }).then(resolve, reject);
+    });
+  }
   // No migrations yet.  The item PK and SK values will be used to determine the
   // item type and migrate as needed.  Migrations may retrieve and mutate
   // additional items.  The final step is normalizing the object.
-  async migrate(item, props) {
+  static async migrate(item, props = {}) {
     if (!(item.D ?? item.PD)) {
       console.log('Item is missing data!', item, new Error().stack);
       throw new ServerError(500, 'Item is malformed');
     }
-    return serializer.parse(await this._decompress(item.D ?? item.PD));
+    return serializer.parse(await DynamoDBAdapter._decompress(item.D ?? item.PD));
+  }
+  static _decompress(data) {
+    if (!(data instanceof Uint8Array))
+      throw new Error('Unable to decompress');
+
+    return new Promise(resolve => {
+      zlib.brotliDecompress(data, {
+        params: {
+          [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
+          [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
+        },
+      }, (error, decompressed) => {
+        if (error)
+          console.error('Error while decompressing:', error);
+        resolve(decompressed.toString());
+      });
+    });
   }
 
+  async bootstrap() {
+    if (this.hasState) {
+      try {
+        await FileAdapter._createJSONFile(`${this.name}.lock`, { startupAt:new Date() });
+      } catch (error) {
+        if (error.code === 'EEXIST')
+          throw new Error('Lock file exists.  Try `npm run start-force`.');
+        throw error;
+      }
+
+      if (await FileAdapter._hasJSONFile(this.name)) {
+        this.state = await FileAdapter._readJSONFile(this.name, {});
+        await FileAdapter._deleteJSONFile(this.name);
+      } else
+        this.state = await DynamoDBAdapter._getItem({ PK:`state#${this.name}`, SK:'/' });
+    }
+
+    return this;
+  }
+  /*
+   * While not strictly necessary to call this method to save state, calling it
+   * allows us to track state changes during server run time.  It also makes it
+   * safer to forcefully start a server after not being gracefully shut down.
+   */
+  saveState() {
+    stateBuffer.add(this.name, this.state);
+  }
   async cleanup() {
-    await super.cleanup();
+    await this.flush();
+
+    if (this.hasState) {
+      stateBuffer.pause();
+      await DynamoDBAdapter._putItem({
+        PK: `state#${this.name}`,
+        SK: '/',
+        D: serializer.stringify(this.state),
+      });
+
+      await FileAdapter._deleteJSONFile(`${this.name}.lock`);
+    }
 
     if (--workerQueue.serviceCount === 0)
       pool.terminate();
@@ -431,7 +520,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
         if (items.has(itemKey)) {
           const item = items.get(itemKey);
-          obj = await this.migrate(item, migrateProps);
+          obj = await DynamoDBAdapter.migrate(item, migrateProps);
           this.setItemMeta(obj, { item });
         } else {
           obj = await this._loadItemFromFile(key, migrateProps);
@@ -637,7 +726,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     let obj;
     if (items.length) {
-      const parts = new Map(await Promise.all(items.map(i => this.migrate(i, migrateProps).then(d => [ i.SK, d ]))));
+      const parts = new Map(await Promise.all(items.map(i => DynamoDBAdapter.migrate(i, migrateProps).then(d => [ i.SK, d ]))));
 
       obj = transform(parts);
 
@@ -696,13 +785,16 @@ export default class DynamoDBAdapter extends FileAdapter {
       Select: key.query.indexKey ? 'ALL_PROJECTED_ATTRIBUTES' : 'ALL_ATTRIBUTES',
       IndexName: key.query.indexKey ? `PK-${key.query.indexKey}` : undefined,
       KeyConditionExpression: 'PK = :PV' + (
-        key.query.indexValue?.[0] === 'beginsWith' ? ` AND begins_with(${key.query.indexKey ?? 'SK'}, :SV)` :
-        key.query.indexValue?.[0] === 'gt' ? ` AND ${key.query.indexKey ?? 'SK'} > :SV` :
+        key.query.indexValue?.[0] === 'beginsWith' ? ` AND begins_with(${key.query.indexKey ?? 'SK'}, :SV1)` :
+        key.query.indexValue?.[0] === 'between' ? ` AND ${key.query.indexKey ?? 'SK'} BETWEEN :SV1 AND :SV2` :
+        key.query.indexValue?.[0] === 'gt' ? ` AND ${key.query.indexKey ?? 'SK'} > :SV1` :
+        key.query.indexValue?.[0] === 'lt' ? ` AND ${key.query.indexKey ?? 'SK'} < :SV1` :
         ''
       ),
       ExpressionAttributeValues: {
         ':PV': key.PK,
-        ':SV': key.query.indexValue?.[1],
+        ':SV1': key.query.indexValue?.[1],
+        ':SV2': key.query.indexValue?.[2],
       },
       ScanIndexForward: key.query.order === 'ASC',
       Limit: key.query.limit,
@@ -738,7 +830,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       if (!obj)
         obj = transform([]);
     } else {
-      obj = transform(await Promise.all(items.map(i => this.migrate(i, migrateProps))));
+      obj = transform(await Promise.all(items.map(i => DynamoDBAdapter.migrate(i, migrateProps))));
     }
 
     return obj;
@@ -835,23 +927,6 @@ export default class DynamoDBAdapter extends FileAdapter {
 
       input.ExclusiveStartKey = rsp.LastEvaluatedKey;
     } while (input.ExclusiveStartKey);
-  }
-  _decompress(data) {
-    if (!(data instanceof Uint8Array))
-      throw new Error('Unable to decompress');
-
-    return new Promise(resolve => {
-      zlib.brotliDecompress(data, {
-        params: {
-          [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
-          [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
-        },
-      }, (error, decompressed) => {
-        if (error)
-          console.error('Error while decompressing:', error);
-        resolve(decompressed.toString());
-      });
-    });
   }
 };
 
