@@ -167,14 +167,14 @@ const config = {
       'chat',
       {
         module: '#server/ChatService.js',
-        dataAdapterModule: '#data/FileAdapter/ChatAdapter.js',
+        dataAdapterModule: '#data/DynamoDBAdapter/ChatAdapter.js',
       },
     ],
     [
       'push',
       {
         module: '#server/PushService.js',
-        dataAdapterModule: '#data/FileAdapter/PushAdapter.js',
+        dataAdapterModule: '#data/DynamoDBAdapter/PushAdapter.js',
         config: {
           /*
            * The `subject` should be 'mailto:' link with your email address or the URL
