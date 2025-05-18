@@ -214,6 +214,7 @@ export default class PlayerStats extends ActiveModel {
     /*
      * Determine which players played a turn.
      */
+    const now = Date.now();
     const playedBy = new Set();
     for (const team of game.state.teams) {
       if (game.state.teamHasPlayed(team))
@@ -222,9 +223,33 @@ export default class PlayerStats extends ActiveModel {
 
     for (const [ teamId, team ] of game.state.teams.entries()) {
       if (!this.data.stats.has(team.playerId))
-        throw new Error('Game start not recorded');
+        console.log(`Warning: Game start not recorded: ${team.playerId} (${this.data.playerId})`);
 
-      const stats = this.data.stats.get(team.playerId);
+      const stats = this.data.stats.get(team.playerId) ?? team.playerId === this.data.playerId ? {
+        completed: [0, 0],
+        ratings: new Map(),
+      } : {
+        name: team.name,
+        aliases: new Map([[ team.name.toLowerCase(), {
+          name: team.name,
+          count: 1,
+          lastSeenAt: now,
+        }]]),
+        all: {
+          startedAt: now,
+          win: [0, 0],
+          lose: [0, 0],
+          draw: [0, 0],
+        },
+        style: new Map([[ game.state.type, {
+          startedAt: now,
+          win: [0, 0],
+          lose: [0, 0],
+          draw: [0, 0],
+        }]]),
+      };
+      this.data.stats.set(team.playerId, stats);
+
       /*
        * Collect completed/abandoned game counts for the current player.
        */
