@@ -642,6 +642,15 @@ migrationMap.set('room', [
   },
 ]);
 
+migrationMap.set('playerPush', [
+  (json, { playerId }) => {
+    json.playerId = playerId;
+    json.subscriptions = new Map(json.subscriptions);
+
+    return json;
+  },
+]);
+
 /*
  * The base version for an object is version 1.
  * The first migration (index === 0) migrates version 1 to 2.

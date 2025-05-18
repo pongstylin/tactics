@@ -15,6 +15,19 @@ const queue = [];
 let numProcessed = 0;
 
 // queue.push('c8eab32e-d96f-4ffa-9120-2e88abeb2faf');
+/*
+for (const gs of await dataAdapter.queryItemChildren({
+  type: 'collection',
+  query: {
+    indexKey: 'LSK0',
+    indexValue: 'b=',
+  },
+})) {
+  queue.push(gs.id);
+  if (queue.length === 100)
+    await sync();
+}
+*/
 for await (const gameId of dataAdapter.listAllGameIds(since)) {
   queue.push(gameId);
   if (queue.length === 100)

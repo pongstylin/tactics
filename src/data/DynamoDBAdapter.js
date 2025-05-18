@@ -47,7 +47,7 @@ const WCU_LIMIT = parseInt(process.env.DDB_WCU_LIMIT ?? '25') * WCU_THROTTLE_PER
 const workerQueue = {
   max: os.cpus().length * 2,
   size: 0,
-  serviceCount: 0,
+  adapterCount: 0,
 };
 const pool = workerpool.pool(`./src/data/DynamoDBAdapter/worker.js`, {
   minWorkers: 'max',
@@ -91,7 +91,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     this.itemQueue = new Map();
     this._triggerItemQueueTimeout = null;
-    workerQueue.serviceCount++;
+    workerQueue.adapterCount++;
   }
 
   static _getItem(key, defaultValue) {
@@ -158,8 +158,11 @@ export default class DynamoDBAdapter extends FileAdapter {
       if (await FileAdapter._hasJSONFile(this.name)) {
         this.state = await FileAdapter._readJSONFile(this.name, {});
         await FileAdapter._deleteJSONFile(this.name);
-      } else
-        this.state = await DynamoDBAdapter._getItem({ PK:`state#${this.name}`, SK:'/' });
+      } else {
+        this.state = await DynamoDBAdapter._getItem({ PK:`state#${this.name}`, SK:'/' }, {});
+        if (Object.keys(this.state).length === 0)
+          console.log(`Initializing state for ${this.name} adapter.`);
+      }
     }
 
     return this;
@@ -186,7 +189,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       await FileAdapter._deleteJSONFile(`${this.name}.lock`);
     }
 
-    if (--workerQueue.serviceCount === 0)
+    if (--workerQueue.adapterCount === 0)
       pool.terminate();
 
     return this;
@@ -803,37 +806,25 @@ export default class DynamoDBAdapter extends FileAdapter {
       ReturnConsumedCapacity: 'NONE',
     };
 
-    const [ fileExists, items ] = await Promise.all([
-      this.statFile(key.name, true).then(s => s !== null),
-      new Promise(async (resolve, reject) => {
-        const items = [];
+    const items = new Promise(async (resolve, reject) => {
+      const items = [];
 
-        while (items.length < (key.query.limit ?? Infinity)) {
-          const rsp = await this._send(new QueryCommand(input));
-          if (!rsp.Items.length)
-            break;
+      while (items.length < (key.query.limit ?? Infinity)) {
+        const rsp = await this._send(new QueryCommand(input));
+        if (!rsp.Items.length)
+          break;
 
-          items.push(...rsp.Items);
-          if (!rsp.LastEvaluatedKey)
-            break;
+        items.push(...rsp.Items);
+        if (!rsp.LastEvaluatedKey)
+          break;
 
-          input.ExclusiveStartKey = rsp.LastEvaluatedKey;
-        }
+        input.ExclusiveStartKey = rsp.LastEvaluatedKey;
+      }
 
-        resolve(items);
-      }),
-    ]);
+      resolve(items);
+    });
 
-    let obj;
-    if (fileExists) {
-      obj = await this._loadItemFromFile(key, migrateProps);
-      if (!obj)
-        obj = transform([]);
-    } else {
-      obj = transform(await Promise.all(items.map(i => DynamoDBAdapter.migrate(i, migrateProps))));
-    }
-
-    return obj;
+    return transform(await Promise.all(items.map(i => DynamoDBAdapter.migrate(i, migrateProps))));
   }
   async _putItemChildren(key, children) {
     const ops = children.map(child => (child.D ?? child.PD ?? null) === null ? ({
