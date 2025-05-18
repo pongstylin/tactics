@@ -1,4 +1,5 @@
 import FileAdapter from '#data/FileAdapter.js';
+import serializer from '#utils/serializer.js';
 
 export default class extends FileAdapter {
   constructor() {
@@ -35,15 +36,15 @@ export default class extends FileAdapter {
 
   async _getPlayerPushSubscriptions(playerId) {
     const fileName = `player_${playerId}_push`;
-    return await this.getFile(fileName, {
-      subscriptions: [],
-    }, pushData => {
-      pushData.subscriptions = new Map(pushData.subscriptions);
-      return pushData;
+    return await this.getFile(fileName, data => {
+      if (data === undefined)
+        return { playerId, subscriptions:new Map() };
+
+      return serializer.normalize(migrate('playerPush', data, { playerId }));
     });
   }
   async _savePlayerPushSubscriptions(playerId, pushData) {
     const fileName = `player_${playerId}_push`;
-    await this.putFile(fileName, pushData);
+    await this.putFile(fileName, serializer.transform(pushData));
   }
 };
