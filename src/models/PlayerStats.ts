@@ -225,7 +225,7 @@ export default class PlayerStats extends ActiveModel {
       if (!this.data.stats.has(team.playerId))
         console.log(`Warning: Game start not recorded: ${team.playerId} (${this.data.playerId})`);
 
-      const stats = this.data.stats.get(team.playerId) ?? team.playerId === this.data.playerId ? {
+      const stats = this.data.stats.get(team.playerId) ?? (team.playerId === this.data.playerId ? {
         completed: [0, 0],
         ratings: new Map(),
       } : {
@@ -247,7 +247,7 @@ export default class PlayerStats extends ActiveModel {
           lose: [0, 0],
           draw: [0, 0],
         }]]),
-      };
+      });
       this.data.stats.set(team.playerId, stats);
 
       /*
