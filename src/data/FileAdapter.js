@@ -157,7 +157,7 @@ export default class FileAdapter {
       cache.on('expire', ({ data:items }) => {
         for (const [ itemId, item ] of items) {
           this.debugV(`${cache.name}:expire=${itemId}; destroy=${!buffer.has(itemId)}`);
-          if (!buffer.has(itemId) && destroy in item)
+          if (!buffer.has(itemId) && 'destroy' in item)
             item.destroy();
         }
       });
@@ -169,7 +169,7 @@ export default class FileAdapter {
         }));
         for (const [ itemId, item ] of items) {
           this.debugV(`${buffer.name}:expire=${itemId}; destroy=${!cache.has(itemId)}`);
-          if (!cache.has(itemId) && destroy in item)
+          if (!cache.has(itemId) && 'destroy' in item)
             item.destroy();
         }
       });
