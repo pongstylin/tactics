@@ -176,6 +176,10 @@ export default class DynamoDBAdapter extends FileAdapter {
     stateBuffer.add(this.name, this.state);
   }
   async cleanup() {
+    // Remove throttling to terminate quicker
+    Atomics.store(throttle, WCU_INDEX, -500);
+    Atomics.notify(throttle, WCU_INDEX);
+
     await this.flush();
 
     if (this.hasState) {
