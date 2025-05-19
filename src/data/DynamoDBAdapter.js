@@ -810,7 +810,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       ReturnConsumedCapacity: 'NONE',
     };
 
-    const items = new Promise(async (resolve, reject) => {
+    const items = await new Promise(async (resolve, reject) => {
       const items = [];
 
       while (items.length < (key.query.limit ?? Infinity)) {
