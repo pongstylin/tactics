@@ -80,6 +80,10 @@ export default class Timeout {
     this._isPaused = false;
     return this;
   }
+  flush() {
+    this._tick(Date.now());
+    return this;
+  }
 
   _tick(now) {
     const closed = this._closed;

@@ -385,6 +385,12 @@ export default class Team extends ActiveModel {
     this.emit('change:usedSim');
   }
   setRating(rankingId, oldRating, newRating) {
+    if (
+      this.data.ratings?.has(rankingId) &&
+      this.data.ratings.get(rankingId)[0] === oldRating &&
+      this.data.ratings.get(rankingId)[1] === newRating
+    ) return;
+
     if (!this.data.ratings)
       this.data.ratings = new Map();
     this.data.ratings.set(rankingId, [ oldRating, newRating ]);

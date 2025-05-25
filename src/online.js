@@ -2947,9 +2947,9 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
   if (game.rated) {
     const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
     const change = vsRatings[1] - vsRatings[0];
-    const label = Math.abs(Math.round(vsRatings[1]) - Math.round(vsRatings[0])) || '';
+    const label = Math.abs(vsRatings[1] - vsRatings[0]) || '';
 
-    rating.push(`<SPAN class="initial">${Math.round(vsRatings[0])}</SPAN>`);
+    rating.push(`<SPAN class="initial">${vsRatings[0]}</SPAN>`);
     rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN> `);
   }
 

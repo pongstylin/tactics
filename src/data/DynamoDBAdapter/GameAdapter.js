@@ -1,3 +1,5 @@
+import fs from 'fs/promises';
+
 import { search } from '#utils/jsQuery.js';
 import serializer from '#utils/serializer.js';
 import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
@@ -1019,5 +1021,65 @@ export default class extends DynamoDBAdapter {
 
     for await (const child of children)
       yield [ child.PK, child.SK ];
+  }
+
+  /*
+   * Used by syncPlayerStats
+   */
+  async indexAllGames() {
+    const indexAt = new Date();
+    const indexStat = await this.statFile('game_index', true);
+    const lastIndexAt = indexStat && new Date(indexStat.mtime);
+    const gameIds = [];
+    const gameIndex = await this.getFile('game_index', data => {
+      if (data === undefined)
+        return new Map();
+      return serializer.normalize(data);
+    });
+
+    for await (const gameId of this.listAllGameIds(lastIndexAt))
+      gameIds.push(gameId);
+
+    for (let i = 0; i < gameIds.length; i += 100) {
+      console.log(`indexAllGames: ${i} through ${i+Math.min(100, gameIds.length - i)} of ${gameIds.length}`);
+      const games = await Promise.all(gameIds.slice(i, i + 100).map(gId => this._getGame(gId).catch(error => {
+        if (error.code === 404)
+          return null;
+        throw error;
+      })));
+
+      for (const game of games) {
+        if (!game)
+          continue;
+        if (!this.hasGameType(game.state.type))
+          continue;
+        if (!game.state.startedAt)
+          continue;
+        if (game.state.isSimulation)
+          continue;
+
+        gameIndex.set(game.id, {
+          startedAt: game.state.startedAt,
+          endedAt: game.state.endedAt,
+          type: game.state.type,
+          rated: game.state.rated,
+          winnerId: game.state.winnerId,
+          teams: game.state.teams.map(t => ({
+            playerId: t.playerId,
+            name: t.name,
+            usedUndo: t.usedUndo,
+            usedSim: t.usedSim,
+            hasPlayed: game.state.teamHasPlayed(t),
+          })),
+        });
+      }
+    }
+
+    if (gameIds.length) {
+      await this.putFile('game_index', serializer.transform(gameIndex));
+      await fs.utimes(`${this.filesDir}/game_index.json`, indexAt, indexAt);
+    }
+
+    return gameIndex;
   }
 };
