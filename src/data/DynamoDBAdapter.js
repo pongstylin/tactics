@@ -125,13 +125,24 @@ export default class DynamoDBAdapter extends FileAdapter {
       console.log('Item is missing data!', item, new Error().stack);
       throw new ServerError(500, 'Item is malformed');
     }
-    return serializer.parse(await DynamoDBAdapter._decompress(item.D ?? item.PD));
+    try {
+      return serializer.parse(await DynamoDBAdapter._decompress(item.D ?? item.PD));
+    } catch (error) {
+      if (error.code === 'ERR_RING_BUFFER_2') {
+        console.log(`Warning: (Retrying) ${error.message}: ${keyOfItem(item)}: ${error.code} (${error.errno})`);
+        return this.migrate(item, props);
+      }
+
+      console.error(`Error while decompressing item: ${keyOfItem(item)}: `, error);
+      console.error('data:', item.D ?? item.PD);
+      throw new ServerError(500, 'Item is malformed');
+    }
   }
   static _decompress(data) {
     if (!(data instanceof Uint8Array))
       throw new Error('Unable to decompress');
 
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
       zlib.brotliDecompress(data, {
         params: {
           [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
@@ -139,8 +150,9 @@ export default class DynamoDBAdapter extends FileAdapter {
         },
       }, (error, decompressed) => {
         if (error)
-          console.error('Error while decompressing:', error);
-        resolve(decompressed.toString());
+          reject(error);
+        else
+          resolve(decompressed.toString());
       });
     });
   }

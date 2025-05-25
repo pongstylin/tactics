@@ -61,7 +61,7 @@ export default class PlayerStats extends ActiveModel {
 
       if (newForte)
         team.setRating('FORTE', oldForte, newForte);
-      team.setRating(game.state.type, teamMeta.rating, newRating);
+      team.setRating(game.state.type, Math.round(oldRating), Math.round(newRating));
     }
 
     return true;
