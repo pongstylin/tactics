@@ -56,16 +56,6 @@ const pool = workerpool.pool(`./src/data/DynamoDBAdapter/worker.js`, {
   workerThreadOpts: { workerData },
 });
 
-// Limit WCU within a period of 1 minute
-Timeout.setInterval(() => {
-  const wcu = Atomics.load(throttle, WCU_INDEX);
-  const nextWCU = Math.max(0, wcu - WCU_LIMIT);
-
-  Atomics.store(throttle, WCU_INDEX, nextWCU);
-  if (nextWCU < WCU_LIMIT)
-    Atomics.notify(throttle, WCU_INDEX);
-}, WCU_THROTTLE_PERIOD * 1000);
-
 const itemMeta = new WeakMap();
 const keyOfItem = r => `${r.PK}:${r.SK}`;
 const filterOpByName = new Map([
@@ -936,5 +926,17 @@ export default class DynamoDBAdapter extends FileAdapter {
     } while (input.ExclusiveStartKey);
   }
 };
+
+DynamoDBAdapter.flush = () => {
+  const wcu = Atomics.load(throttle, WCU_INDEX);
+  const nextWCU = Math.max(0, wcu - WCU_LIMIT);
+
+  Atomics.store(throttle, WCU_INDEX, nextWCU);
+  if (nextWCU < WCU_LIMIT)
+    Atomics.notify(throttle, WCU_INDEX);
+};
+
+// Limit WCU within a period of 1 minute
+Timeout.setInterval(DynamoDBAdapter.flush, WCU_THROTTLE_PERIOD * 1000);
 
 emitter(DynamoDBAdapter);
