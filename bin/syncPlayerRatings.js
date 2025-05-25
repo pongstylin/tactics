@@ -1,7 +1,11 @@
 import '#plugins/index.js';
+import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 import AuthAdapter from '#data/DynamoDBAdapter/AuthAdapter.js';
 import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
 import PlayerStats from '#models/PlayerStats.js';
+
+// Flush the wcu throttle every minute
+setInterval(DynamoDBAdapter.flush, 60 * 1000);
 
 const dryRun = true;
 const authAdapter = new AuthAdapter({ hasState:false, readonly:dryRun });
