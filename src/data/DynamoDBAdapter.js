@@ -47,7 +47,7 @@ const WCU_LIMIT = parseInt(process.env.DDB_WCU_LIMIT ?? '25') * WCU_THROTTLE_PER
 const workerQueue = {
   max: os.cpus().length * 2,
   size: 0,
-  adapterCount: 0,
+  adapters: new Set(),
 };
 const pool = workerpool.pool(`./src/data/DynamoDBAdapter/worker.js`, {
   minWorkers: 'max',
@@ -81,7 +81,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     this.itemQueue = new Map();
     this._triggerItemQueueTimeout = null;
-    workerQueue.adapterCount++;
+    workerQueue.adapters.add(this);
   }
 
   static _getItem(key, defaultValue) {
@@ -195,7 +195,8 @@ export default class DynamoDBAdapter extends FileAdapter {
       await FileAdapter._deleteJSONFile(`${this.name}.lock`);
     }
 
-    if (--workerQueue.adapterCount === 0)
+    workerQueue.adapters.delete(this);
+    if (workerQueue.adapters.size === 0)
       pool.terminate();
 
     return this;
@@ -638,7 +639,7 @@ export default class DynamoDBAdapter extends FileAdapter {
   _writeItemExec(writeOps) {
     writeOps.sort((a,b) => (b.priority ?? 0) - (a.priority ?? 0));
 
-    for (let i = workerQueue.size; i < workerQueue.max; i++) {
+    while (workerQueue.max < workerQueue.size) {
       if (writeOps.length === 0)
         break;
 
@@ -649,7 +650,6 @@ export default class DynamoDBAdapter extends FileAdapter {
         console.log('Item is missing data!', method, item);
         op.reject(new ServerError(500, 'Item is missing data!'));
         this.itemQueue.delete(op.key);
-        this._triggerItemQueue();
         continue;
       }
 
@@ -666,7 +666,8 @@ export default class DynamoDBAdapter extends FileAdapter {
         this.debugV(`${method}: ${keyOfItem(item)}`, op.execEndAt - op.execStartAt);
         workerQueue.size--;
         this.itemQueue.delete(op.key);
-        this._triggerItemQueue();
+        // Since the worker queue is shared, trigger all item queues
+        DynamoDBAdapter.triggerItemQueues();
       });
     }
   }
@@ -927,6 +928,10 @@ export default class DynamoDBAdapter extends FileAdapter {
   }
 };
 
+DynamoDBAdapter.triggerItemQueues = () => {
+  for (const adapter of workerQueue.adapters)
+    adapter._triggerItemQueue();
+};
 DynamoDBAdapter.flush = () => {
   const wcu = Atomics.load(throttle, WCU_INDEX);
   const nextWCU = Math.max(0, wcu - WCU_LIMIT);
