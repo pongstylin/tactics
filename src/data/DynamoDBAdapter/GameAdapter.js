@@ -532,7 +532,7 @@ export default class extends DynamoDBAdapter {
           LSK5: practice ? `${gs.type}&${gs.updatedAt.toISOString()}` : undefined,
         },
       })));
-      if (collection) {
+      if (collection && !game.isReserved) {
         children.push({
           type: 'collection',
           childId: gs.id,
