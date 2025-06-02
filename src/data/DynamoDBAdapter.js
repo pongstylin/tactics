@@ -182,6 +182,8 @@ export default class DynamoDBAdapter extends FileAdapter {
     Atomics.store(throttle, WCU_INDEX, -500);
     Atomics.notify(throttle, WCU_INDEX);
 
+    // Avoid concurrent conflicts by processing all current items before flushing more.
+    await this._processItemQueue();
     await this.flush();
 
     if (this.hasState) {
@@ -438,7 +440,7 @@ export default class DynamoDBAdapter extends FileAdapter {
    *
    * Unprocessed keys/items from a batch operation are processed in the next tick.
    */
-  async _processItemQueue() {
+  _processItemQueue() {
     const queue = Array.from(this.itemQueue.values());
     if (queue.length === 0)
       return;
@@ -493,6 +495,8 @@ export default class DynamoDBAdapter extends FileAdapter {
         .catch(err => op.reject(err))
         .finally(() => this.itemQueue.delete(op.key))
       );
+
+    return Promise.all(queue.map(op => op.promise));
   }
 
   async _getItemBatch(ops) {
@@ -639,7 +643,7 @@ export default class DynamoDBAdapter extends FileAdapter {
   _writeItemExec(writeOps) {
     writeOps.sort((a,b) => (b.priority ?? 0) - (a.priority ?? 0));
 
-    while (workerQueue.max < workerQueue.size) {
+    while (workerQueue.max > workerQueue.size) {
       if (writeOps.length === 0)
         break;
 
