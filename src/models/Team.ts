@@ -90,8 +90,8 @@ export default class Team extends ActiveModel {
     forkOf: any
     ratings: Map<string, [ number, number ]>
   }
-  public isCurrent: boolean
-  public units: any[][]
+  public isCurrent: boolean = false
+  public units: any[][] | null = null;
 
   constructor(data, props = undefined) {
     super(props);
@@ -155,9 +155,6 @@ export default class Team extends ActiveModel {
 
     if (this.data.useRandom && !this.data.randomState)
       this.data.randomState = Random.create();
-
-    this.isCurrent = false;
-    this.units = null;
   }
 
   static validateSet(data, game, gameType) {
@@ -212,7 +209,7 @@ export default class Team extends ActiveModel {
 
     data.createdAt = new Date();
 
-    return new Team(data, { isClean:true });
+    return new Team(data, { isClean:false, isPersisted:false });
   }
   static createReserve(data, clientPara) {
     if (data.set)
@@ -397,15 +394,14 @@ export default class Team extends ActiveModel {
     this.emit('change:setRating');
   }
 
-  fork() {
-    return new Team({
-      createdAt: new Date(),
+  fork(set) {
+    return Team.create({
       id: this.data.id,
       slot: this.data.slot,
       position: this.data.position,
       forkOf: { playerId:this.data.playerId, name:this.data.name },
       useRandom: this.data.useRandom,
-      set: this.data.set,
+      set,
     });
   }
 

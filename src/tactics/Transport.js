@@ -88,7 +88,10 @@ export default class Transport {
     return this._getStateData('startedAt');
   }
   get drawCounts() {
-    return this._getStateData('drawCounts');
+    return Object.assign({
+      passedTurnLimit: 3 * this.teams.length,
+      attackTurnLimit: 15 * this.teams.length,
+    }, this.currentTurn.drawCounts);
   }
 
   get recentTurns() {
@@ -613,6 +616,7 @@ export default class Transport {
       data: {
         startedAt: data.startedAt,
         units: board.getState(),
+        drawCounts: data.drawCounts ?? null,
       },
       timeLimit: data.timeLimit ?? null,
     }));
@@ -670,11 +674,11 @@ export default class Transport {
           startedAt: turnData.startedAt,
           units: turnData.units,
           actions: turnData.actions,
+          drawCounts: turnData.drawCounts,
         },
       });
 
       recentTurns[i].isCurrent = recentTurns[i].id === state.currentTurnId;
-      recentTurns[i].isLocked = recentTurns[i].id === state.lockedTurnId;
       recentTurns[i].timeLimit = turnData.timeLimit ?? null;
     }
   }

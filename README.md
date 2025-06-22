@@ -17,34 +17,22 @@ The final goal of this project is to keep the game relevant as technology change
 That is as far as it goes.  This project is intended to recreate the core game experience in the modern world.  It will not include community support features such as clans, private messaging, or tournament hosting.  Anybody who hosts this game is responsible for building such features according to their personal preference.
 
 ## Requirements
-* Node.js tested on version v20.10.0
+* Docker
 
-To install under windows, you also need Git Bash and configure npm to use the Git Bash executable.
-Example:
-```bash
-npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
-```
-
-To manage Node versions in windows consider using https://github.com/coreybutler/nvm-windows.
-Then 
-```
-nvm install v20.10.0
-nvm use v20.10.0
-```
+When installing Docker Desktop under windows, keep in mind that it takes a little longer for the application to launch.  This is due to mapping files between the Windows filesystem and the Linux filesystem inside docker.  This is acceptable if you are just trying it out.  But since you need to relaunch the application every time you make changes to server code, it can be annoying.  To work around this, create an Ubuntu WSL distribution and clone the repository into that.  If you use VSCode, you can install the Remote Development extension pack to easily access your code inside a WSL VM, but make sure your Ubuntu distribution is the default.  This can shave over 30 seconds off of the startup time.  And if you have problems with WSL freezing up, try disabling Resource Saver in Docker Desktop settings.
 
 ## Development
-After checking out the Git repository, run these commands.
+After checking out the Git repository, run this command to launch the app.
 
 ```bash
-$ npm install
-$ npm start
+$ docker compose up
 ```
 
-The start command will output a URL that can be used to run the game and build JavaScript bundles for use by that URL.  The command will continue to monitor source files and rebuild the bundles as changes are made.
+The command will output a URL that can be used to open the game in your browser.  The command will continue to monitor source files and rebuild client-side JavaScript and CSS bundles as changes are made.
 
 You may locally host image and audio resources.  For example, download and unzip the sprite JSON files from [here](https://tactics.taorankings.com/sprites.zip) to the "/static/sprites" directory.  Then set the "SPRITE\_SOURCE" in the ".env" file to "/sprites/".  Not all image and audio resources are currently included in the zip, but the few exceptions will eventually be incorporated.
 
-If you wish to use HTTPS for local development, be sure to set "secure=true" in the `.env` file.  Also, install the `mkcert` tool and install the certificate authority and a certificate for `localhost` such that `localhost.pem` and `localhost-key.pem` files are placed in the `config` directory.  This is useful for testing OAuth and PWA installations.
+If you wish to use HTTPS for local development, be sure to set "LOCAL_SECURE=true" in the `.env` file.  Also, install the `mkcert` tool and install the certificate authority and a certificate for `localhost` such that `localhost.pem` and `localhost-key.pem` files are placed in the `config` directory.  This is useful for testing OAuth and PWA installations.
 
 ## Contributing
 Pull requests are encouraged. For major changes, please open an issue first to discuss what you would like to change.

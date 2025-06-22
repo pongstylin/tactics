@@ -6,13 +6,7 @@ import ScrollButton from 'components/ScrollButton.js';
 import share from 'components/share.js';
 import whenDOMReady from 'components/whenDOMReady.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
-import unitDataMap from 'tactics/unitData.js';
-import { colorFilterMap } from 'tactics/colorMap.js';
-import unitFactory from 'tactics/unitFactory.js';
 import sleep from 'utils/sleep.js';
-
-// We will be fetching the updates games list from the server on this interval
-const GAMES_FETCH_INTERVAL = 5 * 1000;
 
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
@@ -1882,7 +1876,7 @@ async function emptyArena(divArena) {
 async function renderYourGames() {
   const tabContent = state.tabContent.yourGames;
   const divTabContent = document.querySelector('.tabContent .yourGames');
-  divTabContent.innerHTML = '';
+  const childNodes = [];
 
   const now = gameClient.serverNow;
   const challenges = Array.from(tabContent.games[0].values());
@@ -1928,7 +1922,7 @@ async function renderYourGames() {
     if (event.target.tagName === 'BUTTON')
       avatars.getSound('select').howl.play();
   }, true);
-  divTabContent.append(header);
+  childNodes.push(header);
 
   const spnLabel = document.createElement('SPAN');
   spnLabel.textContent = 'Your Games';
@@ -1941,7 +1935,7 @@ async function renderYourGames() {
   if (activeLobbyGame) {
     const secLobbyGames = document.createElement('SECTION');
     secLobbyGames.classList.add('game-list');
-    divTabContent.appendChild(secLobbyGames);
+    childNodes.push(secLobbyGames);
 
     const header = document.createElement('HEADER');
     header.innerHTML = '<SPAN class="left">Active Lobby Game</SPAN>';
@@ -1973,7 +1967,7 @@ async function renderYourGames() {
   if (divMyTurnGames.length) {
     const secMyTurnGames = document.createElement('SECTION');
     secMyTurnGames.classList.add('game-list');
-    divTabContent.appendChild(secMyTurnGames);
+    childNodes.push(secMyTurnGames);
 
     const header = document.createElement('HEADER');
     header.innerHTML = '<SPAN class="left">Your Turn!</SPAN>';
@@ -1995,7 +1989,7 @@ async function renderYourGames() {
   if (divChallenges.length) {
     const secChallengeGames = document.createElement('SECTION');
     secChallengeGames.classList.add('game-list');
-    divTabContent.appendChild(secChallengeGames);
+    childNodes.push(secChallengeGames);
 
     const header = document.createElement('HEADER');
     header.innerHTML = '<SPAN class="left">Challenges</SPAN>';
@@ -2024,7 +2018,7 @@ async function renderYourGames() {
   if (divTheirTurnGames.length) {
     const secTheirTurnGames = document.createElement('SECTION');
     secTheirTurnGames.classList.add('game-list');
-    divTabContent.appendChild(secTheirTurnGames);
+    childNodes.push(secTheirTurnGames);
 
     const header = document.createElement('HEADER');
     header.innerHTML = '<SPAN class="left">Their Turn</SPAN>';
@@ -2049,7 +2043,7 @@ async function renderYourGames() {
   if (divSinglePlayerGames.length) {
     const secSinglePlayerGames = document.createElement('SECTION');
     secSinglePlayerGames.classList.add('game-list');
-    divTabContent.appendChild(secSinglePlayerGames);
+    childNodes.push(secSinglePlayerGames);
 
     const header = document.createElement('HEADER');
     header.innerHTML = '<SPAN class="left">Single Player Games</SPAN>';
@@ -2076,7 +2070,7 @@ async function renderYourGames() {
   if (divWaitingGames.length) {
     const secWaitingGames = document.createElement('SECTION');
     secWaitingGames.classList.add('game-list');
-    divTabContent.appendChild(secWaitingGames);
+    childNodes.push(secWaitingGames);
 
     const header = document.createElement('HEADER');
     header.innerHTML = '<SPAN class="left">Waiting for Opponent</SPAN>';
@@ -2092,7 +2086,7 @@ async function renderYourGames() {
     const secCompleteGames = document.createElement('SECTION');
     secCompleteGames.classList.add('game-list');
     secCompleteGames.classList.add('show-results');
-    divTabContent.appendChild(secCompleteGames);
+    childNodes.push(secCompleteGames);
 
     const header = document.createElement('HEADER');
     header.innerHTML = '<SPAN class="left">Complete Games</SPAN>';
@@ -2100,6 +2094,8 @@ async function renderYourGames() {
 
     completeGames.forEach(game => secCompleteGames.appendChild(renderGame(game, authClient.playerId)));
   }
+
+  divTabContent.replaceChildren(...childNodes);
 }
 
 async function renderPublicGames() {

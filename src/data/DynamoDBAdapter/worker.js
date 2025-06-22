@@ -13,9 +13,13 @@ import {
 import workerpool from 'workerpool';
 import ServerError from '#server/Error.js';
 
-const client = new DynamoDBClient({ region:process.env.AWS_DEFAULT_REGION });
+const region = process.env.AWS_DEFAULT_REGION ?? 'us-east-1';
+const client = new DynamoDBClient({
+  region,
+  endpoint: process.env.DDB_ENDPOINT ?? `https://dynamodb.${region}.amazonaws.com`,
+});
 const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = process.env.DDB_TABLE;
+const TABLE_NAME = process.env.DDB_TABLE ?? 'tactics';
 const throttle = new Int32Array(workerData.throttleBuffer);
 const WCU_INDEX = 0;
 const WCU_THROTTLE_PERIOD = 60; // 1 minute

@@ -1,0 +1,23 @@
+services:
+  dynamodb-local:
+    container_name: tactics-dynamodb
+    image: amazon/dynamodb-local
+    expose:
+      - '8000'
+    volumes:
+      - ./src/data/ddb:/home/dynamodblocal/data
+    working_dir: '/home/dynamodblocal'
+    command: '-jar DynamoDBLocal.jar -sharedDb -dbPath ./data'
+  app:
+    container_name: tactics-app
+    image: node:22-alpine
+    ports:
+      - '${LOCAL_PORT}:${LOCAL_PORT}'
+    volumes:
+      - ./:/app
+    working_dir: /app
+    environment:
+      DDB_ENDPOINT: 'http://dynamodb-local:8000'
+    depends_on:
+      - dynamodb-local
+    command: ./start.sh

@@ -1,26 +1,11 @@
-#!/bin/bash
+#!/bin/sh
 
-trap 'killAll' INT
+npm install
+npm run compile
 
-killAll() {
-  # Return a zero exit code even though we were interrupted.
-  exit 0
-}
+echo "Building assets and watching for file changes..."
+npm run watch &
 
-WEBPACK='node_modules/.bin/webpack'
-NODE='node'
-
-# Uncomment this if you have trouble using Ctrl+C to shutdown server on windows.
-#if command -v winpty &> /dev/null; then
-#  NODE='winpty node'
-#fi
-
-# winpty doesn't convert LF to CRLF automatically.  So, we insert CR manually.
-CR=$(printf '\r')
-NODE_ENV=development $WEBPACK --watch --config webpack.config.cjs | sed "s/\$/$CR/" &
-
+echo "Starting app..."
 # Wait for the node server to terminate
-$NODE --es-module-specifier-resolution=node --require dotenv/config src/server.js
-
-# Stop all child processes like webpack and sed
-kill -INT 0
+exec node --es-module-specifier-resolution=node --require dotenv/config src/server.js
