@@ -1,6 +1,6 @@
 import '#plugins/index.js';
 import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
-import gameTypes from '#data/files/game/game_types.json' assert { type:'json' };
+import gameTypes from '#data/files/game/game_types.json' with { type:'json' };
 import Timeout from '#server/Timeout.js';
 
 // Required for DynamoDBAdapter

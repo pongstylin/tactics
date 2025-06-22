@@ -197,24 +197,6 @@ export default class FileAdapter {
    */
   async bootstrap() {
     if (this.hasState) {
-      /*
-       * This check is for detecting a graceless shutdown.  Graceful shutdowns
-       * protect against lost data.  Without this check, we might not notice if
-       * a server did not gracefully shut down.  This might result in games not
-       * auto surrendering when they should or even become stuck - the next turn
-       * never starting.
-       *
-       * TODO: Create a script that allows us to safely recover from a graceless
-       *       shutdown.
-       */
-      try {
-        await FileAdapter._createJSONFile(`${this.name}.lock`, { startupAt:new Date() });
-      } catch (error) {
-        if (error.code === 'EEXIST')
-          throw new Error('Lock file exists.  Try `npm run start-force`.');
-        throw error;
-      }
-
       this.state = await FileAdapter._readJSONFile(this.name, {});
     }
 
@@ -247,8 +229,6 @@ export default class FileAdapter {
     if (this.hasState) {
       stateBuffer.pause();
       await FileAdapter._putJSONFile(this.name, this.state);
-
-      await FileAdapter._deleteJSONFile(`${this.name}.lock`);
     }
 
     return this;
@@ -383,9 +363,6 @@ export default class FileAdapter {
     this.queue.delete(fileName);
   }
 
-  /*
-   * Only call these methods while a lock is in place.
-   */
   _createFile(name, data, transform) {
     if (this.readonly)
       return;
