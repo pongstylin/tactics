@@ -259,13 +259,12 @@ export default class RemoteTransport extends Transport {
         for (const ps of data) {
           this.playerStatus.set(ps.playerId, ps);
 
-          for (const team of teams) {
+          for (const team of teams)
             if (team?.playerId === ps.playerId)
-              if (ps.isOpen && team.checkoutAt > team.checkinAt)
+              if (ps.isOpen && (team.checkinAt === null || team.checkoutAt > team.checkinAt))
                 team.checkinAt = new Date();
               else if (!ps.isOpen && team.checkinAt > team.checkoutAt)
                 team.checkoutAt = new Date();
-          }
         }
       })
       .on('playerRequest', ({ data:request }) => {
