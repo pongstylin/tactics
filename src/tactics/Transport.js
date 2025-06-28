@@ -1,7 +1,6 @@
 import Team from 'models/Team.js';
 import Turn from 'models/Turn.js';
 import Board from 'tactics/Board.js';
-import unitDataMap from 'tactics/unitData.js';
 import emitter from 'utils/emitter.js';
 
 export default class Transport {

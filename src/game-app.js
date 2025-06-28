@@ -654,20 +654,30 @@ async function initGame() {
         return loadTransportAndGame(gameId, gameData);
 
       const teams = gameData.state.teams;
-      const hasJoined = teams.filter(t => t?.playerId === authClient.playerId);
+      const isParticipant = teams.filter(t => t?.playerId === authClient.playerId);
+      const hasJoined = teams.filter(t => t?.playerId === authClient.playerId && t.joinedAt);
       const hasOpenSlot = teams.filter(t => !t?.playerId);
-      if (hasJoined.length === teams.length)
+      if (isParticipant.length === teams.length)
         return showPracticeIntro(gameData);
       else if (hasJoined.length)
         if (gameData.collection)
           return showPublicIntro(gameData);
         else
           return showPrivateIntro(gameData);
-      else
-        if (!gameData.state.startedAt && gameData.forkOf)
+      else if (isParticipant.length || hasOpenSlot.length)
+        if (gameData.forkOf)
           return showJoinFork(gameData);
         else
           return showJoinIntro(gameData);
+      else
+        return popup({
+          message: `Sorry!  This game hasn't started yet and is reserved for someone else.`,
+          buttons: [
+            { label:'Back', closeOnClick:false, onClick:() => history.back() },
+          ],
+          maxWidth: '250px',
+          closeOnCancel: false,
+        }).whenClosed;
     })
     .then(async g => {
       game = g;
@@ -1558,23 +1568,6 @@ async function showJoinIntro(gameData) {
       $('#join').show();
     });
   } else {
-    const openSlot = gameData.state.teams.findIndex(t => {
-      if (!t?.playerId)
-        return true;
-      return authClient.playerId === t.playerId;
-    });
-    if (openSlot === -1) {
-      popup({
-        message: 'Sorry!  This game is reserved for someone else.',
-        buttons: [
-          { label:'Back', closeOnClick:false, onClick:() => history.back() },
-        ],
-        maxWidth: '250px',
-        closeOnCancel: false,
-      });
-      return new Promise(() => {});
-    }
-
     const creatorTeam = gameData.state.teams.find(t => !!t?.joinedAt);
     const relationship = await authClient.getRelationship(creatorTeam.playerId);
 
