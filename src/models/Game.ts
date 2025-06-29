@@ -472,7 +472,7 @@ export default class Game extends ActiveModel {
       forkGameData.state.currentTurn.timeLimit = forkGameData.state.timeLimit.base;
     }
 
-    return new Game(forkGameData);
+    return new Game(forkGameData, { isClean:false });
   }
 
   cancel() {
