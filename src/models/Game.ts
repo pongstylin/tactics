@@ -428,8 +428,15 @@ export default class Game extends ActiveModel {
     forkGameData.state.autoSurrender = false;
     forkGameData.state.rated = false;
 
-    const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => t.fork());
-    forkGameData.state.turns.forEach(t => t.team = teams[t.id % teams.length]);
+    const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => {
+      const team = t.fork();
+      team.isClean = false;
+      return team;
+    });
+    forkGameData.state.turns.forEach(t => {
+      t.team = teams[t.id % teams.length];
+      t.isClean = false;
+    });
 
     if (vs === 'yourself') {
       if (!this.data.state.endedAt && this.data.state.undoMode !== 'loose') {
