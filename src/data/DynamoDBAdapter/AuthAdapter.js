@@ -102,9 +102,12 @@ export default class extends DynamoDBAdapter {
     return player;
   }
   async getPlayer(playerId) {
+    const playerCache = this.cache.get('player');
     const player = await this._getPlayer(playerId);
-    this.cache.get('player').add(playerId, player);
+    playerCache.add(playerId, player);
     this.cache.get('identity').add(player.identityId, player.identity);
+    for (const device of player.devices.values())
+      this.cache.get('playerDevice').sync(playerCache, playerId, device.id, device);
     return player;
   }
   getOpenPlayer(playerId) {
