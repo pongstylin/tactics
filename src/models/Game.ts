@@ -5,9 +5,9 @@ import ActiveModel from '#models/ActiveModel.js';
 import serializer from '#utils/serializer.js';
 
 import Team from '#models/Team.js';
+import Turn from '#models/Turn.js';
 import GameState from '#tactics/GameState.js';
 import ServerError from '#server/Error.js';
-import Turn from './Turn.js';
 
 const gameKeys = new Set([
   'forkOf',
