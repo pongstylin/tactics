@@ -1,25 +1,22 @@
 export default async function (item) {
-  const turnsItem = (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/turns/' })).map(async ti => {
+  const turnsItem = (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/turns/' })).map(ti => {
     ti.id = parseInt(ti.SK.split('/')[2], 10);
-    ti.D = await this._parseItem(ti);
-    return ti;
+    return this._parseItem(ti);
   }))).sort((a, b) => a.id - b.id);
   // The 2nd condition only happens when game data is missing.
   if (turnsItem.length === 0 || turnsItem.last.id > turnsItem.length - 1)
     return item;
 
-  const teamsItem = (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/teams/' })).map(async ti => {
+  const teamsItem = (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/teams/' })).map(ti => {
     ti.id = parseInt(ti.SK.split('/')[2], 10);
-    ti.D = await this._parseItem(ti);
-    return ti;
+    return this._parseItem(ti);
   }))).sort((a, b) => a.id - b.id);
 
   const initialTurnId = _getInitialTurnId(teamsItem);
-  const lastAction = turnsItem.last.D.$data.actions?.last ?? null;
   const stateData = item.D.$data.state;
 
+  stateData.numTurns = turnsItem.length;
   stateData.startedAt = turnsItem[0].D.$data.startedAt;
-  stateData.currentTurnId = turnsItem.last.id;
 
   for (const turnItem of turnsItem) {
     if (turnItem.D.$data.isLocked) {
@@ -34,17 +31,24 @@ export default async function (item) {
     );
   }
 
+  const lastAction = turnsItem.last.D.$data.actions?.last ?? null;
   if (lastAction?.type === 'endGame') {
     stateData.endedAt = lastAction.createdAt;
     stateData.winnerId = lastAction.winnerId;
   }
+
+  const parts = new Map();
+  parts.set('/', { data:item });
+  for (const { id, ...turnItem } of turnsItem)
+    parts.set(`/turns/${id}`, { data:turnItem });
+  await this.putItemParts({ PK:item.PK }, null, parts);
 
   return item;
 };
 
 function _getInitialTurnId(teamItems) {
   return Math.min(...teamItems.map(ti => {
-    const waitTurns = Math.min(...ti.D.$data.$data.set.units.map(u => u.mRecovery ?? 0));
+    const waitTurns = Math.min(...ti.D.$data.set.units.map(u => u.mRecovery ?? 0));
     return ti.id + teamItems.length * waitTurns;
   }));
 }
@@ -67,10 +71,10 @@ function _applyTurnDrawCounts(currentTurn, previousTurn, initialTurnId) {
   drawCounts.attackTurnCount++;
 
   // Reset the counts when particular actions take place...
-  if (previousTurn.actions.length > 1) {
+  if (previousTurn.D.$data.actions.length > 1) {
     drawCounts.passedTurnCount = 0;
 
-    for (const action of previousTurn.actions) {
+    for (const action of previousTurn.D.$data.actions) {
       if (!action.type.startsWith('attack')) continue;
 
       let attackerTeamId;

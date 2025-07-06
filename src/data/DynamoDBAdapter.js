@@ -21,12 +21,12 @@ import {
   DescribeTableCommand,
   ResourceNotFoundException,
 } from "@aws-sdk/client-dynamodb";
+import calculateDocumentSize from 'dynamodb-size';
 import {
   DynamoDBDocumentClient,
 
   BatchGetCommand,
   BatchWriteCommand,
-  GetCommand,
   QueryCommand,
   ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
@@ -162,75 +162,12 @@ export default class DynamoDBAdapter extends FileAdapter {
     workerQueue.adapters.add(this);
   }
 
-  static _getItem(key, defaultValue) {
-    return docClient.send(new GetCommand({
-      TableName: TABLE_NAME,
-      Key: {
-        PK: key.PK,
-        SK: key.SK,
-      },
-      ConsistentRead: false,
-    })).then(rsp => {
-      if (rsp.Item)
-        return DynamoDBAdapter.migrate(rsp.Item);
-      if (defaultValue === undefined)
-        throw new ServerError(404, `Item Not Found: ${key.PK}`);
-      return typeof defaultValue === 'function' ? defaultValue() : defaultValue;
-    });
-  }
   static _putItem(item) {
     return new Promise((resolve, reject) => {
       pool.exec('putItem', [ item ], {
         on: reject,
       }).then(resolve, reject);
     });
-  }
-  // No migrations yet.  The item PK and SK values will be used to determine the
-  // item type and migrate as needed.  Migrations may retrieve and mutate
-  // additional items.  The final step is normalizing the object.
-  static async migrate(item, props = {}) {
-    if (!(item.D ?? item.PD)) {
-      console.log('Item is missing data!', item, new Error().stack);
-      throw new ServerError(500, 'Item is malformed');
-    }
-    item = await migrateItem(await DynamoDBAdapter._parseItem(item), props);
-    return serializer.normalize(item.D ?? item.PD);
-  }
-  static _decompress(data) {
-    if (!(data instanceof Uint8Array))
-      throw new Error('Unable to decompress');
-
-    return new Promise((resolve, reject) => {
-      zlib.brotliDecompress(data, {
-        params: {
-          [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
-          [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
-        },
-      }, (error, decompressed) => {
-        if (error)
-          reject(error);
-        else
-          resolve(decompressed.toString());
-      });
-    });
-  }
-  static async _parseItem(item) {
-    try {
-      if (item.D)
-        item.D = JSON.parse(await DynamoDBAdapter._decompress(item.D));
-      if (item.PD)
-        item.PD = JSON.parse(await DynamoDBAdapter._decompress(item.PD));
-    } catch (error) {
-      if (error.code === 'ERR_RING_BUFFER_2') {
-        console.log(`Warning: (Retrying) ${error.message}: ${keyOfItem(item)}: ${error.code} (${error.errno})`);
-        return this._parseItem(item);
-      }
-
-      console.error(`Error while decompressing item: ${keyOfItem(item)}: `, error);
-      console.error('data:', item.D ?? item.PD);
-      throw new ServerError(500, 'Item is malformed');
-    }
-    return item;
   }
 
   async bootstrap() {
@@ -239,7 +176,7 @@ export default class DynamoDBAdapter extends FileAdapter {
         this.state = await FileAdapter._readJSONFile(this.name, {});
         await FileAdapter._deleteJSONFile(this.name);
       } else {
-        this.state = await DynamoDBAdapter._getItem({ PK:`state#${this.name}`, SK:'/' }, {});
+        this.state = await this.getItem({ PK:`state#${this.name}`, SK:'/' }, null, {});
         if (Object.keys(this.state).length === 0)
           console.log(`Initializing state for ${this.name} adapter.`);
       }
@@ -266,7 +203,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     if (this.hasState) {
       stateBuffer.pause();
-      await DynamoDBAdapter._putItem({
+      await this._putItem({
         PK: `state#${this.name}`,
         SK: '/',
         D: serializer.stringify(this.state),
@@ -596,9 +533,10 @@ export default class DynamoDBAdapter extends FileAdapter {
 
           if (items.has(itemKey)) {
             const item = items.get(itemKey);
-            obj = await DynamoDBAdapter.migrate(item, migrateProps);
+            const size = calculateDocumentSize(item);
+            obj = await this._migrate(item, migrateProps);
             this.setItemMeta(obj, { item });
-            this.debugV(`getItem: ${keyOfItem(item)}`);
+            this.debugV(`getItem: ${keyOfItem(item)} ${size}b`);
           } else {
             obj = await this._loadItemFromFile(key, migrateProps);
 
@@ -662,7 +600,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       return;
 
     const typeDef = this.fileTypes.get(key.type);
-    const obj = super.migrate(key.type, await this.getFile(key.name, null), migrateProps);
+    const obj = super._migrate(key.type, await this.getFile(key.name, null), migrateProps);
     if (obj === null)
       return obj;
 
@@ -701,6 +639,54 @@ export default class DynamoDBAdapter extends FileAdapter {
     }
   }
 
+  _decompress(data) {
+    if (!(data instanceof Uint8Array))
+      throw new Error('Unable to decompress');
+
+    return new Promise((resolve, reject) => {
+      zlib.brotliDecompress(data, {
+        params: {
+          [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
+          [zlib.constants.BROTLI_PARAM_QUALITY]: zlib.constants.BROTLI_MAX_QUALITY,
+        },
+      }, (error, decompressed) => {
+        if (error)
+          reject(error);
+        else
+          resolve(decompressed.toString());
+      });
+    });
+  }
+  async _parseItem(item) {
+    try {
+      if (item.D)
+        item.D = JSON.parse(await this._decompress(item.D));
+      if (item.PD)
+        item.PD = JSON.parse(await this._decompress(item.PD));
+    } catch (error) {
+      if (error.code === 'ERR_RING_BUFFER_2') {
+        console.log(`Warning: (Retrying) ${error.message}: ${keyOfItem(item)}: ${error.code} (${error.errno})`);
+        return this._parseItem(item);
+      }
+
+      console.error(`Error while decompressing item: ${keyOfItem(item)}: `, error);
+      console.error('data:', item.D ?? item.PD);
+      throw new ServerError(500, 'Item is malformed');
+    }
+    return item;
+  }
+  // No migrations yet.  The item PK and SK values will be used to determine the
+  // item type and migrate as needed.  Migrations may retrieve and mutate
+  // additional items.  The final step is normalizing the object.
+  async _migrate(item, props = {}) {
+    if (!(item.D ?? item.PD)) {
+      console.log('Item is missing data!', item, new Error().stack);
+      throw new ServerError(500, 'Item is malformed');
+    }
+    item = await migrateItem.call(this, await this._parseItem(item), props);
+    return serializer.normalize(item.D ?? item.PD);
+  }
+
   /*
    * Single-Part Items
    *
@@ -734,7 +720,7 @@ export default class DynamoDBAdapter extends FileAdapter {
         return rsp;
       }).then(op.resolve, op.reject).finally(() => {
         op.execEndAt = Date.now();
-        this.debugV(`${method}: ${keyOfItem(item)}`, op.execEndAt - op.execStartAt);
+        this.debugV(`${method}: ${keyOfItem(item)} ${op.execEndAt - op.execStartAt}ms`);
         workerQueue.size--;
         this.itemQueue.delete(op.key);
         // Since the worker queue is shared, trigger all item queues
@@ -807,7 +793,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     let obj;
     if (items.length) {
-      const parts = new Map(await Promise.all(items.map(i => DynamoDBAdapter.migrate(i, migrateProps).then(d => [ i.SK, d ]))));
+      const parts = new Map(await Promise.all(items.map(i => this._migrate(i, migrateProps).then(d => [ i.SK, d ]))));
 
       obj = transform(parts);
     } else {
@@ -895,7 +881,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       resolve(items);
     });
 
-    return transform(await Promise.all(items.map(i => DynamoDBAdapter.migrate(i, migrateProps))));
+    return transform(await Promise.all(items.map(i => this._migrate(i, migrateProps))));
   }
   async _putItemChildren(key, children) {
     const ops = children.map(child => (child.D ?? child.PD ?? null) === null ? ({

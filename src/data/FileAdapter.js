@@ -234,7 +234,7 @@ export default class FileAdapter {
     return this;
   }
 
-  migrate(type, data, migrateProps) {
+  _migrate(type, data, migrateProps) {
     if (typeof data !== 'object' || data === null) return data;
 
     return serializer.normalize(migrate(type, data, migrateProps));
