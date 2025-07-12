@@ -209,9 +209,6 @@ export default class DynamoDBAdapter extends FileAdapter {
    * This allows objects to change and schedule another save while a save operation is in progress.
    */
   createItem(item, obj) {
-    if (this.readonly)
-      return;
-
     if (!item.data && !item.indexData)
       item.data = obj;
     item = this._processItem(item);
@@ -226,9 +223,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     return this._pushItemQueue({ key:queueKey, method:'_getItem', args:[ key, migrateProps, defaultValue ] });
   }
   putItem(item, obj) {
-    if (this.readonly)
-      return;
-
     if (!item.data && !item.indexData)
       item.data = obj;
     item = this._processItem(item);
@@ -237,9 +231,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     return this._pushItemQueue({ key:queueKey, method:'_putItem', args:[ item, obj ] });
   }
   deleteItem(key) {
-    if (this.readonly)
-      return;
-
     key = this._processKey(key);
 
     const queueKey = 'write:' + keyOfItem(key);
@@ -247,8 +238,6 @@ export default class DynamoDBAdapter extends FileAdapter {
   }
 
   createItemParts(key, obj, parts) {
-    if (this.readonly)
-      return;
     if (!parts.has('/'))
       throw new Error(`Required root part when creating ${key.PK}`);
 
@@ -279,8 +268,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     return this._pushItemQueue({ key:queueKey, method:'_getItemParts', args:[ key, transform, migrateProps ] });
   }
   putItemParts(key, obj, parts) {
-    if (this.readonly)
-      return;
     if (!parts.has('/'))
       throw new Error(`Required root part when putting ${key.PK}`);
 
@@ -316,9 +303,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     return this._pushItemQueue({ key:queueKey, method:'_putItemParts', args:[ ops ] });
   }
   deleteItemParts(key, obj, dependents) {
-    if (this.readonly)
-      return;
-
     key = this._processKey(key);
     if (dependents)
       dependents = dependents.map(ks => ks.map(k => this._processKey(k)));
@@ -342,8 +326,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     return this._pushItemQueue({ key:queueKey, method:'_queryItemChildren', args });
   }
   putItemChildren(key, children) {
-    if (this.readonly)
-      return;
     if (children.length === 0)
       return;
 
@@ -561,7 +543,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       chunks.push(requests.slice(i, i+25));
 
     return Promise.all(chunks.map(async chunk => {
-      const rsp = await this._send(new BatchWriteCommand({
+      const rsp = this.readonly ? {} : await this._send(new BatchWriteCommand({
         RequestItems: { [TABLE_NAME]:chunk },
         ReturnConsumedCapacity: 'NONE',
         ReturnItemCollectionMetrics: 'NONE',
@@ -657,12 +639,14 @@ export default class DynamoDBAdapter extends FileAdapter {
         continue;
       }
 
+      const exec = this.readonly ? Promise.resolve() : pool.exec(method, [ item ], {
+        on: op.reject,
+      });
+
       workerQueue.size++;
       op.processing = true;
       op.execStartAt = Date.now();
-      pool.exec(method, [ item ], {
-        on: op.reject,
-      }).then(rsp => {
+      exec.then(rsp => {
         if (obj) this.setItemMeta(obj, { item });
         return rsp;
       }).then(op.resolve, op.reject).finally(() => {
