@@ -534,9 +534,9 @@ export default class DynamoDBAdapter extends FileAdapter {
           if (items.has(itemKey)) {
             const item = items.get(itemKey);
             const size = calculateDocumentSize(item);
+            this.debugV(`getItem: ${keyOfItem(item)} ${size}b`);
             obj = await this._migrate(item, migrateProps);
             this.setItemMeta(obj, { item });
-            this.debugV(`getItem: ${keyOfItem(item)} ${size}b`);
           } else {
             obj = await this._loadItemFromFile(key, migrateProps);
 
@@ -546,7 +546,7 @@ export default class DynamoDBAdapter extends FileAdapter {
                 throw new ServerError(404, `Item Not Found: ${key.PK}:${key.SK}`);
             }
           }
-  
+
           this.itemQueue.delete(op.key);
           op.resolve(obj);
         } catch (error) {

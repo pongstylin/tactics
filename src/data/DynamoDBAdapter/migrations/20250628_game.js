@@ -1,5 +1,6 @@
-export default async function (item) {
-  const turnsItem = (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/turns/' })).map(ti => {
+export default async function (itemMap) {
+  const item = itemMap.get('/');
+  const turnsItem = itemMap.get('/turns/') ?? (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/turns/' })).map(ti => {
     ti.id = parseInt(ti.SK.split('/')[2], 10);
     return this._parseItem(ti);
   }))).sort((a, b) => a.id - b.id);
@@ -7,7 +8,7 @@ export default async function (item) {
   if (turnsItem.length === 0 || turnsItem.last.id > turnsItem.length - 1)
     return item;
 
-  const teamsItem = (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/teams/' })).map(ti => {
+  const teamsItem = itemMap.get('/teams/') ?? (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/teams/' })).map(ti => {
     ti.id = parseInt(ti.SK.split('/')[2], 10);
     return this._parseItem(ti);
   }))).sort((a, b) => a.id - b.id);
@@ -15,10 +16,18 @@ export default async function (item) {
   const initialTurnId = _getInitialTurnId(teamsItem);
   const stateData = item.D.$data.state;
 
+  delete item.D.$transform;
+  item.D.$type = 'Game';
+
+  delete stateData.teams;
+  stateData.numTeams = teamsItem.length;
   stateData.numTurns = turnsItem.length;
   stateData.startedAt = turnsItem[0].D.$data.startedAt;
 
   for (const turnItem of turnsItem) {
+    delete turnItem.D.$transform;
+    turnItem.D.$type = 'Turn';
+
     if (turnItem.D.$data.isLocked) {
       stateData.lockedTurnId = turnItem.id;
       delete turnItem.D.$data.isLocked;
@@ -37,13 +46,8 @@ export default async function (item) {
     stateData.winnerId = lastAction.winnerId;
   }
 
-  const parts = new Map();
-  parts.set('/', { data:item });
-  for (const { id, ...turnItem } of turnsItem)
-    parts.set(`/turns/${id}`, { data:turnItem });
-  await this.putItemParts({ PK:item.PK }, null, parts);
-
-  return item;
+  itemMap.set('/teams/', teamsItem);
+  itemMap.set('/turns/', turnsItem.map(ti => ({ ...ti, isDirty:true })));
 };
 
 function _getInitialTurnId(teamItems) {
