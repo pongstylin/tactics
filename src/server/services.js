@@ -1,5 +1,5 @@
 import config from '#config/server.js';
-import pkg from '#package.json' assert { type:'json' };
+import pkg from '#package.json' with { type:'json' };
 
 /*
  * NodeJS doesn't do a very good job of locating the source of syntax errors for
@@ -38,7 +38,6 @@ const importModule = path => import(path).catch(error => {
 const services = new Map();
 const servicesReady = Promise.all(
   [...config.services].map(async ([serviceName, serviceInfo]) => {
-    const serviceModuleName = serviceName.toUpperCase('first');
     const Service = (await importModule(serviceInfo.module)).default;
     const DataAdapter = (await importModule(serviceInfo.dataAdapterModule)).default;
 

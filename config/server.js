@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
-import pkg from '#package.json' assert { type:'json' };
-import gameTypes from '#data/files/game/game_types.json' assert { type:'json' };
+import pkg from '#package.json' with { type:'json' };
+import gameTypes from '#data/files/game/game_types.json' with { type:'json' };
 
 const authAlg = 'aes256';
 const authKey = crypto.randomBytes(32);
@@ -88,15 +88,14 @@ const config = {
   privateKey: process.env.PRIVATE_KEY,
 
   /*
-   * When using the FileAdapter, configure how long files are cached.
+   * Configure how long objects are cached.
    */
   cache: {
     expireIn: 60 * 60000,
   },
 
   /*
-   * When using the FileAdapter, configure how often buffered file changes are
-   * flushed to disk.
+   * Configure how often buffered object changes are persisted.
    */
   buffer: {
     // Flush files at a maximum rate of every 5 seconds
@@ -112,14 +111,14 @@ const config = {
       'auth',
       {
         module: '#server/AuthService.js',
-        dataAdapterModule: '#data/FileAdapter/AuthAdapter.js',
+        dataAdapterModule: '#data/DynamoDBAdapter/AuthAdapter.js',
       },
     ],
     [
       'game',
       {
         module: '#server/GameService.js',
-        dataAdapterModule: '#data/FileAdapter/GameAdapter.js',
+        dataAdapterModule: '#data/DynamoDBAdapter/GameAdapter.js',
         config: {
           collections: [
             {
@@ -167,14 +166,14 @@ const config = {
       'chat',
       {
         module: '#server/ChatService.js',
-        dataAdapterModule: '#data/FileAdapter/ChatAdapter.js',
+        dataAdapterModule: '#data/DynamoDBAdapter/ChatAdapter.js',
       },
     ],
     [
       'push',
       {
         module: '#server/PushService.js',
-        dataAdapterModule: '#data/FileAdapter/PushAdapter.js',
+        dataAdapterModule: '#data/DynamoDBAdapter/PushAdapter.js',
         config: {
           /*
            * The `subject` should be 'mailto:' link with your email address or the URL

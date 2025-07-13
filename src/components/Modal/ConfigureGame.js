@@ -5,7 +5,6 @@ import styleConfig from 'config/styleConfig';
 import Autosave from 'components/Autosave.js';
 import popup from 'components/popup.js';
 import ServerError from '#server/Error.js';
-import sleep from '#utils/sleep.js';
 
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;

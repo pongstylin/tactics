@@ -1,13 +1,16 @@
 import { v4 as uuid } from 'uuid';
 
-import timeLimit from '#config/timeLimit.js';
+import timeLimit, { getTurnTimeLimit } from '#config/timeLimit.js';
 import ActiveModel from '#models/ActiveModel.js';
 import serializer from '#utils/serializer.js';
 
+import Team from '#models/Team.js';
+import Turn from '#models/Turn.js';
 import GameState from '#tactics/GameState.js';
 import ServerError from '#server/Error.js';
 
 const gameKeys = new Set([
+  'forkOf',
   'createdBy',
   'collection',
   'timeLimitName',
@@ -23,13 +26,16 @@ const stateKeys = new Set([
   'autoSurrender',
   'rated',
   'timeLimit',
-  'teams',
 ]);
 
 const REF_TURN_ID    = 0;
 const REF_TURN_AT    = 1;
 const REF_TURN_LIMIT = 2;
 const REF_ACTION_AT  = 3;
+
+const defaultData = {
+  collection: null,
+};
 
 export default class Game extends ActiveModel {
   protected data: {
@@ -67,8 +73,9 @@ export default class Game extends ActiveModel {
     data.state.on('endGame', () => {
       data.playerRequest = null;
     });
+    data.state.on('sync', () => this.emit('change:state'));
 
-    this.data = data;
+    this.data = Object.assign({}, defaultData, data);
   }
 
   static create(gameOptions) {
@@ -78,7 +85,9 @@ export default class Game extends ActiveModel {
       playerRequest: null,
     };
 
-    const stateData:any = {};
+    const stateData:any = {
+      numTeams: gameOptions.teams.length,
+    };
     Object.keys(gameOptions).forEach(option => {
       if (stateKeys.has(option))
         stateData[option] = gameOptions[option];
@@ -86,9 +95,24 @@ export default class Game extends ActiveModel {
         gameData[option] = gameOptions[option];
     });
 
-    gameData.state = GameState.create(stateData);
+    if (gameOptions.timeLimitName) {
+      stateData.timeLimit = timeLimit[gameOptions.timeLimitName].clone();
+      if (gameOptions.rated && stateData.timeLimit.base <= 30)
+        stateData.undoMode = 'strict';
+    }
 
-    return new Game(gameData, { isClean:false });
+    gameData.state = GameState.create(stateData);
+    for (const [ slot, teamData ] of gameOptions.teams.entries())
+      if (teamData)
+        if (teamData instanceof Team)
+          gameData.state.join(teamData);
+        else
+          gameData.state.join(Team.create(Object.assign({}, teamData, {
+            slot,
+            joinedAt: new Date(),
+          })));
+
+    return new Game(gameData, { isClean:false, isPersisted:false });
   }
 
   get id() {
@@ -96,6 +120,9 @@ export default class Game extends ActiveModel {
   }
   get collection() {
     return this.data.collection;
+  }
+  set collection(collection) {
+    this.data.collection = collection;
   }
   get timeLimitName() {
     return this.data.timeLimitName;
@@ -387,70 +414,45 @@ export default class Game extends ActiveModel {
     if (this.state.strictFork && !this.state.endedAt)
       throw new ServerError(403, 'Forking is restricted for this game until it ends.');
 
-    const forkGameData = serializer.clone(this.data);
-    forkGameData.state.gameType = this.state.gameType;
-    delete forkGameData.collection;
-
-    if (turnId === undefined)
-      turnId = forkGameData.state.currentTurnId;
-    if (turnId > forkGameData.state.currentTurnId)
-      turnId = forkGameData.state.currentTurnId;
-    if (vs === undefined)
-      vs = 'yourself';
-
-    /*
-     * If necessary, roll back to the previous playable turn.
-     */
-    forkGameData.state.revert(turnId, 0, false, true);
-    forkGameData.state.autoPass(true);
-
-    while (turnId > 0) {
-      if (forkGameData.state.winningTeams.length) {
-        forkGameData.state.revert(--turnId);
-        continue;
-      }
-
-      const draw = forkGameData.state.autoPass();
-      if (draw) {
-        forkGameData.state.revert(--turnId);
-        continue;
-      }
-
-      break;
-    }
-
-    forkGameData.createdBy = clientPara.playerId;
-    forkGameData.createdAt = new Date();
-    forkGameData.id = uuid();
-    forkGameData.forkOf = { gameId:this.data.id, turnId:forkGameData.state.currentTurnId };
-    forkGameData.state.undoMode = 'loose';
-    forkGameData.state.strictFork = false;
-    forkGameData.state.autoSurrender = false;
-    forkGameData.state.rated = false;
-
-    const teams = forkGameData.state.teams = forkGameData.state.teams.map(t => {
-      const team = t.fork();
-      team.isClean = false;
-      return team;
+    const board = this.state.board;
+    const firstTurn = this.state.getTurn(turnId);
+    const teams = this.state.teams.map(t => t.fork({
+      units: board.rotateUnits(firstTurn.units[t.id], board.getDegree(t.position, 'N')),
+    }));
+    const forkGame = Game.create({
+      forkOf: { gameId:this.data.id, turnId },
+      createdBy: clientPara.playerId,
+      timeLimitName: vs === 'yourself' ? null : timeLimitName,
+      type: this.state.type,
+      randomFirstTurn: false,
+      randomHitChance: this.state.randomHitChance,
+      undoMode: 'loose',
+      strictFork: false,
+      autoSurrender: false,
+      rated: false,
+      teams,
     });
-    forkGameData.state.turns.forEach(t => {
-      t.team = teams[t.id % teams.length];
-      t.isClean = false;
-    });
+    forkGame.state.turns.push(Turn.create({
+      id: 0,
+      team: teams[0],
+      data: {
+        units: firstTurn.units,
+        drawCounts: firstTurn.drawCounts ?? undefined,
+      },
+    }));
+    if (forkGame.state.timeLimit)
+      forkGame.state.turns[0].timeLimit = getTurnTimeLimit[forkGame.state.timeLimit.type].call(forkGame.state, forkGame.state.turns[0]);
 
     if (vs === 'yourself') {
-      if (!this.data.state.endedAt && this.data.state.undoMode !== 'loose') {
-        const myTeam = this.data.state.teams.find(t => t.playerId === clientPara.playerId);
+      if (!this.state.endedAt && this.state.undoMode !== 'loose') {
+        const myTeam = this.state.teams.find(t => t.playerId === clientPara.playerId);
         if (myTeam)
           myTeam.setUsedSim();
       }
 
-      teams.forEach(t => t.join({}, clientPara));
-
-      forkGameData.timeLimitName = null;
-      forkGameData.state.timeLimit = null;
-      forkGameData.state.currentTurn.timeLimit = null;
-      forkGameData.state.start();
+      for (const team of teams)
+        team.join({}, clientPara);
+      forkGame.state.start();
     } else {
       if (teams[as] === undefined)
         throw new ServerError(400, "Invalid 'as' option value");
@@ -466,13 +468,9 @@ export default class Game extends ActiveModel {
         teams[vsIndex].reserve(opponents[0].forkOf);
       } else if (vs !== 'invite')
         teams[vsIndex].reserve(vs);
-
-      forkGameData.timeLimitName = timeLimitName;
-      forkGameData.state.timeLimit = timeLimit[timeLimitName].clone();
-      forkGameData.state.currentTurn.timeLimit = forkGameData.state.timeLimit.base;
     }
 
-    return new Game(forkGameData, { isClean:false });
+    return forkGame;
   }
 
   cancel() {
@@ -558,7 +556,7 @@ export default class Game extends ActiveModel {
     if (state.recentTurns) {
       const includeTimeLimit = !!this.state.timeLimit && this.state.teams.some(t => t.playerId === playerId);
 
-      state.recentTurns = state.recentTurns.map((turn, i) => turn.getDigest(i === 0, includeTimeLimit));
+      state.recentTurns = state.recentTurns.map((turn, i) => turn.getDigest(i === 0, i === (state.recentTurns.length - 1), includeTimeLimit));
     }
 
     if (!reference)
@@ -614,15 +612,20 @@ export default class Game extends ActiveModel {
     const fromTurnLimit = reference[REF_TURN_LIMIT];
     const fromActionId = reference.length - REF_ACTION_AT;
     const fromActionsAt = reference.slice(REF_ACTION_AT).map(d => new Date(d));
-    const fromTurn = fromTurnId === toTurnId ? toTurn : this.data.state.turns[fromTurnId]?.getDigest();
 
     // locked turn id does not progress in practice games
     // Otherwise, if turns have not progressed, locked turn id hasn't either.
     if (this.data.state.undoMode === 'loose' || toTurnId <= fromTurnId)
       delete state.lockedTurnId;
 
-    // Only patch the from turn if it wasn't reverted or if it is recent enough.
-    if (!fromTurn || fromTurnId < toTurnId - 10 || fromTurnStartedAt.getTime() !== fromTurn.startedAt.getTime())
+    // Only patch the from turn if it wasn't reverted or is recent enough and loaded.
+    const minFromTurnId = Math.max(toTurnId - 10, this.data.state.lastUnloadedTurnId + 1);
+    if (fromTurnId > toTurnId || fromTurnId < minFromTurnId)
+      return;
+
+    const fromTurn = fromTurnId === toTurnId ? toTurn : this.data.state.getTurn(fromTurnId).getDigest();
+    // Only patch the from turn if it wasn't reverted
+    if (fromTurnStartedAt.getTime() !== fromTurn.startedAt.getTime())
       return;
 
     // Either it hasn't changed or events will catch them up.
@@ -667,12 +670,14 @@ export default class Game extends ActiveModel {
 
       // Catch up subsequent turns, if any.
       for (let turnId = fromTurnId+1; turnId <= toTurnId; turnId++) {
-        const turn = turnId === toTurnId ? toTurn : this.data.state.turns[turnId];
+        const turn = turnId === toTurnId ? toTurn : this.data.state.getTurn(turnId);
         const data:any = {
           startedAt: turn.startedAt,
         };
-        if (turnId === toTurnId)
+        if (turnId === toTurnId) {
+          data.drawCounts = turn.drawCounts;
           data.timeLimit = turn.timeLimit;
+        }
 
         events.push({ type:'startTurn', data });
         if (turn.actions.length)
@@ -686,46 +691,39 @@ export default class Game extends ActiveModel {
       delete gameData.state;
   }
 
-  getPartData() {
-    const gameData = this.toJSON();
-    const state = gameData.state = this.state.toJSON();
+  toJSON() {
+    const data = super.toJSON();
 
-    state.teams = state.teams.length;
-    delete state.turns;
+    for (const dataProp of Object.keys(defaultData))
+      if (defaultData[dataProp] === data[dataProp])
+        delete data[dataProp];
 
-    return gameData;
+    return data;
   }
   toParts(allParts = false) {
     const parts = new Map();
 
-    parts.set('/', { data:this.getPartData(), isDirty:this.clean(allParts) });
+    if (this.clean(allParts))
+      parts.set('/', { data:this });
 
-    for (const [ teamId, team ] of this.data.state.teams.entries())
-      if (team)
-        parts.set(`/teams/${teamId}`, { data:team, isDirty:team.clean(allParts) });
+    const state = this.data.state;
+    // Warning: team.id is null when first creating the game.
+    for (const [ teamId, team ] of state.teams.entries())
+      if (team && team.clean(allParts))
+        parts.set(`/teams/${teamId}`, { data:team });
 
-    for (const turn of this.data.state.turns)
-      parts.set(`/turns/${turn.id}`, { data:turn.toJSON(), isDirty:turn.clean(allParts) });
+    for (const turn of state.turns)
+      if (turn && turn.clean(allParts))
+        parts.set(`/turns/${turn.id}`, { data:turn });
+
+    // The numTurns data is not synced as turns are pushed.
+    // This allows us to track the number of persisted turns.
+    // So, we can use it to determine if turns need to be deleted.
+    for (let t = state.turns.length; t < state._data.numTurns; t++)
+      parts.set(`/turns/${t}`, null);
+    state._data.numTurns = state.turns.length;
 
     return parts;
-  }
-  static fromParts(parts) {
-    const gameData = parts.get('/');
-
-    gameData.state.teams = new Array(gameData.state.teams);
-    for (let teamId = 0; teamId < gameData.state.teams.length; teamId++)
-      gameData.state.teams[teamId] = parts.get(`/teams/${teamId}`) ?? null;
-
-    let turnId = -1;
-    gameData.state.turns = new Array();
-    while (parts.has(`/turns/${++turnId}`))
-      gameData.state.turns[turnId] = parts.get(`/turns/${turnId}`);
-
-    gameData.state = GameState.fromJSON(gameData.state);
-
-    const game = new Game(gameData);
-    game.isPersisted = true;
-    return game;
   }
 };
 
