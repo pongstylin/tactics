@@ -1153,8 +1153,8 @@ function refreshDrawMessage() {
 
   const drawCounts = game.state.drawCounts;
   if (
-    drawCounts.passedTurnCount === oldDrawCounts?.passedTurnCount &&
-    drawCounts.attackTurnCount === oldDrawCounts?.attackTurnCount
+    drawCounts?.passedTurnCount === oldDrawCounts?.passedTurnCount &&
+    drawCounts?.attackTurnCount === oldDrawCounts?.attackTurnCount
   ) return;
 
   $oldMessage.remove();
@@ -2061,6 +2061,13 @@ async function startGame() {
     });
 
   await game.start();
+
+  // Wait until first turn starts, if it hasn't already started.
+  // (Observers may need to wait to view the first turn)
+  if (!game.state.whenTurnStarted.isFinalized) {
+    progress.message = 'Game started.  Awaiting first turn...';
+    await game.state.whenTurnStarted;
+  }
 
   /*
    * Warning: These events can fire before state changes are animated.

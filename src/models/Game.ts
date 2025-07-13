@@ -544,12 +544,12 @@ export default class Game extends ActiveModel {
     if (!state.startedAt)
       gameData.reference = 'creation';
     else {
-      const lastTurn = state.recentTurns.last;
+      const lastTurn = state.recentTurns?.last;
       gameData.reference = [
         state.currentTurnId,
-        lastTurn.startedAt.toISOString(),
-        lastTurn.timeLimit,
-        ...lastTurn.actions.map(a => a.createdAt.toISOString()),
+        lastTurn?.startedAt.toISOString() ?? null,
+        lastTurn?.timeLimit ?? null,
+        ...(lastTurn?.actions.map(a => a.createdAt.toISOString()) ?? []),
       ];
     }
 

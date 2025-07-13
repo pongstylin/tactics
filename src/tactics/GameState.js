@@ -536,23 +536,28 @@ export default class GameState {
     if (!this.startedAt || this.endedAt || this.isPracticeMode)
       return data;
 
-    if (team) {
-      if (team !== this.currentTeam) {
-        // Opponents can't see recent activity that can be freely undone.
-        const context = this.getUndoPointer(this.currentTeam, true);
-        if (context) {
-          data.currentTurnId = context.turnId;
-          data.recentTurns = Object.clone([ this.getTurn(data.currentTurnId) ]);
-          data.recentTurns.last.nextActionId = context.actionId;
-          data.recentTurns.last.isCurrent = true;
-        }
+    if (!team) {
+      const allTeamsHasPlayed = !this.teams.some(t => this.getTeamPreviousPlayableTurnId(t) === null);
+      if (allTeamsHasPlayed) {
+        // Observer(s) don't see real recent turns in non-practice games
+        data.currentTurnId = this.lockedTurnId;
+        data.recentTurns = Object.clone([ this.getTurn(data.currentTurnId) ]);
+        data.recentTurns.last.nextActionId = 0;
+        data.recentTurns.last.isCurrent = true;
+      } else {
+        data.currentTurnId = -1;
+        data.teams = this.teams.map(t => t && t.getData(false));
+        delete data.recentTurns;
       }
-    } else {
-      // Observer(s) don't see real recent turns in non-practice games
-      data.currentTurnId = this.lockedTurnId;
-      data.recentTurns = Object.clone([ this.getTurn(data.currentTurnId) ]);
-      data.recentTurns.last.nextActionId = 0;
-      data.recentTurns.last.isCurrent = true;
+    } else if (team !== this.currentTeam) {
+      // Opponents can't see recent activity that can be freely undone.
+      const context = this.getUndoPointer(this.currentTeam, true);
+      if (context) {
+        data.currentTurnId = context.turnId;
+        data.recentTurns = Object.clone([ this.getTurn(data.currentTurnId) ]);
+        data.recentTurns.last.nextActionId = context.actionId;
+        data.recentTurns.last.isCurrent = true;
+      }
     }
 
     return data;
