@@ -203,7 +203,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     if (this.hasState) {
       stateBuffer.pause();
-      await this._putItem({
+      await DynamoDBAdapter._putItem({
         PK: `state#${this.name}`,
         SK: '/',
         D: serializer.stringify(this.state),
