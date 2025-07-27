@@ -9,8 +9,8 @@ services:
     working_dir: '/home/dynamodblocal'
     command: '-jar DynamoDBLocal.jar -sharedDb -dbPath ./data'
   app:
-    container_name: tactics-app
     image: node:22-alpine
+    container_name: tactics-app
     ports:
       - '${LOCAL_PORT}:${LOCAL_PORT}'
     volumes:
