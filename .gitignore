@@ -1,4 +1,6 @@
 node_modules
+.env-*
+docker-compose.*.yml
 dist
 config/*.pem
 static/node_modules_*
