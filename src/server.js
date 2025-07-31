@@ -1,6 +1,3 @@
-import { Readable } from 'readable-stream';
-global.ReadableStream = Readable;
-
 import { WebSocketServer } from 'ws';
 import util from 'util';
 import DebugLogger from 'debug';
@@ -48,11 +45,6 @@ app.get(`${PATH}/status`, (req, res, next) => {
       res.send(status);
     })
     .catch(error => next(error));
-});
-
-app.post(`${PATH}/errors`, (req, res) => {
-  report(util.inspect(req.body, false, null));
-  res.send(true);
 });
 app.post(`${PATH}/report`, (req, res) => {
   report(util.inspect(req.body, false, null));

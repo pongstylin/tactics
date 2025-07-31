@@ -71,7 +71,6 @@
     "obscenity": "^0.2.0",
     "openid-client": "^5.6.2",
     "pixi.js": "^8.7.2",
-    "readable-stream": "^4.7.0",
     "seedrandom": "^3.0.5",
     "string-pixel-width": "^1.10.0",
     "touch-pinch": "^1.0.1",
