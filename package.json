@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "1.33.2",
+  "version": "2.0.0",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
@@ -9,12 +9,11 @@
     "url": "git@github.com:pongstylin/tactics.git"
   },
   "scripts": {
-    "start": "npm run compile && ./start.sh",
-    "start-force": "rm -rf src/data/files/*.lock.json && npm run compile && ./start.sh",
-    "start-beta": "NODE_ENV=beta node --require dotenv/config src/server.js || true",
+    "start": "./start.sh",
+    "watch": "NODE_ENV=development webpack --watch --config webpack.config.cjs",
     "compile": "tsc",
     "lint": "tslint",
-    "build": "NODE_ENV=beta webpack --config webpack.config.cjs",
+    "build": "webpack --config webpack.config.cjs",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "NODE_ENV=production webpack --config webpack.config.cjs",
     "clean": "rm -rf src/data/files && git checkout src/data/files && rm -rf src/models/*.js && rm tsconfig.tsbuildinfo",
@@ -60,6 +59,7 @@
     "bufferutil": "^4.0.1",
     "decancer": "^1.6.5",
     "discord.js": "^14.14.1",
+    "dynamodb-size": "^1.0.9",
     "events": "^3.3.0",
     "express": "^4.16.4",
     "howler": "^2.2.4",

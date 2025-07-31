@@ -1,4 +1,3 @@
-import { getWorkerVersion } from 'client/Update.js';
 import whenDOMReady from 'components/whenDOMReady.js';
 import popup from 'components/popup.js';
 

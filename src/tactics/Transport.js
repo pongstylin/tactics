@@ -87,12 +87,15 @@ export default class Transport {
     return this._getStateData('startedAt');
   }
   get drawCounts() {
-    return this._getStateData('drawCounts');
+    return this.currentTurn && Object.assign({
+      passedTurnLimit: 3 * this.teams.length,
+      attackTurnLimit: 15 * this.teams.length,
+    }, this.currentTurn.drawCounts);
   }
 
   get recentTurns() {
     // Avoid cloning turns by not using _getStateData()
-    return this._data.state.recentTurns;
+    return this._data.state.recentTurns ?? [];
   }
   get initialTurnId() {
     return Math.min(...this.teams.map(t => this.getTeamInitialTurnId(t)));
@@ -104,22 +107,22 @@ export default class Transport {
     return this.recentTurns.last ?? null;
   }
   get currentTeamId() {
-    return this.recentTurns.last.team.id;
+    return this.recentTurns.last?.team.id ?? null;
   }
   get currentTeam() {
-    return this.teams[this.currentTeamId];
+    return this.currentTeamId === null ? null : this.teams[this.currentTeamId];
   }
   get turnStartedAt() {
-    return this.recentTurns.last.startedAt;
+    return this.recentTurns.last?.startedAt ?? null;
   }
   get currentTurnTimeLimit() {
     return this.getTurnTimeLimit();
   }
   get units() {
-    return this.recentTurns.last.units;
+    return this.recentTurns.last?.units ?? [];
   }
   get actions() {
-    return this.recentTurns.last.actions;
+    return this.recentTurns.last?.actions ?? [];
   }
 
   get previousTurnId() {
@@ -142,13 +145,13 @@ export default class Transport {
     const currentTurn = this.currentTurn;
 
     return {
-      turnId: currentTurn.id,
-      teamId: currentTurn.team.id,
-      startedAt: currentTurn.startedAt,
-      units: currentTurn.units, // cloned
-      actions: currentTurn.actions, // cloned
-      nextActionId: currentTurn.nextActionId,
-      atEnd: currentTurn.isGameEnded,
+      turnId: currentTurn?.id ?? null,
+      teamId: currentTurn?.team.id ?? null,
+      startedAt: currentTurn?.startedAt ?? null,
+      units: currentTurn?.units ?? null, // cloned
+      actions: currentTurn?.actions ?? null, // cloned
+      nextActionId: currentTurn?.nextActionId ?? null,
+      atEnd: currentTurn?.isGameEnded ?? null,
     };
   }
 
@@ -497,7 +500,7 @@ export default class Transport {
   makeState(units, actions) {
     const board = new Board();
     board.setState(units, this.teams.map(t => t.clone()));
-    board.decodeAction(actions).forEach(a => board.applyAction(a));
+    actions.forEach(a => board.applyAction(board.decodeAction(a)));
     return board.getState();
   }
 
@@ -612,6 +615,7 @@ export default class Transport {
       data: {
         startedAt: data.startedAt,
         units: board.getState(),
+        drawCounts: data.drawCounts ?? null,
       },
       timeLimit: data.timeLimit ?? null,
     }));
@@ -669,11 +673,11 @@ export default class Transport {
           startedAt: turnData.startedAt,
           units: turnData.units,
           actions: turnData.actions,
+          drawCounts: turnData.drawCounts,
         },
       });
 
       recentTurns[i].isCurrent = recentTurns[i].id === state.currentTurnId;
-      recentTurns[i].isLocked = recentTurns[i].id === state.lockedTurnId;
       recentTurns[i].timeLimit = turnData.timeLimit ?? null;
     }
   }

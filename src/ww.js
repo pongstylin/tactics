@@ -11,7 +11,7 @@ self.data = null;
 const post = (type, data) => {
   if (type === 'sync') {
     const state = self.state.getData();
-    state.recentTurns = state.recentTurns.map((turn, i) => turn.getDigest(i === 0, false));
+    state.recentTurns = state.recentTurns.map((turn, i) => turn.getDigest(i === 0, i === (state.recentTurns.length - 1), false));
     data.data = { state };
   }
 

@@ -414,7 +414,7 @@ export default class Game {
     return teams.find(t => this.isMyTeam(t));
   }
   get currentTeam() {
-    return this._teams[this.state.currentTeamId];
+    return this.state.currentTeamId === null ? null : this._teams[this.state.currentTeamId];
   }
   get isBotGame() {
     return !!this.state.teams.find(t => !!t?.bot);
@@ -568,10 +568,6 @@ export default class Game {
 
       team.colorId ??= colorIds.get(position);
     });
-
-    // Wait until the game and first turn starts, if it hasn't already started.
-    // (Game start might happen before turn start in local games)
-    await state.whenTurnStarted;
 
     this.cursor = new Cursor(state),
     this.cursor.on('change', this._onCursorChangeListener);

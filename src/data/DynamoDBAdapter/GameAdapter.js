@@ -168,8 +168,26 @@ export default class extends DynamoDBAdapter {
   }
 
   async createGame(game) {
-    await this._createGame(game);
+    this._createGame(game);
     this.cache.get('game').add(game.id, game);
+    return game;
+  }
+  async forkGame(game, clientPara, options) {
+    options.vs ??= 'yourself';
+
+    if (options.turnId === undefined)
+      options.turnId = game.state.currentTurnId;
+    else if (options.turnId < game.state.initialTurnId)
+      options.turnId = game.state.initialTurnId;
+    else if (options.turnId > game.state.currentTurnId)
+      options.turnId = game.state.currentTurnId;
+
+    // If necessary, roll back to the previous playable turn.
+    while (!(await this._getGameTurn(game, options.turnId)).isPlayable)
+      options.turnId--;
+
+    const forkGame = game.fork(clientPara, options);
+    return this.createGame(forkGame);
   }
   async openGame(gameId) {
     const game = await this._getGame(gameId);
@@ -186,8 +204,8 @@ export default class extends DynamoDBAdapter {
     games.forEach(g => this.cache.get('game').add(g.id, g));
     return games;
   }
-  async getGame(gameId) {
-    const game = await this._getGame(gameId);
+  async getGame(gameId, withRecentTurns = true) {
+    const game = await this._getGame(gameId, withRecentTurns);
     return this.cache.get('game').add(gameId, game);
   }
   getOpenGame(gameId) {
@@ -441,7 +459,7 @@ export default class extends DynamoDBAdapter {
   /*
    * Game Management
    */
-  async _createGame(game) {
+  _createGame(game) {
     if (this.cache.get('game').has(game.id) || this.buffer.get('game').has(game.id))
       throw new Error('Game already exists');
 
@@ -453,52 +471,93 @@ export default class extends DynamoDBAdapter {
     this.setItemMeta(game, { partPaths:[] });
     this._onGameChange(game);
   }
-  async _getGame(gameId) {
+  async _getGame(gameId, withRecentTurns = true) {
     if (this.cache.get('game').has(gameId))
       return this.cache.get('game').get(gameId);
     else if (this.buffer.get('game').has(gameId))
       return this.buffer.get('game').get(gameId);
 
-    try {
-      return await this.getItemParts({
-        id: gameId,
-        type: 'game',
-        name: `game_${gameId}`,
-      }, parts => {
-        if (parts.size === 0) return;
-  
-        const game = Game.fromParts(parts);
-        game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
-        gameSummaryCache.set(game, GameSummary.create(game));
-        this._attachGame(game);
-  
-        return game;
-      });
-    } catch (error) {
-      if (error.code === 404) {
-        for (const group of [ 'collection', 'playerGames' ])
-          for (const gsl of this.cache.get(group).values())
-            if (gsl.has(gameId)) {
-              console.log(`Warning: Found game summary for deleted game: `, gameId, gsl.id);
-              gsl.delete(gameId);
-              this.deleteItem({ type:group, id:gsl.id, childType:'gameSummary', childId:gameId });
-            }
-      }
+    // Get the root item first, if it exists.
+    const game = await this.getItem({
+      id: gameId,
+      type: 'game',
+      name: `game_${gameId}`,
+    });
 
-      throw error;
+    // If the full game wasn't loaded from file...
+    if (!game.state.teams.some(t => !!t)) {
+      await this._getAllGameTeams(game);
+
+      // A game is usually loaded with the last turn, which is required to view the game.
+      if (game.state.lastTurnId !== null && withRecentTurns)
+        await this._getGameRecentTurns(game);
     }
+
+    game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
+    if (!game.state.endedAt)
+      gameSummaryCache.set(game, GameSummary.create(game));
+    this._attachGame(game);
+    return game;
+  }
+  async _getAllGameTeams(game) {
+    const parts = await this.getItemParts({
+      id: game.id,
+      type: 'game',
+      path: '/teams/',
+    });
+    for (const [ teamId, team ] of parts)
+      game.state.teams[parseInt(teamId.slice(7))] = team;
+  }
+  /*
+   * Recent turns include the current turn and enough history to undo to each
+   * team's previous playable turn, if possible.
+   */
+  async _getGameRecentTurns(game) {
+    // If the game has ended and we can't undo, then the current turn is all we need.
+    if (game.state.endedAt && !game.isPracticeMode)
+      return this._getGameTurn(game, game.state.currentTurnId);
+
+    const teamsWithPlayableTurn = new Set();
+    // Yes, we might load turns older than the locked turn ID, but there are other places
+    // where the team's previous playable turn is inspected, e.g. to determine time limits.
+    for (let turnId = game.state.lastTurnId; turnId >= game.state.initialTurnId; turnId--) {
+      const turn = await this._getGameTurn(game, turnId);
+
+      // Don't count the last turn.
+      if (turnId === game.state.lastTurnId)
+        continue;
+
+      if (turn.isPlayable)
+        teamsWithPlayableTurn.add(turn.team);
+      if (teamsWithPlayableTurn.size === game.state.teams.length)
+        break;
+    }
+  }
+  async _getGameTurn(game, turnId) {
+    if (game.state.turns[turnId])
+      return game.state.turns[turnId];
+
+    const turn = await this.getItem({
+      id: game.id,
+      type: 'game',
+      path: `/turns/${turnId}`,
+    });
+    return game.state.loadTurn(turnId, turn);
   }
   _attachGame(game) {
     // Detect changes to game object
-    game.on('change', event => this._onGameChange(game));
-    // Detect changes to turn objects
-    game.state.on('sync', () => this._onGameChange(game));
+    game.on('change', () => this._onGameChange(game));
     // Detect changes to team objects
     game.state.on('join', ({ data:team }) => {
       team.on('change', () => this._onGameChange(game))
       this._onGameChange(game);
     });
     game.state.teams.forEach(t => t?.on('change', () => this._onGameChange(game)));
+
+    game.state.on('loadTurn', ({ data:{ turnId, resolve, reject } }) => this._getGameTurn(game, turnId)
+      .then(turn => resolve(turn), err => reject(err))
+    );
+    game.state.on('revert', () => this._getGameRecentTurns(game));
   }
   _saveGameSummary(game, force = false, ts = new Date().toISOString()) {
     const children = [];

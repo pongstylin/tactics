@@ -8,6 +8,25 @@ import GameType from '#tactics/GameType.js';
 import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
 
+const defaultData = {
+  type: null,
+  currentTurnId: null,
+  lockedTurnId: null,
+  startedAt: null,
+  endedAt: null,
+  winnerId: null,
+  rated: false,
+  unratedReason: null,
+  randomFirstTurn: true,
+  randomHitChance: true,
+  undoMode: 'normal',
+  strictFork: false,
+  autoSurrender: false,
+  timeLimit: null,
+  numTeams: 2,
+  numTurns: 0,
+};
+
 export default class GameState {
   /*****************************************************************************
    * Constructors
@@ -15,154 +34,117 @@ export default class GameState {
   /*
    * The default constructor is intended for internal use only.
    */
-  constructor(stateData) {
+  constructor(data) {
     const board = new Board();
 
-    // Clone the stateData since we'll be modifying it.
-    stateData = Object.assign({}, stateData);
-
-    if ('rated' in stateData) {
-      stateData._rated = stateData.rated;
-      delete stateData.rated;
-    }
-
-    if ('unratedReason' in stateData) {
-      stateData._unratedReason = stateData.unratedReason;
-      delete stateData.unratedReason;
-    }
-
-    Object.assign(this,
-      {
-        gameType: null,
-        _rated: false,
-        _unratedReason: null,
-        undoMode: 'normal',
-        turns: [],
-      },
-      stateData,
-      {
-        _bots:       [],
-        _board:      board,
-        _newActions: [],
-        _actions:    [],
-      }
-    );
-
-    if (this.turns.length) {
-      board.setState(this.units, this.teams);
-      // Decode actions and apply them one at a time to avoid bugs
-      this.actions.forEach(a => this._applyAction(board.decodeAction(a)));
-    }
+    Object.assign(this, {
+      gameType: null,
+      teams: new Array(data.numTeams).fill(null),
+      turns: new Array(data.numTurns).fill(null),
+      _bots: [],
+      _board: board,
+      _newActions: [],
+      _actions: [],
+      _data: data,
+    });
   }
 
   /*
    * This constructor must be used to create NEW games.
    *
-   * At the minimum, a teams array must be provided with at least 2 elements.
-   * The elements of the teams array may be blank with the expectation that they
-   * will be filled later via the 'join' method.  Once all team slots are
-   * filled, the game is started.
+   * Only the number of teams may be specified at the point of creation, with
+   * the default being 2.  After creation, teams are filled via the 'join' method.
+   * Once all team slots are filled, the game is started.
    */
-  static create(stateData) {
-    if (!stateData || !stateData.teams)
-      throw new TypeError('Required teams');
-    else if (stateData.teams.length !== 2 && stateData.teams.length !== 4)
+  static create(data) {
+    data = Object.assign({}, defaultData, data);
+    if (data.numTeams !== 2 && data.numTeams !== 4)
       throw new TypeError('Required 2 or 4 teams');
 
-    const teamsData = stateData.teams;
-    delete stateData.teams;
-
-    stateData = Object.assign(
-      // These settings may be overwritten
-      {
-        randomFirstTurn: true,
-        randomHitChance: true,
-        undoMode: 'normal',
-        strictFork: false,
-        autoSurrender: false,
-        timeLimit: null,
-      },
-      stateData,
-      {
-        teams: new Array(teamsData.length).fill(null),
-      }
-    );
-
-    const gameState = new GameState(stateData);
-
-    teamsData.forEach((teamData, slot) => {
-      if (teamData)
-        gameState.join(Team.create({
-          ...teamData,
-          slot,
-          joinedAt: new Date(),
-        }));
-    });
-
-    return gameState;
+    return new GameState(data);
   }
-  static fromJSON(stateData) {
-    stateData.turns = stateData.turns.map((data, id) => new Turn({
-      id,
-      team: stateData.teams[id % stateData.teams.length],
-      data,
-      isCurrent: id === (stateData.turns.length - 1),
-    }));
+  static fromJSON(data) {
+    data = Object.assign({}, defaultData, data);
 
-    const state = new GameState(stateData);
-
-    if (state.timeLimit)
-      for (const turn of state.turns)
-        turn.timeLimit = getTurnTimeLimit[state.timeLimit.type].call(state, turn);
-
-    return state;
+    return new GameState(data);
   }
 
   /*****************************************************************************
-   * Public Property Accessors
+   * Property Accessors
    ****************************************************************************/
   get board() {
     return this._board;
   }
+  get type() {
+    return this._data.type;
+  }
+  get randomFirstTurn() {
+    return this._data.randomFirstTurn;
+  }
+  get randomHitChance() {
+    return this._data.randomHitChance;
+  }
+  get undoMode() {
+    return this._data.undoMode;
+  }
+  get strictFork() {
+    return this._data.strictFork;
+  }
+  get autoSurrender() {
+    return this._data.autoSurrender;
+  }
+  get timeLimit() {
+    return this._data.timeLimit;
+  }
 
   get startedAt() {
-    // Useful for fork games.
-    if (this.teams.some(t => !t?.joinedAt))
+    if (this.turns.length === 0)
       return null;
+    // When turns are not loaded, the startedAt date is available in game data.
+    if (this.turns[0] === null)
+      return this._data.startedAt ?? null;
 
-    return this.turns[0]?.startedAt ?? null;
+    return this.getTurn(0).startedAt;
   }
 
+  get lastUnloadedTurnId() {
+    for (let turnId = this.currentTurnId; turnId >= 0; turnId--)
+      if (this.turns[turnId] === null)
+        return turnId;
+    return -1;
+  }
   get initialTurnId() {
-    return Math.min(...this.teams.map(t => this.getTeamInitialTurnId(t)));
+    return !this.startedAt ? null : Math.min(...this.teams.map(t => this.getTeamInitialTurnId(t)));
+  }
+  get initialTurn() {
+    return this.getTurn(this.initialTurnId);
   }
   get currentTurnId() {
-    return this.turns.last?.id ?? null;
+    return !this.startedAt ? null : this.turns.length - 1;
   }
   get currentTurn() {
-    return this.turns.last ?? null;
+    return this.getTurn(this.currentTurnId);
   }
   get currentTeamId() {
-    return this.turns.last?.team.id ?? null;
+    return this.currentTurn?.team.id ?? null;
   }
   get currentTeam() {
-    return this.turns.last?.team ?? null;
+    return this.currentTurn?.team ?? null;
   }
   get turnStartedAt() {
-    // Useful for fork games.
-    if (this.teams.some(t => !t?.joinedAt))
-      return null;
-
-    return this.turns.last?.startedAt ?? null;
+    return this.currentTurn?.startedAt ?? null;
   }
   get turnEndedAt() {
-    return this.turns.last?.endedAt ?? null;
+    return this.currentTurn?.endedAt ?? null;
   }
   get currentTurnTimeLimit() {
     return this.getTurnTimeLimit();
   }
+  get lastTurnId() {
+    return this.turns.length === 0 ? null : this.turns.length - 1;
+  }
   get actions() {
-    return this.turns.last?.actions ?? null;
+    return this.currentTurn?.actions ?? null;
   }
   get moved() {
     return !!this.actions.find(a => a.type === 'move');
@@ -171,14 +153,14 @@ export default class GameState {
     return !!this.actions.find(a => a.type === 'attack' || a.type === 'attackSpecial');
   }
   get units() {
-    return this.turns.last?.units ?? null;
+    return this.currentTurn?.units ?? null;
   }
 
   get previousTurnId() {
-    return this.turns.length - 2;
+    return this.turns.length === 0 ? null : this.turns.length - 2;
   }
   get previousTurn() {
-    return this.turns[this.previousTurnId] ?? null;
+    return this.getTurn(this.previousTurnId);
   }
   get previousTeamId() {
     return this.previousTurnId % this.teams.length;
@@ -189,20 +171,20 @@ export default class GameState {
 
   get rated() {
     return (
-      this._rated &&
+      this._data.rated &&
       this.winnerId !== 'truce' &&
       (!this.endedAt || !this.losers.some(t => !this.teamHasSeen(t)))
     );
   }
   set rated(rated) {
-    this._rated = rated;
+    this._data.rated = rated;
   }
   get unratedReason() {
     if (this.rated)
       return;
 
-    if (!this._rated)
-      return this._unratedReason ?? 'not rated';
+    if (!this._data.rated)
+      return this._data.unratedReason ?? 'not rated';
 
     if (this.winnerId === 'truce')
       return 'truce';
@@ -214,31 +196,36 @@ export default class GameState {
     return null;
   }
   set unratedReason(reason) {
-    this._unratedReason = reason;
+    this._data.unratedReason = reason;
   }
 
   get lockedTurnId() {
     if (!this.startedAt)
       return null;
 
-    const minLockedTurnId = this.initialTurnId;
+    return this._data.lockedTurnId ?? this.initialTurnId;
+  }
+  set lockedTurnId(turnId) {
+    if (!this.startedAt)
+      throw new Error('Game has not started yet');
+    if (turnId === null || turnId < this.initialTurnId || turnId >= this.turns.length)
+      throw new Error('Invalid locked turn ID');
 
-    // Only non-practice games can have a fluid locked turn ID.
-    if (!this.isPracticeMode) {
-      const maxLockedTurnId = this.turns.length - 1;
-      for (let turnId = maxLockedTurnId; turnId > minLockedTurnId; turnId--)
-        if (this.turns[turnId].isLocked)
-          return turnId;
-    }
-
-    return minLockedTurnId;
+    if (turnId > this.lockedTurnId)
+      this._data.lockedTurnId = turnId;
   }
 
   get endedAt() {
-    return this.turns.last?.gameEndedAt ?? null;
+    if (this.currentTurnId === null)
+      return null;
+    // When turns are not loaded, the endedAt date is available in game data.
+    if (this.turns[this.currentTurnId] === null)
+      return this._data.endedAt ?? null;
+
+    return this.currentTurn?.gameEndedAt ?? null;
   }
   get winnerId() {
-    const lastAction = this.turns.last?.actions.last;
+    const lastAction = this.currentTurn?.actions.last;
     return lastAction?.type === 'endGame' ? lastAction.winnerId : null;
   }
   get winner() {
@@ -328,14 +315,14 @@ export default class GameState {
    *  }
    */
   join(team) {
-    let teams = this.teams;
+    const teams = this.teams;
 
     if (!(team instanceof Team))
       throw new TypeError('Expected Team object');
 
-    team.useRandom = this.randomHitChance;
+    team.useRandom = this._data.randomHitChance;
 
-    let slot = team.id ?? team.slot;
+    const slot = team.id ?? team.slot;
     teams[slot] = team;
 
     this._emit({
@@ -350,10 +337,10 @@ export default class GameState {
   start() {
     const teams = this.teams;
     const board = this._board;
-    let currentTurn = this.currentTurn;
+    const startedAt = new Date();
 
     // A turn is already present for forked games.
-    if (!currentTurn) {
+    if (this.turns.length === 0) {
       /*
        * Turn order is always clockwise, but first turn can be random.
        */
@@ -409,96 +396,118 @@ export default class GameState {
         const degree = board.getDegree('N', team.position);
         const flipSide = team.randomSide && Math.random() < 0.5;
 
-        return team.set.units.map(unitSetData => {
-          const tile = flipSide === false || unitSetData.assignment[0] === 5
-            ? board.getTileRotation(unitSetData.assignment, degree)
-            : board.getTileRotation([ 10 - unitSetData.assignment[0], unitSetData.assignment[1] ], degree);
-
-          const unitState = {
-            id: unitId++,
-            ...unitSetData,
-            assignment: [tile.x, tile.y],
-          };
-
-          if (unitState.direction)
-            unitState.direction = board.getRotation(unitState.direction, degree);
-
-          return unitState;
-        });
+        return board.rotateUnits(team.set.units, degree, flipSide).map(u => Object.assign(u, {
+          id: unitId++,
+        }));
       });
 
-      currentTurn = Turn.create({
+      this.turns.push(Turn.create({
         id: 0,
         team: this.teams[0],
-        data: {
-          startedAt: new Date(),
-          units,
-        },
-      });
+        data: { startedAt, units },
+      }));
     }
 
-    board.setState(currentTurn.units, teams);
+    board.setState(this.turns.last.units, teams);
 
     this._bots = teams
       .filter(t => !!t.bot)
       .map(t => botFactory(t.bot, this, t));
 
-    // Fork games already have turns
-    if (this.turns.length === 0) {
-      this.turns.push(currentTurn);
+    this.turns.forEach(t => t.startedAt = startedAt);
 
-      // First turn must be passed, but at least recovery drops.
-      // The second turn might be passed, too, if all units are in recovery.
-      // Even after auto passing, the first playable turn startedAt matches the
-      // first turn startedAt.  This guarantee enables us to determine if a
-      // given turn is the first playable turn by comparing the turn start date
-      // with the first turn start date.  This is currently used for triggering
-      // "Your Turn" notifications at the right times.
-      this.autoPass();
+    // First turn must be passed, but at least recovery drops.
+    // The second turn might be passed, too, if all units are in recovery.
+    // Even after auto passing, the first playable turn startedAt matches the
+    // first turn startedAt.  This guarantee enables us to determine if a
+    // given turn is the first playable turn by comparing the turn start date
+    // with the first turn start date.  This is currently used for triggering
+    // "Your Turn" notifications at the right times.
+    this.autoPass();
 
-      this._emit({
-        type: 'startGame',
-        data: {
-          startedAt: this.startedAt,
-          teams: this.teams.map(t => t.getData(true)),
-          units: this.units,
-        },
-      });
-    }
+    this._emit({
+      type: 'startGame',
+      data: {
+        startedAt: this.startedAt,
+        teams: this.teams.map(t => t.getData(true)),
+        units: this.units,
+      },
+    });
 
     this.startTurn();
   }
 
-  getTurnData(turnId) {
+  /*
+   * Safely assume a turn is loaded.
+   */
+  getTurn(turnId) {
+    if (turnId === null)
+      return null;
+
     const turn = this.turns[turnId];
-    if (!turn)
+    if (turn === undefined)
+      throw new ServerError(409, `Turn does not exist: ${turnId}`);
+    if (turn === null)
+      throw new Error(`Turn is not loaded: ${turnId}`);
+
+    return turn;
+  }
+  loadTurn(turnId, turn) {
+    turn.id = turnId;
+    turn.team = this.teams[turnId % this.teams.length];
+    turn.isCurrent = turnId === this.currentTurnId;
+    if (this.timeLimit)
+      turn.timeLimit = getTurnTimeLimit[this.timeLimit.type].call(this, turn);
+
+    this.turns[turnId] = turn;
+
+    if (this.currentTurnId === turnId) {
+      this._board.setState(this.units, this.teams);
+      // Decode actions and apply them one at a time to avoid bugs
+      this.actions.forEach(a => this._applyAction(this._board.decodeAction(a)));
+    }
+
+    return turn;
+  }
+  /*
+   * Don't assume.  Fetch the turn as needed.
+   */
+  fetchTurn(turnId) {
+    if (this.turns[turnId])
+      return this.turns[turnId];
+    if (this.turns[turnId] === undefined)
       throw new ServerError(409, 'No such turn ID');
 
-    return turn.getData();
+    return new Promise((resolve, reject) => this._emit({
+      type: 'loadTurn',
+      data: { turnId, resolve, reject },
+    }));
   }
-  getTurnActions(turnId) {
-    return this.getTurnData(turnId).actions;
+  async getTurnData(turnId) {
+    return (await this.fetchTurn(turnId)).getData();
+  }
+  async getTurnActions(turnId) {
+    return (await this.getTurnData(turnId)).actions;
   }
 
   getData() {
     const data = {
-      type: this.type,
-      randomFirstTurn: this.randomFirstTurn,
-      randomHitChance: this.randomHitChance,
-      undoMode: this.undoMode,
-      strictFork: this.strictFork,
-      autoSurrender: this.autoSurrender,
+      type: this._data.type,
+      randomFirstTurn: this._data.randomFirstTurn,
+      randomHitChance: this._data.randomHitChance,
+      undoMode: this._data.undoMode,
+      strictFork: this._data.strictFork,
+      autoSurrender: this._data.autoSurrender,
       rated: this.rated,
       unratedReason: this.unratedReason,
-      timeLimit: this.timeLimit,
+      timeLimit: this._data.timeLimit,
+      lockedTurnId: this.lockedTurnId,
 
       teams: this.teams.map(t => t && t.getData(!!this.startedAt)),
 
-      // Normally derived from the full turn history the client doesn't have.
       startedAt: this.startedAt,
-      lockedTurnId: this.lockedTurnId,
+      endedAt: this.endedAt,
       currentTurnId: this.currentTurnId,
-      drawCounts: this.calcDrawCounts(this.currentTurnId, true),
     };
 
     if (this.startedAt)
@@ -515,7 +524,7 @@ export default class GameState {
     const team = this.getTeamForPlayer(playerId);
     const data = this.getData();
 
-    if (this.startedAt) {
+    if (this.startedAt && (!this.endedAt || this.isPracticeMode)) {
       // Provide enough history so that the client knows if they may undo.
       const pointer = this.getUndoPointer(team);
       if (pointer)
@@ -527,25 +536,28 @@ export default class GameState {
     if (!this.startedAt || this.endedAt || this.isPracticeMode)
       return data;
 
-    if (team) {
-      if (team !== this.currentTeam) {
-        // Opponents can't see recent activity that can be freely undone.
-        const context = this.getUndoPointer(this.currentTeam, true);
-        if (context) {
-          data.currentTurnId = context.turnId;
-          data.drawCounts = this.calcDrawCounts(context.turnId, true);
-          data.recentTurns = Object.clone([ this.turns[data.currentTurnId] ]);
-          data.recentTurns.last.nextActionId = context.actionId;
-          data.recentTurns.last.isCurrent = true;
-        }
+    if (!team) {
+      const allTeamsHasPlayed = !this.teams.some(t => this.getTeamPreviousPlayableTurnId(t) === null);
+      if (allTeamsHasPlayed) {
+        // Observer(s) don't see real recent turns in non-practice games
+        data.currentTurnId = this.lockedTurnId;
+        data.recentTurns = Object.clone([ this.getTurn(data.currentTurnId) ]);
+        data.recentTurns.last.nextActionId = 0;
+        data.recentTurns.last.isCurrent = true;
+      } else {
+        data.currentTurnId = -1;
+        data.teams = this.teams.map(t => t && t.getData(false));
+        delete data.recentTurns;
       }
-    } else {
-      // Observer(s) don't see real recent turns in non-practice games
-      data.currentTurnId = this.lockedTurnId;
-      data.drawCounts = this.calcDrawCounts(this.lockedTurnId);
-      data.recentTurns = Object.clone([ this.turns[data.currentTurnId] ]);
-      data.recentTurns.last.nextActionId = 0;
-      data.recentTurns.last.isCurrent = true;
+    } else if (team !== this.currentTeam) {
+      // Opponents can't see recent activity that can be freely undone.
+      const context = this.getUndoPointer(this.currentTeam, true);
+      if (context) {
+        data.currentTurnId = context.turnId;
+        data.recentTurns = Object.clone([ this.getTurn(data.currentTurnId) ]);
+        data.recentTurns.last.nextActionId = context.actionId;
+        data.recentTurns.last.isCurrent = true;
+      }
     }
 
     return data;
@@ -784,16 +796,9 @@ export default class GameState {
     if (this.currentTurn.isEnded)
       this._pushHistory();
 
-    let {
-      passedTurnLimit,
-      passedTurnCount,
-      attackTurnLimit,
-      attackTurnCount
-    } = this.calcDrawCounts();
-
     let turnEnded = true;
     while (turnEnded) {
-      if (passedTurnCount === passedTurnLimit || attackTurnCount === attackTurnLimit)
+      if (this.isDrawn())
         return 'draw';
 
       // End the next turn if we can't find one playable unit.
@@ -808,80 +813,79 @@ export default class GameState {
       if (turnEnded) {
         this._pushAction(this._getEndTurnAction(true));
         this._pushHistory();
-        passedTurnCount++;
-        attackTurnCount++;
       }
     }
   }
 
-  calcDrawCounts(turnId = this.currentTurnId, useEffectiveTurnId = false) {
-    if (turnId === null)
-      return null;
+  isDrawn() {
+    if (this.currentTurnId < this.initialTurnId)
+      return false;
 
-    const counts = {
-      // If all teams pass their turns 3 times, draw!
-      passedTurnLimit: this.teams.length * 3,
-      passedTurnCount: 0,
-      // If no teams attack each other for 15 cycles, draw!
-      attackTurnLimit: this.teams.length * 15,
-      attackTurnCount: 0,
-    };
-    const initialTurnId = this.initialTurnId;
-    const stopTurnId = useEffectiveTurnId && this.turns[turnId].isEnded ? turnId + 1 : turnId;
-    const startTurnId = Math.max(initialTurnId, stopTurnId - counts.attackTurnLimit);
-    const turns = this.turns.slice(startTurnId, stopTurnId).reverse();
+    // If all teams pass their turns 3 times, draw!
+    const passedTurnLimit = this.teams.length * 3;
+    // If no teams attack each other for 15 cycles, draw!
+    const attackTurnLimit = this.teams.length * 15;
+    const drawCounts = this.currentTurn.drawCounts;
 
-    let stopCountingPassedTurns = false;
+    return drawCounts.passedTurnCount === passedTurnLimit || drawCounts.attackTurnCount === attackTurnLimit;
+  }
+  _applyTurnDrawCounts() {
+    const currentTurn = this.currentTurn;
+    if (currentTurn === null)
+      return;
+    if (currentTurn.id < this.initialTurnId)
+      return;
 
-    /*
-     * Determine current draw counts from the game history.
-     * The min turnId is 0 not -1.  The always passed 1st turn doesn't count.
-     */
-    TURN:for (const turn of turns) {
-      // If the only action that took place is ending the turn...
-      if (turn.actions.length === 1) {
-        if (!stopCountingPassedTurns && ++counts.passedTurnCount === counts.passedTurnLimit)
-          break;
-      } else {
-        stopCountingPassedTurns = true;
+    const previousTurn = this.previousTurn;
+    // This should never happen, but just in case.
+    if (previousTurn === null)
+      throw new Error('Previous turn must be loaded to apply draw counts');
 
-        for (let j = 0; j < turn.actions.length-1; j++) {
-          const action = turn.actions[j];
-          if (!action.type.startsWith('attack')) continue;
+    const drawCounts = (previousTurn.drawCounts ?? {
+      passedTurnCount: -1,
+      attackTurnCount: -1,
+    }).clone();
+    drawCounts.passedTurnCount++;
+    drawCounts.attackTurnCount++;
 
-          let attackerTeamId;
-          for (let t = 0; t < turn.units.length; t++) {
-            if (turn.units[t].find(u => u.id === action.unit)) {
-              attackerTeamId = t;
+    // Reset the counts when particular actions take place...
+    if (previousTurn.actions.length > 1) {
+      drawCounts.passedTurnCount = 0;
+
+      for (const action of previousTurn.actions) {
+        if (!action.type.startsWith('attack')) continue;
+
+        let attackerTeamId;
+        for (const [ teamId, teamUnits ] of previousTurn.units.entries()) {
+          if (teamUnits.find(tu => tu.id === action.unit)) {
+            attackerTeamId = teamId;
+            break;
+          }
+        }
+
+        for (const result of action.results) {
+          // This check ignores summoned units, e.g. shrubs
+          if (typeof result.unit !== 'number') continue;
+          // Ignore immune attacks
+          if (result.miss === 'immune') continue;
+
+          let defenderTeamId;
+          for (const [ teamId, teamUnits ] of previousTurn.units.entries()) {
+            if (teamUnits.find(tu => tu.id === result.unit)) {
+              defenderTeamId = teamId;
               break;
             }
           }
-
-          for (let k = 0; k < action.results.length; k++) {
-            const result = action.results[k];
-            // This check ignores summoned units, e.g. shrubs
-            if (typeof result.unit !== 'number') continue;
-            // Ignore immune attacks
-            if (result.miss === 'immune') continue;
-
-            let defenderTeamId;
-            for (let t = 0; t < turn.units.length; t++) {
-              if (turn.units[t].find(u => u.id === result.unit)) {
-                defenderTeamId = t;
-                break;
-              }
-            }
-
-            if (defenderTeamId !== attackerTeamId)
-              break TURN;
+  
+          if (defenderTeamId !== attackerTeamId) {
+            drawCounts.attackTurnCount = 0;
+            break;
           }
         }
       }
-
-      counts.attackTurnCount++;
     }
 
-    return counts;
+    currentTurn.drawCounts = drawCounts;
   }
   getPreviousTeam(n = 1) {
     const teams = this.teams;
@@ -949,11 +953,10 @@ export default class GameState {
     return this.playableTurnsInReverse(contextTurnId - 1).next().value?.id ?? null;
   }
   *playableTurnsInReverse(contextTurnId = this.currentTurnId) {
-    const turns = this.turns;
     const minTurnId = this.initialTurnId - 1;
 
     for (let turnId = contextTurnId; turnId > minTurnId; turnId--) {
-      const turn = turns[turnId];
+      const turn = this.getTurn(turnId);
       if (!turn.isPlayable)
         continue;
 
@@ -964,10 +967,7 @@ export default class GameState {
     if (!this.startedAt || this.endedAt || !this.timeLimit)
       return null;
 
-    const turn = this.turns[turnId];
-    if (!turn)
-      throw new Error('Attempt to get turn that does not exist');
-
+    const turn = this.getTurn(turnId);
     return turn.timeLimit;
   }
   getTurnTimeRemaining(turnId = this.currentTurnId) {
@@ -977,7 +977,7 @@ export default class GameState {
       return Infinity;
 
     const turnTimeLimit = this.getTurnTimeLimit(turnId);
-    const turnTimeout = this.turns[turnId].startedAt.getTime() + turnTimeLimit*1000 - Date.now();
+    const turnTimeout = this.getTurn(turnId).startedAt.getTime() + turnTimeLimit*1000 - Date.now();
 
     return Math.max(0, turnTimeout);
   }
@@ -1013,7 +1013,7 @@ export default class GameState {
      * If the game ended on the turn after this team's first turn, then it
      * is possible that this team surrendered.  If so, turn not played.
      */
-    const actions = this.turns[initialTurnId].actions;
+    const actions = this.getTurn(initialTurnId).actions;
     const playedAction = actions.find(a => a.type !== 'surrender' && !a.forced);
     if (!playedAction)
       return false;
@@ -1058,7 +1058,6 @@ export default class GameState {
     const lockedTurnId = this.lockedTurnId;
     const isPracticeMode = this.isPracticeMode;
     const strictUndo = this.undoMode === 'strict';
-    const turns = this.turns;
     let pointer = false;
 
     if (this.endedAt)
@@ -1068,7 +1067,7 @@ export default class GameState {
      * Walk backward through turns and actions until we reach the undo limit.
      */
     for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
-      const turn = turns[turnId];
+      const turn = this.getTurn(turnId);
 
       if (turn.isCurrent) {
         if (turn.team === team) {
@@ -1342,27 +1341,15 @@ export default class GameState {
    * Intended for serializing game data for persistent storage.
    */
   toJSON() {
-    const data = {
-      type: this.type,
-      randomFirstTurn: this.randomFirstTurn,
-      randomHitChance: this.randomHitChance,
-      undoMode: this.undoMode,
-      strictFork: this.strictFork,
-      autoSurrender: this.autoSurrender,
-      rated: this._rated,
-      unratedReason: this._unratedReason,
-      timeLimit: this.timeLimit,
+    const data = this._data.clone();
+    data.startedAt = this.startedAt;
+    data.endedAt = this.endedAt;
+    data.winnerId = this.winnerId;
+    data.numTurns = this.turns.length;
 
-      teams: this.teams,
-      turns: this.turns.map(t => t.toJSON()),
-    };
-
-    if (data.undoMode === 'normal')
-      delete data.undoMode;
-    if (data.rated === false)
-      delete data.rated;
-    if (data.unratedReason === null)
-      delete data.unratedReason;
+    for (const dataProp of Object.keys(defaultData))
+      if (defaultData[dataProp] === data[dataProp])
+        delete data[dataProp];
 
     return data;
   }
@@ -1616,17 +1603,12 @@ export default class GameState {
     this._board.setInitialState();
     this.previousTurn.isCurrent = false;
 
-    if (!this.isPracticeMode) {
-      const oldLockedTurnId = this.lockedTurnId;
-      const newLockedTurnId = this._getLockedTurnId();
-      if (newLockedTurnId > oldLockedTurnId) {
-        this.turns[oldLockedTurnId].isLocked = false;
-        this.turns[newLockedTurnId].isLocked = true;
-      }
-    }
+    if (!this.isPracticeMode)
+      this.lockedTurnId = this._getLockedTurnId();
 
     if (this.timeLimit)
       applyTurnTimeLimit[this.timeLimit.type].call(this, 'pushed');
+    this._applyTurnDrawCounts();
 
     this._newActions.length = 0;
     this._actions.length = 0;
@@ -1637,9 +1619,7 @@ export default class GameState {
    * 'turnId' can be used to revert to any previous turn by ID.
    */
   _popHistory(turnId = this.previousTurnId, resetStartDate = false) {
-    const turn = this.turns[turnId];
-    if (!turn)
-      throw new Error(`Attempt to pop a turn that does not exist: ${turnId}`);
+    const turn = this.getTurn(turnId);
 
     // Truncate the turn history.
     this.turns.length = turnId + 1;
@@ -1665,17 +1645,27 @@ serializer.addType({
   schema: {
     type: 'object',
     required: [
-      'type', 'teams', 'turns',
+      'type',
     ],
     properties: {
       type: { type:'string' },
-      randomFirstTurn: { type:'boolean' },
-      randomHitChance: { type:'boolean' },
-      undoMode: { type:'string' },
-      strictFork: { type:'boolean' },
-      autoSurrender: { type:'boolean' },
+      currentTurnId: { type:'integer', minimum:0 },
+      lockedTurnId: { type:'integer', minimum:0 },
+      startedAt: { type:'string', subType:'Date' },
+      endedAt: { type:'string', subType:'Date' },
+      winnerId: {
+        oneOf: [
+          { type:'integer', minimum:0, maximum:3 },
+          { type:'string', enum:[ 'draw', 'truce' ] },
+        ],
+      },
       rated: { type:'boolean' },
       unratedReason: { type:'string' },
+      randomFirstTurn: { type:'boolean' },
+      randomHitChance: { type:'boolean' },
+      undoMode: { type:'string', enum:[ 'loose', 'normal', 'strict' ] },
+      strictFork: { type:'boolean' },
+      autoSurrender: { type:'boolean' },
       timeLimit: {
         type: 'object',
         required: [ 'type' ],
@@ -1685,35 +1675,8 @@ serializer.addType({
         // For example: buffered time limits have 'initial', 'base', and 'maxBuffer' properties.
         additionalProperties: true,
       },
-      teams: {
-        type: 'array',
-        minItems: 2,
-        items: {
-          oneOf: [
-            { type:'null' },
-            { $ref:'Team' },
-          ],
-        },
-      },
-      turns: {
-        type: 'array',
-        items: {
-          type: 'object',
-          required: [ 'startedAt', 'units', 'actions' ],
-          properties: {
-            startedAt: { type:'string', subType:'Date' },
-            units: { $ref:'#/definitions/units' },
-            actions: {
-              type: 'array',
-              items: { $ref:'#/definitions/action' },
-              minItems: 1,
-            },
-            isLocked: { type:'boolean', const:true },
-          },
-          // For example: buffered time limits add a timeBuffer property.
-          additionalProperties: true,
-        },
-      },
+      numTeams: { type:'integer', enum:[ 2, 4 ] },
+      numTurns: { type:'integer', minimum:0 },
     },
     additionalProperties: false,
     definitions: {

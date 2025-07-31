@@ -7,7 +7,7 @@ import PlayerStats from '#models/PlayerStats.js';
 // Flush the wcu throttle every minute
 setInterval(DynamoDBAdapter.flush, 60 * 1000);
 
-const dryRun = true;
+const dryRun = false;
 const authAdapter = new AuthAdapter({ hasState:false, readonly:dryRun });
 const gameAdapter = new GameAdapter({ hasState:false, readonly:dryRun });
 const playerMeta = new Map();

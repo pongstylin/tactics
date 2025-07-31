@@ -111,9 +111,7 @@ process.on('uncaughtException', error => {
   console.log(new Date().toISOString() + ' uncaught exception:', error);
 });
 
-process.once('SIGINT', async () => {
-  console.log('Press Ctrl+C again to shutdown immediately.');
-
+const shutdown = async () => {
   try {
     console.log('Initiating graceful shutdown of the server.');
     await new Promise((resolve, reject) => {
@@ -124,11 +122,13 @@ process.once('SIGINT', async () => {
     console.log('Initiating cleanup...');
     await Promise.all([ ...services ].map(([ n, s ]) => s.cleanup()));
 
-    console.log('Terminating...');
     process.exit(0);
   } catch (e) {
     console.log('Unable to gracefully terminate the process.');
     console.error(e);
     process.exit(1);
   }
-});
+};
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);
+process.on('exit', (code) => console.log(`Exiting with code ${code}.`));

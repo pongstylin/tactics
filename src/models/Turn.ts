@@ -1,16 +1,18 @@
 import ActiveModel from '#models/ActiveModel.js';
 import type Team from '#models/Team.js';
-import ServerError from '#server/Error.js';
 import serializer from '#utils/serializer.js';
 
 interface CreateProps {
-  id: number
-  team: any
+  id?: number | null
+  team?: Team | null
   data: {
-    startedAt?: Date
+    startedAt?: Date | null
     actions?: any[]
     units: any[][]
-    isLocked?: boolean
+    drawCounts?: {
+      passedTurnCount: number
+      attackTurnCount: number
+    }
   }
   isCurrent?: boolean
   timeLimit?: number | null
@@ -21,13 +23,16 @@ export default class Turn extends ActiveModel {
     startedAt: Date
     actions: any[]
     units: any[][]
-    isLocked: boolean
+    drawCounts?: {
+      passedTurnCount: number
+      attackTurnCount: number
+    }
 
     // e.g. timeBuffer?: number
     [x: string]: unknown;
   }
-  readonly id: number
-  readonly team: Team
+  public id: number | null
+  public team: Team | null
   protected _isCurrent: boolean
   protected _timeLimit: number | null
 
@@ -45,26 +50,30 @@ export default class Turn extends ActiveModel {
     }
 
     Object.assign(this, {
+      id: null,
+      team: null,
       _isCurrent: false,
       _timeLimit: null,
     }, props, {
-      data: Object.assign({
-        // Whether the turn acts as a barrier against undo.
-        isLocked: false,
-      }, props.data.clone()), 
+      data: props.data.clone(),
     });
 
-    this.team.isCurrent = this._isCurrent;
+    if (this.team)
+      this.team.isCurrent = this._isCurrent;
+  }
+  static fromJSON(data) {
+    return new Turn({ data });
   }
 
   static create(props:CreateProps) {
     return new Turn(Object.assign({
       isCurrent: true,
       isClean: false,
+      isPersisted: false,
     }, props, {
       data: Object.assign({
-        // The date the turn started
-        startedAt: new Date(),
+        // The date and time the turn started
+        startedAt: null,
 
         // Actions performed during this turn
         actions: [],
@@ -75,14 +84,22 @@ export default class Turn extends ActiveModel {
   get startedAt() {
     return this.data.startedAt;
   }
-  set startedAt(v) {
-    this.data.startedAt = v;
+  set startedAt(startedAt:Date) {
+    this.data.startedAt = startedAt;
+    this.emit('change:startedAt');
   }
   get actions() {
     return (this.data.actions as any).clone();
   }
   get units() {
     return (this.data.units as any).clone();
+  }
+  get drawCounts() {
+    return this.data.drawCounts ?? null;
+  }
+  set drawCounts(drawCounts:{ passedTurnCount:number, attackTurnCount:number } | null) {
+    this.data.drawCounts = drawCounts;
+    this.emit('change:drawCounts');
   }
   /*
    * Right now, the only consumer expects number of seconds, rounded down.
@@ -102,15 +119,6 @@ export default class Turn extends ActiveModel {
   }
   set timeLimit(v) {
     this._timeLimit = v;
-  }
-  get isLocked() {
-    return this.data.isLocked;
-  }
-  set isLocked(v) {
-    if (this.data.isLocked === v)
-      return;
-    this.data.isLocked = v;
-    this.emit('change:isLocked');
   }
 
   get unit() {
@@ -203,6 +211,8 @@ export default class Turn extends ActiveModel {
       actions: this.actions, // a clone
     };
 
+    if (this.drawCounts)
+      data.drawCounts = this.drawCounts;
     if (this._timeLimit)
       data.timeLimit = this._timeLimit;
 
@@ -212,30 +222,24 @@ export default class Turn extends ActiveModel {
   /*
    * Turn digest sent to the client as part of recent turns.
    * Only the first turn includes units.
+   * Only the last turn includes drawCounts.
    */
-  getDigest(includeUnits = true, includeTimeLimit = true) {
+  getDigest(includeUnits = true, includeDrawCounts = true, includeTimeLimit = true) {
     const digest:any = {
       startedAt: this.startedAt,
       units: this.units, // a clone
       actions: this.actions, // a clone
+      drawCounts: this.drawCounts ?? null,
     };
 
     if (!includeUnits)
       delete digest.units;
-
+    if (!includeDrawCounts)
+      delete digest.drawCounts;
     if (includeTimeLimit && this._timeLimit)
       digest.timeLimit = this._timeLimit;
 
     return digest;
-  }
-
-  toJSON() {
-    const data = super.toJSON();
-
-    if (data.isLocked === false)
-      delete data.isLocked;
-
-    return data;
   }
 }
 
@@ -246,14 +250,13 @@ serializer.addType({
     type: 'object',
     required: [ 'startedAt', 'actions', 'units' ],
     properties: {
-      startedAt: { type:'string', subType:'Date' },
+      startedAt: { type:[ 'string', 'null' ], subType:'Date' },
       actions: {
         type: 'array',
         items: { $ref:'#/definitions/action' },
         minItems: 1,
       },
       units: { $ref:'#/definitions/units' },
-      isLocked: { type:'boolean' },
     },
     additionalProperties: true,
     definitions: {

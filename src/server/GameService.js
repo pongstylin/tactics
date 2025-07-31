@@ -582,12 +582,6 @@ export default class GameService extends Service {
     gameOptions.createdBy = creatorId;
     gameOptions.type = gameTypeId;
 
-    if (gameOptions.timeLimitName) {
-      gameOptions.timeLimit = timeLimit[gameOptions.timeLimitName].clone();
-      if (gameOptions.rated && gameOptions.timeLimit.base <= 30)
-        gameOptions.undoMode = 'strict';
-    }
-
     const game = Game.create({
       ...gameOptions,
       teams: new Array(gameOptions.teams.length).fill(null),
@@ -671,9 +665,7 @@ export default class GameService extends Service {
 
     const clientPara = this.clientPara.get(client.id);
     const game = await this._getGame(gameId);
-    const newGame = game.fork(clientPara, options);
-
-    await this._createGame(newGame);
+    const newGame = await this.data.forkGame(game, clientPara, options);
 
     return newGame.id;
   }
@@ -875,7 +867,7 @@ export default class GameService extends Service {
     const clientPara = this.clientPara.get(client.id);
     const game = await this._getGame(gameId);
 
-    const gameData = game.getSyncForPlayer(clientPara?.playerId);
+    const gameData = await game.getSyncForPlayer(clientPara?.playerId);
     gameData.meta = await this._getGameMeta(game, clientPara?.player);
 
     return gameData;
@@ -1136,7 +1128,7 @@ export default class GameService extends Service {
       playerPara.joinedGameGroups.set(gameId, new Set([client.id]));
 
     const gamePara = this.gamePara.get(gameId);
-    const sync = game.getSyncForPlayer(playerId, reference);
+    const sync = await game.getSyncForPlayer(playerId, reference);
     gamePara.clients.set(client.id, sync.reference ?? reference);
 
     this._emit({
@@ -1727,12 +1719,12 @@ export default class GameService extends Service {
 
     return true;
   }
-  _emitGameSync(game) {
+  async _emitGameSync(game) {
     const gamePara = this.gamePara.get(game.id);
 
     for (const [clientId, reference] of gamePara.clients.entries()) {
       const clientPara = this.clientPara.get(clientId);
-      const sync = game.getSyncForPlayer(clientPara.playerId, reference);
+      const sync = await game.getSyncForPlayer(clientPara.playerId, reference);
       if (!sync.reference)
         continue;
 
@@ -2045,10 +2037,9 @@ export default class GameService extends Service {
      * Prune player IDs that have left the game.
      * Possible for 4-player games that haven't started yet.
      */
-    for (const playerId of playerStatus.keys()) {
+    for (const playerId of playerStatus.keys())
       if (!teamPlayerIds.has(playerId))
         playerStatus.delete(playerId);
-    }
 
     for (const playerId of teamPlayerIds) {
       const oldPlayerStatus = playerStatus.get(playerId);
@@ -2058,11 +2049,10 @@ export default class GameService extends Service {
         newPlayerStatus.deviceType !== oldPlayerStatus?.deviceType
       ) {
         playerStatus.set(playerId, newPlayerStatus);
-        if (oldPlayerStatus !== undefined)
-          emit({
-            type: 'playerStatus',
-            data: { playerId, ...newPlayerStatus },
-          });
+        emit({
+          type: 'playerStatus',
+          data: { playerId, ...newPlayerStatus },
+        });
       }
     }
   }

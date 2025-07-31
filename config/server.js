@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 
-import pkg from '#package.json' assert { type:'json' };
-import gameTypes from '#data/files/game/game_types.json' assert { type:'json' };
+import pkg from '#package.json' with { type:'json' };
+import gameTypes from '#data/files/game/game_types.json' with { type:'json' };
 
 const authAlg = 'aes256';
 const authKey = crypto.randomBytes(32);
@@ -88,15 +88,14 @@ const config = {
   privateKey: process.env.PRIVATE_KEY,
 
   /*
-   * When using the FileAdapter, configure how long files are cached.
+   * Configure how long objects are cached.
    */
   cache: {
     expireIn: 60 * 60000,
   },
 
   /*
-   * When using the FileAdapter, configure how often buffered file changes are
-   * flushed to disk.
+   * Configure how often buffered object changes are persisted.
    */
   buffer: {
     // Flush files at a maximum rate of every 5 seconds

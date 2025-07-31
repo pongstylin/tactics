@@ -8,6 +8,14 @@ export default class GameStateCursor {
   constructor(state) {
     Object.assign(this, {
       state,
+
+      turnId: null,
+      teamId: null,
+      startedAt: null,
+      units: null, // cloned
+      actions: null, // cloned
+      nextActionId: null,
+      atEnd: null,
     });
 
     this.setToCurrent();
