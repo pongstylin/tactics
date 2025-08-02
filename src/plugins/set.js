@@ -1,3 +1,12 @@
+Object.defineProperty(Set.prototype, 'equals', {
+  value: function (set) {
+    if (this.size !== set.size) return false;
+    for (const value of this)
+      if (!set.has(value)) return false;
+    return true;
+  },
+});
+
 Object.defineProperty(Set.prototype, 'intersect', {
   value: function (...sets) {
     let intersection = new Set();
