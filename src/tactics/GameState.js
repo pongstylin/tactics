@@ -7,7 +7,6 @@ import botFactory from '#tactics/botFactory.js';
 import GameType from '#tactics/GameType.js';
 import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
-import util from 'util';
 
 const defaultData = {
   type: null,
