@@ -760,17 +760,17 @@
       "description": "Fixed units, but customizable positions.  The goal is to kill the enemy Dragon Tyrant.",
       "customizable": true,
       "limits": {
-        "tiles": { "start":[0,0], "end":[10,5] },
+        "tiles": { "start":[0,0], "end":[10,4] },
         "points": 10,
         "units": {
           "types": [
-            ["Cleric",       { "required":1, "max":1 }],
-            ["BarrierWard",  { "required":1, "max":1 }],
-            ["Enchantress",  { "required":1, "max":1 }],
-            ["Assassin",     { "required":1, "max":1 }],
-            ["DragonTyrant", { "required":1, "max":1, "points":2 }],
-            ["BeastRider",   { "required":2, "max":2 }],
-            ["Berserker",    { "required":2, "max":2 }]
+            ["Cleric",        { "required":1, "max":1 }],
+            ["PoisonWisp",    { "required":1, "max":1 }],
+            ["GolemAmbusher", { "required":1, "max":1 }],
+            ["Assassin",      { "required":1, "max":1 }],
+            ["DragonTyrant",  { "required":1, "max":1, "points":2 }],
+            ["BeastRider",    { "required":2, "max":2 }],
+            ["Berserker",     { "required":2, "max":2 }]
           ]
         }
       },
@@ -782,14 +782,14 @@
         {
           "units": [
             { "assignment":[5, 0], "type":"Cleric" },
-            { "assignment":[5, 1], "type":"BarrierWard" },
-            { "assignment":[4, 2], "type":"Enchantress" },
-            { "assignment":[6, 2], "type":"Assassin" },
-            { "assignment":[3, 3], "type":"BeastRider" },
-            { "assignment":[5, 3], "type":"DragonTyrant" },
-            { "assignment":[7, 3], "type":"BeastRider" },
-            { "assignment":[4, 4], "type":"Berserker" },
-            { "assignment":[6, 4], "type":"Berserker" }
+            { "assignment":[4, 1], "type":"PoisonWisp" },
+            { "assignment":[6, 1], "type":"Assassin" },
+            { "assignment":[3, 2], "type":"BeastRider" },
+            { "assignment":[5, 2], "type":"GolemAmbusher" },
+            { "assignment":[7, 2], "type":"BeastRider" },
+            { "assignment":[4, 3], "type":"Berserker" },
+            { "assignment":[6, 3], "type":"Berserker" },
+            { "assignment":[5, 4], "type":"DragonTyrant" }
           ]
         }
       ]
