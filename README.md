@@ -19,7 +19,21 @@ That is as far as it goes.  This project is intended to recreate the core game e
 ## Requirements
 * Docker
 
+## Windows Installation Caveats
 When installing Docker Desktop under windows, keep in mind that it takes a little longer for the application to launch.  This is due to mapping files between the Windows filesystem and the Linux filesystem inside docker.  This is acceptable if you are just trying it out.  But since you need to relaunch the application every time you make changes to server code, it can be annoying.  To work around this, create an Ubuntu WSL distribution and clone the repository into that.  If you use VSCode, you can install the Remote Development extension pack to easily access your code inside a WSL VM, but make sure your Ubuntu distribution is the default.  This can shave over 30 seconds off of the startup time.  And if you have problems with WSL freezing up, try disabling Resource Saver in Docker Desktop settings.
+
+Otherwise, if you are unable or unwilling to use WSL, then make sure to run this command before cloning the repository.
+```
+git config --global core.autocrlf false
+```
+
+You may also want to add this snippet to the webpack.config.cjs file to enjoy automatic builds when you make changes to client-side files.
+```
+  watchOptions: {
+    poll: 1000,
+    ignored: /node_modules/,
+  }
+```
 
 ## Development
 After checking out the Git repository, run this command to launch the app.
