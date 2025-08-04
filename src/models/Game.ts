@@ -416,9 +416,25 @@ export default class Game extends ActiveModel {
 
     const board = this.state.board;
     const firstTurn = this.state.getTurn(turnId);
-    const teams = this.state.teams.map(t => t.fork({
-      units: board.rotateUnits(firstTurn.units[t.id], board.getDegree(t.position, 'N')),
-    }));
+
+    // Reorder teams based on who needs to go first.
+    const teams = this.state.teams.slice();
+    const units = firstTurn.units.slice();
+    for (let i = 0; i < firstTurn.team.id; i++) {
+      teams.push(teams.shift());
+      units.push(units.shift());
+    }
+
+    for (const [ teamId, team ] of teams.entries())
+      teams[teamId] = team.fork({
+        id: teamId,
+        slot: team.id,
+        position: team.position,
+        set: {
+          units: board.rotateUnits(units[teamId], board.getDegree(team.position, 'N')),
+        },
+      });
+
     const forkGame = Game.create({
       forkOf: { gameId:this.data.id, turnId },
       createdBy: clientPara.playerId,
@@ -436,7 +452,7 @@ export default class Game extends ActiveModel {
       id: 0,
       team: teams[0],
       data: {
-        units: firstTurn.units,
+        units,
         drawCounts: firstTurn.drawCounts ?? undefined,
       },
     }));

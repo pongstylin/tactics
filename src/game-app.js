@@ -386,7 +386,11 @@ var buttons = {
     $('#game').toggleClass('is-busy');
     return false;
   },
-  fork: () => new ConfigureGame({ autoShow:false }).show('forkGame', { game }),
+  fork: async () => {
+    await authClient.requireAuth();
+
+    new ConfigureGame({ autoShow:false }).show('forkGame', { game });
+  },
   resume: async () => {
     wakelock.toggle(!game.state.endedAt);
 

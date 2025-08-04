@@ -339,7 +339,7 @@ export default class GameState {
     const board = this._board;
     const startedAt = new Date();
 
-    // A turn is already present for forked games.
+    // Turn(s) are already present for forked games and scenarios.
     if (this.turns.length === 0) {
       /*
        * Turn order is always clockwise, but first turn can be random.
