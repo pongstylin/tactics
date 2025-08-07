@@ -1,7 +1,6 @@
 import uaparser from 'ua-parser-js';
 
 import setsById from '#config/sets.js';
-import timeLimit from '#config/timeLimit.js';
 import AccessToken from '#server/AccessToken.js';
 import Service from '#server/Service.js';
 import ServerError from '#server/Error.js';
@@ -65,6 +64,9 @@ export default class GameService extends Service {
     this.setValidation({
       authorize: { token: AccessToken },
       requests: {
+        // Admin actions
+        resetRatings: [ 'uuid', 'string | null' ],
+
         createGame: ['string', 'game:options'],
         tagGame: ['uuid', 'game:tags'],
         forkGame: ['uuid', 'game:forkOptions'],
@@ -544,6 +546,29 @@ export default class GameService extends Service {
     }
   */
 
+  async onResetRatingsRequest(client, targetPlayerId, rankingId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    if (process.env.NODE_ENV !== 'development') {
+      const clientPara = this.clientPara.get(client.id);
+      const player = this.data.getOpenPlayer(clientPara.playerId);
+      if (!player.identity.isAdmin)
+        throw new ServerError(403, 'You must be an admin to use this feature.');
+    }
+
+    const target = await this._getAuthPlayer(targetPlayerId);
+    if (!target.verified)
+      throw new ServerError(400, 'Player must be verified to reset ratings');
+
+    const stats = await this.data.getPlayerStats(target);
+    if (stats.ratings.size === 0)
+      throw new ServerError(400, 'Player has no ratings to reset');
+
+    stats.clearRatings(rankingId);
+    target.identity.setRanks(targetPlayerId, stats.ratings);
+  }
+
   /*
    * Create a new game and save it to persistent storage.
    */
@@ -555,7 +580,7 @@ export default class GameService extends Service {
     if (gameOptions.collection) {
       await this._validateCreateGameForCollection(gameTypeId, gameOptions);
 
-      if (gameOptions.rated && !creator.isVerified)
+      if (gameOptions.rated && !creator.verified)
         throw new ServerError(403, 'Guest accounts cannot create rated games');
     } else if (gameOptions.rated)
       throw new ServerError(403, 'Private games cannot be rated');
@@ -700,7 +725,7 @@ export default class GameService extends Service {
       )));
 
       if (game.state.rated) {
-        const { rated, reason } = await this.data.canPlayRatedGame(game, creator, player);
+        const { rated, reason } = this._canPlayRatedGame(game, creator, player);
         if (!rated) {
           if (reason === 'not verified')
             throw new ServerError(403, 'Guests cannot join rated games');
@@ -978,8 +1003,8 @@ export default class GameService extends Service {
         ['them', them.isNew],
       ]),
       isVerified: new Map([
-        ['me', me.isVerified],
-        ['them', them.isVerified],
+        ['me', me.verified],
+        ['them', them.verified],
       ]),
       relationship: me.getRelationship(them),
       stats: {
@@ -1014,7 +1039,7 @@ export default class GameService extends Service {
     return {
       createdAt: player.createdAt,
       completed: myStats.completed,
-      isVerified: player.isVerified,
+      isVerified: player.verified,
       stats: {
         ratings: ranks.map(rank => ({
           gameTypeId: rank.rankingId,
@@ -1390,6 +1415,23 @@ export default class GameService extends Service {
     return game;
   }
   /*
+   * game can be either a Game or GameSummary object.
+   */
+  _canPlayRatedGame(game, player, opponent) {
+    if (!game.collection)
+      return { rated:false, reason:'private' };
+
+    // Both players must be verified
+    if (!player.verified || !opponent.verified)
+      return { rated:false, reason:'not verified' };
+
+    // Can't play a rated game against yourself
+    if (player.identityId === opponent.identityId)
+      return { rated:false, reason:'same identity' };
+
+    return { rated:true };
+  }
+  /*
    * The game argument can be either a Game or GameSummary object.
    */
   async _getGameMeta(game, player = null) {
@@ -1423,12 +1465,11 @@ export default class GameService extends Service {
         createdAt: creator.createdAt,
       };
 
-      if (data.rated !== false)
-        promises.push(this.data.canPlayRatedGame(game, creator, player).then(({ rated, reason }) => {
-          meta.rated = rated;
-          meta.unratedReason = reason;
-        }));
-      else {
+      if (data.rated !== false) {
+        const { rated, reason } = this._canPlayRatedGame(game, creator, player);
+        meta.rated = rated;
+        meta.unratedReason = reason;
+      } else {
         meta.rated = false;
         meta.unratedReason = 'not rated';
       }
@@ -1506,7 +1547,9 @@ export default class GameService extends Service {
     const playersStatsMap = new Map(playersStats.map(ps => [ ps.playerId, ps ]));
 
     if (game.state.endedAt) {
-      if (PlayerStats.updateRatings(game, playersStatsMap))
+      const slowMode = await this.data.getGameSlowMode(game, ...players);
+
+      if (PlayerStats.updateRatings(game, playersStatsMap, slowMode))
         for (const playerStats of playersStats)
           playersMap.get(playerStats.playerId).identity.setRanks(playerStats.playerId, playerStats.ratings);
 
@@ -2013,7 +2056,7 @@ export default class GameService extends Service {
       if (playerIds.size > 1) {
         if (game.rated === null) {
           const players = await Promise.all([ ...playerIds ].map(pId => this._getAuthPlayer(pId)));
-          const { rated, reason } = await this.data.canPlayRatedGame(game, ...players);
+          const { rated, reason } = this._canPlayRatedGame(game, ...players);
           game.setRated(rated, reason);
         }
 

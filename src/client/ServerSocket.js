@@ -505,7 +505,6 @@ export default class ServerSocket {
   }
 
   _onMessage({ target:socket, data }, now) {
-const ts = +new Date();
     if (socket !== this._socket)
       return this._destroySocket(socket, CLOSE_CLIENT_ERROR, 'Socket conflict in _onMessage');
 

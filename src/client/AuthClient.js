@@ -191,6 +191,7 @@ export default class AuthClient extends Client {
       });
   }
 
+  // Admin actions
   toggleGlobalMute(playerId) {
     return this._server.requestAuthorized(this.name, 'toggleGlobalMute', [ playerId ])
       .catch(error => {
@@ -199,6 +200,15 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
+  promoteToVerified(playerId) {
+    return this._server.requestAuthorized(this.name, 'promoteToVerified', [ playerId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.promoteToVerified(playerId);
+        throw error;
+      });
+  }
+
   getACL() {
     return this._server.requestAuthorized(this.name, 'getACL')
       .catch(error => {

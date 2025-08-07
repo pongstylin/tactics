@@ -27,7 +27,7 @@ export default class PlayerStats extends ActiveModel {
    * Updates the ratings of all players involved in a game.
    * This method is static because it acts on the rating of more than one player
    */
-  static updateRatings(game, playersStatsMap) {
+  static updateRatings(game, playersStatsMap, slowMode = false) {
     // Only update ratings for rated games.
     if (!game.state.rated)
       return false;
@@ -42,7 +42,7 @@ export default class PlayerStats extends ActiveModel {
     teamsMeta.sort((a,b) => game.state.winnerId === a.id ? -1 : game.state.winnerId === b.id ? 1 : 0);
 
     const isDraw = game.state.winnerId === 'draw';
-    const k = computeMaxRatingChange(...teamsMeta.map(t => t.gameCount) as [ number, number ]);
+    const k = slowMode ? teamsMeta.map(() => 5) : computeMaxRatingChange(...teamsMeta.map(t => t.gameCount) as [ number, number ]);
     const ratings = teamsMeta.map(t => t.rating) as [ number, number ];
 
     for (const [ t, teamMeta ] of teamsMeta.entries()) {
@@ -297,6 +297,12 @@ export default class PlayerStats extends ActiveModel {
     this.emit('change:recordGameEnd');
   }
 
+  clearRatings(rankingId = null) {
+    if (rankingId)
+      this.data.stats.get(this.data.playerId).ratings.delete(rankingId);
+    else
+      this.data.stats.get(this.data.playerId).ratings.clear();
+  }
   clearWLDStats(playerId, gameTypeId = null) {
     const stats = this.data.stats.get(playerId);
 

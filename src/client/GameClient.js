@@ -31,6 +31,15 @@ export default class GameClient extends Client {
       this._emit({ type:'open', data:{ reason:'new' }});
   }
 
+  resetRatings(targetPlayerId, rankingId = null) {
+    return this._server.requestAuthorized(this.name, 'resetRatings', [ targetPlayerId, rankingId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.resetRatings(targetPlayerId, rankingId);
+        throw error;
+      });
+  }
+
   createGame(gameTypeId, gameOptions) {
     return this._server.requestAuthorized(this.name, 'createGame', [ gameTypeId, gameOptions ])
       .catch(error => {

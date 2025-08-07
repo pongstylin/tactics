@@ -47,7 +47,10 @@ export default class AuthService extends Service {
         removeDevice: [ 'uuid' ],
         logout: [],
 
+        // Admin actions
         toggleGlobalMute: [ 'uuid' ],
+        promoteToVerified: [ 'uuid' ],
+
         getACL: [],
         setACL: [ 'auth:acl' ],
         getActiveRelationships: [],
@@ -374,14 +377,34 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
-    if (!player.identity.isAdmin)
-      throw new ServerError(401, 'You must be an admin to use this feature.');
+    if (process.env.NODE_ENV !== 'development') {
+      const clientPara = this.clientPara.get(client.id);
+      const player = this.data.getOpenPlayer(clientPara.playerId);
+      if (!player.identity.isAdmin)
+        throw new ServerError(403, 'You must be an admin to use this feature.');
+    }
 
     const target = await this.data.getPlayer(targetPlayerId);
     return target.toggleGlobalMute();
   }
+  async onPromoteToVerifiedRequest(client, targetPlayerId) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    if (process.env.NODE_ENV !== 'development') {
+      const clientPara = this.clientPara.get(client.id);
+      const player = this.data.getOpenPlayer(clientPara.playerId);
+      if (!player.identity.isAdmin)
+        throw new ServerError(403, 'You must be an admin to use this feature.');
+    }
+
+    const target = await this.data.getPlayer(targetPlayerId);
+    if (target.verified)
+      throw new ServerError(400, 'Player is already verified');
+
+    target.verified = true;
+  }
+
   onGetACLRequest(client) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
@@ -583,8 +606,8 @@ export default class AuthService extends Service {
         [ 'them', them.isNew ],
       ]),
       isVerified: new Map([
-        [ 'me', me.isVerified ],
-        [ 'them', them.isVerified ],
+        [ 'me', me.verified ],
+        [ 'them', them.verified ],
       ]),
     };
   }

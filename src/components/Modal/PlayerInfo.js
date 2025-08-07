@@ -143,16 +143,6 @@ export default class PlayerInfo extends Modal {
     const info = this.data.info;
     const stats = info.stats;
     const createdDiff = (Date.now() - info.createdAt) / 1000;
-    const allGameCount = (
-      stats.all.win[0]  + stats.all.win[1] +
-      stats.all.lose[0] + stats.all.lose[1] +
-      stats.all.draw[0] + stats.all.draw[1]
-    );
-    const styleGameCount = (
-      stats.style.win[0]  + stats.style.win[1] +
-      stats.style.lose[0] + stats.style.lose[1] +
-      stats.style.draw[0] + stats.style.draw[1]
-    );
 
     let disposition = '';
     if (info.relationship.reverseType)

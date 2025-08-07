@@ -112,7 +112,7 @@ async function recordGameStats(game) {
     if (playerMeta.has(playerStats.playerId))
       continue;
 
-    if (playersMap.get(playerStats.playerId).isVerified)
+    if (playersMap.get(playerStats.playerId).verified)
       playerMeta.set(playerStats.playerId, {
         oldRatings: playerStats.ratings.clone(),
         newRatings: null,
