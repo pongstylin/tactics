@@ -71,7 +71,11 @@ const pool = workerpool.pool(`./src/data/DynamoDBAdapter/worker.js`, {
 });
 
 const itemMeta = new WeakMap();
-const keyOfItem = r => `${r.PK}:${r.SK}`;
+const keyOfItem = r => {
+  if (!r || typeof r !== 'object' || !r.PK || !r.SK)
+    console.log('Warning: Invalid item:', r, new Error().stack);
+  return `${r.PK}:${r.SK}`;
+};
 const filterOpByName = new Map([
   [ 'eq',  '='  ],
   [ 'lt',  '<'  ],
