@@ -55,8 +55,8 @@ export default class extends DynamoDBAdapter {
       identities.addValue(identity);
       cache.add(identity.id, identity, identity.expireAt);
     }).catch(err => {
-      identities.deleteId(iId);
-      console.warn(`Warning: Failed to load identity: ${iId}: ${err}`);
+      //identities.deleteId(iId);
+      console.warn(`Warning: Failed to load identity: ${iId}: ${err}`, new Error().stack);
     })));
 
     Player.identities = this.state.identities;
