@@ -285,9 +285,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     return this._pushItemQueue({ key:queueKey, method:'_getItemParts', args:[ key, transform, migrateProps ] });
   }
   putItemParts(key, obj, parts) {
-    if (!parts.has('/'))
-      throw new Error(`Required root part when putting ${key.PK}`);
-
     const { PK } = this._processKey(key);
 
     const ops = Array.from(parts).map(([ path, part ]) => ({
