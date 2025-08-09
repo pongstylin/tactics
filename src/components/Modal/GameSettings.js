@@ -1,7 +1,6 @@
 import 'components/Modal/GameSettings.scss';
 import { gameConfig } from 'config/client.js';
 import Modal from 'components/Modal.js';
-import popup from 'components/popup.js';
 import fullscreen from 'components/fullscreen.js';
 
 export default class GameSettings extends Modal {

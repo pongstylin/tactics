@@ -41,12 +41,18 @@ import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
 
 const region = process.env.AWS_DEFAULT_REGION ?? 'us-east-1';
-const client = new DynamoDBClient({
-  region,
-  endpoint: process.env.DDB_ENDPOINT ?? `https://dynamodb.${region}.amazonaws.com`,
-});
-const docClient = DynamoDBDocumentClient.from(client);
+const endpoint = process.env.DDB_ENDPOINT ?? (
+  process.env.NODE_ENV === 'development'
+    ? 'http://dynamodb-local:8000'
+    : `https://dynamodb.${region}.amazonaws.com`
+);
+console.log('Using DynamoDB endpoint:', endpoint);
+
 const TABLE_NAME = process.env.DDB_TABLE ?? 'tactics';
+console.log('Using DynamoDB table:', TABLE_NAME);
+
+const client = new DynamoDBClient({ region, endpoint });
+const docClient = DynamoDBDocumentClient.from(client);
 const workerData = { throttleBuffer:new SharedArrayBuffer(4) };
 const throttle = new Int32Array(workerData.throttleBuffer);
 const WCU_INDEX = 0;

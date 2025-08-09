@@ -394,15 +394,13 @@ export default class Team extends ActiveModel {
     this.emit('change:setRating');
   }
 
-  fork(set) {
-    return Team.create({
-      id: this.data.id,
+  fork(props) {
+    return Team.create(Object.assign({
       slot: this.data.slot,
-      position: this.data.position,
       forkOf: { playerId:this.data.playerId, name:this.data.name },
       useRandom: this.data.useRandom,
-      set,
-    });
+      set: this.data.set,
+    }, props));
   }
 
   reserve(data) {

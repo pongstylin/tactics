@@ -339,7 +339,7 @@ export default class GameState {
     const board = this._board;
     const startedAt = new Date();
 
-    // A turn is already present for forked games.
+    // Turn(s) are already present for forked games and scenarios.
     if (this.turns.length === 0) {
       /*
        * Turn order is always clockwise, but first turn can be random.
@@ -864,11 +864,26 @@ export default class GameState {
         }
 
         for (const result of action.results) {
-          // This check ignores summoned units, e.g. shrubs
+          // Ignore attacks on summoned units, e.g. shrubs
           if (typeof result.unit !== 'number') continue;
           // Ignore immune attacks
           if (result.miss === 'immune') continue;
 
+          // Ignore standing reparalyze or repoison attacks
+          if (result.changes && (result.changes.paralyzed || result.changes.poisoned)) {
+            const initialUnit = previousTurn.units[attackerTeamId].find(u => u.id === action.unit);
+            const currentUnit = currentTurn.units[attackerTeamId].find(u => u.id === action.unit);
+            const hasMoved = (
+              initialUnit.assignment[0] !== currentUnit.assignment[0] ||
+              initialUnit.assignment[1] !== currentUnit.assignment[1]
+            );
+            const initialTargets = new Set(initialUnit.focusing ?? []);
+            const currentTargets = new Set(currentUnit.focusing ?? []);
+            if (!hasMoved && initialTargets.equals(currentTargets))
+              continue;
+          }
+
+          // Ignore self-inflicted attacks
           let defenderTeamId;
           for (const [ teamId, teamUnits ] of previousTurn.units.entries()) {
             if (teamUnits.find(tu => tu.id === result.unit)) {
@@ -876,11 +891,10 @@ export default class GameState {
               break;
             }
           }
-  
-          if (defenderTeamId !== attackerTeamId) {
-            drawCounts.attackTurnCount = 0;
-            break;
-          }
+          if (defenderTeamId === attackerTeamId) continue;
+
+          drawCounts.attackTurnCount = 0;
+          break;
         }
       }
     }

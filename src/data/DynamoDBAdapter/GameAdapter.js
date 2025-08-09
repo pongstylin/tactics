@@ -395,23 +395,9 @@ export default class extends DynamoDBAdapter {
   }
 
   /*
-   * game can be either a Game or GameSummary object.
+   * Determine if rating changes should be slowed down for a game.
    */
-  async canPlayRatedGame(game, player, opponent) {
-    if (!game.collection)
-      return { rated:false, reason:'private' };
-
-    // Both players must be verified
-    if (!player.isVerified || !opponent.isVerified)
-      return { rated:false, reason:'not verified' };
-
-    // Can't play a rated game against yourself
-    if (player.identityId === opponent.identityId)
-      return { rated:false, reason:'same identity' };
-
-    /*
-     * Max of 2 rated games per week between 2 players.
-     */
+  async getGameSlowMode(game, player, opponent) {
     const playerGames = await this._getPlayerGames(player.id);
     const since = Date.now() - 7 * 24 * 60 * 60 * 1000; // 1 week ago, in milliseconds
 
@@ -420,37 +406,31 @@ export default class extends DynamoDBAdapter {
 
     // Check this player's games to see if there is too much history with their opponent in too short a time
     for (const gameSummary of playerGames.values()) {
-      // Unrated games don't affect ranking
-      if (!gameSummary.rated)
+      // Ignore the current game
+      if (gameSummary.id === game.id)
         continue;
-
-      // Different styles have different rankings
-      if (game instanceof Game && gameSummary.type !== game.state.type)
+      // Only interested in games that have ended
+      if (!gameSummary.endedAt)
         continue;
-      if (game instanceof GameSummary && gameSummary.type !== game.type)
+      // Only interested in games in the same style
+      if (gameSummary.type !== game.state.type)
         continue;
-
-      // Open games don't prevent playing more rated games
-      if (!gameSummary.startedAt)
-        continue;
-
-      // Old games don't prevent playing more rated games
-      if (gameSummary.startedAt < since)
-        continue;
-
-      // Only counting games against any of the opponent's accounts.
+      // Only interested in games between the same players
       if (!gameSummary.teams.some(t => opponent.identity.playerIds.includes(t.playerId)))
         continue;
 
-      // Disallow concurrent rated games unless one is correspondance and the other is a real time game.
-      if (!gameSummary.endedAt && gameSummary.collection === game.collection)
-        return { rated:false, reason:'in game' };
+      // Unrated games don't count
+      if (!gameSummary.rated)
+        continue;
+      // Old games don't count
+      if (gameSummary.endedAt < since)
+        continue;
 
       if (--n === 0)
-        return { rated:false, reason:'too many games' };
+        return true;
     }
 
-    return { rated:true };
+    return false;
   }
 
   /*****************************************************************************

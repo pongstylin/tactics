@@ -158,6 +158,16 @@ export default class Player extends ActiveModel {
   get confirmName() {
     return this.data.confirmName;
   }
+  get verified() {
+    return this.data.verified;
+  }
+  set verified(verified) {
+    if (this.data.verified === verified)
+      return;
+    this.data.verified = verified;
+    this.identity.name = verified ? this.data.name : null;
+    this.emit('change:verified');
+  }
   get devices() {
     return this.data.devices;
   }
@@ -203,9 +213,6 @@ export default class Player extends ActiveModel {
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
     return oneWeekAgo < this.data.createdAt;
-  }
-  get isVerified() {
-    return this.data.verified;
   }
 
   hasAuthProviderLink(providerId) {
@@ -393,7 +400,7 @@ export default class Player extends ActiveModel {
     let blockedByRule:any = false;
     if (player.acl.newAccounts === 'blocked' && this.isNew)
       blockedByRule = 'new';
-    else if (player.acl.guestAccounts === 'blocked' && !this.isVerified)
+    else if (player.acl.guestAccounts === 'blocked' && !this.data.verified)
       blockedByRule = 'guest';
 
     return {
@@ -468,7 +475,7 @@ export default class Player extends ActiveModel {
     if (applyRules) {
       if (this.data.acl.newAccounts === 'blocked' && player.isNew)
         return true;
-      if (this.data.acl.guestAccounts === 'blocked' && !player.isVerified)
+      if (this.data.acl.guestAccounts === 'blocked' && !player.verified)
         return true;
     }
 
@@ -487,7 +494,7 @@ export default class Player extends ActiveModel {
         return true;
       if (this.data.acl.newAccounts === 'muted' && player.isNew)
         return true;
-      if (this.data.acl.guestAccounts === 'muted' && !player.isVerified)
+      if (this.data.acl.guestAccounts === 'muted' && !player.verified)
         return true;
     }
 
