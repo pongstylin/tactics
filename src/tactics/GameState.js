@@ -1023,6 +1023,10 @@ export default class GameState {
     if (this.currentTurnId < initialTurnId)
       return false;
 
+    // If the turn is not loaded, then it is sufficiently far in the past that it has been played.
+    if (this.turns[initialTurnId] === null)
+      return true;
+
     /*
      * If the game ended on the turn after this team's first turn, then it
      * is possible that this team surrendered.  If so, turn not played.
