@@ -1044,6 +1044,8 @@ export default class ConfigureGame extends Modal {
   }
 
   async _submit() {
+    this._clearError();
+
     if (this.data.submitInProgress)
       return;
     this.data.submitInProgress = true;
@@ -1315,10 +1317,9 @@ export default class ConfigureGame extends Modal {
     this._els.divMessage.innerHTML = message;
   }
   hideMessage() {
-    if (this._els.divMessage.classList.contains('error'))
-      return;
     this.root.classList.remove('message-only');
-    this._els.divMessage.innerHTML = '';
+    if (!this._els.divMessage.classList.contains('error'))
+      this._els.divMessage.innerHTML = '';
   }
 
   _showError(message) {
