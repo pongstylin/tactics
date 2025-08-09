@@ -60,6 +60,14 @@ export default class Identity extends ActiveModel {
       playerIds: new Set([ player.id ]),
     });
   }
+  static fromJSON(data) {
+    if (data.aliases.has(null)) {
+      data.aliases.delete(null);
+      console.warn('Warning: Identity.fromJSON: null alias found, removing');
+    }
+
+    return new Identity(data);
+  }
 
   get id() {
     return this.data.id;
