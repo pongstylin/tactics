@@ -1249,6 +1249,13 @@ export default class GameService extends Service {
 
     return response;
   }
+  /*
+   * TODO: This method is sensitive to a client disconnecting before asynchronous tasks are done.
+   * This means an attempt is made to join a group for a client with no session.
+   * This means crashing the application.
+   * Try to isolate all side effects after asynchronous activity is complete.
+   * That way, we can check connection status after asynchronous activity is done and before side effects.
+   */
   async onJoinCollectionGroup(client, groupPath, collectionId, params = {}) {
     const collectionGroups = this.collectionGroups;
     const collectionIds = [];
