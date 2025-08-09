@@ -61,7 +61,7 @@ export default class Identity extends ActiveModel {
     });
   }
   static fromJSON(data) {
-    if (data.aliases.has(null)) {
+    if (data.aliases?.has(null)) {
       data.aliases.delete(null);
       console.warn('Warning: Identity.fromJSON: null alias found, removing');
     }
