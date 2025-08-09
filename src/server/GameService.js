@@ -1554,11 +1554,12 @@ export default class GameService extends Service {
     const playersStatsMap = new Map(playersStats.map(ps => [ ps.playerId, ps ]));
 
     if (game.state.endedAt) {
-      const slowMode = await this.data.getGameSlowMode(game, ...players);
-
-      if (PlayerStats.updateRatings(game, playersStatsMap, slowMode))
-        for (const playerStats of playersStats)
-          playersMap.get(playerStats.playerId).identity.setRanks(playerStats.playerId, playerStats.ratings);
+      if (game.state.rated) {
+        const slowMode = await this.data.getGameSlowMode(game, ...players);
+        if (PlayerStats.updateRatings(game, playersStatsMap, slowMode))
+          for (const playerStats of playersStats)
+            playersMap.get(playerStats.playerId).identity.setRanks(playerStats.playerId, playerStats.ratings);
+      }
 
       for (const playerStats of playersStats)
         playerStats.recordGameEnd(game);
