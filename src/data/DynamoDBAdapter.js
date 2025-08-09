@@ -372,35 +372,29 @@ export default class DynamoDBAdapter extends FileAdapter {
     if (returnType === 'single') ops = [ ops ];
 
     const promises = ops.map(op => {
-      if (this.itemQueue.has(op.key)) {
-        const op2 = this.itemQueue.get(op.key);
-        if (op.method === op2.method) {
-          // These operations are expected to be identical
-          if (op.method === '_getItem' || op.method === '_getItemParts' || op.method === '_queryItemChildren')
-            return op2.promise;
+      const currOp = this.itemQueue.get(op.key);
+      const writeOp = this.itemQueue.get('write:' + op.key.replace(/^write:/, ''));
 
-          // Either schedule a put after this put or provide the latest data for this put.
-          if (op.method === '_putItem') {
-            if (op2.processing)
-              return op2.promise.finally(() => this._pushItemQueue(op));
-            op2.args = op.args;
-            return op2.promise;
-          }
-
-          throw new Error(`Concurrent operation: ${op.key}: method=${op.method}`);
-        }
-
-        throw new Error(`Conflicting operations: ${op.key}: methods=${op.method}, ${op2.method}`);
+      if (writeOp) {
+        writeOp.trigger ??= [];
+        writeOp.trigger.push(op);
+      } else if (currOp) {
+        // If a write op was not found, then this is a read op.
+        if (op.method === currOp.method)
+          op.promise = currOp.promise;
+        else
+          this.itemQueue.set(op.key, op);
       } else {
-        op.promise = new Promise((resolve, reject) => {
-          op.resolve = resolve;
-          op.reject = reject;
-        });
-
         this.itemQueue.set(op.key, op);
       }
 
-      return op.promise;
+      // Conditional assignment.  It might already be assigned if:
+      // 1) It is a duplicate read operation assigned above.
+      // 2) It is a triggered operation from a write operation.
+      return op.promise ??= new Promise((resolve, reject) => {
+        op.resolve = resolve;
+        op.reject = reject;
+      });
     });
 
     this._triggerItemQueue();
@@ -712,6 +706,9 @@ export default class DynamoDBAdapter extends FileAdapter {
         this.debugV(`${method}: ${keyOfItem(item)} ${op.execEndAt - op.execStartAt}ms`);
         workerQueue.size--;
         this.itemQueue.delete(op.key);
+        if (op.trigger)
+          this._pushItemQueue(op.trigger);
+
         // Since the worker queue is shared, trigger all item queues
         DynamoDBAdapter.triggerItemQueues();
       });
@@ -807,7 +804,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     for (const item of items)
       ops.push({
-        key: 'write:' + keyOfItem(item),
+        key: 'write:' + keyOfItem(Object.assign({ PK:key.PK }, item)),
         method: '_deleteItem',
         args: [
           Object.assign({ PK:key.PK }, item),
