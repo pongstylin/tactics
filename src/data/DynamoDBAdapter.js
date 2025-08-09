@@ -385,7 +385,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       } else if (currOp) {
         // If a write op was not found, then this is a read op.
         if (op.method === currOp.method)
-          op.promise = currOp.promise;
+          op.promise = op.promise ? currOp.promise.then(op.resolve, op.reject) : currOp.promise;
         else
           this.itemQueue.set(op.key, op);
       } else {
