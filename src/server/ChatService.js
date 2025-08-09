@@ -103,7 +103,7 @@ export default class ChatService extends Service {
     const room = await this.data.openRoom(roomId);
     // Abort if the client is no longer connected.
     if (client.closed) {
-      this.data.closeRoom(room);
+      this.data.closeRoom(roomId);
       return;
     }
 
