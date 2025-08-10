@@ -172,6 +172,7 @@ export default class PlayerStats extends ActiveModel {
       if (team.playerId !== this.data.playerId) {
         const stats = this.data.stats.get(team.playerId);
 
+        stats.aliases ??= new Map();
         if (stats.aliases.has(team.name.toLowerCase())) {
           const alias = stats.aliases.get(team.name.toLowerCase());
           alias.name = team.name;
@@ -273,6 +274,13 @@ export default class PlayerStats extends ActiveModel {
 
         const myAdvantage = myTeams[0].usedUndo || myTeams[0].usedSim;
         const vsAdvantage = team.usedUndo || team.usedSim;
+
+        stats.all ??= {
+          startedAt: now,
+          win: [0, 0],
+          lose: [0, 0],
+          draw: [0, 0],
+        };
 
         if (game.state.winnerId === myTeams[0].id) {
           // If I won with advantage, but they didn't use advantage, win is with advantage.
