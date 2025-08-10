@@ -69,7 +69,7 @@
 }
 
 .modal.configureGame.configureLobby .content {
-  .playerName, .gameType, .visibility, .vs, .timeLimit .long, .timeLimit .label {
+  .playerName, .gameType, .visibility, .vs, .as, .timeLimit .long, .timeLimit .label {
     display: none !important;
   }
 }
