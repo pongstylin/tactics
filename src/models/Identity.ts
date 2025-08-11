@@ -18,8 +18,8 @@ export default class Identity extends ActiveModel {
       playerId:number,
       ratings:{ rankingId:string, playerId:string, name:string, rating:number, gameCount:number }[]
     }
-    muted: boolean
-    admin: boolean
+    muted?: boolean
+    admin?: boolean
     lastSeenAt: Date
 
     // Relationships are created by other players to this identity.
@@ -54,8 +54,6 @@ export default class Identity extends ActiveModel {
   static create(player) {
     return new Identity({
       id: player.id,
-      muted: false,
-      admin: false,
       lastSeenAt: player.lastSeenAt,
       playerIds: new Set([ player.id ]),
     });
@@ -94,11 +92,20 @@ export default class Identity extends ActiveModel {
     return new Map(Array.from(this.data.aliases).filter((a) => a[1].getTime() > oneMonthAgo));
   }
 
-  get muted() {
-    return this.data.muted;
+  get admin() {
+    return this.data.admin ?? false;
   }
-  set muted(muted) {
-    if (this.data.muted === muted)
+  set admin(admin:boolean) {
+    if (this.admin === admin)
+      return;
+    this.data.admin = admin;
+    this.emit('change:admin');
+  }
+  get muted() {
+    return this.data.muted ?? false;
+  }
+  set muted(muted:boolean) {
+    if (this.muted === muted)
       return;
     this.data.muted = muted;
     this.emit('change:muted');
@@ -120,9 +127,6 @@ export default class Identity extends ActiveModel {
     return [ ...this.data.playerIds ];
   }
 
-  get isAdmin() {
-    return this.data.admin;
-  }
   get ttl() {
     // Delete the object after 3 or 12 months of inactivity depending on verification status.
     const days = (this.data.name === null ? 3 : 12) * 30;
@@ -273,6 +277,10 @@ export default class Identity extends ActiveModel {
           .filter(r => r.rankingId !== 'FORTE')
           .map(({ rankingId, rating, gameCount }) => ({ rankingId, rating, gameCount })),
       };
+    if (json.admin === false)
+      delete json.admin;
+    if (json.muted === false)
+      delete json.muted;
 
     return json;
   }
@@ -283,7 +291,7 @@ serializer.addType({
   constructor: Identity,
   schema: {
     type: 'object',
-    required: [ 'id', 'muted', 'lastSeenAt', 'playerIds' ],
+    required: [ 'id', 'lastSeenAt', 'playerIds' ],
     properties: {
       id: { type:'string', format:'uuid' },
       name: { type:'string' },

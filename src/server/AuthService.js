@@ -161,16 +161,16 @@ export default class AuthService extends Service {
     if (this.clientPara.has(client.id))
       throw new ServerError(403, 'Already registered');
 
+    const player = await this.data.createPlayer(playerData);
+    const device = player.createDevice(client);
+    await this.data.createPlayerDevice(player, device);
+
     /*
      * More than one client may be registered to a given IP address, e.g.
      * two mobile phones on the same wireless network.  Just don't register
      * more than one account within 30 seconds to protect against DoS.
      */
     this.throttle(client.address, 'register', 1, 30);
-
-    const player = await this.data.createPlayer(playerData);
-    const device = player.createDevice(client);
-    await this.data.createPlayerDevice(player, device);
 
     return player.getAccessToken(device.id);
   }
@@ -183,7 +183,7 @@ export default class AuthService extends Service {
     let player = this.data.getOpenPlayer(clientPara.playerId);
 
     if (playerId && playerId !== clientPara.playerId) {
-      if (!player.identity.isAdmin)
+      if (!player.identity.admin)
         throw new ServerError(401, 'You must be an admin to create identity tokens for other players.');
       player = await this.data.getPlayer(playerId);
     }
@@ -380,7 +380,7 @@ export default class AuthService extends Service {
     if (process.env.NODE_ENV !== 'development') {
       const clientPara = this.clientPara.get(client.id);
       const player = this.data.getOpenPlayer(clientPara.playerId);
-      if (!player.identity.isAdmin)
+      if (!player.identity.admin)
         throw new ServerError(403, 'You must be an admin to use this feature.');
     }
 
@@ -394,7 +394,7 @@ export default class AuthService extends Service {
     if (process.env.NODE_ENV !== 'development') {
       const clientPara = this.clientPara.get(client.id);
       const player = this.data.getOpenPlayer(clientPara.playerId);
-      if (!player.identity.isAdmin)
+      if (!player.identity.admin)
         throw new ServerError(403, 'You must be an admin to use this feature.');
     }
 
