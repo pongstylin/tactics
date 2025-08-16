@@ -41,7 +41,7 @@ import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
 
 const region = process.env.AWS_DEFAULT_REGION ?? 'us-east-1';
-const endpoint = process.env.DDB_ENDPOINT ?? (
+const endpoint = process.env.DDB_ENDPOINT || (
   process.env.NODE_ENV === 'development'
     ? 'http://dynamodb-local:8000'
     : `https://dynamodb.${region}.amazonaws.com`
