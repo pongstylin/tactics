@@ -127,7 +127,7 @@ export default class FileAdapter {
       debug: DebugLogger(`data:${props.name}`),
       debugV: DebugLogger(`data-v:${props.name}`),
       fileTypes: new Map(),
-      readonly: false,
+      readonly: process.env.READONLY === 'true',
       hasState: false,
       // State is intended to always be resident in memory.
       // It is saved on server shut down and restored on start up.

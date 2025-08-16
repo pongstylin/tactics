@@ -276,6 +276,9 @@ export default class Player extends ActiveModel {
   }
   refreshAccessToken(deviceId) {
     const device = this.getDevice(deviceId);
+    if (!device)
+      return null;
+
     const token = device.token;
     const nextToken = device.nextToken;
 
@@ -294,6 +297,9 @@ export default class Player extends ActiveModel {
   }
   activateAccessToken(token) {
     const device = this.getDevice(token.deviceId);
+    if (!device)
+      return null;
+
     device.activateAccessToken(token);
 
     return true;
@@ -314,7 +320,7 @@ export default class Player extends ActiveModel {
     this.identity.lastSeenAt = this.lastSeenAt;
   }
 
-  _subscribeDevice(device) {
+  _subscribeDevice(device:PlayerDevice) {
     const listener = event => this.emit({
       type: 'device:change',
       device,
@@ -323,10 +329,10 @@ export default class Player extends ActiveModel {
     listeners.set(device, listener);
     device.on('change', listener);
   }
-  _unsubscribeDevice(device) {
+  _unsubscribeDevice(device:PlayerDevice) {
     device.off('change', listeners.get(device));
   }
-  createDevice(client, token = null) {
+  createDevice(client, token:IdentityToken | null = null) {
     if (token) {
       if (!token.equals(this.data.identityToken))
         throw new ServerError(403, 'Identity token was revoked');
@@ -353,10 +359,10 @@ export default class Player extends ActiveModel {
 
     return true;
   }
-  getDevice(deviceId) {
-    return this.data.devices.get(deviceId);
+  getDevice(deviceId:string) {
+    return this.data.devices.get(deviceId) ?? null;
   }
-  setDeviceName(deviceId, name) {
+  setDeviceName(deviceId:string, name:string) {
     const device = this.getDevice(deviceId);
     if (!device)
       throw new ServerError(404, 'No such device');
@@ -365,11 +371,10 @@ export default class Player extends ActiveModel {
 
     return true;
   }
-  removeDevice(deviceId) {
-    if (!this.data.devices.has(deviceId))
-      return false;
-
+  removeDevice(deviceId:string) {
     const device = this.getDevice(deviceId);
+    if (!device)
+      return false;
 
     this._unsubscribeDevice(device);
     this.data.devices.delete(deviceId);
@@ -520,10 +525,15 @@ export default class Player extends ActiveModel {
     else
       payload.confirmName = this.data.confirmName;
 
+    if (this.identity.admin)
+      payload.admin = true;
+
     return AccessToken.create(payload);
   }
-  getAccessToken(deviceId) {
+  getAccessToken(deviceId:string) {
     const device = this.getDevice(deviceId);
+    if (!device)
+      return null;
 
     return device.nextToken || device.token;
   }

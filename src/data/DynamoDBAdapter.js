@@ -51,6 +51,9 @@ console.log('Using DynamoDB endpoint:', endpoint);
 const TABLE_NAME = process.env.DDB_TABLE ?? 'tactics';
 console.log('Using DynamoDB table:', TABLE_NAME);
 
+if (process.env.READONLY === 'true')
+  console.log('Running in read-only mode.');
+
 const client = new DynamoDBClient({ region, endpoint });
 const docClient = DynamoDBDocumentClient.from(client);
 const workerData = { throttleBuffer:new SharedArrayBuffer(4) };

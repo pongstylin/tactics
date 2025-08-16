@@ -5,11 +5,20 @@ import serializer from '#utils/serializer.js';
 import setsById from '#config/sets.js';
 import ServerError from '#server/Error.js';
 
+import type GameType from '#tactics/GameType.js';
+import type { Set } from '#tactics/GameType.js';
+
+type PlayerSet = {
+  type: string; // GameTypeId
+  id: string; // SetId, e.g. default, alt1, alt2, alt3
+  createdAt: Date;
+} & Set;
+
 export default class PlayerSets extends ActiveModel {
   protected data: {
-    playerId: string
-    sets: any[]
-  }
+    playerId: string;
+    sets: PlayerSet[];
+  };
   public player: Player | null = null;
 
   constructor(data) {
@@ -32,11 +41,11 @@ export default class PlayerSets extends ActiveModel {
     return this.data.sets.values();
   }
 
-  list(gameType) {
+  list(gameType:GameType) {
     if (!gameType.isCustomizable)
       return [ gameType.getDefaultSet() ];
 
-    const list = [];
+    const list:Set[] = [];
     for (const setId of setsById.keys()) {
       const set = this.get(gameType, setId);
       if (set)
@@ -45,7 +54,7 @@ export default class PlayerSets extends ActiveModel {
 
     return list;
   }
-  get(gameType, setId) {
+  get(gameType:GameType, setId:string) {
     if (!setsById.has(setId))
       throw new ServerError(400, 'Unrecognized or missing set id');
     if (!gameType.isCustomizable) {
@@ -61,17 +70,20 @@ export default class PlayerSets extends ActiveModel {
       return this.set(gameType, gameType.getDefaultSet());
     return null;
   }
-  set(gameType, set) {
-    if (!setsById.has(set.id))
-      throw new ServerError(400, 'Unrecognized or missing set id');
+  set(gameType:GameType, inSet:PickOptional<PlayerSet, 'units', 'id' | 'name'>) {
+    if (inSet.id && !setsById.has(inSet.id))
+      throw new ServerError(400, 'Unrecognized set id');
     if (!gameType.isCustomizable)
       throw new ServerError(400, 'May not create sets for this game type.');
 
-    gameType.validateSet(set);
+    gameType.validateSet(inSet);
 
-    set.type = gameType.id;
-    set.name = set.name ?? setsById.get(set.id);
-    set.createdAt = new Date();
+    const set = Object.assign({
+      id: inSet.id ?? 'default',
+      type: gameType.id,
+      name: inSet.name ?? setsById.get(inSet.id ?? 'default'),
+      createdAt: new Date(),
+    }, inSet);
 
     const index = this.data.sets.findIndex(s => s.type === gameType.id && s.id === set.id);
     if (index === -1)

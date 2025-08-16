@@ -93,7 +93,7 @@ export default class Team extends ActiveModel {
   public isCurrent: boolean = false
   public units: any[][] | null = null;
 
-  constructor(data, props = undefined) {
+  constructor(data, props?:ConstructorParameters<typeof ActiveModel>[0]) {
     super(props);
     this.data = Object.assign({
       // The position of the team in the teams array post game start
@@ -384,8 +384,8 @@ export default class Team extends ActiveModel {
   setRating(rankingId, oldRating, newRating) {
     if (
       this.data.ratings?.has(rankingId) &&
-      this.data.ratings.get(rankingId)[0] === oldRating &&
-      this.data.ratings.get(rankingId)[1] === newRating
+      this.data.ratings.get(rankingId)![0] === oldRating &&
+      this.data.ratings.get(rankingId)![1] === newRating
     ) return;
 
     if (!this.data.ratings)
@@ -451,7 +451,7 @@ export default class Team extends ActiveModel {
    * This method is used to send data from the server to the client.
    */
   getData(withSet = false) {
-    const json = { ...this.data };
+    const json = { ...this.data } as any;
 
     // Only indicate presence or absence of a set, not the set itself
     if (!withSet)
@@ -467,7 +467,7 @@ export default class Team extends ActiveModel {
    * This method is used to persist the team for storage.
    */
   toJSON() {
-    const json = { ...this.data };
+    const json = { ...this.data } as any;
 
     if (json.useRandom === true)
       delete json.useRandom;

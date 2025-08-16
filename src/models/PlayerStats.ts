@@ -418,11 +418,11 @@ function _probability(rating1, rating2) {
  * @param ratingLoser
  * @param K
  */
-function _computeElo(ratingWinner, ratingLoser, K, isDraw) {
+function _computeElo(ratingWinner:number, ratingLoser:number, K:number, isDraw:boolean) {
   let pWinner = _probability(ratingLoser, ratingWinner);
   let pLoser = _probability(ratingWinner, ratingLoser);
 
-  let ratings = [];
+  let ratings:number[] = [];
   if (isDraw) {
     ratings.push(ratingWinner + K * (0.5 - pWinner));
     ratings.push(ratingLoser + K * (0.5 - pLoser));

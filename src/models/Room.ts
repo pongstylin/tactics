@@ -3,14 +3,27 @@ import { v4 as uuid } from 'uuid';
 import ActiveModel from '#models/ActiveModel.js';
 import serializer from '#utils/serializer.js';
 
+type Player = {
+  id: string;
+  name: string;
+  joinedAt?: Date;
+  lastSeenEventId?: number;
+};
+type Event = {
+  id: number
+  type: 'join' | 'message'
+  player: Player
+  createdAt: Date
+};
+
 export default class Room extends ActiveModel {
   protected data: {
-    id: string
-    applyRules: boolean
-    players: any[]
-    events: any
-    createdAt: Date
-  }
+    id: string;
+    applyRules: boolean;
+    players: Player[];
+    events: Event[];
+    createdAt: Date;
+  };
 
   constructor(data) {
     super();
@@ -21,7 +34,7 @@ export default class Room extends ActiveModel {
     };
   }
 
-  static create(players, options) {
+  static create(players:Pick<Player, 'id' | 'name'>[], options:Partial<{ id:string, applyRules:boolean }>) {
     if (players.length < 0)
       throw new Error('Requires at least one player');
 
@@ -34,23 +47,24 @@ export default class Room extends ActiveModel {
       id: options.id,
       applyRules: options.applyRules,
       players: players,
-      events: [],
+      events: [] as Event[],
       createdAt: new Date(),
     };
 
     let eventId = 1;
 
-    players.forEach(player => {
-      player.joinedAt = data.createdAt;
-      player.lastSeenEventId = 0;
+    data.players = players.map(player => Object.assign({
+      joinedAt: data.createdAt,
+      lastSeenEventId: 0,
+    }, player));
 
+    for (const player of data.players)
       data.events.push({
         id: eventId++,
         type: 'join',
         player: player,
         createdAt: data.createdAt,
       });
-    });
 
     return new Room(data);
   }
@@ -77,22 +91,22 @@ export default class Room extends ActiveModel {
     const events = this.data.events;
 
     events.push(Object.assign(message, {
-      id: events.last.id + 1,
+      id: (events as any).last.id + 1,
       type: 'message',
       createdAt: new Date(),
     }));
 
     this.emit('change:pushMessage');
 
-    this.seenEvent(message.player.id, events.last.id);
+    this.seenEvent(message.player.id, (events as any).last.id);
   }
   seenEvent(playerId, eventId) {
     const player = this.data.players.find(p => p.id === playerId);
     if (!player)
       throw new Error('The player ID does not exist in this room');
 
-    if (eventId > this.data.events.last.id)
-      eventId = this.data.events.last.id;
+    if (eventId > (this.data.events as any).last.id)
+      eventId = (this.data.events as any).last.id;
     if (eventId === player.lastSeenEventId)
       return;
 

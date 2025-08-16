@@ -43,6 +43,7 @@ services:
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION-us-east-1}
       DDB_ENDPOINT: ${DDB_ENDPOINT-http://dynamodb-local:8000}
       DDB_TABLE: ${DDB_TABLE-tactics}
+      READONLY: ${READONLY-}
 
       # SSO Configuration
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID-}

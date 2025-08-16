@@ -68,7 +68,7 @@ export default class Provider extends ActiveModel {
     // The player may only have one active link to a memberId.
     // So archive the old active link if there was one.
     if (this.reverseLinks.has(playerId))
-      this.data.links.inactive.set(this.reverseLinks.get(playerId), playerId);
+      this.data.links.inactive.set(this.reverseLinks.get(playerId)!, playerId);
 
     this.reverseLinks.set(playerId, memberId);
     this.data.links.active.set(memberId, playerId);
@@ -79,6 +79,8 @@ export default class Provider extends ActiveModel {
   }
   unlinkPlayerId(playerId) {
     const memberId = this.reverseLinks.get(playerId);
+    if (!memberId)
+      return false;
     if (!this.data.links.active.has(memberId))
       return false;
 

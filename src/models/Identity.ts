@@ -8,19 +8,26 @@ interface Relationship {
   nickname: string | null
   createdAt: Date
 }
+export type Rank = {
+  rankingId: string;
+  playerId: string;
+  name: string;
+  rating: number;
+  gameCount: number;
+};
 
 export default class Identity extends ActiveModel {
   protected data: {
-    id: string
-    name?: string
-    aliases?: Map<string,Date>
-    ranks?: {
-      playerId:number,
-      ratings:{ rankingId:string, playerId:string, name:string, rating:number, gameCount:number }[]
-    }
-    muted?: boolean
-    admin?: boolean
-    lastSeenAt: Date
+    id: string;
+    name: string | null;
+    aliases: Map<string,Date>;
+    ranks: {
+      playerId:string;
+      ratings:Rank[];
+    } | null;
+    muted: boolean;
+    admin: boolean;
+    lastSeenAt: Date;
 
     // Relationships are created by other players to this identity.
     // This allows other players to forget this identity when it is archived or deleted.
@@ -35,12 +42,16 @@ export default class Identity extends ActiveModel {
 
   constructor(data) {
     super();
-    this.data = data;
 
-    if (data.aliases === undefined)
-      data.aliases = new Map();
-    if (data.relationships === undefined)
-      data.relationships = new Map();
+    this.data = Object.assign({
+      name: null,
+      aliases: new Map(),
+      relationships: new Map(),
+      ranks: null,
+      muted: false,
+      admin: false,
+    }, data);
+
     if (data.ranks)
       data.ranks.ratings = addForteRank(data.ranks.ratings.map(r => ({
         rankingId: r.rankingId,
@@ -67,15 +78,15 @@ export default class Identity extends ActiveModel {
    * Only available to verified players
    */
   get name() {
-    return this.data.name ?? null;
+    return this.data.name;
   }
-  set name(name) {
-    if (this.name === name)
+  set name(name:string | null) {
+    if (this.data.name === name)
       return;
 
-    if (this.name !== null) {
-      this.data.aliases.delete(name);
-      this.data.aliases.set(this.name, new Date());
+    if (this.data.name !== null) {
+      this.data.aliases.delete(this.data.name);
+      this.data.aliases.set(this.data.name, new Date());
 
       if (this.data.aliases.size > 3) {
         const oldestAlias = Array.from(this.data.aliases).sort((a,b) => a[1].getTime() - b[1].getTime())[0][0];
@@ -95,7 +106,7 @@ export default class Identity extends ActiveModel {
   get admin() {
     return this.data.admin ?? false;
   }
-  set admin(admin:boolean) {
+  set admin(admin) {
     if (this.admin === admin)
       return;
     this.data.admin = admin;
@@ -104,7 +115,7 @@ export default class Identity extends ActiveModel {
   get muted() {
     return this.data.muted ?? false;
   }
-  set muted(muted:boolean) {
+  set muted(muted) {
     if (this.muted === muted)
       return;
     this.data.muted = muted;
@@ -114,7 +125,7 @@ export default class Identity extends ActiveModel {
     return this.data.lastSeenAt;
   }
   set lastSeenAt(lastSeenAt) {
-    if (+lastSeenAt <= +this.lastSeenAt)
+    if (+lastSeenAt <= +this.data.lastSeenAt)
       return;
 
     this.data.lastSeenAt = lastSeenAt;
@@ -156,7 +167,7 @@ export default class Identity extends ActiveModel {
     return ([ ...this.data.playerIds ] as any).last;
   }
 
-  getRanks(rankingIds = []) {
+  getRanks(rankingIds:string[] = []) {
     const ranks = this.data.ranks;
     if (!ranks)
       return [];
@@ -165,13 +176,13 @@ export default class Identity extends ActiveModel {
 
     return ranks.ratings.filter(r => rankingIds.includes(r.rankingId));
   }
-  setRanks(playerId, ratingsMap) {
+  setRanks(playerId:string, ratingsMap:Map<string, { rating:number, gameCount:number }>) {
     const ratings = addForteRank(Array.from(ratingsMap.entries())
       .sort((a,b) => b[1].rating - a[1].rating)
       .map(([ rId, r ]) => ({
         rankingId: rId,
         playerId,
-        name: this.name,
+        name: this.name!,
         rating: r.rating,
         gameCount: r.gameCount,
       })));
@@ -180,7 +191,7 @@ export default class Identity extends ActiveModel {
     this.pruneRanks();
     this.emit('change:setRanks');
   }
-  pruneRanks(gameTypes = null) {
+  pruneRanks(gameTypes:Map<string, GameType> | null = null) {
     gameTypes = gameTypes ? this.gameTypes = gameTypes : this.gameTypes;
 
     const ranks = this.data.ranks;
@@ -188,7 +199,7 @@ export default class Identity extends ActiveModel {
       return;
 
     const ratings = ranks.ratings.filter(r => (
-      r.rankingId === 'FORTE' || (gameTypes.has(r.rankingId) && !gameTypes.get(r.rankingId).config.archived)
+      r.rankingId === 'FORTE' || (gameTypes.has(r.rankingId) && !gameTypes.get(r.rankingId)!.config.archived)
     ));
 
     if (ratings.length === ranks.ratings.length)
@@ -198,15 +209,16 @@ export default class Identity extends ActiveModel {
     this.emit('change:pruneRanks');
   }
 
-  merge(identity) {
+  merge(identity:Identity) {
     const aliasMap = new Map([ ...this.aliases, ...identity.aliases ]) satisfies typeof this.data.aliases;
-    if (this.data.name !== identity.name) {
+    if (identity.name !== null && identity.name !== this.data.name) {
       aliasMap.delete(identity.name);
-      aliasMap.set(this.name, this.data.lastSeenAt);
+      if (this.data.name !== null)
+        aliasMap.set(this.data.name, this.data.lastSeenAt);
+      this.data.name = identity.name;
     }
     const aliases = Array.from(aliasMap).sort((a,b) => b[1].getTime() - a[1].getTime());
 
-    this.data.name = identity.name;
     this.data.aliases = new Map(aliases.slice(0, 3));
     this.data.ranks = identity.data.ranks;
 
