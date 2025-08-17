@@ -1621,7 +1621,7 @@ export default class GameState {
     this._board.setInitialState();
     this.previousTurn.isCurrent = false;
 
-    if (!this.isPracticeMode)
+    if (!this.isPracticeMode && this.currentTurnId >= this.initialTurnId)
       this.lockedTurnId = this._getLockedTurnId();
 
     if (this.timeLimit)
