@@ -11,7 +11,6 @@ const token = IdentityToken.create({
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-console.log('Authorization', `Bearer ${token}`);
 const rsp = await fetch(`${apiRoot}/promote`, {
   method: 'POST',
   headers: {
