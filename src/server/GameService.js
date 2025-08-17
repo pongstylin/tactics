@@ -552,8 +552,7 @@ export default class GameService extends Service {
 
     if (process.env.NODE_ENV !== 'development') {
       const clientPara = this.clientPara.get(client.id);
-      const player = this.auth.getOpenPlayer(clientPara.playerId);
-      if (!player.identity.admin)
+      if (!clientPara.player.identity.admin)
         throw new ServerError(403, 'You must be an admin to use this feature.');
     }
 
