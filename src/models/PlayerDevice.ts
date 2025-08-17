@@ -86,6 +86,8 @@ export default class PlayerDevice extends ActiveModel {
     // Delete the object after 3 months of inactivity
     const days = 3 * 30;
     const deviceTTL = Math.round(this.lastSeenAt.getTime() / 1000) + days * 86400;
+    if (!this.player)
+      return deviceTTL;
 
     // The device cannot live longer than the player
     return Math.min(this.player.ttl, deviceTTL);
@@ -109,7 +111,7 @@ export default class PlayerDevice extends ActiveModel {
 
   _setAgentAddress(client, lastSeenAt:Date) {
     if (this.data.agents.has(client.agent))
-      this.data.agents.get(client.agent).set(client.address, lastSeenAt);
+      this.data.agents.get(client.agent)!.set(client.address, lastSeenAt);
     else
       this.data.agents.set(client.agent, new Map([[client.address, lastSeenAt]]));
 

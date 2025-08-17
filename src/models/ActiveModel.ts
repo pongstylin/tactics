@@ -14,11 +14,14 @@ type RegEvtArgs = [EventType, EventCB]
 
 abstract class ActiveModel {
   protected abstract data: any
-  private emitter: EventEmitter
+  private emitter: EventEmitter | null
   public isClean: boolean = true
   public isPersisted: boolean = true
 
-  constructor(props = {}) {
+  constructor(props:{
+    isClean?: boolean;
+    isPersisted?: boolean;
+  } = {}) {
     Object.assign(this, {
       emitter: new EventEmitter(),
     }, props);
@@ -90,7 +93,7 @@ abstract class ActiveModel {
       throw new Error('Active model is destroyed');
 
     this.emitter.removeAllListeners();
-    delete this.emitter;
+    this.emitter = null;
   }
 }
 

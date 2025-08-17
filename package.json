@@ -17,7 +17,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "NODE_ENV=production webpack --config webpack.config.cjs",
     "clean": "rm -f src/data/ddb/shared-local-instance.db && rm -rf src/models/*.js && rm -f tsconfig.tsbuildinfo",
-    "script": "node --require dotenv/config",
+    "dinstall": "docker compose exec app npm install",
+    "script": "docker compose exec app node --require dotenv/config",
     "memscript": "node --optimize-for-size --max-old-space-size=4096 --require dotenv/config"
   },
   "imports": {
@@ -45,7 +46,7 @@
     "sass": "^1.49.9",
     "sass-loader": "^12.6.0",
     "style-loader": "^2.0.0",
-    "typescript": "^4.9.5",
+    "typescript": "^5.9.2",
     "webpack": "^5.97.1",
     "webpack-cli": "^4.10.0"
   },

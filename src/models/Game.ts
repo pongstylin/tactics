@@ -51,7 +51,7 @@ export default class Game extends ActiveModel {
   }
   protected isCancelled: boolean = false
 
-  constructor(data, props = undefined) {
+  constructor(data, props?:ConstructorParameters<typeof ActiveModel>[0]) {
     super(props);
 
     // Clear a player's rejected requests when their turn starts.
@@ -157,7 +157,7 @@ export default class Game extends ActiveModel {
     if (endedAt)
       return endedAt;
     else if (actions?.length)
-      return actions.last.createdAt;
+      return (actions as any).last.createdAt;
     else
       return turnStartedAt || createdAt;
   }
@@ -319,20 +319,22 @@ export default class Game extends ActiveModel {
 
     // Determine the team that is making the request.
     const team = state.getTeamForPlayer(request.createdBy);
+    if (!team)
+      throw new ServerError(403, 'You are not a player in this game.');
 
     request.teamId = team.id;
 
-    const canUndo = state.canUndo(team, receivedAt);
+    const canUndo = state.canUndo(team);
     if (canUndo === false)
       // The undo is rejected.
       throw new ServerError(403, 'You may not undo right now');
     else if (canUndo === true)
       // The undo is auto-approved.
-      state.undo(team, false, receivedAt);
+      state.undo(team, false);
     else if (request.rejected.has(`${request.createdBy}:${request.type}`))
       throw new ServerError(403, `Your '${request.type}' request was already rejected`);
-    else
-      return true;
+
+    return true;
   }
   submitTruceRequest(request) {
     if (request.rejected.has(`${request.createdBy}:${request.type}`))
@@ -358,7 +360,7 @@ export default class Game extends ActiveModel {
     request.accepted.add(playerId);
 
     const teams = this.data.state.teams;
-    const acceptedTeams = teams.filter(t => request.accepted.has(t.playerId));
+    const acceptedTeams = teams.filter(t => request.accepted.has(t!.playerId));
 
     this.emit({
       type: `playerRequest:accept`,
@@ -370,9 +372,9 @@ export default class Game extends ActiveModel {
       this.emit(`playerRequest:complete`);
 
       if (request.type === 'undo') {
-        teams[request.teamId].setUsedUndo();
+        teams[request.teamId]!.setUsedUndo();
 
-        this.data.state.undo(teams[request.teamId], true);
+        this.data.state.undo(teams[request.teamId]!, true);
       } else if (request.type === 'truce')
         this.data.state.end('truce');
     }
@@ -420,18 +422,18 @@ export default class Game extends ActiveModel {
     // Reorder teams based on who needs to go first.
     const teams = this.state.teams.slice();
     const units = firstTurn.units.slice();
-    for (let i = 0; i < firstTurn.team.id; i++) {
-      teams.push(teams.shift());
-      units.push(units.shift());
+    for (let i = 0; i < firstTurn.team!.id; i++) {
+      teams.push(teams.shift()!);
+      units.push(units.shift()!);
     }
 
     for (const [ teamId, team ] of teams.entries())
-      teams[teamId] = team.fork({
+      teams[teamId] = team!.fork({
         id: teamId,
-        slot: team.id,
-        position: team.position,
+        slot: team!.id,
+        position: team!.position,
         set: {
-          units: board.rotateUnits(units[teamId], board.getDegree(team.position, 'N')),
+          units: board.rotateUnits(units[teamId], board.getDegree(team!.position, 'N')),
         },
       });
 
@@ -453,7 +455,7 @@ export default class Game extends ActiveModel {
       team: teams[0],
       data: {
         units,
-        drawCounts: firstTurn.drawCounts ?? undefined,
+        drawCounts: firstTurn.drawCounts ?? null,
       },
     }));
     if (forkGame.state.timeLimit)
@@ -461,29 +463,29 @@ export default class Game extends ActiveModel {
 
     if (vs === 'yourself') {
       if (!this.state.endedAt && this.state.undoMode !== 'loose') {
-        const myTeam = this.state.teams.find(t => t.playerId === clientPara.playerId);
+        const myTeam = this.state.teams.find(t => t!.playerId === clientPara.playerId);
         if (myTeam)
           myTeam.setUsedSim();
       }
 
       for (const team of teams)
-        team.join({}, clientPara);
+        team!.join({}, clientPara);
       forkGame.state.start();
     } else {
       if (teams[as] === undefined)
         throw new ServerError(400, "Invalid 'as' option value");
 
-      teams[as].join({}, clientPara);
+      teams[as]!.join({}, clientPara);
 
       const vsIndex = (as + 1) % teams.length;
       if (vs === 'same') {
-        const opponents = teams.filter(t => t.forkOf.playerId !== clientPara.playerId);
+        const opponents = teams.filter(t => t!.forkOf.playerId !== clientPara.playerId);
         if (opponents.length !== 1)
           throw new ServerError(400, `There is no 'same' opponent`);
 
-        teams[vsIndex].reserve(opponents[0].forkOf);
+        teams[vsIndex]!.reserve(opponents[0]!.forkOf);
       } else if (vs !== 'invite')
-        teams[vsIndex].reserve(vs);
+        teams[vsIndex]!.reserve(vs);
     }
 
     return forkGame;
@@ -570,7 +572,7 @@ export default class Game extends ActiveModel {
     }
 
     if (state.recentTurns) {
-      const includeTimeLimit = !!this.state.timeLimit && this.state.teams.some(t => t.playerId === playerId);
+      const includeTimeLimit = !!this.state.timeLimit && this.state.teams.some(t => t!.playerId === playerId);
 
       state.recentTurns = state.recentTurns.map((turn, i) => turn.getDigest(i === 0, i === (state.recentTurns.length - 1), includeTimeLimit));
     }
@@ -678,7 +680,7 @@ export default class Game extends ActiveModel {
     const syncActionId = state.currentTurn.nextActionId ?? fromActionId;
 
     if (fromTurnId < toTurnId || syncActionId < fromTurn.actions.length) {
-      const events = gameData.events = [];
+      const events = gameData.events = [] as { type:string, data:any }[];
 
       // Catch up the context turn as necessary.
       if (syncActionId < fromTurn.actions.length)

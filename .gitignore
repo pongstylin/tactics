@@ -1,5 +1,5 @@
 node_modules
-.env-*
+.env*
 docker-compose.*.yml
 dist
 config/*.pem

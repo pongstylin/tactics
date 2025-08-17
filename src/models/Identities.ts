@@ -3,6 +3,9 @@ import Identity from '#models/Identity.js';
 import serializer from '#utils/serializer.js';
 import decancer from '#utils/decancer.js';
 
+import type { Rank } from '#models/Identity.ts';
+import type Player from '#models/Player.ts';
+
 export default class Identities extends ActiveModel {
   protected data: Set<string>
   protected identities: Set<Identity>
@@ -118,32 +121,41 @@ export default class Identities extends ActiveModel {
    *   Among partial matches, the smaller the name/alias the better the match.
    *   All else being equal, prefer matches on nicknames before names before aliases.
    */
-  queryRated(query, myPlayer) {
+  queryRated(query, myPlayer:Player) {
+    type Match = {
+      identityId: string;
+      playerId: string;
+      relationship: {
+        type: string;
+        name: string;
+      },
+      name: string;
+      type?: 'exact' | 'fuzzy' | 'partial' | 'none';
+      text?: string;
+      textType?: 'nickname' | 'name' | 'alias';
+    };
+
     const myIdentity = myPlayer.identity;
     const relationships = this.getRelationships(myPlayer.id);
     const curedQuery = decancer(query);
     const typeSeq = [ 'exact', 'fuzzy', 'start', 'partial' ];
     const lengthSeq = m => m.alias === undefined ? m.name.length : m.alias.length;
     const textMatchSeq = [ 'nickname', 'name', 'alias' ];
-    const matches = [];
-
-    const getMatchType = (text, match) => {
+    const applyMatchType = (text:string, match:Match) => {
       const cured = decancer(text);
 
-      if (text === query)
-        match.type = 'exact';
-      else if (cured === curedQuery)
-        match.type = 'fuzzy';
-      else if (cured.startsWith(curedQuery))
-        match.type = 'start';
-      else if (cured.includes(curedQuery))
-        match.type = 'partial';
-      else
-        match.type = 'none';
-      match.text = text;
-
-      return match;
+      return Object.assign({
+        type: (
+          text === query ? 'exact' :
+          cured === curedQuery ? 'fuzzy' :
+          cured.startsWith(curedQuery) ? 'start' :
+          cured.includes(curedQuery) ? 'partial' :
+          'none'
+        ),
+        text,
+      }, match);
     };
+    const matches:Required<Match>[] = [];
 
     for (const identity of this.identities) {
       // Ignore guest accounts since they don't have (unique) names.
@@ -152,7 +164,6 @@ export default class Identities extends ActiveModel {
       const playerId = identity.ratedPlayerId;
       if (!playerId) continue;
 
-      const identityMatches = [];
       const reverseType = myIdentity.getRelationship(playerId)?.type;
       const match = {
         identityId: identity.id,
@@ -161,8 +172,9 @@ export default class Identities extends ActiveModel {
         name: identity.name,
       };
 
+      const identityMatches:Required<Match>[] = [];
       if (match.relationship?.name !== undefined) {
-        const nickMatch = getMatchType(match.relationship.name, Object.assign({ textType:'nickname' }, match));
+        const nickMatch = Object.assign({ textType:'nickname' as const }, applyMatchType(match.relationship.name, match));
         if (nickMatch.type === 'exact') {
           matches.push(nickMatch);
           continue;
@@ -170,7 +182,7 @@ export default class Identities extends ActiveModel {
           identityMatches.push(nickMatch);
       }
 
-      const nameMatch = getMatchType(identity.name, Object.assign({ textType:'name' }, match));
+      const nameMatch = Object.assign({ textType:'name' as const }, applyMatchType(identity.name, match));
       if (nameMatch.type === 'exact') {
         matches.push(nameMatch);
         continue;
@@ -178,7 +190,7 @@ export default class Identities extends ActiveModel {
         identityMatches.push(nameMatch);
 
       for (const alias of identity.aliases.keys()) {
-        const aliasMatch = getMatchType(alias, Object.assign({ textType:'alias' }, match));
+        const aliasMatch = Object.assign({ textType:'alias' as const }, applyMatchType(alias, match));
         if (aliasMatch.type === 'exact') {
           matches.push(aliasMatch);
           continue;
@@ -262,16 +274,16 @@ export default class Identities extends ActiveModel {
       numPlayers: rs.length,
     }));
   }
-  getRanks(rankingIds = []) {
+  getRanks(rankingIds:string[] = []) {
     const identities = this.identities;
-    const ranksByRankingId = new Map(rankingIds.map(rId => [ rId, [] ]));
+    const ranksByRankingId = new Map(rankingIds.map(rId => [ rId, [] as Rank[] ]));
 
     for (const identity of identities)
       for (const rank of identity.getRanks(rankingIds))
-        if (!ranksByRankingId.has(rank.rankingId))
-          ranksByRankingId.set(rank.rankingId, [ rank ]);
+        if (ranksByRankingId.has(rank.rankingId))
+          ranksByRankingId.get(rank.rankingId)!.push(rank);
         else
-          ranksByRankingId.get(rank.rankingId).push(rank);
+          ranksByRankingId.set(rank.rankingId, [ rank ]);
 
     for (const [ rankingId, ranks ] of ranksByRankingId.entries())
       ranksByRankingId.set(
@@ -281,7 +293,7 @@ export default class Identities extends ActiveModel {
 
     return ranksByRankingId;
   }
-  getPlayerRanks(playerIds, rankingIds) {
+  getPlayerRanks(playerIds:string[], rankingIds:string[]) {
     const ranksByPlayerId = new Map();
     const ranks = Array.from(this.getRanks(rankingIds).values()).flat();
 

@@ -9,10 +9,10 @@ interface CreateProps {
     startedAt?: Date | null
     actions?: any[]
     units: any[][]
-    drawCounts?: {
+    drawCounts: {
       passedTurnCount: number
       attackTurnCount: number
-    }
+    } | null;
   }
   isCurrent?: boolean
   timeLimit?: number | null
@@ -23,10 +23,10 @@ export default class Turn extends ActiveModel {
     startedAt: Date
     actions: any[]
     units: any[][]
-    drawCounts?: {
+    drawCounts: {
       passedTurnCount: number
       attackTurnCount: number
-    }
+    } | null;
 
     // e.g. timeBuffer?: number
     [x: string]: unknown;
@@ -55,7 +55,12 @@ export default class Turn extends ActiveModel {
       _isCurrent: false,
       _timeLimit: null,
     }, props, {
-      data: props.data.clone(),
+      data: Object.assign({
+        startedAt: null,
+        actions: [],
+        units: [],
+        drawCounts: null,
+      }, props.data.clone()),
     });
 
     if (this.team)
@@ -95,7 +100,7 @@ export default class Turn extends ActiveModel {
     return (this.data.units as any).clone();
   }
   get drawCounts() {
-    return this.data.drawCounts ?? null;
+    return this.data.drawCounts;
   }
   set drawCounts(drawCounts:{ passedTurnCount:number, attackTurnCount:number } | null) {
     this.data.drawCounts = drawCounts;
@@ -112,7 +117,7 @@ export default class Turn extends ActiveModel {
     return this._isCurrent;
   }
   set isCurrent(v) {
-    this._isCurrent = this.team.isCurrent = v;
+    this._isCurrent = this.team!.isCurrent = v;
   }
   get timeLimit() {
     return this._timeLimit;
@@ -205,7 +210,7 @@ export default class Turn extends ActiveModel {
   getData() {
     const data:any = {
       id: this.id,
-      teamId: this.team.id,
+      teamId: this.team!.id,
       startedAt: this.startedAt,
       units: this.units, // a clone
       actions: this.actions, // a clone

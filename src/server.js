@@ -5,6 +5,7 @@ import '#plugins/index.js';
 
 import config from '#config/server.js';
 import AccessToken from '#server/AccessToken.js';
+import IdentityToken from '#server/IdentityToken.js';
 import createApp from '#server/createApp.js';
 import createServer from '#server/createServer.js';
 import ServerError from '#server/Error.js';
@@ -49,6 +50,32 @@ app.get(`${PATH}/status`, (req, res, next) => {
 app.post(`${PATH}/report`, (req, res) => {
   report(util.inspect(req.body, false, null));
   res.send(true);
+});
+app.post(`${PATH}/promote`, async (req, res) => {
+  const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');
+  if (!tokenValue)
+    return res.status(401).send({ error:'Authorization token is required' });
+
+  try {
+    IdentityToken.validate(tokenValue);
+  } catch (error) {
+    return res.status(401).send({ error:'Invalid authorization token' });
+  }
+
+  const token = new IdentityToken(tokenValue);
+  if (!token.claims.admin)
+    return res.status(403).send({ error:'Admin privileges are required' });
+
+  const authService = services.get('auth');
+
+  try {
+    const player = await authService.getPlayer(token.playerId);
+    player.identity.admin = true;
+  } catch (error) {
+    return res.status(404).send({ error:'Player not found' });
+  }
+
+  res.send({});
 });
 
 /*
