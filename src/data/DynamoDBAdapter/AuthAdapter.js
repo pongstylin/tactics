@@ -11,7 +11,7 @@ export default class extends DynamoDBAdapter {
     super({
       name: 'auth',
       state: {},
-      readonly: options.readonly ?? false,
+      readonly: options.readonly ?? process.env.READONLY === 'true',
       hasState: options.hasState ?? true,
       fileTypes: new Map([
         [

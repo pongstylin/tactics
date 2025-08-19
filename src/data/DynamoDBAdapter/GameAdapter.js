@@ -18,7 +18,7 @@ export default class extends DynamoDBAdapter {
   constructor(options = {}) {
     super({
       name: options.name ?? 'game',
-      readonly: options.readonly ?? false,
+      readonly: options.readonly ?? process.env.READONLY === 'true',
       hasState: options.hasState ?? true,
       fileTypes: new Map([
         [
@@ -29,6 +29,11 @@ export default class extends DynamoDBAdapter {
         [
           'playerStats', {
             saver: '_savePlayerStats',
+          },
+        ],
+        [
+          'playerStatsVS', {
+            saver: '_savePlayerStatsVS',
           },
         ],
         [
@@ -148,23 +153,18 @@ export default class extends DynamoDBAdapter {
     return this.cache.get('collection').add(collectionId, collection);
   }
 
-  async getPlayerStats(myPlayer) {
+  async getPlayerStats(myPlayer, vsPlayerIds = []) {
     const playerStats = await this._getPlayerStats(myPlayer);
+    if (vsPlayerIds.length)
+      await Promise.all(vsPlayerIds.map(vsPlayerId => this._loadPlayerStatsVS(playerStats, vsPlayerId)));
 
     this.cache.get('playerStats').add(myPlayer.id, playerStats);
     return playerStats;
   }
-  async getPlayerInfo(myPlayer, vsPlayerId) {
-    const playerStats = await this._getPlayerStats(myPlayer);
-
-    this.cache.get('playerStats').add(myPlayer.id, playerStats);
-    return playerStats.get(vsPlayerId);
-  }
   async clearPlayerWLDStats(myPlayer, vsPlayerId, gameTypeId) {
-    const playerStats = await this._getPlayerStats(myPlayer);
+    const playerStats = await this.getPlayerStats(myPlayer, [ vsPlayerId ]);
 
-    this.cache.get('playerStats').add(myPlayer.id, playerStats);
-    return playerStats.clearWLDStats(vsPlayerId, gameTypeId);
+    playerStats.clearWLDStats(vsPlayerId, gameTypeId);
   }
 
   async createGame(game) {
@@ -791,12 +791,13 @@ export default class extends DynamoDBAdapter {
       return this.buffer.get('playerStats').get(player.id);
 
     const playerStats = await this.getItem({
-      id: player.id,
       type: 'playerStats',
+      id: player.id,
       name: `player_${player.id}_stats`,
     }, { playerId:player.id }, () => PlayerStats.create(player.id));
     playerStats.player = player;
     playerStats.once('change', () => this.buffer.get('playerStats').add(player.id, playerStats));
+    playerStats.once('vs:change', e => this.buffer.get('playerStatsVS').add(`${player.id}:${e.data.vsPlayerId}`, e.data));
 
     return playerStats;
   }
@@ -805,12 +806,33 @@ export default class extends DynamoDBAdapter {
     playerStats.once('change', () => this.buffer.get('playerStats').add(playerId, playerStats));
 
     await this.putItem({
-      id: playerId,
       type: 'playerStats',
+      id: playerId,
       data: playerStats,
       // Make sure player stats expires after the player so add 1 week.
       // Add another month to avoid needing to refresh the TTL when nothing else changed.
       ttl: playerStats.ttl + (7 + 30) * 86400,
+    });
+  }
+  async _loadPlayerStatsVS(playerStats, vsPlayerId) {
+    if (vsPlayerId === playerStats.playerId || playerStats.vs.has(vsPlayerId))
+      return;
+
+    const vsStats = await this.getItem({
+      type: 'playerStats',
+      id: playerStats.playerId,
+      path: `/vs/${vsPlayerId}`,
+    }, {}, null);
+    if (vsStats)
+      playerStats.vs.set(vsPlayerId, vsStats);
+  }
+  async _savePlayerStatsVS({ playerId, vsPlayerId, vsStats }) {
+    await this.putItem({
+      type: 'playerStats',
+      id: playerId,
+      path: `/vs/${vsPlayerId}`,
+      data: vsStats,
+      ttl: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365,
     });
   }
 

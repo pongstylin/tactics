@@ -961,7 +961,7 @@ export default class GameService extends Service {
 
     return playerActivity;
   }
-  async onGetPlayerInfoRequest(client, groupPath, forPlayerId) {
+  async onGetPlayerInfoRequest(client, groupPath, vsPlayerId) {
     const gameId = groupPath.replace(/^\/games\//, '');
 
     const clientPara = this.clientPara.get(client.id);
@@ -972,27 +972,30 @@ export default class GameService extends Service {
     if (!game.state.startedAt)
       throw new ServerError(403, 'To get player info for this game, the game must first start.');
 
-    const inPlayerId = this.clientPara.get(client.id).playerId;
-    if (inPlayerId === forPlayerId)
+    const myPlayerId = this.clientPara.get(client.id).playerId;
+    if (myPlayerId === vsPlayerId)
       throw new ServerError(403, 'May not get player info for yourself.');
-    if (!game.state.teams.find(t => t.playerId === inPlayerId))
+    if (!game.state.teams.find(t => t.playerId === myPlayerId))
       throw new ServerError(403, 'To get player info for this game, you must be a participant.');
 
-    const team = game.state.teams.find(t => t.playerId === forPlayerId);
+    const team = game.state.teams.find(t => t.playerId === vsPlayerId);
     if (!team)
       throw new ServerError(403, 'To get player info for this game, they must be a participant.');
 
+    const me = clientPara.player;
+    const vsStats = (await this.data.getPlayerStats(me, [ vsPlayerId ])).vs.get(vsPlayerId);
+    if (!vsStats)
+      throw new ServerError(404, 'Player stats are unavailable.');
+
     const gameTypesById = await this.data.getGameTypesById();
-    const me = await this._getAuthPlayer(inPlayerId);
-    const them = await this._getAuthPlayer(forPlayerId);
+    const them = await this._getAuthPlayer(vsPlayerId);
     const ranks = them.identity.getRanks();
-    const globalStats = await this.data.getPlayerStats(them);
-    const localStats = await this.data.getPlayerInfo(me, forPlayerId);
+    const themStats = await this.data.getPlayerStats(them);
 
     return {
       createdAt: them.createdAt,
-      completed: globalStats.completed,
-      canNotify: await this.push.hasAnyPushSubscription(forPlayerId),
+      completed: [ themStats.numCompleted, themStats.numAbandoned ],
+      canNotify: await this.push.hasAnyPushSubscription(vsPlayerId),
       acl: new Map([
         ['me', me.acl],
         ['them', them.acl],
@@ -1013,14 +1016,14 @@ export default class GameService extends Service {
           rating: rank.rating,
           gameCount: rank.gameCount,
         })),
-        aliases: [...localStats.aliases.values()]
+        aliases: [...vsStats.aliases.values()]
           .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
           .sort((a, b) =>
             b.count - a.count || b.lastSeenAt - a.lastSeenAt
           )
           .slice(0, 10),
-        all: localStats.all,
-        style: localStats.style.get(game.state.type) ?? {
+        all: vsStats.all,
+        style: vsStats.style.get(game.state.type) ?? {
           win:  [ 0, 0 ],
           lose: [ 0, 0 ],
           draw: [ 0, 0 ],
@@ -1037,7 +1040,7 @@ export default class GameService extends Service {
 
     return {
       createdAt: player.createdAt,
-      completed: myStats.completed,
+      completed: [ myStats.numCompleted, myStats.numAbandoned ],
       isVerified: player.verified,
       stats: {
         ratings: ranks.map(rank => ({
@@ -1548,7 +1551,7 @@ export default class GameService extends Service {
   async _recordGameStats(game) {
     const playerIds = Array.from(new Set([ ...game.state.teams.map(t => t.playerId) ]));
     const players = await Promise.all(playerIds.map(pId => this._getAuthPlayer(pId)));
-    const playersStats = await Promise.all(players.map(p => this.data.getPlayerStats(p)));
+    const playersStats = await Promise.all(players.map(p => this.data.getPlayerStats(p, playerIds)));
     const playersMap = new Map(players.map(p => [ p.id, p ]));
     const playersStatsMap = new Map(playersStats.map(ps => [ ps.playerId, ps ]));
 

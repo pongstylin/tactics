@@ -4,6 +4,10 @@ migrationsByKey.set('game:/', [
   './migrations/20250628_game.js',
 ]);
 
+migrationsByKey.set('playerStats:/', [
+  './migrations/20250813_playerStats.js',
+]);
+
 export default async function migrateItem(item, props = {}) {
   const itemType = item.PK.split('#')[0];
   const key = `${itemType}:${item.SK}`;
