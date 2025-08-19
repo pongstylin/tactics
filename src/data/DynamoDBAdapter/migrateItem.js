@@ -46,7 +46,9 @@ export default async function migrateItem(item, props = {}) {
         key: 'write:' + cacheItemKey,
         method: (cacheItem.D ?? cacheItem.PD) ? '_putItem' : '_deleteItem',
         args: [ cacheItem ],
+        // Push this through as fast as possible since this is a read operation.
         priority: 1,
+        skipWait: true,
       });
     }
   }

@@ -203,7 +203,7 @@ export default class DynamoDBAdapter extends FileAdapter {
   }
   async cleanup() {
     // Remove throttling to terminate quicker
-    Atomics.store(throttle, WCU_INDEX, -500);
+    Atomics.store(throttle, WCU_INDEX, -1000);
     Atomics.notify(throttle, WCU_INDEX);
 
     // Avoid concurrent conflicts by processing all current items before flushing more.
@@ -694,7 +694,8 @@ export default class DynamoDBAdapter extends FileAdapter {
         continue;
       }
 
-      const exec = this.readonly ? Promise.resolve() : pool.exec(method, [ item ], {
+      const skipWait = op.skipWait ?? false;
+      const exec = this.readonly ? Promise.resolve() : pool.exec(method, [ item, skipWait ], {
         on: op.reject,
       });
 
