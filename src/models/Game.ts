@@ -251,20 +251,20 @@ export default class Game extends ActiveModel {
   }
 
   submitAction(playerId, actions) {
+    if (!Array.isArray(actions))
+      actions = [ actions ];
+
     if (this.data.state.endedAt)
       throw new ServerError(409, 'The game has ended');
 
     const playerRequest = this.data.playerRequest;
     // Only lock out actions made by the player that submitted a request.
-    if (playerRequest?.status === 'pending' && playerRequest.createdBy === playerId)
+    if (playerRequest?.status === 'pending' && playerRequest.createdBy === playerId && actions[0].type !== 'surrender')
       throw new ServerError(409, `A '${playerRequest.type}' request is still pending`);
 
     const myTeam = this.getTeamForPlayer(playerId);
     if (!myTeam)
       throw new ServerError(403, 'You are not a player in this game.');
-
-    if (!Array.isArray(actions))
-      actions = [ actions ];
 
     for (const action of actions) {
       if (action.type === 'surrender')
@@ -328,10 +328,11 @@ export default class Game extends ActiveModel {
     if (canUndo === false)
       // The undo is rejected.
       throw new ServerError(403, 'You may not undo right now');
-    else if (canUndo === true)
+    else if (canUndo === true) {
       // The undo is auto-approved.
       state.undo(team, false);
-    else if (request.rejected.has(`${request.createdBy}:${request.type}`))
+      return false; // Don't save the request.
+    } else if (request.rejected.has(`${request.createdBy}:${request.type}`))
       throw new ServerError(403, `Your '${request.type}' request was already rejected`);
 
     return true;
