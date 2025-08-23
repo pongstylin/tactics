@@ -13,6 +13,16 @@ export default async function (itemMap) {
       continue;
     }
 
+    stats.aliases = new Map((stats.aliases ?? []).map(kv => {
+      kv[1].lastSeenAt = new Date(kv[1].lastSeenAt);
+      return kv;
+    }));
+    stats.all.startedAt = new Date(stats.all.startedAt);
+    stats.style = new Map((stats.style ?? []).map(kv => {
+      kv[1].startedAt = new Date(kv[1].startedAt);
+      return kv;
+    }));
+
     opponents.push({
       PK: `playerStats#${data.playerId}`,
       SK: `/vs/${playerId}`,
