@@ -298,19 +298,25 @@ export default class PlayerStats extends ActiveModel {
 
     const vsStats = this.vs.get(team.playerId)!;
 
-    if (vsStats.aliases.has(team.name.toLowerCase())) {
-      const alias = vsStats.aliases.get(team.name.toLowerCase())!;
-      alias.name = team.name;
-      // Avoid double counting
-      if (!game.state.endedAt)
-        alias.count++;
-      alias.lastSeenAt = team.joinedAt!;
+    // Temporary code for debugging a production issue
+    if (typeof vsStats.aliases.has === 'function') {
+      if (vsStats.aliases.has(team.name.toLowerCase())) {
+        const alias = vsStats.aliases.get(team.name.toLowerCase())!;
+        alias.name = team.name;
+        // Avoid double counting
+        if (!game.state.endedAt)
+          alias.count++;
+        alias.lastSeenAt = team.joinedAt!;
+      } else {
+        vsStats.aliases.set(team.name.toLowerCase(), {
+          name: team.name,
+          count: 1,
+          lastSeenAt: team.joinedAt!,
+        });
+      }
     } else {
-      vsStats.aliases.set(team.name.toLowerCase(), {
-        name: team.name,
-        count: 1,
-        lastSeenAt: team.joinedAt!,
-      });
+      console.log('Warning: aliases is not a map');
+      console.log('aliases: ', typeof vsStats.aliases, vsStats.aliases);
     }
 
     if (!vsStats.style.has(game.state.type)) {
