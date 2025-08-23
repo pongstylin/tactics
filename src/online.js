@@ -655,6 +655,7 @@ function setYourGame(gameSummary) {
     gameSummary.createdBy !== authClient.playerId &&
     !gameSummary.isSimulation &&
     !oldSummary?.startedAt && gameSummary.startedAt &&
+    !gameSummary.endedAt &&
     gameSummary.currentTeam.playerId === authClient.playerId
   ) {
     const newGame = avatars.getSound('newgame').howl;
