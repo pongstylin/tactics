@@ -659,9 +659,6 @@ export default class DynamoDBAdapter extends FileAdapter {
     }
     return item;
   }
-  // No migrations yet.  The item PK and SK values will be used to determine the
-  // item type and migrate as needed.  Migrations may retrieve and mutate
-  // additional items.  The final step is normalizing the object.
   async _migrate(item, props = {}) {
     if (!(item.D ?? item.PD)) {
       console.log('Item is missing data!', item, new Error().stack);
