@@ -1,4 +1,5 @@
 import '#plugins/index.js';
+import '#models/Game.js';
 import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
 import gameTypes from '#data/files/game/game_types.json' with { type:'json' };
 import Timeout from '#server/Timeout.js';
@@ -7,14 +8,14 @@ import Timeout from '#server/Timeout.js';
 const ticker = setInterval(Timeout.tick, 5000);
 
 const gameTypeMap = new Map(gameTypes);
-const dataAdapter = new GameAdapter();
+const dataAdapter = new GameAdapter({ readonly:false });
 await dataAdapter.bootstrap();
 
 const since = process.argv[2] ? new Date(process.argv[2]) : null;
 const queue = [];
 let numProcessed = 0;
 
-// queue.push('c8eab32e-d96f-4ffa-9120-2e88abeb2faf');
+queue.push('86aab879-d074-4acf-ad98-ad6c879377f5');
 /*
 for (const gs of await dataAdapter.queryItemChildren({
   type: 'collection',
@@ -28,11 +29,13 @@ for (const gs of await dataAdapter.queryItemChildren({
     await sync();
 }
 */
+/*
 for await (const gameId of dataAdapter.listAllGameIds(since)) {
   queue.push(gameId);
   if (queue.length === 100)
     await sync();
 }
+*/
 
 if (queue.length)
   await sync();
