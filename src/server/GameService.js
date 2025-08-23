@@ -66,6 +66,7 @@ export default class GameService extends Service {
       requests: {
         // Admin actions
         resetRatings: [ 'uuid', 'string | null' ],
+        grantAvatar: [ 'uuid', 'string' ],
 
         createGame: ['string', 'game:options'],
         tagGame: ['uuid', 'game:tags'],
@@ -566,6 +567,20 @@ export default class GameService extends Service {
 
     stats.clearRatings(rankingId);
     target.identity.setRanks(targetPlayerId, stats.ratings);
+  }
+  async onGrantAvatarRequest(client, targetPlayerId, unitType) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    if (process.env.NODE_ENV !== 'development') {
+      const clientPara = this.clientPara.get(client.id);
+      if (!clientPara.player.identity.admin)
+        throw new ServerError(403, 'You must be an admin to use this feature.');
+    }
+
+    const target = await this._getAuthPlayer(targetPlayerId);
+    const avatars = await this.data.getPlayerAvatars(target);
+    avatars.grant(unitType);
   }
 
   /*
