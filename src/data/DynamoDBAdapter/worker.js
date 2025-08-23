@@ -87,7 +87,7 @@ function compress(str) {
   });
 }
 
-async function createItem(item) {
+async function createItem(item, skipWait = false) {
   item.D = compress(item.D);
   item.PD = compress(item.PD);
 
@@ -100,10 +100,12 @@ async function createItem(item) {
     ReturnItemCollectionMetrics: 'NONE',
   });
 
-  let throttleWCU = Atomics.load(throttle, WCU_INDEX);
-  while (throttleWCU >= WCU_LIMIT) {
-    Atomics.wait(throttle, WCU_INDEX, throttleWCU);
-    throttleWCU = Atomics.load(throttle, WCU_INDEX);
+  if (!skipWait) {
+    let throttleWCU = Atomics.load(throttle, WCU_INDEX);
+    while (throttleWCU >= WCU_LIMIT) {
+      Atomics.wait(throttle, WCU_INDEX, throttleWCU);
+      throttleWCU = Atomics.load(throttle, WCU_INDEX);
+    }
   }
 
   try {
@@ -117,7 +119,7 @@ async function createItem(item) {
   }
 }
 
-async function putItem(item) {
+async function putItem(item, skipWait = false) {
   item.D = compress(item.D);
   item.PD = compress(item.PD);
 
@@ -129,10 +131,12 @@ async function putItem(item) {
     ReturnItemCollectionMetrics: 'NONE',
   });
 
-  let throttleWCU = Atomics.load(throttle, WCU_INDEX);
-  while (throttleWCU >= WCU_LIMIT) {
-    Atomics.wait(throttle, WCU_INDEX, throttleWCU);
-    throttleWCU = Atomics.load(throttle, WCU_INDEX);
+  if (!skipWait) {
+    let throttleWCU = Atomics.load(throttle, WCU_INDEX);
+    while (throttleWCU >= WCU_LIMIT) {
+      Atomics.wait(throttle, WCU_INDEX, throttleWCU);
+      throttleWCU = Atomics.load(throttle, WCU_INDEX);
+    }
   }
 
   const rsp = await docClient.send(command);

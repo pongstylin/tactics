@@ -5,7 +5,6 @@ import { search } from '#utils/jsQuery.js';
 import serializer from '#utils/serializer.js';
 import FileAdapter from '#data/FileAdapter.js';
 
-import Game from '#models/Game.js';
 import GameSummary from '#models/GameSummary.js';
 import GameSummaryList from '#models/GameSummaryList.js';
 import PlayerStats from '#models/PlayerStats.js';
@@ -17,7 +16,7 @@ export default class extends FileAdapter {
   constructor(options = {}) {
     super({
       name: options.name ?? 'game',
-      readonly: options.readonly ?? false,
+      readonly: options.readonly ?? process.env.READONLY === 'true',
       hasState: options.hasState ?? true,
       fileTypes: new Map([
         [

@@ -48,7 +48,7 @@ export default class AuthService extends Service {
 
         // Admin actions
         toggleGlobalMute: [ 'uuid' ],
-        promoteToVerified: [ 'uuid' ],
+        promoteToVerified: [ 'uuid | null' ],
 
         getACL: [],
         setACL: [ 'auth:acl' ],
@@ -390,14 +390,15 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
+    const clientPara = this.clientPara.get(client.id);
+
     if (process.env.NODE_ENV !== 'development') {
-      const clientPara = this.clientPara.get(client.id);
       const player = this.data.getOpenPlayer(clientPara.playerId);
       if (!player.identity.admin)
         throw new ServerError(403, 'You must be an admin to use this feature.');
     }
 
-    const target = await this.data.getPlayer(targetPlayerId);
+    const target = await this.data.getPlayer(targetPlayerId ?? clientPara.playerId);
     if (target.verified)
       throw new ServerError(400, 'Player is already verified');
 

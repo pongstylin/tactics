@@ -4,6 +4,10 @@ migrationsByKey.set('game:/', [
   './migrations/20250628_game.js',
 ]);
 
+migrationsByKey.set('playerStats:/', [
+  './migrations/20250813_playerStats.js',
+]);
+
 export default async function migrateItem(item, props = {}) {
   const itemType = item.PK.split('#')[0];
   const key = `${itemType}:${item.SK}`;
@@ -42,7 +46,9 @@ export default async function migrateItem(item, props = {}) {
         key: 'write:' + cacheItemKey,
         method: (cacheItem.D ?? cacheItem.PD) ? '_putItem' : '_deleteItem',
         args: [ cacheItem ],
+        // Push this through as fast as possible since this is a read operation.
         priority: 1,
+        skipWait: true,
       });
     }
   }
