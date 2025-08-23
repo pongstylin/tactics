@@ -785,21 +785,22 @@ export default class extends DynamoDBAdapter {
       id: playerStats.playerId,
       path: `/vs/${vsPlayerId}`,
     }, {}, null);
-    // Temporary until I migrate
-    if (!(vsStats.aliases instanceof Map)) {
-      vsStats.aliases = new Map((vsStats.aliases ?? []).map(kv => {
-        kv[1].lastSeenAt = new Date(kv[1].lastSeenAt);
-        return kv;
-      }));
-      vsStats.all.startedAt = new Date(vsStats.all.startedAt);
-      vsStats.style = new Map((vsStats.style ?? []).map(kv => {
-        kv[1].startedAt = new Date(kv[1].startedAt);
-        return kv;
-      }));
-    }
 
-    if (vsStats)
+    if (vsStats) {
+      // Temporary until I migrate
+      if (!(vsStats.aliases instanceof Map)) {
+        vsStats.aliases = new Map((vsStats.aliases ?? []).map(kv => {
+          kv[1].lastSeenAt = new Date(kv[1].lastSeenAt);
+          return kv;
+        }));
+        vsStats.all.startedAt = new Date(vsStats.all.startedAt);
+        vsStats.style = new Map((vsStats.style ?? []).map(kv => {
+          kv[1].startedAt = new Date(kv[1].startedAt);
+          return kv;
+        }));
+      }
       playerStats.vs.set(vsPlayerId, vsStats);
+    }
   }
   async _savePlayerStatsVS({ playerId, vsPlayerId, vsStats }) {
     await this.putItem({
