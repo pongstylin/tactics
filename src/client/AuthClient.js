@@ -200,7 +200,7 @@ export default class AuthClient extends Client {
         throw error;
       });
   }
-  promoteToVerified(playerId) {
+  promoteToVerified(playerId = null) {
     return this._server.requestAuthorized(this.name, 'promoteToVerified', [ playerId ])
       .catch(error => {
         if (error === 'Connection reset')
