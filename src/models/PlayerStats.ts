@@ -131,7 +131,7 @@ export default class PlayerStats extends ActiveModel {
     ratingStats.gameCount++;
     ratingStats.updatedAt = new Date();
     ratingStats.rating = rating;
-    this.ratings.set(gameTypeId, ratingStats);
+    this.data.ratings.set(gameTypeId, ratingStats);
 
     this.emit('change:setRating');
   }
@@ -333,14 +333,11 @@ export default class PlayerStats extends ActiveModel {
     return vsStats;
   }
   _getRatingStats(rankingId:string) {
-    const ratings = this.data.ratings;
-    const ratingStats = ratings.get(rankingId) ?? {
+    return this.data.ratings.get(rankingId) ?? {
       rating: rankingId === 'FORTE' ? 0 : DEFAULT_RATING,
       gameCount: 0,
       updatedAt: new Date(),
     };
-
-    return ratingStats;
   }
 
   toJSON() {
