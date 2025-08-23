@@ -18,6 +18,7 @@
     "dist": "NODE_ENV=production webpack --config webpack.config.cjs",
     "clean": "rm -f src/data/ddb/shared-local-instance.db && rm -rf src/models/*.js && rm -f tsconfig.tsbuildinfo",
     "dinstall": "docker compose exec app npm install",
+    "daudit": "docker compose exec app npm audit fix",
     "script": "docker compose exec app node --require dotenv/config",
     "memscript": "node --optimize-for-size --max-old-space-size=4096 --require dotenv/config"
   },

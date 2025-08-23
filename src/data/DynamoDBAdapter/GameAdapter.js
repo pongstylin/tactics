@@ -460,8 +460,8 @@ export default class extends DynamoDBAdapter {
     }
 
     game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
-    if (!game.state.endedAt)
-      gameSummaryCache.set(game, GameSummary.create(game));
+    // Always set the summary even if the game ended.  We might need it to sync game summaries.
+    gameSummaryCache.set(game, GameSummary.create(game));
     this._attachGame(game);
     return game;
   }
