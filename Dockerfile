@@ -11,4 +11,8 @@ FROM node:22-alpine
 WORKDIR /app
 COPY --from=builder /app ./
 
+#RUN apk add libfaketime
+#ENV LD_PRELOAD=/usr/lib/faketime/libfaketime.so.1
+#ENV FAKETIME="-60s"
+
 CMD ["node", "--es-module-specifier-resolution=node", "src/server.js"]

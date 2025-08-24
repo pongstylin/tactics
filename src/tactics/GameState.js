@@ -818,7 +818,9 @@ export default class GameState {
   }
 
   isDrawn() {
-    if (this.currentTurnId < this.initialTurnId)
+    if (this.currentTurn === null)
+      return false;
+    if (this.currentTurnId <= this.initialTurnId)
       return false;
 
     // If all teams pass their turns 3 times, draw!
@@ -833,7 +835,7 @@ export default class GameState {
     const currentTurn = this.currentTurn;
     if (currentTurn === null)
       return;
-    if (currentTurn.id < this.initialTurnId)
+    if (this.currentTurnId <= this.initialTurnId)
       return;
 
     const previousTurn = this.previousTurn;
