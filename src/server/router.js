@@ -441,10 +441,9 @@ function send(client, message) {
   const body = message.body;
   if (session)
     message.ack = session.clientMessageId;
-
-  message.now = Date.now();
   if (body)
     message.body = serializer.transform(body);
+  message.now = Date.now();
 
   client.send(JSON.stringify(message), error => {
     if (error) {

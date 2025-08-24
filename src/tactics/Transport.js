@@ -471,7 +471,7 @@ export default class Transport {
     return turn.timeLimit;
   }
   // Ported from GameState
-  getTurnTimeRemaining(turnId = this.currentTurnId) {
+  getTurnTimeRemaining(turnId = this.currentTurnId, now = Date.now()) {
     if (!this.startedAt || this.endedAt)
       return false;
     if (!this.timeLimit)
@@ -482,7 +482,7 @@ export default class Transport {
       return null;
 
     const turnTimeLimit = this.getTurnTimeLimit(turnId);
-    const turnTimeout = turn.startedAt.getTime() + turnTimeLimit*1000 - Date.now();
+    const turnTimeout = turn.startedAt.getTime() + turnTimeLimit*1000 - now;
 
     return Math.max(0, turnTimeout);
   }

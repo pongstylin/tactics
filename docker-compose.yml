@@ -10,6 +10,9 @@ services:
     command: '-jar DynamoDBLocal.jar -sharedDb -dbPath ./data'
   app:
     image: node:22-alpine
+    #build:
+    #  dockerfile: Dockerfile
+    #  context: .
     container_name: tactics-app
     ports:
       - '${LOCAL_PORT}:${LOCAL_PORT}'
