@@ -2,6 +2,7 @@ import util from 'util';
 import { search as jp } from '@metrichor/jmespath';
 
 import '#plugins/index.js';
+import '#models/Game.js';
 import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 import serializer from '#utils/serializer.js';
 
@@ -11,5 +12,5 @@ const path = process.argv[3] ?? '$';
 const ddb = await new DynamoDBAdapter({ hasState:false, readonly:true }).bootstrap();
 const item = await ddb.getItem({ PK, SK });
 
-console.log(util.inspect(jp(serializer.transform(item), path), { depth:null, colors:true }));
+console.log(util.inspect(jp(JSON.parse(serializer.stringify(item)), path), { depth:null, colors:true }));
 ddb.cleanup();
