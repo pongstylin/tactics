@@ -225,6 +225,12 @@ export default class GameState {
     return this.currentTurn?.gameEndedAt ?? null;
   }
   get winnerId() {
+    if (this.currentTurnId === null)
+      return null;
+    // When turns are not loaded, the winnerId is available in game data.
+    if (this.turns[this.currentTurnId] === null)
+      return this._data.winnerId ?? null;
+
     const lastAction = this.currentTurn?.actions.last;
     return lastAction?.type === 'endGame' ? lastAction.winnerId : null;
   }
