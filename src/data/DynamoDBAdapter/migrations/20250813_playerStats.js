@@ -12,6 +12,9 @@ export default async function (itemMap) {
       data.ratings = stats.ratings;
       continue;
     }
+    // Ignore invalid data.
+    if (stats.completed && stats.ratings && !stats.aliases && !stats.all && !stats.style)
+      continue;
 
     stats.aliases = new Map((stats.aliases ?? []).map(kv => {
       kv[1].lastSeenAt = new Date(kv[1].lastSeenAt);
