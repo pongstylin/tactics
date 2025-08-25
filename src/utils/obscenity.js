@@ -12,6 +12,18 @@ obscenityConfig.blacklistedTerms[98].pattern.requireWordBoundaryAtStart = false;
 // Fix Buttplug detection
 obscenityConfig.blacklistedTerms[108].pattern.nodes[0].chars = 'butplug'.split('').map(c => c.charCodeAt(0));
 
+// Add Wank
+obscenityConfig.blacklistedTerms.push({
+  id: obscenityConfig.blacklistedTerms.length,
+  pattern: {
+    requireWordBoundaryAtStart: false,
+    requireWordBoundaryAtEnd: false,
+    nodes: [
+      { kind:2, chars:'wank'.split('').map(c => c.charCodeAt(0)) }
+    ],
+  },
+});
+
 const matcher = new RegExpMatcher(obscenityConfig);
 
 export default {
