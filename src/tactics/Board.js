@@ -196,9 +196,10 @@ export default class Board {
                 armor : { type:'T', x:39,  y:16, style:{ letterSpacing:1 }},
                 mArmor: { type:'T', x:70,  y:16, style:{ letterSpacing:1 }},
 
-                sfLabel: { type:'T', x:81,  y:16, style:{ fontFamily:'fontawesome' } },
-                shLabel: { type:'T', x:95,  y:16, style:{ fontFamily:'fontawesome' } },
-                shield:  { type:'T', x:115, y:16, style:{ letterSpacing:1 }},
+                sfIcon:  { type:'T', x:81,  y:16, style:{ fontFamily:'fontawesome' } },
+                sfLabel: { type:'T', x:97,  y:16, style:{ letterSpacing:1 } },
+                shIcon:  { type:'T', x:117, y:16, style:{ fontFamily:'fontawesome' } },
+                shLabel: { type:'T', x:133, y:16, style:{ letterSpacing:1 } },
               },
             },
             layer2: {
@@ -958,80 +959,85 @@ export default class Board {
       if (unit.blocking) {
         // Show shield for this turn if unit has not been attacked yet, otherwise show for next turn.
         const mBlocking = unit.mBlocking === unit.initialState.mBlocking ?? 0 ? unit.mBlocking : unit.mBlocking * 0.9;
-        const blocking = unit.blocking + mBlocking;
         const countTurns = (modifier, canContinue) => {
           let numTurns = 0;
           while (modifier && canContinue(modifier = Math.abs(modifier * 0.9) < 2 ? 0 : modifier * 0.9))
             numTurns++;
           const numCycles = numTurns / this.teamsUnits.length;
-          const intCycles = unit.team.isCurrent ? Math.ceil(numCycles) : Math.floor(numCycles);
-          return '+' + intCycles + (intCycles === 1 ? ' turn' : ' turns');
+          return unit.team.isCurrent ? Math.ceil(numCycles) : Math.floor(numCycles);
         };
 
-        els.sfLabel.text = '\uf132';
-        els.shLabel.text = unit.directional !== false ? '\uf3ed' : '';
+        els.sfIcon.text = '\uf132';
+        els.shIcon.text = unit.directional !== false ? '\uf3ed' : '';
 
         if (unit.paralyzed || unit.focusing) {
-          els.sfLabel.style.fill = '#FF4444';
-          els.shLabel.style.fill = '#FF4444';
-          els.shield.text = '—';
+          els.sfIcon.style.fill = '#FF4444';
+          els.sfLabel.text = '∞';
+          els.shIcon.style.fill = '#FF4444';
+          els.shLabel.text = '∞';
           notices.push('Vulnerable!');
         } else if (unit.blocking === 100 && unit.directional === false) {
-          els.sfLabel.style.fill = '#FFFFFF';
-          els.shield.text = '—';
+          els.sfIcon.style.fill = '#FFFFFF';
+          els.sfLabel.text = '∞';
+          els.shLabel.text = '';
         } else if (unit.team.useRandom) {
-          const willBlockSide = blocking >= 200;
-          const willBlockFront = blocking >= 100;
-          const wontBlock = blocking <= 0;
+          const willBlockSide = m => unit.blocking + m >= 200;
+          const willBlockFront = m => unit.blocking + m >= 100;
+          const wontBlock = m => unit.blocking + m <= 0;
 
-          if (willBlockSide) {
-            els.sfLabel.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
-            els.shLabel.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
-            els.shield.text = countTurns(unit.mBlocking, m => unit.blocking + m >= 200);
+          if (willBlockSide(mBlocking)) {
+            els.sfIcon.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
+            els.sfLabel.text = countTurns(unit.mBlocking, willBlockFront);
+            els.shIcon.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
+            els.shLabel.text = countTurns(unit.mBlocking, willBlockSide);
             notices.push('Guarding!');
-          } else if (willBlockFront) {
-            els.sfLabel.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
-            els.shLabel.style.fill = '#CCCC00';
-            els.shield.text = countTurns(unit.mBlocking, m => unit.blocking + m >= 100);
-          } else if (wontBlock) {
-            els.sfLabel.style.fill = '#FF4444';
-            els.shLabel.style.fill = '#FF4444';
-            els.shield.text = countTurns(unit.mBlocking, m => unit.blocking + m <= 0);
+          } else if (willBlockFront(mBlocking)) {
+            els.sfIcon.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
+            els.sfLabel.text = unit.blocking >= 100 ? '—' : countTurns(unit.mBlocking, willBlockFront);
+            els.shIcon.style.fill = '#CCCC00';
+            els.shLabel.text = '∞';
+          } else if (wontBlock(mBlocking)) {
+            els.sfIcon.style.fill = '#FF4444';
+            els.sfLabel.text = countTurns(unit.mBlocking, wontBlock);
+            els.shIcon.style.fill = '#FF4444';
+            els.shLabel.text = countTurns(unit.mBlocking, wontBlock);
             notices.push('Vulnerable!');
           } else {
-            els.sfLabel.style.fill = '#CCCC00';
-            els.shLabel.style.fill = '#CCCC00';
-            els.shield.text = '—';
+            els.sfIcon.style.fill = '#CCCC00';
+            els.sfLabel.text = '∞';
+            els.shIcon.style.fill = '#CCCC00';
+            els.shLabel.text = '∞';
           }
         } else {
-          const canBlockSide = blocking >= 100 || mBlocking >= unit.blocking;
-          const canBlockFront = blocking >= 50 || mBlocking >= unit.blocking/2;
+          const canBlockSide = m => unit.blocking + m >= 100 || m >= unit.blocking;
+          const canBlockFront = m => unit.blocking + m >= 50 || m >= unit.blocking/2;
 
-          if (canBlockSide) {
-            els.sfLabel.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
-            els.shLabel.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
-            els.shield.text =
-              unit.blocking === 100 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 100 || m >= unit.blocking);
+          if (canBlockSide(mBlocking)) {
+            els.sfIcon.style.fill = unit.blocking >= 50 ? '#FFFFFF' : '#00CC00';
+            els.sfLabel.text = unit.blocking >= 50 ? '∞' : countTurns(unit.mBlocking, canBlockFront);
+            els.shIcon.style.fill = unit.blocking >= 100 ? '#FFFFFF' : '#00CC00';
+            els.shLabel.text = unit.blocking === 100 ? '∞' : countTurns(unit.mBlocking, canBlockSide);
             if (unit.blocking < 100)
               notices.push('Guarding!');
-          } else if (canBlockFront) {
-            els.sfLabel.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
-            els.shLabel.style.fill = '#FF4444';
-            els.shield.text =
-              unit.blocking >= 50 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m >= 50 || m >= unit.blocking/2);
+          } else if (canBlockFront(mBlocking)) {
+            els.sfIcon.style.fill = unit.blocking >= 50  ? '#FFFFFF' : '#00CC00';
+            els.sfLabel.text = unit.blocking >= 50 ? '∞' : countTurns(unit.mBlocking, canBlockFront);
+            els.shIcon.style.fill = '#FF4444';
+            els.shLabel.text = '∞';
           } else {
-            els.sfLabel.style.fill = '#FF4444';
-            els.shLabel.style.fill = '#FF4444';
-            els.shield.text =
-              unit.blocking < 50 ? '—' : countTurns(unit.mBlocking, m => unit.blocking + m < 50);
+            els.sfIcon.style.fill = '#FF4444';
+            els.sfLabel.text = unit.blocking < 50 ? '∞' : countTurns(unit.mBlocking, m => !canBlockFront(m));
+            els.shIcon.style.fill = '#FF4444';
+            els.shLabel.text = unit.blocking < 100 ? '∞' : countTurns(unit.mBlocking, m => !canBlockSide(m));
             if (unit.blocking >= 50)
               notices.push('Vulnerable!');
           }
         }
       } else {
+        els.sfIcon.text = '';
         els.sfLabel.text = '';
+        els.shIcon.text = '';
         els.shLabel.text = '';
-        els.shield.text = '';
       }
 
       if (unit.title)
