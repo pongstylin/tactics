@@ -273,6 +273,10 @@ export default class extends DynamoDBAdapter {
       id: player.id,
       type: 'player',
       data: clone,
+      indexes: {
+        GPK0: 'player',
+        GSK0: `instance&${ts}`,
+      },
       ttl: clone.ttl,
     });
     if (fromFile)
@@ -457,8 +461,20 @@ export default class extends DynamoDBAdapter {
   /*
    * Not intended for use by applications.
    */
-  listAllPlayerIds() {
-    throw new Error('Not implemented');
+  async *listAllPlayerIds(since = null) {
+    const children = this._query({
+      indexName: 'GPK0-GSK0',
+      attributes: [ 'PK' ],
+      filters: {
+        GPK0: 'player',
+        GSK0: since
+          ? { gt:`instance&${since.toISOString()}` }
+          : { beginsWith:`instance&` },
+      },
+    });
+
+    for await (const child of children)
+      yield child.PK.slice(5);
   }
   listAllIdentityIds() {
     throw new Error('Not implemented');
