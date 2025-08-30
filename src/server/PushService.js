@@ -70,6 +70,7 @@ export default class PushService extends Service {
           for (const deviceId of data.deviceIds)
             this.data.setPushSubscription(playerId, deviceId, null);
 
+        // [502] The server encountered a temporary error and could not complete your request.  Please try again in 30 seconds.
         this.debug(`${notification.type}: playerId=${playerId}; deviceIds=${data.deviceIds.length}; error=[${error.statusCode}] ${error.body}`);
       })
     ));

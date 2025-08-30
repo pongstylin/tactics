@@ -269,7 +269,7 @@ export default class Transport {
             return null;
 
           // Pass control to the next team 5 seconds after the current turn ends in non-practice games.
-          if (!isPracticeMode && turn.isEnded && this.seen(team, turn.endedAt.getTime() + 5000) && Date.now() - turn.endedAt >= 5000)
+          if (!isPracticeMode && turn.isEnded && this.seen(team, turn.endedAt.getTime() + 5000) && this.now - turn.endedAt >= 5000)
             return pointer;
         } else {
           // Can't undo when team's last turn is locked.
@@ -319,7 +319,7 @@ export default class Transport {
             return pointer;
 
           // May not undo an action after 5 seconds without permission.
-          if (Date.now() - action.createdAt >= 5000)
+          if (this.now - action.createdAt >= 5000)
             return pointer;
         }
 
@@ -471,7 +471,7 @@ export default class Transport {
     return turn.timeLimit;
   }
   // Ported from GameState
-  getTurnTimeRemaining(turnId = this.currentTurnId, now = Date.now()) {
+  getTurnTimeRemaining(turnId = this.currentTurnId) {
     if (!this.startedAt || this.endedAt)
       return false;
     if (!this.timeLimit)
@@ -482,7 +482,7 @@ export default class Transport {
       return null;
 
     const turnTimeLimit = this.getTurnTimeLimit(turnId);
-    const turnTimeout = turn.startedAt.getTime() + turnTimeLimit*1000 - now;
+    const turnTimeout = turn.startedAt.getTime() + turnTimeLimit*1000 - this.now;
 
     return Math.max(0, turnTimeout);
   }
