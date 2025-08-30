@@ -518,11 +518,11 @@ export default class DynamoDBAdapter extends FileAdapter {
           if (items.has(itemKey)) {
             const item = items.get(itemKey);
             const size = calculateDocumentSize(item);
-            this.debugV(`getItem: ${keyOfItem(item)} ${size}b`);
+            this.debugV(`getItem: ${itemKey} ${size}b`);
             obj = await this._migrate(item, migrateProps);
             this.setItemMeta(obj, { item });
           } else {
-            this.debugV(`getItem: ${keyOfItem(item)} Not Found`);
+            this.debugV(`getItem: ${itemKey} Not Found`);
             obj = await this._loadItemFromFile(key, migrateProps);
 
             if (!obj) {
