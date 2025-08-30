@@ -6,6 +6,7 @@ import '#models/Game.js';
 import '#server/AccessToken.js';
 import '#models/Player.js';
 import '#models/PlayerStats.js';
+import '#models/Identity.js';
 import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 import serializer from '#utils/serializer.js';
 

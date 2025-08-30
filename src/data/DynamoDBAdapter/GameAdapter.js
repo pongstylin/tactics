@@ -598,7 +598,9 @@ export default class extends DynamoDBAdapter {
       ...children.map(c => this.putItem(c)),
       ...exChildren.map(c => this.deleteItem(c)),
     ]).then(() => {
-      this._dirtyGamesSummary.delete(game);
+      // If the game summary didn't change while saving, then it's clean now.
+      if (gameSummaryCache.get(game) === gs)
+        this._dirtyGamesSummary.delete(game);
     });
   }
   _onGameChange(game) {
