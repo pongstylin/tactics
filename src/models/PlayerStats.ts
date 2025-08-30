@@ -157,13 +157,11 @@ export default class PlayerStats extends ActiveModel {
       throw new Error('Game has not started yet');
     if (game.state.endedAt)
       throw new Error('Game already ended');
-
-    const myTeams = game.state.teams.filter(t => t.playerId === this.data.playerId);
-    if (myTeams.length === 0)
+    if (!game.state.getTeamForPlayer(this.data.playerId))
       throw new Error(`Game was not played by ${this.data.playerId}`);
 
-    // No stats for practice games.
-    if (myTeams.length === game.state.teams.length)
+    // No stats for single player games.
+    if (game.state.isSinglePlayer)
       return;
 
     for (const team of game.state.teams)
@@ -175,6 +173,9 @@ export default class PlayerStats extends ActiveModel {
       throw new Error('Game has not started yet');
     if (!game.state.endedAt)
       throw new Error('Game has not ended');
+    if (!game.state.getTeamForPlayer(this.data.playerId))
+      throw new Error(`Game was not played by ${this.data.playerId}`);
+
     // Skip WLD stats for practice games.
     if (game.state.isPracticeMode)
       return;

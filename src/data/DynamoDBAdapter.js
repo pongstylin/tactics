@@ -526,6 +526,7 @@ export default class DynamoDBAdapter extends FileAdapter {
             obj = await this._migrate(item, migrateProps);
             this.setItemMeta(obj, { item });
           } else {
+            this.debugV(`getItem: ${keyOfItem(item)} Not Found`);
             obj = await this._loadItemFromFile(key, migrateProps);
 
             if (!obj) {

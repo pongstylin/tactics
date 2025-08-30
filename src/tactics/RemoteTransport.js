@@ -79,9 +79,6 @@ export default class RemoteTransport extends Transport {
   get now() {
     return gameClient.serverNow;
   }
-  getTurnTimeRemaining(turnId = this.currentTurnId, now = this.now) {
-    return super.getTurnTimeRemaining(turnId, now);
-  }
 
   /*
    * Proxy these methods to the game client.
