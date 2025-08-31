@@ -117,6 +117,12 @@ export default class ChatService extends Service {
      */
     const memberIds = room.players.map(p => p.id);
     const players = await Promise.all(memberIds.map(id => this.auth.openPlayer(id)));
+    // Abort if the client is no longer connected.
+    if (client.closed) {
+      this.data.closeRoom(roomId);
+      return;
+    }
+
     const firstJoined = !this.roomPara.has(roomId);
     if (firstJoined) {
       const emit = async event => {
