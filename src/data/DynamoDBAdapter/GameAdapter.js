@@ -808,6 +808,8 @@ export default class extends DynamoDBAdapter {
     }
   }
   async _savePlayerStatsVS({ playerId, vsPlayerId, vsStats }) {
+    playerStats.once('vs:change', e => this.buffer.get('playerStatsVS').add(`${playerId}:${e.data.vsPlayerId}`, e.data));
+
     await this.putItem({
       type: 'playerStats',
       id: playerId,
