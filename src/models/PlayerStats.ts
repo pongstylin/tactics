@@ -173,16 +173,13 @@ export default class PlayerStats extends ActiveModel {
       throw new Error('Game has not started yet');
     if (!game.state.endedAt)
       throw new Error('Game has not ended');
-    if (!game.state.getTeamForPlayer(this.data.playerId))
+    const myTeam = game.state.getTeamForPlayer(this.data.playerId);
+    if (!myTeam)
       throw new Error(`Game was not played by ${this.data.playerId}`);
 
     // Skip WLD stats for practice games.
     if (game.state.isPracticeMode)
       return;
-
-    const myTeams = game.state.teams.filter(t => t.playerId === this.data.playerId);
-    if (myTeams.length === 0)
-      throw new Error(`Game was not played by ${this.data.playerId}`);
 
     /*
      * Determine which players played a turn.
@@ -217,10 +214,10 @@ export default class PlayerStats extends ActiveModel {
       /*
        * Collect WLD stats against the opponent.
        */
-      const myAdvantage = myTeams[0].usedUndo || myTeams[0].usedSim;
+      const myAdvantage = myTeam.usedUndo || myTeam.usedSim;
       const vsAdvantage = team.usedUndo || team.usedSim;
 
-      if (game.state.winnerId === myTeams[0].id) {
+      if (game.state.winnerId === myTeam.id) {
         // If I won with advantage, but they didn't use advantage, win is with advantage.
         const wldIndex = myAdvantage && !vsAdvantage ? 1 : 0;
         vsStats.all.win[wldIndex]++;
