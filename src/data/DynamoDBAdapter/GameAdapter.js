@@ -761,7 +761,7 @@ export default class extends DynamoDBAdapter {
     }, { playerId:player.id }, () => PlayerStats.create(player.id));
     playerStats.player = player;
     playerStats.once('change', () => this.buffer.get('playerStats').add(player.id, playerStats));
-    playerStats.once('vs:change', e => this.buffer.get('playerStatsVS').add(`${player.id}:${e.data.vsPlayerId}`, e.data));
+    playerStats.on('vs:change', e => this.buffer.get('playerStatsVS').add(`${player.id}:${e.data.vsPlayerId}`, e.data));
 
     return playerStats;
   }
@@ -791,10 +791,6 @@ export default class extends DynamoDBAdapter {
       playerStats.vs.set(vsPlayerId, vsStats);
   }
   async _savePlayerStatsVS({ playerId, vsPlayerId, vsStats }) {
-    const playerStats = this.cache.get('playerStats').get(playerId) ?? this.buffer.get('playerStats').get(playerId) ?? null;
-    if (playerStats)
-      playerStats.once('vs:change', e => this.buffer.get('playerStatsVS').add(`${playerId}:${e.data.vsPlayerId}`, e.data));
-
     await this.putItem({
       type: 'playerStats',
       id: playerId,
