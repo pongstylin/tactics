@@ -791,7 +791,9 @@ export default class extends DynamoDBAdapter {
       playerStats.vs.set(vsPlayerId, vsStats);
   }
   async _savePlayerStatsVS({ playerId, vsPlayerId, vsStats }) {
-    playerStats.once('vs:change', e => this.buffer.get('playerStatsVS').add(`${playerId}:${e.data.vsPlayerId}`, e.data));
+    const playerStats = this.cache.get('playerStats').has(playerId) ?? this.buffer.get('playerStats').has(playerId) ?? null;
+    if (playerStats)
+      playerStats.once('vs:change', e => this.buffer.get('playerStatsVS').add(`${playerId}:${e.data.vsPlayerId}`, e.data));
 
     await this.putItem({
       type: 'playerStats',
