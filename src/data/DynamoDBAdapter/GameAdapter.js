@@ -526,10 +526,7 @@ export default class extends DynamoDBAdapter {
     game.state.on('revert', () => this._getGameRecentTurns(game));
   }
   _saveGameSummary(game, force = false, ts = new Date().toISOString()) {
-    if (!force && !this._dirtyGamesSummary.has(game)) {
-      console.log('Skipping saveGameSummary for', game.id);
-      return;
-    }
+    if (!force && !this._dirtyGamesSummary.has(game)) return;
 
     const children = [];
     const exChildren = [];
