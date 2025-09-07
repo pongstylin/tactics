@@ -1173,7 +1173,10 @@ export default class ConfigureGame extends Modal {
           limit: 1,
         };
 
-        if (styleConfigData.vs === 'challenge') {
+        if (styleConfigData.vs === 'anybody') {
+          myGameQuery.filter['$.teams'] = { includes:null };
+          matchingGameQuery.filter['$.teams'] = { includes:null };
+        } else if (styleConfigData.vs === 'challenge') {
           myGameQuery.filter['$.teams[*].playerId'] = { includes:themTeam.playerId };
           matchingGameQuery.filter['$.teams[*].playerId'] = { includes:themTeam.playerId };
           // Only one challenge per style per player regardless of collection.
