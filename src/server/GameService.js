@@ -11,6 +11,8 @@ import Team from '#models/Team.js';
 import Player from '#models/Player.js';
 import PlayerStats from '#models/PlayerStats.js';
 import { search, test } from '#utils/jsQuery.js';
+import seqAsync from '#utils/seqAsync.js';
+
 import serializer, { unionType } from '#utils/serializer.js';
 
 // When the server is shut down in the middle of an auto surrender game,
@@ -1226,7 +1228,7 @@ export default class GameService extends Service {
         },
       });
 
-      playerGames.on('change', myGames.changeListener = async event => {
+      playerGames.on('change', seqAsync(async event => {
         const gameSummary = await this._cloneGameSummaryWithMeta(event.data.gameSummary ?? event.data.oldSummary, player);
 
         if (event.type === 'change:set') {
@@ -1240,7 +1242,7 @@ export default class GameService extends Service {
         const newStats = await this._getGameSummaryListStats(playerGames);
         if (newStats.waiting !== stats.waiting || newStats.active !== stats.active)
           emit({ type: 'stats', data: Object.assign(stats, newStats) });
-      });
+      }));
     }
 
     const myGames = playerPara.myGames;
@@ -1300,12 +1302,12 @@ export default class GameService extends Service {
     for (const collection of collections) {
       if (!this.collectionPara.has(collection.id)) {
         const collectionGroup = `/collections/${collection.id}`;
-        const changeListener = event => {
+        const changeListener = seqAsync(event => {
           const collectionPara = this.collectionPara.get(collection.id);
           const gameSummary = event.data.gameSummary ?? event.data.oldSummary;
           const gameSummaryByPlayer = new Map();
 
-          Promise.all(Array.from(collectionPara.clientsInfo).map(async ([ clientId, clientInfo ]) => {
+          return Promise.all(Array.from(collectionPara.clientsInfo).map(async ([ clientId, clientInfo ]) => {
             const player = this.clientPara.get(clientId).player;
 
             // A game can move from not visible to visible if a blocked game moved from waiting to active.
@@ -1353,7 +1355,7 @@ export default class GameService extends Service {
               });
             }
           }));
-        };
+        });
 
         collection.on('change', changeListener);
 
