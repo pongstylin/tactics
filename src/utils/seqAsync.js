@@ -3,7 +3,7 @@
  * @param {Function} fn The async function to be executed sequentially.
  * @returns {Function} A new function that wraps fn and executes it sequentially.
  */
-const seqAsync = (fn) => {
+export default (fn) => {
   let queue = Promise.resolve();
 
   return (...args) => {
