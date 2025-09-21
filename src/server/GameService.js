@@ -1228,7 +1228,7 @@ export default class GameService extends Service {
         },
       });
 
-      playerGames.on('change', seqAsync(async event => {
+      playerGames.on('change', myGames.changeListener = seqAsync(async event => {
         const gameSummary = await this._cloneGameSummaryWithMeta(event.data.gameSummary ?? event.data.oldSummary, player);
 
         if (event.type === 'change:set') {
