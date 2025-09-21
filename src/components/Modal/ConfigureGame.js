@@ -764,7 +764,7 @@ export default class ConfigureGame extends Modal {
 
     if (this.data.view === 'confirmBeforeJoin') {
       const gs = this.data.props.gameSummary;
-      const creatorIndex = gs.teams.findIndex(t => t.playerId === gs.createdBy);
+      const creatorIndex = gs.teams.findIndex(t => t?.playerId === gs.createdBy);
       const ranks = gs.meta.ranks[creatorIndex];
       const messages = [];
       const ratedMessage = await (async () => {
