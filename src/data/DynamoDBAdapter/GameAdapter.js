@@ -685,6 +685,7 @@ export default class extends DynamoDBAdapter {
 
     if (game.collection && !game.isReserved)
       gameSummaryListIds.set(game.collection, (() => {
+        console.log('test', game.state.endedAt, game.state.initialTurnId, game.state.currentTurnId)
         if (!game.state.endedAt)
           return true;
 
