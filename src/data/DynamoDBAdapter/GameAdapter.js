@@ -532,66 +532,68 @@ export default class extends DynamoDBAdapter {
     const exChildren = [];
     const gs = gameSummaryCache.get(game);
     const collection = gs.collection && gs.collection.split('/')[0];
+    const practice = gs.isSimulation;
+    const rated = gs.endedAt && gs.rated;
     const stageDate = (
       gs.endedAt ? `c=${gs.endedAt.toISOString()}` :
       gs.startedAt ? `b=${gs.updatedAt.toISOString()}` :
       `a=${gs.createdAt.toISOString()}`
     );
-    const practice = gs.isSimulation;
-    const rated = gs.endedAt && gs.rated;
-    children.push(...game.state.playerIds.map(pId => ({
-      id: pId,
-      type: 'playerGames',
-      childId: gs.id,
-      childType: 'gameSummary',
-      indexData: gs,
-      indexes: {
-        GPK0: 'gameSummary',
-        GSK0: `instance&${ts}`,
-        GPK1: `game#${gs.id}`,
-        GSK1: `child`,
-        LSK0: !practice ? `${stageDate}` : undefined,
-        LSK1: !practice ? `${gs.type}&${stageDate}` : undefined,
-        LSK2: rated ? `${stageDate}` : undefined,
-        LSK3: rated ? `${gs.type}&${stageDate}` : undefined,
-        LSK4: practice ? `${gs.updatedAt.toISOString()}` : undefined,
-        LSK5: practice ? `${gs.type}&${gs.updatedAt.toISOString()}` : undefined,
-      },
-    })));
-    if (collection && !game.isReserved) {
-      const discard = (() => {
-        if (!game.state.endedAt)
-          return false;
 
-        const minTurnId = game.state.initialTurnId + 3;
-        return game.state.currentTurnId < minTurnId;
-      })();
-
-      if (discard)
-        exChildren.push({
-          type: 'collection',
-          childId: gs.id,
-          childType: 'gameSummary',
-        });
-      else
-        children.push({
-          type: 'collection',
-          childId: gs.id,
-          childType: 'gameSummary',
-          indexData: gs,
-          indexes: {
-            GPK0: 'gameSummary',
-            GSK0: `instance&${ts}`,
-            GPK1: `game#${gs.id}`,
-            GSK1: `child`,
-            LSK0: `${stageDate}`,
-            LSK1: `${gs.type}&${stageDate}`,
-            LSK2: `${collection}&${stageDate}`,
-            LSK3: `${collection}&${gs.type}&${stageDate}`,
-            LSK4: rated ? `${stageDate}` : undefined,
-            LSK5: rated ? `${gs.type}&${stageDate}` : undefined,
-          },
-        });
+    for (const [ gslId, assign ] of this._getGameSummaryListIds(game)) {
+      if (gslId.startsWith('playerGames#')) {
+        if (assign)
+          children.push({
+            type: gslId,
+            childId: gs.id,
+            childType: 'gameSummary',
+            indexData: gs,
+            indexes: {
+              GPK0: 'gameSummary',
+              GSK0: `instance&${ts}`,
+              GPK1: `game#${gs.id}`,
+              GSK1: `child`,
+              LSK0: !practice ? `${stageDate}` : undefined,
+              LSK1: !practice ? `${gs.type}&${stageDate}` : undefined,
+              LSK2: rated ? `${stageDate}` : undefined,
+              LSK3: rated ? `${gs.type}&${stageDate}` : undefined,
+              LSK4: practice ? `${gs.updatedAt.toISOString()}` : undefined,
+              LSK5: practice ? `${gs.type}&${gs.updatedAt.toISOString()}` : undefined,
+            },
+          });
+        else
+          exChildren.push({
+            type: gslId,
+            childId: gs.id,
+            childType: 'gameSummary',
+          });
+      } else {
+        if (assign)
+          children.push({
+            type: 'collection',
+            childId: gs.id,
+            childType: 'gameSummary',
+            indexData: gs,
+            indexes: {
+              GPK0: 'gameSummary',
+              GSK0: `instance&${ts}`,
+              GPK1: `game#${gs.id}`,
+              GSK1: `child`,
+              LSK0: `${stageDate}`,
+              LSK1: `${gs.type}&${stageDate}`,
+              LSK2: `${collection}&${stageDate}`,
+              LSK3: `${collection}&${gs.type}&${stageDate}`,
+              LSK4: rated ? `${stageDate}` : undefined,
+              LSK5: rated ? `${gs.type}&${stageDate}` : undefined,
+            },
+          });
+        else
+          exChildren.push({
+            type: 'collection',
+            childId: gs.id,
+            childType: 'gameSummary',
+          });
+      }
     }
 
     return Promise.all([
@@ -686,8 +688,8 @@ export default class extends DynamoDBAdapter {
         if (!game.state.endedAt)
           return true;
 
-        const minTurnId = game.state.initialTurnId + 3;
-        return game.state.currentTurnId < minTurnId;
+        const minTurnId = game.state.initialTurnId + 2;
+        return game.state.currentTurnId > minTurnId;
       })());
 
     if (game.state.rated && game.state.endedAt)
