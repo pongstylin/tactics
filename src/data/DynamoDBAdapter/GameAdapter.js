@@ -685,12 +685,11 @@ export default class extends DynamoDBAdapter {
 
     if (game.collection && !game.isReserved)
       gameSummaryListIds.set(game.collection, (() => {
-        console.log('test', game.state.endedAt, game.state.initialTurnId, game.state.currentTurnId)
         if (!game.state.endedAt)
           return true;
 
-        const minTurnId = game.state.initialTurnId + 3;
-        return game.state.currentTurnId < minTurnId;
+        const minTurnId = game.state.initialTurnId + 2;
+        return game.state.currentTurnId > minTurnId;
       })());
 
     if (game.state.rated && game.state.endedAt)
@@ -703,7 +702,6 @@ export default class extends DynamoDBAdapter {
         ]).flat(),
       ].forEach(gslId => gameSummaryListIds.set(gslId, true));
 
-    console.log('_getGameSummaryListIds', game.id, gameSummaryListIds, new Error().stack);
     return gameSummaryListIds;
   }
   /*
