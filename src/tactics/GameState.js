@@ -1004,6 +1004,9 @@ export default class GameState {
     return Math.max(0, turnTimeout);
   }
 
+  /*
+   * This method is only used to determine if a team saw the game at all before it ended.
+   */
   teamHasSeen(team) {
     if (!this.endedAt)
       return null;
@@ -1018,7 +1021,7 @@ export default class GameState {
     if (this.currentTurn.actions.some(a => a.teamId === team.id && !a.forced))
       return true;
 
-    return team.seen(Math.max(this.startedAt, this.endedAt - 10000));
+    return team.seen(this.startedAt, this.endedAt - 10000);
   }
   teamHasPlayed(team) {
     if (!this.endedAt)

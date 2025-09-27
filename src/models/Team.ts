@@ -346,25 +346,27 @@ export default class Team extends ActiveModel {
   }
 
   /*
-   * Check a date to see if the team has checked in since then.
+   * Determine if a team has checked in since a given dateStart.
+   * Optionally, we can set a cut-off dateEnd instead of current date.
    */
-  seen(date) {
-    if (!date)
+  seen(dateStart:Date | number, dateEnd?:Date | number) {
+    if (!dateStart)
       return false;
+
+    if (dateStart instanceof Date)
+      dateStart = dateStart.getTime();
+    if (dateEnd instanceof Date)
+      dateEnd = dateEnd.getTime();
 
     if (this.checkinAt === null)
       return false;
 
-    if (this.checkoutAt === null)
-      // If never checked out, checkin must be <= the date to have seen it.
-      return this.checkinAt <= date;
-
-    // If checked out right now, date is seen if checked out after
-    if (this.checkoutAt > this.checkinAt)
-      return this.checkoutAt >= date;
-
-    // If checked in right now, date is seen if it isn't in the future.
-    return Date.now() > date;
+    return (Number as any).rangeOverlaps(
+      this.checkinAt.getTime(),
+      this.checkoutAt?.getTime() ?? Date.now(),
+      dateStart,
+      dateEnd ?? Date.now(),
+    );
   }
 
   setUsedUndo() {
