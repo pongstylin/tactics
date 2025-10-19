@@ -1412,7 +1412,8 @@ export default class Game {
     }
 
     const showResult = async result => {
-      if (result.type === 'summon') return;
+      // The 2nd condition is meant to skip changing a Shrub to a Rageweed.
+      if (result.type === 'summon' || action.unit.type === 'Furgon' && result.unit !== action.unit) return;
 
       const anim = new Tactics.Animation({ speed });
       const changes = Object.assign({}, result.changes);

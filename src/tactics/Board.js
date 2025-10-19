@@ -267,7 +267,7 @@ export default class Board {
    *
    * Code must be as optimized as possible.
    */
-  getTileRange(start, min, max, isUnassigned) {
+  getTileRange(start, min, max, isUnassigned = null) {
     let tiles = this.tiles;
     let ylb = Math.max(0,  start.y - max);     // Y Lower-Bound (inclusive)
     let yub = Math.min(10, start.y + max) + 1; // Y Upper-Bound (exclusive)
@@ -811,19 +811,26 @@ export default class Board {
     return new PIXI.Sprite(healthBarData.texture);
   }
   drawHealth(unit) {
-    const currentHealth = Math.max(0, unit.health + unit.mHealth);
-    const healthRatio = currentHealth / unit.health;
+    const baseHealth = unit.health;
+    const currentHealth = Math.max(0, baseHealth + unit.mHealth);
+    const healthRatio = baseHealth ? currentHealth / baseHealth : 1;
+    const baseLifespan = unit.lifespan;
+    const currentLifespan = Math.max(0, baseLifespan + unit.mLifespan);
+    const lifespanRatio = baseLifespan < Infinity ? currentLifespan / baseLifespan : 1;
+    const ratio = Math.min(healthRatio, lifespanRatio);
+
+    // Determine the health bar colors
     const toColorCode = num => '#' + parseInt(num).toString(16);
-    const gradientStartColor = Tactics.utils.getColorStop(0xFF0000, 0xc2f442, healthRatio);
+    const gradientStartColor = Tactics.utils.getColorStop(0xFF0000, 0xc2f442, ratio);
     const gradientShineColor = Tactics.utils.getColorStop(gradientStartColor, 0xFFFFFF, 0.7);
     const gradientEndColor = gradientStartColor;
 
     // Create the health bar sprites
     let healthBarSprite;
-    if (healthRatio > 0)
+    if (ratio > 0)
       healthBarSprite = this.createGradientSpriteForHealthBar({
         id:         'healthBar',
-        size:       healthRatio,
+        size:       ratio,
         startColor: toColorCode(gradientStartColor),
         shineColor: toColorCode(gradientShineColor),
         endColor:   toColorCode(gradientEndColor),
@@ -848,7 +855,7 @@ export default class Board {
       fill: 'white',
     };
     const currentHealthText = new PIXI.Text({
-      text: currentHealth,
+      text: unit.health ? currentHealth : '—',
       style: textOptions,
     });
     currentHealthText.x = 28;
@@ -861,7 +868,7 @@ export default class Board {
     dividedByText.x = 27;
     dividedByText.y = -16;
     const totalHealthText = new PIXI.Text({
-      text: unit.health,
+      text: baseHealth ? baseHealth : '—',
       style: textOptions,
     });
     totalHealthText.x = 34;
@@ -935,6 +942,14 @@ export default class Board {
 
       if (unit.mRecovery)
         notices.push('Wait '+unit.mRecovery+' Turn'+(unit.mRecovery > 1 ? 's' : '')+'!');
+
+      if (unit.mLifespan < 0) {
+        const numTurns = unit.lifespan + unit.mLifespan - 1;
+        if (numTurns === 0)
+          notices.push('Last Turn !');
+        else
+          notices.push(`${numTurns} Turn${numTurns === 1 ? '' : 's'} Left !`);
+      }
 
       if (unit.poisoned)
         notices.push('Poisoned!');

@@ -34,7 +34,11 @@ export default class Unit {
       focused:   false,
       draggable: false,
 
+      health:    data.health ?? 0,
+      lifespan:  data.lifespan ? data.lifespan * board.teams.length : Infinity,
+
       mHealth:   0,
+      mLifespan: 0,
       mBlocking: 0,
       mPower:    0,
       mArmor:    0,
@@ -339,6 +343,10 @@ export default class Unit {
     }
 
     return calc;
+  }
+
+  getMoveResults(action) {
+    return [];
   }
   /*
    * An attack might affect multiple targets at the same time.  So, it doesn't
@@ -1375,7 +1383,7 @@ export default class Unit {
 
     // Render stagger animation before the effect so that it may be colored
     let targetUnit = target.assigned;
-    if (!isHit && targetUnit && targetUnit.type === 'Shrub')
+    if (!isHit && targetUnit && targetUnit.type === 'Shrub' && targetUnit.name !== 'Golden Shrub')
       targetUnit = null;
 
     if (targetUnit) {
@@ -1682,6 +1690,8 @@ export default class Unit {
       notice = calc.effect.toUpperCase('first')+'!';
     else if (calc.miss === 'immune')
       notice = 'Immune!';
+    else if (!targetUnit.health)
+      notice = `Destroy!`;
     else if (calc.damage === 0)
       notice = `No Damage!`;
     else if (calc.damage < 0)
@@ -1811,6 +1821,8 @@ export default class Unit {
         action.direction = direction;
     }
 
+    action.results = this.getMoveResults(action);
+
     return action;
   }
   validateAttackAction(validate) {
@@ -1933,6 +1945,7 @@ export default class Unit {
     const properties = [
       'disposition',
       'mHealth',
+      'mLifespan',
       'mBlocking',
       'mPower',
       'mArmor',
