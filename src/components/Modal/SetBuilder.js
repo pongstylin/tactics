@@ -446,12 +446,12 @@ export default class SetBuilder extends Modal {
     const animDeath = new Tactics.Animation();
     const deadUnits = [];
     const killUnit = unit => {
-      if (unit.mHealth === -unit.health)
+      if (unit.disposition === 'dead')
         return;
       if (unit === board.selected)
         this.selected = null;
 
-      unit.change({ mHealth:-unit.health });
+      unit.change({ disposition:'dead' });
       unit.assignment.set_interactive(false);
       deadUnits.push(unit);
       animDeath.splice(0, unit.animDie());
@@ -481,7 +481,7 @@ export default class SetBuilder extends Modal {
   removeUnit(unit) {
     const board = this._board;
 
-    unit.change({ mHealth:-unit.health });
+    unit.change({ disposition:'dead' });
     board.dropUnit(unit);
 
     this._setUnitsState();
@@ -490,7 +490,7 @@ export default class SetBuilder extends Modal {
     const auditUnits = [];
 
     this._team.units.forEach(unit => {
-      if (unit.mHealth === -unit.health) return;
+      if (unit.disposition === 'dead') return;
 
       const tiles = this._getAvailableTiles(unit.type);
       if (!tiles.has(unit.assignment))

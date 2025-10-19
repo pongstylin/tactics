@@ -688,7 +688,7 @@ export default class GameState {
        */
       if (action.type === 'attack' || action.type === 'attackSpecial') {
         const forceEndTurn = () => {
-          if (unit.mHealth === -unit.health)
+          if (unit.disposition === 'dead')
             return true;
           if (unit.focusing)
             return true;
@@ -1420,7 +1420,7 @@ export default class GameState {
         const result = { unit, changes:{} };
 
         if (losingTeams.includes(team)) {
-          result.changes.mHealth = -unit.health;
+          result.changes.disposition = 'dead';
           results.push(result);
           continue;
         }
@@ -1544,7 +1544,7 @@ export default class GameState {
     const board = this._board;
 
     return team.units.map(unit => {
-      const result = { unit, changes:{ mHealth:-unit.health } };
+      const result = { unit, changes:{ disposition:'dead' } };
       const subResults = [];
 
       // Most attacks break the focus of focusing units.

@@ -349,7 +349,7 @@ export default class GameType {
         const units = board.teamsUnits[0].filter(u => u.type === adjacentTo.type);
         for (let j = 0; j < units.length; j++) {
           const unit = units[j];
-          if (unit.mHealth === -unit.health) continue;
+          if (unit.disposition === 'dead') continue;
 
           const context = unit.assignment;
           if (!adjacentLimit.has(context)) continue;

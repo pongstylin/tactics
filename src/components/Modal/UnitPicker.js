@@ -106,7 +106,7 @@ export default class UnitPicker extends Modal {
     };
 
     for (const unit of units) {
-      if (unit.mHealth === -unit.health) continue;
+      if (unit.disposition === 'dead') continue;
 
       if (unitCounts.has(unit.type))
         unitCounts.set(unit.type, unitCounts.get(unit.type) + 1);

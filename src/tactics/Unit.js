@@ -363,8 +363,10 @@ export default class Unit {
 
     return calcs.map(([targetUnit, calc]) => {
       const result = this.getAttackResult(action, targetUnit, calc);
-      board.applyActionResults([result]);
+      board.applyActionResults([ result ]);
       this.getAttackSubResults(result);
+      // Reapply the result since getDeadResult can modify it.
+      board.applyActionResults([ result ]);
       return result;
     });
   }
@@ -395,8 +397,11 @@ export default class Unit {
     if (random.number < calc.chance) {
       result.damage = calc.damage;
       result.changes = {};
-      if (result.damage)
+      if (result.damage) {
         result.changes.mHealth = Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage));
+        if (result.changes.mHealth === 0)
+          delete result.changes.mHealth;
+      }
       if (calc.bonus)
         result.changes.mBlocking = unit.mBlocking += calc.bonus;
 
@@ -409,7 +414,7 @@ export default class Unit {
         result.changes = {};
 
         if (unit.directional !== false) {
-          let direction = this.board.getDirection(unit.assignment, this.assignment, unit.direction);
+          const direction = this.board.getDirection(unit.assignment, this.assignment, unit.direction);
           if (direction !== unit.direction)
             result.changes.direction = unit.direction = direction;
         }
@@ -429,7 +434,6 @@ export default class Unit {
 
     const board = this.board;
     const unit = result.unit;
-    const changes = result.changes;
     const subResults = result.results || [];
 
     // Most attacks break the focus of focusing units.
@@ -449,7 +453,7 @@ export default class Unit {
       }
     }
 
-    if (unit.mHealth === -unit.health) {
+    if (unit.getDeadResult(this, result)) {
       board.trigger({
         type: 'dropUnit',
         unit,
@@ -506,8 +510,18 @@ export default class Unit {
 
     if (subResults.length)
       result.results = subResults;
+  }
+  getDeadResult(attacker, result) {
+    if (![ 'melee', 'magic' ].includes(attacker.aType)) return false;
 
-    board.applyActionResults(result.results);
+    const health = this.health ?? 0;
+    const mHealth = result.changes?.mHealth ?? 0;
+
+    if (mHealth > -health) return false;
+
+    result.changes ??= {};
+    result.changes.disposition = 'dead';
+    return true;
   }
   /*
    * Before drawing a unit, it must first have an assignment and direction.
@@ -608,7 +622,7 @@ export default class Unit {
     if (!this._sprite)
       this._sprite = Tactics.getSprite(this.spriteSource);
 
-    let frame = this._sprite.renderFrame({
+    const frame = this._sprite.renderFrame({
       actionName,
       direction,
       frameId,
@@ -616,9 +630,9 @@ export default class Unit {
       fixup: this.fixupFrame.bind(this),
     });
 
-    let focusContainer = this.getContainerByName('Focus');
+    const focusContainer = this.getContainerByName('Focus');
     if (focusContainer) {
-      let shadowContainer = this.getContainerByName(this.shadowSprite, frame.container);
+      const shadowContainer = this.getContainerByName(this.shadowSprite, frame.container);
       shadowContainer.addChild(focusContainer);
     }
 
@@ -916,7 +930,7 @@ export default class Unit {
     return this._stopPulse();
   }
   change(changes) {
-    let dirty = Object.keys(changes).findIndex(k => changes[k] !== this[k]) > -1;
+    const dirty = Object.keys(changes).some(k => changes[k] !== this[k]);
     if (dirty) {
       Object.assign(this, changes);
 
@@ -998,9 +1012,9 @@ export default class Unit {
     this._animActivateBarrier = null;
   }
   animFocus() {
-    let anim   = new Tactics.Animation();
-    let alphas = [0.25, 0.50, 0.75, 1];
-    let focus  = this.getContainerByName('Focus');
+    const anim = new Tactics.Animation();
+    const alphas = [0.25, 0.50, 0.75, 1];
+    let focus = this.getContainerByName('Focus');
 
     if (!focus)
       anim.addFrame(() => {
@@ -1314,24 +1328,23 @@ export default class Unit {
     return anim;
   }
   animAttack(action) {
-    let anim = this.renderAnimation('attack', action.direction);
-    let spriteAction = this._sprite.getAction('attack');
-    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
+    const anim = this.renderAnimation('attack', action.direction);
+    const spriteAction = this._sprite.getAction('attack');
+    const effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
 
     anim.addFrame(() => this.stand());
 
     let targets = [];
     if (this.aLOS === true) {
-      let targetUnit = this.getLOSTargetUnit(action.target);
+      const targetUnit = this.getLOSTargetUnit(action.target);
       if (targetUnit)
         targets.push(targetUnit.assignment);
-    }
-    else
+    } else
       targets = this.getTargetTiles(action.target);
 
     targets.forEach(target => {
-      let result = action.results.find(r => r.unit === target.assigned);
-      let isHit = result && !result.miss;
+      const result = action.results.find(r => r.unit === target.assigned);
+      const isHit = result && !result.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -1369,16 +1382,14 @@ export default class Unit {
             scripts: [],
             repeat: reactOffset - anim.frames.length,
           });
-      }
-      else
+      } else
         anim.addFrame([]);
 
       let offsetRatio;
       if (!isHit) {
         anim.splice(targetUnit.animMiss(this, effect.type));
         offsetRatio = 0.50;
-      }
-      else if (targetUnit !== this) {
+      } else if (targetUnit !== this) {
         anim.splice(-1, targetUnit.animHit(this, effect.type, effect.silent));
         offsetRatio = 0.25;
       }
@@ -1400,8 +1411,7 @@ export default class Unit {
           );
           // Shrubs are short, so lower the offset further
           offset[1] += 7;
-        }
-        else
+        } else
           offset = board.getOffset(
             offsetRatio,
             board.getDirection(
@@ -1411,8 +1421,7 @@ export default class Unit {
             ),
           );
       }
-    }
-    else
+    } else
       anim.addFrame([]);
 
     // Some effects aren't dispayed if no unit is impacted
@@ -1582,8 +1591,8 @@ export default class Unit {
     if (this.canSpecial() && (target ?? targetUnit.assignment) === this.assignment && !stats)
       return this.setSpecialTargetNotice(targetUnit);
 
-    let calc = this.calcAttack(targetUnit, null, target, stats);
-    let chance =
+    const calc = this.calcAttack(targetUnit, null, target, stats);
+    const chance =
       calc.chance === 100 ? 'Hit' :
       calc.chance === 0 ? `${calc.miss.toUpperCase('first')}` :
       `${Math.min(99, Math.max(1, Math.round(calc.chance)))}%`;
@@ -1768,7 +1777,7 @@ export default class Unit {
     return action;
   }
   validateAttackSpecialAction(validate) {
-    let action = { type:'attackSpecial', unit:validate.unit };
+    const action = { type:'attackSpecial', unit:validate.unit };
 
     if (!this.canSpecial())
       return null;
@@ -1877,7 +1886,7 @@ export default class Unit {
    * If the filter name already exists, it just returns it.
    */
   _setFilter(name, type) {
-    let filters = this.filters;
+    const filters = this.filters;
 
     if (type) {
       if (!(name in filters)) {
@@ -1888,15 +1897,14 @@ export default class Unit {
         else
           throw new Error(`Unsupported filter: ${name}`);
 
-        let unitContainer = this.getContainerByName(this.unitSprite);
+        const unitContainer = this.getContainerByName(this.unitSprite);
         unitContainer.filters = Object.values(filters);
       }
-    }
-    else {
+    } else {
       if (name in filters) {
         delete filters[name];
 
-        let unitContainer = this.getContainerByName(this.unitSprite);
+        const unitContainer = this.getContainerByName(this.unitSprite);
         if (unitContainer.filters.length > 1)
           unitContainer.filters = Object.values(filters);
         else

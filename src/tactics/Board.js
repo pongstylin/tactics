@@ -920,9 +920,9 @@ export default class Board {
       els.healthBar.addChild(this.drawHealth(unit));
 
       //
-      //  Status Detection
+      // Status Detection
       //
-      if (unit.mHealth === -unit.health) {
+      if (unit.disposition === 'dead') {
         if (unit.type === 'ChaosSeed')
           notice = 'Hatched!';
         else
@@ -945,7 +945,8 @@ export default class Board {
           notices.push('Enraged!');
         else if (unit.type === 'Furgon' && unit.mRecovery <= unit.recovery)
           notices.push('Empowered!');
-      }
+      } else if (unit.disposition)
+        notices.push(unit.disposition.toUpperCase('first') + '!');
 
       if (unit.focusing)
         notices.push('Focused!');
@@ -1315,16 +1316,15 @@ export default class Board {
     if (unit.assignment)
       unit.assignment.dismiss();
 
-    let unitsContainer = this.unitsContainer;
-    if (unitsContainer) {
+    const unitsContainer = this.unitsContainer;
+    if (unitsContainer)
       unitsContainer.removeChild(unit.pixi);
-    }
 
     return this;
   }
 
   applyAction(action) {
-    let unit = action.unit;
+    const unit = action.unit;
 
     if (unit) {
       if (action.assignment)
@@ -1336,21 +1336,12 @@ export default class Board {
     }
 
     this.applyActionResults(action.results);
-
-    // Remove dead units.
-    this.teamsUnits.flat().forEach(unit => {
-      // Chaos Seed doesn't die.  It hatches.
-      if (unit.type === 'ChaosSeed') return;
-
-      if (unit.mHealth === -unit.health)
-        this.dropUnit(unit);
-    });
   }
   applyActionResults(results) {
     if (!results) return;
 
     results.forEach(result => {
-      let unit = result.unit;
+      const unit = result.unit;
 
       if (result.type === 'summon') {
         // Add a clone of the unit so that the original unit remains unchanged
@@ -1379,7 +1370,9 @@ export default class Board {
             delete changes.type;
           }
 
-          if (Object.keys(changes).length)
+          if (changes.disposition === 'dead')
+            this.dropUnit(unit);
+          else if (Object.keys(changes).length)
             unit.change(changes);
         }
       }
@@ -1505,8 +1498,7 @@ export default class Board {
           if (unit.direction)
             unit.direction = this.getRotation(unit.direction, degree);
           unit.assignment = this.getTileRotation(unit.assignment, degree).coords;
-        }
-        else
+        } else
           encoded.unit = encoded.unit.id;
       if (encoded.assignment !== undefined)
         encoded.assignment = this.getTileRotation(encoded.assignment, degree).coords;
@@ -1542,19 +1534,18 @@ export default class Board {
    * Decode unit and tile references by modifying original object.
    */
   decodeAction(action) {
-    let degree = this.getDegree('N', this.rotation);
-    let units = this.teamsUnits.flat();
-    let decode = obj => {
-      let decoded = {...obj};
+    const degree = this.getDegree('N', this.rotation);
+    const units = this.teamsUnits.flat();
+    const decode = obj => {
+      const decoded = {...obj};
 
       if ('unit' in decoded) {
         if (obj.type === 'summon') {
-          let unit = decoded.unit = this.makeUnit(decoded.unit);
+          const unit = decoded.unit = this.makeUnit(decoded.unit);
           if (unit.directional !== false)
             unit.direction = this.getRotation(unit.direction, degree);
           unit.assignment = this.getTileRotation(unit.assignment, degree);
-        }
-        else
+        } else
           decoded.unit = units.find(u => u.id === decoded.unit);
       }
       if (decoded.assignment !== undefined)

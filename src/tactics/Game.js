@@ -1399,7 +1399,13 @@ export default class Game {
 
       // Changed separately
       const mHealth = changes.mHealth;
-      delete changes.mHealth;
+      if (mHealth !== undefined)
+        delete changes.mHealth;
+
+      // Apply a disposition at the end of a health change, if any
+      const disposition = mHealth === undefined ? undefined : changes.disposition;
+      if (disposition !== undefined)
+        delete changes.disposition;
 
       let unit = result.unit;
       if (changes.type) {
@@ -1434,7 +1440,7 @@ export default class Game {
           anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
-      } else if (unit.type === 'Shrub' && mHealth === -unit.health)
+      } else if (unit.type === 'Shrub' && unit.disposition === 'dead')
         // Don't show shrub death.  They are broken apart during attack.
         return anim.play();
       else if ('armored' in changes)
@@ -1446,17 +1452,17 @@ export default class Game {
         await sleep(2000 / speed);
 
       if (result.miss) {
-        let notice = result.miss.toUpperCase('first')+'!';
+        const notice = result.miss.toUpperCase('first')+'!';
 
         unit.change({ notice });
-        let caption = result.notice || notice;
+        const caption = result.notice || notice;
         anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
       }
 
       if (changes.paralyzed) {
-        let caption = result.notice || 'Paralyzed!';
+        const caption = result.notice || 'Paralyzed!';
         anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
@@ -1465,22 +1471,20 @@ export default class Game {
       // Only animate health loss and death if unit is still on the board.
       // A knight consumed by hatched Chaos Dragon would not still be on the board.
       if (mHealth !== undefined && unit.assignment) {
-        let increment;
-        let options = {};
+        const options = {};
 
         if (mHealth > unit.mHealth)
           options.color = '#00FF00';
         else if (mHealth < unit.mHealth && mHealth > -unit.health)
           options.color = '#FFBB44';
 
-        let diff = unit.mHealth - mHealth;
+        const diff = unit.mHealth - mHealth;
 
         if (changes.poisoned) {
-          let caption = result.notice || 'Poisoned!';
+          const caption = result.notice || 'Poisoned!';
           anim.splice(0, unit.animCaption(caption));
-        }
-        else {
-          let caption = result.notice || Math.abs(
+        } else {
+          const caption = result.notice || Math.abs(
             result.damage === undefined ? diff : result.damage,
           ).toString();
           anim.splice(0, unit.animCaption(caption, options));
@@ -1499,19 +1503,22 @@ export default class Game {
                     progress = Math.min(mHealth, progress);
                   else
                     progress = Math.max(mHealth, progress);
-                }
-                else
+                } else
                   progress += (diff / 8) * -1;
 
                 unit.change({
                   mHealth: Math.round(progress),
+                  disposition: null,
                 });
               },
               repeat: 8,
             },
             // Pause to reflect upon the new health amount
             {
-              script: () => {},
+              script: () => {
+                if (disposition !== undefined)
+                  unit.change({ disposition });
+              },
               repeat: 6,
             },
           ]);
@@ -1542,7 +1549,7 @@ export default class Game {
       let changes = result.changes;
       if (!changes) continue;
 
-      if (changes.mHealth === -unit.health)
+      if (changes.disposition === 'dead')
         deadUnits.set(unit, result);
     }
 
@@ -1661,7 +1668,7 @@ export default class Game {
     anim.splice(deathAnim);
 
     // Show the notice for 2 seconds.
-    let ts = new Date();
+    const ts = new Date();
     this.notice = `${team.colorId} Surrenders!`;
 
     await anim.play();
