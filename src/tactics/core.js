@@ -118,6 +118,24 @@ window.Tactics = (function () {
 
         spriteData.name = effectType;
 
+        if (unitDataMap.has(effectType)) {
+          const unitData = unitDataMap.get(effectType);
+          if (unitData.sounds)
+            for (let name of Object.keys(unitData.sounds)) {
+              let sound = unitData.sounds[name];
+              if (typeof sound === 'string')
+                sound = { src:sound };
+
+              sound.name = name;
+              if (!sound.src.startsWith('sprite:'))
+                sound.src = new URL(`${sound.src}.mp3`, baseSoundURL);
+
+              unitData.sounds[name] = sound;
+
+              spriteData.sounds.push(sound);
+            }
+        }
+
         progress++;
         cb(
           0.30 + progress / effectTypes.length * 0.20,
@@ -138,7 +156,6 @@ window.Tactics = (function () {
           `Loading ${unitType}...`
         );
 
-        let unitData = unitDataMap.get(unitType);
         try {
           await AnimatedSprite.load(unitType);
         } catch (e) {

@@ -24,9 +24,6 @@ export default class AnimatedSprite {
     const spriteData = this.dataMap.get(spriteName);
     const promises = [];
 
-    if (spriteData.imports)
-      promises.push(...spriteData.imports.map(importData => this.load(importData)));
-
     if (spriteData.images) {
       const imagePromises = spriteData.images.map(() => new Promise());
 
@@ -129,9 +126,9 @@ export default class AnimatedSprite {
               },
             });
           });
-        } else if (isSpriteURI)
+        } else if (isSpriteURI) {
           soundData.howl = AnimatedSprite.get(soundData.src).howl;
-        else
+        } else
           soundPromises.reject('Unsupported sound source');
 
         delete soundData.src;
@@ -145,6 +142,11 @@ export default class AnimatedSprite {
     await Promise.all(promises);
 
     this.spriteMap.set(spriteName, new AnimatedSprite(spriteData));
+
+    // Import imports after the sprite so that imports can depend on the parent sprite being present.
+    // E.g. Trophy is an import of core and requires a source from core.
+    if (spriteData.imports)
+      await Promise.all(spriteData.imports.map(importData => this.load(importData)));
   }
 
   static has(spriteName) {
@@ -1311,13 +1313,13 @@ function setFilter(container, name, seq, filter) {
 }
 function clearFilter(displayObject, name) {
   if (!displayObject.filters) return;
-  let index = displayObject.filters.findIndex(f => f.name === name);
+  const index = displayObject.filters.findIndex(f => f.name === name);
   if (index === -1) return;
 
   if (displayObject.filters.length === 1)
     displayObject.filters = null;
   else
-    displayObject.filters.splice(index, 1);
+    displayObject.filters = displayObject.filters.filter(f => f.name !== name);
 }
 function applyColor(displayObject, color) {
   if (color && color.join() !== '0,0,0,0,1,1,1,1') {

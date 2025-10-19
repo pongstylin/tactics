@@ -347,6 +347,9 @@ unitDataMap.set('Shrub', {
 unitDataMap.set('Trophy', {
   name: 'Trophy',
   tier: 5,
+  sounds: {
+    block: 'sprite:core/sounds/sound8',
+  },
 });
 
 unitDataMap.set('GolemAmbusher', {

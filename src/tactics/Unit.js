@@ -261,7 +261,7 @@ export default class Unit {
     } else if (
       (
         /^(melee|magic|heal)$/.test(stats.aType) &&
-        targetUnit.barriered
+        (targetUnit.barriered || targetUnit.disposition === 'unbreakable')
       ) || (
         stats.aType === 'melee' &&
         targetUnit.blocking === 100 &&
@@ -1478,7 +1478,8 @@ export default class Unit {
       }
 
       anim.addFrame(() => this.stand(direction));
-    }
+    } else if (attackType === 'melee' && this.disposition === 'unbreakable')
+      anim = new Tactics.Animation({ frames:[() => this.sounds.block.howl.play()] });
 
     return anim;
   }
