@@ -1606,6 +1606,67 @@ export default class Unit {
       options,
     );
   }
+  animChange(changes, { instant, andDie } = {}) {
+    instant ??= false;
+    andDie ??= true;
+
+    const anim = new Tactics.Animation();
+    anim.addFrame(() => {
+      if (changes.direction)
+        this.stand(changes.direction);
+
+      this.change(changes);
+
+      if (instant) {
+        if (this.focusing || this.paralyzed || this.poisoned)
+          this.showFocus();
+        else
+          this.hideFocus();
+
+        if (this.barriered)
+          this.showBarrier();
+        else
+          this.hideBarrier();
+      }
+    });
+
+    if (!instant) {
+      if ('focusing' in changes || 'paralyzed' in changes || 'poisoned' in changes) {
+        const hasFocus = this.hasFocus();
+        const needsFocus = (
+          ('focusing' in changes ? changes.focusing : this.focusing) ||
+          ('paralyzed' in changes ? changes.paralyzed : this.paralyzed) ||
+          ('poisoned' in changes ? changes.poisoned : this.poisoned)
+        );
+        if (!hasFocus && needsFocus)
+          anim.splice(0, this.animFocus());
+        else if (hasFocus && !needsFocus)
+          anim.splice(0, this.animDefocus());
+      }
+
+      /*
+       * Check for barrier changes to ensure that a BW barriering itself doesn't
+       * get double barriered.
+       */
+      if ('barriered' in changes) {
+        const hasBarrier = this.hasBarrier();
+        const needsBarrier = changes.barriered;
+        if (!hasBarrier && needsBarrier)
+          anim.splice(0, this.animShowBarrier());
+        else if (hasBarrier && !needsBarrier)
+          anim.splice(0, this.animHideBarrier());
+      }
+    }
+
+    // Chaos Seed doesn't die.  It hatches.
+    if (andDie && changes.disposition === 'dead' && this.type !== 'ChaosSeed')
+      if (instant)
+        anim.splice(0, () => this.board.dropUnit(this));
+      else
+        anim.splice(0, this.animDie());
+
+    return anim;
+  }
   setTargetNotice(targetUnit, target, stats = null) {
     if (this.canSpecial() && (target ?? targetUnit.assignment) === this.assignment && !stats)
       return this.setSpecialTargetNotice(targetUnit);
@@ -1934,21 +1995,21 @@ export default class Unit {
     return filters[name];
   }
 
-  _startPulse(steps, speed) {
-    let pulse = this._pulse;
-    if (pulse) this._stopPulse();
+  async _startPulse(steps, speed) {
+    if (this._pulse) await this._stopPulse();
 
-    this._pulse = pulse = this.animPulse(steps, speed);
-    pulse.play().then(() => this.brightness(1));
+    const anim = this.animPulse(steps, speed);
+    const pulse = this._pulse = anim.play().then(() => this.brightness(1));
+    pulse.stop = anim.stop;
 
     return this;
   }
 
-  _stopPulse() {
+  async _stopPulse() {
     let pulse = this._pulse;
     if (!pulse) return this;
 
-    pulse.stop();
+    await pulse.stop();
     this._pulse = null;
 
     return this;
