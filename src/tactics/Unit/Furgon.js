@@ -24,8 +24,8 @@ export default class Furgon extends Unit {
    * ward ally is killed by an opponent team.
    */
   onBoardDropUnit(event) {
-    let attacker = event.attacker;
-    let defender = event.unit;
+    const attacker = event.attacker;
+    const defender = event.unit;
 
     // Nothing can be done if this used died.
     // Compare using IDs since the unit may be a clone.
@@ -41,7 +41,7 @@ export default class Furgon extends Unit {
     if (/Ward$|^Shrub$/.test(defender.type))
       return;
 
-    let changes = { name:'Enraged Furgon', disposition:'enraged' };
+    const changes = { name:'Enraged Furgon', disposition:'enraged' };
     if (this.mRecovery)
       changes.mRecovery = 0;
 
@@ -70,16 +70,16 @@ export default class Furgon extends Unit {
    * Furgon cannot block when exhausted
    */
   canBlock() {
-    return this.disposition !== 'exhausted';
+    return super.canBlock() && this.disposition !== 'exhausted';
   }
 
   getAttackTiles(start = this.assignment) {
     if (this.canSpecial())
       return [this.assignment];
 
-    let board = this.board;
-    let range = this.aRange;
-    let tiles = board.getTileRange(start, ...range);
+    const board = this.board;
+    const range = this.aRange;
+    const tiles = board.getTileRange(start, ...range);
 
     // Suitable tiles have at least one empty tile in the area
     return tiles.filter(tile =>
@@ -123,11 +123,11 @@ export default class Furgon extends Unit {
     if (this.canSpecial())
       return this.getAttackSpecialResults();
 
-    let board = this.board;
-    let targets = board.getTileRange(action.target, 0, 1, true);
+    const board = this.board;
+    const targets = board.getTileRange(action.target, 0, 1, true);
 
     return targets.map(tile => {
-      let shrub = board.makeUnit({
+      const shrub = board.makeUnit({
         // Kinda lazy but, for a stationary unit, the tile id is sufficiently unique.
         id: tile.id,
         type: 'Shrub',
@@ -207,19 +207,19 @@ export default class Furgon extends Unit {
     return anim;
   }
   animAttackSpecial(action) {
-    let board = this.board;
-    let anim = this.renderAnimation('attackSpecial', action.direction);
-    let spriteAction = this._sprite.getAction('attackSpecial');
-    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
+    const board = this.board;
+    const anim = this.renderAnimation('attackSpecial', action.direction);
+    const spriteAction = this._sprite.getAction('attackSpecial');
+    const effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
 
     if (this.directional !== false)
       anim.addFrame(() => this.stand());
 
-    let results = action.results;
+    const results = action.results;
     if (!results.length) return anim;
 
-    let shrubResults = results.filter(r => r.unit.type === 'Shrub');
-    let distances = shrubResults.map(result =>
+    const shrubResults = results.filter(r => r.unit.type === 'Shrub');
+    const distances = shrubResults.map(result =>
       board.getDistance(this.assignment, result.unit.assignment)
     );
     let closest = Math.min(...distances);
@@ -251,11 +251,11 @@ export default class Furgon extends Unit {
   }
   canSpecial() {
     // Can't use entangle if there is more than one Furgon
-    let unitCount = this.team.units.filter(u => u.type === this.type).length;
+    const unitCount = this.team.units.filter(u => u.type === this.type).length;
     if (unitCount > 1)
       return false;
 
-    let me = this.assignment;
+    const me = this.assignment;
 
     return (
       this.disposition === 'enraged' &&

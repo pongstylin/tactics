@@ -970,7 +970,7 @@ export default class Board {
         els.sfIcon.text = '\uf132';
         els.shIcon.text = unit.directional !== false ? '\uf3ed' : '';
 
-        if (unit.paralyzed || unit.focusing) {
+        if (!unit.canBlock()) {
           els.sfIcon.style.fill = '#FF4444';
           els.sfLabel.text = '∞';
           els.shIcon.style.fill = '#FF4444';
