@@ -191,8 +191,8 @@ export default class ChaosSeed extends Unit {
 
         // Hatched
         return {
-          type:   'hatch',
-          unit:   this,
+          type: 'transform',
+          unit: this,
           target: attacker.assignment,
           results: [
             {
@@ -386,7 +386,7 @@ export default class ChaosSeed extends Unit {
 
     return anim;
   }
-  hatch(action) {
+  animTransform(action) {
     let board       = this.board;
     let anim        = new Tactics.Animation();
     let assignment  = this.assignment;
@@ -567,7 +567,7 @@ export default class ChaosSeed extends Unit {
         anim.splice(i, () => wind.play(winds.random()));
     }
 
-    return anim.play();
+    return anim;
   }
   canCounter() {
     return true;

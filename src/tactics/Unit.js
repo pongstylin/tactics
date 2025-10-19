@@ -788,6 +788,14 @@ export default class Unit {
 
     return anim.play();
   }
+  transform(action, speed) {
+    const anim = new Tactics.Animation({ speed });
+
+    anim.splice(this.animTransform(action));
+    anim.addFrame(() => this.stand());
+
+    return anim.play();
+  }
   turn(action, speed) {
     if (this.directional === false) return this;
 
@@ -1539,6 +1547,20 @@ export default class Unit {
 
       anim.addFrame(() => this.drawStand());
     }
+
+    return anim;
+  }
+  animTransform(action) {
+    const anim = new Tactics.Animation();
+    const unit = Object.assign({
+      id: this.id,
+      assignment: this.assignment,
+      direction: this.direction,
+      color: this.color,
+    }, action.results[0].changes);
+
+    anim.addFrame(() => this.board.dropUnit(this));
+    anim.addFrame(() => this.board.addUnit(unit, this.team));
 
     return anim;
   }

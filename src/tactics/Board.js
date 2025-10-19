@@ -902,7 +902,6 @@ export default class Board {
     let els  = card.elements;
     let notice;
     let notices = [];
-    let important = 0;
 
     if (unit === undefined)
       unit = this.focused
@@ -1264,8 +1263,11 @@ export default class Board {
 
     return unit;
   }
-  dropUnit(unit) {
-    var units = unit.team.units;
+  dropUnit(unit, skipDrawCard = false) {
+    const units = unit.team.units;
+    const unitIndex = units.indexOf(unit);
+    if (unitIndex === -1)
+      return;
 
     if (unit === this.focused) {
       unit.blur();
@@ -1285,12 +1287,12 @@ export default class Board {
       this.selected = null;
     }
 
-    if (unit === this.carded)
+    if (unit === this.carded && !skipDrawCard)
       this.drawCard();
 
     this.dismiss(unit);
 
-    units.splice(units.indexOf(unit), 1);
+    units.splice(unitIndex, 1);
     unit.detach();
 
     return this;
@@ -1352,22 +1354,17 @@ export default class Board {
 
         if (Object.keys(changes).length) {
           // For a change in type, we need to replace the unit instance.
-          // Only Chaos Seed changes type to a Chaos Dragon.
-          // By default, only the old unit id, direction, assignment, and color is inherited.
+          // Unless overridden, the old unit id, assignment, direction, and color are inherited.
           if (changes.type) {
-            // Dropping a unit clears the assignment.  So get it first.
-            const assignment = unit.assignment;
+            const newUnit = this.makeUnit(Object.assign({
+              id: unit.id,
+              assignment: unit.assignment,
+              direction: unit.direction,
+              color: unit.color,
+            }, changes));
 
-            unit = this
-              .dropUnit(unit)
-              .addUnit({
-                id:         unit.id,
-                type:       changes.type,
-                assignment: assignment,
-                direction:  changes.direction || unit.direction,
-                color:      unit.color,
-              }, unit.team);
-            delete changes.type;
+            this.dropUnit(unit).addUnit(newUnit, unit.team);
+            return;
           }
 
           if (changes.disposition === 'dead')

@@ -1288,16 +1288,19 @@ export default class Game {
       actor.deactivate();
       await actor.heal(action, speed);
       await this._playResults(action, speed);
-    // Only applicable to Chaos Seed counter-attack
-    } else if (actionType === 'hatch') {
+    } else if (actionType === 'transform') {
       this.drawCard(actor);
       actor.activate();
       await sleep(2000 / speed);
+      await actor.deactivate();
 
-      actor.deactivate();
-      selected.deactivate(); // the target
-      await actor.hatch(action, speed);
+      await actor.transform(action, speed);
+
+      // View the new me
+      board.viewed = action.target.assigned;
+      board.drawCard();
       await this._playResults(action, speed);
+      await sleep(2000 / speed);
     } else {
       this.drawCard(actor);
 
