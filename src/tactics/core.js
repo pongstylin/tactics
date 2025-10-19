@@ -288,9 +288,44 @@ window.Tactics = (function () {
         withHighlight: false,
       }, options);
 
-      const unitKey = avatar instanceof Unit
-        ? avatar.color === null ? `${avatar.type}:null` : `${avatar.type}:${avatar.color.toString()}`
-        : `${avatar.unitType}:${avatar.colorId}`;
+      const unit = (() => {
+        if (avatar instanceof Unit) {
+          // Use a clone to ignore transient effects
+          const unit = avatar.clone().draw();
+          unit.color = avatar.color;
+          return unit;
+        } else if (options.as === 'image' && AnimatedSprite.has('avatars')) {
+          if (!this._avatars.board)
+            this._avatars.board = new Board().draw();
+
+          const unit = unitFactory(avatar.unitType, this._avatars.board);
+          unit.color = colorFilterMap.get(avatar.colorId);
+
+          const spriteName = unit.baseSprite ?? unit.type;
+          const superSpriteName = unit.type === 'DragonspeakerMage' ? 'Pyromancer' : spriteName;
+          unit.spriteSource = 'avatars';
+          unit.spriteName = spriteName;
+          unit.unitSprite = `${superSpriteName}Unit`;
+          unit.trimSprite = `${superSpriteName}Trim`;
+          unit.shadowSprite = `${superSpriteName}Shadow`;
+          return unit;
+        } else if (Tactics.game) {
+          const unit = unitFactory(avatar.unitType, Tactics.game.board);
+          unit.color = colorFilterMap.get(avatar.colorId);
+          return unit;
+        }
+
+        throw new Error('Unable to render avatar');
+      })();
+      const unitKey =
+        unit.color === null ? `${unit.type}:null` : Object.keys(unit.filters).length === 0
+          ? `${unit.type}:${unit.color.toString()}`
+          : `${unit.type}:${unit.color.toString()}:${Object.entries(unit.filters).map(([ name, filter ]) => {
+            if (filter instanceof PIXI.filters.ColorMatrixFilter)
+              return `${name}=${filter.matrix.map(v => v.toFixed(2)).join(',')}`;
+            else
+              return `${name}`;
+          }).join(';')}`;
       const cacheKey = [
         unitKey,
         options.as,
@@ -305,35 +340,11 @@ window.Tactics = (function () {
 
       const cache = this._avatars.cache.get(options.renderer);
 
-      if (!cache.has(cacheKey)) {
-        let unit;
-        if (avatar instanceof Unit)
-          unit = avatar;
-        else if (options.as === 'image' && AnimatedSprite.has('avatars')) {
-          if (!this._avatars.board)
-            this._avatars.board = new Board().draw();
-
-          unit = unitFactory(avatar.unitType, this._avatars.board);
-          unit.color = colorFilterMap.get(avatar.colorId);
-
-          const spriteName = unit.baseSprite ?? unit.type;
-          const superSpriteName = unit.type === 'DragonspeakerMage' ? 'Pyromancer' : spriteName;
-          unit.spriteSource = 'avatars';
-          unit.spriteName = spriteName;
-          unit.unitSprite = `${superSpriteName}Unit`;
-          unit.trimSprite = `${superSpriteName}Trim`;
-          unit.shadowSprite = `${superSpriteName}Shadow`;
-        } else if (Tactics.game) {
-          unit = unitFactory(avatar.unitType, Tactics.game.board);
-          unit.color = colorFilterMap.get(avatar.colorId);
-        } else
-          throw new Error('Unable to render avatar');
-
+      if (!cache.has(cacheKey))
         if (transform)
           cache.set(cacheKey, transform(unit.drawAvatar(options)));
         else
           cache.set(cacheKey, unit.drawAvatar(options));
-      }
 
       return cache.get(cacheKey);
     },

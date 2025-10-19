@@ -538,10 +538,11 @@ export default class Unit {
     return { [ this.trimSprite ]:{ rgb:this.color } };
   }
   /*
-   * A hook for changing a frame before it is rendered.
+   * A hook for changing an animation frame before it is rendered.
    */
-  fixupFrame() {
-    // stub, used by Chaos Dragon
+  fixupFrame(frame) {
+    const unitContainer = this.getContainerByName(this.unitSprite, frame.container);
+    unitContainer.filters = Array.from(Object.values(this.filters));
   }
   draw(skipPosition = false) {
     this.frame = new PIXI.Container();
@@ -551,7 +552,7 @@ export default class Unit {
     this.pixi.data = {};
     this.pixi.addChild(this.frame);
 
-    if (!skipPosition)
+    if (this.assignment && !skipPosition)
       this.setPositionToTile();
 
     return this.drawStand();
@@ -639,11 +640,6 @@ export default class Unit {
     // Reset frame offsets
     this.frame.position.x = 0;
     this.frame.position.y = 0;
-
-    // Preserve filters, if any
-    let filters = Object.values(this.filters);
-    if (filters.length)
-      this.getContainerByName(this.unitSprite, frame.container).filters = filters;
 
     this.frame.removeChildren();
     this.frame.addChild(frame.container);
