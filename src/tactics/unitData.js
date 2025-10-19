@@ -392,6 +392,9 @@ unitDataMap.set('Berserker', {
   aType: 'melee',
   aRange: [1, 1],
   tier: 3,
+  features: {
+    unblockableStun: false,
+  },
 });
 
 unitDataMap.set('ChaosDragon', {
