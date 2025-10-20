@@ -12,7 +12,6 @@ export default class GameSummary {
   }
 
   static create(game) {
-    console.log('GameSummary.create', game.id, new Error().stack);
     const data:any = {
       id: game.id,
       type: game.state.type,
