@@ -8,7 +8,7 @@ export default class Cleric extends Unit {
     return this.getAttackTiles();
   }
   getTargetUnits() {
-    return this.team.units.filter(u => u.mHealth < 0);
+    return [ this, ...this.team.units.filter(u => u.mHealth < 0 && u !== this) ];
   }
   /*
    * Customized to show effect on all units, not just healed units.
