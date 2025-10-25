@@ -21,10 +21,13 @@ export default async function (itemMap) {
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
         if (result.changes) {
-          const unitData = unitDataMap.get(units.find(u => u.id === result.unit).type);
-          if (result.changes.mHealth === -unitData.health && result.changes.disposition !== 'dead') {
-            result.changes.disposition = 'dead';
-            turnItem.isDirty = true;
+          const unit = units.find(u => u.id === result.unit)
+          if (unit) {
+            const unitData = unitDataMap.get(unit.type);
+            if (result.changes.mHealth === -unitData.health && result.changes.disposition !== 'dead') {
+              result.changes.disposition = 'dead';
+              turnItem.isDirty = true;
+            }
           }
         }
 
