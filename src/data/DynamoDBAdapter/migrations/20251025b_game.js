@@ -22,8 +22,7 @@ export default async function (itemMap) {
         const result = results[i];
         if (result.changes) {
           const unitData = units.find(u => u.id === result.unit);
-          if (unitData.type === 'Shrub' && result.changes.mHealth === -1) {
-            console.log('fix!');
+          if (unitData && unitData.type === 'Shrub' && result.changes.mHealth === -1) {
             result.changes.disposition = 'dead';
             delete result.changes.mHealth;
             turnItem.isDirty = true;
