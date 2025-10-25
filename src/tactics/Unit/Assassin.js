@@ -71,7 +71,7 @@ export default class Assassin extends Unit {
       let cUnit = cUnits.get(targetUnit.id);
       let result = { unit:targetUnit };
 
-      if (cUnit.barriered)
+      if (cUnit.barriered || cUnit.disposition === 'unbreakable')
         result.miss = 'immune';
       else {
         result.damage = 99;
