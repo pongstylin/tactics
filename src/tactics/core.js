@@ -72,13 +72,11 @@ window.Tactics = (function () {
         const spriteData = await rsp.json();
 
         spriteData.name = unitType;
+        spriteData.imports ??= [];
 
         if (unitData) {
           if (unitData.imports)
-            if (spriteData.imports)
-              spriteData.imports.push(...unitData.imports);
-            else
-              spriteData.imports = unitData.imports;
+            spriteData.imports.push(...unitData.imports);
           if (unitData.sounds)
             for (let name of Object.keys(unitData.sounds)) {
               let sound = unitData.sounds[name];
@@ -95,9 +93,8 @@ window.Tactics = (function () {
             }
         }
 
-        if (spriteData.imports)
-          for (let i = 0; i < spriteData.imports.length; i++)
-            effectTypes.add(spriteData.imports[i]);
+        for (let i = 0; i < spriteData.imports.length; i++)
+          effectTypes.add(spriteData.imports[i]);
 
         progress++;
         cb(
@@ -116,6 +113,7 @@ window.Tactics = (function () {
         const spriteData = await rsp.json();
 
         spriteData.name = effectType;
+        spriteData.imports ??= [];
 
         if (unitDataMap.has(effectType)) {
           const unitData = unitDataMap.get(effectType);

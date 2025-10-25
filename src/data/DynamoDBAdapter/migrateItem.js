@@ -2,6 +2,7 @@ const migrationsByKey = new Map();
 
 migrationsByKey.set('game:/', [
   './migrations/20250628_game.js',
+  './migrations/20251025_game.js',
 ]);
 
 migrationsByKey.set('playerStats:/', [

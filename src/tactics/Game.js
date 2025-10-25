@@ -1152,7 +1152,6 @@ export default class Game {
   }
   async _performAction(action) {
     const board = this._board;
-    let selected = this.selected;
     const actionType = action.type;
     const speed = this.speed;
 
@@ -1160,14 +1159,14 @@ export default class Game {
 
     if (actionType === 'endTurn') {
       const doShowDirection = (
-        selected &&
-        selected.directional !== false &&
+        board.selected &&
+        board.selected.directional !== false &&
         (!this.isMyTeam(action.teamId) || this._inReplay) &&
         (this.state.timeLimit?.base > 30 || this._inReplay)
       );
       if (doShowDirection) {
         // Show the direction the unit turned for 2 seconds.
-        board.showDirection(selected);
+        board.showDirection(board.selected);
         await sleep(2000 / speed);
       }
 
@@ -1205,7 +1204,7 @@ export default class Game {
      * For actions initiated by the viewing player, perform the quick version.
      */
     const quick = (
-      (!selected || selected === actor) &&
+      (!board.selected || board.selected === actor) &&
       this.isMyTeam(action.teamId) &&
       !this._inReplay
     );
@@ -1282,8 +1281,8 @@ export default class Game {
       // Show the player the unit that will be healed.
       const targetUnit = action.target.assigned;
 
-      if (selected !== actor) {
-        await selected.deactivate();
+      if (board.selected !== actor) {
+        await board.selected.deactivate();
         actor.activate();
       }
 
@@ -1312,8 +1311,8 @@ export default class Game {
       this.drawCard(actor);
 
       // For counter-attacks, the actor may differ from selected.
-      if (selected !== actor) {
-        await selected.deactivate();
+      if (board.selected !== actor) {
+        await board.selected.deactivate();
         actor.activate();
       }
 
