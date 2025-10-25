@@ -330,9 +330,9 @@ unitDataMap.set('Furgon', {
   tier: 2,
   features: {
     // Turn this off to enable limited lifetimes for shrubs.
-    evergreen: true,
+    evergreen: false,
     // Turn this on to enable transform-on-death
-    transform: false,
+    transform: true,
   },
 });
 
@@ -385,15 +385,15 @@ unitDataMap.set('Berserker', {
   armor: 0,
   health: 42,
   recovery: 1,
-  blocking: 25,
+  blocking: 55,
   mType: 'path',
-  mRadius: 3,
+  mRadius: 4,
   mPass: false,
   aType: 'melee',
   aRange: [1, 1],
   tier: 3,
   features: {
-    unblockableStun: false,
+    unblockableStun: true,
   },
 });
 
