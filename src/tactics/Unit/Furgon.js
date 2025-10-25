@@ -24,8 +24,8 @@ export default class Furgon extends Unit {
    * ward ally is killed by an opponent team.
    */
   onBoardDropUnit(event) {
-    let attacker = event.attacker;
-    let defender = event.unit;
+    const attacker = event.attacker;
+    const defender = event.unit;
 
     // Nothing can be done if this used died.
     // Compare using IDs since the unit may be a clone.
@@ -41,7 +41,7 @@ export default class Furgon extends Unit {
     if (/Ward$|^Shrub$/.test(defender.type))
       return;
 
-    let changes = { name:'Enraged Furgon', disposition:'enraged' };
+    const changes = { name:'Enraged Furgon', disposition:'enraged' };
     if (this.mRecovery)
       changes.mRecovery = 0;
 
@@ -70,16 +70,16 @@ export default class Furgon extends Unit {
    * Furgon cannot block when exhausted
    */
   canBlock() {
-    return this.disposition !== 'exhausted';
+    return super.canBlock() && this.disposition !== 'exhausted';
   }
 
   getAttackTiles(start = this.assignment) {
     if (this.canSpecial())
       return [this.assignment];
 
-    let board = this.board;
-    let range = this.aRange;
-    let tiles = board.getTileRange(start, ...range);
+    const board = this.board;
+    const range = this.aRange;
+    const tiles = board.getTileRange(start, ...range);
 
     // Suitable tiles have at least one empty tile in the area
     return tiles.filter(tile =>
@@ -93,16 +93,17 @@ export default class Furgon extends Unit {
     return this.board.getTileRange(target, 0, 1);
   }
   getSpecialTargetTiles(target, source) {
-    let board = this.board;
-    let enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
-    let targets = new Set();
+    const board = this.board;
+    const enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
+    const targets = new Set();
 
-    for (let enemy of enemies) {
+    for (const enemy of enemies) {
       // Don't surround units that can't move, e.g. Shrubs or Wards
       if (enemy.mType === false) continue;
 
-      board.getTileRange(enemy.assignment, 1, 1, true).forEach(target => {
-        targets.add(target);
+      board.getTileRange(enemy.assignment, 1, 1).forEach(target => {
+        if (!target.assigned || target.assigned.type === 'Shrub' && target.assigned.name === 'Shrub')
+          targets.add(target);
       });
     }
 
@@ -119,19 +120,80 @@ export default class Furgon extends Unit {
 
     return action;
   }
+  canCounter() {
+    if (!this.features.transform) return false;
+
+    return this.paralyzed || this.poisoned ? false : true;
+  }
+  getCounterAction(attacker, result) {
+    if (this.disposition !== 'transform') return null;
+
+    const results = this.getAttackSpecialResults();
+    const myResult = results.find(r => r.unit === this);
+    myResult.changes = {
+      type: 'Shrub',
+      name: 'Golden Shrub',
+      disposition: 'unbreakable',
+    };
+
+    const nonEvergreenShrubs = this.board.teamsUnits.flat().filter(unit => (
+      unit.type === 'Shrub' && unit.name === 'Shrub' && unit.disposition !== 'evergreen'
+    ));
+    if (nonEvergreenShrubs.length > 0) {
+      myResult.results = nonEvergreenShrubs.map(shrub => {
+        const changes = { disposition:'evergreen' };
+        if (shrub.mLifespan < 0)
+          changes.mLifespan = 0;
+        return { unit:shrub, changes };
+      });
+    }
+
+    return {
+      type: 'transform',
+      unit: this,
+      target: this.assignment,
+      results,
+    };
+  }
+  getMoveResults(action) {
+    if (this.features.evergreen) return [];
+
+    const allUnits = this.board.teamsUnits.flat();
+    if (allUnits.some(u => u.type === 'Shrub' && u.name === 'Golden Shrub'))
+      return [];
+
+    const furgons = allUnits.filter(u => u.type === 'Furgon');
+    const shrubs = allUnits.filter(u => u.type === 'Shrub' && u.name === 'Shrub');
+    const results = [];
+
+    for (const shrub of shrubs) {
+      const needsEvergreen = furgons.some(f => (
+        this.board.getDistance(f === this ? action.assignment : f.assignment, shrub.assignment) < 4
+      ));
+      const isEvergreen = shrub.disposition === 'evergreen';
+
+      if (needsEvergreen && !isEvergreen)
+        results.push({ unit:shrub, changes:{ disposition:'evergreen', mLifespan:0 } });
+      else if (!needsEvergreen && isEvergreen)
+        results.push({ unit:shrub, changes:{ disposition:null } });
+    }
+
+    return results;
+  }
   getAttackResults(action) {
     if (this.canSpecial())
       return this.getAttackSpecialResults();
 
-    let board = this.board;
-    let targets = board.getTileRange(action.target, 0, 1, true);
+    const board = this.board;
+    const targets = board.getTileRange(action.target, 0, 1, true);
 
     return targets.map(tile => {
-      let shrub = board.makeUnit({
+      const shrub = board.makeUnit({
         // Kinda lazy but, for a stationary unit, the tile id is sufficiently unique.
         id: tile.id,
         type: 'Shrub',
         assignment: tile,
+        disposition: 'evergreen',
       });
 
       return {
@@ -142,26 +204,37 @@ export default class Furgon extends Unit {
     });
   }
   getAttackSpecialResults() {
-    let board = this.board;
-    let results = [{
+    const board = this.board;
+    const results = [{
       unit: this,
       changes: { name:'Exhausted Furgon', disposition:'exhausted', mRecovery:6 },
     }];
 
-    this.getSpecialTargetTiles().forEach(target => {
-      let shrub = board.makeUnit({
+    results.push(...this.getSpecialTargetTiles().map(target => {
+      if (target.assigned) {
+        const changes = this.features.evergreen ? {} : { name:'Rageweed' };
+        if (target.assigned.disposition === 'evergreen')
+          changes.disposition = null;
+        else if (target.assigned.mLifespan)
+          changes.mLifespan = 0;
+        return { unit:target.assigned, changes };
+      }
+
+      const shrub = board.makeUnit({
         // Kinda lazy but, for a stationary unit, the tile id is sufficiently unique.
         id: target.id,
         type: 'Shrub',
+        name: this.features.evergreen ? 'Shrub' : 'Rageweed',
         assignment: target,
+        disposition: this.features.evergreen ? 'evergreen' : null,
       });
 
-      results.push({
+      return {
         type: 'summon',
         unit: shrub,
         teamId: this.team.id,
-      });
-    });
+      };
+    }));
 
     return results;
   }
@@ -207,62 +280,98 @@ export default class Furgon extends Unit {
     return anim;
   }
   animAttackSpecial(action) {
-    let board = this.board;
-    let anim = this.renderAnimation('attackSpecial', action.direction);
-    let spriteAction = this._sprite.getAction('attackSpecial');
-    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
+    const board = this.board;
+    const anim = this.renderAnimation('attackSpecial', action.direction);
+    const spriteAction = this._sprite.getAction('attackSpecial');
+    const effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
 
     if (this.directional !== false)
       anim.addFrame(() => this.stand());
 
-    let results = action.results;
+    const results = action.results;
     if (!results.length) return anim;
 
-    let shrubResults = results.filter(r => r.unit.type === 'Shrub');
-    let distances = shrubResults.map(result =>
+    const shrubResults = results.filter(r => r.unit.type === 'Shrub');
+    const distances = shrubResults.map(result =>
       board.getDistance(this.assignment, result.unit.assignment)
     );
-    let closest = Math.min(...distances);
-    let range = Math.max(...distances) - closest;
-    let maxDelay = 4;
+    const closest = Math.min(...distances);
+    const range = Math.max(...distances) - closest;
+    const maxDelay = 4;
 
-    for (let result of shrubResults) {
-      let target = result.unit.assignment;
-      let distance = distances.shift() - closest;
-      let delay = range && Math.round(distance / range * maxDelay);
-      let offset = effectOffset + delay;
-      let isHit = !result.miss;
-
+    for (const result of shrubResults) {
+      const distance = distances.shift() - closest;
+      const delay = range && Math.round(distance / range * maxDelay);
+      const offset = effectOffset + delay;
       if (anim.frames.length < offset)
         anim.addFrame({
           scripts: [],
           repeat: offset - anim.frames.length,
         });
 
-      let shrub = result.unit.draw();
-      let summonAnimation = shrub.renderAnimation('summon');
-      summonAnimation.addFrame(() => shrub.stand());
+      if (result.type === 'summon') {
+        const shrub = result.unit.draw();
+        const summonAnimation = shrub.renderAnimation('summon');
+        summonAnimation.addFrame(() => shrub.stand());
 
-      anim.splice(offset, () => board.addUnit(shrub, this.team));
-      anim.splice(offset, summonAnimation);
+        anim.splice(offset, () => board.addUnit(shrub, this.team));
+        anim.splice(offset, summonAnimation);
+      } else
+        anim.splice(offset, result.unit.animChange(result.changes));
     }
+
+    return anim;
+  }
+  animTransform(action) {
+    const board = this.board;
+    const anim = this.animAttackSpecial(action);
+    const shrub = board.makeUnit(Object.assign({
+      id: this.id,
+      assignment: this.assignment,
+    }, action.results.find(r => r.changes.type === 'Shrub').changes));
+    shrub.draw();
+
+    anim.splice([
+      {
+        script: () => this.frame.alpha /= 1.8,
+        repeat: 7,
+      },
+      () => board.dropUnit(this, true),
+    ]);
+
+    const summon = new Tactics.Animation({ frames:[() => board.unitsContainer.addChild(shrub.pixi)] });
+    summon.splice(0, shrub.renderAnimation('summon'));
+    summon.splice(() => {
+      board.unitsContainer.removeChild(shrub.pixi);
+      board.addUnit(shrub, this.team);
+      shrub.stand();
+    });
+    anim.splice(-8, summon);
 
     return anim;
   }
   canSpecial() {
     // Can't use entangle if there is more than one Furgon
-    let unitCount = this.team.units.filter(u => u.type === this.type).length;
+    const unitCount = this.team.units.filter(u => u.type === this.type).length;
     if (unitCount > 1)
       return false;
 
-    let me = this.assignment;
+    const me = this.assignment;
 
     return (
       this.disposition === 'enraged' &&
-      me.N && me.N.assigned && me.N.assigned.type === 'Shrub' &&
-      me.E && me.E.assigned && me.E.assigned.type === 'Shrub' &&
-      me.S && me.S.assigned && me.S.assigned.type === 'Shrub' &&
-      me.W && me.W.assigned && me.W.assigned.type === 'Shrub'
+      me.N && me.N.assigned && me.N.assigned.type === 'Shrub' && me.N.assigned.name === 'Shrub' &&
+      me.E && me.E.assigned && me.E.assigned.type === 'Shrub' && me.N.assigned.name === 'Shrub' &&
+      me.S && me.S.assigned && me.S.assigned.type === 'Shrub' && me.N.assigned.name === 'Shrub' &&
+      me.W && me.W.assigned && me.W.assigned.type === 'Shrub' && me.N.assigned.name === 'Shrub'
     );
+  }
+  // Furgon can only be truly killed if paralyzed or poisoned first
+  getDeadResult(attacker, result) {
+    const isDead = super.getDeadResult(attacker, result);
+    if (isDead && this.canCounter() && attacker.team !== this.team)
+      result.changes.disposition = 'transform';
+
+    return isDead;
   }
 }

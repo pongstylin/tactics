@@ -34,7 +34,11 @@ export default class Unit {
       focused:   false,
       draggable: false,
 
+      health:    data.health ?? 0,
+      lifespan:  data.lifespan ? data.lifespan * board.teams.length : Infinity,
+
       mHealth:   0,
+      mLifespan: 0,
       mBlocking: 0,
       mPower:    0,
       mArmor:    0,
@@ -261,7 +265,7 @@ export default class Unit {
     } else if (
       (
         /^(melee|magic|heal)$/.test(stats.aType) &&
-        targetUnit.barriered
+        (targetUnit.barriered || targetUnit.disposition === 'unbreakable')
       ) || (
         stats.aType === 'melee' &&
         targetUnit.blocking === 100 &&
@@ -277,7 +281,7 @@ export default class Unit {
       // Armor reduces magic damage.
       calc.damage = Math.round(stats.power * (100 - armor) / 100);
 
-      if (targetUnit.paralyzed || targetUnit.focusing || !targetUnit.canBlock())
+      if (!targetUnit.canBlock())
         calc.chance = 100;
       else if (targetUnit.directional === false) {
         // Wards have 100% blocking from all directions.
@@ -340,6 +344,10 @@ export default class Unit {
 
     return calc;
   }
+
+  getMoveResults(action) {
+    return [];
+  }
   /*
    * An attack might affect multiple targets at the same time.  So, it doesn't
    * matter if the first target we look at removed armor from the 2nd.  The
@@ -363,8 +371,10 @@ export default class Unit {
 
     return calcs.map(([targetUnit, calc]) => {
       const result = this.getAttackResult(action, targetUnit, calc);
-      board.applyActionResults([result]);
+      board.applyActionResults([ result ]);
       this.getAttackSubResults(result);
+      // Reapply the result since getDeadResult can modify it.
+      board.applyActionResults([ result ]);
       return result;
     });
   }
@@ -395,8 +405,11 @@ export default class Unit {
     if (random.number < calc.chance) {
       result.damage = calc.damage;
       result.changes = {};
-      if (result.damage)
+      if (result.damage) {
         result.changes.mHealth = Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage));
+        if (result.changes.mHealth === 0)
+          delete result.changes.mHealth;
+      }
       if (calc.bonus)
         result.changes.mBlocking = unit.mBlocking += calc.bonus;
 
@@ -409,7 +422,7 @@ export default class Unit {
         result.changes = {};
 
         if (unit.directional !== false) {
-          let direction = this.board.getDirection(unit.assignment, this.assignment, unit.direction);
+          const direction = this.board.getDirection(unit.assignment, this.assignment, unit.direction);
           if (direction !== unit.direction)
             result.changes.direction = unit.direction = direction;
         }
@@ -429,7 +442,6 @@ export default class Unit {
 
     const board = this.board;
     const unit = result.unit;
-    const changes = result.changes;
     const subResults = result.results || [];
 
     // Most attacks break the focus of focusing units.
@@ -449,7 +461,7 @@ export default class Unit {
       }
     }
 
-    if (unit.mHealth === -unit.health) {
+    if (unit.getDeadResult(this, result)) {
       board.trigger({
         type: 'dropUnit',
         unit,
@@ -506,8 +518,18 @@ export default class Unit {
 
     if (subResults.length)
       result.results = subResults;
+  }
+  getDeadResult(attacker, result) {
+    if (![ 'melee', 'magic' ].includes(attacker.aType)) return false;
 
-    board.applyActionResults(result.results);
+    const health = this.health ?? 0;
+    const mHealth = result.changes?.mHealth ?? 0;
+
+    if (mHealth > -health) return false;
+
+    result.changes ??= {};
+    result.changes.disposition = 'dead';
+    return true;
   }
   /*
    * Before drawing a unit, it must first have an assignment and direction.
@@ -524,10 +546,11 @@ export default class Unit {
     return { [ this.trimSprite ]:{ rgb:this.color } };
   }
   /*
-   * A hook for changing a frame before it is rendered.
+   * A hook for changing an animation frame before it is rendered.
    */
-  fixupFrame() {
-    // stub, used by Chaos Dragon
+  fixupFrame(frame) {
+    const unitContainer = this.getContainerByName(this.unitSprite, frame.container);
+    unitContainer.filters = Array.from(Object.values(this.filters));
   }
   draw(skipPosition = false) {
     this.frame = new PIXI.Container();
@@ -537,7 +560,7 @@ export default class Unit {
     this.pixi.data = {};
     this.pixi.addChild(this.frame);
 
-    if (!skipPosition)
+    if (this.assignment && !skipPosition)
       this.setPositionToTile();
 
     return this.drawStand();
@@ -608,7 +631,7 @@ export default class Unit {
     if (!this._sprite)
       this._sprite = Tactics.getSprite(this.spriteSource);
 
-    let frame = this._sprite.renderFrame({
+    const frame = this._sprite.renderFrame({
       actionName,
       direction,
       frameId,
@@ -616,20 +639,15 @@ export default class Unit {
       fixup: this.fixupFrame.bind(this),
     });
 
-    let focusContainer = this.getContainerByName('Focus');
+    const focusContainer = this.getContainerByName('Focus');
     if (focusContainer) {
-      let shadowContainer = this.getContainerByName(this.shadowSprite, frame.container);
+      const shadowContainer = this.getContainerByName(this.shadowSprite, frame.container);
       shadowContainer.addChild(focusContainer);
     }
 
     // Reset frame offsets
     this.frame.position.x = 0;
     this.frame.position.y = 0;
-
-    // Preserve filters, if any
-    let filters = Object.values(this.filters);
-    if (filters.length)
-      this.getContainerByName(this.unitSprite, frame.container).filters = filters;
 
     this.frame.removeChildren();
     this.frame.addChild(frame.container);
@@ -778,6 +796,14 @@ export default class Unit {
 
     return anim.play();
   }
+  transform(action, speed) {
+    const anim = new Tactics.Animation({ speed });
+
+    anim.splice(this.animTransform(action));
+    anim.addFrame(() => this.stand());
+
+    return anim.play();
+  }
   turn(action, speed) {
     if (this.directional === false) return this;
 
@@ -916,7 +942,7 @@ export default class Unit {
     return this._stopPulse();
   }
   change(changes) {
-    let dirty = Object.keys(changes).findIndex(k => changes[k] !== this[k]) > -1;
+    const dirty = Object.keys(changes).some(k => changes[k] !== this[k]);
     if (dirty) {
       Object.assign(this, changes);
 
@@ -998,9 +1024,9 @@ export default class Unit {
     this._animActivateBarrier = null;
   }
   animFocus() {
-    let anim   = new Tactics.Animation();
-    let alphas = [0.25, 0.50, 0.75, 1];
-    let focus  = this.getContainerByName('Focus');
+    const anim = new Tactics.Animation();
+    const alphas = [0.25, 0.50, 0.75, 1];
+    let focus = this.getContainerByName('Focus');
 
     if (!focus)
       anim.addFrame(() => {
@@ -1314,24 +1340,23 @@ export default class Unit {
     return anim;
   }
   animAttack(action) {
-    let anim = this.renderAnimation('attack', action.direction);
-    let spriteAction = this._sprite.getAction('attack');
-    let effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
+    const anim = this.renderAnimation('attack', action.direction);
+    const spriteAction = this._sprite.getAction('attack');
+    const effectOffset = spriteAction.events.find(e => e[1] === 'react')[0];
 
     anim.addFrame(() => this.stand());
 
     let targets = [];
     if (this.aLOS === true) {
-      let targetUnit = this.getLOSTargetUnit(action.target);
+      const targetUnit = this.getLOSTargetUnit(action.target);
       if (targetUnit)
         targets.push(targetUnit.assignment);
-    }
-    else
+    } else
       targets = this.getTargetTiles(action.target);
 
     targets.forEach(target => {
-      let result = action.results.find(r => r.unit === target.assigned);
-      let isHit = result && !result.miss;
+      const result = action.results.find(r => r.unit === target.assigned);
+      const isHit = result && !result.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -1358,7 +1383,7 @@ export default class Unit {
 
     // Render stagger animation before the effect so that it may be colored
     let targetUnit = target.assigned;
-    if (!isHit && targetUnit && targetUnit.type === 'Shrub')
+    if (!isHit && targetUnit && targetUnit.type === 'Shrub' && targetUnit.name !== 'Golden Shrub')
       targetUnit = null;
 
     if (targetUnit) {
@@ -1369,16 +1394,14 @@ export default class Unit {
             scripts: [],
             repeat: reactOffset - anim.frames.length,
           });
-      }
-      else
+      } else
         anim.addFrame([]);
 
       let offsetRatio;
       if (!isHit) {
         anim.splice(targetUnit.animMiss(this, effect.type));
         offsetRatio = 0.50;
-      }
-      else if (targetUnit !== this) {
+      } else if (targetUnit !== this) {
         anim.splice(-1, targetUnit.animHit(this, effect.type, effect.silent));
         offsetRatio = 0.25;
       }
@@ -1400,8 +1423,7 @@ export default class Unit {
           );
           // Shrubs are short, so lower the offset further
           offset[1] += 7;
-        }
-        else
+        } else
           offset = board.getOffset(
             offsetRatio,
             board.getDirection(
@@ -1411,8 +1433,7 @@ export default class Unit {
             ),
           );
       }
-    }
-    else
+    } else
       anim.addFrame([]);
 
     // Some effects aren't dispayed if no unit is impacted
@@ -1469,7 +1490,8 @@ export default class Unit {
       }
 
       anim.addFrame(() => this.stand(direction));
-    }
+    } else if (attackType === 'melee' && this.disposition === 'unbreakable')
+      anim = new Tactics.Animation({ frames:[() => this.sounds.block.howl.play()] });
 
     return anim;
   }
@@ -1536,6 +1558,20 @@ export default class Unit {
 
     return anim;
   }
+  animTransform(action) {
+    const anim = new Tactics.Animation();
+    const unit = Object.assign({
+      id: this.id,
+      assignment: this.assignment,
+      direction: this.direction,
+      color: this.color,
+    }, action.results[0].changes);
+
+    anim.addFrame(() => this.board.dropUnit(this));
+    anim.addFrame(() => this.board.addUnit(unit, this.team));
+
+    return anim;
+  }
   animDie() {
     let core = Tactics.getSprite('core');
     let container = new PIXI.Container();
@@ -1578,12 +1614,73 @@ export default class Unit {
       options,
     );
   }
+  animChange(changes, { instant, andDie } = {}) {
+    instant ??= false;
+    andDie ??= true;
+
+    const anim = new Tactics.Animation();
+    anim.addFrame(() => {
+      if (changes.direction)
+        this.stand(changes.direction);
+
+      this.change(changes);
+
+      if (instant) {
+        if (this.focusing || this.paralyzed || this.poisoned)
+          this.showFocus();
+        else
+          this.hideFocus();
+
+        if (this.barriered)
+          this.showBarrier();
+        else
+          this.hideBarrier();
+      }
+    });
+
+    if (!instant) {
+      if ('focusing' in changes || 'paralyzed' in changes || 'poisoned' in changes) {
+        const hasFocus = this.hasFocus();
+        const needsFocus = (
+          ('focusing' in changes ? changes.focusing : this.focusing) ||
+          ('paralyzed' in changes ? changes.paralyzed : this.paralyzed) ||
+          ('poisoned' in changes ? changes.poisoned : this.poisoned)
+        );
+        if (!hasFocus && needsFocus)
+          anim.splice(0, this.animFocus());
+        else if (hasFocus && !needsFocus)
+          anim.splice(0, this.animDefocus());
+      }
+
+      /*
+       * Check for barrier changes to ensure that a BW barriering itself doesn't
+       * get double barriered.
+       */
+      if ('barriered' in changes) {
+        const hasBarrier = this.hasBarrier();
+        const needsBarrier = changes.barriered;
+        if (!hasBarrier && needsBarrier)
+          anim.splice(0, this.animShowBarrier());
+        else if (hasBarrier && !needsBarrier)
+          anim.splice(0, this.animHideBarrier());
+      }
+    }
+
+    // Chaos Seed doesn't die.  It hatches.
+    if (andDie && changes.disposition === 'dead' && this.type !== 'ChaosSeed')
+      if (instant)
+        anim.splice(0, () => this.board.dropUnit(this));
+      else
+        anim.splice(0, this.animDie());
+
+    return anim;
+  }
   setTargetNotice(targetUnit, target, stats = null) {
     if (this.canSpecial() && (target ?? targetUnit.assignment) === this.assignment && !stats)
       return this.setSpecialTargetNotice(targetUnit);
 
-    let calc = this.calcAttack(targetUnit, null, target, stats);
-    let chance =
+    const calc = this.calcAttack(targetUnit, null, target, stats);
+    const chance =
       calc.chance === 100 ? 'Hit' :
       calc.chance === 0 ? `${calc.miss.toUpperCase('first')}` :
       `${Math.min(99, Math.max(1, Math.round(calc.chance)))}%`;
@@ -1593,6 +1690,8 @@ export default class Unit {
       notice = calc.effect.toUpperCase('first')+'!';
     else if (calc.miss === 'immune')
       notice = 'Immune!';
+    else if (!targetUnit.health)
+      notice = `Destroy!`;
     else if (calc.damage === 0)
       notice = `No Damage!`;
     else if (calc.damage < 0)
@@ -1722,6 +1821,8 @@ export default class Unit {
         action.direction = direction;
     }
 
+    action.results = this.getMoveResults(action);
+
     return action;
   }
   validateAttackAction(validate) {
@@ -1768,7 +1869,7 @@ export default class Unit {
     return action;
   }
   validateAttackSpecialAction(validate) {
-    let action = { type:'attackSpecial', unit:validate.unit };
+    const action = { type:'attackSpecial', unit:validate.unit };
 
     if (!this.canSpecial())
       return null;
@@ -1812,7 +1913,7 @@ export default class Unit {
     );
   }
   canBlock() {
-    return true;
+    return !this.focusing && !this.paralyzed;
   }
 
   clone() {
@@ -1844,6 +1945,7 @@ export default class Unit {
     const properties = [
       'disposition',
       'mHealth',
+      'mLifespan',
       'mBlocking',
       'mPower',
       'mArmor',
@@ -1877,7 +1979,7 @@ export default class Unit {
    * If the filter name already exists, it just returns it.
    */
   _setFilter(name, type) {
-    let filters = this.filters;
+    const filters = this.filters;
 
     if (type) {
       if (!(name in filters)) {
@@ -1888,15 +1990,14 @@ export default class Unit {
         else
           throw new Error(`Unsupported filter: ${name}`);
 
-        let unitContainer = this.getContainerByName(this.unitSprite);
+        const unitContainer = this.getContainerByName(this.unitSprite);
         unitContainer.filters = Object.values(filters);
       }
-    }
-    else {
+    } else {
       if (name in filters) {
         delete filters[name];
 
-        let unitContainer = this.getContainerByName(this.unitSprite);
+        const unitContainer = this.getContainerByName(this.unitSprite);
         if (unitContainer.filters.length > 1)
           unitContainer.filters = Object.values(filters);
         else
@@ -1907,21 +2008,21 @@ export default class Unit {
     return filters[name];
   }
 
-  _startPulse(steps, speed) {
-    let pulse = this._pulse;
-    if (pulse) this._stopPulse();
+  async _startPulse(steps, speed) {
+    if (this._pulse) await this._stopPulse();
 
-    this._pulse = pulse = this.animPulse(steps, speed);
-    pulse.play().then(() => this.brightness(1));
+    const anim = this.animPulse(steps, speed);
+    const pulse = this._pulse = anim.play().then(() => this.brightness(1));
+    pulse.stop = anim.stop;
 
     return this;
   }
 
-  _stopPulse() {
+  async _stopPulse() {
     let pulse = this._pulse;
     if (!pulse) return this;
 
-    pulse.stop();
+    await pulse.stop();
     this._pulse = null;
 
     return this;

@@ -217,7 +217,8 @@ export default class Game {
 
       if (focused) {
         let viewOnly = !this.canSelect(focused);
-        board.focused = focused.focus(viewOnly);
+        focused.focus(viewOnly);
+        board.focused = focused;
       }
       else
         board.focused = null;
@@ -1178,12 +1179,26 @@ export default class Game {
 
     const actor = action.unit;
 
-    // Select the unit that is about to act.
-    if (action.type === 'select') {
-      board.selected = actor;
-      actor.activate();
-      this.drawCard();
+    if (action.type === 'select')
       return;
+
+    // Select the initial actor
+    if (!board.selected) {
+      board.selected = actor;
+      if (action.type !== 'phase')
+        actor.activate();
+      this.drawCard();
+    }
+
+    // View the current actor
+    if (board.selected !== actor) {
+      await board.selected.deactivate();
+      board.viewed = actor;
+      this.drawCard();
+    } else if (board.viewed) {
+      await board.viewed.deactivate();
+      board.viewed = null;
+      this.drawCard();
     }
 
     /*
@@ -1195,10 +1210,12 @@ export default class Game {
       !this._inReplay
     );
     if (quick) {
-      actor.deactivate();
+      await actor.deactivate();
       await actor[action.type](action, speed);
-      await this._playResults(action, speed);
-      actor.activate();
+      await this._playResults(action, speed, actionType === 'move');
+      board.viewed?.deactivate();
+      board.viewed = null;
+      board.selected.activate();
       this.drawCard();
       return;
     }
@@ -1213,20 +1230,14 @@ export default class Game {
       }, true);
       await sleep(2000 / speed);
 
-      actor.deactivate();
+      await actor.deactivate();
       await actor.move(action, speed);
-      actor.activate();
+      await this._playResults(action, speed, true);
     } else if (actionType === 'attack') {
       // Show the player the units that will be attacked.
       const target = action.target;
       const targetTiles = actor.getTargetTiles(target);
       const targetUnits = actor.getTargetUnits(target);
-
-      // For counter-attacks, the actor may differ from selected.
-      if (selected !== actor) {
-        selected.deactivate();
-        actor.activate();
-      }
 
       targetTiles.forEach(tile => {
         board.setHighlight(tile, {
@@ -1247,20 +1258,17 @@ export default class Game {
 
       await sleep(2000 / speed);
 
-      targetUnits.forEach(tu => {
-        tu.deactivate();
+      await Promise.all(targetUnits.map(tu => {
         tu.notice = null;
-      });
+        return tu.deactivate();
+      }));
 
-      actor.deactivate();
+      await actor.deactivate();
       await actor.attack(action, speed);
       await this._playResults(action, speed);
-      selected.activate();
-      this.drawCard();
     } else if (actionType === 'turn') {
-      actor.deactivate();
+      await actor.deactivate();
       await actor.turn(action, speed);
-      actor.activate();
     // Only applicable to Chaos Seed/Dragon
     } else if (actionType === 'phase') {
       // Show the user the egg for 1 second before changing color
@@ -1275,7 +1283,7 @@ export default class Game {
       const targetUnit = action.target.assigned;
 
       if (selected !== actor) {
-        selected.deactivate();
+        await selected.deactivate();
         actor.activate();
       }
 
@@ -1284,37 +1292,42 @@ export default class Game {
 
       await sleep(1000 / speed);
 
-      targetUnit.deactivate();
-      actor.deactivate();
+      await Promise.all([ targetUnit.deactivate(), actor.deactivate() ]);
       await actor.heal(action, speed);
       await this._playResults(action, speed);
-    // Only applicable to Chaos Seed counter-attack
-    } else if (actionType === 'hatch') {
+    } else if (actionType === 'transform') {
       this.drawCard(actor);
       actor.activate();
       await sleep(2000 / speed);
+      await actor.deactivate();
 
-      actor.deactivate();
-      selected.deactivate(); // the target
-      await actor.hatch(action, speed);
+      await actor.transform(action, speed);
+
+      // View the new me
+      board.viewed = action.target.assigned;
+      board.drawCard();
       await this._playResults(action, speed);
+      await sleep(2000 / speed);
     } else {
       this.drawCard(actor);
 
       // For counter-attacks, the actor may differ from selected.
       if (selected !== actor) {
-        selected.deactivate();
+        await selected.deactivate();
         actor.activate();
       }
 
       await sleep(2000 / speed);
 
-      actor.deactivate();
+      await actor.deactivate();
       await actor[action.type](action, speed);
       await this._playResults(action, speed);
-      selected.activate();
-      this.drawCard();
     }
+
+    board.viewed?.deactivate();
+    board.viewed = null;
+    board.selected?.activate();
+    this.drawCard();
   }
   _showActions(all = false, unit) {
     let board = this._board;
@@ -1387,19 +1400,33 @@ export default class Game {
   /*
    * Show the player the results of an attack
    */
-  async _playResults(action, speed) {
+  async _playResults(action, speed, combined = false) {
     if (!action.results)
       return;
 
+    if (combined) {
+      const anim = new Tactics.Animation({ speed });
+      anim.splice(this._animApplyChangeResults(action.results));
+      await anim.play();
+      return;
+    }
+
     const showResult = async result => {
-      if (result.type === 'summon') return;
+      // The 2nd condition is meant to skip changing a Shrub to a Rageweed.
+      if (result.type === 'summon' || action.unit.type === 'Furgon' && result.unit !== action.unit) return;
 
       const anim = new Tactics.Animation({ speed });
       const changes = Object.assign({}, result.changes);
 
       // Changed separately
       const mHealth = changes.mHealth;
-      delete changes.mHealth;
+      if (mHealth !== undefined)
+        delete changes.mHealth;
+
+      // Apply a disposition at the end of a health change, if any
+      const disposition = mHealth === undefined ? undefined : changes.disposition;
+      if (disposition !== undefined)
+        delete changes.disposition;
 
       let unit = result.unit;
       if (changes.type) {
@@ -1414,15 +1441,10 @@ export default class Game {
 
       const mArmorChange = changes.mArmor === undefined ? 0 : changes.mArmor - unit.mArmor;
 
-      if (Object.keys(changes).length)
-        unit.change(changes);
-      if (result.results)
-        this._applyChangeResults(result.results);
-
-      anim.splice(this._animApplyFocusChanges(result));
+      anim.splice(this._animApplyChangeResults([ result ], { andDie:false }));
 
       if (mArmorChange > 0 && unit === action.unit) {
-        this.drawCard(unit);
+        anim.splice(0, () => this.drawCard(unit));
 
         const caption = 'Armor Up!';
         anim.splice(0, unit.animCaption(caption));
@@ -1434,29 +1456,27 @@ export default class Game {
           anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
-      } else if (unit.type === 'Shrub' && mHealth === -unit.health)
+      } else if (unit.type === 'Shrub' && unit.disposition === 'dead')
         // Don't show shrub death.  They are broken apart during attack.
         return anim.play();
       else if ('armored' in changes)
         return anim.play();
 
-      // Show the effect on the unit
-      this.drawCard(unit);
-      if (unit.type === 'Furgon' && changes.mRecovery === 6)
-        await sleep(2000 / speed);
+      // Show the effect on the unit after changes are applied in the first frame.
+      anim.splice(0, () => this.drawCard(unit));
 
       if (result.miss) {
-        let notice = result.miss.toUpperCase('first')+'!';
+        const notice = result.miss.toUpperCase('first')+'!';
 
         unit.change({ notice });
-        let caption = result.notice || notice;
+        const caption = result.notice || notice;
         anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
       }
 
       if (changes.paralyzed) {
-        let caption = result.notice || 'Paralyzed!';
+        const caption = result.notice || 'Paralyzed!';
         anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
@@ -1465,22 +1485,20 @@ export default class Game {
       // Only animate health loss and death if unit is still on the board.
       // A knight consumed by hatched Chaos Dragon would not still be on the board.
       if (mHealth !== undefined && unit.assignment) {
-        let increment;
-        let options = {};
+        const options = {};
 
         if (mHealth > unit.mHealth)
           options.color = '#00FF00';
         else if (mHealth < unit.mHealth && mHealth > -unit.health)
           options.color = '#FFBB44';
 
-        let diff = unit.mHealth - mHealth;
+        const diff = unit.mHealth - mHealth;
 
         if (changes.poisoned) {
-          let caption = result.notice || 'Poisoned!';
+          const caption = result.notice || 'Poisoned!';
           anim.splice(0, unit.animCaption(caption));
-        }
-        else {
-          let caption = result.notice || Math.abs(
+        } else {
+          const caption = result.notice || Math.abs(
             result.damage === undefined ? diff : result.damage,
           ).toString();
           anim.splice(0, unit.animCaption(caption, options));
@@ -1499,26 +1517,35 @@ export default class Game {
                     progress = Math.min(mHealth, progress);
                   else
                     progress = Math.max(mHealth, progress);
-                }
-                else
+                } else
                   progress += (diff / 8) * -1;
 
                 unit.change({
                   mHealth: Math.round(progress),
+                  disposition: null,
                 });
               },
               repeat: 8,
             },
             // Pause to reflect upon the new health amount
             {
-              script: () => {},
+              script: () => {
+                if (disposition !== undefined)
+                  unit.change({ disposition });
+              },
               repeat: 6,
             },
           ]);
         }
       }
 
-      return anim.play();
+      await anim.play();
+
+      // Show how the Furgon is exhausted after unleashing his rage
+      if (unit.type === 'Furgon' && changes.mRecovery === 6) {
+        this.drawCard(unit);
+        await sleep(2000 / speed);
+      }
     };
 
     /*
@@ -1542,7 +1569,7 @@ export default class Game {
       let changes = result.changes;
       if (!changes) continue;
 
-      if (changes.mHealth === -unit.health)
+      if (changes.disposition === 'dead')
         deadUnits.set(unit, result);
     }
 
@@ -1643,33 +1670,20 @@ export default class Game {
       this.lock('readonly');
   }
   async _playSurrender(action) {
-    let team = this.teams[action.teamId];
-    let anim = new Tactics.Animation();
-    let deathAnim = new Tactics.Animation();
+    const team = this.teams[action.teamId];
 
     this.selected = this.viewed = null;
 
-    this._applyChangeResults(action.results);
-
-    action.results.forEach(result => {
-      let unit = result.unit;
-
-      anim.splice(0, this._animApplyFocusChanges(result));
-      deathAnim.splice(0, unit.animDie());
-    });
-
-    anim.splice(deathAnim);
-
     // Show the notice for 2 seconds.
-    let ts = new Date();
+    const ts = new Date();
     this.notice = `${team.colorId} Surrenders!`;
 
-    await anim.play();
+    await this._animApplyChangeResults(action.results).play();
     await sleep(2000 - (new Date() - ts));
 
     this.notice = null;
   }
-  _playEndTurn(action) {
+  async _playEndTurn(action) {
     // A unit that dies while making its turn will no longer be selected.
     // So, make sure any shown action tiles are cleared.
     if (!this.selected)
@@ -1680,11 +1694,12 @@ export default class Game {
     // Assuming control of a bot team is specific to the chaos game type.
     if (this.state.type === 'chaos')
       if ('newPlayerTeam' in action) {
-        let newPlayerTeam = this.teams[action.newPlayerTeam];
+        const newPlayerTeam = this.teams[action.newPlayerTeam];
         newPlayerTeam.bot = false;
       }
 
-    this._applyChangeResults(action.results);
+    await this._playResults(action, this.speed, true);
+
     this._board.setInitialState();
 
     const teamId = (this.cursor.teamId + 1) % this.teams.length;
@@ -1820,7 +1835,7 @@ export default class Game {
       }
     }
   }
-  _applyAction(action) {
+  async _applyAction(action) {
     const board = this._board;
     const unit = action.unit;
 
@@ -1833,81 +1848,39 @@ export default class Game {
         unit.color = colorFilterMap.get(action.colorId);
     }
 
-    this._applyChangeResults(action.results, true);
-
-    // Remove dead units.
-    board.teamsUnits.flat().forEach(unit => {
-      // Chaos Seed doesn't die.  It hatches.
-      if (unit.type === 'ChaosSeed') return;
-
-      if (unit.mHealth === -unit.health)
-        board.dropUnit(unit);
-    });
+    await this._animApplyChangeResults(action.results, { instant:true }).play();
   }
-  _applyChangeResults(results, applyFocusChanges = false) {
-    if (!results) return;
+  _animApplyChangeResults(results, options) {
+    const anim = new Tactics.Animation();
+    if (!results || results.length === 0) return anim;
 
     const board = this._board;
+    const allResults = results.slice();
+    const unitsChanges = [];
 
-    results.forEach(result => {
+    for (let i = 0; i < allResults.length; i++) {
+      const result = allResults[i];
       const unit = result.unit;
 
-      if (result.type === 'summon') {
+      if (result.type === 'summon')
         // Add a clone of the unit so that the original unit remains unchanged
         board.addUnit(unit.clone(), this.teams[result.teamId]);
-      } else if (result.changes) {
-        const changes = result.changes;
-        if (changes.direction)
-          unit.stand(changes.direction);
-
-        unit.change(result.changes);
-
-        if (applyFocusChanges) {
-          if (unit.focusing || unit.paralyzed || unit.poisoned)
-            unit.showFocus();
-          else
-            unit.hideFocus();
-
-          if (unit.barriered)
-            unit.showBarrier();
-          else
-            unit.hideBarrier();
-        }
+      else if (result.changes && !result.changes.type) {
+        const unitChanges = unitsChanges.find(uc => uc.unit === unit);
+        if (unitChanges)
+          Object.assign(unitChanges.changes, result.changes);
+        else
+          unitsChanges.push({ unit, changes:result.changes });
       }
 
+      // Process sub results before subsequent results (just in case this matters)
       if (result.results)
-        this._applyChangeResults(result.results, applyFocusChanges);
-    });
-  }
-  _animApplyFocusChanges(result) {
-    let anim = new Tactics.Animation();
-    let unit = result.unit;
-    let changes = result.changes || {};
-
-    if ('focusing' in changes || 'paralyzed' in changes || 'poisoned' in changes) {
-      let hasFocus   = unit.hasFocus();
-      let needsFocus = unit.focusing || unit.paralyzed || unit.poisoned;
-      if (!hasFocus && needsFocus)
-        anim.splice(0, unit.animFocus());
-      else if (hasFocus && !needsFocus)
-        anim.splice(0, unit.animDefocus());
+        allResults.splice(i + 1, 0, ...result.results);
     }
 
-    /*
-     * Check for barrier changes to ensure that a BW barriering itself doesn't
-     * get double barriered.
-     */
-    if ('barriered' in changes) {
-      let hasBarrier   = unit.hasBarrier();
-      let needsBarrier = unit.barriered;
-      if (!hasBarrier && needsBarrier)
-        anim.splice(0, unit.animShowBarrier());
-      else if (hasBarrier && !needsBarrier)
-        anim.splice(0, unit.animHideBarrier());
-    }
-
-    if (result.results)
-      result.results.forEach(result => anim.splice(0, this._animApplyFocusChanges(result)));
+    // Process each unit in order of appearance (just in case this matters)
+    for (const unitChanges of unitsChanges)
+      anim.splice(0, unitChanges.unit.animChange(unitChanges.changes, options));
 
     return anim;
   }

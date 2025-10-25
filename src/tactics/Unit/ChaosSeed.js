@@ -186,23 +186,22 @@ export default class ChaosSeed extends Unit {
             changes: { mHealth },
           }],
         };
-      }
-      else {
-        let direction = board.getDirection(this.assignment, attacker.assignment);
+      } else {
+        const direction = board.getDirection(this.assignment, attacker.assignment);
 
         // Hatched
         return {
-          type:   'hatch',
-          unit:   this,
+          type: 'transform',
+          unit: this,
           target: attacker.assignment,
           results: [
             {
-              unit:    this,
+              unit: this,
               changes: { type:'ChaosDragon', direction },
             },
             {
-              unit:    attacker,
-              changes: { mHealth:-attacker.health },
+              unit: attacker,
+              changes: { disposition:'dead' },
             },
           ],
         };
@@ -350,8 +349,7 @@ export default class ChaosSeed extends Unit {
 
       // Delay the crack sound
       anim.addFrame([]);
-    }
-    else if (attackType === 'magic') {
+    } else if (attackType === 'magic') {
       // Magic attacks cause a stagger
       doStagger = true;
 
@@ -388,7 +386,7 @@ export default class ChaosSeed extends Unit {
 
     return anim;
   }
-  hatch(action) {
+  animTransform(action) {
     let board       = this.board;
     let anim        = new Tactics.Animation();
     let assignment  = this.assignment;
@@ -569,9 +567,17 @@ export default class ChaosSeed extends Unit {
         anim.splice(i, () => wind.play(winds.random()));
     }
 
-    return anim.play();
+    return anim;
   }
   canCounter() {
     return true;
+  }
+  // Chaos Seed never dies, just hatches
+  getDeadResult(attacker, result) {
+    const isDead = super.getDeadResult(attacker, result);
+    if (isDead)
+      result.changes.disposition = 'hatch';
+
+    return isDead;
   }
 }

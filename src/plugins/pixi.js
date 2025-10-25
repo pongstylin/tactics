@@ -49,7 +49,7 @@ for (const tickerName of [ 'shared', 'system' ]) {
  * instead.
  */
 window.PIXI = {
-  autoDetectRenderer,
+  autoDetectRenderer: options => autoDetectRenderer(Object.assign({ failIfMajorPerformanceCaveat:false }, options)),
   filters: { ColorMatrixFilter, BlurFilter },
 
   CanvasSource,

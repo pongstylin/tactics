@@ -1,5 +1,8 @@
 import EventEmitter from 'events';
 
+// The theoretical max number of listeners is equal to the number of units that can co-exist on the board.
+EventEmitter.defaultMaxListeners = 11 * 11 - 3 * 4;
+
 const testWildcard = /[\*\?]/;
 const instances = new WeakMap();
 const getPrivateData = instance => {

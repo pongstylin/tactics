@@ -328,13 +328,20 @@ unitDataMap.set('Furgon', {
   aType: 'summon',
   aRange: [0, 2],
   tier: 2,
+  features: {
+    // Turn this off to enable limited lifetimes for shrubs.
+    evergreen: true,
+    // Turn this on to enable transform-on-death
+    transform: false,
+  },
 });
 
 unitDataMap.set('Shrub', {
   name: 'Shrub',
   power: 0,
   armor: 0,
-  health: 1,
+  health: 0,
+  lifespan: 3,
   recovery: 0,
   blocking: 0,
   mType: false,
@@ -342,11 +349,17 @@ unitDataMap.set('Shrub', {
   aType: false,
   directional: false,
   tier: 5,
+  sounds: {
+    block: 'sprite:core/sounds/sound8',
+  },
 });
 
 unitDataMap.set('Trophy', {
   name: 'Trophy',
   tier: 5,
+  sounds: {
+    block: 'sprite:core/sounds/sound8',
+  },
 });
 
 unitDataMap.set('GolemAmbusher', {
@@ -379,6 +392,9 @@ unitDataMap.set('Berserker', {
   aType: 'melee',
   aRange: [1, 1],
   tier: 3,
+  features: {
+    unblockableStun: false,
+  },
 });
 
 unitDataMap.set('ChaosDragon', {

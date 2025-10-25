@@ -14,7 +14,7 @@ const [ PK, SK ] = process.argv[2].split(':');
 const path = process.argv[3] ?? '$';
 
 const ddb = await new DynamoDBAdapter({ hasState:false, readonly:true }).bootstrap();
-const item = await ddb.getItem({ PK, SK });
+const item = await ddb.getItem({ PK, SK:SK ?? '/' });
 
 console.log(`query: ${path}`);
 console.log(util.inspect(jp(JSON.parse(serializer.stringify(item)), path), { depth:null, colors:true }));

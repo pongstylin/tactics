@@ -68,11 +68,12 @@
 
         if (typeof frame === 'function') {
           frame = Object.assign(template, { scripts:[frame] });
-        }
-        else if (Array.isArray(frame)) {
+        } else if (Array.isArray(frame)) {
           frame = Object.assign(template, { scripts:frame });
-        }
-        else if (typeof frame === 'object') {
+        } else if (frame instanceof Tactics.Animation) {
+          frame.frames.forEach(f => this.addFrame(f));
+          return self;
+        } else if (typeof frame === 'object') {
           frame = Object.assign(template, frame);
 
           if (frame.script) {
@@ -93,8 +94,7 @@
             ));
             frames.push(repeat_frame);
           }
-        }
-        else {
+        } else {
           frame = Object.assign({}, frame, {
             index: index,
           });
@@ -151,8 +151,7 @@
         if (args.length === 2) {
           offsets = Array.isArray(args[0]) ? args[0] : [args[0]];
           anim = args[1];
-        }
-        else {
+        } else {
           offsets = [frames.length];
           anim = args[0];
         }

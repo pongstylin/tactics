@@ -687,8 +687,19 @@ export default class GameState {
        *   6) Furgon did special attack - immediately incurring recovery
        */
       if (action.type === 'attack' || action.type === 'attackSpecial') {
+        // Can any victims counter-attack?
+        for (const result of action.results) {
+          const unit = result.unit;
+          if (!unit.canCounter()) continue;
+
+          const counterAction = unit.getCounterAction(action.unit, result);
+          if (!counterAction) continue;
+
+          this._pushAction(counterAction);
+        }
+
         const forceEndTurn = () => {
-          if (unit.mHealth === -unit.health)
+          if (unit.disposition === 'dead')
             return true;
           if (unit.focusing)
             return true;
@@ -699,23 +710,8 @@ export default class GameState {
           if (this.winningTeams.length)
             return true;
         };
-
         if (forceEndTurn())
           return setEndTurn(true);
-
-        // Can any victims counter-attack?
-        return action.results.find(result => {
-          const unit = result.unit;
-          if (!unit.canCounter()) return;
-
-          const counterAction = unit.getCounterAction(action.unit, result);
-          if (!counterAction) return;
-
-          this._pushAction(counterAction);
-
-          if (forceEndTurn())
-            return setEndTurn(true);
-        });
       }
     });
 
@@ -1420,7 +1416,7 @@ export default class GameState {
         const result = { unit, changes:{} };
 
         if (losingTeams.includes(team)) {
-          result.changes.mHealth = -unit.health;
+          result.changes.disposition = 'dead';
           results.push(result);
           continue;
         }
@@ -1544,7 +1540,7 @@ export default class GameState {
     const board = this._board;
 
     return team.units.map(unit => {
-      const result = { unit, changes:{ mHealth:-unit.health } };
+      const result = { unit, changes:{ disposition:'dead' } };
       const subResults = [];
 
       // Most attacks break the focus of focusing units.
