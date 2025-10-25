@@ -96,9 +96,8 @@ window.Tactics = (function () {
         }
 
         if (spriteData.imports)
-          for (let i = 0; i < spriteData.imports.length; i++) {
+          for (let i = 0; i < spriteData.imports.length; i++)
             effectTypes.add(spriteData.imports[i]);
-          }
 
         progress++;
         cb(
@@ -150,7 +149,19 @@ window.Tactics = (function () {
       );
       progress = 0;
 
-      for (let unitType of unitTypes) {
+      unitTypes.sort((a,b) => {
+        const aIsImported = unitsData.find(u => u.imports.includes(a));
+        const bIsImported = unitsData.find(u => u.imports.includes(b));
+        const aUnitData = unitsData.find(u => u.name === a);
+        const bUnitData = unitsData.find(u => u.name === b);
+        if (aUnitData.imports.includes(b) && !bUnitData.imports.includes(a) || !aIsImported && aIsImported || a !== 'core' && b === 'core')
+          return 1;
+        else if (!aUnitData.imports.includes(b) && bUnitData.imports.includes(a) || aIsImported && !bIsImported || a === 'core' && b !== 'core')
+          return -1;
+        return 0;
+      });
+
+      for (const unitType of unitTypes) {
         cb(
           0.50 + progress / unitTypes.length * 0.50,
           `Loading ${unitType}...`
