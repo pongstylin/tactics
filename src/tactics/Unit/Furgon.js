@@ -136,6 +136,18 @@ export default class Furgon extends Unit {
       disposition: 'unbreakable',
     };
 
+    const nonEvergreenShrubs = this.board.teamsUnits.flat().filter(unit => (
+      unit.type === 'Shrub' && unit.name === 'Shrub' && unit.disposition !== 'evergreen'
+    ));
+    if (nonEvergreenShrubs.length > 0) {
+      myResult.results = nonEvergreenShrubs.map(shrub => {
+        const changes = { disposition:'evergreen' };
+        if (shrub.mLifespan < 0)
+          changes.mLifespan = 0;
+        return { unit:shrub, changes };
+      });
+    }
+
     return {
       type: 'transform',
       unit: this,
@@ -146,8 +158,12 @@ export default class Furgon extends Unit {
   getMoveResults(action) {
     if (this.features.evergreen) return [];
 
-    const furgons = this.board.teamsUnits.flat().filter(u => u.type === 'Furgon');
-    const shrubs = this.board.teamsUnits.flat().filter(u => u.type === 'Shrub' && u.name === 'Shrub');
+    const allUnits = this.board.teamsUnits.flat();
+    if (allUnits.some(u => u.type === 'Shrub' && u.name === 'Golden Shrub'))
+      return [];
+
+    const furgons = allUnits.filter(u => u.type === 'Furgon');
+    const shrubs = allUnits.filter(u => u.type === 'Shrub' && u.name === 'Shrub');
     const results = [];
 
     for (const shrub of shrubs) {

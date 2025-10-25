@@ -1379,13 +1379,12 @@ export default class Board {
             }, changes));
 
             this.dropUnit(unit).addUnit(newUnit, unit.team);
-            return;
+          } else {
+            if (changes.disposition === 'dead')
+              this.dropUnit(unit);
+            else if (Object.keys(changes).length)
+              unit.change(changes);
           }
-
-          if (changes.disposition === 'dead')
-            this.dropUnit(unit);
-          else if (Object.keys(changes).length)
-            unit.change(changes);
         }
       }
 

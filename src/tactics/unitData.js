@@ -331,7 +331,7 @@ unitDataMap.set('Furgon', {
   features: {
     // Turn this off to enable limited lifetimes for shrubs.
     evergreen: true,
-    // Turn this off to enable transform-on-death
+    // Turn this on to enable transform-on-death
     transform: false,
   },
 });
