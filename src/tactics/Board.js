@@ -1556,8 +1556,13 @@ export default class Board {
           if (unit.directional !== false)
             unit.direction = this.getRotation(unit.direction, degree);
           unit.assignment = this.getTileRotation(unit.assignment, degree);
-        } else
-          decoded.unit = units.find(u => u.id === decoded.unit);
+        } else {
+          const unit = units.find(u => u.id === decoded.unit);
+          if (unit === undefined)
+            throw new Error(`Unable to find unit (${decoded.unit})`);
+          else
+            decoded.unit = unit;
+        }
       }
       if (decoded.assignment !== undefined)
         decoded.assignment = this.getTileRotation(decoded.assignment, degree);

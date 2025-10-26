@@ -407,7 +407,7 @@ export default class Unit {
       result.changes = {};
       if (result.damage) {
         result.changes.mHealth = Math.max(-unit.health, Math.min(0, unit.mHealth - calc.damage));
-        if (result.changes.mHealth === 0)
+        if (result.changes.mHealth === unit.mHealth)
           delete result.changes.mHealth;
       }
       if (calc.bonus)
