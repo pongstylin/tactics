@@ -462,6 +462,7 @@ export default class Game {
   get actions() {
     return this._board.decodeAction(
       this.cursor.actions.slice(0, this.cursor.nextActionId),
+      this.cursor.units,
     );
   }
 
@@ -1214,7 +1215,7 @@ export default class Game {
       await this._playResults(action, speed, actionType === 'move');
       board.viewed?.deactivate();
       board.viewed = null;
-      board.selected.activate();
+      board.selected?.activate();
       this.drawCard();
       return;
     }
@@ -1519,19 +1520,19 @@ export default class Game {
                 } else
                   progress += (diff / 8) * -1;
 
-                unit.change({
+                const changes = {
                   mHealth: Math.round(progress),
                   disposition: null,
-                });
+                };
+                if (disposition !== undefined && Math.round(progress) === mHealth)
+                  changes.disposition = disposition;
+                unit.change(changes);
               },
               repeat: 8,
             },
             // Pause to reflect upon the new health amount
             {
-              script: () => {
-                if (disposition !== undefined)
-                  unit.change({ disposition });
-              },
+              script: () => {},
               repeat: 6,
             },
           ]);

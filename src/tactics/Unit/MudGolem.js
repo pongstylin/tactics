@@ -82,8 +82,10 @@ export default class MudGolem extends Unit {
         };
       }
 
-      board.applyActionResults([result]);
+      board.applyActionResults([ result ]);
       this.getAttackSubResults(result);
+      // Reapply the result since getDeadResult can modify it.
+      board.applyActionResults([ result ]);
       return result;
     });
   }
