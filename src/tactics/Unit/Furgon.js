@@ -123,7 +123,7 @@ export default class Furgon extends Unit {
   canCounter() {
     if (!this.features.transform) return false;
 
-    return this.paralyzed || this.poisoned ? false : true;
+    return this.disposition === 'transform';
   }
   getCounterAction(attacker, result) {
     if (this.disposition !== 'transform') return null;
@@ -369,8 +369,17 @@ export default class Furgon extends Unit {
   // Furgon can only be truly killed if paralyzed or poisoned first
   getDeadResult(attacker, result) {
     const isDead = super.getDeadResult(attacker, result);
-    if (isDead && this.canCounter() && attacker.team !== this.team)
-      result.changes.disposition = 'transform';
+    if (!isDead) return isDead;
+
+    if (attacker.team === this.team)
+      return isDead;
+    if (this.paralyzed || this.poisoned)
+      return isDead;
+    for (const D of [ 'N', 'S', 'E', 'W' ])
+      if (this.assignment[D]?.assigned?.type === 'Shrub' && this.assignment[D]?.assigned?.name === 'Rageweed')
+        return isDead;
+
+    result.changes.disposition = 'transform';
 
     return isDead;
   }
