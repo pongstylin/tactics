@@ -2,13 +2,13 @@ import Unit from '#tactics/Unit.js';
 
 export default class Cleric extends Unit {
   getAttackTiles() {
-    return this.getTargetUnits().map(u => u.assignment);
+    return [ this.assignment, ...this.getTargetUnits().filter(u => u !== this).map(u => u.assignment) ];
   }
   getTargetTiles() {
     return this.getAttackTiles();
   }
   getTargetUnits() {
-    return [ this, ...this.team.units.filter(u => u.mHealth < 0 && u !== this) ];
+    return this.team.units.filter(u => u.mHealth < 0);
   }
   /*
    * Customized to show effect on all units, not just healed units.
@@ -45,7 +45,7 @@ export default class Cleric extends Unit {
     return anim;
   }
   getAttackResults(action) {
-    let results = super.getAttackResults(action);
+    const results = super.getAttackResults(action);
 
     results.sort((a, b) =>
       a.unit.assignment.y - b.unit.assignment.y ||
