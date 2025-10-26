@@ -1380,10 +1380,12 @@ export default class Board {
 
             this.dropUnit(unit).addUnit(newUnit, unit.team);
           } else {
+            // Make sure dead disposition is applied before dropping the unit.
+            // This allows GameState to detect when the attacker has died.
+            if (Object.keys(changes).length)
+              unit.change(changes);
             if (changes.disposition === 'dead')
               this.dropUnit(unit);
-            else if (Object.keys(changes).length)
-              unit.change(changes);
           }
         }
       }
@@ -1543,8 +1545,10 @@ export default class Board {
   }
   /*
    * Decode unit and tile references by modifying original object.
+   * If a unit kills itself, initialUnits is necessary to decode the unit for earlier actions.
+   * The initial units are the units at the beginning of the turn (turn.units or cursor.units).
    */
-  decodeAction(action) {
+  decodeAction(action, initialUnits = null) {
     const degree = this.getDegree('N', this.rotation);
     const units = this.teamsUnits.flat();
     const decode = obj => {
@@ -1558,9 +1562,18 @@ export default class Board {
           unit.assignment = this.getTileRotation(unit.assignment, degree);
         } else {
           const unit = units.find(u => u.id === decoded.unit);
-          if (unit === undefined)
-            throw new Error(`Unable to find unit (${decoded.unit})`);
-          else
+          if (unit === undefined) {
+            if (initialUnits) {
+              const unitData = initialUnits.flat().find(u => u.id === decoded.unit);
+              if (unitData) {
+                decoded.unit = this.makeUnit(unitData);
+              } else {
+                throw new Error(`Unable to find unit in initial state (${decoded.unit})`);
+              }
+            } else {
+              throw new Error(`Unable to find unit in board state (${decoded.unit})`);
+            }
+          } else
             decoded.unit = unit;
         }
       }
@@ -1740,8 +1753,12 @@ export default class Board {
   }
 
   showTargets(target) {
-    let selected = this.selected;
-    let targeted = this.targeted = new Set(selected.getTargetUnits(target));
+    const selected = this.selected;
+    const targeted = this.targeted = new Set((() => {
+      if (selected.canSpecial() && (target ?? selected.assignment) === selected.assignment)
+        return selected.getSpecialTargetTiles(target).filter(t => !!t.assigned).map(t => t.assigned);
+      return selected.getTargetUnits(target);
+    })());
 
     // Units affected by the attack will pulsate.
     targeted.forEach(tu => {

@@ -210,7 +210,7 @@ export default class ConfigureGame extends Modal {
     this.root.querySelector('.fa.fa-info.timeLimitName').addEventListener('click', event => this._showTimeLimitNameInfo());
     this.root.querySelector('.fa.fa-info.customize').addEventListener('click', event => this._showCustomizeInfo());
 
-    this._els.btnSubmit.addEventListener('click', async () => this._submit());
+    this._els.btnSubmit.addEventListener('click', () => this._submit());
 
     /*
      * Load all data before showing the page.
@@ -1296,7 +1296,20 @@ export default class ConfigureGame extends Modal {
     });
 
     const target = inApp ? window : window.open();
-    target.location.href = `/game.html?${newGameId}`;
+    if (target === null) {
+      popup({
+        message: `Your fork game is ready.`,
+        buttons: [
+          { label:'Open Now', onClick:() => {
+            const target = inApp ? window : window.open();
+            target.location.href = `/game.html?${newGameId}`;
+          } },
+          { label:'Open Later' },
+        ],
+      });
+    } else {
+      target.location.href = `/game.html?${newGameId}`;
+    }
   }
 
   _submitConfirmBeforeCreate() {
