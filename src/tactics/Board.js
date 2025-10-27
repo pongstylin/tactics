@@ -1568,10 +1568,10 @@ export default class Board {
               if (unitData) {
                 decoded.unit = this.makeUnit(unitData);
               } else {
-                throw new Error(`Unable to find unit in initial state (${decoded.unit})`);
+                //throw new Error(`Unable to find unit in initial state (${decoded.unit})`);
               }
             } else {
-              throw new Error(`Unable to find unit in board state (${decoded.unit})`);
+              //throw new Error(`Unable to find unit in board state (${decoded.unit})`);
             }
           } else
             decoded.unit = unit;
