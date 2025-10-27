@@ -24,10 +24,14 @@ export default class Furgon extends Unit {
    * ward ally is killed by an opponent team.
    */
   onBoardDropUnit(event) {
+    // If this unit is dying or transforming, disregard
+    if (this.disposition === 'dead' || this.disposition === 'transform')
+      return;
+
     const attacker = event.attacker;
     const defender = event.unit;
 
-    // Nothing can be done if this used died.
+    // Nothing can be done if this unit died.
     // Compare using IDs since the unit may be a clone.
     if (defender.id === this.id)
       return;
@@ -113,7 +117,7 @@ export default class Furgon extends Unit {
     return [];
   }
   validateAttackAction(validate) {
-    let action = super.validateAttackAction(validate);
+    const action = super.validateAttackAction(validate);
 
     if (this.canSpecial())
       action.type = 'attackSpecial';
@@ -121,8 +125,6 @@ export default class Furgon extends Unit {
     return action;
   }
   canCounter() {
-    if (!this.features.transform) return false;
-
     return this.disposition === 'transform';
   }
   getCounterAction(attacker, result) {
@@ -371,6 +373,11 @@ export default class Furgon extends Unit {
     const isDead = super.getDeadResult(attacker, result);
     if (!isDead) return isDead;
 
+    if (this.name === 'Enraged Furgon')
+      result.changes.name = 'Furgon';
+
+    if (!this.features.transform)
+      return isDead;
     if (attacker.team === this.team)
       return isDead;
     if (this.paralyzed || this.poisoned)

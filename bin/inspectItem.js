@@ -2,11 +2,12 @@ import util from 'util';
 import { search as jp } from '@metrichor/jmespath';
 
 import '#plugins/index.js';
-import '#models/Game.js';
 import '#server/AccessToken.js';
+import '#models/Game.js';
+import '#models/Identity.js';
 import '#models/Player.js';
 import '#models/PlayerStats.js';
-import '#models/Identity.js';
+import '#models/Provider.js';
 import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 import serializer from '#utils/serializer.js';
 
