@@ -378,6 +378,8 @@ export default class Furgon extends Unit {
 
     if (!this.features.transform)
       return isDead;
+    if (this.team.units.some(u => u.type === 'Furgon' && u !== this && u.disposition !== 'dead'))
+      return isDead;
     if (attacker.team === this.team)
       return isDead;
     if (this.paralyzed || this.poisoned)
