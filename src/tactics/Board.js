@@ -162,14 +162,18 @@ export default class Board {
         divider: {
           type: 'G',
           draw: pixi => {
-            const colorStops = [
-              [0,    '#000000'],
-              [0.09, '#FFFFFF'],
-              [0.62, '#FFEECC'],
-              [1,    '#000000'],
-            ];
-            const fill = new PIXI.FillGradient(0, 0, 176, 0);
-            colorStops.forEach(cs => fill.addColorStop(...cs));
+            const fill = new PIXI.FillGradient({
+              type: 'linear',
+              start: { x:0, y:0 },
+              end: { x:176, y:0 },
+              colorStops: [
+                { offset:0,    color:0x000000 },
+                { offset:0.09, color:0xFFFFFF },
+                { offset:0.62, color:0xFFEECC },
+                { offset:1,    color:0x000000 },
+              ],
+              textureSpace: 'global',
+            });
 
             pixi.moveTo(0, 60.5);
             pixi.lineTo(176, 60.5);
@@ -663,8 +667,10 @@ export default class Board {
       if (this.locked === true) return;
       if (event.target.label === 'tiles') return;
 
-      if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data))
+      if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data)) {
         Tactics.game.selectMode = 'attack'; 
+        return;
+      }
 
       if (this.viewed || this.selected)
         this._emit({
