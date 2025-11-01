@@ -667,6 +667,7 @@ export default class Board {
       if (this.locked === true) return;
       if (event.target.label === 'tiles') return;
 
+      // This really should be an emitted event.
       if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data)) {
         Tactics.game.selectMode = 'attack'; 
         return;
@@ -1645,18 +1646,16 @@ export default class Board {
 
     // The Game class calls this method so the North-normalized data needs
     // to be rotated appropriately based on board rotation.
-    let degree = this.getDegree('N', this.rotation);
+    const degree = this.getDegree('N', this.rotation);
 
     // Set the board
-    teamsUnits.forEach((unitsState, teamId) => {
-      let team = teams[teamId];
+    // Clone the units to protect against modification.
+    teamsUnits.clone().forEach((unitsState, teamId) => {
+      const team = teams[teamId];
 
       this.teamsUnits.push(team.units = []);
 
       unitsState.forEach(unitState => {
-        // Clone the object to protect against modification.
-        unitState = Object.assign({}, unitState);
-
         // Adjust assignment and direction based on current board rotation.
         if (degree) {
           unitState.assignment = this.getTileRotation(unitState.assignment, degree);
@@ -1669,18 +1668,20 @@ export default class Board {
     });
 
     // Now that all units exist, resolve unit references.
-    let units = this.teamsUnits.flat();
+    const units = this.teamsUnits.flat();
     units.forEach(unit => {
-      if (unit.focusing)
-        unit.focusing = unit.focusing.map(uId => units.find(u => u.id === uId));
-      if (unit.paralyzed)
-        unit.paralyzed = unit.paralyzed.map(uId => units.find(u => u.id === uId));
-      if (unit.barriered)
-        unit.barriered = unit.barriered.map(uId => units.find(u => u.id === uId));
-      if (unit.poisoned)
-        unit.poisoned = unit.poisoned.map(uId => units.find(u => u.id === uId));
-      if (unit.armored)
-        unit.armored = unit.armored.map(uId => units.find(u => u.id === uId));
+      for (const prop of [ 'focusing', 'paralyzed', 'barriered', 'poisoned', 'armored' ]) {
+        if (!unit[prop]) continue;
+
+        const unitIds = unit[prop];
+        unit[prop] = unitIds.map(uId => units.find(u => u.id === uId));
+        if (unit[prop].includes(undefined)) {
+          console.warn(`Unit has invalid unit reference for property '${prop}' (${unit.id} => [ ${unitIds.join(', ')} ])`);
+          unit[prop] = unit[prop].filter(u => !!u);
+          if (unit[prop].length === 0)
+            unit[prop] = false;
+        }
+      }
 
       if (unit.pixi) {
         if (unit.focusing || unit.paralyzed || unit.poisoned)
