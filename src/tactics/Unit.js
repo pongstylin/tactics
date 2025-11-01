@@ -2019,10 +2019,11 @@ export default class Unit {
   }
 
   async _stopPulse() {
-    let pulse = this._pulse;
+    const pulse = this._pulse;
     if (!pulse) return this;
 
-    await pulse.stop();
+    pulse.stop();
+    await pulse;
     this._pulse = null;
 
     return this;
