@@ -1179,9 +1179,6 @@ export default class Game {
 
     const actor = action.unit;
 
-    if (action.type === 'select')
-      return;
-
     // Select the initial actor
     if (!board.selected) {
       board.selected = actor;
@@ -1189,6 +1186,9 @@ export default class Game {
         actor.activate();
       this.drawCard();
     }
+
+    if (action.type === 'select')
+      return;
 
     // View the current actor
     if (board.selected !== actor) {
