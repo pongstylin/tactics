@@ -11,6 +11,7 @@ import {
   Text,
 
   autoDetectRenderer,
+  WebGPURenderer,
   CanvasSource,
   Texture,
 
@@ -56,10 +57,16 @@ for (const tickerName of [ 'shared', 'system' ]) {
 window.PIXI = {
   isWebGLSupported,
   isWebGPUSupported,
-  autoDetectRenderer: options => autoDetectRenderer(Object.assign({
-    preference: localStorage.getItem('preferredRenderer'),
-    failIfMajorPerformanceCaveat: false,
-  }, options)),
+  autoDetectRenderer: async options => {
+    const preference = localStorage.getItem('preferredRenderer');
+    if (preference === 'webgpu' && await isWebGPUSupported())
+      return new WebGPURenderer(options);
+
+    return autoDetectRenderer(Object.assign({
+      preference,
+      failIfMajorPerformanceCaveat: false,
+    }, options));
+  },
   filters: { ColorMatrixFilter, BlurFilter },
 
   CanvasSource,
