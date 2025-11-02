@@ -19,6 +19,9 @@ import {
 
   EventSystem,
   Ticker,
+
+  isWebGLSupported,
+  isWebGPUSupported,
 } from 'pixi.js';
 
 if (EventSystem.prototype.updateCursor)
@@ -48,8 +51,15 @@ for (const tickerName of [ 'shared', 'system' ]) {
  * bloat bundle sizes when PIXI isn't technically used.  So, a global is used
  * instead.
  */
+
+
 window.PIXI = {
-  autoDetectRenderer: options => autoDetectRenderer(Object.assign({ failIfMajorPerformanceCaveat:false }, options)),
+  isWebGLSupported,
+  isWebGPUSupported,
+  autoDetectRenderer: options => autoDetectRenderer(Object.assign({
+    preference: localStorage.getItem('preferredRenderer'),
+    failIfMajorPerformanceCaveat: false,
+  }, options)),
   filters: { ColorMatrixFilter, BlurFilter },
 
   CanvasSource,

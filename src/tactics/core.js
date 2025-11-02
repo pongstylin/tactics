@@ -7,7 +7,7 @@ import clientFactory from 'client/clientFactory.js';
 import Board from 'tactics/Board.js';
 import Game from 'tactics/Game.js';
 import Unit from 'tactics/Unit.js';
-import unitDataMap, { unitTypeToIdMap } from 'tactics/unitData.js';
+import unitDataMap from 'tactics/unitData.js';
 import unitFactory from 'tactics/unitFactory.js';
 import AnimatedSprite from 'tactics/AnimatedSprite.js';
 import LocalTransport from 'tactics/LocalTransport.js';
@@ -287,7 +287,7 @@ window.Tactics = (function () {
       return transport.whenReady.then(() => new Game(transport).init());
     },
     async makeAvatarRenderer() {
-      this._avatars.renderer = await PIXI.autoDetectRenderer({});
+      return this._avatars.renderer = await PIXI.autoDetectRenderer({});
     },
     drawAvatar(avatar, options, transform = null) {
       options = Object.assign({
