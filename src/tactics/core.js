@@ -152,9 +152,11 @@ window.Tactics = (function () {
         const bIsImported = unitsData.find(u => u.imports.includes(b));
         const aUnitData = unitsData.find(u => u.name === a);
         const bUnitData = unitsData.find(u => u.name === b);
-        if (aUnitData.imports.includes(b) && !bUnitData.imports.includes(a) || !aIsImported && aIsImported || a !== 'core' && b === 'core')
+        if (a === 'core') return -1;
+        if (b === 'core') return 1;
+        if (aUnitData.imports.includes(b) && !bUnitData.imports.includes(a) || !aIsImported && bIsImported)
           return 1;
-        else if (!aUnitData.imports.includes(b) && bUnitData.imports.includes(a) || aIsImported && !bIsImported || a === 'core' && b !== 'core')
+        else if (!aUnitData.imports.includes(b) && bUnitData.imports.includes(a) || aIsImported && !bIsImported)
           return -1;
         return 0;
       });
