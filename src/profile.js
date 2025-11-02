@@ -227,7 +227,7 @@ async function renderApplication() {
   const divWebGLEngine = document.querySelector('.webgl-engine .value');
   const divWebGPUEngine = document.querySelector('.webgpu-engine .value');
   const isWebGLAvailable = PIXI.isWebGLSupported();
-  const isWebGPUAvailable = PIXI.isWebGPUSupported();
+  const isWebGPUAvailable = await PIXI.isWebGPUSupported();
   const isWebGLCompromised = isWebGLAvailable && !PIXI.isWebGLSupported(true);
   const rendererType = await (async () => {
     try {
@@ -250,7 +250,6 @@ async function renderApplication() {
   ].join('');
   divWebGPUEngine.innerHTML = [
     isWebGPUActive ? 'Active' : isWebGPUAvailable ? 'Available' : 'Unavailable',
-    isWebGLCompromised ? ' <span style="color:orange;">(Compromised)</span>' : '',
     isWebGPUAvailable && !isWebGPUActive ? ' <button name="WebGPU">Select</button>' : '',
   ].join('');
 
