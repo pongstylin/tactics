@@ -626,7 +626,7 @@ export default class GameState {
 
       // Only the first unit to take action may take another.
       const selected = this.selected;
-      if (selected && unit !== selected)
+      if (selected && unit.id !== selected.id)
         throw new ServerError(400, 'Actor is not the selected unit');
 
       // Recovering or paralyzed units can't take action.
