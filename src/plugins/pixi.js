@@ -59,8 +59,14 @@ window.PIXI = {
   isWebGPUSupported,
   autoDetectRenderer: async options => {
     const preference = localStorage.getItem('preferredRenderer');
-    if (preference === 'webgpu' && await isWebGPUSupported())
-      return new WebGPURenderer(options);
+    if (preference === 'webgpu' && await isWebGPUSupported()) {
+      const webGPUOptions = { ...options, ...options.webgpu };
+      delete webGPUOptions.webgl;
+      delete webGPUOptions.webgpu;
+      const renderer = new WebGPURenderer();
+      await renderer.init(webGPUOptions);
+      return renderer;
+    }
 
     return autoDetectRenderer(Object.assign({
       preference,
