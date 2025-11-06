@@ -1,5 +1,4 @@
 import Client from 'client/Client.js';
-import popup from 'components/popup.js';
 import Auth from 'components/Modal/Auth.js';
 import config from 'config/client.js';
 import { CLOSE_CLIENT_LOGOUT } from 'client/ServerSocket.js';

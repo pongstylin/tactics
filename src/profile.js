@@ -60,13 +60,13 @@ function renderPage() {
 
   Promise.all(promises).then(() => {
     renderACL();
+    renderApplication();
 
     document.querySelector('.page').style.display = '';
   });
 }
 
 function renderACL() {
-  const content = [];
   const ruleTypes = [ 'newAccounts', 'guestAccounts' ];
   const aclTypes = [ 'muted', 'blocked' ];
   const relationshipTypes = [ 'friended', 'muted', 'blocked' ];
@@ -103,7 +103,7 @@ function renderACL() {
 
   const divRelationships = document.querySelector('.relationships');
 
-  for (const [ playerId, relationship ] of relationships) {
+  for (const [ playerId, relationship ] of sortedACL) {
     const divPlayer = document.createElement('DIV');
     divPlayer.id = `relationship-${playerId}`;
     divPlayer.classList.add('relationship');
@@ -219,4 +219,54 @@ function renderACL() {
     }));
     autosave.appendTo(divName);
   }
+}
+
+async function renderApplication() {
+  const divClientVersion = document.querySelector('.client-version .value');
+  const divServerVersion = document.querySelector('.server-version .value');
+  const divWebGLEngine = document.querySelector('.webgl-engine .value');
+  const divWebGPUEngine = document.querySelector('.webgpu-engine .value');
+  const isWebGLAvailable = PIXI.isWebGLSupported();
+  const isWebGPUAvailable = await PIXI.isWebGPUSupported();
+  const isWebGLCompromised = isWebGLAvailable && !PIXI.isWebGLSupported(true);
+  const rendererType = await (async () => {
+    try {
+      const renderer = await Tactics.makeAvatarRenderer();
+      return renderer.type === 1 ? 'WebGL' : renderer.type === 2 ? 'WebGPU' : 'Canvas';
+    } catch {
+      return 'Unavailable';
+    }
+  })();
+  const isWebGLActive = rendererType === 'WebGL';
+  const isWebGPUActive = rendererType === 'WebGPU';
+
+  divClientVersion.textContent = Tactics.version;
+  divServerVersion.textContent = authClient._server.version;
+
+  divWebGLEngine.innerHTML = [
+    isWebGLActive ? 'Active' : isWebGLAvailable ? 'Available' : 'Unavailable',
+    isWebGLCompromised ? ' <span style="color:orange;">(Compromised)</span>' : '',
+    isWebGLAvailable && !isWebGLActive ? ' <button name="WebGL">Select</button>' : '',
+  ].join('');
+  divWebGPUEngine.innerHTML = [
+    isWebGPUActive ? 'Active' : isWebGPUAvailable ? 'Available' : 'Unavailable',
+    isWebGPUAvailable && !isWebGPUActive ? ' <button name="WebGPU">Select</button>' : '',
+  ].join('');
+
+  document.querySelector('button[name="WebGL"], button[name="WebGPU"]')?.addEventListener('click', async (event) => {
+    const rendererType = event.target.getAttribute('name');
+    popup({
+      message: `Switching to the ${rendererType} rendering engine requires reloading the page. Continue?`,
+      buttons: [
+        {
+          label: 'Reload',
+          onClick: () => {
+            localStorage.setItem('preferredRenderer', rendererType.toLowerCase());
+            location.reload();
+          },
+        },
+        { label: 'Cancel' },
+      ],
+    });
+  });
 }
