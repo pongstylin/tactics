@@ -426,6 +426,7 @@ export default class Game extends ActiveModel {
     for (let i = 0; i < firstTurn.team!.id; i++) {
       teams.push(teams.shift()!);
       units.push(units.shift()!);
+      as = (as + teams.length - 1) % teams.length;
     }
 
     for (const [ teamId, team ] of teams.entries())
