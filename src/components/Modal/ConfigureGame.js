@@ -355,10 +355,6 @@ export default class ConfigureGame extends Modal {
     }
 
     const matches = await authClient.queryRatedPlayers(value);
-    if (matches.length === 0) {
-      divMatches.innerHTML = 'No matches.';
-      return;
-    }
 
     divMatches.innerHTML = '';
     challengee.value = null;
@@ -385,6 +381,9 @@ export default class ConfigureGame extends Modal {
       ].join('');
       divMatch.append(spnIdentity);
     }
+
+    if (divMatches.innerHTML === '')
+      divMatches.innerHTML = 'No matches.';
   }
 
   _onMatchesClick(event) {
