@@ -1079,7 +1079,7 @@ export default class extends DynamoDBAdapter {
       for (const game of games) {
         if (!game)
           continue;
-        if (!this.hasGameType(game.state.type))
+        if (!game.state.gameType || game.state.gameType.config.archived)
           continue;
         if (!game.state.startedAt)
           continue;
@@ -1098,6 +1098,7 @@ export default class extends DynamoDBAdapter {
             usedUndo: t.usedUndo,
             usedSim: t.usedSim,
             hasPlayed: game.state.teamHasPlayed(t),
+            set: t.set,
           })),
         });
       }

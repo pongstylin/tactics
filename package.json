@@ -20,7 +20,7 @@
     "dinstall": "docker compose exec app npm install",
     "daudit": "docker compose exec app npm audit fix",
     "dshell": "docker compose exec app sh",
-    "script": "docker compose exec app node --require dotenv/config",
+    "script": "docker compose run -it --rm app npm run compile && node --require dotenv/config",
     "memscript": "node --optimize-for-size --max-old-space-size=4096 --require dotenv/config"
   },
   "imports": {
