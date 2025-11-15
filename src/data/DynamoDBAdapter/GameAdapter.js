@@ -1089,9 +1089,10 @@ export default class extends DynamoDBAdapter {
         gameIndex.set(game.id, {
           startedAt: game.state.startedAt,
           endedAt: game.state.endedAt,
+          winnerId: game.state.winnerId,
           type: game.state.type,
           rated: game.state.rated,
-          winnerId: game.state.winnerId,
+          undoMode: game.state.undoMode,
           teams: game.state.teams.map(t => ({
             playerId: t.playerId,
             name: t.name,
@@ -1099,6 +1100,7 @@ export default class extends DynamoDBAdapter {
             usedSim: t.usedSim,
             hasPlayed: game.state.teamHasPlayed(t),
             set: t.set,
+            ratings: t.ratings,
           })),
         });
       }

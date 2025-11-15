@@ -404,7 +404,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     return returnType === 'single' ? promises[0] : Promise.all(promises);
   }
-  async _triggerItemQueue() {
+  _triggerItemQueue() {
     if (this.itemQueue.size === 0)
       return;
 
@@ -478,10 +478,10 @@ export default class DynamoDBAdapter extends FileAdapter {
         .finally(() => this.itemQueue.delete(op.key))
       );
 
-    return Promise.all(queue.map(op => op.promise));
+    return Promise.all(queue.map(op => op.promise.catch(() => {})));
   }
 
-  async _getItemBatch(ops) {
+  _getItemBatch(ops) {
     const chunks = [];
     for (let i = 0; i < ops.length; i += 100)
       chunks.push(ops.slice(i, i+100));
@@ -541,7 +541,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       }
     }));
   }
-  async _writeItemBatch(deleteOps) {
+  _writeItemBatch(deleteOps) {
     const requests = deleteOps.map(op => ({
       DeleteRequest: { Key:{ PK:op.args[0].PK, SK:op.args[0].SK } },
     }));
