@@ -7,6 +7,7 @@ import PlayerDevice from '#models/PlayerDevice.js';
 import Identities from '#models/Identities.js';
 import Identity from '#models/Identity.js';
 import obscenity from '#utils/obscenity.js';
+import { moderationException } from '#utils/openai.js';
 import serializer from '#utils/serializer.js';
 
 import IdentityToken from '#server/IdentityToken.js';
@@ -72,9 +73,9 @@ export default class Player extends ActiveModel {
     data.devices.forEach(d => this._subscribeDevice(d));
   }
 
-  static create(data) {
+  static async create(data) {
     if (data.name !== undefined && data.name !== null)
-      Player.validatePlayerName(data.name);
+      await Player.validatePlayerName(data.name);
     else if (data.confirmName === undefined || data.confirmName === null)
       throw new Error('Required player name');
 
@@ -109,7 +110,22 @@ export default class Player extends ActiveModel {
    *  false: Do not check identities.
    *  Identity: Check all identities on behalf of provided Identity.
    */
-  static validatePlayerName(name, checkIdentity:boolean | Identity = true) {
+  static async validatePlayerName(name, checkIdentity:boolean | Identity = true, skipModeration = false, retries = 3) {
+    Player.checkPlayerName(name);
+
+    if (!skipModeration) {
+      if (obscenity.hasMatch(name))
+        throw new ServerError(403, 'The name is obscene');
+
+      const exception = await moderationException(name, retries);
+      if (exception)
+        throw new ServerError(403, exception);
+    }
+
+    if (checkIdentity && Player.identities.sharesName(name, checkIdentity))
+      throw new ServerError(403, 'The name is currently in use');
+  }
+  static checkPlayerName(name) {
     if (!name)
       throw new ServerError(422, 'Player name is required');
     if (name.length > 20)
@@ -133,11 +149,6 @@ export default class Player extends ActiveModel {
       throw new ServerError(403, 'The # symbol is reserved');
     if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
       throw new ServerError(403, 'The name may not contain markup');
-    if (obscenity.hasMatch(name))
-      throw new ServerError(403, 'The name is obscene');
-
-    if (checkIdentity && Player.identities.sharesName(name, checkIdentity))
-      throw new ServerError(403, 'The name is currently in use');
   }
 
   get id() {
@@ -240,10 +251,10 @@ export default class Player extends ActiveModel {
     this.emit('change:unlinkAuthProvider');
   }
 
-  updateProfile(profile) {
+  async updateProfile(profile, skipModeration = false) {
     let hasChanged = false;
 
-    Object.keys(profile).forEach(property => {
+    for (const property of Object.keys(profile)) {
       const oldValue = this[property];
       const newValue = profile[property];
 
@@ -251,7 +262,7 @@ export default class Player extends ActiveModel {
         if (oldValue === newValue && this.data.confirmName === null)
           return;
 
-        Player.validatePlayerName(profile.name, this.identity);
+        await Player.validatePlayerName(profile.name, this.identity, skipModeration);
 
         this.data.name = profile.name;
         this.data.confirmName = null;
@@ -265,7 +276,7 @@ export default class Player extends ActiveModel {
         hasChanged = true;
       } else
         throw new Error('Invalid profile');
-    });
+    }
 
     if (hasChanged) {
       this.emit('change:profile');
@@ -433,7 +444,7 @@ export default class Player extends ActiveModel {
     if (oldRelationship?.type === relationship.type && oldRelationship.name === relationship.name)
       return false;
 
-    Player.validatePlayerName(relationship.name, false);
+    Player.checkPlayerName(relationship.name);
 
     player.identity.setRelationship(this.id, {
       type: relationship.type,

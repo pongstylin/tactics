@@ -637,7 +637,7 @@ export default class GameService extends Service {
       if (teamData.playerId) {
         if (teamData.playerId === creatorId) {
           if (teamData.name !== undefined && teamData.name !== null && teamData.name !== creator.name)
-            Player.validatePlayerName(teamData.name, creator.identity);
+            await Player.validatePlayerName(teamData.name, creator.identity);
         } else {
           const player = await this._getAuthPlayer(teamData.playerId);
           if (!player)
@@ -728,7 +728,7 @@ export default class GameService extends Service {
       throw new ServerError(403, 'You are blocked from joining this game.');
 
     if (teamData.name !== undefined && teamData.name !== null && teamData.name !== player.name)
-      Player.validatePlayerName(teamData.name, player.identity);
+      await Player.validatePlayerName(teamData.name, player.identity);
 
     if (game.collection) {
       const playerIds = new Set(game.state.teams.filter(t => t?.joinedAt).map(t => t.playerId));

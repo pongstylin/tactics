@@ -260,7 +260,7 @@ export default class Autosave {
     };
 
     input.addEventListener('keydown', event => {
-      const target = event.target;
+      divError.textContent = '';
       if (event.keyCode === 13 && !this.props.submitOnInput)
         submit();
       // Allow trap focus to work

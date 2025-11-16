@@ -1205,6 +1205,8 @@ const serializer = {
 
     if (serialized.$type) {
       const type = classTypeMap.get(serialized.$type);
+      if (!type)
+        throw new Error(`Unknown type: ${serialized.$type}`);
       return type.normalize(serialized.$data);
     } else if (serialized.$transform) {
       const type = classTypeMap.get(serialized.$transform.type);

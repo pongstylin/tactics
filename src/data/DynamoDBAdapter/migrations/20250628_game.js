@@ -4,6 +4,14 @@ export default async function (itemMap) {
     ti.id = parseInt(ti.SK.split('/')[2], 10);
     return this._parseItem(ti);
   }))).sort((a, b) => a.id - b.id);
+
+  delete item.D.$transform;
+  item.D.$type = 'Game';
+
+  const stateData = item.D.$data.state;
+  stateData.numTeams = stateData.teams;
+  delete stateData.teams;
+
   // The 2nd condition only happens when game data is missing.
   if (turnsItem.length === 0 || turnsItem.last.id > turnsItem.length - 1)
     return item;
@@ -14,13 +22,7 @@ export default async function (itemMap) {
   }))).sort((a, b) => a.id - b.id);
 
   const initialTurnId = _getInitialTurnId(teamsItem);
-  const stateData = item.D.$data.state;
 
-  delete item.D.$transform;
-  item.D.$type = 'Game';
-
-  delete stateData.teams;
-  stateData.numTeams = teamsItem.length;
   stateData.numTurns = turnsItem.length;
   stateData.startedAt = turnsItem[0].D.$data.startedAt;
 

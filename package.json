@@ -17,10 +17,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dist": "NODE_ENV=production webpack --config webpack.config.cjs",
     "clean": "rm -f src/data/ddb/shared-local-instance.db && rm -rf src/models/*.js && rm -f tsconfig.tsbuildinfo",
-    "dinstall": "docker compose exec app npm install",
+    "dinstall": "docker compose run -it --rm app npm install",
     "daudit": "docker compose exec app npm audit fix",
     "dshell": "docker compose exec app sh",
-    "script": "docker compose exec app node --require dotenv/config",
+    "script": "docker compose run -it --rm app npm run compile && node --require dotenv/config",
     "memscript": "node --optimize-for-size --max-old-space-size=4096 --require dotenv/config"
   },
   "imports": {
@@ -73,6 +73,7 @@
     "morgan": "^1.9.1",
     "nosleep.js": "github:pongstylin/nosleep.js",
     "obscenity": "^0.2.0",
+    "openai": "^6.9.0",
     "openid-client": "^5.6.2",
     "pixi.js": "^8.14.0",
     "seedrandom": "^3.0.5",

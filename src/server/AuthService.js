@@ -567,7 +567,7 @@ export default class AuthService extends Service {
     const { playerId, device } = this.clientPara.get(client.id);
     const player = this.data.getOpenPlayer(playerId);
 
-    if (player.updateProfile(profile)) {
+    if (await player.updateProfile(profile)) {
       const newToken = player.getAccessToken(device.id);
       this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${newToken.signature}`);
     }

@@ -71,7 +71,7 @@ export default class extends FileAdapter {
    ****************************************************************************/
   async createPlayer(player) {
     if (!(player instanceof Player))
-      player = Player.create(player);
+      player = await Player.create(player);
 
     await this._createPlayer(player);
     this.cache.get('player').add(player.id, player);
