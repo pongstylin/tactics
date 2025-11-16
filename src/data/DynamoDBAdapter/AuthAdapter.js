@@ -77,7 +77,7 @@ export default class extends DynamoDBAdapter {
    ****************************************************************************/
   async createPlayer(player) {
     if (!(player instanceof Player))
-      player = Player.create(player);
+      player = await Player.create(player);
 
     await this._createPlayer(player);
     this.cache.get('player').add(player.id, player);
@@ -475,7 +475,7 @@ export default class extends DynamoDBAdapter {
     });
 
     for await (const child of children)
-      yield child.PK.slice(5);
+      yield child.PK.slice(7);
   }
   listAllIdentityIds() {
     throw new Error('Not implemented');
