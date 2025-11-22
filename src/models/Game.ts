@@ -713,6 +713,11 @@ export default class Game extends ActiveModel {
 
   toJSON() {
     const data = super.toJSON();
+    data.state = data.state.toJSON();
+    delete data.state.numTeams;
+    data.state.teams = this.state.teams;
+    delete data.state.numTurns;
+    data.state.turns = this.state.turns;
 
     for (const dataProp of Object.keys(defaultData))
       if (defaultData[dataProp] === data[dataProp])

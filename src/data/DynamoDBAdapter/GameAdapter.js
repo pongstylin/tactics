@@ -198,6 +198,17 @@ export default class extends DynamoDBAdapter {
     const game = await this._getGame(gameId, withRecentTurns);
     return this.cache.get('game').add(gameId, game);
   }
+  async getGameFromFile(gameId) {
+    return this.getFile(`game_${gameId}`, data => {
+      if (data === undefined) return;
+
+      const game = serializer.normalize(data);
+      game.state.gameType = this.getGameType(game.state.type);
+      // Always set the summary even if the game ended.  We might need it to sync game summaries.
+      gameSummaryCache.set(game, GameSummary.create(game));
+      return game;
+    });
+  }
   getOpenGame(gameId) {
     return this.cache.get('game').getOpen(gameId);
   }
@@ -455,8 +466,11 @@ export default class extends DynamoDBAdapter {
       await this._getAllGameTeams(game);
 
       // A game is usually loaded with the last turn, which is required to view the game.
-      if (game.state.lastTurnId !== null && withRecentTurns)
-        await this._getGameRecentTurns(game);
+      if (game.state.lastTurnId !== null)
+        if (withRecentTurns === 'all')
+          await this._getAllGameTurns(game);
+        else if (withRecentTurns)
+          await this._getGameRecentTurns(game);
     }
 
     game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
@@ -473,6 +487,15 @@ export default class extends DynamoDBAdapter {
     });
     for (const [ teamId, team ] of parts)
       game.state.teams[parseInt(teamId.slice(7))] = team;
+  }
+  async _getAllGameTurns(game) {
+    const parts = await this.getItemParts({
+      id: game.id,
+      type: 'game',
+      path: '/turns/',
+    });
+    for (const [ turnId, turn ] of parts)
+      game.state.loadTurn(parseInt(turnId.slice(7)), turn);
   }
   /*
    * Recent turns include the current turn and enough history to undo to each
@@ -1070,40 +1093,24 @@ export default class extends DynamoDBAdapter {
 
     for (let i = 0; i < gameIds.length; i += 100) {
       console.log(`indexAllGames: ${i} through ${i+Math.min(100, gameIds.length - i)} of ${gameIds.length}`);
-      const games = await Promise.all(gameIds.slice(i, i + 100).map(gId => this._getGame(gId).catch(error => {
-        if (error.code === 404)
-          return null;
-        throw error;
-      })));
-
-      for (const game of games) {
-        if (!game)
-          continue;
+      await Promise.all(gameIds.slice(i, i + 100).map(gId => this._getGame(gId, 'all').then(game => {
         if (!game.state.gameType || game.state.gameType.config.archived)
-          continue;
+          return;
         if (!game.state.startedAt)
-          continue;
+          return;
         if (game.state.isSimulation)
-          continue;
+          return;
 
         gameIndex.set(game.id, {
           startedAt: game.state.startedAt,
           endedAt: game.state.endedAt,
-          winnerId: game.state.winnerId,
-          type: game.state.type,
-          rated: game.state.rated,
-          undoMode: game.state.undoMode,
-          teams: game.state.teams.map(t => ({
-            playerId: t.playerId,
-            name: t.name,
-            usedUndo: t.usedUndo,
-            usedSim: t.usedSim,
-            hasPlayed: game.state.teamHasPlayed(t),
-            set: t.set,
-            ratings: t.ratings,
-          })),
         });
-      }
+        return this.putFile(`game_${game.id}`, serializer.transform(game));
+      }).catch(error => {
+        if (error.code === 404)
+          return null;
+        throw error;
+      })));
     }
 
     if (gameIds.length) {

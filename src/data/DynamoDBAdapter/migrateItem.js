@@ -15,8 +15,10 @@ export default async function migrateItem(item, props = {}) {
   const itemType = item.PK.split('#')[0];
   const key = `${itemType}:${item.SK}`;
   const migrations = migrationsByKey.get(key);
-  if (!migrations)
+  if (!migrations || migrations.length === item.V)
     return item;
+  if (migrations.length < item.V)
+    throw new Error(`Item version is ahead of known migrations '${key}': ${item.V} > ${migrations.length}`);
 
   // This cache allows multiple migrations to not perform redundant DDB operations.
   const cacheItemMap = new Map([

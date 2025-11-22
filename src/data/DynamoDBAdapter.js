@@ -284,7 +284,7 @@ export default class DynamoDBAdapter extends FileAdapter {
   getItemParts(key, transform = p => p, migrateProps = undefined) {
     key = this._processKey(key);
 
-    const queueKey = key.name ?? key.PK;
+    const queueKey = keyOfItem(key);
     return this._pushItemQueue({ key:queueKey, method:'_getItemParts', args:[ key, transform, migrateProps ] });
   }
   putItemParts(key, obj, parts) {
