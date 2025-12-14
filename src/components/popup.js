@@ -36,6 +36,7 @@ class Popup {
           closeOnClick: true,
           closeOnError: true,
           showError: false,
+          disabled: false,
           value: button.label,
         }, button);
       });
@@ -119,6 +120,8 @@ class Popup {
       btn.setAttribute('type', 'button');
       if ('name' in button)
         btn.setAttribute('name', button.name);
+      if (button.disabled)
+        btn.setAttribute('disabled', true);
       btn.innerHTML = button.label;
       btn.addEventListener('click', async event => {
         const closeEvent = { button };

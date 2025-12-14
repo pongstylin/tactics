@@ -507,12 +507,10 @@ export default class Game {
       this.state.winnerId === team.id
     ) return true;
 
-    const initialTurnId = this.state.getTeamInitialTurnId(team);
-
-    if (this.state.currentTurnId < initialTurnId)
+    if (this.state.currentTurnId < team.initialTurnId)
       return false;
     // Might not be completely accurate for ended games where this team lost.
-    if (this.state.currentTurnId > initialTurnId)
+    if (this.state.currentTurnId > team.initialTurnId)
       return true;
 
     return !!this.actions.find(a => a.type !== 'surrender' && !a.forced);

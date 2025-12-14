@@ -5,19 +5,24 @@ migrationsByKey.set('game:/', [
   './migrations/20251025_game.js',
   './migrations/20251025b_game.js',
   './migrations/20251025c_game.js',
+  './migrations/20251108_game.js',
 ]);
 
 migrationsByKey.set('playerStats:/', [
   './migrations/20250813_playerStats.js',
 ]);
 
+migrationsByKey.set('playerSets:/', [
+  './migrations/20251108_playerSets.js',
+]);
+
 export default async function migrateItem(item, props = {}) {
   const itemType = item.PK.split('#')[0];
   const key = `${itemType}:${item.SK}`;
-  const migrations = migrationsByKey.get(key);
-  if (!migrations || migrations.length === item.V)
+  const migrations = migrationsByKey.get(key) ?? [];
+  if ((item.V ?? 0) === migrations.length)
     return item;
-  if (migrations.length < item.V)
+  if ((item.V ?? 0) > migrations.length)
     throw new Error(`Item version is ahead of known migrations '${key}': ${item.V} > ${migrations.length}`);
 
   // This cache allows multiple migrations to not perform redundant DDB operations.
@@ -30,7 +35,7 @@ export default async function migrateItem(item, props = {}) {
     await (await import(migrations[i])).default.call(this, cacheItemMap, props);
 
   const ops = new Map();
-  for (let cacheItems of cacheItemMap.values()) {
+  for (let [ cacheKey, cacheItems ] of cacheItemMap.entries()) {
     if (!Array.isArray(cacheItems))
       cacheItems = [cacheItems];
 
@@ -40,7 +45,7 @@ export default async function migrateItem(item, props = {}) {
 
       const cacheItemKey = `${cacheItem.PK}:${cacheItem.SK}`;
       if (ops.has(cacheItemKey))
-        throw new Error(`Duplicate item key while migrating '${key}': ${cacheItemKey}`);
+        throw new Error(`Duplicate item key while migrating '${key}' from version ${item.V ?? 0}: ${cacheItemKey} (${cacheKey})`);
 
       if (cacheItem.D)
         cacheItem.D = JSON.stringify(cacheItem.D);

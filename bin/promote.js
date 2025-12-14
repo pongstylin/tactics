@@ -1,8 +1,9 @@
 import '#plugins/index.js';
+import config from '#config/server.js';
 import IdentityToken from '#server/IdentityToken.js';
 
-const apiRoot = process.argv[2];
-const playerId = process.argv[3];
+const playerId = process.argv[2];
+const apiRoot = process.argv[3] ?? config.local.apiEndpoint;
 const token = IdentityToken.create({
   subject: playerId,
   expiresIn: 60,

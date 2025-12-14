@@ -39,14 +39,20 @@ export default class GameState {
 
     Object.assign(this, {
       gameType: null,
-      teams: new Array(data.numTeams).fill(null),
-      turns: new Array(data.numTurns).fill(null),
+      teams: data.teams ?? new Array(data.numTeams).fill(null),
+      turns: new Array(data.turns?.length ?? data.numTurns).fill(null),
       _bots: [],
       _board: board,
       _newActions: [],
       _actions: [],
       _data: data,
     });
+
+    if (data.turns)
+      data.turns.forEach((t, ti) => this.loadTurn(ti, t));
+
+    delete data.teams;
+    delete data.turns;
   }
 
   /*
@@ -114,10 +120,10 @@ export default class GameState {
     return -1;
   }
   get initialTurnId() {
-    return !this.startedAt ? null : Math.min(...this.teams.map(t => this.getTeamInitialTurnId(t)));
+    return !this.startedAt ? null : Math.min(...this.teams.map(t => t.initialTurnId));
   }
   get initialTurn() {
-    return this.getTurn(this.initialTurnId);
+    return !this.startedAt ? null : this.getTurn(this.initialTurnId);
   }
   get currentTurnId() {
     return !this.startedAt ? null : this.turns.length - 1;
@@ -249,6 +255,9 @@ export default class GameState {
     return this.teams.filter(t => t.id !== winnerId);
   }
 
+  get setIds() {
+    return Array.from(new Set(this.teams.filter(t => !!t?.set).map(t => t.set.id)));
+  }
   get playerIds() {
     return Array.from(new Set(this.teams.filter(t => !!t?.playerId).map(t => t.playerId)));
   }
@@ -388,11 +397,6 @@ export default class GameState {
         teams.forEach((team, teamId) => {
           team.id = teamId;
         });
-      } else {
-        // First team must skip their first turn.
-        for (const unit of teams[0].set.units)
-          if (!unit.mRecovery)
-            unit.mRecovery = 1;
       }
 
       let unitId = 1;
@@ -401,8 +405,20 @@ export default class GameState {
       const units = teams.map(team => {
         const degree = board.getDegree('N', team.position);
         const flipSide = team.randomSide && Math.random() < 0.5;
+        const units = this.gameType.applySetUnitState({ units:team.set.units.clone() }).units;
 
-        return board.rotateUnits(team.set.units, degree, flipSide).map(u => Object.assign(u, {
+        // First team must skip their first turn.
+        if (this.type !== 'chaos' && team.id === 0)
+          for (const unit of units)
+            if (!unit.mRecovery)
+              unit.mRecovery = 1;
+
+        team.initialTurnId = (() => {
+          const waitTurns = Math.min(...units.map(u => u.mRecovery ?? 0));
+          return team.id + teams.length * waitTurns;
+        })();
+
+        return board.rotateUnits(units, degree, flipSide).map(u => Object.assign(u, {
           id: unitId++,
         }));
       });
@@ -951,11 +967,6 @@ export default class GameState {
 
     return null;
   }
-  getTeamInitialTurnId(team) {
-    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
-
-    return team.id + this.teams.length * waitTurns;
-  }
   getTeamPreviousPlayableTurnId(team) {
     if (!this.startedAt)
       return null;
@@ -1010,8 +1021,7 @@ export default class GameState {
     if ([ 'truce', 'draw', team.id ].includes(this.winnerId))
       return true;
 
-    const initialTurnId = this.getTeamInitialTurnId(team);
-    if (this.currentTurnId > initialTurnId)
+    if (this.currentTurnId > team.initialTurnId)
       return true;
 
     if (this.currentTurn.actions.some(a => a.teamId === team.id && !a.forced))
@@ -1026,19 +1036,18 @@ export default class GameState {
     if ([ 'truce', 'draw', team.id ].includes(this.winnerId))
       return true;
 
-    const initialTurnId = this.getTeamInitialTurnId(team);
-    if (this.currentTurnId < initialTurnId)
+    if (this.currentTurnId < team.initialTurnId)
       return false;
 
     // If the turn is not loaded, then it is sufficiently far in the past that it has been played.
-    if (this.turns[initialTurnId] === null)
+    if (this.turns[team.initialTurnId] === null)
       return true;
 
     /*
      * If the game ended on the turn after this team's first turn, then it
      * is possible that this team surrendered.  If so, turn not played.
      */
-    const actions = this.getTurn(initialTurnId).actions;
+    const actions = this.getTurn(team.initialTurnId).actions;
     const playedAction = actions.find(a => a.type !== 'surrender' && !a.forced);
     if (!playedAction)
       return false;
@@ -1077,7 +1086,7 @@ export default class GameState {
     }
 
     const numTeams = this.teams.length;
-    const teamInitialTurnId = this.getTeamInitialTurnId(team);
+    const teamInitialTurnId = team.initialTurnId;
     const teamContextTurnId = this.currentTurnId - ((numTeams + this.currentTeamId - team.id) % numTeams);
     const teamPreviousTurnId = teamContextTurnId - numTeams;
     const lockedTurnId = this.lockedTurnId;
@@ -1701,7 +1710,21 @@ serializer.addType({
         additionalProperties: true,
       },
       numTeams: { type:'integer', enum:[ 2, 4 ] },
+      // Useful when loading a game from file.  Teams are separate in DynamoDB.
+      teams: {
+        type: 'array',
+        items: {
+          oneOf: [
+            { type:'null' },
+            { $ref:'Team' },
+          ],
+        },
+      },
       numTurns: { type:'integer', minimum:0 },
+      turns: {
+        type: 'array',
+        items: { $ref:'Turn' },
+      },
     },
     additionalProperties: false,
     definitions: {

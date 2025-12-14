@@ -101,17 +101,22 @@ export default class extends DynamoDBAdapter {
       this.cache.get('playerDevice').sync(playerCache, playerId, device.id, device);
     return player;
   }
-  async getPlayer(playerId) {
+  async getPlayer(playerId, ifExists = false) {
     const playerCache = this.cache.get('player');
-    const player = await this._getPlayer(playerId);
-    playerCache.add(playerId, player);
-    this.cache.get('identity').add(player.identityId, player.identity);
-    for (const device of player.devices.values())
-      this.cache.get('playerDevice').sync(playerCache, playerId, device.id, device);
+    const player = await this._getPlayer(playerId, ifExists);
+    if (player) {
+      playerCache.add(playerId, player);
+      this.cache.get('identity').add(player.identityId, player.identity);
+      for (const device of player.devices.values())
+        this.cache.get('playerDevice').sync(playerCache, playerId, device.id, device);
+    }
     return player;
   }
   getOpenPlayer(playerId) {
     return this.cache.get('player').getOpen(playerId);
+  }
+  getCachedIdentity(playerId) {
+    return this.state.identities.findByPlayerId(playerId);
   }
 
   async createPlayerDevice(player, device) {
@@ -239,7 +244,7 @@ export default class extends DynamoDBAdapter {
     ]);
     this._subscribePlayer(player);
   }
-  async _getPlayer(playerId) {
+  async _getPlayer(playerId, ifExists = false) {
     const cache = this.cache.get('player');
     const buffer = this.buffer.get('player');
 
@@ -252,7 +257,9 @@ export default class extends DynamoDBAdapter {
       id: playerId,
       type: 'player',
       name: `player_${playerId}`,
-    });
+    }, {}, ifExists ? null : undefined);
+    if (!player)
+      return player;
     player.identity = await this._getIdentity(player.identityId, player);
 
     return this._subscribePlayer(player);

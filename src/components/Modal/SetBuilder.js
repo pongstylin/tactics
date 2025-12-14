@@ -1,12 +1,13 @@
 import { gameConfig } from 'config/client.js';
 import Modal from 'components/Modal.js';
 import Autosave from 'components/Autosave.js';
-import { copyBlob } from 'components/copy.js';
-import { shareBlob } from 'components/share.js';
+import { copy, copyBlob } from 'components/copy.js';
+import { share, shareBlob } from 'components/share.js';
+import SetPicker from 'components/Modal/SetPicker.js';
 import UnitPicker from 'components/Modal/UnitPicker.js';
+import TeamSet from '#models/TeamSet.js';
 import ServerError from 'server/Error.js';
-import Unit from 'tactics/Unit.js';
-import unitDataMap from 'tactics/unitData.js';
+import seqAsync from 'utils/seqAsync.js';
 
 import 'components/Modal/SetBuilder.scss';
 import popup from 'components/popup.js';
@@ -26,6 +27,7 @@ const template = `
   </DIV>
   <DIV class="buttons">
     <BUTTON type="button" name="save"   title="Save"       class="fa fa-check"></BUTTON>
+    <BUTTON type="button" name="search" title="Search"     class="fa fa-search"></BUTTON>
     <BUTTON type="button" name="clear"  title="Clear"      class="fa fa-trash"></BUTTON>
     <BUTTON type="button" name="reset"  title="Reset"      class="fa fa-undo"></BUTTON>
     <BUTTON type="button" name="rotate" title="Rotate"     class="fa fa-location-arrow"></BUTTON>
@@ -233,6 +235,7 @@ export default class SetBuilder extends Modal {
       field: this._els.content.querySelector('.field'),
       card: this._els.content.querySelector('.card'),
       save: this._els.content.querySelector('BUTTON[name=save]'),
+      search: this._els.content.querySelector('BUTTON[name=search]'),
       clear: this._els.content.querySelector('BUTTON[name=clear]'),
       reset: this._els.content.querySelector('BUTTON[name=reset]'),
       rotate: this._els.content.querySelector('BUTTON[name=rotate]'),
@@ -243,11 +246,12 @@ export default class SetBuilder extends Modal {
     this._els.field.appendChild(canvas);
     this._els.card.appendChild(this.board.card.canvas);
     this._els.save.addEventListener('click', this._onSave.bind(this));
+    this._els.search.addEventListener('click', this._onSearch.bind(this));
     this._els.clear.addEventListener('click', this._onClear.bind(this));
     this._els.reset.addEventListener('click', this._onReset.bind(this));
     this._els.rotate.addEventListener('click', this._onRotate.bind(this));
     this._els.flip.addEventListener('click', this._onFlip.bind(this));
-    this._els.share.addEventListener('click', this._onShare.bind(this));
+    this._els.share.addEventListener('click', () => this.share());
 
     if (data.gameType !== undefined && data.gameType !== null)
       this.gameType = data.gameType;
@@ -255,7 +259,6 @@ export default class SetBuilder extends Modal {
       this.set = data.set;
 
     this.rotateBoard(data.rotation);
-    this._renderButtons();
 
     // Allow the Animation class to render frames.
     return Tactics.game = this;
@@ -268,6 +271,8 @@ export default class SetBuilder extends Modal {
     return this.data.gameType;
   }
   set gameType(gameType) {
+    if (this.data.gameType?.id === gameType.id) return;
+
     this.root.classList.toggle('isCustomizable', gameType.isCustomizable);
     this._els.style.textContent = gameType.name;
     this.data.gameType = gameType;
@@ -284,30 +289,21 @@ export default class SetBuilder extends Modal {
   }
 
   get set() {
-    const set = {};
-    if (this.data.set.id) {
-      set.id = this.data.set.id;
-      set.name = this._name.value;
-    }
-    set.units = this._board.getState()[0];
-
-    return this.data.gameType.cleanSet(set);
+    return Object.assign({}, this.data.set, {
+      name: this._name.value,
+      units: TeamSet.cleanUnits(this._board.getState()[0]),
+    });
   }
   set set(set) {
-    if (!set)
-      set = {};
-    if (set.name === undefined || set.name === null)
-      set.name = set.id ? gameConfig.setsById.get(set.id) : 'Custom';
-    if (set.units === undefined || set.units === null)
-      set.units = [];
-
-    this.data.set = set;
+    this.data.set = Object.assign({
+      units: [],
+    }, set, {
+      name: set.name ?? (set.slot ? gameConfig.setsBySlot.get(set.slot) : 'Custom'),
+    });
     this._team = { colorId:this.data.colorId, set };
     this._unitPicker.team = this._team;
-    this._name.value = set.name;
-    this._name.disabled = !set.id;
+    this._name.disabled = !set.slot;
     this.reset();
-    this._renderButtons();
   }
 
   get colorId() {
@@ -333,7 +329,6 @@ export default class SetBuilder extends Modal {
   }
   set selected(unit) {
     const board = this._board;
-    const trash = this._trash;
 
     if (unit) {
       if (board.selected)
@@ -385,9 +380,17 @@ export default class SetBuilder extends Modal {
     return super.hide();
   }
 
-  reset() {
+  reset(name = this.data.set.name, units = this.data.set.units) {
     const board = this._board;
-    const units = this.data.set.units.map(unitData => ({ ...unitData, direction:'S' }));
+    units = units.map(unitData => ({ ...unitData, direction:'S' }));
+
+    const focused = board.focused;
+    if (focused) {
+      board.focused = null;
+      focused.assignment.strip();
+    }
+
+    this._name.value = name;
 
     board.clear();
     board.setState([ units, [] ], [ this._team, {} ]);
@@ -397,6 +400,7 @@ export default class SetBuilder extends Modal {
     this._highlightPlaces();
     this._setUnitsState();
     this.renderBoard();
+    this._renderButtons();
   }
 
   placeUnit(unitType, tile) {
@@ -795,10 +799,20 @@ export default class SetBuilder extends Modal {
     return this;
   }
 
-  getImage() {
-    this._renderer.render(this._stage);
+  async getImage(set) {
+    return (this._getImage ??= seqAsync(set => {
+      if (set) this.set = set;
 
-    return { src:this._canvas.toDataURL('image/png') };
+      // Hide the focused unit tile highlight
+      const focusedTile = this.board.focusedTile;
+      if (focusedTile)
+        this.board.onTileBlur({ target:focusedTile });
+      this._renderer.render(this._stage);
+      if (focusedTile)
+        this.board.onTileFocus({ target:focusedTile });
+
+      return new Promise(resolve => this._canvas.toBlob(blob => resolve(URL.createObjectURL(blob)), 'image/png'));
+    }))(set);
   }
 
   /*****************************************************************************
@@ -810,11 +824,11 @@ export default class SetBuilder extends Modal {
     const set = this.set;
 
     if (set.units.length === 0) {
-      if (this.data.set.id === undefined)
+      if (this.data.set.slot === undefined)
         return this._emitDelete();
 
-      const message = this.data.set.id === 'default'
-        ? 'You are about to revert the set to the style default.  Are you sure?'
+      const message = this.data.set.slot === 'default'
+        ? 'This will randomly select a default set.  Are you sure?'
         : 'You are about to delete the set.  Are you sure?';
 
       popup({
@@ -851,7 +865,6 @@ export default class SetBuilder extends Modal {
       this._emitSave(set);
   }
   _onCancel(event) {
-    const board = this._board;
     const cancel = () => {
       this._onReset(event);
       this.hide();
@@ -870,18 +883,53 @@ export default class SetBuilder extends Modal {
       ],
     });
   }
+  async _onSearch(event) {
+    const choice = await popup({
+      className: 'search',
+      buttons: [
+        { label:'Search Sets'  },
+        { label:'Random Top 100' },
+      ],
+    }).whenClosed;
+
+    const set = await (async () => {
+      if (choice === 'Search Sets')
+        return new SetPicker().show(this.gameType);
+      else if (choice === 'Random Top 100')
+        return Tactics.gameClient.getDefaultSet(this.gameType.id);
+    })();
+    if (!set) return;
+
+    const board = this._board;
+    const units = set.units.map(unitData => ({ ...unitData, direction:'S' }));
+
+    this._name.value = set.name;
+
+    const focused = board.focused;
+    if (focused) {
+      board.focused = null;
+      focused.assignment.strip();
+    }
+    board.clear();
+    board.setState([ units, [] ], [ this._team, {} ]);
+    board.sortUnits();
+    board.teamsUnits.flat().forEach(u => u.draggable = true);
+
+    this._highlightPlaces();
+    this._setUnitsState();
+    this.renderBoard();
+    this._renderButtons();
+  }
   async _onClear(event) {
     this._els.clear.blur();
     this._els.clear.disabled = true;
     await this.killUnits(this._team.units);
     if (!this._name.disabled)
-      this._name.value = gameConfig.setsById.get(this.data.set.id);
+      this._name.value = gameConfig.setsBySlot.get(this.data.set.slot);
   }
-  _onReset(event) {
+  _onReset() {
     this._els.reset.blur();
-    this._name.value = this.data.set.name;
     this.reset();
-    this._renderButtons();
   }
   _onRotate(event) {
     this._els.rotate.blur();
@@ -895,9 +943,57 @@ export default class SetBuilder extends Modal {
     this.renderBoard();
     this._renderButtons();
   }
-  async _onShare(event) {
+  async share() {
     this._els.share.disabled = true;
 
+    const target = await popup({
+      title: 'Share Set',
+      buttons: [
+        { label:'Share Link' },
+        { label:'Share Image' },
+      ],
+    }).whenClosed;
+
+    if (target === 'Share Image')
+      await this.shareImage();
+    else if (target === 'Share Link')
+      await this.shareLink();
+
+    this._els.share.disabled = false;
+  }
+  async shareLink() {
+    const message = `Check out this set.`;
+    const link = new URL(`online.html#?viewSet=${await JSON.compress({ gameTypeId:this.gameType.id, set:this.set })}`, location.href);
+
+    if (navigator.share)
+      await share({
+        title: 'Tactics',
+        text: message,
+        url: link,
+      }).catch(error => {
+        if (error.isInternalError)
+          popup({
+            message: 'App sharing failed.  You can copy the link to share it instead.',
+            buttons: [
+              { label:'Copy', onClick:() => copy(`${message} ${link}`) },
+              { label:'Cancel' },
+            ],
+            maxWidth: '250px',
+          });
+        else
+          popup({
+            message: 'App sharing cancelled.  You can still copy the link to share it instead.',
+            buttons: [
+              { label:'Copy', onClick:() => copy(`${message} ${link}`) },
+              { label:'Cancel' },
+            ],
+            maxWidth: '250px',
+          });
+      });
+    else
+      copy(`${message} ${link}`);
+  }
+  async shareImage() {
     const title = this.gameType.isCustomizable
       ? `${this.gameType.name} - ${this._name.value}`
       : this.gameType.name;
@@ -946,8 +1042,6 @@ export default class SetBuilder extends Modal {
     if (shareResult === 'failed')
       copyBlob(blob)
         .then(() => {
-          this._els.share.disabled = false;
-
           popup('An image of your set has been copied!');
         })
         .catch(error => {
@@ -962,8 +1056,6 @@ export default class SetBuilder extends Modal {
             error: getErrorData(error),
           });
         });
-    else
-      this._els.share.disabled = false;
   }
   _renderButtons() {
     const board = this._board;
@@ -975,29 +1067,29 @@ export default class SetBuilder extends Modal {
 
     this._els.save.disabled = !setHasChanged;
     this._els.save.classList.toggle('alert', !setIsFull || setIsEmpty || !setIsValid);
+    this._els.search.disabled = setIsFixed;
     this._els.clear.disabled = setIsFixed || setIsEmpty;
     this._els.reset.disabled = !setHasChanged;
     this._els.rotate.classList.toggle('fa-rotate-90', board.rotation === 'S');
     this._els.rotate.classList.toggle('fa-rotate-180', board.rotation === 'W');
     this._els.rotate.classList.toggle('fa-rotate-270', board.rotation === 'N');
     this._els.rotate.disabled = board.rotation !== gameConfig.rotation;
-    this._els.flip.disabled = setIsEmpty || this.gameType.hasFixedPositions;
+    this._els.flip.disabled = setIsEmpty || this.gameType.hasFixedSides;
 
     this.drawCard();
   }
 
   async _emitDelete() {
-    if (this.data.set.id) {
-      const defaultSet = await Tactics.gameClient.deletePlayerSet(this.data.gameType.id, this.data.set.id);
+    if (this.data.set.slot) {
+      const defaultSet = await Tactics.gameClient.deletePlayerSet(this.data.gameType.id, this.data.set.slot);
       if (defaultSet)
         this.set = defaultSet;
     }
     this.hide();
   }
   async _emitSave(set) {
-    if (set.id) {
-      await Tactics.gameClient.savePlayerSet(this.data.gameType.id, set);
-    }
+    if (set.slot)
+      this.set = await Tactics.gameClient.savePlayerSet(this.data.gameType.id, { slot:set.slot, name:set.name, units:set.units });
     this.hide();
   }
 
@@ -1232,7 +1324,7 @@ export default class SetBuilder extends Modal {
   }
 
   _highlightPlaces(unit = this._board.selected, dragMode) {
-    if (!this.data.gameType.isCustomizable)
+    if (!this.data.gameType?.isCustomizable)
       return;
 
     const board = this._board;
@@ -1319,9 +1411,9 @@ export default class SetBuilder extends Modal {
   }
   _setUnitsState() {
     const gameType = this.data.gameType;
-    const set = gameType.applySetUnitState(gameType.cleanSet({
-      units: this._board.getState()[0],
-    }));
+    const set = gameType.applySetUnitState({
+      units: TeamSet.cleanUnits(this._board.getState()[0]),
+    });
 
     for (let i = 0; i < this._team.units.length; i++) {
       const unit = this._team.units[i];

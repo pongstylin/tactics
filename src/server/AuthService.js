@@ -57,6 +57,7 @@ export default class AuthService extends Service {
         setRelationship: [ 'uuid', 'auth:relationship' ],
         clearRelationship: [ 'uuid' ],
 
+        getPlayers: [ 'uuid[]' ],
         queryRatedPlayers: [ 'string' ],
         getRatedPlayers: [ 'uuid[]' ],
 
@@ -143,6 +144,7 @@ export default class AuthService extends Service {
         return;
       }
 
+      clientPara.player = player;
       clientPara.playerId = player.id;
     }
 
@@ -633,6 +635,21 @@ export default class AuthService extends Service {
     playerA.clearRelationship(playerB);
   }
 
+  async onGetPlayersRequest(client, playerIds) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const players = new Map();
+    await Promise.all(playerIds.map(async pId => {
+      const identity = this.data.getCachedIdentity(pId);
+      if ((identity?.name ?? null) !== null) return players.set(pId, { identityId:identity.id, playerId:pId, name:identity.name, rated:true });
+
+      const player = await this.data.getPlayer(pId, true);
+      if (player) return players.set(pId, { identityId:player.identity.id, playerId:pId, name:player.name, rated:false });
+    }));
+
+    return players;
+  }
   async onQueryRatedPlayersRequest(client, query) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
