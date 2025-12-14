@@ -89,7 +89,8 @@ export default class ConfigureGame extends Modal {
             <OPTION value="alt3">Alternate 3</OPTION>
             <OPTION value="same">Same</OPTION>
             <OPTION value="mirror">Mirror</OPTION>
-            <OPTION value="random">Random</OPTION>
+            <OPTION value="random">Random Saved</OPTION>
+            <OPTION value="top">Random Top 100</OPTION>
           </SELECT>
         </DIV>
       </DIV>
@@ -245,6 +246,8 @@ export default class ConfigureGame extends Modal {
   get styleConfigOverrides() {
     if (this.data.view === 'challenge')
       return { vs:'challenge', challengee:this.data.props.challengee };
+    else if (this.data.view === 'playWithSet')
+      return { set:{ units:this.data.props.set.units } };
     else if (this.data.view === 'forkGame')
       return { collection:'private' };
     else if (![ 'challenge', 'createGame' ].includes(this.data.view))
@@ -269,7 +272,7 @@ export default class ConfigureGame extends Modal {
 
   createGameOptions(view = this.data.view) {
     this.data.view = view;
-    const timerType = [ 'challenge', 'createGame' ].includes(view) ? null : 'short';
+    const timerType = [ 'challenge', 'createGame', 'playWithSet' ].includes(view) ? null : 'short';
     const styleConfigData = this.adjustedStyleConfig;
 
     return styleConfig.makeCreateGameOptions(this.gameType, { name:teamName.value, styleConfigData, timerType });
@@ -294,6 +297,7 @@ export default class ConfigureGame extends Modal {
     this.data.props = props;
     this.root.classList.toggle('challenge', view === 'challenge');
     this.root.classList.toggle('createGame', view === 'createGame');
+    this.root.classList.toggle('playWithSet', view === 'playWithSet');
     this.root.classList.toggle('forkGame', view === 'forkGame');
     this.root.classList.toggle('confirmBeforeCreate', view === 'confirmBeforeCreate');
     this.root.classList.toggle('confirmBeforeJoin', view === 'confirmBeforeJoin');
@@ -311,6 +315,10 @@ export default class ConfigureGame extends Modal {
         break;
       case 'createGame':
         this.title = 'Create Game';
+        this.data.timeLimitType = 'long';
+        break;
+      case 'playWithSet':
+        this.title = 'Play With Set';
         this.data.timeLimitType = 'long';
         break;
       case 'forkGame':
@@ -488,7 +496,7 @@ export default class ConfigureGame extends Modal {
 
     this._setRadioState(radPractice, 'required', vsYourself);
     this._setRadioState(radTournament, 'disabled', vsYourself);
-    this._setRadioState(radRandomSide, 'disabled', vsYourself || this.gameType.hasFixedPositions);
+    this._setRadioState(radRandomSide, 'disabled', vsYourself || this.gameType.hasFixedSides);
 
     const isPractice = radPractice.checked;
 
@@ -522,7 +530,7 @@ export default class ConfigureGame extends Modal {
       return true;
     })());
 
-    if (this.data.view === 'createGame') {
+    if (this.data.view === 'createGame' || this.data.view === 'playWithSet') {
       if (vsYourself)
         btnSubmit.textContent = 'Start Playing';
       else if (vsAnybody)
@@ -557,8 +565,8 @@ export default class ConfigureGame extends Modal {
 
     const { selSet } = this._els;
     const setOption = selSet.querySelector(':checked');
-    const setId = setOption.value;
-    const setIndex = this.sets.findIndex(s => s.id === setId);
+    const slot = setOption.value;
+    const setIndex = this.sets.findIndex(s => s.slot === slot);
     const setBuilder = await Tactics.editSet({
       gameType: this.gameType,
       set: this.sets[setIndex],
@@ -738,7 +746,7 @@ export default class ConfigureGame extends Modal {
           gameClient.getGameType(gameTypeId),
           gameClient.getPlayerSets(gameTypeId),
         ]);
-        if (config.set !== 'default' && config.set !== 'random' && !sets.some(s => s.id === config.set))
+        if (config.set !== 'default' && config.set !== 'random' && !sets.some(s => s.slot === config.set))
           config.set = 'default';
 
         cache.set(gameTypeId, { gameType, sets, config });
@@ -906,7 +914,7 @@ export default class ConfigureGame extends Modal {
     }
 
     if (sets.length === 1 && config.set === 'random')
-      config.set = sets[0].id;
+      config.set = sets[0].slot;
 
     if (config.set === 'random')
       aChangeLink.style.display = 'none';
@@ -918,15 +926,15 @@ export default class ConfigureGame extends Modal {
         aChangeLink.textContent = 'View Set';
     }
 
-    for (const setId of gameConfig.setsById.keys()) {
-      const setOption = selSet.querySelector(`OPTION[value="${setId}"]`);
-      const set = sets.find(s => s.id === setId);
+    for (const slot of gameConfig.setsBySlot.keys()) {
+      const setOption = selSet.querySelector(`OPTION[value="${slot}"]`);
+      const set = sets.find(s => s.slot === slot);
       if (set) {
         setOption.textContent = set.name;
         setOption.style.display = '';
       } else {
         setOption.style.display = 'none';
-        setOption.textContent = gameConfig.setsById.get(setId);
+        setOption.textContent = gameConfig.setsBySlot.get(slot);
       }
     }
 
@@ -1053,6 +1061,8 @@ export default class ConfigureGame extends Modal {
       if (this.data.view === 'challenge')
         await this._submitCreateGame();
       else if (this.data.view === 'createGame')
+        await this._submitCreateGame();
+      else if (this.data.view === 'playWithSet')
         await this._submitCreateGame();
       else if (this.data.view === 'forkGame')
         await this._submitForkGame();

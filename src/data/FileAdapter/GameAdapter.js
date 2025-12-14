@@ -197,20 +197,6 @@ export default class extends FileAdapter {
     this.deleteFile(`game_${game.id}`);
   }
 
-  getOpenPlayerSets(playerId, gameType) {
-    const playerSets = this.cache.get('playerSets').get(playerId);
-    if (playerSets === undefined)
-      throw new Error(`Player's sets are not cached`);
-
-    return playerSets.list(gameType);
-  }
-  getOpenPlayerSet(playerId, gameType, setId) {
-    const playerSets = this.cache.get('playerSets').get(playerId);
-    if (playerSets === undefined)
-      throw new Error(`Player's sets are not cached`);
-
-    return playerSets.get(gameType, setId);
-  }
   async getPlayerSets(player, gameType) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
@@ -222,12 +208,12 @@ export default class extends FileAdapter {
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getPlayerSet(player, gameType, setId) {
+  async getPlayerSet(player, gameType, slot) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
     const playerSets = await this._getPlayerSets(player.id);
-    return playerSets.get(gameType, setId);
+    return playerSets.get(gameType, slot);
   }
   /*
    * Setting the default set for a game type involves REPLACING the first set
@@ -240,12 +226,12 @@ export default class extends FileAdapter {
     const playerSets = await this._getPlayerSets(player.id);
     playerSets.set(gameType, set);
   }
-  async unsetPlayerSet(player, gameType, setId) {
+  async unsetPlayerSet(player, gameType, slot) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
     const playerSets = await this._getPlayerSets(player.id);
-    return playerSets.unset(gameType, setId);
+    return playerSets.unset(gameType, slot);
   }
 
   async getPlayerAvatars(player, playerId = null) {

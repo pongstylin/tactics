@@ -1,12 +1,16 @@
 import type Board from '#tactics/Board.js';
+import type GameType from '#models/GameType.js';
 import type Team from '#models/Team.ts';
 import type Turn from '#models/Turn.ts';
 
 export default class GameState {
   board: Board;
+  gameType: GameType;
   id: string;
+  playerIds: string[];
   type: string;
   teams: (Team | null)[];
+  isSimulation: boolean;
   isPracticeMode: boolean;
   undoMode: 'strict' | 'loose' | null;
   strictFork: boolean;

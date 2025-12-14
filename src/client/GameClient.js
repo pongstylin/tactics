@@ -171,11 +171,11 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  getMyInfo() {
-    return this._server.requestAuthorized(this.name, 'getMyInfo', [ ])
+  getMyInfo(gameId, teamId) {
+    return this._server.requestAuthorized(this.name, 'getMyInfo', [ gameId, teamId ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getMyInfo();
+          return this.getMyInfo(gameId, teamId);
         throw error;
       });
   }
@@ -188,6 +188,14 @@ export default class GameClient extends Client {
       });
   }
 
+  getDefaultSet(gameTypeId) {
+    return this._server.requestAuthorized(this.name, 'getDefaultSet', [ gameTypeId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getDefaultSet(gameTypeId);
+        throw error;
+      });
+  }
   getPlayerSets(gameTypeId) {
     return this._server.requestAuthorized(this.name, 'getPlayerSets', [ gameTypeId ])
       .catch(error => {
@@ -196,11 +204,11 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  getPlayerSet(gameTypeId, setId) {
-    return this._server.requestAuthorized(this.name, 'getPlayerSet', [ gameTypeId, setId ])
+  getPlayerSet(gameTypeId, slot) {
+    return this._server.requestAuthorized(this.name, 'getPlayerSet', [ gameTypeId, slot ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.getPlayerSet(gameTypeId, setId);
+          return this.getPlayerSet(gameTypeId, slot);
         throw error;
       });
   }
@@ -212,11 +220,11 @@ export default class GameClient extends Client {
         throw error;
       });
   }
-  deletePlayerSet(gameTypeId, setId) {
-    return this._server.requestAuthorized(this.name, 'deletePlayerSet', [ gameTypeId, setId ])
+  deletePlayerSet(gameTypeId, slot) {
+    return this._server.requestAuthorized(this.name, 'deletePlayerSet', [ gameTypeId, slot ])
       .catch(error => {
         if (error === 'Connection reset')
-          return this.deletePlayerSet(gameTypeId, setId);
+          return this.deletePlayerSet(gameTypeId, slot);
         throw error;
       });
   }
@@ -275,6 +283,30 @@ export default class GameClient extends Client {
       .catch(error => {
         if (error === 'Connection reset')
           return this.getRatedGames(rankingId, playerId);
+        throw error;
+      });
+  }
+  getGameTeamSet(gameTypeId, gameId, teamId) {
+    return this._server.requestAuthorized(this.name, 'getGameTeamSet', [ gameTypeId, gameId, teamId ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getGameTeamSet(gameTypeId, gameId, teamId);
+        throw error;
+      });
+  }
+  searchTeamSets(gameTypeId, options = {}) {
+    return this._server.requestAuthorized(this.name, 'searchTeamSets', [ gameTypeId, options ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.searchTeamSets(gameTypeId, options);
+        throw error;
+      });
+  }
+  searchTeamSetGames(gameTypeId, options = {}) {
+    return this._server.requestAuthorized(this.name, 'searchTeamSetGames', [ gameTypeId, options ])
+      .catch(error => {
+        if (error === 'Connection result')
+          return this.searchTeamSetGames(gameTypeId, options);
         throw error;
       });
   }

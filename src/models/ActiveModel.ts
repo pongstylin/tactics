@@ -27,7 +27,7 @@ abstract class ActiveModel {
     }, props);
   }
 
-  clean(force = false) {
+  clean(force = false):object | true | false {
     if (!force && this.isClean)
       return false;
 
@@ -92,6 +92,7 @@ abstract class ActiveModel {
     if (!this.emitter)
       throw new Error('Active model is destroyed');
 
+    this.emit('destroy');
     this.emitter.removeAllListeners();
     this.emitter = null;
   }
