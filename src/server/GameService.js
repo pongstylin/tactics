@@ -1,6 +1,6 @@
 import uaparser from 'ua-parser-js';
 
-import setsById from '#config/sets.js';
+import setsBySlot from '#config/sets.js';
 import AccessToken from '#server/AccessToken.js';
 import Service from '#server/Service.js';
 import ServerError from '#server/Error.js';
@@ -8,6 +8,7 @@ import Timeout from '#server/Timeout.js';
 import Game from '#models/Game.js';
 import GameSummary from '#models/GameSummary.js';
 import Team from '#models/Team.js';
+import TeamSet from '#models/TeamSet.js';
 import Player from '#models/Player.js';
 import PlayerStats from '#models/PlayerStats.js';
 import { search, test } from '#utils/jsQuery.js';
@@ -80,6 +81,7 @@ export default class GameService extends Service {
         getGameTypes: [],
         getGameTypeConfig: ['string'],
         getGame: ['uuid'],
+        getGameTeamSet: [ 'string', 'uuid', 'integer(0,3)' ],
         getTurnData: ['uuid', 'integer(0)'],
         getTurnActions: ['uuid', 'integer(0)'],
 
@@ -88,16 +90,19 @@ export default class GameService extends Service {
         getPlayerStatus: ['game:group'],
         getPlayerActivity: ['game:group', 'uuid'],
         getPlayerInfo: ['game:group', 'uuid'],
-        getMyInfo: [],
+        getMyInfo: [ 'uuid', 'integer(0,3)' ],
         clearWLDStats: `tuple([ 'uuid', 'string | null' ], 1)`,
 
         searchGameCollection: ['string', 'any'],
         searchMyGames: [ 'object | array' ],
         getRatedGames: [ 'string', 'uuid | null' ],
+        searchTeamSets: "tuple([ 'string', 'game:searchTeamSetsOptions' ], 1)",
+        searchTeamSetGames: [ 'string', 'game:searchTeamSetGamesOptions' ],
 
+        getDefaultSet: ['string'],
         getPlayerSets: ['string'],
         getPlayerSet: ['string', 'string'],
-        savePlayerSet: ['string', 'game:set'],
+        savePlayerSet: ['string', 'game:playerSet'],
         deletePlayerSet: ['string', 'string'],
 
         getMyAvatar: [],
@@ -119,8 +124,8 @@ export default class GameService extends Service {
           assignment: 'game:coords',
           'direction?': 'game:direction',
         },
-        set: {
-          id: 'string',
+        playerSet: {
+          slot: `enum([ '${Array.from(setsBySlot.keys()).join("', '")}' ])`,
           name: 'string',
           units: 'game:newUnit[]',
         },
@@ -129,7 +134,7 @@ export default class GameService extends Service {
         },
         setOption: unionType(
           'game:tempSet',
-          `enum([ 'same', 'mirror', 'random', '${[...setsById.keys()].join("','")}' ])`,
+          `enum([ 'same', 'mirror', 'random', 'top', '${Array.from(setsBySlot.keys()).join("', '")}' ])`,
         ),
         newTeam: unionType(
           'null',
@@ -159,6 +164,19 @@ export default class GameService extends Service {
           'rated?': 'boolean | null',
           'timeLimitName?': `enum([ null, 'blitz', 'standard', 'pro', 'day', 'week' ])`,
           'tags?': 'game:tags',
+        },
+        searchTeamSetsOptions: {
+          'text?': 'string',
+          'metricName?': `enum(['rating','gameCount','playerCount'])`,
+          'offset?': 'integer',
+          'limit?': 'integer',
+        },
+        searchTeamSetGamesOptions: {
+          'setId': 'string',
+          'vsSetId': 'string | null',
+          'result': `enum(['W','L']) | null`,
+          'offset?': 'integer',
+          'limit?': 'integer',
         },
         forkOptions: unionType(
           {
@@ -601,7 +619,8 @@ export default class GameService extends Service {
     } else if (gameOptions.rated)
       throw new ServerError(403, 'Private games cannot be rated');
 
-    if (gameOptions.teams.findIndex(t => t?.playerId === creatorId && t.set !== undefined) === -1)
+    const creatorTeam = gameOptions.teams.find(t => t?.playerId === creatorId);
+    if (!creatorTeam)
       throw new ServerError(400, 'You must join games that you create');
 
     const isMultiplayer = gameOptions.teams.findIndex(t => t?.playerId !== creatorId) > -1;
@@ -627,7 +646,7 @@ export default class GameService extends Service {
       ...gameOptions,
       teams: new Array(gameOptions.teams.length).fill(null),
     });
-    const gameType = await this.data.getGameType(gameTypeId);
+    const gameType = game.state.gameType = await this.data.getGameType(gameTypeId);
 
     for (const [slot, teamData] of gameOptions.teams.entries()) {
       if (!teamData) continue;
@@ -661,14 +680,19 @@ export default class GameService extends Service {
         throw new ServerError(400, `Team ${slot} playerId field is required if a name is present`);
 
       let team;
-      if (teamData.playerId && teamData.playerId !== creatorId)
+      // The team hasn't joined the game yet if they are not the creator
+      if (!teamData.playerId || teamData.playerId !== creatorId)
         team = Team.createReserve(teamData, clientPara);
+      // The team hasn't joined the game yet if they ARE the creator and haven't specified a set (e.g. single player games)
       else if (teamData.set === undefined && gameType.isCustomizable)
         team = Team.createReserve(teamData, clientPara);
       else
-        team = Team.createJoin(teamData, clientPara, game, gameType);
+        team = Team.createJoin(teamData, clientPara, game);
 
-      await this._joinGame(game, gameType, team);
+      if (teamData.set)
+        team.set = this.data.getTeamSet(teamData.set, gameType);
+
+      await this._joinGame(game, team);
     }
 
     // Create the game before generating a notification to ensure it is accurate.
@@ -800,11 +824,14 @@ export default class GameService extends Service {
      * A player may join a pre-existing team, e.g. on forked or practice games.
      */
     if (team)
-      team.join(teamData, clientPara, game, gameType);
+      team.join(teamData, clientPara, game);
     else
-      team = Team.createJoin(teamData, clientPara, game, gameType);
+      team = Team.createJoin(teamData, clientPara, game);
 
-    await this._joinGame(game, gameType, team);
+    if (teamData.set)
+      team.set = this.data.getTeamSet(teamData.set, gameType);
+
+    await this._joinGame(game, team);
 
     if (this.gamePara.has(game.id))
       this._setGamePlayersStatus(game.id);
@@ -854,25 +881,28 @@ export default class GameService extends Service {
     return this.data.getGameType(gameTypeId);
   }
 
+  async onGetDefaultSetRequest(client, gameTypeId) {
+    return this.data.getDefaultSet(gameTypeId);
+  }
   async onGetPlayerSetsRequest(client, gameTypeId) {
     const clientPara = this.clientPara.get(client.id);
 
     return this.data.getPlayerSets(clientPara.player, gameTypeId);
   }
-  async onGetPlayerSetRequest(client, gameTypeId, setId) {
+  async onGetPlayerSetRequest(client, gameTypeId, slot) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.getPlayerSet(clientPara.player, gameTypeId, setId);
+    return this.data.getPlayerSet(clientPara.player, gameTypeId, slot);
   }
   async onSavePlayerSetRequest(client, gameTypeId, set) {
     const clientPara = this.clientPara.get(client.id);
 
     return this.data.setPlayerSet(clientPara.player, gameTypeId, set);
   }
-  async onDeletePlayerSetRequest(client, gameTypeId, setId) {
+  async onDeletePlayerSetRequest(client, gameTypeId, slot) {
     const clientPara = this.clientPara.get(client.id);
 
-    return this.data.unsetPlayerSet(clientPara.player, gameTypeId, setId);
+    return this.data.unsetPlayerSet(clientPara.player, gameTypeId, slot);
   }
 
   async onGetMyAvatarRequest(client) {
@@ -912,6 +942,9 @@ export default class GameService extends Service {
     gameData.meta = await this._getGameMeta(game, clientPara?.player);
 
     return gameData;
+  }
+  async onGetGameTeamSetRequest(client, gameTypeId, gameId, teamId) {
+    return this.data.getGameTeamSet(gameTypeId, gameId, teamId);
   }
   async onGetTurnDataRequest(client, gameId, ...args) {
     this.throttle(client.address, 'getTurnData', 300, 300);
@@ -992,8 +1025,6 @@ export default class GameService extends Service {
     const myPlayerId = this.clientPara.get(client.id).playerId;
     if (myPlayerId === vsPlayerId)
       throw new ServerError(403, 'May not get player info for yourself.');
-    if (!game.state.teams.find(t => t.playerId === myPlayerId))
-      throw new ServerError(403, 'To get player info for this game, you must be a participant.');
 
     const team = game.state.teams.find(t => t.playerId === vsPlayerId);
     if (!team)
@@ -1008,6 +1039,7 @@ export default class GameService extends Service {
     const them = await this._getAuthPlayer(vsPlayerId);
     const ranks = them.identity.getRanks();
     const themStats = await this.data.getPlayerStats(them);
+    const teamSet = await this.data.getGameTeamSet(game.state.gameType, game.id, team.id);
 
     return {
       createdAt: them.createdAt,
@@ -1046,14 +1078,27 @@ export default class GameService extends Service {
           draw: [ 0, 0 ],
         },
       },
+      set: Object.assign({
+        via: team.setVia,
+      }, teamSet),
     };
   }
-  async onGetMyInfoRequest(client) {
+  async onGetMyInfoRequest(client, gameId, teamId) {
     const playerId = this.clientPara.get(client.id).playerId;
     const player = await this._getAuthPlayer(playerId);
+
+    const game = this.data.getOpenGame(gameId);
+    if (!game.state.startedAt)
+      throw new ServerError(403, 'To get player info for this game, the game must first start.');
+
+    const team = game.state.teams[teamId];
+    if (team.playerId !== playerId)
+      throw new ServerError(403, 'You are not the owner of this team.');
+
     const ranks = player.identity.getRanks();
     const gameTypesById = await this.data.getGameTypesById();
     const myStats = await this.data.getPlayerStats(player);
+    const teamSet = await this.data.getGameTeamSet(game.state.gameType, gameId, teamId);
 
     return {
       createdAt: player.createdAt,
@@ -1067,6 +1112,9 @@ export default class GameService extends Service {
           gameCount: rank.gameCount,
         })),
       },
+      set: Object.assign({
+        via: team.setVia,
+      }, teamSet),
     };
   }
   async onClearWLDStatsRequest(client, vsPlayerId, gameTypeId) {
@@ -1087,11 +1135,28 @@ export default class GameService extends Service {
     return this._searchGameCollection(player, collectionId, query);
   }
   async onGetRatedGamesRequest(client, rankingId, playerId) {
+    const player = this.clientPara.get(client.id).player;
     const gamesSummary = playerId
       ? await this.data.getPlayerRatedGames(playerId, rankingId)
       : await this.data.getRatedGames(rankingId);
 
-    return Promise.all(Array.from(gamesSummary.entries()).map(([ i, gs ]) => this._cloneGameSummaryWithMeta(gs)))
+    return Promise.all(Array.from(gamesSummary.values()).map(gs => this._cloneGameSummaryWithMeta(gs, player)));
+  }
+  async onSearchTeamSetsRequest(client, gameTypeId, options) {
+    if ((options.limit ?? 20) > 100)
+      throw new ServerError(403, 'The limit may not exceed 100');
+
+    return this.data.searchTeamSets(gameTypeId, options);
+  }
+  async onSearchTeamSetGamesRequest(client, gameTypeId, options) {
+    if ((options.limit ?? 20) > 100)
+      throw new ServerError(403, 'The limit may not exceed 100');
+
+    const player = this.clientPara.get(client.id).player;
+    const result = await this.data.searchTeamSetGames(gameTypeId, options);
+    result.gamesSummary = await Promise.all(result.gamesSummary.map(gs => this._cloneGameSummaryWithMeta(gs, player)));
+
+    return result;
   }
 
   /*
@@ -1505,12 +1570,21 @@ export default class GameService extends Service {
     const rankingIds = [ 'FORTE', game.type ];
 
     promises.push(this.auth.getPlayerRanks(playerIds, rankingIds).then(ranksByPlayerId => {
-      meta.ranks = data.teams.map((t,i) => {
+      meta.ranks = data.teams.map(t => {
         if (!t) return null;
 
         return ranksByPlayerId.get(t.playerId);
       });
     }));
+
+    if (player)
+      promises.push(this.data.getPlayerSets(player, data.type).then(sets => {
+        meta.setNames = data.teams.map(t => {
+          if (!t || !t.set) return null;
+
+          return sets.find(s => s.id === t.set.id)?.name ?? null;
+        });
+      }));
 
     await Promise.all(promises);
 
@@ -1528,21 +1602,17 @@ export default class GameService extends Service {
     const state = this.data.state;
 
     if (!game.state.startedAt) {
-      game.state.once('startGame', event => this._recordGameStats(game));
+      game.state.once('startGame', () => this._recordGameStats(game));
 
       if (game.collection && game.state.timeLimit.base < 86400) {
         state.autoCancel.open(game.id, true);
-        game.state.once('startGame', event => {
-          state.autoCancel.delete(game.id);
-        });
-        game.on('delete', event => {
-          state.autoCancel.delete(game.id);
-        });
+        game.state.once('startGame', () => state.autoCancel.delete(game.id));
+        game.on('delete', () => state.autoCancel.delete(game.id));
       }
     }
 
     if (!game.state.endedAt)
-      game.state.once('endGame', event => this._recordGameStats(game));
+      game.state.once('endGame', () => this._recordGameStats(game));
 
     this._syncAutoSurrender(game);
 
@@ -1573,12 +1643,17 @@ export default class GameService extends Service {
     const playersStatsMap = new Map(playersStats.map(ps => [ ps.playerId, ps ]));
 
     if (game.state.endedAt) {
+      // Make sure stats are loaded
+      await Promise.all(game.state.teams.map(t => this.data.getTeamSetStats(t.set, t.playerId)));
+
       if (game.state.rated) {
         const slowMode = await this.data.getGameSlowMode(game, ...players);
         if (PlayerStats.updateRatings(game, playersStatsMap, slowMode))
           for (const playerStats of playersStats)
             playersMap.get(playerStats.playerId).identity.setRanks(playerStats.playerId, playerStats.ratings);
-      }
+        TeamSet.applyGame(game);
+      } else
+        TeamSet.applyGame(game);
 
       for (const playerStats of playersStats)
         playerStats.recordGameEnd(game);
@@ -2029,50 +2104,36 @@ export default class GameService extends Service {
     return result;
   }
 
-  _resolveTeamSet(gameType, game, team) {
-    const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt - b.joinedAt)[0];
-
-    if (!gameType.isCustomizable || team.set === null) {
-      const set = gameType.getDefaultSet();
-      team.set = { units: set.units };
-    } else if (team.set === 'same') {
+  async _resolveTeamSet(game, team) {
+    const gameType = game.state.gameType;
+    if (team.setVia === 'top') {
+      const playerSet = await this.data.getDefaultSet(gameType);
+      team.set = this.data.getTeamSet(playerSet, gameType);
+    } else if (team.setVia === 'same') {
+      const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt - b.joinedAt)[0];
       if (!firstTeam)
         throw new ServerError(400, `Can't use same set when nobody has joined yet.`);
-      team.set = {
-        via: 'same',
-        ...firstTeam.set.clone(),
-      };
-    } else if (team.set === 'mirror') {
+      team.set = firstTeam.set;
+    } else if (team.setVia === 'mirror') {
+      const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt - b.joinedAt)[0];
       if (!firstTeam)
         throw new ServerError(400, `Can't use mirror set when nobody has joined yet.`);
-      team.set = {
-        via: 'mirror',
-        units: firstTeam.set.units.map(u => {
-          const unit = { ...u };
-          unit.assignment = [...unit.assignment];
-          unit.assignment[0] = 10 - unit.assignment[0];
-          if (unit.direction === 'W')
-            unit.direction = 'E';
-          else if (unit.direction === 'E')
-            unit.direction = 'W';
-          return unit;
-        }),
-      };
-    } else if (team.set === 'random') {
-      const set = this.data.getOpenPlayerSets(team.playerId, gameType).random();
-      team.set = {
-        via: 'random',
-        units: JSON.clone(set.units),
-      };
-    } else if (typeof team.set === 'string') {
-      const set = this.data.getOpenPlayerSet(team.playerId, gameType, team.set);
-      if (set === null)
+      team.set = firstTeam.set.clone('mirror');
+    } else if (team.setVia === 'random') {
+      const player = await this._getAuthPlayer(team.playerId);
+      const playerSet = (await this.data.getPlayerSets(player, gameType)).random();
+      team.set = this.data.getTeamSet(playerSet, gameType);
+    } else {
+      const player = await this._getAuthPlayer(team.playerId);
+      const playerSet = await this.data.getPlayerSet(player, gameType, team.setVia);
+      if (playerSet === null)
         throw new ServerError(412, 'Sorry!  Looks like the set no longer exists.');
-      team.set = { units:JSON.clone(set.units) };
+      team.set = this.data.getTeamSet(playerSet, gameType);
     }
   }
-  async _joinGame(game, gameType, team) {
-    this._resolveTeamSet(gameType, game, team);
+  async _joinGame(game, team) {
+    if (team.setVia && team.setVia !== 'temp')
+      await this._resolveTeamSet(game, team);
 
     game.state.join(team);
 

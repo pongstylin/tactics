@@ -1,9 +1,8 @@
 import 'components/Modal/PlayerInfo.scss';
 import Modal from 'components/Modal.js';
-import popup from 'components/popup.js';
 import PlayerInfo from 'components/Modal/PlayerInfo';
+import popup from 'components/popup.js';
 
-const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
 
 // TODO - Code duplication between this and PlayerInfo Modal.
@@ -24,8 +23,8 @@ export default class PlayerInfoSelf extends Modal {
 
   _onClick(event) {
     const { info, team } = this.data;
-
     const target = event.target;
+
     if (target.tagName === 'SPAN' && target.id === "rating_explanation") {
       popup({
         title: 'Forte Rating',
@@ -84,15 +83,17 @@ export default class PlayerInfoSelf extends Modal {
   }
 
   getMyInfo() {
+    const data = this.data;
+
     this.renderContent('Please wait...');
 
-    return gameClient.getMyInfo()
+    return gameClient.getMyInfo(data.game.id, data.team.id)
       .then(info => {
         // Just in case the modal was closed before the request completed.
         if (!this.root) return;
 
         this.data.info = info;
-        this.renderInfo();
+        return this.renderInfo();
       })
       .catch(error => {
         this.renderContent('Failed to load player info.');
@@ -100,7 +101,7 @@ export default class PlayerInfoSelf extends Modal {
       });
   }
 
-  renderInfo() {
+  async renderInfo() {
     const data = this.data;
     const info = this.data.info;
     const createdDiff = (Date.now() - info.createdAt) / 1000;
@@ -132,9 +133,22 @@ export default class PlayerInfoSelf extends Modal {
         `<HR>`,
         `<DIV>Verify your account to receive ratings.</DIV>`,
       ]),
-      `</BR>`,
+
+      // Set details section
+      `<BR>`,
+      `<DIV>`,
+        `<B>Set Details</B>`,
+        `<HR>`,
+        `<DIV class="set-details">`,
+          `<DIV>View Set Details:</DIV>`,
+          `<DIV><A href="${await this.getViewSetURL()}">${info.set.name}</A></DIV>`,
+          `<DIV>Selection Method:</DIV>`,
+          `<DIV>${PlayerInfo.getSetViaName(info.set.via)}</DIV>`,
+        `</DIV>`,
+      `</DIV>`,
 
       // Account details section
+      `<BR>`,
       `<DIV>`,
         `<B>Account Details</B>`,
         `<HR>`,
@@ -151,5 +165,13 @@ export default class PlayerInfoSelf extends Modal {
     );
 
     this.renderContent(content.join(''));
+  }
+
+  async getViewSetURL() {
+    const gameTypeId = this.data.gameType.id;
+    const set = { ...this.data.info.set };
+    delete set.via;
+
+    return `online.html#?viewSet=${await JSON.compress({ gameTypeId, set })}`;
   }
 }

@@ -141,35 +141,39 @@ export default class FileAdapter {
     }, props);
 
     for (const [ fileType, fileConfig ] of this.fileTypes) {
+      const fileConfigWithDefaults = Object.assign({
+        destroyOnExpire: true,
+      }, fileConfig);
+
       const cache = new Timeout(
         `${fileType}Cache`,
-        Object.assign({}, config.cache, fileConfig.cache),
+        Object.assign({}, config.cache, fileConfigWithDefaults.cache),
       );
       const buffer = new Timeout(
         `${fileType}Buffer`,
-        Object.assign({}, config.buffer, fileConfig.buffer),
+        Object.assign({}, config.buffer, fileConfigWithDefaults.buffer),
       );
 
-      fileConfig.whenSaved = new WeakMap();
+      fileConfigWithDefaults.whenSaved = new WeakMap();
       this.cache.set(fileType, cache);
       this.buffer.set(fileType, buffer);
 
       cache.on('expire', ({ data:items }) => {
         for (const [ itemId, item ] of items) {
           this.debugV(`${cache.name}:expire=${itemId}; destroy=${!buffer.has(itemId)}`);
-          if (!buffer.has(itemId) && 'destroy' in item)
+          if (fileConfigWithDefaults.destroyOnExpire && !buffer.has(itemId) && 'destroy' in item)
             item.destroy();
         }
       });
       buffer.on('expire', async ({ data:items }) => {
         await Promise.all([ ...items.values() ].map(item => {
-          const whenSaved = (fileConfig.whenSaved.get(item) ?? Promise.resolve()).then(() => this[fileConfig.saver](item));
-          fileConfig.whenSaved.set(item, whenSaved);
+          const whenSaved = (fileConfigWithDefaults.whenSaved.get(item) ?? Promise.resolve()).then(() => this[fileConfigWithDefaults.saver](item));
+          fileConfigWithDefaults.whenSaved.set(item, whenSaved);
           return whenSaved;
         }));
         for (const [ itemId, item ] of items) {
           this.debugV(`${buffer.name}:expire=${itemId}; destroy=${!cache.has(itemId)}`);
-          if (!cache.has(itemId) && 'destroy' in item)
+          if (fileConfigWithDefaults.destroyOnExpire && !cache.has(itemId) && 'destroy' in item)
             item.destroy();
         }
       });

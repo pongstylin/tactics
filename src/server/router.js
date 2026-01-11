@@ -489,18 +489,10 @@ function debugMessage(client, message, inOrOut) {
       if (body.data?.hits) {
         const logData = Object.assign({}, body.data, { hits:body.data.hits.length });
         suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
-      } else if (body.data?.results) {
+      } else if (body.data?.results && body.data.results.length && body.data.results[0].hits) {
         const logData = body.data.results.constructor === Array
           ? body.data.results.map(r => Object.assign({}, r, { hits:r.hits.length }))
           : Object.assign({}, body.data.results, { hits:body.data.results.hits.length });
-        suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
-      } else if (body.data?.state) {
-        const logData = Object.assign({}, body.data, { state:true });
-        suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
-      } else if (body.data?.gameData) {
-        const logData = Object.assign({}, body.data, {
-          gameData: Object.assign({}, body.data.gameData, { state:true }),
-        });
         suffixV = `[${message.id}] data=${JSON.stringify(logData)}`;
       } else
         suffixV = `[${message.id}] data=${JSON.stringify(body.data)}`;

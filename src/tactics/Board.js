@@ -1737,8 +1737,6 @@ export default class Board {
     let unit = this.viewed || this.selected;
     if (!unit) return;
 
-    let mode = unit.activated;
-
     // Useful when clearing an attack or target mode
     let focused = this.focused;
     if (focused && focused.notice)

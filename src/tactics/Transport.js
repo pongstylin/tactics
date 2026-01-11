@@ -98,7 +98,7 @@ export default class Transport {
     return this._data.state.recentTurns ?? [];
   }
   get initialTurnId() {
-    return Math.min(...this.teams.map(t => this.getTeamInitialTurnId(t)));
+    return !this.startedAt ? null : Math.min(...this.teams.map(t => t.initialTurnId));
   }
   get currentTurnId() {
     return this._getStateData('currentTurnId');
@@ -234,7 +234,7 @@ export default class Transport {
     }
 
     const numTeams = this.teams.length;
-    const teamInitialTurnId = this.getTeamInitialTurnId(team);
+    const teamInitialTurnId = team.initialTurnId;
     const teamContextTurnId = this.currentTurnId - ((numTeams + this.currentTeamId - team.id) % numTeams);
     const teamPreviousTurnId = teamContextTurnId - numTeams;
     const lockedTurnId = this.lockedTurnId;
@@ -434,12 +434,6 @@ export default class Transport {
     }
 
     return null;
-  }
-  getTeamInitialTurnId(team) {
-    const numTeams = this.teams.length;
-    const waitTurns = Math.min(...team.set.units.map(u => u.mRecovery ?? 0));
-
-    return team.id + numTeams * waitTurns;
   }
   getPreviousPlayableTurnId(contextTurnId = this.currentTurnId) {
     const turnId = this.playableTurnsInReverse(contextTurnId - 1).next().value?.id ?? null;

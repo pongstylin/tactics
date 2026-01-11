@@ -22,8 +22,11 @@ export default class PlayerInfo extends Modal {
 
   _onClick(event) {
     const { info, team, gameType } = this.data;
-
     const target = event.target;
+
+    if (target.tagName === 'A' && target.classList.contains('view-set'))
+      return this.viewSet();
+
     if (target.tagName === 'SPAN' && target.id === "rating_explanation") {
       popup({
         title: 'Forte Rating',
@@ -116,7 +119,7 @@ export default class PlayerInfo extends Modal {
         if (!this.root) return;
 
         this.data.info = info;
-        this.renderInfo();
+        return this.renderInfo();
       })
       .catch(error => {
         this.renderContent('Failed to load player info.');
@@ -137,8 +140,20 @@ export default class PlayerInfo extends Modal {
 
     return elapsed;
   }
+  static getSetViaName(setVia) {
+    switch (setVia) {
+      case 'temp':
+        return 'Temporary';
+      case 'top':
+        return 'Random Top 100';
+      case 'random':
+        return 'Random Saved';
+      default:
+        return 'Picked Saved';
+    }
+  }
 
-  renderInfo() {
+  async renderInfo() {
     const data = this.data;
     const info = this.data.info;
     const stats = info.stats;
@@ -270,9 +285,22 @@ export default class PlayerInfo extends Modal {
         `</DIV>`,
       `</DIV>`,
       `</DIV>`,
-      `</BR>`,
+
+      // Set details section
+      `<BR>`,
+      `<DIV>`,
+        `<B>Set Details</B>`,
+        `<HR>`,
+        `<DIV class="set-details">`,
+          `<DIV>View Set Details:</DIV>`,
+          `<DIV><A href="${await this.getViewSetURL()}" class="view-set">${info.set.name}</A></DIV>`,
+          `<DIV>Selection Method:</DIV>`,
+          `<DIV>${PlayerInfo.getSetViaName(info.set.via)}</DIV>`,
+        `</DIV>`,
+      `</DIV>`,
 
       // Account details section
+      `<BR>`,
       `<DIV>`,
         `<B>Account Details</B>`,
         `<HR>`,
@@ -414,6 +442,13 @@ export default class PlayerInfo extends Modal {
     relationshipName.appendTo(this.root.querySelector('.relationshipName'));
   }
 
+  async getViewSetURL() {
+    const gameTypeId = this.data.gameType.id;
+    const set = { ...this.data.info.set };
+    delete set.via;
+
+    return `online.html#?viewSet=${await JSON.compress({ gameTypeId, set })}`;
+  }
   rename(newName) {
     return this.setRelationship({ name:newName })
       .then(() => {
@@ -424,21 +459,21 @@ export default class PlayerInfo extends Modal {
     return this.setRelationship({ type:'friended' })
       .then(() => {
         this.data.info.relationship.type = 'friended';
-        this.renderInfo();
+        return this.renderInfo();
       });
   }
   mute() {
     return this.setRelationship({ type:'muted' })
       .then(() => {
         this.data.info.relationship.type = 'muted';
-        this.renderInfo();
+        return this.renderInfo();
       });
   }
   block() {
     return this.setRelationship({ type:'blocked' })
       .then(() => {
         this.data.info.relationship.type = 'blocked';
-        this.renderInfo();
+        return this.renderInfo();
       });
   }
   setRelationship(changes) {
@@ -457,7 +492,7 @@ export default class PlayerInfo extends Modal {
       .then(() => {
         delete this.data.info.relationship.type;
         delete this.data.info.relationship.name;
-        this.renderInfo();
+        return this.renderInfo();
       });
   }
   clearStats() {

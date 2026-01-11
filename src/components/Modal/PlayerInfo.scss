@@ -92,6 +92,12 @@
       }
     }
 
+    .set-details {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2px 12px;
+    }
+
     .indent {
       margin-left: 16px;
     }

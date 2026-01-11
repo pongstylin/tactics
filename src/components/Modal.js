@@ -20,8 +20,7 @@ export default class Modal {
         content: null,
       },
     });
-    if (options)
-      this.setOptions(options);
+    this.setOptions(options);
 
     if (this.options.autoOpen === true)
       this.open();
@@ -45,18 +44,22 @@ export default class Modal {
     if (this.options.title === title)
       return;
 
-    if (this._els.title)
+    this._els.title.innerHTML = '';
+    if (typeof title === 'string')
       this._els.title.innerHTML = title;
+    else if (title !== null)
+      this._els.title.appendChild(title);
 
     this.options.title = title;
   }
 
-  setOptions(options) {
+  setOptions(options = {}) {
     if (typeof options === 'string')
       options = { content:options };
 
     this.options = Object.assign({
       title: null,
+      content: null,
       autoOpen: true,
       autoShow: true,
       closeOnCancel: true,
@@ -92,12 +95,7 @@ export default class Modal {
 
     const divContent = this._els.content = document.createElement('DIV');
     divContent.classList.add('content');
-    if (options.content === undefined)
-      divContent.innerHTML = '';
-    else if (typeof options.content === 'string')
-      divContent.innerHTML = options.content;
-    else
-      divContent.appendChild(options.content);
+    this.renderContent();
     divModal.appendChild(divContent);
 
     return overlay.root;
@@ -123,14 +121,15 @@ export default class Modal {
 
     return header;
   }
-  renderContent(content) {
+  renderContent(content = this.options.content) {
     this.options.content = content;
+
+    const divContent = this._els.content;
+    divContent.innerHTML = '';
     if (typeof content === 'string')
-      this._els.content.innerHTML = content;
-    else {
-      this._els.content.innerHTML = '';
-      this._els.content.appendChild(content);
-    }
+      divContent.innerHTML = content;
+    else if (content !== null)
+      divContent.appendChild(content);
 
     return this._els.content;
   }
@@ -145,6 +144,8 @@ export default class Modal {
       this._emit({ type:'attach' });
     } else
       whenDOMReady.then(() => {
+        // Handle when a modal is destroyed before it fully opened.
+        if (!this._overlay) return;
         document.body.appendChild(this._overlay.root);
         this._emit({ type:'attach' });
       });

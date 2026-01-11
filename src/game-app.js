@@ -419,7 +419,7 @@ $(() => {
     .on('click', '#field .player .link', event => {
       const $link = $(event.currentTarget);
       const team = $link.closest('.player').data('team');
-      
+
       if ($link.hasClass('status')) {
         new PlayerActivityModal({ game, team });
       } else if (team.playerId !== authClient.playerId) {
@@ -1354,7 +1354,7 @@ async function showPracticeIntro(gameData) {
   `;
 
   $('#practice .set').show();
-  $('#practice .mirror').toggle(!gameType.hasFixedPositions);
+  $('#practice .mirror').toggle(!gameType.hasFixedSides);
 
   const $mySet = $('#practice INPUT[name=setChoice][value=mySet]');
   const $practice = $('#practice INPUT[name=setChoice][value=practice]');
@@ -1368,8 +1368,8 @@ async function showPracticeIntro(gameData) {
 
     $('#practice .mySet A').on('click', async () => {
       const setOption = $sets.find(`OPTION:checked`)[0];
-      const setId = setOption.value;
-      const setIndex = sets.findIndex(s => s.id === setId);
+      const slot = setOption.value;
+      const setIndex = sets.findIndex(s => s.slot === slot);
       const setBuilder = await Tactics.editSet({
         gameType,
         set: sets[setIndex],
@@ -1389,9 +1389,9 @@ async function showPracticeIntro(gameData) {
       }
     });
 
-    for (const setId of gameConfig.setsById.keys()) {
-      const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
-      const set = sets.find(s => s.id === setId);
+    for (const slot of gameConfig.setsBySlot.keys()) {
+      const setOption = $sets.find(`OPTION[value="${slot}"]`)[0];
+      const set = sets.find(s => s.slot === slot);
       if (set) {
         setOption.style.display = '';
         setOption.textContent = set.name;
@@ -1669,7 +1669,7 @@ async function showJoinIntro(gameData) {
 
     if (gameType.isCustomizable) {
       $('#join .set').show();
-      $('#join .mirror').toggle(!gameType.hasFixedPositions);
+      $('#join .mirror').toggle(!gameType.hasFixedSides);
 
       const $editSet = $('#join .set A');
       const sets = await gameClient.getPlayerSets(gameType.id);
@@ -1682,9 +1682,9 @@ async function showJoinIntro(gameData) {
           $editSet.toggle($sets.val() !== 'random');
         });
 
-        for (const setId of gameConfig.setsById.keys()) {
-          const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
-          const set = sets.find(s => s.id === setId);
+        for (const slot of gameConfig.setsBySlot.keys()) {
+          const setOption = $sets.find(`OPTION[value="${slot}"]`)[0];
+          const set = sets.find(s => s.slot === slot);
           if (set) {
             setOption.style.display = '';
             setOption.textContent = set.name;
@@ -1702,8 +1702,8 @@ async function showJoinIntro(gameData) {
         $('#join').hide();
 
         const setOption = $sets.find(`OPTION:checked`)[0];
-        const setId = setOption.value;
-        const setIndex = sets.findIndex(s => s.id === setId);
+        const slot = setOption.value;
+        const setIndex = sets.findIndex(s => s.slot === slot);
         const setBuilder = await Tactics.editSet({
           gameType,
           set: sets[setIndex],
@@ -1735,7 +1735,7 @@ async function showJoinIntro(gameData) {
         progress.show();
 
         try {
-          await joinGame(gameData.id, teamName.value, set, !gameType.hasFixedPositions && gameConfig.randomSide);
+          await joinGame(gameData.id, teamName.value, set, !gameType.hasFixedSides && gameConfig.randomSide);
           progress.message = 'Loading game...';
           resolve(
             await loadTransportAndGame(gameData.id, gameData)
@@ -1808,7 +1808,7 @@ function resetPlayerBanners() {
       .data('team', team);
 
     const playerStatus = game.state.playerStatus.get(team.playerId);
-    const showLink = playerStatus !== 'unavailable' && !game.isViewOnly;
+    const showLink = playerStatus !== 'unavailable' && !!game.collection;
     const $status = $player.find('.status')
       .removeClass('offline online active unavailable')
       .addClass(playerStatus.status)

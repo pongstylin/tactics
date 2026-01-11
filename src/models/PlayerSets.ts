@@ -1,18 +1,25 @@
 import ActiveModel from '#models/ActiveModel.js';
 import type Player from '#models/Player.js';
+import TeamSet from '#models/TeamSet.js';
 import serializer from '#utils/serializer.js';
 
-import setsById from '#config/sets.js';
+import setsBySlot, { type Slot } from '#config/sets.js';
 import ServerError from '#server/Error.js';
 
-import type GameType from '#tactics/GameType.js';
-import type { Set } from '#tactics/GameType.js';
+import GameType from '#tactics/GameType.js';
 
 type PlayerSet = {
-  type: string; // GameTypeId
-  id: string; // SetId, e.g. default, alt1, alt2, alt3
+  id: string; // Unique identifier for the set
+  name: string;
+  units: {
+    type: string;
+    assignment: [number, number];
+    direction?: 'N' | 'E' | 'S' | 'W';
+  }[];
+  gameTypeId: string; // GameTypeId
+  slot: Slot;
   createdAt: Date;
-} & Set;
+};
 
 export default class PlayerSets extends ActiveModel {
   protected data: {
@@ -43,49 +50,42 @@ export default class PlayerSets extends ActiveModel {
 
   list(gameType:GameType) {
     if (!gameType.isCustomizable)
-      return [ gameType.getDefaultSet() ];
+      return [];
 
-    const list:Set[] = [];
-    for (const setId of setsById.keys()) {
-      const set = this.get(gameType, setId);
+    const list:PlayerSet[] = [];
+    for (const slot of setsBySlot.keys()) {
+      const set = this.get(gameType, slot);
       if (set)
         list.push(set);
     }
 
     return list;
   }
-  get(gameType:GameType, setId:string) {
-    if (!setsById.has(setId))
-      throw new ServerError(400, 'Unrecognized or missing set id');
-    if (!gameType.isCustomizable) {
-      if (setId !== 'default')
-        throw new ServerError(400, 'Only the default set is available for this game type.');
-      return gameType.getDefaultSet();
-    }
+  get(gameType:GameType, slot:Slot) {
+    if (!setsBySlot.has(slot))
+      throw new ServerError(400, 'Unrecognized or missing set slot');
+    if (!gameType.isCustomizable)
+      return null;
 
-    const set = this.data.sets.find(s => s.type === gameType.id && s.id === setId);
-    if (set) return gameType.applySetUnitState(set);
-
-    if (setId === 'default')
-      return this.set(gameType, gameType.getDefaultSet());
-    return null;
+    return this.data.sets.find(s => s.gameTypeId === gameType.id && s.slot === slot) ?? null;
   }
-  set(gameType:GameType, inSet:PickOptional<PlayerSet, 'units', 'id' | 'name'>) {
-    if (inSet.id && !setsById.has(inSet.id))
-      throw new ServerError(400, 'Unrecognized set id');
+  set(gameType:GameType, inSet:PickOptional<PlayerSet, 'units', 'id' | 'slot' | 'name'>) {
+    if (inSet.slot && !setsBySlot.has(inSet.slot))
+      throw new ServerError(400, 'Unrecognized set slot');
     if (!gameType.isCustomizable)
       throw new ServerError(400, 'May not create sets for this game type.');
 
     gameType.validateSet(inSet);
 
     const set = Object.assign({
-      id: inSet.id ?? 'default',
-      type: gameType.id,
-      name: inSet.name ?? setsById.get(inSet.id ?? 'default'),
+      id: inSet.id ?? TeamSet.createId(inSet),
+      slot: 'default' as const,
+      name: setsBySlot.get(inSet.slot ?? 'default')!,
+      gameTypeId: gameType.id,
       createdAt: new Date(),
     }, inSet);
 
-    const index = this.data.sets.findIndex(s => s.type === gameType.id && s.id === set.id);
+    const index = this.data.sets.findIndex(s => s.gameTypeId === gameType.id && s.slot === set.slot);
     if (index === -1)
       this.data.sets.push(set);
     else
@@ -95,14 +95,14 @@ export default class PlayerSets extends ActiveModel {
 
     return set;
   }
-  unset(gameType, setId) {
-    const index = this.data.sets.findIndex(s => s.type === gameType.id && s.id === setId);
+  unset(gameType, slot) {
+    const index = this.data.sets.findIndex(s => s.gameTypeId === gameType.id && s.slot === slot);
     if (index > -1) {
       this.data.sets.splice(index, 1);
       this.emit('change:unset');
     }
 
-    return this.get(gameType, setId);
+    return this.get(gameType, slot);
   }
 
   get ttl() {
