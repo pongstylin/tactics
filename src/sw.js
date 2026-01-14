@@ -42,6 +42,8 @@ const APP_FILES = [
   '/chaos-app.min.js',
 
   '/ww.min.js',
+
+  '/maintenance.html',
 ];
 
 // Application files are installed and cached with a version-specific name.  The
@@ -71,7 +73,8 @@ const ACTIVE_CACHE_NAMES = [
 ];
 
 // Fetch all resources using these parameters.
-const OPTIONS = {
+// Expose options on 'self' to allow developers to customize request headers to bypass maintenance mode.
+const OPTIONS = self.OPTIONS = {
   // Avoid caching resources in two places.
   cache: 'no-store',
 
@@ -90,10 +93,11 @@ self.addEventListener('install', event => {
       await Promise.all(APP_FILES.map(async url => {
         try {
           const rsp = await fetch(url, OPTIONS);
-          if (!rsp.ok)
-            throw new Error(`Response is not ok: [${response.status}]`);
-
-          await cache.put(url, rsp);
+          if (rsp.ok)
+            return cache.put(url, rsp);
+          else if (rsp.status === 503)
+            return;
+          throw new Error(`Response is not ok: [${rsp.status}]`);
         } catch (e) {
           e.fileName = url;
           throw e;
@@ -111,23 +115,29 @@ self.addEventListener('install', event => {
 
 /*
  * A cache hit is represented as: [cache, response]
- * A cache miss is represented as: [dynamicCache, null]
+ * A cache miss is represented as: [cache, null]
  *
  * Returns a promise, which resolves to a cache hit or cache miss.
  * The cache can be used to create or replace a request/response.
  */
 function getCache(url) {
-  return ACTIVE_CACHE_NAMES.reduce((promise, cacheName) =>
+  const originPath = url.origin + url.pathname;
+
+  return ACTIVE_CACHE_NAMES
+    .reduce((promise, cacheName) =>
       promise.then(hit => hit ||
         caches.open(cacheName).then(cache =>
-          cache.match(url).then(response => response && [cache, response])
+          cache.match(originPath).then(response => response && [cache, response])
         )
       ),
       Promise.resolve(),
     )
-    .then(hit => hit ||
-      caches.open(FETCH_CACHE_NAME).then(cache => [cache, null])
-    );
+    .then(hit => {
+      if (hit) return hit;
+
+      const cacheName = APP_FILES.includes(url.pathname) ? INSTALL_CACHE_NAME : FETCH_CACHE_NAME;
+      return caches.open(cacheName).then(cache => [cache, null]);
+    });
 }
 
 /*
@@ -182,24 +192,24 @@ async function routeLocalRequest(request) {
 }
 
 self.addEventListener('fetch', event => {
-  const request = event.request;
-  const url = new URL(request.url);
-  const baseURL = url.origin + url.pathname;
+  const req = event.request;
+  const url = new URL(req.url);
+  const originPath = url.origin + url.pathname;
 
   // The local endpoint gets special treatment.
-  if (baseURL === LOCAL_ENDPOINT)
-    return event.respondWith(routeLocalRequest(request));
+  if (originPath === LOCAL_ENDPOINT)
+    return event.respondWith(routeLocalRequest(req));
 
   // Do the default thing for non HTTP(S) requests.
   // Example: chrome-extension://...
   if (!/https?:/.test(url.protocol))
     return;
   // Do not interfere with the auth callback.
-  if (baseURL === `${API_ENDPOINT}/auth/callback`)
+  if (originPath === `${API_ENDPOINT}/auth/callback`)
     return;
   // Only handle GET requests.
   // Note: This placement ensures POST/DELETE to the LOCAL_ENDPOINT work.
-  if (request.method !== 'GET')
+  if (req.method !== 'GET')
     return;
 
   /*
@@ -214,45 +224,43 @@ self.addEventListener('fetch', event => {
     return;
 
   /*
-   * Use the baseURL to fetch the resource since parameters may bloat caching
+   * Use the originPath to fetch the resource since parameters may bloat caching
    * and are meant to be used client-side only.
    */
   event.respondWith(
-    getCache(baseURL).then(([cache, cachedResponse]) => {
+    getCache(url).then(([cache, cachedResponse]) => {
       // Return cached response (unless it is a localhost URL)
       if (cachedResponse && (ENVIRONMENT !== 'development' || url.hostname !== 'localhost'))
         return cachedResponse;
 
-      let fetchPromise;
-      // Google Fonts API disallows CORS requests.
-      if (baseURL.startsWith('https://fonts.googleapis.com/css'))
-        fetchPromise = fetch(request);
-      else if (url.origin === 'https://fonts.gstatic.com')
-        fetchPromise = fetch(request);
-      else
-        fetchPromise = fetch(baseURL, OPTIONS);
-
       // Cache miss or localhost URL.  Fetch response and cache it.
-      return fetchPromise
-        .then(response => {
+      return (() => {
+        // Google Fonts API disallows CORS requests.
+        if (originPath.startsWith('https://fonts.googleapis.com/css'))
+          return fetch(req);
+        if (url.origin === 'https://fonts.gstatic.com')
+          return fetch(req);
+        return fetch(originPath, OPTIONS);
+      })()
+        .then(res => {
           // Only cache successful responses.
-          if (!response.ok)
-            return response;
+          if (!res.ok)
+            return res;
 
           /*
            * Do not cache GET API requests that request no-store.
            */
-          const headers = response.headers;
-          if (baseURL.startsWith(API_ENDPOINT) && headers.has('Cache-Control')) {
+          const headers = res.headers;
+          if (originPath.startsWith(API_ENDPOINT) && headers.has('Cache-Control')) {
             const cacheControl = headers.get('Cache-Control');
             if (TEST_NO_STORE.test(cacheControl))
-              return response;
+              return res;
           }
 
           // Clone the response before the body is consumed.
-          cache.put(baseURL, response.clone()).catch(() => {});
+          cache.put(originPath, res.clone()).catch(() => {});
 
-          return response;
+          return res;
         })
         .catch(error => {
           // If a potentially stale locally hosted resource is cached, return it.
@@ -261,7 +269,7 @@ self.addEventListener('fetch', event => {
 
           // Hijack the fileName field to report the URL that failed to fetch.
           error.context = 'fetch';
-          error.fileName = baseURL;
+          error.fileName = originPath;
           throw error;
         });
     })
@@ -322,12 +330,12 @@ async function showNotification(event) {
       const localRsp = await routeLocalRequest({ method:'GET' });
       const localData = await localRsp.json();
       const token = localData.token;
-      const rsp = await fetch(endpoint, Object.assign({
+      const rsp = await fetch(endpoint, Object.assign({}, OPTIONS, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-      }, OPTIONS));
+      }));
       if (rsp.ok)
         data = await rsp.json();
     }
@@ -519,13 +527,13 @@ function report(data, now) {
 
 async function sendReport(data) {
   try {
-    await fetch(`${API_ENDPOINT}/report`, Object.assign({
+    await fetch(`${API_ENDPOINT}/report`, Object.assign({}, OPTIONS, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
-    }, OPTIONS));
+    }));
   } catch(error) {
     setTimeout(() => sendReport(data), 5000);
   }
