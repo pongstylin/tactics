@@ -996,7 +996,7 @@
   [
     "golemRush",
     {
-      "name": "Stone Rush",
+      "name": "Stone Race",
       "notice": "Race a Stone Golem to the other side of the board or capture all of theirs to win.",
       "description": "This custom style invented by the_gr8est is inspired by Furgy Race and TAO 100.  Rush a Stone Golem to your opponent's back wall or capture all enemy Stone Golems to win.",
       "customizable": true,
@@ -1008,16 +1008,16 @@
             [ "StoneGolem",     { "max":3, "points":25, "tiles":{ "start":[0,4], "end":[10,4] }, "required":3 } ],
             [ "DragonTyrant",   { "max":1, "points":12, "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Knight",         { "max":1, "points":10, "tiles":{ "start":[0,0], "end":[10,2] } } ],
-            [ "FrostGolem",     { "max":1, "points":10, "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Scout",          { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "PoisonWisp",     { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
-            [ "Berserker",      { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Berserker",      { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "FrostGolem",     { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "MudGolem",       { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Cleric",         { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "BeastRider",     { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "GolemAmbusher",  { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Assassin",       { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
-            [ "LightningWard",  { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "LightningWard",  { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "DarkMagicWitch", { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Pyromancer",     { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Enchantress",    { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
@@ -1114,7 +1114,7 @@
     "alpha12",
     {
       "name": "Twelve Clouds",
-      "archived": true,
+      "archived": false,
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
@@ -1285,6 +1285,7 @@
     "alphaScout",
     {
       "name": "Ninja Turtles",
+      "archive": true,
       "description": "This custom style invented by Midnight is based on Alpha Turtle, but you can use more Scouts and fewer other units.  A minimum of 4 Scouts is required.",
       "customizable": true,
       "limits": {
