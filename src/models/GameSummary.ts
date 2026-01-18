@@ -6,6 +6,7 @@ import serializer from '#utils/serializer.js';
 
 export default class GameSummary {
   protected data: any
+  protected _rating?: number | null
 
   constructor(data) {
     this.data = data;
@@ -38,6 +39,7 @@ export default class GameSummary {
         playerId: t.playerId,
         name: t.name,
         ratings: t.ratings,
+        set: t.set && { id:t.set.id, name:t.set.name },
       }),
       tags: { ...game.tags },
     };
@@ -142,6 +144,27 @@ export default class GameSummary {
   }
   get isSimulation() {
     return new Set(this.teams.map(t => t?.playerId)).size === 1;
+  }
+  /*
+   * The game rating is based on the ratings of the two players.  If either
+   * player is unrated, then the game is unrated.  If both players are
+   * rated, then the game is rated.  The game rating is higher if both
+   * players have a higher rating.  The game rating is higher if the two
+   * players have roughly the same rating.
+   */
+  get rating() {
+    if (this._rating !== undefined) return this._rating;
+
+    return this._rating = (() => {
+      if (!this.data.endedAt || !this.data.rated) return null;
+      const [ t1, t2 ] = this.data.teams;
+      const r1 = t1.ratings?.get(this.data.type)[0] ?? null;
+      if (r1 === null) return null;
+      const r2 = t2.ratings?.get(this.data.type)[0] ?? null;
+      if (r2 === null) return null;
+      const ratio = Math.min(r1, r2) / Math.max(r1, r2);
+      return (r1 + r2) / 2 * ratio;
+    })();
   }
   get meta() {
     return this.data.meta ?? {};

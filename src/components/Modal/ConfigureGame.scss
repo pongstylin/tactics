@@ -23,6 +23,12 @@
   }
 }
 
+.modal.configureGame.playWithSet .content {
+  .audio, .confirm, .as, .set {
+    display: none;
+  }
+}
+
 .modal.configureGame.forkGame .content {
   .audio, .confirm, .gameType, .visibility, .set, .timeLimit .short, .customize, .remember {
     display: none !important;

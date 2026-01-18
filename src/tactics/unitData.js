@@ -1,7 +1,9 @@
 export const unitDataMap = new Map();
 
 unitDataMap.set('Knight', {
+  code: 'kn',
   name: 'Knight',
+  shortName: 'Knight',
   ability: 'Sword & Shield',
   power: 22,
   armor: 25,
@@ -13,10 +15,13 @@ unitDataMap.set('Knight', {
   aType: 'melee',
   aRange: [1, 1],
   tier: 1,
+  rarity: 3,
 });
 
 unitDataMap.set('Pyromancer', {
+  code: 'py',
   name: 'Pyromancer',
+  shortName: 'Pyro',
   ability: 'Fire',
   power: 15,
   armor: 0,
@@ -29,10 +34,13 @@ unitDataMap.set('Pyromancer', {
   aRange: [0, 3],
   waitFirstTurn: true,
   tier: 1,
+  rarity: 13,
 });
 
 unitDataMap.set('Scout', {
+  code: 'sc',
   name: 'Scout',
+  shortName: 'Scout',
   ability: 'Long Shot',
   power: 18,
   armor: 8,
@@ -46,10 +54,13 @@ unitDataMap.set('Scout', {
   aLOS: true,
   waitFirstTurn: true,
   tier: 1,
+  rarity: 1,
 });
 
 unitDataMap.set('Cleric', {
+  code: 'cl',
   name: 'Cleric',
+  shortName: 'Cleric',
   ability: 'Holy Mass',
   power: 12,
   armor: 0,
@@ -61,10 +72,13 @@ unitDataMap.set('Cleric', {
   aType: 'heal',
   aAll: true,
   tier: 1,
+  rarity: 0,
 });
 
 unitDataMap.set('BarrierWard', {
+  code: 'bw',
   name: 'Barrier Ward',
+  shortName: 'BW',
   ability: 'Barrier',
   power: 0,
   armor: 0,
@@ -79,10 +93,13 @@ unitDataMap.set('BarrierWard', {
   aRange: [0, 6],
   directional: false,
   tier: 5,
+  rarity: 18,
 });
 
 unitDataMap.set('LightningWard', {
+  code: 'lw',
   name: 'Lightning Ward',
+  shortName: 'LW',
   ability: 'Lightning',
   power: 30,
   armor: 18,
@@ -96,10 +113,14 @@ unitDataMap.set('LightningWard', {
   aRange: [0, 3],
   directional: false,
   tier: 5,
+  rarity: 11,
 });
 
 unitDataMap.set('DarkMagicWitch', {
+  code: 'dmw',
   name: 'Dark Magic Witch',
+  shortName: 'DMW',
+  keywords: 'witch',
   ability: 'Black Spikes',
   power: 24,
   armor: 0,
@@ -113,10 +134,13 @@ unitDataMap.set('DarkMagicWitch', {
   aLinear: true,
   waitFirstTurn: true,
   tier: 1,
+  rarity: 12,
 });
 
 unitDataMap.set('Assassin', {
+  code: 'as',
   name: 'Assassin',
+  shortName: 'Sassy',
   ability: 'Multi-Strike',
   specialty: 'Deathblow',
   power: 18,
@@ -130,10 +154,13 @@ unitDataMap.set('Assassin', {
   aRange: [1, 1],
   aAll: true,
   tier: 1,
+  rarity: 17,
 });
 
 unitDataMap.set('Enchantress', {
+  code: 'en',
   name: 'Enchantress',
+  shortName: 'Chanty',
   ability: 'Paralytic Field',
   power: 0,
   armor: 0,
@@ -147,10 +174,13 @@ unitDataMap.set('Enchantress', {
   aRange: [1, 2],
   aAll: true,
   tier: 1,
+  rarity: 17,
 });
 
 unitDataMap.set('MudGolem', {
+  code: 'mg',
   name: 'Mud Golem',
+  shortName: 'Mud',
   ability: 'Punch',
   specialty: 'Quake',
   power: 20,
@@ -164,10 +194,13 @@ unitDataMap.set('MudGolem', {
   aRange: [1, 1],
   waitFirstTurn: true,
   tier: 2,
+  rarity: 8,
 });
 
 unitDataMap.set('FrostGolem', {
+  code: 'fg',
   name: 'Frost Golem',
+  shortName: 'Frosty',
   ability: 'Paralyze',
   power: 0,
   armor: 0,
@@ -180,10 +213,13 @@ unitDataMap.set('FrostGolem', {
   aFocus: true,
   aRange: [1, 4],
   tier: 2,
+  rarity: 9,
 });
 
 unitDataMap.set('StoneGolem', {
+  code: 'sg',
   name: 'Stone Golem',
+  shortName: 'Stone',
   ability: 'Shell',
   power: 0,
   armor: 30,
@@ -196,10 +232,14 @@ unitDataMap.set('StoneGolem', {
   aFocus: true,
   aRange: [0, 1],
   tier: 4,
+  rarity: 14,
 });
 
 unitDataMap.set('DragonTyrant', {
+  code: 'dt',
   name: 'Dragon Tyrant',
+  shortName: 'DT',
+  keywords: [ 'tyrant' ],
   ability: 'Fire Blast',
   power: 28,
   armor: 16,
@@ -215,10 +255,14 @@ unitDataMap.set('DragonTyrant', {
   aLinear: true,
   waitFirstTurn: true,
   tier: 3,
+  rarity: 6,
 });
 
 unitDataMap.set('BeastRider', {
+  code: 'br',
   name: 'Beast Rider',
+  shortName: 'BR',
+  keywords: [ 'beast' ],
   ability: 'Piercing Thrust',
   power: 19,
   armor: 15,
@@ -232,10 +276,13 @@ unitDataMap.set('BeastRider', {
   aRange: [1, 2],
   aLinear: true,
   tier: 2,
+  rarity: 16,
 });
 
 unitDataMap.set('DragonspeakerMage', {
+  code: 'dm',
   name:'Dragonspeaker Mage',
+  shortName: 'DSM',
   ability: 'Dragon Fire',
   power: 15,
   armor: 0,
@@ -248,10 +295,13 @@ unitDataMap.set('DragonspeakerMage', {
   aRange: [0, 3],
   waitFirstTurn: true,
   tier: 4,
+  rarity: 9,
 });
 
 unitDataMap.set('ChaosSeed', {
+  code: 'cs',
   name: 'Chaos Seed',
+  shortName: 'Seed',
   ability: 'Chaos',
   specialty: 'Awaken',
   power: 24,
@@ -297,7 +347,9 @@ unitDataMap.set('ChaosSeed', {
 });
 
 unitDataMap.set('PoisonWisp', {
+  code: 'pw',
   name: 'Poison Wisp',
+  shortName: 'Wispy',
   ability: 'Poison',
   power: 4,
   armor: 0,
@@ -312,10 +364,14 @@ unitDataMap.set('PoisonWisp', {
   aLinear: true,
   waitFirstTurn: true,
   tier: 3,
+  rarity: 11,
 });
 
 unitDataMap.set('Furgon', {
+  code: 'fu',
   name: 'Furgon',
+  shortName: 'Furgy',
+  keywords: [ 'furg' ],
   ability: 'Summon Nature',
   specialty: 'Entangle',
   power: 0,
@@ -328,6 +384,7 @@ unitDataMap.set('Furgon', {
   aType: 'summon',
   aRange: [0, 2],
   tier: 2,
+  rarity: 15,
   features: {
     // Turn this off to enable limited lifetimes for shrubs.
     evergreen: true,
@@ -337,7 +394,9 @@ unitDataMap.set('Furgon', {
 });
 
 unitDataMap.set('Shrub', {
+  code: 'sh',
   name: 'Shrub',
+  shortName: 'Shrub',
   power: 0,
   armor: 0,
   health: 0,
@@ -355,7 +414,9 @@ unitDataMap.set('Shrub', {
 });
 
 unitDataMap.set('Trophy', {
+  code: 'tr',
   name: 'Trophy',
+  shortName: 'Trophy',
   tier: 5,
   sounds: {
     block: 'sprite:core/sounds/sound8',
@@ -363,7 +424,9 @@ unitDataMap.set('Trophy', {
 });
 
 unitDataMap.set('GolemAmbusher', {
+  code: 'ga',
   name: 'Golem Ambusher',
+  shortName: 'GA',
   ability: 'Boulder',
   power: 20,
   armor: 0,
@@ -376,10 +439,13 @@ unitDataMap.set('GolemAmbusher', {
   aRange: [4, 5],
   waitFirstTurn: true,
   tier: 3,
+  rarity: 17,
 });
 
 unitDataMap.set('Berserker', {
+  code: 'be',
   name: 'Berserker',
+  shortName: 'Berz',
   ability: 'Stun',
   power: 22,
   armor: 0,
@@ -392,13 +458,16 @@ unitDataMap.set('Berserker', {
   aType: 'melee',
   aRange: [1, 1],
   tier: 3,
+  rarity: 17,
   features: {
     unblockableStun: false,
   },
 });
 
 unitDataMap.set('ChaosDragon', {
+  code: 'cd',
   name: 'Chaos Dragon',
+  shortName: 'CD',
   ability: 'Static Charge',
   specialty: 'Regenerate',
   power:28,
@@ -443,5 +512,7 @@ export const unitTypeToIdMap = new Map();
 [...unitDataMap.keys()].forEach((unitType, unitTypeId) => {
   unitTypeToIdMap.set(unitType, unitTypeId);
 });
+
+export const unitTypeByCode = new Map(Array.from(unitDataMap.values()).map(ud => [ ud.code, ud ]));
 
 export default unitDataMap;

@@ -90,69 +90,7 @@ export default class UnitPicker extends Modal {
   }
 
   getStats() {
-    const gameType = this.data.gameType;
-    if (!gameType.isCustomizable)
-      return { available:0 };
-
-    const units = this.data.team.units;
-    const unitCounts = new Map();
-    const stats = {
-      points: {
-        total: gameType.getPoints(),
-        used: 0,
-      },
-      units: [],
-      available: 0,
-    };
-
-    for (const unit of units) {
-      if (unit.disposition === 'dead') continue;
-
-      if (unitCounts.has(unit.type))
-        unitCounts.set(unit.type, unitCounts.get(unit.type) + 1);
-      else
-        unitCounts.set(unit.type, 1);
-
-      stats.points.used += gameType.getUnitPoints(unit.type);
-    }
-
-    stats.points.remaining = stats.points.total - stats.points.used;
-
-    for (const unitType of gameType.getUnitTypes()) {
-      const unitData = unitDataMap.get(unitType);
-      const unitStats = {
-        name: unitData.name,
-        type: unitType,
-        points: gameType.getUnitPoints(unitType),
-        max: gameType.getUnitMaxCount(unitType),
-        count: unitCounts.get(unitType) ?? 0,
-      };
-      unitStats.available = Math.min(
-        unitStats.max - unitStats.count,
-        Math.floor(stats.points.remaining / unitStats.points),
-      );
-
-      stats.units.push(unitStats);
-    }
-
-    if (stats.points.remaining) {
-      let remaining = stats.points.remaining;
-      stats.units.sort((a,b) => b.available - a.available || a.points - b.points);
-
-      for (const unitStats of stats.units) {
-        const available = Math.min(
-          unitStats.max - unitStats.count,
-          Math.floor(remaining / unitStats.points),
-        );
-        if (available === 0)
-          break;
-
-        stats.available += available;
-        remaining -= available * unitStats.points;
-      }
-    }
-
-    return stats;
+    return this.data.gameType.getStats(this.data.team.units);
   }
 
   pick() {

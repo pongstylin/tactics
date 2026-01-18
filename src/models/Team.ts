@@ -23,7 +23,10 @@
 import seedrandom from 'seedrandom';
 
 import ActiveModel from '#models/ActiveModel.js';
+import type Game from '#models/Game.js';
+import type TeamSet from '#models/TeamSet.js';
 import ServerError from '#server/Error.js';
+import type GameType from '#tactics/GameType.js';
 import serializer from '#utils/serializer.js';
 
 class Random {
@@ -69,28 +72,30 @@ class Random {
 
 export default class Team extends ActiveModel {
   protected data: {
-    id: number
-    slot: number
-    createdAt: Date
-    joinedAt: Date | null
-    checkinAt: Date | null
-    checkoutAt: Date | null
-    lastActiveAt: Date | null
-    playerId: string
-    name: string
-    position: string
-    colorId: any
-    useRandom: boolean
-    randomState: Random
-    set: any[] | string | boolean
-    randomSide: boolean
-    bot: any
-    usedUndo: boolean
-    usedSim: boolean
-    forkOf: any
-    ratings: Map<string, [ number, number ]>
-  }
-  public isCurrent: boolean = false
+    id: number;
+    slot: number;
+    createdAt: Date;
+    joinedAt: Date | null;
+    checkinAt: Date | null;
+    checkoutAt: Date | null;
+    lastActiveAt: Date | null;
+    playerId: string;
+    name: string;
+    position: string;
+    colorId: any;
+    useRandom: boolean;
+    randomState: Random;
+    set: TeamSet | null;
+    setVia: 'mirror' | 'random' | 'same' | 'top' | 'temp' | 'default' | 'alt1' | 'alt2' | 'alt3' | null
+    randomSide: boolean;
+    bot: any;
+    usedUndo: boolean;
+    usedSim: boolean;
+    forkOf: any;
+    ratings: Map<string, [ number, number ]> | null;
+    initialTurnId: number | null;
+  };
+  public isCurrent: boolean = false;
   public units: any[][] | null = null;
 
   constructor(data, props?:ConstructorParameters<typeof ActiveModel>[0]) {
@@ -137,7 +142,10 @@ export default class Team extends ActiveModel {
       randomState: undefined,
 
       // The set the team used at start of game.
-      set: undefined,
+      set: null,
+
+      // The means by which the set was selected
+      setVia: null,
 
       // Whether to randomize the side the set is placed on at game start
       randomSide: false,
@@ -151,56 +159,49 @@ export default class Team extends ActiveModel {
 
       // If applicable, before and after views of the player's ratings.
       ratings: null,
+
+      // The initial turn ID for the team is only available after the game starts.
+      initialTurnId: null
     }, data);
 
     if (this.data.useRandom && !this.data.randomState)
       this.data.randomState = Random.create();
   }
 
-  static validateSet(data, game, gameType) {
-    if (typeof data.set === 'object') {
-      if (!gameType.isCustomizable)
-        throw new ServerError(403, 'May not define a custom set in this game type');
+  static validateSet(data, game:Game) {
+    const firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a!.joinedAt!.getTime() - b!.joinedAt!.getTime())[0];
 
-      if (data.set.units)
-        data.set = gameType.applySetUnitState(gameType.validateSet(data.set));
-      else
-        throw new ServerError(400, 'Required set units');
-    } else if (typeof data.set === 'string') {
-      const firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a.joinedAt - b.joinedAt)[0];
+    if (typeof data.set === 'string') {
+      data.setVia = data.set;
+      delete data.set;
+    } else
+      data.setVia = 'temp';
 
-      if (data.set === 'same') {
-        if (game.state.rated)
-          throw new ServerError(403, `May not use same set for rated games.`);
-        if (game.state.teams.length !== 2)
-          throw new ServerError(403, `May only use the 'same' set option for 2-player games`);
-        if (!firstTeam || firstTeam.slot === data.slot)
-          throw new ServerError(403, `May not use the 'same' set option on the first team to join the game`);
+    if (game.forkOf)
+      throw new ServerError(403, 'May not assign a set to a forked team');
 
-        if (!gameType.isCustomizable)
-          data.set = null;
-      } else if (data.set === 'mirror') {
-        if (game.state.rated)
-          throw new ServerError(403, `May not use mirror set for rated games.`);
-        if (game.state.teams.length !== 2)
-          throw new ServerError(403, `May only use the 'mirror' set option for 2-player games`);
-        if (!firstTeam || firstTeam.slot === data.slot)
-          throw new ServerError(403, `May not use the 'mirror' set option on the first team to join the game`);
-        if (gameType.hasFixedPositions)
-          throw new ServerError(403, `May not use the 'mirror' set option for opp-side game styles`);
-        if (!gameType.isCustomizable)
-          throw new ServerError(403, `May not use the 'mirror' set option for fixed set styles`);
-      } else if (!gameType.isCustomizable) {
-        if (data.set !== 'random' && data.set !== 'default')
-          throw new ServerError(403, `Must use the 'default' set for fixed set styles`);
-        data.set = null;
-      }
+    if (data.setVia === 'temp')
+      data.set = game.state.gameType.validateSet(data.set);
+    else if (data.setVia === 'same') {
+      if (game.state.rated)
+        throw new ServerError(403, `May not use same set for rated games.`);
+      if (game.state.teams.length !== 2)
+        throw new ServerError(403, `May only use the 'same' set option for 2-player games`);
+      if (!firstTeam || firstTeam.slot === data.slot)
+        throw new ServerError(403, `May not use the 'same' set option on the first team to join the game`);
+    } else if (data.setVia === 'mirror') {
+      if (game.state.rated)
+        throw new ServerError(403, `May not use mirror set for rated games.`);
+      if (game.state.teams.length !== 2)
+        throw new ServerError(403, `May only use the 'mirror' set option for 2-player games`);
+      if (!firstTeam || firstTeam.slot === data.slot)
+        throw new ServerError(403, `May not use the 'mirror' set option on the first team to join the game`);
+      if (game.state.gameType.hasFixedSides)
+        throw new ServerError(403, `May not use the 'mirror' set option for opp-side game styles`);
     }
 
-    if (data.randomSide && gameType.hasFixedPositions)
+    if (data.randomSide && game.state.gameType.hasFixedSides)
       throw new ServerError(403, 'May not randomize side in this game type');
-
-    return data.set;
   }
 
   static create(data) {
@@ -211,14 +212,14 @@ export default class Team extends ActiveModel {
 
     return new Team(data, { isClean:false, isPersisted:false });
   }
-  static createReserve(data, clientPara) {
-    if (data.set)
+  static createReserve(data) {
+    if (data.setVia)
       throw new ServerError(403, 'May not assign a set to a reserved team');
 
     return Team.create(data);
   }
-  static createJoin(data, clientPara, game, gameType) {
-    return Team.create({ slot:data.slot }).join(data, clientPara, game, gameType);
+  static createJoin(data, clientPara, game) {
+    return Team.create({ slot:data.slot }).join(data, clientPara, game);
   }
 
   get id() {
@@ -243,12 +244,22 @@ export default class Team extends ActiveModel {
   get set() {
     return this.data.set;
   }
-  set set(set) {
+  set set(set:Team['data']['set']) {
     if (this.data.set === set)
       return;
 
     this.data.set = set;
     this.emit('change:set');
+  }
+  get setVia() {
+    return this.data.setVia;
+  }
+  set setVia(via:Team['data']['setVia']) {
+    if (this.data.setVia === via)
+      return;
+
+    this.data.setVia = via;
+    this.emit('change:setVia');
   }
   get randomSide() {
     return this.data.randomSide;
@@ -307,6 +318,16 @@ export default class Team extends ActiveModel {
   }
   get ratings() {
     return this.data.ratings;
+  }
+  get initialTurnId() {
+    return this.data.initialTurnId;
+  }
+  set initialTurnId(initialTurnId) {
+    if (this.data.initialTurnId === initialTurnId)
+      return;
+
+    this.data.initialTurnId = initialTurnId;
+    this.emit('change:initialTurnId');
   }
   get createdAt() {
     return this.data.createdAt;
@@ -409,22 +430,25 @@ export default class Team extends ActiveModel {
     this.data.playerId = data.playerId;
     this.data.name = data.name ?? null;
   }
-  join(data, clientPara, game = null, gameType = null) {
+  join(data, clientPara, game:Game | null = null) {
     if (this.data.joinedAt)
       throw new ServerError(409, 'This team has already been joined');
     if (this.data.playerId && this.data.playerId !== clientPara.playerId)
       throw new ServerError(403, 'This team is reserved');
 
-    if (data.set) {
-      if (this.data.forkOf)
-        throw new ServerError(403, 'May not assign a set to a forked team');
-      data.set = Team.validateSet(data, game, gameType);
-    }
+    if (game && !game.state.gameType.isCustomizable) {
+      data.setVia = 'default';
+      delete data.set;
+    } else if (data.set)
+      if (game)
+        Team.validateSet(data, game);
+      else
+        throw new Error(`Game is required to validate a set`);
 
     this.data.joinedAt = new Date();
     this.data.playerId = clientPara.playerId;
     this.data.name = data.name ?? clientPara.name;
-    this.data.set = data.set ?? this.data.set ?? null;
+    this.data.setVia = data.setVia ?? null;
     this.data.randomSide = data.randomSide ?? this.data.randomSide;
 
     return this;
@@ -458,6 +482,8 @@ export default class Team extends ActiveModel {
     // Only indicate presence or absence of a set, not the set itself
     if (!withSet)
       json.set = !!json.set;
+    else if (json.set)
+      json.set = { id:json.set.id, units:json.set.units };
 
     delete json.lastActiveAt;
     delete json.randomState;
@@ -484,6 +510,9 @@ export default class Team extends ActiveModel {
       delete json.checkoutAt;
     if (json.lastActiveAt === null)
       delete json.lastActiveAt;
+
+    if (json.set)
+      json.set = json.set.toJSON();
 
     return json;
   }

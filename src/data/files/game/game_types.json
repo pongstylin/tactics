@@ -293,7 +293,6 @@
       "description": "Turtle styles have an emphasis on defense.  Legends styles are famous for only allowing one Scout.  This style requires the players to create their sets on opposite sides of the board.  The Scout must not be placed on the front row.  A Stone Golem is required and must be placed on the back row, 2nd row corner, or next to a Cleric that is placed in the back row or 2nd row corner.  You must also place 4 units in immediate stoning range of Stone Golem.",
       "customizable": true,
       "limits": {
-        "fixedPositions": true,
         "tiles": { "start":[0,0], "end":[5,4] },
         "points": 10,
         "units": {

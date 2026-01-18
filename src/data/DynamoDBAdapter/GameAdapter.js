@@ -2,13 +2,20 @@ import fs from 'fs/promises';
 
 import { search } from '#utils/jsQuery.js';
 import serializer from '#utils/serializer.js';
+import seqAsync from '#utils/seqAsync.js';
 import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 
 import GameSummary from '#models/GameSummary.js';
 import GameSummaryList from '#models/GameSummaryList.js';
+import PlayerAvatars from '#models/PlayerAvatars.js';
 import PlayerStats from '#models/PlayerStats.js';
 import PlayerSets from '#models/PlayerSets.js';
-import PlayerAvatars from '#models/PlayerAvatars.js';
+import TeamSet from '#models/TeamSet.js';
+import TeamSetCardinality from '#models/TeamSetCardinality.js';
+import TeamSetIndex from '#models/TeamSetIndex.js';
+import TeamSetGameSearch from '#models/TeamSetGameSearch.js';
+import TeamSetSearch, { TeamSetSearchGroup } from '#models/TeamSetSearch.js';
+import TeamSetStats from '#models/TeamSetStats.js';
 import ServerError from '#server/Error.js';
 
 const gameSummaryCache = new WeakMap();
@@ -36,6 +43,37 @@ export default class extends DynamoDBAdapter {
           },
         ],
         [
+          'teamSetStats', {
+            saver: '_saveTeamSetStats',
+            // Stats will live as long as the team sets to which they are attached.
+            destroyOnExpire: false,
+          },
+        ],
+        [
+          'teamSetCardinality', {
+            saver: '_saveTeamSetCardinality',
+            // Permanently cached... outside the cache.
+            destroyOnExpire: false,
+          },
+        ],
+        [
+          'teamSetIndex', {
+            saver: '_saveTeamSetIndex',
+            destroyOnExpire: false,
+          },
+        ],
+        [
+          'teamSetSearch', {
+            destroyOnExpire: false,
+          },
+        ],
+        [
+          'teamSetGameSearch', {}
+        ],
+        [
+          'defaultTeamSets', {}
+        ],
+        [
           'playerSets', {
             saver: '_savePlayerSets',
           },
@@ -46,31 +84,37 @@ export default class extends DynamoDBAdapter {
           },
         ],
         [
-          'gameSummaryLists', {
-          },
+          'gameSummaryLists', {},
         ],
       ]),
 
       _gameTypes: null,
+      _teamSetCardinalities: new Map(),
 
       // The keys are games that have a changed game summary that hasn't been saved yet.
       // The values are game summary list ids applicable to the game.
       _dirtyGamesSummary: new Map(),
+
+      // Trigger a close for an object when a parent object is garbage collected
+      _closer: new FinalizationRegistry(({ objectType, objectKey }) => this.cache.get(objectType).close(objectKey)),
     });
   }
 
   async bootstrap() {
     this._gameTypes = await this.getFile('game_types', data => {
       const gameTypes = new Map();
-      for (const [ id, config ] of data) {
+      for (const [ id, config ] of data)
         gameTypes.set(id, serializer.normalize({
           $type: 'GameType',
           $data: { id, config },
         }));
-      }
 
       return gameTypes;
     });
+
+    for (const gameType of this._gameTypes.values())
+      if (!gameType.config.archived)
+        this._teamSetCardinalities.set(gameType.id, await this._getTeamSetCardinality(gameType.id));
 
     return super.bootstrap();
   }
@@ -87,8 +131,14 @@ export default class extends DynamoDBAdapter {
   getGameType(gameTypeId) {
     const gameTypes = this._gameTypes;
     if (!gameTypes.has(gameTypeId))
-      throw new ServerError(404, 'No such game type');
+      throw new ServerError(404, `No such game type: ${gameTypeId}`);
     return gameTypes.get(gameTypeId);
+  }
+  getTeamSetCardinality(gameTypeId) {
+    const cardinalities = this._teamSetCardinalities;
+    if (!cardinalities.has(gameTypeId))
+      throw new Error(`No such cardinality: ${gameTypeId}`);
+    return cardinalities.get(gameTypeId);
   }
 
   /*
@@ -158,7 +208,7 @@ export default class extends DynamoDBAdapter {
   }
 
   async createGame(game) {
-    this._createGame(game);
+    await this._createGame(game);
     this.cache.get('game').add(game.id, game);
     return game;
   }
@@ -198,16 +248,44 @@ export default class extends DynamoDBAdapter {
     const game = await this._getGame(gameId, withRecentTurns);
     return this.cache.get('game').add(gameId, game);
   }
-  async getGameFromFile(gameId) {
-    return this.getFile(`game_${gameId}`, data => {
+  async getGameFromFile(gameId, teamSets = null, initial = false) {
+    const game = await this.getFile(`game_${gameId}`, data => {
       if (data === undefined) return;
-
-      const game = serializer.normalize(data);
-      game.state.gameType = this.getGameType(game.state.type);
-      // Always set the summary even if the game ended.  We might need it to sync game summaries.
-      gameSummaryCache.set(game, GameSummary.create(game));
-      return game;
+      return serializer.normalize(data);
     });
+
+    game.state.gameType = this.getGameType(game.state.type);
+    await Promise.all(game.state.teams.filter(t => !!t).map(async team => {
+      if (initial) {
+        if (teamSets) {
+          const teamSetId = TeamSet.createId(team.set);
+          const teamSetKey = `${teamSetId}:${game.state.gameType.id}`;
+          team.set = teamSets.get(teamSetKey) ?? TeamSet.create(team.set, teamSetId);
+          team.set.cardinality = this.getTeamSetCardinality(game.state.gameType.id);
+          team.set.stats ??= TeamSetStats.create();
+          team.set.stats.id = team.set.id;
+          if (!team.set.stats.playerIds.has(team.playerId))
+            team.set.stats.playerIds.set(team.playerId, null);
+
+          teamSets.set(team.set.key, team.set);
+        }
+      } else if (teamSets === null) {
+        team.set = this._getTeamSet(team.set, game.state.gameType.id);
+        await this.getTeamSetStats(team.set, team.playerId);
+      } else {
+        const teamSetId = TeamSet.createId(team.set);
+        const teamSetKey = `${teamSetId}:${game.state.gameType.id}`;
+        team.set = teamSets.get(teamSetKey) ?? this._getTeamSet(team.set, game.state.gameType.id);
+        await this.getTeamSetStats(team.set, team.playerId);
+
+        teamSets.set(team.set.key, team.set);
+      }
+    }));
+
+    // Always set the summary even if the game ended.  We might need it to sync game summaries.
+    gameSummaryCache.set(game, GameSummary.create(game));
+
+    return game;
   }
   getOpenGame(gameId) {
     return this.cache.get('game').getOpen(gameId);
@@ -230,37 +308,75 @@ export default class extends DynamoDBAdapter {
       await this.deleteItemParts({ id:game.id, type:'game' }, game, dependents);
   }
 
-  getOpenPlayerSets(playerId, gameType) {
-    const playerSets = this.cache.get('playerSets').get(playerId);
-    if (playerSets === undefined)
-      throw new Error(`Player's sets are not cached`);
+  async getGameTeamSet(gameType, gameId, teamId) {
+    if (typeof gameType === 'string')
+      gameType = this._gameTypes.get(gameType);
 
-    return playerSets.list(gameType);
+    const teamSet = await (async () => {
+      const game = this.cache.get('game').get(gameId) ?? this.buffer.get('game').get(gameId);
+      if (game) return game.state.teams[teamId].set;
+
+      const team = await this._getGameTeamByIds(gameId, teamId);
+      return this._getTeamSet(team.set, gameType);
+    })();
+    await this._getTeamSetStatsForTeamSet(teamSet);
+
+    return teamSet.toData(await this.getTopTeamSets(gameType.id));
   }
-  getOpenPlayerSet(playerId, gameType, setId) {
-    const playerSets = this.cache.get('playerSets').get(playerId);
-    if (playerSets === undefined)
-      throw new Error(`Player's sets are not cached`);
+  getTeamSet(teamSetData, gameType) {
+    return this._getTeamSet({ units:teamSetData.units }, gameType, teamSetData.id);
+  }
+  /*
+   * Used to load set information for a team in a game.
+   */
+  async getTeamSetStats(teamSet, playerId) {
+    await this._getTeamSetStatsForTeamSet(teamSet);
+    await this._getTeamSetStatsPlayer(teamSet, playerId);
 
-    return playerSets.get(gameType, setId);
+    return teamSet;
+  }
+  async getDefaultSet(gameTypeId) {
+    const defaultSet = await this._getDefaultPlayerSet(gameTypeId);
+    const teamSet = await this._getTeamSetStatsForTeamSet(this._getTeamSet({ units:defaultSet.units }, gameTypeId, defaultSet.id));
+    return teamSet.toData(await this.getTopTeamSets(gameTypeId));
   }
   async getPlayerSets(player, gameType) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const playerSets = await this._getPlayerSets(player);
-    return playerSets.list(gameType);
+    const playerSets = await (async () => {
+      if (!gameType.isCustomizable)
+        return [ await this._getDefaultPlayerSet(gameType) ];
+
+      const playerSetList = await this._getPlayerSets(player);
+      if (playerSetList.get(gameType, 'default') === null)
+        playerSetList.set(gameType, await this._getDefaultPlayerSet(gameType));
+      return playerSetList.list(gameType);
+    })();
+
+    return await Promise.all(playerSets.map(async ps => {
+      const teamSet = await this._getTeamSetStatsForTeamSet(this._getTeamSet({
+        units: ps.units,
+      }, gameType.id, ps.id));
+
+      return Object.assign(teamSet.toData(await this.getTopTeamSets(gameType.id)), {
+        slot: ps.slot,
+        name: ps.name,
+      });
+    }));
   }
   /*
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getPlayerSet(player, gameType, setId) {
+  async getPlayerSet(player, gameType, slot) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
+    if (!gameType.isCustomizable && slot !== 'default')
+      throw new ServerError(400, 'Only the default set is available for this game type.');
 
-    const playerSets = await this._getPlayerSets(player);
-    return playerSets.get(gameType, setId);
+    const playerSets = await this.getPlayerSets(player, gameType);
+    return playerSets.find(ps => ps.slot === slot) ?? null;
   }
   /*
    * Setting the default set for a game type involves REPLACING the first set
@@ -272,13 +388,17 @@ export default class extends DynamoDBAdapter {
 
     const playerSets = await this._getPlayerSets(player);
     playerSets.set(gameType, set);
+
+    return this.getPlayerSet(player, gameType, set.slot);
   }
-  async unsetPlayerSet(player, gameType, setId) {
+  async unsetPlayerSet(player, gameType, slot) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
     const playerSets = await this._getPlayerSets(player);
-    return playerSets.unset(gameType, setId);
+    playerSets.unset(gameType, slot);
+
+    return this.getPlayerSet(player, gameType, slot);
   }
 
   async getPlayerAvatars(player, playerId = null) {
@@ -320,6 +440,43 @@ export default class extends DynamoDBAdapter {
     const results = Array.from(gamesSummary.values());
 
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
+  }
+  async getTopTeamSets(gameTypeId, metricName = 'rating') {
+    const teamSetIndex = this._getTeamSetIndex(gameTypeId, metricName);
+    if (teamSetIndex.length === 0 && !teamSetIndex.isComplete)
+      await this._getTeamSetIndexNextPage(gameTypeId, metricName);
+
+    return teamSetIndex.slice(0, 100);
+  }
+  async searchTeamSets(gameTypeId, { text = '', metricName = 'rating', offset = 0, limit = 20 }) {
+    const topTeamSets = await this.getTopTeamSets(gameTypeId);
+    const teamSetSearch = this._getTeamSetSearch(gameTypeId, metricName, text);
+    const teamSets = await teamSetSearch.getResults(offset, limit);
+    await Promise.all(teamSets.map(ts => this._getTeamSetStatsForTeamSet(ts)));
+
+    return {
+      teamSets: teamSets.map(ts => ts.toData(topTeamSets)),
+      total: teamSetSearch.getTotal(offset + limit),
+    };
+  }
+  async searchTeamSetGames(gameTypeId, { setId, vsSetId = null, result = null, offset = 0, limit = 20 }) {
+    // Ignore result filter when sets are the same.
+    if (vsSetId === setId) result = null;
+
+    const teamSetStats = await this._getTeamSetStats(gameTypeId, setId);
+    const teamSetGameSearch = this._getTeamSetGameSearch(gameTypeId, { setId, vsSetId, result });
+    let currentPage = this._getTeamSetGameSearchCurrentPage(teamSetGameSearch)
+    while (!currentPage.completed && !currentPage.truncated && teamSetGameSearch.length < offset + limit)
+      currentPage = await this._getTeamSetGameSearchNextPage(teamSetGameSearch);
+
+    return {
+      gamesSummary: teamSetGameSearch.slice(offset, offset + limit),
+      total: {
+        truncated: currentPage.truncated,
+        fuzzy: !currentPage.completed,
+        count: currentPage.completed ? teamSetGameSearch.length : teamSetStats.gameCount,
+      },
+    };
   }
   async getPlayerPendingGamesInCollection(playerId, collection) {
     const gamesSummary = await this._getPlayerGames(playerId, true);
@@ -437,16 +594,15 @@ export default class extends DynamoDBAdapter {
   /*
    * Game Management
    */
-  _createGame(game) {
+  async _createGame(game) {
     if (this.cache.get('game').has(game.id) || this.buffer.get('game').has(game.id))
       throw new Error('Game already exists');
 
-    game.state.gameType = this.getGameType(game.state.type);
-    this._attachGame(game);
     // Save the game asynchronously.  This does mean that I trust that the game
     // does not already exist in storage.  One benefit is a person jumping their
     // avatar up and down in the lobby does not hammer storage.
-    this._onGameChange(game);
+    await this._attachGame(game);
+    this._onGameChange(game, 'game:create');
   }
   async _getGame(gameId, withRecentTurns = true) {
     if (this.cache.get('game').has(gameId))
@@ -473,10 +629,11 @@ export default class extends DynamoDBAdapter {
           await this._getGameRecentTurns(game);
     }
 
-    game.state.gameType = this.hasGameType(game.state.type) ? this.getGameType(game.state.type) : null;
+    await this._attachGame(game);
+
     // Always set the summary even if the game ended.  We might need it to sync game summaries.
-    gameSummaryCache.set(game, GameSummary.create(game));
-    this._attachGame(game);
+    if (game.state.turns.last)
+      gameSummaryCache.set(game, GameSummary.create(game));
     return game;
   }
   async _getAllGameTeams(game) {
@@ -485,8 +642,16 @@ export default class extends DynamoDBAdapter {
       type: 'game',
       path: '/teams/',
     });
-    for (const [ teamId, team ] of parts)
+    await Promise.all(Array.from(parts).map(async ([ teamId, team ]) => {
       game.state.teams[parseInt(teamId.slice(7))] = team;
+    }));
+  }
+  async _getGameTeamByIds(gameId, teamId) {
+    return this.getItem({
+      id: gameId,
+      type: 'game',
+      path: '/teams/' + teamId,
+    });
   }
   async _getAllGameTurns(game) {
     const parts = await this.getItemParts({
@@ -533,22 +698,28 @@ export default class extends DynamoDBAdapter {
     });
     return game.state.loadTurn(turnId, turn);
   }
-  _attachGame(game) {
+  async _attachGame(game) {
     // Detect changes to game object
-    game.on('change', () => this._onGameChange(game));
+    game.on('change', event => this._onGameChange(game, 'game:change', event));
     // Detect changes to team objects
-    game.state.on('join', ({ data:team }) => {
-      team.on('change', () => this._onGameChange(game))
-      this._onGameChange(game);
+    game.state.on('join', async ({ data:team }) => {
+      team.on('change', event => this._onGameChange(game, 'team:change-1', event));
+      this._onGameChange(game, 'game.state:join');
     });
-    game.state.teams.forEach(t => t?.on('change', () => this._onGameChange(game)));
-
     game.state.on('loadTurn', ({ data:{ turnId, resolve, reject } }) => this._getGameTurn(game, turnId)
       .then(turn => resolve(turn), err => reject(err))
     );
     game.state.on('revert', () => this._getGameRecentTurns(game));
+
+    game.state.gameType = this.getGameType(game.state.type);
+    await Promise.all(game.state.teams.filter(t => !!t).map(async team => {
+      team.on('change', event => this._onGameChange(game, 'team:change-2', event));
+      // It might already be a TeamSet instance if we are creating the game.
+      if (team.set && !(team.set instanceof TeamSet))
+        team.set = this._getTeamSet({ units:team.set.units }, game.state.type, team.set.id);
+    }));
   }
-  _saveGameSummary(game, force = false, ts = new Date().toISOString()) {
+  _saveGameSummary(game, force = false, ts = new Date().toISOString(), gslIds = null) {
     if (!force && !this._dirtyGamesSummary.has(game)) return;
 
     const children = [];
@@ -564,12 +735,13 @@ export default class extends DynamoDBAdapter {
     );
 
     for (const [ gslId, assign ] of this._getGameSummaryListIds(game)) {
+      if (gslIds && !gslIds.has(gslId)) continue;
       if (gslId.startsWith('playerGames#')) {
         if (assign)
           children.push({
             type: gslId,
-            childId: gs.id,
             childType: 'gameSummary',
+            childId: gs.id,
             indexData: gs,
             indexes: {
               GPK0: 'gameSummary',
@@ -587,15 +759,37 @@ export default class extends DynamoDBAdapter {
         else
           exChildren.push({
             type: gslId,
-            childId: gs.id,
             childType: 'gameSummary',
+            childId: gs.id,
           });
+      } else if (gslId.startsWith('teamSetGames#')) {
+        const ratingIndex = gs.rating.toSortableString(2, 2);
+        const setId = gslId.split('#')[1];
+        const winner = game.state.winner;
+        const vsSetId = game.state.setIds.find(sId => sId !== setId) ?? setId;
+        const result = winner === null || setId === vsSetId ? null : winner.set.id === setId ? 'W' : 'L';
+        children.push({
+          type: gslId,
+          childType: 'gameSummary',
+          childId: gs.id,
+          indexData: gs,
+          indexes: {
+            GPK0: 'gameSummary',
+            GSK0: `instance&${ts}`,
+            GPK1: `game#${gs.id}`,
+            GSK1: `child`,
+            LSK0: `${gs.type}&${ratingIndex}`,
+            LSK1: `${gs.type}&${vsSetId}&${ratingIndex}`,
+            LSK2: result !== null ? `${gs.type}&${result}&${ratingIndex}` : undefined,
+            LSK3: result !== null ? `${gs.type}&${vsSetId}&${result}&${ratingIndex}` : undefined,
+          },
+        });
       } else {
         if (assign)
           children.push({
             type: 'collection',
-            childId: gs.id,
             childType: 'gameSummary',
+            childId: gs.id,
             indexData: gs,
             indexes: {
               GPK0: 'gameSummary',
@@ -628,7 +822,9 @@ export default class extends DynamoDBAdapter {
         this._dirtyGamesSummary.delete(game);
     });
   }
-  _onGameChange(game) {
+  _onGameChange(game, source, event = null) {
+    //console.log('_onGameChange', source, event);
+
     if (!this.buffer.get('game').has(game.id))
       this.buffer.get('game').add(game.id, game);
 
@@ -669,14 +865,19 @@ export default class extends DynamoDBAdapter {
     this._dirtyGamesSummary.set(game, gameSummaryListIds);
 
     for (const [ gslId, assign ] of gameSummaryListIds) {
-      const gameSummaryList = gameSummaryListCache.get(gslId);
-      if (!gameSummaryList) continue;
+      if (gslId.startsWith('teamSetGames#')) {
+        for (const teamSetGameSearch of this.cache.get('teamSetGameSearch').values())
+          teamSetGameSearch.sortInIfIncluded(summary);
+      } else {
+        const gameSummaryList = gameSummaryListCache.get(gslId);
+        if (!gameSummaryList) continue;
 
-      if (assign) {
-        gameSummaryList.set(game.id, summary);
-        this._pruneGameSummaryList(gameSummaryList);
-      } else
-        gameSummaryList.prune(game.id);
+        if (assign) {
+          gameSummaryList.set(game.id, summary);
+          this._pruneGameSummaryList(gameSummaryList);
+        } else
+          gameSummaryList.prune(game.id);
+      }
     }
   }
   _clearGameSummary(game) {
@@ -705,17 +906,18 @@ export default class extends DynamoDBAdapter {
     // Get a unique list of player IDs from the teams.
     const playerIds = new Set(game.state.teams.filter(t => !!t?.playerId).map(t => t.playerId));
     const gameSummaryListIds = new Map(Array.from(playerIds).map(pId => [ `playerGames#${pId}`, true ]));
+    const isFullGame = (() => {
+      if (!game.state.endedAt)
+        return true;
+
+      const minTurnId = game.state.initialTurnId + 2;
+      return game.state.currentTurnId > minTurnId;
+    })();
 
     if (game.collection && !game.isReserved)
-      gameSummaryListIds.set(game.collection, (() => {
-        if (!game.state.endedAt)
-          return true;
+      gameSummaryListIds.set(game.collection, isFullGame);
 
-        const minTurnId = game.state.initialTurnId + 2;
-        return game.state.currentTurnId > minTurnId;
-      })());
-
-    if (game.state.rated && game.state.endedAt)
+    if (game.state.rated && game.state.endedAt) {
       [
         `rated/FORTE`,
         `rated/${game.state.type}`,
@@ -724,6 +926,15 @@ export default class extends DynamoDBAdapter {
           `rated/${pId}/${game.state.type}`,
         ]).flat(),
       ].forEach(gslId => gameSummaryListIds.set(gslId, true));
+
+      if (
+        game.state.gameType.isCustomizable &&
+        game.state.teams.length === 2 &&
+        game.state.winner !== null &&
+        game.state.currentTurnId > 10 &&
+        game.state.teams.every(t => t.set.isFull && !!t.ratings?.get(game.state.type)[0])
+      ) game.state.setIds.forEach(sId => gameSummaryListIds.set(`teamSetGames#${sId}`, true));
+    }
 
     return gameSummaryListIds;
   }
@@ -922,6 +1133,388 @@ export default class extends DynamoDBAdapter {
     return playerRatedGames;
   }
 
+  async _getDefaultPlayerSet(gameType) {
+    gameType = typeof gameType === 'string' ? this.getGameType(gameType) : gameType;    
+
+    const sourceSet = await (async () => {
+      if (!gameType.isCustomizable)
+        return gameType.config.sets.random();
+
+      const topTeamSets = await this.getTopTeamSets(gameType.id);
+      if (topTeamSets.length === 0)
+        return gameType.config.sets.random();
+
+      return topTeamSets.random();
+    })();
+
+    const defaultSet = {
+      id: sourceSet.id,
+      slot: 'default',
+      name: sourceSet.name,
+      units: sourceSet.units.clone(),
+      gameTypeId: gameType.id,
+      createdAt: new Date(),
+    };
+
+    if (!this.hasFixedSides && Math.random() < 0.5) {
+      for (const unit of defaultSet.units) {
+        unit.assignment[0] = 10 - unit.assignment[0];
+        if (unit.direction === 'W')
+          unit.direction = 'E';
+        else if (unit.direction === 'E')
+          unit.direction = 'W';
+      }
+    }
+
+    return defaultSet;
+  }
+  _getTeamSet(teamSetData, gameType, teamSetId = undefined) {
+    if (typeof gameType === 'string') gameType = this.getGameType(gameType);
+
+    const teamSet = TeamSet.create(teamSetData, teamSetId);
+    teamSet.cardinality = this.getTeamSetCardinality(gameType.id);
+    teamSet.on('stats:change', () => this.buffer.get('teamSetStats').add(teamSet.key, teamSet));
+    teamSet.on('stats:playerIds', ({ data:{ playerId, playerStats } }) => this._saveTeamSetStatsPlayer(teamSet, playerId, playerStats));
+    for (const metricName of [ 'rating', 'gameCount', 'playerCount' ])
+      teamSet.on(`stats:change:${metricName}`, () => this.buffer.get('teamSetIndex').add(`${teamSet.key}:${metricName}`, {
+        metricName,
+        teamSet,
+      }));
+
+    return teamSet;
+  }
+  async _saveTeamSet(teamSet) {
+    const ts = new Date().toISOString();
+    teamSet.isPersisted = true;
+
+    await this.putItem({
+      type: 'teamSet',
+      id: teamSet.id,
+      data: teamSet,
+      indexes: {
+        GPK0: 'teamSet',
+        GSK0: `instance&${ts}`,
+      },
+    });
+  }
+  async _getTeamSetCardinality(gameTypeId) {
+    const teamSetCardinality = await this.getItem({
+      type: 'teamSetCardinality',
+      id: gameTypeId,
+    }, {}, TeamSetCardinality.create(gameTypeId));
+    teamSetCardinality.gameType = this.getGameType(gameTypeId);
+    teamSetCardinality.on('change', () => {
+      if (!this.buffer.get('teamSetCardinality').has(gameTypeId))
+        this.buffer.get('teamSetCardinality').add(gameTypeId, teamSetCardinality);
+    });
+
+    return teamSetCardinality;
+  }
+  async _saveTeamSetCardinality(teamSetCardinality) {
+    teamSetCardinality.isPersisted = true;
+
+    await this.putItem({
+      type: 'teamSetCardinality',
+      id: teamSetCardinality.id,
+      data: teamSetCardinality,
+    });
+  }
+
+  _getTeamSetIndex(gameTypeId, metricName, indexPath = '/') {
+    const teamSetIndexId = `${gameTypeId}/${metricName}${indexPath}`;
+    const teamSetIndex = this.cache.get('teamSetIndex').get(teamSetIndexId) ?? new TeamSetIndex(metricName, indexPath);
+    teamSetIndex.cardinality = this.getTeamSetCardinality(gameTypeId);
+    this.cache.get('teamSetIndex').add(teamSetIndexId, teamSetIndex);
+    return teamSetIndex;
+  }
+  _getTeamSetIndexCurrentPage(gameTypeId, metricName, indexPath = '/') {
+    const teamSetIndex = this._getTeamSetIndex(gameTypeId, metricName, indexPath);
+
+    return {
+      completed: teamSetIndex.isComplete,
+      truncated: !teamSetIndex.isComplete && teamSetIndex.length === 1000,
+      teamSets: teamSetIndex.slice(0),
+    };
+  }
+  async _getTeamSetIndexNextPage(gameTypeId, metricName, indexPath = '/') {
+    const teamSetIndex = this._getTeamSetIndex(gameTypeId, metricName, indexPath);
+    // Make sure we do not try to fetch the next page in parallel for a given index.
+    const seqAsyncByKey = this.__getTeamSetIndexNextPage ??= new WeakMap();
+
+    if (!seqAsyncByKey.has(teamSetIndex))
+      seqAsyncByKey.set(teamSetIndex, seqAsync(async () => {
+        if (teamSetIndex.isComplete)
+          return { completed:true, truncated:false, teamSets:[] };
+        if (teamSetIndex.length === 1000)
+          return { completed:false, truncated:true, teamSets:[] };
+
+        const rsp = await this.query({
+          attributes: [ 'SK', 'PD' ],
+          filters: {
+            PK: `teamSetIndex#${teamSetIndex.gameTypeId}/${teamSetIndex.metricName}`,
+            LSK0: { beginsWith:`${teamSetIndex.path}&` },
+          },
+          order: 'DESC',
+          cursor: teamSetIndex.cursor,
+          limit: 100,
+        });
+        const teamSets = rsp.items.map(i => this._getTeamSet(i.PD, teamSetIndex.gameTypeId, i.SK.slice(8, 35)));
+        teamSetIndex.append(teamSets, rsp.cursor);
+        return {
+          completed: teamSetIndex.isComplete,
+          truncated: !teamSetIndex.isComplete && teamSetIndex.length === 1000,
+          teamSets,
+        };
+      }));
+
+    return seqAsyncByKey.get(teamSetIndex)();
+  }
+
+  _getTeamSetGameSearch(gameTypeId, { setId, vsSetId, result }) {
+    const teamSetGameSearchId = [ gameTypeId, setId, vsSetId, result ].filter(p => p !== null).join(':');
+    const teamSetGameSearch = this.cache.get('teamSetGameSearch').get(teamSetGameSearchId) ?? new TeamSetGameSearch({ setId, vsSetId, result });
+    teamSetGameSearch.gameType = this._gameTypes.get(gameTypeId);
+    this.cache.get('teamSetGameSearch').add(teamSetGameSearchId, teamSetGameSearch);
+    return teamSetGameSearch;
+  }
+  _getTeamSetGameSearchCurrentPage(teamSetGameSearch) {
+    return {
+      completed: teamSetGameSearch.isComplete,
+      truncated: !teamSetGameSearch.isComplete && teamSetGameSearch.length === 1000,
+    };
+  }
+  async _getTeamSetGameSearchNextPage(teamSetGameSearch) {
+    // Make sure we do not try to fetch the next page in parallel for a given search.
+    const seqAsyncByKey = this.__getTeamSetGameSearchNextPage ??= new WeakMap();
+
+    if (!seqAsyncByKey.has(teamSetGameSearch))
+      seqAsyncByKey.set(teamSetGameSearch, seqAsync(async () => {
+        if (teamSetGameSearch.isComplete)
+          return { completed:true, truncated:false, gamesSummary:[] };
+        if (teamSetGameSearch.length === 1000)
+          return { completed:false, truncated:true, gamesSummary:[] };
+
+        const filter = (() => {
+          if (teamSetGameSearch.vsSetId && teamSetGameSearch.result)
+            return { key:'LSK3', value:[ teamSetGameSearch.gameType.id, teamSetGameSearch.vsSetId, teamSetGameSearch.result ].join('&') }
+          else if (teamSetGameSearch.result)
+            return { key:'LSK2', value:[ teamSetGameSearch.gameType.id, teamSetGameSearch.result ].join('&') }
+          else if (teamSetGameSearch.vsSetId)
+            return { key:'LSK1', value:[ teamSetGameSearch.gameType.id, teamSetGameSearch.vsSetId ].join('&') }
+          return { key:'LSK0', value:teamSetGameSearch.gameType.id };
+        })();
+
+        const rsp = await this.query({
+          attributes: [ 'SK', 'PD' ],
+          filters: {
+            PK:`teamSetGames#${teamSetGameSearch.setId}`,
+            [filter.key]: { beginsWith:`${filter.value}&` },
+          },
+          order: 'DESC',
+          cursor: teamSetGameSearch.cursor,
+          limit: 20,
+        });
+        teamSetGameSearch.append(rsp.items.map(i => i.PD), rsp.cursor);
+        return {
+          completed: teamSetGameSearch.isComplete,
+          truncated: !teamSetGameSearch.isComplete && teamSetGameSearch.length === 1000,
+        };
+      }));
+
+    return seqAsyncByKey.get(teamSetGameSearch)();
+  }
+
+  _getTeamSetSearch(gameTypeId, metricName, text) {
+    const query = TeamSetSearch.parseText(text);
+    const teamSetSearchId = `${gameTypeId}/${metricName}/${JSON.stringify(query.length === 1 ? query[0] : query)}`;
+    if (this.cache.get('teamSetSearch').has(teamSetSearchId))
+      return this.cache.get('teamSetSearch').get(teamSetSearchId);
+
+    const cardinality = this.getTeamSetCardinality(gameTypeId);
+    const teamSetIndexes = new Set();
+    const teamSetSearches = query.map(q => {
+      const teamSetSearchId = `${gameTypeId}/${metricName}/${JSON.stringify(q)}`;
+      if (this.cache.get('teamSetSearch').has(teamSetSearchId))
+        return this.cache.get('teamSetSearch').get(teamSetSearchId);
+      const teamSetSearch = new TeamSetSearch(cardinality, metricName, q);
+      teamSetSearch.on('getTeamSetIndexCurrentPage', event =>
+        event.resolve(this._getTeamSetIndexCurrentPage(gameTypeId, metricName, event.indexPath))
+      );
+      teamSetSearch.on('getTeamSetIndexNextPage', event =>
+        this._getTeamSetIndexNextPage(gameTypeId, metricName, event.indexPath).then(event.resolve, event.reject)
+      );
+      this.cache.get('teamSetSearch').add(teamSetSearchId, teamSetSearch);
+
+      const teamSetIndex = this._getTeamSetIndex(gameTypeId, metricName, teamSetSearch.indexPath);
+      teamSetIndex.teamSetSearches.add(teamSetSearch);
+      teamSetIndexes.add(teamSetIndex);
+
+      return teamSetSearch;
+    });
+    if (teamSetSearches.length === 1)
+      return teamSetSearches[0];
+
+    const teamSetSearch = new TeamSetSearchGroup(cardinality, metricName, query, teamSetSearches);
+    for (const teamSetIndex of teamSetIndexes)
+      teamSetIndex.add(teamSetSearch);
+
+    this.cache.get('teamSetSearch').add(teamSetSearchId, teamSetSearch);
+    return teamSetSearch;
+  }
+  async _getTeamSetStats(gameTypeId, teamSetId) {
+    const teamSetKey = `${teamSetId}:${gameTypeId}`
+    const cache = this.cache.get('teamSetStats');
+    if (cache.has(teamSetKey))
+      return cache.get(teamSetKey);
+
+    const [ teamSetStats, mostPlayedBy ] = await Promise.all([
+      this.getItem({
+        type: 'teamSet',
+        id: teamSetId,
+        path: `/stats/${gameTypeId}`,
+      }, {}, TeamSetStats.create()),
+      this.query({
+        attributes: [ 'SK', 'PD' ],
+        filters: {
+          PK: `teamSet#${teamSetId}`,
+          LSK0: { beginsWith:`${gameTypeId}&` },
+        },
+        order: 'DESC',
+        limit: 1,
+      }).then(rsp => {
+        if (rsp.items.length === 0) return null;
+
+        const { SK, PD } = rsp.items[0];
+        return { playerId:SK.split('/').last, playerStats:PD };
+      }),
+    ]);
+    teamSetStats.id = teamSetId;
+    if (mostPlayedBy)
+      teamSetStats.playerIds.set(mostPlayedBy.playerId, mostPlayedBy.playerStats);
+
+    cache.add(teamSetKey, teamSetStats);
+
+    return teamSetStats;
+  }
+  async _getTeamSetStatsForTeamSet(teamSet) {
+    if (teamSet.stats) return teamSet;
+    const cache = this.cache.get('teamSetStats');
+    const teamSetStats = await this._getTeamSetStats(teamSet.gameType.id, teamSet.id);
+
+    teamSet.stats = teamSetStats;
+
+    cache.open(teamSet.key, teamSetStats);
+    this._closer.register(teamSet, { objectType:'teamSetStats', objectKey:teamSet.key });
+
+    return teamSet;
+  }
+  async _getTeamSetStatsPlayer(teamSet, playerId) {
+    if (teamSet.stats.playerIds.has(playerId)) return teamSet;
+
+    const playerStats = await this.getItem({
+      type: 'teamSet',
+      id: teamSet.id,
+      path: `/stats/${teamSet.gameType.id}/players/${playerId}`,
+    }, {}, null);
+
+    teamSet.stats.playerIds.set(playerId, playerStats);
+    return teamSet;
+  }
+  async _saveTeamSetStatsPlayer(teamSet, playerId, playerStats) {
+    await this.putItem({
+      type: 'teamSet',
+      id: teamSet.id,
+      path: `/stats/${teamSet.gameType.id}/players/${playerId}`,
+      indexData: playerStats,
+      indexes: {
+        LSK0: `${teamSet.gameType.id}&${playerStats.gameCount.toSortableString(2, 2)}`,
+      },
+    });
+  }
+  async _saveTeamSetStats(teamSet, reset = false) {
+    const gameTypeId = teamSet.gameType.id;
+    teamSet.stats.isPersisted = true;
+
+    await this.putItem({
+      type: 'teamSet',
+      id: teamSet.id,
+      path: `/stats/${gameTypeId}`,
+      data: teamSet.stats,
+    });
+
+    if (reset) {
+      await Promise.all(Array.from(teamSet.stats.playerIds.entries()).filter(e => !!e[1]).map(([ playerId, playerStats ]) =>
+        this._saveTeamSetStatsPlayer(teamSet, playerId, playerStats)
+      ));
+
+      const rootPath = `teamSet#${teamSet.id}`;
+      const indexPaths = teamSet.indexPaths;
+
+      for (const metricName of [ 'rating', 'gameCount', 'playerCount' ]) {
+        // Delete indexes
+        const query = {
+          attributes: [ 'SK' ],
+          filters: {
+            PK: `teamSetIndex#${gameTypeId}/${metricName}`,
+            SK: { beginsWith:rootPath+'/' },
+          },
+          limit: true,
+        };
+
+        do {
+          const rsp = await this.query(query);
+          await Promise.all(rsp.items.filter(i => {
+            const path = i.SK.slice(rootPath.length);
+            return !indexPaths.has(path);
+          }).map(i => this.deleteItem({
+            PK: `teamSetIndex#${gameTypeId}/${metricName}`,
+            SK: i.SK,
+          })));
+          query.cursor = rsp.cursor;
+        } while (query.cursor);
+
+        this.buffer.get('teamSetIndex').add(`${teamSet.key}:${metricName}`, {
+          metricName,
+          teamSet,
+        });
+      }
+    }
+  }
+  async _saveTeamSetIndex({ metricName, teamSet }) {
+    const rootPath = `teamSet#${teamSet.id}`;
+    const metricValue = teamSet[metricName].toSortableString(...(metricName === 'rating' ? [ 2, 2 ] : [ 4, 0 ]));
+    // Provide sufficient information to construct TeamSet objects.
+    // TeamSetStats still needs to be separate since all indexes aren't saved with every change.
+    // But we'll at least include this metric to aid in sorting since it is always current.
+    const indexData = {
+      units: teamSet.units,
+      [metricName]: teamSet[metricName],
+    };
+
+    await Promise.all(Array.from(teamSet.indexPaths).map(indexPath => this.putItem({
+      type: `teamSetIndex#${teamSet.gameType.id}/${metricName}`,
+      path: `${rootPath}${indexPath}`,
+      indexData,
+      indexes: {
+        LSK0: `${indexPath}&${metricValue}`,
+      },
+    })));
+
+    const indexPaths = new Set();
+    for (const indexPath of teamSet.indexPaths)
+      indexPaths.add(teamSet.cardinality.selectIndex([ indexPath ]).path);
+
+    for (const teamSetIndex of this.cache.get('teamSetIndex').values())
+      if (indexPaths.has(teamSetIndex.path)) {
+        // Update cached indexes
+        teamSetIndex.sortIn(teamSet);
+        // Invalidate related searches
+        for (const teamSetSearch of this.cache.get('teamSetSearch').values())
+          if (teamSetIndex.teamSetSearches.has(teamSetSearch))
+            this.cache.get('teamSetSearch').delete(teamSetSearch.id);
+      }
+  }
+
   /*
    * Player Sets Management
    */
@@ -1102,9 +1695,11 @@ export default class extends DynamoDBAdapter {
           return;
 
         gameIndex.set(game.id, {
+          gameTypeId: game.state.gameType.id,
           startedAt: game.state.startedAt,
           endedAt: game.state.endedAt,
         });
+        game.toFile = true;
         return this.putFile(`game_${game.id}`, serializer.transform(game));
       }).catch(error => {
         if (error.code === 404)
@@ -1119,5 +1714,32 @@ export default class extends DynamoDBAdapter {
     }
 
     return gameIndex;
+  }
+  /*
+   * If the game index needs more data, this is a quick way to refresh the index.
+   */
+  async reindexAllGames() {
+    const indexStat = await this.statFile('game_index', true);
+    const lastIndexAt = indexStat && new Date(indexStat.mtime);
+    const gamesIndex = await this.getFile('game_index', data => {
+      if (data === undefined)
+        return new Map();
+      return serializer.normalize(data);
+    });
+
+    const gameIds = Array.from(gamesIndex.keys());
+
+    for (let i = 0; i < gameIds.length; i += 100) {
+      const games = await Promise.all(gameIds.slice(i, i+100).map(gId => this.getGameFromFile(gId, null, true)));
+      for (const game of games) {
+        const indexData = gamesIndex.get(game.id);
+        indexData.gameTypeId = game.state.gameType.id;
+      }
+    }
+
+    await this.putFile('game_index', serializer.transform(gamesIndex));
+    await fs.utimes(`${this.filesDir}/game_index.json`, lastIndexAt, lastIndexAt);
+
+    return gamesIndex;
   }
 };

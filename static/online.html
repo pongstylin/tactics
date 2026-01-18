@@ -235,7 +235,7 @@
       transition-duration: 1s;
       transition-delay: 250ms;
     }
-    .page > .tabContent > DIV:not(.is-active) {
+    .page > .tabContent > DIV:not(.spinner):not(.is-active) {
       display: none;
     }
     .page > .tabContent > DIV.hide {
@@ -471,7 +471,7 @@
       padding-left: 4px;
       color: #b08d57;
       font-weight: bold;
-      opacity: 1; // Override Firefox default
+      opacity: 1; /* Override Firefox default */
       font-style: italic;
     }
     .rankings > .rankings .search INPUT:focus::placeholder {
@@ -710,7 +710,7 @@
     }
     .game-list .game .vs {
       display: grid;
-      grid-template-columns: calc(160px * 0.45) 1fr 0% 1fr;
+      grid-template-columns: calc(160px * 0.45) minmax(0, 1fr) 0% minmax(0, 1fr);
       align-items: center;
       text-align: center;
       height: 60px;
@@ -732,21 +732,30 @@
     .game-list .game .vs .arena-wrapper .arena .arena-shape {
       pointer-events: auto;
     }
-    .game-list .game .team.linkable,
+    .game-list .game .team.linkable .name,
+    .game-list .game .team .set,
     .game-list .game .invite,
     .game-list .game A {
       cursor: pointer;
       pointer-events: auto;
     }
-    .game-list .game .team .name {
+    .game-list .game .team .name,
+    .game-list .game .team .set {
       white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .game-list .game .team .set {
+      font-style: italic;
     }
     .game-list .game .team.linkable .name,
+    .game-list .game .team .set,
     .game-list .game .invite {
       color: #00FFFF;
       text-decoration: underline;
     }
-    .game-list .game .team.linkable:hover .name,
+    .game-list .game .team.linkable .name:hover,
+    .game-list .game .team .set:hover,
     .game-list .game .invite:hover {
       color: #CCFFFF;
     }
@@ -947,55 +956,11 @@
       padding: 8px;
       content: 'No games yet!';
     }
-    .page > .tabContent .loading {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      position: absolute;
-      z-index: 10;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
-    }
     .page > .tabContent .lobby.show {
       transition-duration: 1s;
     }
     .page > .tabContent .lobby.hide {
       transition-duration: 0.5s;
-    }
-    .page > .tabContent .loading .spinner {
-      color: transparent;
-      font-size: 48px;
-      transform: scale(4);
-    }
-    .page > .tabContent .loading .spinner .fa {
-      background-image: radial-gradient(rgba(80, 128, 0, 0) 47%, #804a00 52%, 55%, #b08d57 57.5%, 60%, #804a00 63%, rgba(80, 128, 0, 0) 66%);
-      -webkit-background-clip: text;
-    }
-    .page > .tabContent .loading .label {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-
-      box-sizing: border-box;
-      border-radius: 50%;
-      padding-left: 20px;
-      width: 160px;
-      height: 160px;
-
-      display: flex;
-      justify-content: center;
-      align-items: center;
-
-      background-color: black;
-      box-shadow: 0 0 5px 10px #000;
-      color: #b08d57;
-      font-size: 1.5em;
-      font-weight: bold;
-      text-indent: -20px;
     }
     .tabContent HEADER .style {
       flex-grow: 1;
@@ -1028,18 +993,18 @@
       height: 22px;
       margin-right: 4px;
     }
-    .setup, .arenas {
+    .setup, .searchSets, .searchSetGames, .arenas {
       opacity: 0;
       transition-property: opacity;
       transition-duration: 0.3s;
     }
-    .setup:not(.show), .arenas:not(.show) {
+    .setup:not(.show), .searchSets:not(.show), .searchSetGames:not(.show), .arenas:not(.show) {
       pointer-events: none;
     }
-    .setup.hide, .arenas.hide {
+    .setup.hide, .searchSets.hide, .searchSetGames.hide, .arenas.hide {
       display: none;
     }
-    .setup.show, .arenas.show {
+    .setup.show, .searchSets.show, .searchSetGames.show, .arenas.show {
       opacity: 1;
     }
     .arenas {
@@ -1323,8 +1288,10 @@
       }
       .page > .tabContent > DIV.lobby .content {
         flex: 1 1 auto;
-        max-height: 420px;
         overflow-y: auto;
+      }
+      .page > .tabContent > DIV.lobby .content:not(:has(.searchSets:not(.hide)), :has(.searchSetGames:not(.hide))) {
+        max-height: 420px;
       }
       .arenas {
         justify-content: flex-start;
@@ -1361,10 +1328,6 @@
       }
       FOOTER {
         display: none;
-      }
-
-      .page > .tabContent > DIV.loading {
-        position: fixed;
       }
     }
     @media (max-width:479px) {
@@ -1411,12 +1374,6 @@
           <SPAN>To verify your account, go <A href="/security.html">here</A>.</SPAN>
         </DIV>
         <DIV class="content"></DIV>
-      </DIV>
-      <DIV class="loading">
-        <DIV class="label">Please<br>wait...</DIV>
-        <DIV class="spinner">
-          <I class="fa fa-spinner fa-pulse"></I>
-        </DIV>
       </DIV>
     </DIV>
   </DIV>
