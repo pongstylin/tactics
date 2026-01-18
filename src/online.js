@@ -1,11 +1,18 @@
 import config from 'config/client.js';
 import copy from 'components/copy.js';
-import ConfigureGameModal from 'components/Modal/ConfigureGame.js';
+import * as gameArena from 'components/GameArena.js';
+import * as gameCard from 'components/GameCard.js';
+import SearchSets from 'components/SearchSets.js';
+import SearchSetGames from 'components/SearchSetGames.js';
 import Setup from 'components/Setup.js';
 import ScrollButton from 'components/ScrollButton.js';
 import share from 'components/share.js';
+import Spinner from 'components/Spinner.js';
 import whenDOMReady from 'components/whenDOMReady.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
+import ConfigureGameModal from 'components/Modal/ConfigureGame.js';
+import ViewSetModal from 'components/Modal/ViewSet.js';
+import { getParam, unsetParam } from 'utils/hashParams.js';
 import sleep from 'utils/sleep.js';
 
 const authClient = Tactics.authClient;
@@ -13,7 +20,6 @@ const gameClient = Tactics.gameClient;
 const pushClient = Tactics.pushClient;
 const popup = Tactics.popup;
 
-const arenaGameSummary = new WeakMap();
 const groups = new Map([
   [ 'lobby',    'Lobby' ],
   [ 'active',   'Active Games' ],
@@ -76,9 +82,18 @@ const state = {
     rankings: {
     },
   },
-  avatars: new Map(),
+  viewSetModal: new ViewSetModal(),
 };
 const routes = new Map([
+  [ '#lobby/:styleId/searchSets', p => ({
+    route: () => toggleSearchSets(true), 
+  }) ],
+  [ '#lobby/:styleId/searchSetGames', p => ({
+    route: () => toggleSearchSetGames(),
+  }) ],
+  [ '#lobby/:styleId/setup', p => ({
+    route: () => toggleSetup(true), 
+  }) ],
   [ '#rankings', p => ({
     route: renderRankings,
     data: Promise.all([
@@ -222,10 +237,8 @@ const pushPublicKey = Uint8Array.from(
 );
 
 let avatars;
-let arena;
 const handleAvatarsData = () => {
   avatars = Tactics.getSprite('avatars');
-  arena = avatars.getImage('arena');
   ScrollButton.config.icons = {
     up: avatars.getImage('scrollup').src,
     down: avatars.getImage('scrolldown').src,
@@ -236,39 +249,51 @@ const handleAvatarsData = () => {
   };
 }
 
-const getDataFromService = Tactics.load(['avatars']).then(async () => {
+const loadAvatarsAndDependants = Tactics.load(['avatars']).then(async () => {
   state.styles = await gameClient.getGameTypes();
   handleAvatarsData();
   await Tactics.makeAvatarRenderer();
   await whenDOMReady;
+
+  const lobbyState = state.tabContent.lobby;
+  lobbyState.setup = new Setup();
+  lobbyState.setup.on('change:avatar', async ({ data:avatar }) => {
+    setMyAvatar(avatar);
+
+    gameClient.saveMyAvatar(avatar);
+  });
+  lobbyState.searchSets = new SearchSets();
+  lobbyState.searchSets.on('search', ({ searchText }) => {
+    history.pushState(null, '', `#lobby/${lobbyState.selectedStyleId}/searchSets?q=${encodeURIComponent(searchText)}`);
+  });
+  lobbyState.searchSets.on('select', ({ set }) => {
+    state.viewSetModal.show(lobbyState.selectedStyleId, set);
+  });
+  lobbyState.searchSetGames = new SearchSetGames();
+  lobbyState.searchSetGames.on('search', async ({ set, vsSet }) => {
+    history.pushState(null, '', `#lobby/${lobbyState.selectedStyleId}/searchSetGames?` + new URLSearchParams({
+      set: await JSON.compress(set),
+      ...(vsSet ? { vsSet:await JSON.compress(vsSet) } : {}),
+    }));
+  });
+  lobbyState.searchSetGames.on('select:player', ({ playerId }) => {
+    location.hash = `#rankings/${playerId}/FORTE`;
+  });
+  lobbyState.searchSetGames.on('select:set', ({ set, vsSet }) => {
+    state.viewSetModal.show(lobbyState.selectedStyleId, set, vsSet);
+  });
+
   renderLobby();
 });
 
-const fetchAvatars = async playerIds => {
-  const newPlayerIds = Array.from(new Set(playerIds.filter(pId => !state.avatars.has(pId))));
-
-  if (newPlayerIds.length) {
-    const avatars = await gameClient.getPlayersAvatar(newPlayerIds);
-    for (let i = 0; i < newPlayerIds.length; i++)
-      state.avatars.set(newPlayerIds[i], avatars[i]);
-  }
-}
-const getAvatar = (playerId, options = {}) => {
-  const avatar = state.avatars.get(playerId);
-
-  return Tactics.drawAvatar(avatar, { direction:'S', withShadow:true, ...options });
-};
+const spinner = new Spinner({ autoShow:false });
 
 whenDOMReady.then(() => {
-  const divLoading = document.querySelector(`.tabContent .loading`);
-  divLoading.classList.add('is-active');
-  divLoading.classList.add('hide');
-  whenTransitionEnds(divLoading, () => {
-    divLoading.classList.remove('hide');
-  });
+  document.querySelector(`.tabContent`).appendChild(spinner.el);
+  spinner.fadeIn();
 
   authClient.whenReady.then(async () => {
-    divLoading.classList.remove('is-active');
+    spinner.hide();
 
     if (await authClient.requireAuth())
       history.replaceState(null, null, '#lobby');
@@ -372,12 +397,21 @@ whenDOMReady.then(() => {
 
     const divTeam = event.target.closest('.team');
     if (divTeam) {
-      const playerId = divTeam.dataset.playerId;
-      location.href = `#rankings/${playerId}/FORTE`;
+      if (event.target.classList.contains('name')) {
+        const playerId = divTeam.dataset.playerId;
+        location.hash = `#rankings/${playerId}/FORTE`;
+      } else if (event.target.classList.contains('set')) {
+        const teamId = parseInt(divTeam.dataset.id);
+        const [ teamSet, vsTeamSet ] = await Promise.all([
+          gameClient.getGameTeamSet(divGame.dataset.type, gameId, teamId),
+          gameClient.getGameTeamSet(divGame.dataset.type, gameId, (teamId + 1) % 2),
+        ]);
+        state.viewSetModal.show(divGame.dataset.type, teamSet, vsTeamSet);
+      }
       return;
     }
 
-    const link = `game.html?${gameId}`;
+    const link = new URL(`game.html?${gameId}`, location.href);
 
     const aDecline = event.target.closest('.decline A');
     if (aDecline) {
@@ -502,7 +536,7 @@ whenDOMReady.then(() => {
     })
     .on('open', async ({ data:{ reason } }) => {
       if (state.currentTab === null || reason === 'resume')
-        document.querySelector('.tabContent .loading').classList.remove('is-active');
+        spinner.hide();
       else {
         /*
          * Now that the connection is open, sync the current tab.  This is always
@@ -520,7 +554,7 @@ whenDOMReady.then(() => {
     })
     .on('close', ({ data:{ reopen } }) => {
       if (reopen)
-        document.querySelector('.tabContent .loading').classList.add('is-active');
+        spinner.hide();
     });
 });
 
@@ -537,7 +571,7 @@ async function showTabs() {
 
   document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
 
-  await getDataFromService;
+  await loadAvatarsAndDependants;
   setMyAvatar(avatar);
   state.tabContent.lobby.setup.avatar = avatar;
 
@@ -558,7 +592,7 @@ function hideTabs() {
   divPN.style.display = 'none';
 
   document.querySelector('.tabs').style.display = 'none';
-  document.querySelector('.tabContent .loading').classList.remove('is-active');
+  spinner.hide();
 }
 
 function setMyName() {
@@ -569,7 +603,7 @@ function setMyName() {
 function setMyAvatar(avatar) {
   const divAvatar = document.querySelector('.page HEADER .account .avatar-badge .image');
 
-  state.avatars.set(myPlayerId, avatar);
+  gameArena.avatars.set(myPlayerId, avatar);
 
   const imgAvatar = Tactics.getAvatarImage(avatar, { withFocus:false });
   const avatarData = JSON.parse(imgAvatar.dataset.avatar);
@@ -879,26 +913,24 @@ function resize(sheet) {
   `, sheet.cssRules.length);
 }
 function selectStyle(styleId) {
-  const tabContent = state.tabContent.lobby;
+  const lobbyState = state.tabContent.lobby;
   const spnStyle = document.querySelector('.lobby HEADER .style');
   const divArenas = document.querySelector('.lobby .arenas');
   const ulFloorList = divArenas.querySelector('.floors UL');
-  const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
 
-  if (tabContent.selectedStyleId)
-    ulFloorList.querySelector(`[data-style-id=${tabContent.selectedStyleId}]`).classList.remove('selected');
+  if (lobbyState.selectedStyleId)
+    ulFloorList.querySelector(`[data-style-id=${lobbyState.selectedStyleId}]`).classList.remove('selected');
   ulFloorList.querySelector(`[data-style-id=${styleId}]`).classList.add('selected');
 
   const styles = state.styles;
   spnStyle.textContent = styles.find(style => style.id === styleId).name;
-  tabContent.selectedStyleId = styleId;
+  lobbyState.selectedStyleId = styleId;
 }
 async function selectGroup(groupId) {
   const tabContent = state.tabContent.lobby;
   const divArenas = document.querySelector('.lobby .arenas');
   const divGroups = divArenas.querySelector('.groups');
   const ulGroupList = divGroups.querySelector('UL');
-  const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
   const footer = document.querySelector('.lobby FOOTER');
   const spnGroup = footer.querySelector('.group');
 
@@ -933,7 +965,7 @@ async function selectArena(event) {
     else
       createGame(divArena);
   } else if (divArena.classList.contains('waiting')) {
-    const arena = arenaGameSummary.get(divArena);
+    const arena = gameArena.arenaGameSummary.get(divArena);
 
     if (arena.createdBy === myPlayerId) {
       if (state.currentTab !== 'lobby') {
@@ -952,7 +984,7 @@ async function selectArena(event) {
     } else
       joinGame(arena);
   } else {
-    const arena = arenaGameSummary.get(divArena);
+    const arena = gameArena.arenaGameSummary.get(divArena);
     const link = `/game.html?${arena.id}`;
 
     // Support common open-new-tab semantics
@@ -1333,9 +1365,16 @@ function renderLobby() {
   divControls.classList.add('controls');
   header.appendChild(divControls);
 
+  const btnSearchSets = document.createElement('BUTTON');
+  btnSearchSets.classList.add('toggle-searchSets');
+  btnSearchSets.textContent = 'Search Sets';
+  btnSearchSets.addEventListener('click', () => toggleSearchSets());
+  divControls.appendChild(btnSearchSets);
+
   const btnSetup = document.createElement('BUTTON');
+  btnSetup.classList.add('toggle-setup');
   btnSetup.textContent = 'Setup';
-  btnSetup.addEventListener('click', () => toggleSetup(btnSetup, lobbyState));
+  btnSetup.addEventListener('click', () => toggleSetup());
   divControls.appendChild(btnSetup);
 
   const btnSettings = document.createElement('BUTTON');
@@ -1356,22 +1395,19 @@ function renderLobby() {
   divContent.classList.add('content');
   liLobby.appendChild(divContent);
 
-  lobbyState.setup = new Setup();
-  lobbyState.setup
-    .on('change:avatar', async ({ data:avatar }) => {
-      setMyAvatar(avatar);
-
-      gameClient.saveMyAvatar(avatar);
-    })
-    .on('change:sets', ({ data:sets }) => {
-      lobbyState.sets = sets;
-    });
-
   const divSetup = lobbyState.setup.el;
   divSetup.classList.add('hide');
   divContent.appendChild(divSetup);
 
-  const divArenas = renderArenas(divContent);
+  const divSearchSets = lobbyState.searchSets.el;
+  divSearchSets.classList.add('hide');
+  divContent.appendChild(divSearchSets);
+
+  const divSearchSetGames = lobbyState.searchSetGames.el;
+  divSearchSetGames.classList.add('hide');
+  divContent.appendChild(divSearchSetGames);
+
+  renderArenas(divContent);
 
   /*****************************************************************************
    * Footer
@@ -1402,37 +1438,157 @@ function renderLobby() {
 
   liLobby.appendChild(footer);
 }
-async function toggleSetup(btnSetup, lobbyState) {
-  const divLoading = document.querySelector(`.tabContent .loading`);
+async function toggleSearchSets(force = false) {
+  const lobbyState = state.tabContent.lobby;
+  const btnSearchSets = document.querySelector('.lobby HEADER .controls .toggle-searchSets');
+  const btnSetup = document.querySelector('.lobby HEADER .controls .toggle-setup');
   const divSetup = lobbyState.setup.el;
+  const divSearchSets = lobbyState.searchSets.el;
+  const divSearchSetGames = lobbyState.searchSetGames.el;
+  const divArenas = document.querySelector('.lobby .arenas');
+  const footer = document.querySelector('.lobby FOOTER');
+  btnSearchSets.disabled = true;
+
+  if (force || btnSearchSets.textContent === 'Search Sets') {
+    btnSearchSets.textContent = 'Lobby';
+    footer.style.display = 'none';
+
+    spinner.fadeIn();
+
+    const routePath = `#lobby/${lobbyState.selectedStyleId}/searchSets?`;
+    if (!location.hash.startsWith(routePath))
+      history.pushState(null, '', routePath.slice(0, -1));
+
+    const untilReady = lobbyState.searchSets.setGameType(lobbyState.gameType, lobbyState.params?.get('q') ?? '');
+
+    if (divSetup.classList.contains('show')) {
+      btnSetup.textContent = 'Setup';
+      divSetup.classList.remove('show');
+      await whenTransitionEnds(divSetup, () => divSetup.classList.add('hide'));
+    } else if (divSearchSetGames.classList.contains('show')) {
+      divSearchSetGames.classList.remove('show');
+      await whenTransitionEnds(divSearchSetGames, () => divSearchSetGames.classList.add('hide'));
+    } else if (divArenas.classList.contains('show')) {
+      divArenas.classList.remove('show');
+      await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+    }
+    await untilReady;
+
+    divSearchSets.classList.remove('hide');
+    await sleep();
+    spinner.hide();
+    divSearchSets.classList.add('show');
+    await whenTransitionEnds(divSearchSets);
+  } else {
+    btnSearchSets.textContent = 'Search Sets';
+    footer.style.display = '';
+
+    const routePath = `#lobby/${lobbyState.selectedStyleId}/lobby?`;
+    if (!location.hash.startsWith(routePath))
+      history.pushState(null, '', routePath.slice(0, -1));
+
+    if (divSearchSetGames.classList.contains('show')) {
+      divSearchSetGames.classList.remove('show');
+      await whenTransitionEnds(divSearchSetGames, () => divSearchSetGames.classList.add('hide'));
+    }
+
+    divSearchSets.classList.remove('show');
+    await whenTransitionEnds(divSearchSets, () => divSearchSets.classList.add('hide'));
+
+    divArenas.classList.remove('hide');
+    await sleep();
+    divArenas.classList.add('show');
+    await whenTransitionEnds(divArenas);
+  }
+
+  btnSearchSets.disabled = false;
+}
+async function toggleSearchSetGames() {
+  const lobbyState = state.tabContent.lobby;
+  const btnSetup = document.querySelector('.lobby HEADER .controls .toggle-setup');
+  const btnSearchSets = document.querySelector('.lobby HEADER .controls .toggle-searchSets');
+  const divSetup = lobbyState.setup.el;
+  const divSearchSets = lobbyState.searchSets.el;
+  const divSearchSetGames = lobbyState.searchSetGames.el;
+  const divArenas = document.querySelector('.lobby .arenas');
+  const footer = document.querySelector('.lobby FOOTER');
+
+  btnSearchSets.textContent = 'Lobby';
+  footer.style.display = 'none';
+
+  spinner.fadeIn();
+
+  const set = await JSON.decompress(getParam('set'));
+  const vsSet = getParam('vsSet') && await JSON.decompress(getParam('vsSet'));
+  const untilReady = lobbyState.searchSetGames.setGameType(lobbyState.gameType, set, vsSet);
+
+  if (divSetup.classList.contains('show')) {
+    btnSetup.textContent = 'Setup';
+    divSetup.classList.remove('show');
+    await whenTransitionEnds(divSetup, () => divSetup.classList.add('hide'));
+  } else if (divSearchSets.classList.contains('show')) {
+    divSearchSets.classList.remove('show');
+    await whenTransitionEnds(divSearchSets, () => divSearchSets.classList.add('hide'));
+  } else if (divArenas.classList.contains('show')) {
+    divArenas.classList.remove('show');
+    await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+  }
+  await untilReady;
+
+  divSearchSetGames.classList.remove('hide');
+  await sleep();
+  spinner.hide();
+  divSearchSetGames.classList.add('show');
+  await whenTransitionEnds(divSearchSetGames);
+}
+async function toggleSetup(force = false) {
+  const lobbyState = state.tabContent.lobby;
+  const btnSetup = document.querySelector('.lobby HEADER .controls .toggle-setup');
+  const btnSearchSets = document.querySelector('.lobby HEADER .controls .toggle-searchSets');
+  const divSetup = lobbyState.setup.el;
+  const divSearchSets = lobbyState.searchSets.el;
+  const divSearchSetGames = lobbyState.searchSetGames.el;
   const divArenas = document.querySelector('.lobby .arenas');
   const footer = document.querySelector('.lobby FOOTER');
   btnSetup.disabled = true;
 
-  if (btnSetup.textContent === 'Setup') {
+  if (force || btnSetup.textContent === 'Setup') {
     btnSetup.textContent = 'Lobby';
     footer.style.display = 'none';
 
-    divLoading.classList.add('is-active');
-    divLoading.classList.add('hide');
-    whenTransitionEnds(divLoading, () => {
-      divLoading.classList.remove('hide');
-    });
+    spinner.fadeIn();
 
-    const untilReady = lobbyState.setup.setGameType(lobbyState.gameType, lobbyState.sets);
+    const routePath = `#lobby/${lobbyState.selectedStyleId}/setup?`;
+    if (!location.hash.startsWith(routePath))
+      history.pushState(null, '', routePath.slice(0, -1));
 
-    divArenas.classList.remove('show');
-    await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+    const untilReady = lobbyState.setup.setGameType(lobbyState.gameType);
+
+    if (divSearchSets.classList.contains('show')) {
+      btnSearchSets.textContent = 'Search Sets';
+      divSearchSets.classList.remove('show');
+      await whenTransitionEnds(divSearchSets, () => divSearchSets.classList.add('hide'));
+    } else if (divSearchSetGames.classList.contains('show')) {
+      divSearchSetGames.classList.remove('show');
+      await whenTransitionEnds(divSearchSetGames, () => divSearchSetGames.classList.add('hide'));
+    } else if (divArenas.classList.contains('show')) {
+      divArenas.classList.remove('show');
+      await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+    }
     await untilReady;
 
     divSetup.classList.remove('hide');
     await sleep();
-    divLoading.classList.remove('is-active');
+    spinner.hide();
     divSetup.classList.add('show');
     await whenTransitionEnds(divSetup);
   } else {
     btnSetup.textContent = 'Setup';
     footer.style.display = '';
+
+    const routePath = `#lobby/${lobbyState.selectedStyleId}/lobby?`;
+    if (!location.hash.startsWith(routePath))
+      history.pushState(null, '', routePath.slice(0, -1));
 
     divSetup.classList.remove('show');
     await whenTransitionEnds(divSetup, () => divSetup.classList.add('hide'));
@@ -1455,7 +1611,7 @@ function renderArenas(divContent) {
   divArenas.appendChild(renderGroups());
 
   for (let i = 0; i < 14; i++) {
-    divArenas.appendChild(renderArena(i));
+    divArenas.appendChild(gameArena.renderArena(i));
   }
 
   return divArenas;
@@ -1603,58 +1759,6 @@ function renderGroups() {
 
   return divGroups;
 }
-function renderArena(index) {
-  const divArena = document.createElement('DIV');
-  divArena.classList.add('arena');
-  divArena.classList.add('empty');
-  divArena.dataset.index = index;
-
-  const shpArena = document.createElement('DIV');
-  shpArena.classList.add('arena-shape');
-  shpArena.addEventListener('mouseenter', () => {
-    if (divArena.classList.contains('disabled'))
-      return;
-
-    avatars.getSound('focus').howl.play();
-  });
-  divArena.appendChild(shpArena);
-
-  const imgArena = document.createElement('IMG');
-  imgArena.classList.add('arena-image');
-  imgArena.src = arena.src;
-  shpArena.appendChild(imgArena);
-
-  const btnJoin = document.createElement('IMG');
-  btnJoin.classList.add('arena-button-bottom');
-  btnJoin.src = '/arenaJoin.svg';
-  shpArena.appendChild(btnJoin);
-
-  const avatarTop = document.createElement('IMG');
-  avatarTop.classList.add('unit');
-  avatarTop.classList.add('top');
-  shpArena.appendChild(avatarTop);
-
-  const avatarBtm = document.createElement('IMG');
-  avatarBtm.classList.add('unit');
-  avatarBtm.classList.add('btm');
-  shpArena.appendChild(avatarBtm);
-
-  const nameTop = document.createElement('SPAN');
-  nameTop.classList.add('name');
-  nameTop.classList.add('top');
-  shpArena.appendChild(nameTop);
-
-  const nameBtm = document.createElement('SPAN');
-  nameBtm.classList.add('name');
-  nameBtm.classList.add('btm');
-  shpArena.appendChild(nameBtm);
-
-  const divLabel = document.createElement('DIV');
-  divLabel.classList.add('labels');
-  shpArena.appendChild(divLabel);
-
-  return divArena;
-}
 async function renderLobbyGames() {
   const divArenas = document.querySelector('.lobby .arenas');
   const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
@@ -1687,10 +1791,10 @@ async function renderLobbyGames() {
   /*
    * Cache the avatars for all the players we're about to see
    */
-  await fetchAvatars(arenas.filter(a => !!a).map(a => a.teams.filter(t => !!t).map(t => t.playerId)).flat());
+  await gameArena.fetchAvatars(arenas.filter(a => !!a).map(a => a.teams.filter(t => !!t).map(t => t.playerId)).flat());
 
   while (divArenaList.length < arenas.length) {
-    const divArena = renderArena(divArenaList.length);
+    const divArena = gameArena.renderArena(divArenaList.length);
     divArenas.appendChild(divArena);
     divArenaList.push(divArena);
   }
@@ -1707,171 +1811,17 @@ async function resetLobbyGames() {
   await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
   renderLobbyGames();
 }
-function hideArena(divArena) {
-  if (divArena.classList.contains('hide'))
-    return false;
-
-  divArena.classList.add('hide');
-  return emptyArena(divArena);
-}
 function queueFillArena(divArena, arena) {
   const index = divArena.dataset.index;
+  const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
+  const disabled = !!lobbyGame && !arena.startedAt && arena.collection?.startsWith('lobby/');
 
   if (fillArenaQueueMap.has(index))
-    fillArenaQueueMap.set(index, fillArenaQueueMap.get(index).then(() => fillArena(divArena, arena)));
+    fillArenaQueueMap.set(index, fillArenaQueueMap.get(index).then(() => gameArena.fillArena(divArena, arena, disabled)));
   else
-    fillArenaQueueMap.set(index, fillArena(divArena, arena));
+    fillArenaQueueMap.set(index, gameArena.fillArena(divArena, arena));
 
   return fillArenaQueueMap.get(index);
-}
-async function fillArena(divArena, arena = true) {
-  if (arena === false)
-    return hideArena(divArena);
-
-  divArena.classList.remove('hide');
-  if (arena === true)
-    return emptyArena(divArena);
-
-  const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
-  divArena.classList.toggle('disabled', !!lobbyGame && !arena.startedAt && arena.collection?.startsWith('lobby/'));
-
-  const oldArena = arenaGameSummary.get(divArena) ?? null;
-  if (arena === oldArena)
-    return false;
-
-  arenaGameSummary.set(divArena, arena);
-  divArena.classList.remove('empty');
-  divArena.classList.toggle('waiting', !arena.startedAt);
-  divArena.classList.toggle('active', !!arena.startedAt && !arena.endedAt);
-  divArena.classList.toggle('complete', !!arena.endedAt);
-
-  if (oldArena && oldArena.id !== arena.id) {
-    divArena.classList.add('disabled');
-    await Promise.all([
-      fillTeam(divArena, 'top', null, oldArena),
-      fillTeam(divArena, 'btm', null, oldArena),
-    ]);
-    await Promise.all([
-      fillTeam(divArena, 'top', arena, null),
-      fillTeam(divArena, 'btm', arena, null),
-    ]);
-    divArena.classList.toggle('disabled', !!lobbyGame?.startedAt && !arena.startedAt);
-  } else {
-    await Promise.all([
-      fillTeam(divArena, 'top', arena, oldArena),
-      fillTeam(divArena, 'btm', arena, oldArena),
-    ]);
-  }
-
-  const labels = [];
-  if (!arena.startedAt) {
-    if (arena.randomHitChance === false)
-      labels.push('No Luck');
-    if (arena.rated === true)
-      labels.push('Rated');
-    else if (arena.rated === false && authClient.isVerified && arena.mode !== 'practice')
-      labels.push('Unrated');
-    if (arena.mode)
-      labels.push(arena.mode.toUpperCase('first'));
-    if (arena.timeLimitName && arena.timeLimitName !== 'standard')
-      labels.push(arena.timeLimitName.toUpperCase('first'));
-  }
-
-  const divLabels = divArena.querySelector('.labels');
-  divLabels.innerHTML = '';
-
-  for (const label of labels) {
-    const divLabel = document.createElement('DIV');
-    divLabel.classList.add('label');
-    divLabel.textContent = label;
-    divLabels.append(divLabel);
-  }
-}
-async function fillTeam(divArena, slot, arena, oldArena) {
-  const spnName = divArena.querySelector(`.name.${slot}`);
-  const imgUnit = divArena.querySelector(`.unit.${slot}`);
-
-  /*
-   * My team, if present, must be on bottom else the creator team must be on top.
-   */
-  const oldTeam = oldArena && (() => {
-    const myIndex = oldArena.teams.findIndex(t => t?.playerId === myPlayerId);
-    const creatorIndex = oldArena.teams.findIndex(t => t?.playerId === oldArena.createdBy);
-    const topIndex = myIndex > -1 ? (myIndex + oldArena.teams.length/2) % oldArena.teams.length : creatorIndex;
-    const indexMap = new Map([ [ 'top',0 ], [ 'btm',1 ] ]);
-    const teamIndex = (topIndex + indexMap.get(slot)) % oldArena.teams.length;
-
-    return oldArena.teams[teamIndex];
-  })();
-  const newTeam = arena && (() => {
-    const myIndex = arena.teams.findIndex(t => t?.playerId === myPlayerId);
-    const creatorIndex = arena.teams.findIndex(t => t?.playerId === arena.createdBy);
-    const topIndex = myIndex > -1 ? (myIndex + arena.teams.length/2) % arena.teams.length : creatorIndex;
-    const indexMap = new Map([ [ 'top',0 ], [ 'btm',1 ] ]);
-    const teamIndex = (topIndex + indexMap.get(slot)) % arena.teams.length;
-
-    const team = arena.teams[teamIndex];
-    if (team?.joinedAt)
-      team.isLoser = ![ undefined, teamIndex ].includes(arena.winnerId);
-    else
-      return null;
-    return team;
-  })();
-
-  if (oldTeam && newTeam) {
-    if (
-      oldTeam.playerId === newTeam.playerId &&
-      oldTeam.name === newTeam.name &&
-      /*
-      oldTeam.avatar === newTeam.avatar &&
-      oldTeam.color === newTeam.color &&
-      */
-      imgUnit.classList.contains('loser') === newTeam.isLoser
-    ) return false;
-  }
-
-  if (oldTeam) {
-    await whenTransitionEnds(spnName, () => {
-      spnName.classList.remove('show');
-      imgUnit.classList.remove('show');
-    });
-  }
-
-  if (newTeam) {
-    const avatar = getAvatar(newTeam.playerId, { direction:slot === 'top' ? 'S' : 'N' });
-    spnName.textContent = newTeam.name;
-    imgUnit.classList.toggle('loser', newTeam.isLoser);
-    imgUnit.style.top = `${avatar.y}px`;
-    imgUnit.style.left = `${avatar.x}px`;
-    imgUnit.src = avatar.src;
-
-    await whenTransitionEnds(spnName, () => {
-      spnName.classList.add('show');
-      imgUnit.classList.add('show');
-    });
-  }
-}
-async function emptyArena(divArena) {
-  if (divArena.classList.contains('empty')) {
-    const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
-    divArena.classList.toggle('disabled', !!lobbyGame);
-    return false;
-  }
-
-  const oldArena = arenaGameSummary.get(divArena);
-
-  arenaGameSummary.delete(divArena);
-  divArena.classList.remove('waiting');
-  divArena.classList.remove('active');
-  divArena.classList.remove('complete');
-  divArena.classList.add('empty');
-
-  divArena.querySelector('.labels').innerHTML = '';
-
-  return Promise.all([
-    fillTeam(divArena, 'top', null, oldArena),
-    fillTeam(divArena, 'btm', null, oldArena),
-  ]);
 }
 
 async function renderYourGames() {
@@ -1907,7 +1857,7 @@ async function renderYourGames() {
       return gs;
     });
 
-  await fetchAvatars(
+  await gameArena.fetchAvatars(
     tabContent.games
       .map(gsm => Array.from(gsm.values())
         .map(g => g.teams.filter(t => t && t.playerId)
@@ -1942,7 +1892,7 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Active Lobby Game</SPAN>';
     secLobbyGames.append(header);
 
-    secLobbyGames.appendChild(renderGame(activeLobbyGame, authClient.playerId));
+    secLobbyGames.appendChild(gameCard.renderGame(activeLobbyGame, { playerId:authClient.playerId }));
   }
 
   /*
@@ -1960,7 +1910,7 @@ async function renderYourGames() {
     if (game.isSimulation)
       continue;
 
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divMyTurnGames.push(divGame);
   }
@@ -1982,7 +1932,7 @@ async function renderYourGames() {
    */
   const divChallenges = [];
   for (const game of challenges) {
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divChallenges.push(divGame);
   }
@@ -2011,7 +1961,7 @@ async function renderYourGames() {
     if (game.isSimulation)
       continue;
 
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divTheirTurnGames.push(divGame);
   }
@@ -2036,7 +1986,7 @@ async function renderYourGames() {
     if (!game.isSimulation)
       continue;
 
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divSinglePlayerGames.push(divGame);
   }
@@ -2063,7 +2013,7 @@ async function renderYourGames() {
     if (game.startedAt)
       continue;
 
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divWaitingGames.push(divGame);
   }
@@ -2093,7 +2043,7 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Complete Games</SPAN>';
     secCompleteGames.append(header);
 
-    completeGames.forEach(game => secCompleteGames.appendChild(renderGame(game, authClient.playerId)));
+    completeGames.forEach(game => secCompleteGames.appendChild(gameCard.renderGame(game, { playerId:authClient.playerId })));
   }
 
   divTabContent.replaceChildren(...childNodes);
@@ -2104,7 +2054,7 @@ async function renderPublicGames() {
   const divTabContent = document.querySelector('.tabContent .publicGames');
   divTabContent.innerHTML = '';
 
-  await fetchAvatars(
+  await gameArena.fetchAvatars(
     tabContent.games
       .map(gsm => Array.from(gsm.values())
         .map(g => g.teams.filter(t => t && t.playerId)
@@ -2157,7 +2107,7 @@ async function renderPublicGames() {
     header.innerHTML = '<SPAN class="left">Waiting for Opponent</SPAN>';
     secWaitingGames.append(header);
 
-    waitingGames.forEach(game => secWaitingGames.appendChild(renderGame(game)));
+    waitingGames.forEach(game => secWaitingGames.appendChild(gameCard.renderGame(game)));
   }
 
   /*
@@ -2172,7 +2122,7 @@ async function renderPublicGames() {
     header.innerHTML = '<SPAN class="left">Active Games</SPAN>';
     secActiveGames.append(header);
 
-    activeGames.forEach(game => secActiveGames.appendChild(renderGame(game)));
+    activeGames.forEach(game => secActiveGames.appendChild(gameCard.renderGame(game)));
   }
 
   /*
@@ -2191,7 +2141,7 @@ async function renderPublicGames() {
     header.querySelector('.right').append(renderShowResults());
     secCompleteGames.append(header);
 
-    completeGames.forEach(game => secCompleteGames.appendChild(renderGame(game)));
+    completeGames.forEach(game => secCompleteGames.appendChild(gameCard.renderGame(game)));
   }
 }
 
@@ -2454,7 +2404,7 @@ async function renderTopRanks() {
     `<SPAN>All Top Ranks</SPAN>`,
   ]);
 
-  await fetchAvatars(Array.from(topranks.values()).map(rs => rs.map(r => r.playerId)).flat());
+  await gameArena.fetchAvatars(Array.from(topranks.values()).map(rs => rs.map(r => r.playerId)).flat());
 
   for (const rankingId of [ 'FORTE', ...state.styles.map(s => s.id) ]) {
     if (!topranks.has(rankingId))
@@ -2477,7 +2427,7 @@ async function renderRankingSummary(rankingId) {
   if (!authClient.isVerified)
     divNotice.style.display = '';
 
-  await fetchAvatars([
+  await gameArena.fetchAvatars([
     ...topranks.map(r => r.playerId),
     ...games.map(g => g.teams.map(t => t.playerId)).flat(),
   ]);
@@ -2506,7 +2456,7 @@ async function renderRanking(rankingId) {
     '<SPAN>All Ranks</SPAN>',
   ]);
 
-  await fetchAvatars(ranks.map(r => r.playerId));
+  await gameArena.fetchAvatars(ranks.map(r => r.playerId));
 
   const divRanks = renderRanks(rankingId, ranks);
   const divCaption = divRanks.querySelector('HEADER .caption');
@@ -2533,7 +2483,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
     return;
   }
 
-  await fetchAvatars([ playerId, ...games.map(g => g.teams.map(t => t.playerId)).flat() ]);
+  await gameArena.fetchAvatars([ playerId, ...games.map(g => g.teams.map(t => t.playerId)).flat() ]);
 
   const divPlayer = document.createElement('DIV');
   divPlayer.classList.add('player');
@@ -2563,7 +2513,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
   divAvatarImage.classList.add('image');
   divAvatarBadge.append(divAvatarImage);
 
-  const avatar = getAvatar(playerId);
+  const avatar = gameArena.getAvatar(playerId);
   const translateX = 40 + avatar.x - 4;
   const translateY = avatar.y < -60 ? avatar.y + 60 : Math.max(0, avatar.y + 52);
   const imgAvatar = document.createElement('IMG');
@@ -2740,8 +2690,8 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
           <DIV class="info">${info}</DIV>
         </DIV>
       `;
-      divWD.querySelector('.links').append(renderDuration(wd.lose.game.currentTurnId));
-      divWD.querySelector('.links').append(renderClock(wd.lose.game.endedAt, 'Ended At'));
+      divWD.querySelector('.links').append(gameCard.renderDuration(wd.lose.game.currentTurnId));
+      divWD.querySelector('.links').append(gameCard.renderClock(wd.lose.game.endedAt, 'Ended At'));
       divStats.append(divWD);
     }
 
@@ -2760,8 +2710,8 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
           <DIV class="info">${info}</DIV>
         </DIV>
       `;
-      divBV.querySelector('.links').append(renderDuration(bv.win.game.currentTurnId));
-      divBV.querySelector('.links').append(renderClock(bv.win.game.endedAt, 'Ended At'));
+      divBV.querySelector('.links').append(gameCard.renderDuration(bv.win.game.currentTurnId));
+      divBV.querySelector('.links').append(gameCard.renderClock(bv.win.game.endedAt, 'Ended At'));
       divStats.append(divBV);
     }
   }
@@ -2819,7 +2769,7 @@ function renderRank(rankingId, rank) {
   const divAvatarWrapper = document.createElement('DIV');
   divAvatarContainer.append(divAvatarWrapper);
 
-  const avatar = getAvatar(rank.playerId, { withFocus:true });
+  const avatar = gameArena.getAvatar(rank.playerId, { withFocus:true });
   const imgAvatar = document.createElement('IMG');
   const originY = avatar.y - 22;
   imgAvatar.style.transformOrigin = `${-avatar.x}px ${-originY}px`;
@@ -2869,7 +2819,7 @@ function renderRatedGames(games, rankingId, playerId = null) {
   divBody.classList.add('body');
 
   for (const game of games)
-    divBody.append(renderGame(game, playerId, rankingId));
+    divBody.append(gameCard.renderGame(game, { playerId, rankingId }));
 
   secRatedGames.append(divBody);
 
@@ -2891,251 +2841,21 @@ function renderShowResults() {
 
   return label;
 }
-function renderGame(game, playerId = null, rankingId = null) {
-  const team1 = game.teams.find(t => t?.playerId === (playerId ?? game.createdBy));
-  const ranks1 = game.meta.ranks[team1.id];
-  const team2 = game.teams.find(t => t !== team1);
-  const ranks2 = team2 && game.meta.ranks[team2.id];
-
-  rankingId ??= game.type;
-
-  const divGame = document.createElement('DIV');
-  divGame.id = game.id;
-  divGame.classList.add('game');
-
-  const divVS = document.createElement('DIV');
-  divVS.classList.add('vs');
-
-  const divArenaWrapper = document.createElement('DIV');
-  divArenaWrapper.classList.add('arena-wrapper');
-
-  const divArena = renderArena(0);
-  divArenaWrapper.append(divArena);
-  fillArena(divArena, game);
-
-  divVS.append(divArenaWrapper);
-  if (game.isChallenge && !team1.joinedAt)
-    divVS.append(renderGameDecline(game));
-  else
-    divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
-  divVS.append(renderGameResult(game, team1.playerId));
-  if (game.isSimulation && !game.startedAt)
-    divVS.append(renderGameFinishSetup(game));
-  else if (team2?.playerId)
-    divVS.append(renderGameTeam(game, team2, ranks2, rankingId, team2.playerId !== playerId));
-  else if (game.createdBy === authClient.playerId)
-    divVS.append(renderGameInvite(game))
-  divGame.append(divVS);
-
-  divGame.append(renderGameInfo(game));
-
-  return divGame;
-}
-function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
-  const divTeam = document.createElement('DIV');
-  divTeam.classList.add('team');
-  divTeam.classList.toggle('linkable', linkable && !!ranks);
-  divTeam.dataset.playerId = team.playerId;
-
-  const rank = ranks && (ranks.find(r => r.rankingId === rankingId) ?? null);
-  const defaultRating = rankingId === 'FORTE' ? 0 : 750;
-  const rating = [];
-
-  if (game.rated) {
-    const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
-    const change = vsRatings[1] - vsRatings[0];
-    const label = Math.abs(vsRatings[1] - vsRatings[0]) || '';
-
-    rating.push(`<SPAN class="initial">${vsRatings[0]}</SPAN>`);
-    rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN> `);
-  }
-
-  if (ranks === null)
-    rating.push(`<SPAN class="current">(Inactive)</SPAN>`);
-  else if (ranks === false)
-    rating.push(`<SPAN class="current">(Guest)</SPAN>`);
-  else if (rank)
-    rating.push(`<SPAN class="current">(${rank.rating})</SPAN>`);
-  else
-    rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
-
-  divTeam.innerHTML = `
-    <DIV class="name">${team.name}</DIV>
-    <DIV class="rating">${rating.join('')}</DIV>
-  `;
-
-  return divTeam;
-}
-function renderGameDecline() {
-  const divDecline = document.createElement('DIV');
-  divDecline.classList.add('decline');
-  divDecline.innerHTML = `<A href="javascript:void(0)">Decline Game</A>`;
-
-  return divDecline;
-}
-function renderGameFinishSetup(game) {
-  const divFinishSetup = document.createElement('DIV');
-  divFinishSetup.innerHTML = `<A href="game.html?${game.id}">Finish Setup</A>`;
-
-  return divFinishSetup;
-}
-function renderGameInvite(game) {
-  const divInvite = document.createElement('DIV');
-  divInvite.classList.add('invite');
-  if (navigator.share) {
-    divInvite.classList.add('share');
-    divInvite.innerHTML = `<SPAN class="fa fa-share"></SPAN><SPAN class="label">Share Invite Link</SPAN>`;
-  } else {
-    divInvite.classList.add('copy');
-    divInvite.innerHTML = `<SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Invite Link</SPAN>`;
-  }
-
-  return divInvite;
-}
-function renderGameResult(game, playerId) {
-  const divResult = document.createElement('DIV');
-  divResult.classList.add('result');
-
-  const spnResult = document.createElement('SPAN');
-  divResult.append(spnResult);
-
-  if (game.endedAt)
-    spnResult.textContent = (
-      game.winnerId === 'draw' ? 'Draw!' :
-      game.winnerId === 'truce' ? 'Truce!' :
-      game.winner?.playerId === playerId ? 'Win!' : 'Lose!'
-    );
-  else
-    spnResult.textContent = 'VS';
-
-  return divResult;
-}
-function renderGameInfo(game) {
-  const divInfo = document.createElement('DIV');
-  divInfo.classList.add('info');
-
-  const labels = [];
-  labels.push(game.typeName);
-  if (!game.randomHitChance)
-    labels.push('No Luck');
-  if (game.timeLimitName && game.timeLimitName !== 'standard')
-    labels.push(game.timeLimitName.toUpperCase('first'));
-
-  if (game.isSimulation) {
-    if (game.mode === 'fork')
-      labels.push(game.mode.toUpperCase('first'));
-  } else {
-    if (game.mode)
-      labels.push(game.mode.toUpperCase('first'));
-
-    const isGuestGame = game.meta.ranks.some(r => r === false);
-
-    if (!game.collection && game.mode !== 'fork')
-      labels.push('Private');
-    else if (!game.startedAt && game.rated === true)
-      labels.push('Rated');
-    else if (![ 'fork', 'practice' ].includes(game.mode) && game.rated === false && !isGuestGame)
-      labels.push('Unrated');
-
-    if (!game.startedAt && state.currentTab === 'yourGames') {
-      const opponent = game.teams.find(t => t?.playerId !== game.createdBy);
-      if (!opponent)
-        labels.push('Anybody');
-      else if (!opponent.playerId)
-        labels.push('Share Link');
-      else
-        labels.push('Challenge');
-    }
-  }
-
-  const spnLeft = document.createElement('SPAN');
-  spnLeft.classList.add('left');
-  spnLeft.textContent = labels.join(', ');
-  divInfo.append(spnLeft);
-
-  const spnRight = document.createElement('SPAN');
-  spnRight.classList.add('right');
-  if (game.startedAt)
-    spnRight.append(renderDuration(game.currentTurnId));
-  divInfo.append(spnRight);
-
-  if (game.endedAt)
-    spnRight.append(renderClock(game.endedAt, 'Ended At'));
-  else if (game.startedAt && !game.isSimulation) {
-    const isParticipant = game.teams.some(t => t.playerId === authClient.playerId);
-    if (isParticipant)
-      spnRight.append(renderClock(spnClock => {
-        const remaining = game.getTurnTimeRemaining();
-        if (remaining < (game.currentTurnTimeLimit * 0.2))
-          spnClock.classList.add('low');
-        return remaining;
-      }, 'Time Remaining'));
-    else
-      spnRight.append(renderClock(game.updatedAt, 'Updated At'));
-  } else
-    spnRight.append(renderClock(game.createdAt, 'Created At'));
-
-  return divInfo;
-}
-
-function renderDuration(numTurns) {
-  const spnTurns = document.createElement('SPAN');
-  spnTurns.classList.add('duration');
-  spnTurns.title = 'Turn Count';
-
-  spnTurns.innerHTML = `
-    <SPAN class="numTurns">${numTurns}</SPAN>
-    <SPAN class="fa fa-hourglass"></SPAN>
-  `;
-
-  return spnTurns;
-}
-// updator can be a Function or a Date
-function renderClock(updator, title = 'Since') {
-  const spnClock = document.createElement('SPAN');
-  spnClock.classList.add('clock');
-  spnClock.title = title;
-  spnClock.innerHTML = `
-    <SPAN class="elapsed"></SPAN>
-    <SPAN class="fa fa-clock"></SPAN>
-  `;
-  spnClock.update = function () {
-    let elapsed = (updator instanceof Function ? updator(spnClock) : gameClient.serverNow - updator) / 1000;
-    if (elapsed <= 0)
-      elapsed = '0';
-    else if (elapsed < 60)
-      elapsed = '<1m';
-    else if (elapsed < 3600)
-      elapsed = Math.floor(elapsed / 60) + 'm';
-    else if (elapsed < 86400)
-      elapsed = Math.floor(elapsed / 3600) + 'h';
-    else if (elapsed < 604800)
-      elapsed = Math.floor(elapsed / 86400) + 'd';
-    else if (elapsed < 31557600)
-      elapsed = Math.floor(elapsed / 604800) + 'w';
-    else
-      elapsed = Math.floor(elapsed / 31557600) + 'y';
-
-    this.querySelector('.elapsed').textContent = elapsed;
-    return this;
-  };
-
-  return spnClock.update();
-}
-setInterval(() => {
-  for (const spnClock of document.querySelectorAll('.clock'))
-    spnClock.update();
-}, 30000);
 
 async function openTab() {
   closeTab();
 
-  const tab = location.hash.split('/')[0];
+  const path = location.hash.split('/');
+  const tab = path[0];
 
   state.currentTab = 'yourGames';
-  if (tab === '#lobby')
+  if (tab === '#lobby') {
     state.currentTab = 'lobby';
-  else if (tab === '#publicGames')
+    if (path.length > 1) {
+      const styleId = path[1];
+      selectStyle(styleId);
+    }
+  } else if (tab === '#publicGames')
     state.currentTab = 'publicGames';
   else if (tab === '#rankings')
     state.currentTab = 'rankings';
@@ -3181,15 +2901,7 @@ async function syncTab() {
     return;
   tabContent.isLoading = true;
 
-  const divLoading = document.querySelector(`.tabContent .loading`);
-
-  if (!divLoading.classList.contains('is-active')) {
-    divLoading.classList.add('is-active');
-    divLoading.classList.add('hide');
-    whenTransitionEnds(divLoading, () => {
-      divLoading.classList.remove('hide');
-    });
-  }
+  spinner.fadeIn();
 
   try {
     if (!tabContent.isSynced) {
@@ -3215,10 +2927,23 @@ async function syncTab() {
         await renderYourGames();
       else if (state.currentTab === 'publicGames')
         await renderPublicGames();
-      else
-        await tabContent.route();
 
       document.querySelector(`.tabContent .${currentTab}`).classList.add('is-active');
+    }
+
+    if (tabContent.route) {
+      await loadAvatarsAndDependants;
+      await tabContent.route();
+    }
+
+    const viewSet = getParam('viewSet');
+    if (viewSet) {
+      try {
+        const { gameTypeId, set } = await JSON.decompress(viewSet);
+        state.viewSetModal.show(gameTypeId, set);
+      } catch (e) {
+        unsetParam('viewSet');
+      }
     }
 
     tabContent.isOpen = true;
@@ -3231,7 +2956,7 @@ async function syncTab() {
     }
   }
 
-  divLoading.classList.remove('is-active');
+  spinner.hide();
   tabContent.isLoading = false;
 }
 function showEnterLobby() {
@@ -3400,10 +3125,9 @@ async function fetchTabData(tabName) {
     const fetchGameType = styleId =>
       gameClient.getGameType(styleId).then(rsp => {
         tabContent.gameType = rsp;
-      });
-    const fetchPlayerSets = styleId =>
-      gameClient.getPlayerSets(styleId).then(rsp => {
-        tabContent.sets = rsp;
+
+        const btnSearchSets = document.querySelector('.lobby HEADER .controls .toggle-searchSets');
+        btnSearchSets.style.visibility = tabContent.gameType.isCustomizable ? '' : 'hidden';
       });
 
     // Make sure your lobby games are known before joining lobby collection group
@@ -3419,7 +3143,6 @@ async function fetchTabData(tabName) {
     const styleId = tabContent.selectedStyleId;
     const promises = [
       join(styleId),
-      fetchPlayerSets(styleId),
       fetchGameType(styleId),
     ];
     if (tabContent.whenSynced.styleId)
@@ -3464,18 +3187,21 @@ async function fetchTabData(tabName) {
         tabContent.isSynced = true;
       }),
     );
-  } else {
-    const routePath = location.hash;
+  }
 
-    for (const matcher of routeMatcher) {
-      const route = matcher(routePath);
-      if (route) {
-        promises.push(route.data.then(data => {
-          tabContent.route = route.route;
-          tabContent.data = data;
-        }));
-        break;
-      }
+  const [ routePath, params ] = location.hash.split('?');
+  tabContent.route = null;
+  tabContent.params = null;
+  tabContent.data = null;
+
+  for (const matcher of routeMatcher) {
+    const route = matcher(routePath);
+    if (route) {
+      tabContent.route = route.route;
+      tabContent.params = new URLSearchParams(params);
+      if (route.data)
+        promises.push(route.data.then(data => tabContent.data = data));
+      break;
     }
   }
 

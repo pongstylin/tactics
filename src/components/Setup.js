@@ -1,8 +1,5 @@
-import whenTransitionEnds from 'components/whenTransitionEnds.js';
-
 import 'components/Setup.scss';
 import { gameConfig } from 'config/client.js';
-import popup from 'components/popup.js';
 import ColorPicker from 'components/ColorPicker.js';
 import AvatarPicker from 'components/Modal/AvatarPicker.js';
 import emitter from 'utils/emitter.js';
@@ -11,10 +8,10 @@ const teamIds = [ 'N', 'E', 'S', 'W' ];
 
 const template = `
   <DIV class="sets">
-    <DIV class="set" data-id="default"><LABEL></LABEL><DIV class="image"></DIV></DIV>
-    <DIV class="set" data-id="alt1"><LABEL></LABEL><DIV class="image"></DIV></DIV>
-    <DIV class="set" data-id="alt2"><LABEL></LABEL><DIV class="image"></DIV></DIV>
-    <DIV class="set" data-id="alt3"><LABEL></LABEL><DIV class="image"></DIV></DIV>
+    <DIV class="set" data-slot="default"><DIV class="details"></DIV><DIV class="image"></DIV></DIV>
+    <DIV class="set" data-slot="alt1"><DIV class="details"></DIV><DIV class="image"></DIV></DIV>
+    <DIV class="set" data-slot="alt2"><DIV class="details"></DIV><DIV class="image"></DIV></DIV>
+    <DIV class="set" data-slot="alt3"><DIV class="details"></DIV><DIV class="image"></DIV></DIV>
   </DIV>
   <DIV class="selectors">
     <DIV class="avatar">
@@ -66,14 +63,14 @@ export default class Setup {
     this.el = this.render();
     this.els = {
       sets: this.el.querySelector('.sets'),
-      setDefaultLabel: this.el.querySelector('.set[data-id=default] LABEL'),
-      setDefaultImage: this.el.querySelector('.set[data-id=default] .image'),
-      setAlt1Label: this.el.querySelector('.set[data-id=alt1] LABEL'),
-      setAlt1Image: this.el.querySelector('.set[data-id=alt1] .image'),
-      setAlt2Label: this.el.querySelector('.set[data-id=alt2] LABEL'),
-      setAlt2Image: this.el.querySelector('.set[data-id=alt2] .image'),
-      setAlt3Label: this.el.querySelector('.set[data-id=alt3] LABEL'),
-      setAlt3Image: this.el.querySelector('.set[data-id=alt3] .image'),
+      setDefaultDetails: this.el.querySelector('.set[data-slot=default] .details'),
+      setDefaultImage: this.el.querySelector('.set[data-slot=default] .image'),
+      setAlt1Details: this.el.querySelector('.set[data-slot=alt1] .details'),
+      setAlt1Image: this.el.querySelector('.set[data-slot=alt1] .image'),
+      setAlt2Details: this.el.querySelector('.set[data-slot=alt2] .details'),
+      setAlt2Image: this.el.querySelector('.set[data-slot=alt2] .image'),
+      setAlt3Details: this.el.querySelector('.set[data-slot=alt3] .details'),
+      setAlt3Image: this.el.querySelector('.set[data-slot=alt3] .image'),
       color: this.el.querySelector('.color'),
       avatar: this.el.querySelector('.avatar .container'),
       teams: this.el.querySelector('.teams .image'),
@@ -95,7 +92,7 @@ export default class Setup {
     this.els.sets.addEventListener('click', event => {
       const set = event.target.closest('.set');
       if (set)
-        this.editSet(set.dataset.id);
+        this.editSet(set.dataset.slot);
       event.stopPropagation();
     });
 
@@ -122,24 +119,26 @@ export default class Setup {
     this.data.avatar = avatar;
   }
 
-  async setGameType(gameType, sets) {
-    await Promise.all([
+  async setGameType(gameType) {
+    const [ sets ] = await Promise.all([
+      Tactics.gameClient.getPlayerSets(gameType.id),
       this.loadAvatars(),
       Tactics.load(gameType.getUnitTypes()),
     ]);
     this.gameType = gameType;
-    this.sets = new Map(sets.map(s => [ s.id, s ]));
+    this.sets = new Map(sets.map(s => [ s.slot, s ]));
 
-    if (!this._setBuilder) {
-      this._setBuilder = await (new Tactics.SetBuilder({ gameType })).init();
-      this.els.sets.classList.add(`rotation-${this._setBuilder.board.rotation}`);
+    this._setBuilder ??= await Tactics.setBuilder;
+    this._setBuilder.gameType = gameType;
+    this.els.sets.classList.add(`rotation-${this._setBuilder.board.rotation}`);
+
+    if (!this.colorIds) {
       this.colorIds = gameConfig.teamColorIds;
       this.renderColorIds();
-    } else
-      this._setBuilder.gameType = gameType;
+    }
 
     this.els.sets.classList.toggle('isCustomizable', gameType.isCustomizable);
-    this.renderSets();
+    return this.renderSets();
   }
   async loadAvatars() {
     if (this.avatars) return;
@@ -203,11 +202,11 @@ export default class Setup {
       colorId: avatar.colorId,
     }});
   }
-  onSetSave(rotation, set) {
+  async onSetSave(rotation, set) {
     if (set.units.length)
-      this.sets.set(set.id, set);
+      this.sets.set(set.slot, set);
     else
-      this.sets.delete(set.id);
+      this.sets.delete(set.slot);
 
     this._emit({
       type: 'change:sets',
@@ -220,10 +219,10 @@ export default class Setup {
       this.els.sets.classList.toggle('rotation-E', rotation === 'E');
       this.els.sets.classList.toggle('rotation-S', rotation === 'S');
       this.els.sets.classList.toggle('rotation-W', rotation === 'W');
-      this.renderSets();
+      await this.renderSets();
       this.renderColorIds();
     } else
-      this.renderSet(set.id);
+      this.renderSet(set.slot, { set, url:await this._setBuilder.getImage(set) });
   }
   selectTeam(newTeamId) {
     const board = this._setBuilder.board;
@@ -248,23 +247,38 @@ export default class Setup {
 
     return divView;
   }
-  renderSets() {
+  async renderSets() {
     if (!this._setBuilder || !this.colorIds)
       return;
 
-    for (const id of gameConfig.setsById.keys()) {
-      if (id === 'default' || this.gameType.isCustomizable)
-        this.renderSet(id);
-    }
+    const slots = Array.from(gameConfig.setsBySlot.keys());
+    const setsBySlot = new Map(await Promise.all(slots.map(slot => {
+      const set = this.sets.get(slot) ?? { name:gameConfig.setsBySlot.get(slot), slot, units:[] };
+      return this._setBuilder.getImage(set).then(url => [ slot, { set, url } ]);
+    })));
+
+    for (const slot of slots)
+      if (slot === 'default' || this.gameType.isCustomizable)
+        this.renderSet(slot, setsBySlot.get(slot));
   }
-  renderSet(id) {
-    const set = this.sets.get(id) ?? { id, units:[] };
+  renderSet(slot, { set, url }) {
+    const details = [
+      `<DIV class="name">${this.gameType.isCustomizable ? set.name : '(Not Customizable)'}</DIV>`,
+    ];
+    if (set.stats) {
+      if (set.stats.rank)
+        details.push(`<DIV class="rating">Rating: ${set.stats.rating} #${set.stats.rank}</DIV>`);
+      else if (set.stats.rating)
+        details.push(`<DIV class="rating">Rating: ${set.stats.rating}</DIV>`);
+      else
+        details.push(`<DIV class="unrated">Unrated</DIV>`);
+      details.push(`<DIV class="gameCount">Games: ${set.stats.gameCount}</DIV>`);
+      details.push(`<DIV class="playerCount">Players: ${set.stats.playerCount}</DIV>`);
+    } else if (set.units.length)
+      details.push(`<DIV class="new">New!</DIV>`);
 
-    this._setBuilder.set = set;
-    const image = this._setBuilder.getImage();
-
-    this.els[`set${id.toUpperCase('first')}Label`].textContent = this.gameType.isCustomizable ? set.name : '(Not Customizable)';
-    this.els[`set${id.toUpperCase('first')}Image`].style.backgroundImage = `url(${image.src})`;
+    this.els[`set${slot.toUpperCase('first')}Details`].innerHTML = details.join('');
+    this.els[`set${slot.toUpperCase('first')}Image`].style.backgroundImage = `url(${url})`;
   }
   renderColorIds() {
     const board = this._setBuilder.board;
@@ -280,12 +294,12 @@ export default class Setup {
     this.selectTeam(this.selectedTeamId);
   }
 
-  async editSet(id) {
+  async editSet(slot) {
     const setBuilder = this._setBuilder;
-    setBuilder.set = this.sets.get(id) ?? { id, units:[] };
+    setBuilder.set = this.sets.get(slot) ?? { slot, units:[] };
     await setBuilder.show();
 
-    this.onSetSave(setBuilder.board.rotation, setBuilder.set);
+    return this.onSetSave(setBuilder.board.rotation, setBuilder.set);
   }
 };
 

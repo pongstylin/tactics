@@ -21,8 +21,8 @@ export default class PlayerAvatars extends ActiveModel {
     this.data = data;
   }
 
-  static create(playerId) {
-    const unitTypes:any = [ ...unitData ].filter(([k,d]) => d.tier === 1).map(([k,d]) => k);
+  static create(playerId:string) {
+    const unitTypes = Array.from(unitData).filter(([k,d]) => d.tier === 1).map(([k,d]) => k);
     const colorIds:any = [ ...colorFilterMap.keys() ];
 
     const playerAvatars = new PlayerAvatars({

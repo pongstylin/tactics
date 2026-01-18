@@ -38,18 +38,19 @@ const defaultData = {
 };
 
 export default class Game extends ActiveModel {
+  public toFile:boolean = false;
   protected data: {
-    id: string
-    playerRequest: any
-    state: GameState
-    forkOf: any
-    collection: string
-    timeLimitName: string | null
-    tags: Map<string, string | number | boolean>
-    createdBy: string
-    createdAt: Date
-  }
-  protected isCancelled: boolean = false
+    id: string;
+    playerRequest: any;
+    state: GameState;
+    forkOf?: { gameId:string, turnId:number };
+    collection: string;
+    timeLimitName: string | null;
+    tags: Map<string, string | number | boolean>;
+    createdBy: string;
+    createdAt: Date;
+  };
+  protected isCancelled: boolean = false;
 
   constructor(data, props?:ConstructorParameters<typeof ActiveModel>[0]) {
     super(props);
@@ -713,6 +714,27 @@ export default class Game extends ActiveModel {
 
   toJSON() {
     const data = super.toJSON();
+    data.state = data.state.toJSON();
+    delete data.state.numTeams;
+    data.state.teams = this.state.teams;
+    delete data.state.numTurns;
+    data.state.turns = this.state.turns;
+
+    if (this.toFile) {
+      data.state = data.state.toJSON();
+      delete data.state.numTeams;
+      data.state.teams = this.state.teams;
+      delete data.state.numTurns;
+      data.state.turns = this.state.turns;
+    }
+
+    if (this.toFile) {
+      data.state = data.state.toJSON();
+      delete data.state.numTeams;
+      data.state.teams = this.state.teams;
+      delete data.state.numTurns;
+      data.state.turns = this.state.turns;
+    }
 
     for (const dataProp of Object.keys(defaultData))
       if (defaultData[dataProp] === data[dataProp])

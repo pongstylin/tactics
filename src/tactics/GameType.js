@@ -1,8 +1,34 @@
-import Board from '#tactics/Board.js';
+import TeamSet from '#models/TeamSet.js';
 import ServerError from '#server/Error.js';
+import Board from '#tactics/Board.js';
 import unitDataMap from '#tactics/unitData.js';
 import { calcPowerModifiers } from '#tactics/Unit/DragonspeakerMage.js';
 import serializer from '#utils/serializer.js';
+
+export const tagByKeyword = new Map([
+  [ 'center', { type:'position', name:'center' } ],
+  [ 'off center', { type:'position', name:'offcenter' } ],
+  [ 'corner', { type:'position', name:'corner' } ],
+  [ '1st corner', { type:'position', name:'corner' } ],
+  [ 'corner2', { type:'position', name:'corner2' } ],
+  [ '2nd corner', { type:'position', name:'corner2' } ],
+  [ 'corner3', { type:'position', name:'corner3' } ],
+  [ '3rd corner', { type:'position', name:'corner3' } ],
+  [ 'off corner', { type:'position', name:'offcorner' } ],
+  [ 'spread', { type:'position', name:'spread' } ],
+  [ 'rush', { type:'type', name:'rush' } ],
+  [ 'anti', { type:'type', name:'anti' } ],
+  [ 'anti rush', { type:'type', name:'anti' } ],
+  [ 'turt', { type:'type', name:'turtle' } ],
+  [ 'turtle', { type:'type', name:'turtle' } ],
+]);
+
+for (const unitData of unitDataMap.values()) {
+  const tag = { type:'unit', name:unitData.code };
+  const keywords = [ unitData.code.toLowerCase(), unitData.shortName.toLowerCase(), unitData.name.toLowerCase(), ...(unitData.keywords ?? []) ];
+  for (const keyword of keywords)
+    tagByKeyword.set(keyword, tag);
+}
 
 /*
  * Since, in theory, a game can have more than 2 players, tests are written
@@ -45,6 +71,14 @@ const endGameConditionByType = new Map([
 export default class GameType {
   constructor(data) {
     Object.assign(this, data);
+
+    this.config.sets = this.config.sets.map(s => {
+      // The id is necessary for displaying curated set names instead of generated names.
+      s.id = TeamSet.createId(s);
+      s.name ??= 'Default';
+      return s;
+    });
+    this._tagByKeyword = null;
   }
 
   get name() {
@@ -59,8 +93,87 @@ export default class GameType {
   get isCustomizable() {
     return this.config.customizable;
   }
+  get requiredUnitType() {
+    const requiredUnitTypes = Array.from(this.config.limits.units.types.entries()).filter(([ t, c ]) => c.required);
+    if (requiredUnitTypes.length !== 1)
+      return null;
+    return requiredUnitTypes[0][0];
+  }
+  get hasFixedUnits() {
+    if (!this.isCustomizable)
+      return true;
+
+    const maxPoints = Array.from(this.config.limits.units.types.values()).reduce((s, u) => s + u.max * (u.points ?? 1), 0);
+    return this.config.limits.points >= maxPoints;
+  }
+  get hasFixedSides() {
+    return !this.isCustomizable || this.config.limits.tiles.start[0] === 0 && this.config.limits.tiles.end[0] < 6;
+  }
   get hasFixedPositions() {
-    return !this.isCustomizable || !!this.config.limits.fixedPositions;
+    return (
+      !this.isCustomizable ||
+      this.config.limits.tiles.start[0] !== 0 ||
+      this.config.limits.tiles.start[1] !== 0 ||
+      this.config.limits.tiles.end[0] !== 10 ||
+      this.config.limits.tiles.end[1] !== 4
+    );
+  }
+  get isFixedTurtle() {
+    return this.config.limits.units.types.get('StoneGolem')?.required === 1;
+  }
+  get localTagByPath() {
+    const localTagByPath = new Map();
+    const addSet = (set, tag) => {
+      const path = `/${tag.type}/${tag.name}`;
+      if (!localTagByPath.has(path))
+        localTagByPath.set(path, { ...tag, sets:[] });
+      if (!localTagByPath.get(path).sets.some(s => s.id === set.id))
+        localTagByPath.get(path).sets.push(set);
+    };
+
+    for (const set of this.config.sets) {
+      if (set.name)
+        addSet(set, { type:'keyword', name:set.name });
+      if (set.tags)
+        for (const tag of set.tags) {
+          addSet(set, { type:'keyword', name:tag.name });
+          for (const keyword of (tag.keywords ?? []))
+            addSet(set, { type:'keyword', name:keyword });
+        }
+    }
+
+    return localTagByPath;
+  }
+  get tagByKeyword() {
+    if (this._tagByKeyword)
+      return this._tagByKeyword;
+    const localTag = new Map();
+    const localTagByKeyword = new Map();
+    const addTag = (keyword, tag) => {
+      const path = `/${tag.type}/${tag.name}` + (tag.type !== 'unit' || tag.count === undefined ? '' : `/${tag.count}`);
+      if (localTag.has(path))
+        tag = localTag.get(path);
+      else
+        localTag.set(path, tag);
+      localTagByKeyword.set(keyword.toLowerCase(), tag);
+      localTagByKeyword.set(keyword.split(' ').join('').toLowerCase(), tag);
+    };
+
+    for (const [ keyword, tag ] of tagByKeyword)
+      addTag(keyword, tag);
+
+    for (const set of this.config.sets) {
+      if (set.name)
+        addTag(set.name, { type:'keyword', name:set.name });
+      if (set.tags)
+        for (const tag of set.tags) {
+          addTag(tag.name, { type:'keyword', name:tag.name });
+          for (const keyword of (tag.keywords ?? []))
+            addTag(keyword, { type:'keyword', name:keyword });
+        }
+    }
+
+    return this._tagByKeyword = localTagByKeyword;
   }
 
   getWinningTeams(teams) {
@@ -97,25 +210,6 @@ export default class GameType {
     else
       return [...new Set(config.sets[0].units.map(u => u.type))];
   }
-  getDefaultSet() {
-    const set = this.config.sets.random().clone();
-    set.id = 'default';
-    set.name ??= 'Default';
-
-    if (!this.hasFixedPositions && Math.random() < 0.5) {
-      for (const unit of set.units) {
-        if (unit.assignment[0] !== 5)
-          unit.assignment[0] = 10 - unit.assignment[0];
-
-        if (unit.direction === 'W')
-          unit.direction = 'E';
-        else if (unit.direction === 'E')
-          unit.direction = 'W';
-      }
-    }
-
-    return this.applySetUnitState(set);
-  }
   getPoints() {
     return this.config.limits.points;
   }
@@ -124,6 +218,69 @@ export default class GameType {
   }
   getUnitMaxCount(unitType) {
     return this.config.limits.units.types.get(unitType).max;
+  }
+  getStats(units) {
+    if (!this.isCustomizable)
+      return { available:0 };
+
+    const unitCounts = new Map();
+    const stats = {
+      points: {
+        total: this.getPoints(),
+        used: 0,
+      },
+      units: [],
+      available: 0,
+    };
+
+    for (const unit of units) {
+      if (unit.disposition === 'dead') continue;
+
+      if (unitCounts.has(unit.type))
+        unitCounts.set(unit.type, unitCounts.get(unit.type) + 1);
+      else
+        unitCounts.set(unit.type, 1);
+
+      stats.points.used += this.getUnitPoints(unit.type);
+    }
+
+    stats.points.remaining = stats.points.total - stats.points.used;
+
+    for (const unitType of this.getUnitTypes()) {
+      const unitData = unitDataMap.get(unitType);
+      const unitStats = {
+        name: unitData.name,
+        type: unitType,
+        points: this.getUnitPoints(unitType),
+        max: this.getUnitMaxCount(unitType),
+        count: unitCounts.get(unitType) ?? 0,
+      };
+      unitStats.available = Math.min(
+        unitStats.max - unitStats.count,
+        Math.floor(stats.points.remaining / unitStats.points),
+      );
+
+      stats.units.push(unitStats);
+    }
+
+    if (stats.points.remaining) {
+      let remaining = stats.points.remaining;
+      stats.units.sort((a,b) => b.available - a.available || a.points - b.points);
+
+      for (const unitStats of stats.units) {
+        const available = Math.min(
+          unitStats.max - unitStats.count,
+          Math.floor(remaining / unitStats.points),
+        );
+        if (available === 0)
+          break;
+
+        stats.available += available;
+        remaining -= available * unitStats.points;
+      }
+    }
+
+    return stats;
   }
   getAvailableTiles(board, unitType) {
     const limits = this.config.limits;
@@ -172,6 +329,9 @@ export default class GameType {
 
     if (!nonWardUnit)
       throw new ServerError(429, 'You need at least one unit that is not a ward.');
+  }
+  validateSetIsFull(units) {
+    return this.getStats(units).available === 0;
   }
   validateSetIsNotOverFull(units) {
     const limits = this.config.limits;
@@ -274,30 +434,14 @@ export default class GameType {
   cleanSet(set) {
     for (let propName of Object.keys(set)) {
       if (propName === 'id') continue;
+      if (propName === 'slot') continue;
       if (propName === 'name') continue;
       if (propName === 'units') continue;
 
       delete set[propName];
     }
 
-    for (let unitState of set.units) {
-      let unitData = unitDataMap.get(unitState.type);
-
-      /*
-       * The client may dictate unit type, assignment, and sometimes direction.
-       * Other state properties will be computed by the server.
-       */
-      for (let propName of Object.keys(unitState)) {
-        if (propName === 'type' || propName === 'assignment')
-          continue;
-        else if (propName === 'direction') {
-          if (unitData.directional !== false)
-            continue;
-        }
-
-        delete unitState[propName];
-      }
-    }
+    TeamSet.cleanUnits(set.units);
 
     return set;
   }
@@ -312,6 +456,125 @@ export default class GameType {
     this.cleanSet(set);
 
     return set;
+  }
+  getTeamSetTags(teamSet) {
+    const tags = [];
+    if (!this.isCustomizable)
+      return tags;
+
+    const set = this.config.sets.find(s => s.id === teamSet.id);
+    if (set) {
+      if (set.name && !set.tags?.some(t => t.type === 'name')) {
+        tags.push({ type:'name', name:set.name });
+        tags.push({ type:'keyword', name:set.name });
+      }
+      if (set.tags) {
+        for (const tag of set.tags) {
+          tags.push({ type:tag.type, name:tag.name, ...(tag.keywords ? { keywords:tag.keywords } : {}) });
+          tags.push({ type:'keyword', name:tag.name });
+          for (const keyword of (tag.keywords ?? []))
+            tags.push({ type:'keyword', name:keyword });
+        }
+      }
+    }
+
+    if (this.hasFixedSides || this.isFixedTurtle) {
+      const position = this.getTeamSetUnitTypePosition(teamSet, 'StoneGolem') ?? this.getTeamSetUnitTypePosition(teamSet, 'Cleric');
+      if (position)
+        tags.push({ type:'position', name:position });
+    } else if (!this.hasFixedSides) {
+      const numPoints = this.config.limits.points;
+      const numLeftEdge = teamSet.units.reduce((s, unit) => s + (unit.assignment[0] < 2), 0);
+      const numLeftSide = teamSet.units.reduce((s, unit) => s + (unit.assignment[0] < 5), 0);
+      const numRightEdge = teamSet.units.reduce((s, unit) => s + (unit.assignment[0] > 8), 0);
+      const numRightSide = teamSet.units.reduce((s, unit) => s + (unit.assignment[0] > 5), 0);
+
+      const clericPosition = this.getTeamSetUnitTypePosition(teamSet, 'Cleric');
+      const requiredUnitType = this.requiredUnitType;
+      if (clericPosition)
+        tags.push({ type:'position', name:clericPosition });
+      else if (requiredUnitType)
+        tags.push({ type:'position', name:this.getTeamSetUnitTypePosition(teamSet, requiredUnitType) });
+      else if (numLeftEdge && numRightEdge)
+        tags.push({ type:'position', name:'spread' });
+      else if (Math.abs(numLeftSide - numRightSide) <= numPoints * 0.9)
+        tags.push({ type:'position', name:'center' });
+      else
+        tags.push({ type:'position', name:'corner' });
+    }
+    if (!this.hasFixedPositions) {
+      const numPoints = this.config.limits.points;
+      const numFrontLine = teamSet.units.reduce((s, unit) => s + (unit.assignment[1] === 4 ? 1 : 0), 0);
+      const numFrontSide = teamSet.units.reduce((s, unit) => s + (unit.assignment[1] > 2), 0);
+      const numBackSide = teamSet.units.reduce((s, unit) => s + (unit.assignment[1] < 2), 0);
+      const hasStoneGolem = teamSet.units.some(u => u.type === 'StoneGolem' && u.assignment[1] < 3);
+      const hasLW = teamSet.units.some(u => u.type === 'LightningWard');
+      const hasBW = teamSet.units.some(u => u.type === 'BarrierWard');
+
+      if (numFrontLine >= 7 || numFrontLine >= numPoints * 0.7 || numFrontSide >= numPoints * 0.9)
+        tags.push({ type:'type', name:'rush' });
+      else if (hasStoneGolem || hasLW && hasBW || numBackSide >= numPoints * 0.9)
+        tags.push({ type:'type', name:'turtle' });
+      else if (!tags.some(t => t.type === 'position' && t.name === 'spread'))
+        tags.push({ type:'type', name:'anti' });
+    }
+
+    if (!this.hasFixedUnits) {
+      const unitMap = teamSet.units.reduce((map, unit) => map.set(unit.type, (map.get(unit.type) ?? 0) + 1), new Map());
+      for (const unitType of this.getUnitTypes()) {
+        const unitConfig = this.config.limits.units.types.get(unitType);
+        if (unitConfig.required === unitConfig.max)
+          continue;
+
+        const unitCount = unitMap.get(unitType) ?? 0;
+        if (unitCount && unitConfig.max === 1)
+          tags.push({ type:'unit', name:unitDataMap.get(unitType).code });
+        else
+          tags.push({ type:'unit', name:unitDataMap.get(unitType).code, count:unitCount });
+      }
+    }
+
+    const keywordsByTag = Array.from(tagByKeyword).reduce((map, [kw,tag]) => {
+      if (kw === tag.name) return map;
+      const tagKey = `${tag.type}:${tag.name}`;
+      map.set(tagKey, (map.get(tagKey) ?? []).concat(kw));
+      return map;
+    }, new Map());
+
+    for (const tag of tags) {
+      const keywords = keywordsByTag.get(`${tag.type}:${tag.name}`);
+      if (keywords)
+        tag.keywords = keywords;
+    }
+
+    return tags;
+  }
+  getTeamSetUnitTypePosition(teamSet, unitType) {
+    const units = teamSet.units.filter(u => u.type === unitType);
+    if (units.length === 1) {
+      if (units[0].assignment[0] === 5 && units[0].assignment[1] === 0)
+        return 'center';
+      else if ([ 4, 6 ].includes(units[0].assignment[0]) && units[0].assignment[1] === 0)
+        return 'offcenter';
+      else if ([ 2, 8 ].includes(units[0].assignment[0]) && units[0].assignment[1] === 0)
+        return 'corner';
+      else if ([ 1, 9 ].includes(units[0].assignment[0]) && units[0].assignment[1] === 1)
+        return 'corner2';
+      else if ([ 0, 10 ].includes(units[0].assignment[0]) && units[0].assignment[1] === 2)
+        return 'corner3';
+      else if ([ 3, 7 ].includes(units[0].assignment[0]) && units[0].assignment[1] === 0)
+        return 'offcorner';
+    } else if (units.length > 1) {
+      if (units.every(u => u.assignment[0] < 4))
+        return 'corner';
+      else if (units.every(u => u.assignment[0] > 6))
+        return 'corner';
+      else if (units.every(u => u.assignment[0] > 3 && u.assignment[0] < 7))
+        return 'center';
+      else
+        return 'spread';
+    }
+    return null;
   }
 
   toJSON() {

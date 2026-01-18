@@ -164,6 +164,11 @@ export default class Identity extends ActiveModel {
 
     return true;
   }
+  get playerId() {
+    if (this.data.ranks)
+      return this.data.ranks.playerId;
+    return (Array.from(this.data.playerIds) as any).last;
+  }
   get ratedPlayerId() {
     // Only verified players are rated
     if (this.name === null)
@@ -172,7 +177,7 @@ export default class Identity extends ActiveModel {
     if (this.data.ranks)
       return this.data.ranks.playerId;
 
-    return ([ ...this.data.playerIds ] as any).last;
+    return (Array.from(this.data.playerIds) as any).last;
   }
 
   getRanks(rankingIds:string[] = []) {

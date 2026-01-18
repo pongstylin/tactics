@@ -1,4 +1,5 @@
 import { WebSocketServer } from 'ws';
+import { dirname } from 'path';
 import util from 'util';
 import DebugLogger from 'debug';
 import '#plugins/index.js';
@@ -18,6 +19,8 @@ const app    = createApp();
 const server = createServer(app);
 const wss    = new WebSocketServer({ server });
 const report = DebugLogger('server:report');
+
+global.APP_ROOT = dirname(import.meta.dirname);
 
 if (config.proxy.host)
   app.enable('trust proxy');

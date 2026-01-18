@@ -57,7 +57,7 @@ export const getTurnTimeLimit = {
   buffered: function (turn = this.currentTurn) {
     if (turn.isAutoSkipped)
       return null;
-    if (this.getTeamInitialTurnId(turn.team) === turn.id)
+    if (turn.team.initialTurnId === turn.id)
       return this.timeLimit.initial;
 
     return this.timeLimit.base + turn.get('timeBuffer', 0);
@@ -65,7 +65,7 @@ export const getTurnTimeLimit = {
   legacy: function (turn = this.currentTurn) {
     if (turn.isAutoSkipped)
       return null;
-    if (this.getTeamInitialTurnId(turn.team) === turn.id)
+    if (turn.team.initialTurnId === turn.id)
       return this.timeLimit.initial;
 
     const initial = this.teams.reduce((p, t) => p * t.set.units.length, 1);
@@ -97,7 +97,7 @@ export const applyTurnTimeLimit = {
     // Buffer already set, as needed, for popped turns.
     // No buffer if turn isn't playable (auto passed)
     if (op === 'pushed' && currentTurn.isPlayable) {
-      const initialTurnId = this.getTeamInitialTurnId(currentTurn.team);
+      const initialTurnId = currentTurn.team.initialTurnId;
       const previousTurnId = this.getTeamPreviousPlayableTurnId(currentTurn.team);
       const previousTurn = this.turns[previousTurnId];
 

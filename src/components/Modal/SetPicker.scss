@@ -1,0 +1,19 @@
+.modal.setPicker {
+  width: 836px;
+
+  .content {
+    background-color: black;
+    padding: 8px;
+  }
+}
+
+/*
+ * Portrait Layout
+ */
+@media (max-width: 440px) {
+  .modal.setPicker {
+    .content {
+      padding: 0;
+    }
+  }
+}

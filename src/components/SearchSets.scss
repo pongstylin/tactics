@@ -1,0 +1,118 @@
+.view.searchSets {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: visible;
+  padding: 8px;
+
+  .controls {
+    display: flex;
+    
+    INPUT[name=text] {
+      background-color: transparent;
+      color: inherit;
+      border: 0 none;
+      border-bottom: 1px solid #888888;
+      padding: 0 8px;
+      flex-grow: 1;
+    }
+    SELECT {
+      background-color: transparent;
+      color: inherit;
+      margin: 0 8px;
+      border: 0 none;
+      border-bottom: 1px solid #888888;
+      flex-grow: 0;
+    }
+    SELECT OPTION {
+      background-color: #888888;
+      color: black;
+    }
+    BUTTON {
+      padding: 2px 6px;
+      flex-grow: 0;
+    }
+  }
+  &:not(.isCustomizable) .controls {
+    display: none;
+  }
+
+  .message {
+    padding: 0 8px;
+  }
+  .message:empty {
+    display: none;
+  }
+
+  .sets {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    flex: 1 1 auto;
+
+    .details {
+      position: absolute;
+
+      .name {
+        font-style: italic;
+        font-weight: bold;
+        color: #b08d57;
+      }
+      & > :not(.name) {
+        font-size: 85%;
+        color: #ddd;
+      }
+    }
+    &.rotation-N {
+      .details { bottom:10%; right:5%; text-align:right; display:flex; flex-direction:column-reverse; }
+    }
+    &.rotation-S {
+      .details { top:10%; left:5%; }
+    }
+    &.rotation-E {
+      .details { bottom:10%; left:5%; text-align:left; display:flex; flex-direction:column-reverse; }
+    }
+    &.rotation-W {
+      .details { top:10%; right:5%; text-align:right; }
+    }
+
+    .set {
+      position: relative;
+      cursor: pointer;
+
+      .image {
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: contain;
+
+        padding-bottom: 67%;
+        width: 100%;
+      }
+    }
+    .set:hover .details .name {
+      color: #FFCC00;
+    }
+  }
+  .sets:empty {
+    display: none;
+  }
+
+  .footer {
+    padding: 8px;
+    font-size: 120%;
+    text-align: center;
+  }
+  .footer:empty {
+    display: none;
+  }
+}
+
+/*
+ * Narrow Layout
+ */
+@media (max-width: 600px) {
+  .view.searchSets {
+    .sets {
+      grid-template-columns: auto auto;
+    }
+  }
+}

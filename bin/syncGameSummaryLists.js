@@ -15,13 +15,12 @@ const since = process.argv[2] ? new Date(process.argv[2]) : null;
 const queue = [];
 let numProcessed = 0;
 
-queue.push('86aab879-d074-4acf-ad98-ad6c879377f5');
 /*
 for (const gs of await dataAdapter.queryItemChildren({
   type: 'collection',
   query: {
-    indexKey: 'LSK0',
-    indexValue: 'b=',
+    indexKey: 'LSK2',
+    indexValue: 'lobby&b=',
   },
 })) {
   queue.push(gs.id);
@@ -29,6 +28,7 @@ for (const gs of await dataAdapter.queryItemChildren({
     await sync();
 }
 */
+
 /*
 for await (const gameId of dataAdapter.listAllGameIds(since)) {
   queue.push(gameId);
@@ -37,6 +37,7 @@ for await (const gameId of dataAdapter.listAllGameIds(since)) {
 }
 */
 
+//queue.push('c88e44f8-11c2-4bb2-b406-bd96665156ea');
 if (queue.length)
   await sync();
 
@@ -48,6 +49,16 @@ async function sync() {
   await Promise.all(queue.map(qId => dataAdapter._getGame(qId).then(game => {
     if (!gameTypeMap.has(game.state.type))
       return;
+    const isRecent = (Date.now() - game.updatedAt.getTime()) < 150000;
+    console.log('game.id', game.id, game.state.startedAt, game.state.endedAt, game.updatedAt, isRecent, game.state.getTurnTimeRemaining());
+    return;
+    if (!isRecent && game.state.getTurnTimeRemaining() === 0) {
+      game.state.submitAction({
+        type: 'surrender',
+        declaredBy: 'system',
+      });
+      return;
+    }
     return dataAdapter._saveGameSummary(game, true);
   }).catch(error => console.error(error))));
   await dataAdapter.flush();

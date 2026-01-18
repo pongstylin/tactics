@@ -1,3 +1,8 @@
+const DEFAULT_CMP = (a,b) => a > b ? -1 : a < b ? 1 : 0;
+const LOW = 0;
+const HIGH = 1;
+const MID = 2;
+
 Object.defineProperty(Array.prototype, 'random', {
   value: function () {
     return this[Math.floor(Math.random() * this.length)];
@@ -15,14 +20,81 @@ Object.defineProperty(Array.prototype, 'shuffle', {
   },
 });
 
+Object.defineProperty(Array.prototype, 'findSortIndex', {
+  value: function (compare = DEFAULT_CMP) {
+    const tuple = new Uint32Array(3);
+    tuple[LOW] = 0;
+    tuple[HIGH] = this.length;
+
+    while (tuple[LOW] < tuple[HIGH]) {
+      tuple[MID] = (tuple[LOW] + tuple[HIGH]) >>> 1;
+
+      const cmp = compare(this[tuple[MID]]);
+      if (cmp < 0)
+        tuple[LOW] = tuple[MID] + 1;
+      else if (cmp > 0)
+        tuple[HIGH] = tuple[MID];
+      else
+        return tuple[MID];
+    }
+
+    return tuple[LOW];
+  },
+});
+Object.defineProperty(Array.prototype, 'someSorted', {
+  value: function (compare = DEFAULT_CMP) {
+    const tuple = new Uint32Array(3);
+    tuple[LOW] = 0;
+    tuple[HIGH] = this.length;
+
+    while (tuple[LOW] < tuple[HIGH]) {
+      tuple[MID] = (tuple[LOW] + tuple[HIGH]) >>> 1;
+
+      const cmp = compare(this[tuple[MID]]);
+      if (cmp < 0)
+        tuple[LOW] = tuple[MID] + 1;
+      else if (cmp > 0)
+        tuple[HIGH] = tuple[MID];
+      else
+        return true;
+    }
+
+    return false;
+  },
+});
+Object.defineProperty(Array.prototype, 'sortIn', {
+  value: function (cmp, ...items) {
+    if (typeof cmp !== 'function') {
+      items.unshift(cmp);
+      cmp = DEFAULT_CMP; 
+    }
+
+    const tuple = new Uint32Array(3);
+
+    for (const item of items) {
+      tuple[LOW] = 0;
+      tuple[HIGH] = this.length;
+
+      while (tuple[LOW] < tuple[HIGH]) {
+        tuple[MID] = (tuple[LOW] + tuple[HIGH]) >>> 1;
+        if (cmp(this[tuple[MID]], item) > 0)
+          tuple[HIGH] = tuple[MID];
+        else
+          tuple[LOW] = tuple[MID] + 1;
+      }
+
+      this.splice(tuple[LOW], 0, item);
+    }
+
+    return this;
+  },
+});
+
 Object.defineProperty(Array.prototype, 'findLastIndex', {
   value: function (filter) {
-    let array = this;
-
-    for (let i=array.length-1; i>-1; i--) {
-      if (filter(array[i], i))
+    for (let i=this.length-1; i > -1; i--)
+      if (filter(this[i], i))
         return i;
-    }
 
     return -1;
   },
