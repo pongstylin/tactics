@@ -3,6 +3,7 @@
  * The summary can be used to render a game in a list.
  */
 import serializer from '#utils/serializer.js';
+import type Player from '#models/Player.js';
 
 export default class GameSummary {
   protected data: any
@@ -188,7 +189,13 @@ export default class GameSummary {
 
     return JSON.stringify(this) === JSON.stringify(gs);
   }
-  cloneWithMeta(meta) {
+  cloneWithMeta(meta, player:Player | null = null) {
+    const data = this.data.clone();
+    if (!this.startedAt)
+      for (const team of data.teams)
+        if (team && team.set && team.playerId !== player?.id)
+          delete team.set;
+
     return new GameSummary({ ...this.data, meta });
   }
 

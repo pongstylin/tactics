@@ -77,7 +77,7 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
 
   divTeam.innerHTML = `
     <DIV class="name">${team.name}</DIV>
-    <DIV class="set">${game.meta.setNames[team.id] ?? team.set.name ?? 'Set'}</DIV>
+    <DIV class="set">${team.set ? game.meta.setNames[team.id] ?? team.set.name : ''}</DIV>
     <DIV class="rating">${rating.join('')}</DIV>
   `;
 
