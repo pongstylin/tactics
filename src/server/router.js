@@ -281,6 +281,7 @@ function joinGroup(serviceName, { client:clientId, body }) {
 
   group.set(clientId, body.user);
 
+  console.log('sessions.get', clientId, sessions.has(clientId));
   enqueue(sessions.get(clientId), 'join', {
     service: serviceName,
     group: body.group,
@@ -564,6 +565,7 @@ function deleteSession(session, code) {
 
   // Delete the session immediately since the client won't come back.
   // This code is used when the websocket webpage is refreshed or closed.
+  console.log('sessions.delete', session.id);
   sessions.delete(session.id);
 
   for (const [ groupId, group ] of groups) {
@@ -901,6 +903,7 @@ function onOpenMessage(client, message) {
   client.version = message.body.version;
   client.session = session;
 
+  console.log('sessions.set', client.id);
   sessions.set(client.id, session);
 
   send(client, {
