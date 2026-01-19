@@ -317,11 +317,15 @@ export default class extends DynamoDBAdapter {
 
     const teamSet = await (async () => {
       const game = this.cache.get('game').get(gameId) ?? this.buffer.get('game').get(gameId);
-      if (game) return game.state.teams[teamId].set;
+      if (game) return game.state.teams[teamId]?.set ?? null;
 
       const team = await this._getGameTeamByIds(gameId, teamId);
+      if (!team?.set) return null;
+
       return this._getTeamSet(team.set, gameType);
     })();
+    if (!teamSet) return null;
+
     await this._getTeamSetStatsForTeamSet(teamSet);
 
     return teamSet.toData(await this.getTopTeamSets(gameType.id));
@@ -654,7 +658,7 @@ export default class extends DynamoDBAdapter {
       id: gameId,
       type: 'game',
       path: '/teams/' + teamId,
-    });
+    }, {}, () => null);
   }
   async _getAllGameTurns(game) {
     const parts = await this.getItemParts({
