@@ -5,7 +5,7 @@ setInterval(() => {
     spnClock.update();
 }, 30000);
 
-export function renderGame(game, { playerId = null, setId = null, rankingId = null }) {
+export function renderGame(game, { playerId = null, setId = null, rankingId = null } = {}) {
   const team1 = game.teams.find(t => setId ? t?.set?.id === setId : t?.playerId === (playerId ?? game.createdBy));
   const ranks1 = game.meta.ranks[team1.id];
   const team2 = game.teams.find(t => t !== team1);
