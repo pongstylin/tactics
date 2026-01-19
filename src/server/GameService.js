@@ -374,6 +374,7 @@ export default class GameService extends Service {
       });
     }
 
+    console.log('clientPara.delete', client.id);
     this.clientPara.delete(client.id);
 
     // Let people who needs to know about a potential status change.
@@ -1995,6 +1996,7 @@ export default class GameService extends Service {
       if (clientInfo.joinCount > 1)
         clientInfo.joinCount--;
       else {
+        console.log('clientsInfo.delete', client.id);
         clientsInfo.delete(client.id);
 
         if (clientsInfo.size === 0) {
@@ -2002,6 +2004,8 @@ export default class GameService extends Service {
 
           this.collectionPara.delete(collection.id);
         } else {
+          console.log('clientsInfo.keys', clientsInfo.keys());
+          console.log('clientPara.keys', clientPara.keys());
           const playerExists = Array.from(clientsInfo.keys()).some(cId => this.clientPara.get(cId).player === clientPara.player);
           if (!playerExists)
             collectionPara.stats.delete(clientPara.player);
