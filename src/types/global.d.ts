@@ -6,5 +6,5 @@ interface Array<T> {
   last: T | undefined;
   someSorted(cmp?:(T) => number): boolean;
   random(): T;
-  clone(): T;
+  clone(): T[];
 };
