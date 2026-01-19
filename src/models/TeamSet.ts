@@ -97,7 +97,7 @@ export default class TeamSet extends ActiveModel {
   }
   static create(teamSetData:TeamSetData, id?:string) {
     if (!id) {
-      teamSetData.units = TeamSet.cleanUnits((teamSetData.units as any).clone());
+      teamSetData.units = TeamSet.cleanUnits(teamSetData.units.clone());
       id = TeamSet.createId(teamSetData, false);
     }
 

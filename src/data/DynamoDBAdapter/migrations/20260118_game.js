@@ -28,25 +28,24 @@ const unitDataMap = new Map([
 
 export default async function (itemMap) {
   const item = itemMap.get('/');
-  const stateData = item.D.$data.state;
-  if (!stateData.startedAt)
-    return item;
-
   const teamsItem = itemMap.get('/teams/*') ?? (await Promise.all((await this._queryItemParts({ PK:item.PK, SK:'/teams/' })).map(ti => {
     ti.id = parseInt(ti.SK.split('/')[2], 10);
     return this._parseItem(ti);
   }))).sort((a, b) => a.id - b.id).map(({ id, ...item }) => item);
 
-  for (const [ teamId, teamItem ] of teamsItem.entries()) {
-    teamItem.D.$data.initialTurnId = (() => {
-      const waitTurns = Math.min(...teamItem.D.$data.set.units.map(u => u.mRecovery ?? 0));
-      return teamId + teamsItem.length * waitTurns;
-    })();
+  for (const teamItem of teamsItem.values()) {
+    const set = teamItem.D.$data.set;
+    if (!set || set.id) continue;
 
-    teamItem.D.$data.setVia = teamItem.D.$data.set.via ?? 'temp';
+    if (set.units) {
+      teamItem.D.$data.setVia = teamItem.D.$data.set.via ?? 'temp';
 
-    const units = cleanUnits(teamItem.D.$data.set.units);
-    teamItem.D.$data.set = { id:createTeamSetId({ units }), units };
+      const units = cleanUnits(teamItem.D.$data.set.units);
+      teamItem.D.$data.set = { id:createTeamSetId({ units }), units };
+    } else {
+      delete teamItem.D.$data.joinedAt;
+      delete teamItem.D.$data.set;
+    }
   }
 
   itemMap.set('/teams/*', teamsItem.map(ti => ({ ...ti, isDirty:true })));

@@ -35,7 +35,7 @@ const result = await ddb.query({
   filters: { [pFilter.key]:pFilter.val, [sFilter.key]:{ beginsWith:sFilter.val } },
   order: order === undefined || order === '' ? 'ASC' : order,
   limit: limit === undefined || limit === '' ? true : parseInt(limit),
-});
+}, true);
 
 console.log(`selector: ${path}`);
 console.log(util.inspect(jp(result, path), { depth:null, colors:true }));

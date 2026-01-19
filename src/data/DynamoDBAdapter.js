@@ -924,7 +924,7 @@ export default class DynamoDBAdapter extends FileAdapter {
    * When limit is true, only the first chunk of results are returned with a cursor for getting the next, if any.
    * When limit is a number, no more than that will be returned.
    */
-  async query(query) {
+  async query(query, raw = false) {
     query.limit ??= false;
     query.indexName ??= GlobalSecondaryIndexes.find(gsi => gsi.KeySchema.every(ks => ks.AttributeName in query.filters))?.IndexName;
 
@@ -977,8 +977,10 @@ export default class DynamoDBAdapter extends FileAdapter {
       })));
       ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => {
         const item = await this._parseItem(i);
-        if (item.D) item.D = serializer.normalize(item.D);
-        if (item.PD) item.PD = serializer.normalize(item.PD);
+        if (!raw) {
+          if (item.D) item.D = serializer.normalize(item.D);
+          if (item.PD) item.PD = serializer.normalize(item.PD);
+        }
         return item;
       })));
       ret.cursor = rsp.LastEvaluatedKey;
