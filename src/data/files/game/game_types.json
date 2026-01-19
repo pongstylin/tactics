@@ -93,6 +93,21 @@
       "name": "Classic",
       "description": "This style requires both players to use the same default gray set used in the original game.",
       "customizable": false,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
+        "units": {
+          "types": [
+            ["Cleric",         { "max":1 }],
+            ["Knight",         { "max":3 }],
+            ["Pyromancer",     { "max":2 }],
+            ["Enchantress",    { "max":1 }],
+            ["Scout",          { "max":1 }],
+            ["Assassin",       { "max":1 }],
+            ["DarkMagicWitch", { "max":1 }]
+          ]
+        }
+      },
       "sets": [{
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
