@@ -1591,7 +1591,7 @@ export default class GameService extends Service {
     return meta;
   }
   async _cloneGameSummaryWithMeta(gameSummary, player) {
-    return gameSummary.cloneWithMeta(await this._getGameMeta(gameSummary, player));
+    return gameSummary.cloneWithMeta(await this._getGameMeta(gameSummary, player), player);
   }
 
   _attachGame(game) {
