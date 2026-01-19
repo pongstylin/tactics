@@ -136,8 +136,11 @@ export default class extends DynamoDBAdapter {
   }
   getTeamSetCardinality(gameTypeId) {
     const cardinalities = this._teamSetCardinalities;
-    if (!cardinalities.has(gameTypeId))
-      throw new Error(`No such cardinality: ${gameTypeId}`);
+    if (!cardinalities.has(gameTypeId)) {
+      const cardinality = TeamSetCardinality.create(gameTypeId);
+      cardinality.gameType = this.getGameType(gameTypeId);
+      return cardinality;
+    }
     return cardinalities.get(gameTypeId);
   }
 
@@ -1718,8 +1721,10 @@ export default class extends DynamoDBAdapter {
       }).catch(error => {
         if (error.code === 404)
           return null;
+        console.log('Error loading game', gId);
         throw error;
       })));
+      await this.flush();
     }
 
     if (gameIds.length) {

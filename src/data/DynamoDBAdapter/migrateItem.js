@@ -6,6 +6,7 @@ migrationsByKey.set('game:/', [
   './migrations/20251025b_game.js',
   './migrations/20251025c_game.js',
   './migrations/20251108_game.js',
+  './migrations/20260118_game.js',
 ]);
 
 migrationsByKey.set('playerStats:/', [

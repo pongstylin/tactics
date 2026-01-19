@@ -1,67 +1,33 @@
 import '#plugins/index.js';
 import '#models/Game.js';
 import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
-import gameTypes from '#data/files/game/game_types.json' with { type:'json' };
 import Timeout from '#server/Timeout.js';
 
 // Required for DynamoDBAdapter
 const ticker = setInterval(Timeout.tick, 5000);
+const dryRun = false;
+const gameAdapter = await new GameAdapter({ hasState:false, readonly:dryRun }).bootstrap();
 
-const gameTypeMap = new Map(gameTypes);
-const dataAdapter = new GameAdapter({ readonly:false });
-await dataAdapter.bootstrap();
+gameAdapter.readonly = false;
+const gamesIndex = await gameAdapter.indexAllGames();
+gameAdapter.readonly = dryRun;
 
-const since = process.argv[2] ? new Date(process.argv[2]) : null;
-const queue = [];
-let numProcessed = 0;
+for (const gameType of gameAdapter.getGameTypesById().values()) {
+  if (gameType.config.archived) continue;
 
-/*
-for (const gs of await dataAdapter.queryItemChildren({
-  type: 'collection',
-  query: {
-    indexKey: 'LSK2',
-    indexValue: 'lobby&b=',
-  },
-})) {
-  queue.push(gs.id);
-  if (queue.length === 100)
-    await sync();
+  const gameIds = Array.from(gamesIndex.entries()).filter(gi => gi[1].gameTypeId === gameType.id).map(gi => gi[0]);
+
+  console.log(`Now syncing game summary lists for ${gameIds.length} ${gameType.id} games...`);
+
+  for (let i = 0; i < gameIds.length; i += 50) {
+    await Promise.all(gameIds.slice(i, i+50).map(async gId => {
+      const game = await gameAdapter.getGameFromFile(gId);
+      return gameAdapter._saveGameSummary(game, true);
+    }));
+    console.log(`Saved ${i+50} of ${gameIds.length} game summary lists.`);
+  }
 }
-*/
 
-/*
-for await (const gameId of dataAdapter.listAllGameIds(since)) {
-  queue.push(gameId);
-  if (queue.length === 100)
-    await sync();
-}
-*/
-
-//queue.push('c88e44f8-11c2-4bb2-b406-bd96665156ea');
-if (queue.length)
-  await sync();
-
-await dataAdapter.cleanup();
+await gameAdapter.cleanup();
 clearInterval(ticker);
 console.log('Sync complete');
-
-async function sync() {
-  await Promise.all(queue.map(qId => dataAdapter._getGame(qId).then(game => {
-    if (!gameTypeMap.has(game.state.type))
-      return;
-    const isRecent = (Date.now() - game.updatedAt.getTime()) < 150000;
-    console.log('game.id', game.id, game.state.startedAt, game.state.endedAt, game.updatedAt, isRecent, game.state.getTurnTimeRemaining());
-    return;
-    if (!isRecent && game.state.getTurnTimeRemaining() === 0) {
-      game.state.submitAction({
-        type: 'surrender',
-        declaredBy: 'system',
-      });
-      return;
-    }
-    return dataAdapter._saveGameSummary(game, true);
-  }).catch(error => console.error(error))));
-  await dataAdapter.flush();
-  console.log('synced', numProcessed += queue.length);
-  queue.length = 0;
-}

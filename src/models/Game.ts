@@ -714,19 +714,6 @@ export default class Game extends ActiveModel {
 
   toJSON() {
     const data = super.toJSON();
-    data.state = data.state.toJSON();
-    delete data.state.numTeams;
-    data.state.teams = this.state.teams;
-    delete data.state.numTurns;
-    data.state.turns = this.state.turns;
-
-    if (this.toFile) {
-      data.state = data.state.toJSON();
-      delete data.state.numTeams;
-      data.state.teams = this.state.teams;
-      delete data.state.numTurns;
-      data.state.turns = this.state.turns;
-    }
 
     if (this.toFile) {
       data.state = data.state.toJSON();
