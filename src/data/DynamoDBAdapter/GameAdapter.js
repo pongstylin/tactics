@@ -320,8 +320,12 @@ export default class extends DynamoDBAdapter {
       if (game) return game.state.teams[teamId]?.set ?? null;
 
       const team = await this._getGameTeamByIds(gameId, teamId);
+      if (!team?.set) return null;
+
       return this._getTeamSet(team.set, gameType);
     })();
+    if (!teamSet) return null;
+
     await this._getTeamSetStatsForTeamSet(teamSet);
 
     return teamSet.toData(await this.getTopTeamSets(gameType.id));
