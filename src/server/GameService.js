@@ -2005,7 +2005,7 @@ export default class GameService extends Service {
           this.collectionPara.delete(collection.id);
         } else {
           console.log('clientsInfo.keys', clientsInfo.keys());
-          console.log('clientPara.keys', clientPara.keys());
+          console.log('clientPara.keys', this.clientPara.keys());
           const playerExists = Array.from(clientsInfo.keys()).some(cId => this.clientPara.get(cId).player === clientPara.player);
           if (!playerExists)
             collectionPara.stats.delete(clientPara.player);
