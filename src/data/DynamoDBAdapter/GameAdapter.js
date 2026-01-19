@@ -935,7 +935,7 @@ export default class extends DynamoDBAdapter {
         game.state.teams.length === 2 &&
         game.state.winner !== null &&
         game.state.currentTurnId > 10 &&
-        game.state.teams.every(t => t.set.isFull && !!t.ratings?.get(game.state.type)[0])
+        game.state.teams.every(t => t.set.isFull && !!t.ratings?.get(game.state.type)?.[0])
       ) game.state.setIds.forEach(sId => gameSummaryListIds.set(`teamSetGames#${sId}`, true));
     }
 
