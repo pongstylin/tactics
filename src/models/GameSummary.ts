@@ -196,7 +196,7 @@ export default class GameSummary {
         if (team && team.set && team.playerId !== player?.id)
           delete team.set;
 
-    return new GameSummary({ ...this.data, meta });
+    return new GameSummary({ ...data, meta });
   }
 
   toJSON() {
