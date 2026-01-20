@@ -1467,8 +1467,30 @@ export default class GameService extends Service {
       response.stats.set(cId, this.collectionPara.get(cId).stats.get(player));
 
     // Abort if the client is no longer connected.
-    if (client.closed)
-      return this.onLeaveCollectionGroup(client, groupPath, collectionId, 'abort');
+    if (client.closed) {
+      clientPara.joinedGroups.delete(groupPath);
+      for (const collection of collections) {
+        const collectionPara = this.collectionPara.get(collection.id);
+        const clientsInfo = collectionPara.clientsInfo;
+        const clientInfo = clientsInfo.get(client.id);
+        if (clientInfo.joinCount > 1)
+          clientInfo.joinCount--;
+        else {
+          clientsInfo.delete(client.id);
+
+          if (clientsInfo.size === 0) {
+            collection.off('change', collectionPara.changeListener);
+
+            this.collectionPara.delete(collection.id);
+          } else {
+            const playerExists = Array.from(clientsInfo.keys()).some(cId => this.clientPara.get(cId)?.player === clientPara.player);
+            if (!playerExists)
+              collectionPara.stats.delete(clientPara.player);
+          }
+        }
+      }
+      return;
+    }
 
     this._emit({
       type: 'joinGroup',
@@ -1994,7 +2016,6 @@ export default class GameService extends Service {
       throw new ServerError(404, 'No such collection');
 
     const collections = collectionIds.map(cId => this.data.closeGameCollection(cId));
-
     const clientPara = this.clientPara.get(client.id);
     clientPara.joinedGroups.delete(groupPath);
 
@@ -2013,9 +2034,8 @@ export default class GameService extends Service {
 
           this.collectionPara.delete(collection.id);
         } else {
-          console.log('clientsInfo.keys', clientsInfo.keys());
-          console.log('clientPara.keys', this.clientPara.keys());
-          const playerExists = Array.from(clientsInfo.keys()).some(cId => this.clientPara.get(cId).player === clientPara.player);
+          // The question mark is due to how a client might be dropped from clientPara before it is removed from clientsInfo.
+          const playerExists = Array.from(clientsInfo.keys()).some(cId => this.clientPara.get(cId)?.player === clientPara.player);
           if (!playerExists)
             collectionPara.stats.delete(clientPara.player);
         }
