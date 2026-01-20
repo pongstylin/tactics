@@ -1354,13 +1354,6 @@ export default class GameService extends Service {
     const collections = await Promise.all(
       collectionIds.map(cId => this.data.openGameCollection(cId))
     );
-    // Abort if the client is no longer connected.
-    if (client.closed) {
-      for (const cId of collectionIds)
-        this.data.closeGameCollection(cId);
-      return;
-    }
-
     const clientPara = this.clientPara.get(client.id);
     const player = clientPara.player;
 
@@ -1464,6 +1457,10 @@ export default class GameService extends Service {
     response.stats = new Map();
     for (const cId of collectionIds)
       response.stats.set(cId, this.collectionPara.get(cId).stats.get(player));
+
+    // Abort if the client is no longer connected.
+    if (client.closed)
+      return this.onLeaveCollectionGroup(client, groupPath, collectionId, 'abort');
 
     this._emit({
       type: 'joinGroup',
@@ -1932,6 +1929,8 @@ export default class GameService extends Service {
         playerPara.notifyGameIds.clear();
     }
 
+    if (reason === 'abort') return;
+
     this._emit({
       type: 'leaveGroup',
       client: client.id,
@@ -1972,7 +1971,7 @@ export default class GameService extends Service {
       },
     });
   }
-  onLeaveCollectionGroup(client, groupPath, collectionId) {
+  onLeaveCollectionGroup(client, groupPath, collectionId, reason = null) {
     const collectionGroups = this.collectionGroups;
     const collectionIds = [];
 
@@ -2008,6 +2007,8 @@ export default class GameService extends Service {
         }
       }
     }
+
+    if (reason === 'abort') return;
 
     this._emit({
       type: 'leaveGroup',
