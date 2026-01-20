@@ -1319,6 +1319,10 @@ export default class GameService extends Service {
     if (params.query)
       response.results = await this._searchPlayerGames(player, params.query);
 
+    // Abort if the client is no longer connected.
+    if (client.closed)
+      return this.onLeaveMyGamesGroup(client, groupPath, playerId, 'abort');
+
     this._emit({
       type: 'joinGroup',
       client: client.id,
@@ -1944,7 +1948,7 @@ export default class GameService extends Service {
       },
     });
   }
-  onLeaveMyGamesGroup(client, groupPath, playerId) {
+  onLeaveMyGamesGroup(client, groupPath, playerId, reason = null) {
     const clientPara = this.clientPara.get(client.id);
     const playerPara = this.playerPara.get(playerId);
     const myGames = playerPara.myGames;
@@ -1958,6 +1962,8 @@ export default class GameService extends Service {
 
       delete playerPara.myGames;
     }
+
+    if (reason === 'abort') return;
 
     this._emit({
       type: 'leaveGroup',
