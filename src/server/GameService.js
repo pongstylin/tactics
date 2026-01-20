@@ -1346,6 +1346,7 @@ export default class GameService extends Service {
    * That way, we can check connection status after asynchronous activity is done and before side effects.
    */
   async onJoinCollectionGroup(client, groupPath, collectionId, params = {}) {
+    console.log('onJoinCollectionGroup', client.id, groupPath, collectionId);
     const collectionGroups = this.collectionGroups;
     const collectionIds = [];
 
@@ -1432,8 +1433,10 @@ export default class GameService extends Service {
       const collectionPara = this.collectionPara.get(collection.id);
 
       const clientsInfo = collectionPara.clientsInfo;
-      if (!clientsInfo.has(client.id))
+      if (!clientsInfo.has(client.id)) {
         clientsInfo.set(client.id, { joinCount:0, filters:[] });
+        console.log('clientsInfo.set', client.id);
+      }
       const clientInfo = clientsInfo.get(client.id);
       clientInfo.joinCount++;
 
@@ -1979,6 +1982,7 @@ export default class GameService extends Service {
     });
   }
   onLeaveCollectionGroup(client, groupPath, collectionId, reason = null) {
+    console.log('onLeaveCollectionGroup', client.id, groupPath, collectionId);
     const collectionGroups = this.collectionGroups;
     const collectionIds = [];
 
