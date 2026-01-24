@@ -981,11 +981,14 @@ export default class DynamoDBAdapter extends FileAdapter {
         ExclusiveStartKey: ret.cursor,
         Limit: typeof query.limit === 'number' ? query.limit - ret.items.length : undefined,
       })));
-      ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => (
-        testMode || !needsNormalize
-          ? this._parseItem(i) // migration and normalization not (des|requ)ired.
-          : canMigrate ? Object.assign(i, { data:await this._migrate(i) }) : this._parseItem(i, serializer)
-      ))));
+      ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => {
+        // migration and normalization not (des|requ)ired?
+        if (testMode || !needsNormalize) return this._parseItem(i);
+        if (canMigrate) return Object.assign(i, { data:await this._migrate(i) });
+
+        await this._parseItem(i, serializer);
+        return Object.assign(i, { data:i.D ?? i.PD });
+      })));
       ret.cursor = rsp.LastEvaluatedKey;
     } while (ret.cursor && (query.limit === false || typeof query.limit === 'number' && query.limit > ret.items.length));
 
