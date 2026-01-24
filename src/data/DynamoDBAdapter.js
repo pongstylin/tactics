@@ -944,7 +944,8 @@ export default class DynamoDBAdapter extends FileAdapter {
       ConsistentRead: false,
       ReturnConsumedCapacity: 'NONE',
     };
-    const needsMigrate = !query.attributes || query.attributes.includes('D') || query.attributes.includes('PD');
+    const needsNormalize = !query.attributes || query.attributes.includes('D') || query.attributes.includes('PD');
+    const canMigrate = !query.attributes || (query.attributes.includes('PK') && query.attributes.includes('SK') && needsNormalize);
 
     const aliasByValue = new Map();
     const conditions = [];
@@ -981,9 +982,9 @@ export default class DynamoDBAdapter extends FileAdapter {
         Limit: typeof query.limit === 'number' ? query.limit - ret.items.length : undefined,
       })));
       ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => (
-        testMode || !needsMigrate
+        testMode || !needsNormalize
           ? this._parseItem(i) // migration and normalization not (des|requ)ired.
-          : Object.assign(i, { data:this._migrate(i) })
+          : Object.assign(i, { data:canMigrate ? this._migrate(i) : serializer.normalize(i.D ?? i.PD) })
       ))));
       ret.cursor = rsp.LastEvaluatedKey;
     } while (ret.cursor && (query.limit === false || typeof query.limit === 'number' && query.limit > ret.items.length));
