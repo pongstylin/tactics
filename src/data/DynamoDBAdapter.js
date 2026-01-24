@@ -644,16 +644,16 @@ export default class DynamoDBAdapter extends FileAdapter {
       });
     });
   }
-  async _parseItem(item) {
+  async _parseItem(item, parser = JSON) {
     try {
       if (item.D)
-        item.D = JSON.parse(await this._decompress(item.D));
+        item.D = parser.parse(await this._decompress(item.D));
       if (item.PD)
-        item.PD = JSON.parse(await this._decompress(item.PD));
+        item.PD = parser.parse(await this._decompress(item.PD));
     } catch (error) {
       if (error.code === 'ERR_RING_BUFFER_2') {
         console.log(`Warning: (Retrying) ${error.message}: ${keyOfItem(item)}: ${error.code} (${error.errno})`);
-        return this._parseItem(item);
+        return this._parseItem(item, parser);
       }
 
       console.error(`Error while decompressing item: ${keyOfItem(item)}: `, error);
@@ -980,7 +980,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => (
         testMode || !needsNormalize
           ? this._parseItem(i) // migration and normalization not (des|requ)ired.
-          : Object.assign(i, { data:canMigrate ? await this._migrate(i) : serializer.normalize(await this._parseItem(i.D ?? i.PD)) })
+          : Object.assign(i, { data:canMigrate ? await this._migrate(i) : await this._parseItem(i, serializer) })
       ))));
       ret.cursor = rsp.LastEvaluatedKey;
     } while (ret.cursor && (query.limit === false || typeof query.limit === 'number' && query.limit > ret.items.length));
