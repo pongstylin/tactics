@@ -924,7 +924,7 @@ export default class DynamoDBAdapter extends FileAdapter {
    * When limit is true, only the first chunk of results are returned with a cursor for getting the next, if any.
    * When limit is a number, no more than that will be returned.
    */
-  async query(query, raw = false) {
+  async query(query, testMode = null) {
     query.limit ??= false;
     query.indexName ??= GlobalSecondaryIndexes.find(gsi => gsi.KeySchema.every(ks => ks.AttributeName in query.filters))?.IndexName;
 
@@ -940,6 +940,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       ConsistentRead: false,
       ReturnConsumedCapacity: 'NONE',
     };
+    const needsMigrate = !query.attributes || query.attributes.includes('D') || query.attributes.includes('PD');
 
     const aliasByValue = new Map();
     const conditions = [];
@@ -975,14 +976,11 @@ export default class DynamoDBAdapter extends FileAdapter {
         ExclusiveStartKey: ret.cursor,
         Limit: typeof query.limit === 'number' ? query.limit - ret.items.length : undefined,
       })));
-      ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => {
-        const item = await this._parseItem(i);
-        if (!raw) {
-          if (item.D) item.D = serializer.normalize(item.D);
-          if (item.PD) item.PD = serializer.normalize(item.PD);
-        }
-        return item;
-      })));
+      ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => (
+        testMode || !needsMigrate
+          ? this._parseItem(i) // migration and normalization not (des|requ)ired.
+          : Object.assign(i, { data:this._migrate(i) })
+      ))));
       ret.cursor = rsp.LastEvaluatedKey;
     } while (ret.cursor && (query.limit === false || typeof query.limit === 'number' && query.limit > ret.items.length));
 

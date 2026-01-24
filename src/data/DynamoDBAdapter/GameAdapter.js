@@ -1265,7 +1265,7 @@ export default class extends DynamoDBAdapter {
           cursor: teamSetIndex.cursor,
           limit: 100,
         });
-        const teamSets = rsp.items.map(i => this._getTeamSet(i.PD, teamSetIndex.gameTypeId, i.SK.slice(8, 35)));
+        const teamSets = rsp.items.map(i => this._getTeamSet(i.data, teamSetIndex.gameTypeId, i.SK.slice(8, 35)));
         teamSetIndex.append(teamSets, rsp.cursor);
         return {
           completed: teamSetIndex.isComplete,
@@ -1321,7 +1321,7 @@ export default class extends DynamoDBAdapter {
           cursor: teamSetGameSearch.cursor,
           limit: 20,
         });
-        teamSetGameSearch.append(rsp.items.map(i => i.PD), rsp.cursor);
+        teamSetGameSearch.append(rsp.items.map(i => i.data), rsp.cursor);
         return {
           completed: teamSetGameSearch.isComplete,
           truncated: !teamSetGameSearch.isComplete && teamSetGameSearch.length === 1000,
@@ -1391,8 +1391,8 @@ export default class extends DynamoDBAdapter {
       }).then(rsp => {
         if (rsp.items.length === 0) return null;
 
-        const { SK, PD } = rsp.items[0];
-        return { playerId:SK.split('/').last, playerStats:PD };
+        const { SK, data } = rsp.items[0];
+        return { playerId:SK.split('/').last, playerStats:data };
       }),
     ]);
     teamSetStats.id = teamSetId;

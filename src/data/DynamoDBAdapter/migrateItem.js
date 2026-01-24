@@ -7,6 +7,7 @@ migrationsByKey.set('game:/', [
   './migrations/20251025c_game.js',
   './migrations/20251108_game.js',
   './migrations/20260118_game.js',
+  './migrations/20260122_game.js',
 ]);
 
 migrationsByKey.set('playerStats:/', [
@@ -15,6 +16,7 @@ migrationsByKey.set('playerStats:/', [
 
 migrationsByKey.set('playerSets:/', [
   './migrations/20251108_playerSets.js',
+  './migrations/20260122_playerSets.js',
 ]);
 
 export default async function migrateItem(item, props = {}) {
@@ -23,8 +25,11 @@ export default async function migrateItem(item, props = {}) {
   const migrations = migrationsByKey.get(key) ?? [];
   if ((item.V ?? 0) === migrations.length)
     return item;
-  if ((item.V ?? 0) > migrations.length)
-    throw new Error(`Item version is ahead of known migrations '${key}': ${item.V} > ${migrations.length}`);
+  if ((item.V ?? 0) > migrations.length) {
+    // Only a warning since it might be intentional and compatible.
+    console.log(`Warning: Item version is ahead of known migrations '${key}': ${item.V} > ${migrations.length}`);
+    return;
+  }
 
   // This cache allows multiple migrations to not perform redundant DDB operations.
   const cacheItemMap = new Map([
@@ -33,7 +38,8 @@ export default async function migrateItem(item, props = {}) {
   ]);
 
   for (let i = item.V ?? 0; i < migrations.length; i++)
-    await (await import(migrations[i])).default.call(this, cacheItemMap, props);
+    if (migrations[i])
+      await (await import(migrations[i])).default.call(this, cacheItemMap, props);
 
   const ops = new Map();
   for (let [ cacheKey, cacheItems ] of cacheItemMap.entries()) {
