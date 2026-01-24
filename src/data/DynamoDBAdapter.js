@@ -980,7 +980,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => (
         testMode || !needsNormalize
           ? this._parseItem(i) // migration and normalization not (des|requ)ired.
-          : Object.assign(i, { data:canMigrate ? await this._migrate(i) : await this._parseItem(i, serializer) })
+          : canMigrate ? Object.assign(i, { data:await this._migrate(i) }) : this._parseItem(i, serializer)
       ))));
       ret.cursor = rsp.LastEvaluatedKey;
     } while (ret.cursor && (query.limit === false || typeof query.limit === 'number' && query.limit > ret.items.length));
