@@ -136,11 +136,12 @@ export default class ViewSet {
   }
   async renderSet() {
     const set = this.set;
+    const playerSet = this.playerSets.find(ps => ps.id === set.id);
     const imagePromise = Tactics.getSetImage(this.gameType, set);
     const tags = this.tags;
 
     const details = [
-      `<DIV class="name">${this.gameType.isCustomizable ? set.name : '(Not Customizable)'}</DIV>`,
+      `<DIV class="name">${this.gameType.isCustomizable ? playerSet?.name ?? set.name : '(Not Customizable)'}</DIV>`,
     ];
     if (set.stats) {
       if (set.stats.createdBy && this.players.has(set.stats.createdBy)) {

@@ -1437,6 +1437,7 @@ export default class GameService extends Service {
         clientsInfo.set(client.id, { joinCount:0, filters:[] });
         console.log('clientsInfo.set', client.id);
       }
+
       const clientInfo = clientsInfo.get(client.id);
       clientInfo.joinCount++;
 

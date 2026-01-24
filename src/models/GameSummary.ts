@@ -191,7 +191,8 @@ export default class GameSummary {
   }
   cloneWithMeta(meta, player:Player | null = null) {
     const data = this.data.clone();
-    if (!this.startedAt)
+    // Do not reveal your opponent's set until you have played a turn in the game (or it ends).
+    if (!this.startedAt || (!this.endedAt && this.data.currentTurnId < 4))
       for (const team of data.teams)
         if (team && team.set && team.playerId !== player?.id)
           delete team.set;
