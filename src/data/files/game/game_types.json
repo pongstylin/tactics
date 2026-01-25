@@ -1129,6 +1129,7 @@
     {
       "name": "Twelve Clouds",
       "archived": false,
+      "description": "Created by Midnight, this is a 12 point turtle style with alpha rules.  Scouts and dragons must not be placed on the front row.  Dragonspeaker Mage, Pyromancers, and Dark Magic Witches must not be placed on the front 2 rows.  A Stone Golem is required and must be placed on the back row or 2nd row corner.  You must also place 4 units in immediate stoning range of Stone Golem.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
