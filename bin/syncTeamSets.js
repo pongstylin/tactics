@@ -43,6 +43,10 @@ for (const gameType of gameAdapter.getGameTypesById().values()) {
         counts.incomplete++;
         continue;
       }
+      if (game.state.teams.some(t => t.ratings && !t.ratings.get(game.state.type))) {
+        console.log('broken game', game.id);
+        continue;
+      }
 
       TeamSet.applyGame(game);
 

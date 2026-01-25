@@ -21,6 +21,7 @@ export default class GameState {
   timeLimit: any;
   startedAt: Date | null;
   turnStartedAt: Date | null;
+  currentTurnId: number | null;
   currentTeamId: number | null;
   lastUnloadedTurnId: number;
   endedAt: Date | null;

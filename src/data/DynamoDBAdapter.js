@@ -562,7 +562,7 @@ export default class DynamoDBAdapter extends FileAdapter {
         ReturnConsumedCapacity: 'NONE',
         ReturnItemCollectionMetrics: 'NONE',
       }));
-      const delayed = new Map((rsp.UnprocessedItems[TABLE_NAME] ?? []).map(i => [ keyOfItem(i), i ]));
+      const delayed = new Map((rsp.UnprocessedItems?.[TABLE_NAME] ?? []).map(i => [ keyOfItem(i), i ]));
 
       for (const op of deleteOps) {
         const itemKey = keyOfItem(op.args[0]);

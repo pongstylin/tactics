@@ -162,8 +162,14 @@ export default class Game extends ActiveModel {
     else
       return turnStartedAt || createdAt;
   }
+  get teams() {
+    return this.state.teams;
+  }
   get startedAt() {
     return this.state.startedAt;
+  }
+  get currentTurnId() {
+    return this.state.currentTurnId;
   }
   get turnStartedAt() {
     return this.state.turnStartedAt;

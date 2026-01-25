@@ -54,6 +54,9 @@ export default class GameSummaryList extends ActiveModel {
   has(gameId) {
     return this.data.gamesSummary.has(gameId);
   }
+  find(fn:(gs:GameSummary) => GameSummary | undefined) {
+    return Array.from(this.data.gamesSummary.values()).find(fn);
+  }
   // Call this to prevent the cache size from growing too large
   prune(gameId) {
     const gamesSummary = this.data.gamesSummary;

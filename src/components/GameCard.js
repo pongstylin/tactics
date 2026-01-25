@@ -5,6 +5,8 @@ setInterval(() => {
     spnClock.update();
 }, 30000);
 
+export const teamInfo = new WeakMap();
+
 export function renderGame(game, { playerId = null, setId = null, rankingId = null } = {}) {
   const team1 = game.teams.find(t => setId ? t?.set?.id === setId : t?.playerId === (playerId ?? game.createdBy));
   const ranks1 = game.meta.ranks[team1.id];
@@ -32,12 +34,12 @@ export function renderGame(game, { playerId = null, setId = null, rankingId = nu
   if (game.isChallenge && !team1.joinedAt)
     divVS.append(renderGameDecline(game));
   else
-    divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
+    divVS.append(renderGameTeam(game, team1, ranks1, rankingId));
   divVS.append(renderGameResult(game, team1.playerId));
   if (game.isSimulation && !game.startedAt)
     divVS.append(renderGameFinishSetup(game));
   else if (team2?.playerId)
-    divVS.append(renderGameTeam(game, team2, ranks2, rankingId, team2.playerId !== playerId));
+    divVS.append(renderGameTeam(game, team2, ranks2, rankingId));
   else if (game.createdBy === Tactics.authClient.playerId)
     divVS.append(renderGameInvite(game))
   divGame.append(divVS);
@@ -46,12 +48,12 @@ export function renderGame(game, { playerId = null, setId = null, rankingId = nu
 
   return divGame;
 }
-function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
+function renderGameTeam(game, team, ranks, rankingId) {
   const divTeam = document.createElement('DIV');
-  divTeam.dataset.id = team.id;
   divTeam.classList.add('team');
-  divTeam.classList.toggle('linkable', linkable && !!ranks);
-  divTeam.dataset.playerId = team.playerId;
+  divTeam.classList.toggle('linkable', !!ranks || !!team.set);
+
+  teamInfo.set(divTeam, { game, team, ranks });
 
   const rank = ranks && (ranks.find(r => r.rankingId === rankingId) ?? null);
   const defaultRating = rankingId === 'FORTE' ? 0 : 750;
@@ -77,8 +79,8 @@ function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
 
   divTeam.innerHTML = `
     <DIV class="name">${team.name}</DIV>
-    <DIV class="set">${team.set ? game.meta.setNames[team.id] ?? team.set.name : ''}</DIV>
     <DIV class="rating">${rating.join('')}</DIV>
+    <DIV class="set">${team.set ? game.meta.setNames[team.id] ?? team.set.name : ''}</DIV>
   `;
 
   return divTeam;

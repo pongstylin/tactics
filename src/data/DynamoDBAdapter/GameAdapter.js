@@ -5,6 +5,7 @@ import serializer from '#utils/serializer.js';
 import seqAsync from '#utils/seqAsync.js';
 import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
 
+import Game from '#models/Game.js';
 import GameSummary from '#models/GameSummary.js';
 import GameSummaryList from '#models/GameSummaryList.js';
 import PlayerAvatars from '#models/PlayerAvatars.js';
@@ -311,20 +312,31 @@ export default class extends DynamoDBAdapter {
       await this.deleteItemParts({ id:game.id, type:'game' }, game, dependents);
   }
 
-  async getGameTeamSet(gameType, gameId, teamId) {
+  async getGameTeamSet(gameType, gameId, teamId, player = null) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
-    const teamSet = await (async () => {
+    const game = await (async () => {
       const game = this.cache.get('game').get(gameId) ?? this.buffer.get('game').get(gameId);
-      if (game) return game.state.teams[teamId]?.set ?? null;
+      if (game) return game;
 
-      const team = await this._getGameTeamByIds(gameId, teamId);
-      if (!team?.set) return null;
+      const cache = this.cache.get('gameSummaryLists');
+      for (const gsl of cache.values()) {
+        const gs = gsl.find(gs => gs.id === gameId);
+        if (gs) return gs;
+      }
 
-      return this._getTeamSet(team.set, gameType);
+      return this._getGame(gameId, false);
     })();
-    if (!teamSet) return null;
+    const team = game.teams[teamId];
+    if (!team?.set) return null;
+
+    // Do not reveal your opponent's set until you have played a turn in the game (or it ends).
+    if (player && (!game.startedAt || (!game.endedAt && game.currentTurnId < 4)))
+      if (team.playerId !== player.id)
+        throw new ServerError(403, `Cannot view the set for this game yet.`);
+
+    const teamSet = game instanceof Game ? team.set : this._getTeamSet((await this._getGameTeamByIds(gameId, teamId)).set, gameType);
 
     await this._getTeamSetStatsForTeamSet(teamSet);
 
@@ -723,7 +735,7 @@ export default class extends DynamoDBAdapter {
       team.on('change', event => this._onGameChange(game, 'team:change-2', event));
       // It might already be a TeamSet instance if we are creating the game.
       if (team.set && !(team.set instanceof TeamSet))
-        team.set = this._getTeamSet({ units:team.set.units }, game.state.type, team.set.id);
+        team.loadSet(this._getTeamSet({ units:team.set.units }, game.state.type, team.set.id));
     }));
   }
   _saveGameSummary(game, force = false, ts = new Date().toISOString(), gslIds = null) {
