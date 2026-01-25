@@ -44,6 +44,42 @@
           { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
           { "assignment":[8, 4], "type":"Knight" },
           { "assignment":[9, 4], "type":"Scout" }
+        ],
+        "tags": [
+          { "type":"inventor", "name":"AFO" }
+        ]
+      },{
+        "name": "AFO Rush Variation #1",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[1, 4], "type":"Scout" },
+          { "assignment":[2, 4], "type":"Knight" },
+          { "assignment":[4, 4], "type":"Knight" },
+          { "assignment":[5, 4], "type":"MudGolem" },
+          { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[8, 4], "type":"Knight" },
+          { "assignment":[9, 4], "type":"Scout" }
+        ],
+        "tags": [
+          { "type":"name", "name":"AFO Rush Variation #1", "keywords":[ "AFO", "AFO Rush", "AFO Rush Variation" ] },
+          { "type":"inventor", "name":"AFO" }
+        ]
+      },{
+        "name": "AFO Rush Variation #2",
+        "units": [
+          { "assignment":[5, 0], "type":"Cleric" },
+          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[1, 4], "type":"Scout" },
+          { "assignment":[2, 4], "type":"Knight" },
+          { "assignment":[4, 4], "type":"MudGolem" },
+          { "assignment":[5, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[6, 4], "type":"Knight" },
+          { "assignment":[8, 4], "type":"Knight" },
+          { "assignment":[9, 4], "type":"Scout" }
+        ],
+        "tags": [
+          { "type":"name", "name":"AFO Rush Variation #2", "keywords":[ "AFO", "AFO Rush", "AFO Rush Variation" ] }
         ]
       },{
         "name": "Standard Anti",
@@ -83,6 +119,9 @@
           { "assignment":[6, 4], "type":"Knight" },
           { "assignment":[7, 4], "type":"DragonspeakerMage", "mPower":12 },
           { "assignment":[9, 4], "type":"Scout" }
+        ],
+        "tags": [
+          { "type":"inventor", "name":"Elimination" }
         ]
       }]
     }
@@ -148,6 +187,7 @@
         }
       },
       "sets": [{
+        "name": "Classic",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[2, 1], "type":"DarkMagicWitch" },
@@ -173,6 +213,43 @@
           {"type":"Enchantress","assignment":[7,0]},
           {"type":"DarkMagicWitch","assignment":[8,1]},
           {"type":"Pyromancer","assignment":[7,2]}
+        ],
+        "tags": [
+          { "type":"inventor", "name":"BrutalRage", "keywords":[ "brutal" ] }
+        ]
+      },{
+        "name":"Brutal Manora",
+        "units": [
+          { "type":"Cleric", "assignment":[5,0] },
+          { "type":"Enchantress", "assignment":[6,0] },
+          { "type":"BarrierWard", "assignment":[5,1] },
+          { "type":"DarkMagicWitch", "assignment":[5,2] },
+          { "type":"Knight", "assignment":[4,3] },
+          { "type":"Scout", "assignment":[5,3] },
+          { "type":"Assassin", "assignment":[6,3] },
+          { "type":"Knight", "assignment":[3,4] },
+          { "type":"LightningWard", "assignment":[5,4] },
+          { "type":"Knight", "assignment":[7,4] }
+        ],
+        "tags": [
+          { "type":"inventor", "name":"BrutalRage", "keywords":[ "brutal" ] }
+        ]
+      },{
+        "name":"Brutal Wardless Var. #1",
+        "units": [
+          {"type":"Pyromancer","assignment":[9,3]},
+          {"type":"Scout","assignment":[10,3]},
+          {"type":"Knight","assignment":[8,4]},
+          {"type":"Knight","assignment":[7,4]},
+          {"type":"Knight","assignment":[6,3]},
+          {"type":"Assassin","assignment":[5,2]},
+          {"type":"Cleric","assignment":[8,0]},
+          {"type":"Enchantress","assignment":[7,0]},
+          {"type":"DarkMagicWitch","assignment":[8,1]},
+          {"type":"Pyromancer","assignment":[7,2]}
+        ],
+        "tags": [
+          { "type":"inventor", "name":"BrutalRage", "keywords":[ "brutal" ] }
         ]
       },{
         "name":"Man-on-Fire",
@@ -215,6 +292,7 @@
         }
       },
       "sets": [{
+        "name": "Classic",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
           { "assignment":[2, 1], "type":"DarkMagicWitch" },
@@ -228,6 +306,7 @@
           { "assignment":[9, 2], "type":"Scout" }
         ]
       },{
+        "name": "Brutal Power Turtle",
         "units":[
           {"type":"LightningWard","assignment":[3,4]},
           {"type":"Knight","assignment":[2,4]},
@@ -239,6 +318,9 @@
           {"type":"Cleric","assignment":[3,0]},
           {"type":"Cleric","assignment":[2,0]},
           {"type":"Scout","assignment":[1,3]}
+        ],
+        "tags": [
+          { "type":"inventor", "name":"BrutalRage", "keywords":[ "brutal" ] }
         ]
       }]
     }
@@ -283,9 +365,12 @@
           {"type":"FrostGolem","assignment":[2,1]},
           {"type":"Cleric","assignment":[2,0]},
           {"type":"MudGolem","assignment":[2,2]}
+        ],
+        "tags": [
+          { "type":"inventor", "name":"BrutalRage", "keywords":[ "brutal" ] }
         ]
       },{
-        "name":"Stiv's Turtle",
+        "name":"Stiv Defense",
         "units":[
           {"type":"LightningWard","assignment":[5,4]},
           {"type":"Cleric","assignment":[5,0]},
@@ -297,6 +382,26 @@
           {"type":"Knight","assignment":[3,2]},
           {"type":"Knight","assignment":[6,3]},
           {"type":"Scout","assignment":[7,2]}
+        ],
+        "tags": [
+          { "type":"inventor", "name":"Stiv" }
+        ]
+      },{
+        "name":"Stiv Defense Variation #1",
+        "units":[
+          {"type":"LightningWard","assignment":[5,4]},
+          {"type":"Cleric","assignment":[5,0]},
+          {"type":"Furgon","assignment":[5,1]},
+          {"type":"MudGolem","assignment":[5,2]},
+          {"type":"FrostGolem","assignment":[4,1]},
+          {"type":"FrostGolem","assignment":[6,1]},
+          {"type":"Knight","assignment":[4,3]},
+          {"type":"Knight","assignment":[3,2]},
+          {"type":"Knight","assignment":[6,3]},
+          {"type":"Scout","assignment":[7,2]}
+        ],
+        "tags": [
+          { "type":"name", "name":"Stiv Defense Variation #1", "keywords":[ "Stiv", "Stiv Defense", "Stiv Defense Variation" ] }
         ]
       }]
     }
