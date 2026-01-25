@@ -944,7 +944,9 @@ export default class GameService extends Service {
     return gameData;
   }
   async onGetGameTeamSetRequest(client, gameTypeId, gameId, teamId) {
-    return this.data.getGameTeamSet(gameTypeId, gameId, teamId);
+    const clientPara = this.clientPara.get(client.id);
+
+    return this.data.getGameTeamSet(gameTypeId, gameId, teamId, clientPara.player);
   }
   async onGetTurnDataRequest(client, gameId, ...args) {
     this.throttle(client.address, 'getTurnData', 300, 300);

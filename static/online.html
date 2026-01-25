@@ -736,7 +736,6 @@
       display: none;
     }
     .game-list .game .team.linkable .name,
-    .game-list .game .team .set,
     .game-list .game .invite,
     .game-list .game A {
       cursor: pointer;
@@ -750,15 +749,13 @@
     }
     .game-list .game .team .set {
       font-style: italic;
+      color: #b08d57;
     }
     .game-list .game .team.linkable .name,
-    .game-list .game .team .set,
     .game-list .game .invite {
       color: #00FFFF;
-      text-decoration: underline;
     }
     .game-list .game .team.linkable .name:hover,
-    .game-list .game .team .set:hover,
     .game-list .game .invite:hover {
       color: #CCFFFF;
     }
@@ -777,9 +774,9 @@
     .game-list .game .vs .result SPAN {
       display: block;
       position: absolute;
+      top: 50%;
       left: 50%;
-      bottom: 4px;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
     }
     .game-list .game .info {
       display: flex;
@@ -808,9 +805,9 @@
     .game-list:not(.show-results) .game .vs .result::before {
       display: block;
       position: absolute;
+      top: 50%;
       left: 50%;
-      bottom: 4px;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
       content: 'VS';
     }
 

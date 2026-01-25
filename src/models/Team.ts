@@ -366,6 +366,10 @@ export default class Team extends ActiveModel {
     this.emit('change:lastActiveAt');
   }
 
+  loadSet(set:Team['data']['set']) {
+    this.data.set = set;
+  }
+
   /*
    * Determine if a team has checked in since a given dateStart.
    * Optionally, we can set a cut-off dateEnd instead of current date.

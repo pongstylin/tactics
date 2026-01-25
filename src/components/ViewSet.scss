@@ -2,6 +2,10 @@
   position: relative;
   overflow: visible;
 
+  .player:empty {
+    display: none;
+  }
+
   .header {
     display: flex;
     flex-direction: row;

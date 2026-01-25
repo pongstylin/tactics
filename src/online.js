@@ -398,15 +398,19 @@ whenDOMReady.then(() => {
     const divTeam = event.target.closest('.team');
     if (divTeam) {
       if (event.target.classList.contains('name')) {
-        const playerId = divTeam.dataset.playerId;
-        location.hash = `#rankings/${playerId}/FORTE`;
-      } else if (event.target.classList.contains('set')) {
-        const teamId = parseInt(divTeam.dataset.id);
+        const teamInfo = gameCard.teamInfo.get(divTeam);
+        if (!teamInfo.team.set) {
+          location.hash = `#rankings/${teamInfo.team.playerId}/FORTE`;
+          return;
+        }
+        const teamId = teamInfo.team.id;
+        const vsTeam = teamInfo.game.teams[(teamId + 1) % 2];
+
         const [ teamSet, vsTeamSet ] = await Promise.all([
           gameClient.getGameTeamSet(divGame.dataset.type, gameId, teamId),
-          gameClient.getGameTeamSet(divGame.dataset.type, gameId, (teamId + 1) % 2),
+          vsTeam.set ? gameClient.getGameTeamSet(divGame.dataset.type, gameId, vsTeam.id) : null,
         ]);
-        state.viewSetModal.show(divGame.dataset.type, teamSet, vsTeamSet);
+        state.viewSetModal.show(divGame.dataset.type, teamSet, vsTeamSet, teamInfo);
       }
       return;
     }

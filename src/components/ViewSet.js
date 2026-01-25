@@ -7,6 +7,7 @@ import emitter from 'utils/emitter.js';
 
 const share = navigator.share ? 'share' : 'copy';
 const template = `
+  <DIV class="player"></DIV>
   <DIV class="header">
     <DIV class="left">
       <SELECT name="slot"></SELECT>
@@ -43,6 +44,7 @@ export default class ViewSet {
       players: null,
       set: null,
       vsSet: null,
+      teamInfo: null,
 
       _setBuilder: null,
       _configureGame: null,
@@ -50,6 +52,7 @@ export default class ViewSet {
 
     this.el = this.render();
     this.els = {
+      player: this.el.querySelector('.player'),
       saveSlot: this.el.querySelector('.header SELECT[name=slot]'),
       saveButton: this.el.querySelector('.header BUTTON[name=save]'),
       playButton: this.el.querySelector('.header BUTTON[name=play]'),
@@ -94,7 +97,7 @@ export default class ViewSet {
     );
   }
 
-  async setGameType(inGameType, set, vsSet = null) {
+  async setGameType(inGameType, set, vsSet = null, teamInfo = null) {
     const [ gameType, playerSets, players ] = await Promise.all([
       typeof inGameType === 'string' ? Tactics.gameClient.getGameType(inGameType).then(gt => Tactics.load(gt.getUnitTypes()).then(() => gt)) : inGameType,
       Tactics.gameClient.getPlayerSets(typeof inGameType === 'string' ? inGameType : inGameType.id),
@@ -106,7 +109,9 @@ export default class ViewSet {
     this.players = players;
     this.set = set;
     this.vsSet = vsSet;
+    this.teamInfo = teamInfo;
 
+    this.renderPlayer();
     this.renderPlayerSets();
 
     this._setBuilder ??= await Tactics.setBuilder;
@@ -126,6 +131,21 @@ export default class ViewSet {
     divView.innerHTML = options.content;
 
     return divView;
+  }
+  renderPlayer() {
+    this.els.player.innerHTML = '';
+    if (!this.teamInfo || !this.teamInfo.ranks) return;
+
+    this.els.player.append(`Want to view the rankings for `);
+
+    const team = this.teamInfo.team;
+    const playerLink = document.createElement('A');
+    playerLink.href = `#rankings/${team.playerId}/FORTE`;
+    playerLink.addEventListener('click', () => this._emit('link'));
+    playerLink.textContent = team.name;
+    this.els.player.appendChild(playerLink);
+
+    this.els.player.append(`?`);
   }
   renderPlayerSets() {
     for (const [ slot, slotName ] of gameConfig.setsBySlot) {

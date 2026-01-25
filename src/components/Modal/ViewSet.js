@@ -15,12 +15,14 @@ export default class ViewSetWrapper extends Modal {
     this.root.classList.add('viewSet');
   }
 
-  async show(gameTypeId, set, vsSet) {
+  async show(gameTypeId, set, vsSet, teamInfo) {
+    const setName = teamInfo?.game.meta.setNames[teamInfo.team.id] ?? set.name;
+
     setParam('viewSet', await JSON.compress({ gameTypeId, set }));
 
     this._spinner.fadeIn();
-    this._viewSet.setGameType(gameTypeId, set, vsSet).then(ss => {
-      this.title = `Viewing ${ss.gameType.name} Set <SPAN class="setName">'${set.name}'</SPAN>`;
+    this._viewSet.setGameType(gameTypeId, set, vsSet, teamInfo).then(ss => {
+      this.title = `Viewing ${ss.gameType.name} Set <SPAN class="setName">'${setName}'</SPAN>`;
       this._spinner.hide();
       this._viewSet.el.classList.add('show');
     });
