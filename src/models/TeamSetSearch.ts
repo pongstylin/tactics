@@ -196,7 +196,9 @@ export default class TeamSetSearch {
         if (!this._teamSets!.concat(page.teamSets).some(ts => ts.id === set.id)) {
           const teamSet = TeamSet.create({ units:set.units, [this._metricName]:defaultStats[this._metricName] }, set.id);
           teamSet.cardinality = this._cardinality;
-          page.teamSets.push(teamSet);
+          const teamSetFilters = this._getTeamSetFilters(teamSet);
+          if (teamSetFilters.has(this._index.path))
+            page.teamSets.push(teamSet);
         }
 
     this._completed = page.completed;
