@@ -922,7 +922,7 @@ function onResumeMessage(client, message) {
   if (client.session)
     throw new ServerError(401, 'Not authorized');
 
-  let session = sessions.get(message.body.sessionId);
+  const session = sessions.get(message.body.sessionId);
   if (!session)
     throw new ServerError(401, 'Not authorized');
 

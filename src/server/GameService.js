@@ -2145,7 +2145,7 @@ export default class GameService extends Service {
   async _resolveTeamSet(game, team) {
     const gameType = game.state.gameType;
     if (team.setVia === 'top') {
-      const playerSet = await this.data.getDefaultSet(gameType);
+      const playerSet = await this.data.getDefaultSet(gameType.id);
       team.set = this.data.getTeamSet(playerSet, gameType);
     } else if (team.setVia === 'same') {
       const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt - b.joinedAt)[0];
