@@ -2164,7 +2164,7 @@ export default class GameService extends Service {
     }
 
     try {
-      this.data.gameType.validateSet(team.set);
+      gameType.validateSet(team.set);
     } catch (e) {
       throw new ServerError(403, `This set cannot be used in the ${gameType.name} style.`);
     }
