@@ -50,6 +50,7 @@ export default class TeamSetGameSearch implements Iterable<GameSummary> {
   }
 
   sortInIfIncluded(gameSummary:GameSummary) {
+    if (gameSummary.type !== this.gameType.id) return;
     if (!gameSummary.rating) return;
     if (!this.includes(gameSummary)) return;
     if (this._gamesSummary.someSorted(gs => gameSummary.rating! - gs.rating || gameSummary.id.localeCompare(gs.id))) return;

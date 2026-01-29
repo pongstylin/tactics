@@ -2162,6 +2162,12 @@ export default class GameService extends Service {
         throw new ServerError(412, 'Sorry!  Looks like the set no longer exists.');
       team.set = this.data.getTeamSet(playerSet, gameType);
     }
+
+    try {
+      this.data.gameType.validateSet(team.set);
+    } catch (e) {
+      throw new ServerError(403, `This set cannot be used in the ${gameType.name} style.`);
+    }
   }
   async _joinGame(game, team) {
     if (team.setVia && team.setVia !== 'temp')
