@@ -194,7 +194,7 @@ export default class GameSummary {
     // Do not reveal your opponent's set until you have played a turn in the game (or it ends).
     if (!this.startedAt || (!this.endedAt && this.data.currentTurnId < 4))
       for (const team of data.teams)
-        if (team && team.set && team.playerId !== player?.id)
+        if (team && team.set && (team.playerId !== player?.id || team.setVia === 'top'))
           delete team.set;
 
     return new GameSummary({ ...data, meta });
