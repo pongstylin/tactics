@@ -6,10 +6,10 @@ import Timeout from '#server/Timeout.js';
 const ticker = setInterval(Timeout.tick, 5000);
 const dryRun = false;
 const gameAdapter = await new GameAdapter({ hasState:false, readonly:dryRun }).bootstrap();
-const stats = { total:0, deleted:0 };
 
 for (const gameType of gameAdapter.getGameTypesById().values()) {
   for (const metricName of [ 'rating', 'gameCount', 'playerCount' ]) {
+    const stats = { total:0, deleted:0 };
     const query = {
       attributes: [ 'SK', 'PD' ],
       filters: {
@@ -29,13 +29,32 @@ for (const gameType of gameAdapter.getGameTypesById().values()) {
       for (const item of result.items) {
         const oldTeamSetId = item.SK.slice(8, 35);
         const newTeamSetId = TeamSet.createId(item.PD);
+        const isValid = (() => {
+          try {
+            gameType.validateSet(item.PD);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        })();
 
-        if (oldTeamSetId === newTeamSetId) continue;
+        if (oldTeamSetId === newTeamSetId && isValid) continue;
 
         gameAdapter.deleteItem({
           PK: `teamSetIndex#${gameType.id}/${metricName}`,
           SK: item.SK,
         });
+        // Avoid deleting the same items multiple times
+        if (metricName === 'rating') {
+          gameAdapter.deleteItem({
+            PK: `teamSet#${oldTeamSetId}`,
+            SK: `/stats/${gameType.id}`,
+          });
+          gameAdapter.deleteItems({ filters:{
+            PK: `teamSet#${oldTeamSetId}`,
+            SK: { beginsWith:`/stats/${gameType.id}/` },
+          } });
+        }
         stats.deleted++;
       }
       await gameAdapter.flush();

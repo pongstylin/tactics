@@ -1470,32 +1470,12 @@ export default class extends DynamoDBAdapter {
       const indexPaths = teamSet.indexPaths;
 
       for (const metricName of [ 'rating', 'gameCount', 'playerCount' ]) {
-        // Delete indexes
-        const query = {
-          attributes: [ 'SK' ],
-          filters: {
-            PK: `teamSetIndex#${gameTypeId}/${metricName}`,
-            SK: { beginsWith:rootPath+'/' },
-          },
-          limit: true,
-        };
+        await this.deleteItems({ filters:{
+          PK: `teamSetIndex#${gameTypeId}/${metricName}`,
+          SK: { beginsWith:rootPath+'/' },
+        }}, i => !indexPaths.has(i.SK.slice(rootPath.length)));
 
-        do {
-          const rsp = await this.query(query);
-          await Promise.all(rsp.items.filter(i => {
-            const path = i.SK.slice(rootPath.length);
-            return !indexPaths.has(path);
-          }).map(i => this.deleteItem({
-            PK: `teamSetIndex#${gameTypeId}/${metricName}`,
-            SK: i.SK,
-          })));
-          query.cursor = rsp.cursor;
-        } while (query.cursor);
-
-        this.buffer.get('teamSetIndex').add(`${teamSet.key}:${metricName}`, {
-          metricName,
-          teamSet,
-        });
+        this.buffer.get('teamSetIndex').add(`${teamSet.key}:${metricName}`, { metricName, teamSet });
       }
     }
   }

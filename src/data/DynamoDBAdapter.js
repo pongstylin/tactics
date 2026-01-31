@@ -260,6 +260,17 @@ export default class DynamoDBAdapter extends FileAdapter {
     const queueKey = 'write:' + keyOfItem(key);
     return this._pushItemQueue({ key:queueKey, method:'_deleteItem', args:[ key ] });
   }
+  deleteItems(query, filterFn = () => true) {
+    query = Object.assign({ attributes:[] }, query, { limit:true });
+    if (!query.attributes.includes('PK') && !query.filters.PK)
+      query.attributes.push('PK');
+    if (!query.attributes.includes('SK'))
+      query.attributes.push('SK');
+
+    // This actually needs to encode the PK key and value, e.g. GPK0
+    const queueKey = 'write:' + query.filters.PK;
+    return this._pushItemQueue({ key:queueKey, method:'_deleteItems', args:[ query, filterFn ]})
+  }
 
   createItemParts(key, obj, parts) {
     if (!parts.has('/'))
@@ -941,7 +952,11 @@ export default class DynamoDBAdapter extends FileAdapter {
       ReturnConsumedCapacity: 'NONE',
     };
     const needsNormalize = !query.attributes || query.attributes.includes('D') || query.attributes.includes('PD');
-    const canMigrate = !query.attributes || (query.attributes.includes('PK') && query.attributes.includes('SK') && needsNormalize);
+    const canMigrate = !query.attributes || (
+      (query.attributes.includes('PK') || query.filters.PK) &&
+      query.attributes.includes('SK') &&
+      needsNormalize
+    );
 
     const aliasByValue = new Map();
     const conditions = [];
@@ -978,6 +993,8 @@ export default class DynamoDBAdapter extends FileAdapter {
         Limit: typeof query.limit === 'number' ? query.limit - ret.items.length : undefined,
       })));
       ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => {
+        if (!i.PK && query.filters.PK) i.PK = query.filters.PK;
+
         // migration and normalization not (des|requ)ired?
         if (testMode || !needsNormalize) return this._parseItem(i);
         if (canMigrate) return Object.assign(i, { data:await this._migrate(i) });
@@ -990,6 +1007,14 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     return ret;
   }
+  async _deleteItems(query, filterFn) {
+    do {
+      const rsp = await this.query(query);
+      await Promise.all(rsp.items.filter(filterFn).map(i => this.deleteItem({ PK:i.PK, SK:i.SK })));
+      query.cursor = rsp.cursor;
+    } while (query.cursor);
+  }
+
   async *_query(query) {
     const input = {
       TableName: TABLE_NAME,
