@@ -41,6 +41,7 @@ export default class GameSummary {
         name: t.name,
         ratings: t.ratings,
         set: t.set && { id:t.set.id, name:t.set.name },
+        setVia: t.setVia,
       }),
       tags: { ...game.tags },
     };

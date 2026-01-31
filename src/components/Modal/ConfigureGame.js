@@ -258,13 +258,13 @@ export default class ConfigureGame extends Modal {
     return Object.assign({}, this.styleConfigData, this.styleConfigOverrides);
   }
   get confirmBeforeCreate() {
-    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId) && styleConfig.get(this.data.gameTypeId).set !== 'random')
+    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId))
       return true;
 
     return gameConfig.confirmBeforeCreate;
   }
   get confirmBeforeJoin() {
-    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId) && styleConfig.get(this.data.gameTypeId).set !== 'random')
+    if (this.sets.length > 1 && !styleConfig.has(this.data.gameTypeId))
       return true;
 
     return gameConfig.confirmBeforeJoin;
@@ -746,7 +746,7 @@ export default class ConfigureGame extends Modal {
           gameClient.getGameType(gameTypeId),
           gameClient.getPlayerSets(gameTypeId),
         ]);
-        if (config.set !== 'default' && config.set !== 'random' && !sets.some(s => s.slot === config.set))
+        if (![ 'default', 'random', 'top' ].includes(config.set) && !sets.some(s => s.slot === config.set))
           config.set = 'default';
 
         cache.set(gameTypeId, { gameType, sets, config });
@@ -916,7 +916,7 @@ export default class ConfigureGame extends Modal {
     if (sets.length === 1 && config.set === 'random')
       config.set = sets[0].slot;
 
-    if (config.set === 'random')
+    if ([ 'random', 'top' ].includes(config.set))
       aChangeLink.style.display = 'none';
     else {
       aChangeLink.style.display = '';
@@ -990,7 +990,6 @@ export default class ConfigureGame extends Modal {
     return this._toggleFields();
   }
   _compileStyleConfig(silent = false) {
-    const { divSearch } = this._els;
     const gameTypeId = this.root.querySelector('SELECT[name=type]').value;
     const collection = this.root.querySelector('INPUT[name=collection]:checked').value;
     const vs = this.root.querySelector('INPUT[name=vs]:checked').value;
