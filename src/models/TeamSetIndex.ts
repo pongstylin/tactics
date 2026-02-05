@@ -52,8 +52,11 @@ export default class TeamSetIndex implements Iterable<TeamSet> {
 
     const sortValue = teamSet[this._metricName];
     const newIndex = this._teamSets.findSortIndex(ts => sortValue - ts[this._metricName]);
-    if (newIndex < this._teamSets.length || this._teamSets.length < 1000)
+    const doInsert = newIndex < this._teamSets.length || this._teamSets.length < 1000;
+    if (doInsert)
       this._teamSets.splice(newIndex, 0, teamSet);
+
+    return doInsert && oldIndex !== newIndex;
   }
 
   append(teamSets:TeamSet[], cursor?:object) {

@@ -162,6 +162,9 @@ export default class TeamSet extends ActiveModel {
   get gameType() {
     return this.cardinality.gameType;
   }
+  get gameTypeId() {
+    return this.cardinality.gameType.id;
+  }
   get config() {
     return this.cardinality.gameType.config.sets.find(s => s.id === this._id);
   }

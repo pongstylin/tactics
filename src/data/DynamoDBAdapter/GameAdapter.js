@@ -1503,15 +1503,18 @@ export default class extends DynamoDBAdapter {
     for (const indexPath of teamSet.indexPaths)
       indexPaths.add(teamSet.cardinality.selectIndex([ indexPath ]).path);
 
-    for (const teamSetIndex of this.cache.get('teamSetIndex').values())
-      if (indexPaths.has(teamSetIndex.path)) {
-        // Update cached indexes
-        teamSetIndex.sortIn(teamSet);
-        // Invalidate related searches
-        for (const teamSetSearch of this.cache.get('teamSetSearch').values())
-          if (teamSetIndex.teamSetSearches.has(teamSetSearch))
-            this.cache.get('teamSetSearch').delete(teamSetSearch.id);
-      }
+    // Update cached indexes
+    for (const teamSetIndex of this.cache.get('teamSetIndex').values()) {
+      if (teamSetIndex.gameTypeId !== teamSet.gameTypeId) continue;
+      if (teamSetIndex.metricName !== metricName) continue;
+      if (!indexPaths.has(teamSetIndex.path)) continue;
+      if (!teamSetIndex.sortIn(teamSet)) continue;
+
+      // Invalidate related searches
+      for (const teamSetSearch of this.cache.get('teamSetSearch').values())
+        if (teamSetIndex.teamSetSearches.has(teamSetSearch))
+          this.cache.get('teamSetSearch').delete(teamSetSearch.id);
+    }
   }
 
   /*
