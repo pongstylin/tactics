@@ -1,4 +1,4 @@
-import sleep from 'utils/sleep.js';
+import sleep from '#utils/sleep.js';
 
 /*
  * The primary purpose of extending and replacing native promises is so that we
@@ -9,7 +9,7 @@ import sleep from 'utils/sleep.js';
  *
  * This is only used on the client side.
  */
-if (!self.Promise.isEnhanced) {
+if (typeof window !== 'undefined' && !self.Promise.isEnhanced) {
   const NativePromise = self.Promise;
   const nativeFetch = self.fetch;
 
@@ -39,6 +39,13 @@ if (!self.Promise.isEnhanced) {
       return this;
     }
 
+    static isThenable(value) {
+      return (
+        !!value &&
+        (typeof value === 'object' || typeof value === 'function') &&
+        typeof value.then === 'function'
+      );
+    }
     static wrap(nativePromise, tags) {
       return new EnhancedPromise(
         (resolve, reject) => nativePromise.then(resolve, reject),
@@ -121,4 +128,10 @@ if (!self.Promise.isEnhanced) {
   self.Promise = EnhancedPromise;
   self.nativeFetch = nativeFetch;
   self.fetch = enhancedFetch;
+} else {
+  Object.defineProperty(Promise, 'isThenable', {
+    value: function (value) {
+      return !!value && (typeof value === 'object' || typeof value === 'function') && typeof value.then === 'function';
+    },
+  });
 }

@@ -10,7 +10,6 @@ for (const fnName of Object.keys(orig))
 
 import 'plugins/index.js';
 import 'plugins/element.js';
-import 'plugins/promise.js';
 
 import 'utils/event.js';
 

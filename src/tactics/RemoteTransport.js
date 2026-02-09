@@ -267,8 +267,9 @@ export default class RemoteTransport extends Transport {
                 team.checkoutAt = new Date();
         }
       })
-      .on('playerRequest', ({ data:request }) => {
-        this._data.playerRequest = request;
+      .on('playerRequest', event => {
+        if (event.type !== 'playerRequest') return;
+        this._data.playerRequest = event.data;
         this._data.playerRequest.turnId = this.currentTurnId;
       })
       .on('playerRequest:accept', ({ data }) => {

@@ -97,44 +97,10 @@ export default class extends FileAdapter {
     return gameTypes.get(gameTypeId);
   }
 
-  /*
-   * This opens the player's game and set list.
-   */
-  async openPlayer(player) {
-    const playerStats = await this._getPlayerStats(player.id);
-    this.cache.get('playerStats').open(player.id, playerStats);
-
-    const playerGames = await this._getPlayerGames(player.id);
-    this.cache.get('playerGames').open(player.id, playerGames);
-
-    const playerSets = await this._getPlayerSets(player.id);
-    this.cache.get('playerSets').open(player.id, playerSets);
-
-    const playerAvatars = await this._getPlayerAvatars(player.id);
-    this.cache.get('playerAvatars').open(player.id, playerAvatars);
-  }
-  closePlayer(player) {
-    this.cache.get('playerStats').close(player.id);
-    this.cache.get('playerGames').close(player.id);
-    this.cache.get('playerSets').close(player.id);
-    this.cache.get('playerAvatars').close(player.id);
+  async getPlayerGames(playerId) {
+    return this._getPlayerGames(playerId);
   }
 
-  async openPlayerGames(playerId) {
-    const playerGames = await this._getPlayerGames(playerId);
-    return this.cache.get('playerGames').open(playerId, playerGames);
-  }
-  closePlayerGames(playerId) {
-    return this.cache.get('playerGames').close(playerId);
-  }
-
-  async openGameCollection(collectionId) {
-    const collection = await this._getGameCollection(collectionId);
-    return this.cache.get('collection').open(collectionId, collection);
-  }
-  closeGameCollection(collectionId) {
-    return this.cache.get('collection').close(collectionId);
-  }
   async getGameCollection(collectionId) {
     const collection = await this._getGameCollection(collectionId);
     return this.cache.get('collection').add(collectionId, collection);
@@ -163,16 +129,6 @@ export default class extends FileAdapter {
     await this._createGame(game);
     this.cache.get('game').add(game.id, game);
   }
-  async openGame(gameId) {
-    const game = await this._getGame(gameId);
-    return this.cache.get('game').open(gameId, game);
-  }
-  getOpenGames() {
-    return this.cache.get('game').openedValues();
-  }
-  closeGame(gameId) {
-    return this.cache.get('game').close(gameId);
-  }
   async getGames(gameIds) {
     const games = await Promise.all([ ...gameIds ].map(gId => this._getGame(gId)));
     games.forEach(g => this.cache.get('game').add(g.id, g));
@@ -181,9 +137,6 @@ export default class extends FileAdapter {
   async getGame(gameId) {
     const game = await this._getGame(gameId);
     return this.cache.get('game').add(gameId, game);
-  }
-  getOpenGame(gameId) {
-    return this.cache.get('game').getOpen(gameId);
   }
   async deleteGame(game) {
     if (this._dirtyGames.has(game.id))
@@ -272,7 +225,7 @@ export default class extends FileAdapter {
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
   }
   async getPlayerPendingGamesInCollection(playerId, collection) {
-    const gamesSummary = await this._getPlayerGames(playerId, true);
+    const gamesSummary = await this._getPlayerGames(playerId);
     const results = [];
 
     for (const gameSummary of gamesSummary.values()) {
@@ -309,7 +262,7 @@ export default class extends FileAdapter {
   }
 
   async listMyTurnGamesSummary(myPlayerId) {
-    const games = await this._getPlayerGames(myPlayerId, true);
+    const games = await this._getPlayerGames(myPlayerId);
 
     const myTurnGames = [];
     for (const game of games.values()) {
@@ -650,8 +603,8 @@ export default class extends FileAdapter {
   /*
    * Player Games Management
    */
-  async _getPlayerGames(playerId, consistent = false) {
-    if (consistent)
+  async _getPlayerGames(playerId) {
+    if (true)
       await Promise.all(Array.from(this._dirtyGames.values()));
 
     if (this.cache.get('playerGames').has(playerId))

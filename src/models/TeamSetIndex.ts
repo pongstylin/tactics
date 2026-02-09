@@ -1,35 +1,48 @@
+import ActiveModel from '#models/ActiveModel.js';
 import TeamSet from '#models/TeamSet.js';
 import type TeamSetCardinality from '#models/TeamSetCardinality.js';
 import type TeamSetSearch from '#models/TeamSetSearch.js';
+import Cache from '#utils/Cache.js';
 
-export default class TeamSetIndex implements Iterable<TeamSet> {
+export default class TeamSetIndex extends ActiveModel implements Iterable<TeamSet> {
+  protected static _cache: Cache<string, TeamSetIndex>
+
   public cardinality:TeamSetCardinality;
   public teamSetSearches:WeakSet<TeamSetSearch>;
-  private _metricName:string;
-  private _indexPath:string;
-  private _cursor?:object;
+  private _cursor:object | undefined;
   private _complete:boolean = false;
   private _teamSets:TeamSet[];
 
-  constructor(metricName:string, indexPath:string) {
+  protected data: {
+    metricName: 'rating' | 'gameCount' | 'playerCount';
+    indexPath: string;
+  };
+
+  constructor(metricName:TeamSetIndex['metricName'], indexPath:string) {
+    super();
+
     this.teamSetSearches = new WeakSet();
-    this._metricName = metricName;
-    this._indexPath = indexPath;
     this._cursor = undefined;
     this._teamSets = [];
+
+    this.data = { metricName, indexPath };
+  }
+
+  static get cache() {
+    return this._cache ??= new Cache();
   }
 
   get id() {
-    return `${this.cardinality.gameType.id}/${this._metricName}${this._indexPath}`;
+    return `${this.cardinality.gameType.id}/${this.metricName}${this.path}`;
   }
   get gameTypeId() {
     return this.cardinality.gameType.id;
   }
   get metricName() {
-    return this._metricName;
+    return this.data.metricName;
   }
   get path() {
-    return this._indexPath;
+    return this.data.indexPath;
   }
   get cursor() {
     return this._cursor;
@@ -50,8 +63,8 @@ export default class TeamSetIndex implements Iterable<TeamSet> {
     if (oldIndex > -1)
       this._teamSets.splice(oldIndex, 1);
 
-    const sortValue = teamSet[this._metricName];
-    const newIndex = this._teamSets.findSortIndex(ts => sortValue - ts[this._metricName]);
+    const sortValue = teamSet[this.metricName];
+    const newIndex = this._teamSets.findSortIndex(ts => sortValue - ts[this.metricName]);
     const doInsert = newIndex < this._teamSets.length || this._teamSets.length < 1000;
     if (doInsert)
       this._teamSets.splice(newIndex, 0, teamSet);

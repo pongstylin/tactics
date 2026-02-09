@@ -25,7 +25,7 @@ export default class PlayerInfo extends Modal {
     const target = event.target;
 
     if (target.tagName === 'A' && target.classList.contains('view-set'))
-      return this.viewSet();
+      return;
 
     if (target.tagName === 'SPAN' && target.id === "rating_explanation") {
       popup({
@@ -148,6 +148,10 @@ export default class PlayerInfo extends Modal {
         return 'Random Top 100';
       case 'random':
         return 'Random Saved';
+      case 'same':
+        return 'Same';
+      case 'mirror':
+        return 'Mirror';
       default:
         return 'Picked Saved';
     }
@@ -287,17 +291,20 @@ export default class PlayerInfo extends Modal {
       `</DIV>`,
 
       // Set details section
-      `<BR>`,
-      `<DIV>`,
-        `<B>Set Details</B>`,
-        `<HR>`,
-        `<DIV class="set-details">`,
-          `<DIV>View Set Details:</DIV>`,
-          `<DIV><A href="${await this.getViewSetURL()}" class="view-set">${info.set.name}</A></DIV>`,
-          `<DIV>Selection Method:</DIV>`,
-          `<DIV>${PlayerInfo.getSetViaName(info.set.via)}</DIV>`,
+      ...(!info.set ? [] : [
+        `<BR>`,
+        `<DIV>`,
+          `<B>Set Details</B>`,
+          `<HR>`,
+          `<DIV class="set-details">`,
+            `<DIV>View Set Details:</DIV>`,
+            `<DIV><A href="${await this.getViewSetURL()}" class="view-set">${info.set.name}</A></DIV>`,
+            `<DIV>Selection Method:</DIV>`,
+            `<DIV>${PlayerInfo.getSetViaName(info.set.via)}</DIV>`,
+            info.set.randomSide ? '<DIV>Random Side</DIV>' : '',
+          `</DIV>`,
         `</DIV>`,
-      `</DIV>`,
+      ]),
 
       // Account details section
       `<BR>`,

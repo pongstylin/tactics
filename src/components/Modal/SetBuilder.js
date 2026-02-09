@@ -289,10 +289,10 @@ export default class SetBuilder extends Modal {
   }
 
   get set() {
-    return Object.assign({}, this.data.set, {
-      name: this._name.value,
-      units: TeamSet.cleanUnits(this._board.getState()[0]),
-    });
+    const set = this.data.set;
+    if (set.slot)
+      return { slot:set.slot, name:this._name.value, units:TeamSet.cleanUnits(this._board.getState()[0]) };
+    return { units:TeamSet.cleanUnits(this._board.getState()[0]) };
   }
   set set(set) {
     this.data.set = Object.assign({

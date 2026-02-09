@@ -1,11 +1,25 @@
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import type Player from '#models/Player.js';
 import GameType from '#tactics/GameType.js';
 import { addForteRank } from '#models/PlayerStats.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
 
+type IdentityEvents = AbstractEvents & {
+  'change:name': {},
+  'change:admin': {},
+  'change:muted': {},
+  'change:lastSeenAt': {},
+  'change:setRanks': {},
+  'change:pruneRanks': {},
+  'change:merge': {},
+  'change:deletePlayerId': {},
+  'change:relationship': {},
+};
+
 interface Relationship {
-  type: string | null
-  nickname: string | null
+  type: string
+  nickname: string
   createdAt: Date
 }
 export type Rank = {
@@ -16,11 +30,20 @@ export type Rank = {
   gameCount: number;
 };
 
-export default class Identity extends ActiveModel {
+const defaultData = {
+  name: null,
+  aliases: new Map<string,Date>(),
+  relationships: new Map<string, Relationship>(),
+  ranks: null,
+  muted: false,
+  admin: false,
+};
+
+export default class Identity extends ActiveModel<IdentityEvents> {
   protected data: {
     id: string;
     name: string | null;
-    aliases: Map<string,Date>;
+    aliases: Map<string, Date>;
     ranks: {
       playerId:string;
       ratings:Rank[];
@@ -38,33 +61,27 @@ export default class Identity extends ActiveModel {
     // Used to sync player.identityId when identities are merged.
     playerIds: Set<string>
   }
-  protected gameTypes: Map<string,GameType>
+  protected gameTypes: Map<string, GameType>
 
-  constructor(data) {
+  constructor(data:PickPartial<Identity['data'], keyof typeof defaultData>) {
     super();
 
-    this.data = Object.assign({
-      name: null,
-      aliases: new Map(),
-      relationships: new Map(),
-      ranks: null,
-      muted: false,
-      admin: false,
-    }, data);
+    this.data = Object.assign({}, defaultData, data);
 
     if (data.ranks)
       data.ranks.ratings = addForteRank(data.ranks.ratings.map(r => ({
         rankingId: r.rankingId,
-        playerId: data.ranks.playerId,
-        name: this.name,
+        playerId: data.ranks!.playerId,
+        name: this.name!,
         rating: r.rating,
         gameCount: r.gameCount,
       })));
   }
 
-  static create(player) {
+  static create(player:Player) {
     return new Identity({
       id: player.id,
+      name: player.verified ? player.name : null,
       lastSeenAt: player.lastSeenAt,
       playerIds: new Set([ player.id ]),
     });
@@ -159,7 +176,7 @@ export default class Identity extends ActiveModel {
   get playerId() {
     if (this.data.ranks)
       return this.data.ranks.playerId;
-    return (Array.from(this.data.playerIds) as any).last;
+    return Array.from(this.data.playerIds).last;
   }
   get ratedPlayerId() {
     // Only verified players are rated
@@ -169,7 +186,7 @@ export default class Identity extends ActiveModel {
     if (this.data.ranks)
       return this.data.ranks.playerId;
 
-    return (Array.from(this.data.playerIds) as any).last;
+    return Array.from(this.data.playerIds).last;
   }
 
   getRanks(rankingIds:string[] = []) {
@@ -244,7 +261,7 @@ export default class Identity extends ActiveModel {
     this.emit('change:merge');
   }
 
-  deletePlayerId(playerId) {
+  deletePlayerId(playerId:string) {
     if (!this.data.playerIds.has(playerId))
       return false;
 
@@ -257,19 +274,17 @@ export default class Identity extends ActiveModel {
   /*
    * Relationship Management
    */
-  hasRelationship(playerId) {
+  hasRelationship(playerId:string) {
     return this.data.relationships.has(playerId);
   }
-  getRelationship(playerId) {
+  getRelationship(playerId:string) {
     return this.data.relationships.get(playerId);
   }
-  setRelationship(playerId, relationship) {
-    relationship.createdAt ??= new Date();
-
-    this.data.relationships.set(playerId, relationship);
+  setRelationship(playerId:string, relationship:Omit<Relationship, 'createdAt'>) {
+    this.data.relationships.set(playerId, Object.assign({ createdAt:new Date() }, relationship));
     this.emit('change:relationship');
   }
-  deleteRelationship(playerId) {
+  deleteRelationship(playerId:string) {
     this.data.relationships.delete(playerId);
     this.emit('change:relationship');
   }
@@ -290,7 +305,7 @@ export default class Identity extends ActiveModel {
     if (json.ranks)
       json.ranks = {
         playerId: json.ranks.playerId,
-        ratings: json.ranks.ratings
+        ratings: (json.ranks.ratings as NonNullable<Identity['data']['ranks']>['ratings'])
           .filter(r => r.rankingId !== 'FORTE')
           .map(({ rankingId, rating, gameCount }) => ({ rankingId, rating, gameCount })),
       };

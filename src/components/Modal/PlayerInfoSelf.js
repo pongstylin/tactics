@@ -135,17 +135,19 @@ export default class PlayerInfoSelf extends Modal {
       ]),
 
       // Set details section
-      `<BR>`,
-      `<DIV>`,
-        `<B>Set Details</B>`,
-        `<HR>`,
-        `<DIV class="set-details">`,
-          `<DIV>View Set Details:</DIV>`,
-          `<DIV><A href="${await this.getViewSetURL()}">${info.set.name}</A></DIV>`,
-          `<DIV>Selection Method:</DIV>`,
-          `<DIV>${PlayerInfo.getSetViaName(info.set.via)}</DIV>`,
+      ...(!info.set ? [] : [
+        `<BR>`,
+        `<DIV>`,
+          `<B>Set Details</B>`,
+          `<HR>`,
+          `<DIV class="set-details">`,
+            `<DIV>View Set Details:</DIV>`,
+            `<DIV><A href="${await this.getViewSetURL()}">${info.set.name}</A></DIV>`,
+            `<DIV>Selection Method:</DIV>`,
+            `<DIV>${PlayerInfo.getSetViaName(info.set.via)}</DIV>`,
+          `</DIV>`,
         `</DIV>`,
-      `</DIV>`,
+      ]),
 
       // Account details section
       `<BR>`,
