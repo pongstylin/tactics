@@ -92,7 +92,7 @@ export async function fillArena(divArena, arena = true, disabled = false) {
   if (arena === true)
     return emptyArena(divArena, disabled);
 
-  await fetchAvatars(arena.teams.filter(t => !!t).map(t => t.playerId));
+  await fetchAvatars(arena.teams.filter(t => t?.playerId).map(t => t.playerId));
 
   const oldArena = arenaGameSummary.get(divArena) ?? null;
   if (arena === oldArena)
