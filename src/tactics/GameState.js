@@ -274,7 +274,7 @@ export default class GameState extends TypedEmitter {
   }
   get losingTeams() {
     if (!this.gameType)
-      this.gameType = new GameType({ config:{ sets:[] } });
+      this.gameType = new GameType({ config:{} });
 
     return this.gameType.getLosingTeams(this.teams);
   }
