@@ -492,7 +492,6 @@ whenDOMReady.then(() => {
   window.addEventListener('resize', () => resize(dynamicStyle.sheet));
   resize(dynamicStyle.sheet);
 
-  console.log('test', authClient.isAuthorized);
   authClient
     .on('login', () => showTabs())
     .on('name-change', () => setMyName())
@@ -559,7 +558,6 @@ whenDOMReady.then(() => {
 });
 
 async function showTabs() {
-  console.log('showTabs', document.querySelector('.tabs').style.display !== '');
   if (document.querySelector('.tabs').style.display === '')
     return;
 
