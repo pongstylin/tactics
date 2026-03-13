@@ -1,3 +1,4 @@
+// @ts-ignore
 import serializer from '#utils/serializer.js';
 
 export default class Version {
@@ -6,7 +7,7 @@ export default class Version {
   revision: number
   protected data: string
 
-  constructor(data) {
+  constructor(data:string) {
     const parts = data.split('.').map(n => parseInt(n));
 
     this.major = parts[0];
@@ -22,7 +23,7 @@ export default class Version {
    * version or a compatible version.  Different versions are only compatible if
    * they share the same major and minor version.
    */
-  isCompatibleWith(version) {
+  isCompatibleWith(version:null | string | Version) {
     if (version === null)
       return false;
     if (typeof version === 'string')

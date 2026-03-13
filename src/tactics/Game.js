@@ -426,9 +426,7 @@ export default class Game {
     return myTeams.length === this.state.teams.length;
   }
   get isViewOnly() {
-    const myTeams = this.state.teams.filter(t => this.isMyTeam(t));
-
-    return myTeams.length === 0;
+    return !this.state.teams.some(t => this.isMyTeam(t));
   }
   get isMyTurn() {
     return !this.state.endedAt && this.isMyTeam(this.currentTeam);

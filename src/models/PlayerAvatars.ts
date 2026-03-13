@@ -1,26 +1,40 @@
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import type Player from '#models/Player.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
 import unitData from '#tactics/unitData.js';
+// @ts-ignore
 import { colorFilterMap } from '#tactics/colorMap.js';
+// @ts-ignore
 import ServerError from '#server/Error.js';
+import Cache from '#utils/Cache.js';
 
-export default class PlayerAvatars extends ActiveModel {
+type PlayerAvatarsEvents = AbstractEvents & {
+  'change:avatar': {},
+  'change:grant': {},
+};
+
+export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
+  protected static _cache: Cache<string, Player>
+
   protected data: {
     playerId: string
     unitType: string
     colorId: string
     avatars: string[]
     createdAt: Date
-    updatedAt: Date
+    updatedAt: Date | null
   }
   public player: Player | null = null;
 
-  constructor(data) {
+  constructor(data:PlayerAvatars['data']) {
     super();
     this.data = data;
   }
 
+  static get cache() {
+    return this._cache ??= new Cache();
+  }
   static create(playerId:string) {
     const unitTypes = Array.from(unitData).filter(([k,d]) => d.tier === 1).map(([k,d]) => k);
     const colorIds:any = [ ...colorFilterMap.keys() ];

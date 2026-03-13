@@ -7,7 +7,9 @@
  */
 import ActiveModel from '#models/ActiveModel.js';
 import type TeamSet from '#models/TeamSet.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+import Cache from '#utils/Cache.js';
 
 type TeamSetStatsData = {
   rating: number;
@@ -26,6 +28,8 @@ export const defaultStats = {
 };
 
 export default class TeamSetStats extends ActiveModel {
+  protected static _cache: Cache<string, TeamSetStats>;
+
   // Keep track of players that have used this teamSet.
   // A Date value is the date the player first used this teamSet.
   // A null value means they have not previously used this teamSet.
@@ -44,6 +48,9 @@ export default class TeamSetStats extends ActiveModel {
     });
   }
 
+  static get cache() {
+    return this._cache ??= new Cache();
+  }
   static create() {
     return new TeamSetStats({}, { isClean:false, isPersisted:false });
   }

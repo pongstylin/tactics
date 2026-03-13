@@ -1,14 +1,26 @@
+// @ts-ignore
 import objectHash from 'object-hash';
 
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import type Game from '#models/Game.js';
 import type Team from '#models/Team.js';
 import type TeamSetCardinality from '#models/TeamSetCardinality.js';
 import type TeamSetStats from '#models/TeamSetStats.js';
 import type GameType from '#tactics/GameType.js';
 import unitDataMap, { unitTypeByCode } from '#tactics/unitData.js';
+// @ts-ignore
 import { computeElo } from '#utils/elo.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+
+type TeamSetEvents = AbstractEvents & {
+  'stats:change:rating': {},
+  'stats:change:gameCount': {},
+  'stats:change:playerCount': {},
+  'stats:change:updatedAt': {},
+  'stats:change:createdBy': {},
+  'stats:playerIds:change': { data:{ playerId:string, playerStats:any } },
+};
 
 export type TeamSetUnit = {
   type: string;
@@ -23,8 +35,8 @@ export type TeamSetData = {
   playerCount?: number;
 };
 
-export default class TeamSet extends ActiveModel {
-  private _id: string;
+export default class TeamSet extends ActiveModel<TeamSetEvents> {
+  private _id: string | null;
   private _name: ReturnType<TeamSet['_generateName']> | null = null;
   private _tags: ReturnType<GameType['getTeamSetTags']> | null = null;
   private _indexPaths: Set<ReturnType<TeamSetCardinality['getIndexPaths']>[number]> | null = null;
@@ -34,10 +46,10 @@ export default class TeamSet extends ActiveModel {
 
   protected data: TeamSetData;
 
-  constructor({ id, ...data }:TeamSetData & { id:string }, props?:ConstructorParameters<typeof ActiveModel>[0]) {
+  constructor({ id, ...data }:TeamSetData & { id?:string | null | undefined }, props?:ConstructorParameters<typeof ActiveModel>[0]) {
     super(props);
 
-    this._id = id;
+    this._id = id ?? null;
     this.data = data;
   }
 
@@ -49,7 +61,7 @@ export default class TeamSet extends ActiveModel {
        * The client may dictate unit type, assignment, and sometimes direction.
        * Other state properties will be computed by the server.
        */
-      for (const propName of Object.keys(unitState)) {
+      for (const propName of Object.keys(unitState) as (keyof typeof unitState)[]) {
         if (propName === 'type' || propName === 'assignment')
           continue;
         else if (propName === 'direction' && unitState[propName] !== 'S' && unitData.directional !== false)
@@ -95,13 +107,13 @@ export default class TeamSet extends ActiveModel {
 
     return objectHash(teamSetsUnits[0], { encoding:'base64' }).replace(/=+$/, '');
   }
-  static create(teamSetData:TeamSetData, id?:string) {
-    if (!id) {
+  static create(teamSetData:TeamSetData, id?:string | null) {
+    if (id === undefined) {
       teamSetData.units = TeamSet.cleanUnits(teamSetData.units.clone());
       id = TeamSet.createId(teamSetData, false);
     }
 
-    return new TeamSet({ id:id!, ...teamSetData }, { isClean:false, isPersisted:false });
+    return new TeamSet({ id, ...teamSetData }, { isClean:false, isPersisted:false });
   }
   /*
    * Update rating, gameCount, and playerCount for all sets in the game.
@@ -124,7 +136,7 @@ export default class TeamSet extends ActiveModel {
       playerId: t.playerId!,
       set: t.set!,
       // This can be null for unrated games
-      rating: t.ratings && t.ratings.get(game.state.type)![0],
+      rating: t.ratings && t.ratings.get(game.state.type!)![0],
     }));
     teamsMeta.sort((a,b) => game.state.winnerId === a.id ? -1 : game.state.winnerId === b.id ? 1 : 0);
 
@@ -211,7 +223,7 @@ export default class TeamSet extends ActiveModel {
     if (!this._stats) throw new Error(`Required stats`);
 
     this._stats.rating = rating;
-    this.emit({ type:'stats:change:rating' });
+    this.emit('stats:change:rating');
   }
   get gameCount() {
     if (this._stats)
@@ -224,7 +236,7 @@ export default class TeamSet extends ActiveModel {
     if (!this._stats) throw new Error(`Required stats`);
 
     this._stats.gameCount = gameCount;
-    this.emit({ type:'stats:change:gameCount' });
+    this.emit('stats:change:gameCount');
   }
   get playerCount() {
     if (this._stats)
@@ -237,7 +249,7 @@ export default class TeamSet extends ActiveModel {
     if (!this._stats) throw new Error(`Required stats`);
 
     this._stats.playerCount = playerCount;
-    this.emit({ type:'stats:change:playerCount' });
+    this.emit('stats:change:playerCount');
   }
   get updatedAt() {
     if (!this._stats) throw new Error(`Required stats`);
@@ -247,7 +259,7 @@ export default class TeamSet extends ActiveModel {
     if (!this._stats) throw new Error(`Required stats`);
 
     this._stats.updatedAt = updatedAt;
-    this.emit({ type:'stats:change:updatedAt' });
+    this.emit('stats:change:updatedAt');
   }
   get createdBy() {
     if (!this._stats) throw new Error(`Required stats`);
@@ -257,13 +269,24 @@ export default class TeamSet extends ActiveModel {
     if (!this._stats) throw new Error(`Required stats`);
 
     this._stats.createdBy = createdBy;
-    this.emit({ type:'stats:change:createdBy' });
+    this.emit('stats:change:createdBy');
   }
   get mostPlayedBy() {
     if (!this._stats) throw new Error(`Required stats`);
     return this._stats.mostPlayedBy;
   }
 
+  flipSide() {
+    for (const unit of this.data.units) {
+      unit.assignment[0] = 10 - unit.assignment[0];
+      if (unit.direction === 'W')
+        unit.direction = 'E';
+      else if (unit.direction === 'E')
+        unit.direction = 'W';
+    }
+
+    return this;
+  }
   addPlayerId(playerId:string, addedAt:Date) {
     if (!this._stats) throw new Error(`Required stats`);
     if (!this._stats.playerIds.has(playerId))
@@ -282,7 +305,7 @@ export default class TeamSet extends ActiveModel {
     playerStats.updatedAt = addedAt;
     playerStats.gameCount++;
 
-    this.emit({ type:'stats:playerIds:change', data:{ playerId, playerStats } });
+    this.emit('stats:playerIds:change', { data:{ playerId, playerStats } });
   }
 
   hasAppliedGame(game:Game) {
@@ -309,9 +332,9 @@ export default class TeamSet extends ActiveModel {
         this.createdBy = playerIds.length === 1 ? playerIds[0] : game.createdBy;
       this.cardinality.applySet(this);
       // Make sure all indexes are saved for a new TeamSet
-      this.emit({ type:'stats:change:rating' });
-      this.emit({ type:'stats:change:gameCount' });
-      this.emit({ type:'stats:change:playerCount' });
+      this.emit('stats:change:rating');
+      this.emit('stats:change:gameCount');
+      this.emit('stats:change:playerCount');
     }
 
     this.updatedAt = game.state.endedAt;
@@ -323,18 +346,15 @@ export default class TeamSet extends ActiveModel {
       units: this.data.units.map(u => {
         const unit = { ...u };
         unit.assignment = [ ...unit.assignment ];
-        if (side === 'mirror') {
-          unit.assignment[0] = 10 - unit.assignment[0];
-          if (unit.direction === 'W')
-            unit.direction = 'E';
-          else if (unit.direction === 'E')
-            unit.direction = 'W';
-        }
         return unit;
       }),
     }, this._id);
     teamSet.cardinality = this.cardinality;
     teamSet.stats = this._stats;
+
+    if (side === 'mirror')
+      return teamSet.flipSide();
+
     return teamSet;
   }
 

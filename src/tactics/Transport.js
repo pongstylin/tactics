@@ -248,7 +248,7 @@ export default class Transport {
     /*
      * Walk backward through turns and actions until we reach the undo limit.
      */
-    for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
+    for (let turnId = this.currentTurnId; turnId >= lockedTurnId; turnId--) {
       const turn = this.getRecentTurn(turnId);
       if (!turn)
         return pointer;

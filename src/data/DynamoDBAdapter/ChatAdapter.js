@@ -1,4 +1,5 @@
 import DynamoDBAdapter from '#data/DynamoDBAdapter.js';
+import Room from '#models/Room.js';
 
 export default class extends DynamoDBAdapter {
   constructor() {
@@ -18,15 +19,7 @@ export default class extends DynamoDBAdapter {
    * Public Interface
    ****************************************************************************/
   async createRoom(room) {
-    await this._createRoom(room);
-    this.cache.get('room').add(room.id, room);
-  }
-  async openRoom(roomId) {
-    const room = await this._getRoom(roomId);
-    return this.cache.get('room').open(roomId, room);
-  }
-  closeRoom(roomId) {
-    return this.cache.get('room').close(roomId);
+    return this._createRoom(room);
   }
   async getRoom(roomId) {
     const room = await this._getRoom(roomId);
@@ -37,25 +30,25 @@ export default class extends DynamoDBAdapter {
    * Private Interface
    ****************************************************************************/
   async _createRoom(room) {
-    if (this.cache.get('room').has(room.id) || this.buffer.get('room').has(room.id))
+    if (Room.cache.has(room.id))
       throw new Error('Room already exists');
 
-    this.buffer.get('room').add(room.id, room);
+    return Room.cache.use(room.id, () => {
+      this.buffer.get('room').add(room.id, room);
+      return room;
+    });
   }
   async _getRoom(roomId) {
-    if (this.cache.get('room').has(roomId))
-      return this.cache.get('room').get(roomId);
-    else if (this.buffer.get('room').has(roomId))
-      return this.buffer.get('room').get(roomId);
+    return Room.cache.use(roomId, async () => {
+      const room = await this.getItem({
+        id: roomId,
+        type: 'room',
+        name: `room_${roomId}`,
+      });
+      room.once('change', () => this.buffer.get('room').add(roomId, room));
 
-    const room = await this.getItem({
-      id: roomId,
-      type: 'room',
-      name: `room_${roomId}`,
+      return room;
     });
-    room.once('change', () => this.buffer.get('room').add(roomId, room));
-
-    return room;
   }
   async _saveRoom(room) {
     room.once('change', () => this.buffer.get('room').add(room.id, room));

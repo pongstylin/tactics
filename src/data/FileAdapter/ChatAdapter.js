@@ -25,13 +25,6 @@ export default class extends FileAdapter {
     await this._createRoom(room);
     this.cache.get('room').add(room.id, room);
   }
-  async openRoom(roomId) {
-    const room = await this._getRoom(roomId);
-    return this.cache.get('room').open(roomId, room);
-  }
-  closeRoom(roomId) {
-    return this.cache.get('room').close(roomId);
-  }
   async getRoom(roomId) {
     const room = await this._getRoom(roomId);
     return this.cache.get('room').add(roomId, room);

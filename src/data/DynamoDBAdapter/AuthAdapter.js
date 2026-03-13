@@ -4,6 +4,7 @@ import '#server/AccessToken.js';
 import Identities from '#models/Identities.js';
 import Identity from '#models/Identity.js';
 import Player from '#models/Player.js';
+import PlayerDevice from '#models/PlayerDevice.js';
 import Provider from '#models/Provider.js';
 
 export default class extends DynamoDBAdapter {
@@ -53,7 +54,6 @@ export default class extends DynamoDBAdapter {
 
     await Promise.all(identities.getIds().map(iId => this._getIdentity(iId).then(identity => {
       identities.addValue(identity);
-      cache.add(identity.id, identity, identity.expireAt);
     }).catch(() => {
       identities.deleteId(iId);
       console.warn(`Warning: Failed to load identity: ${iId}`);
@@ -79,41 +79,10 @@ export default class extends DynamoDBAdapter {
     if (!(player instanceof Player))
       player = await Player.create(player);
 
-    await this._createPlayer(player);
-    this.cache.get('player').add(player.id, player);
-    this.cache.get('identity').add(player.identityId, player.identity);
-    return player;
-  }
-  async openPlayer(playerId) {
-    const playerCache = this.cache.get('player');
-    const player = await this._getPlayer(playerId);
-    playerCache.open(playerId, player);
-    this.cache.get('identity').sync(playerCache, playerId, player.identityId, player.identity);
-    for (const device of player.devices.values())
-      this.cache.get('playerDevice').sync(playerCache, playerId, device.id, device);
-    return player;
-  }
-  closePlayer(playerId) {
-    const playerCache = this.cache.get('player');
-    const player = playerCache.close(playerId);
-    this.cache.get('identity').sync(playerCache, playerId, player.identityId, player.identity, player.identity.expireAt);
-    for (const device of player.devices.values())
-      this.cache.get('playerDevice').sync(playerCache, playerId, device.id, device);
-    return player;
+    return this._createPlayer(player);
   }
   async getPlayer(playerId, ifExists = false) {
-    const playerCache = this.cache.get('player');
-    const player = await this._getPlayer(playerId, ifExists);
-    if (player) {
-      playerCache.add(playerId, player);
-      this.cache.get('identity').add(player.identityId, player.identity);
-      for (const device of player.devices.values())
-        this.cache.get('playerDevice').sync(playerCache, playerId, device.id, device);
-    }
-    return player;
-  }
-  getOpenPlayer(playerId) {
-    return this.cache.get('player').getOpen(playerId);
+    return this._getPlayer(playerId, ifExists);
   }
   getCachedIdentity(playerId) {
     return this.state.identities.findByPlayerId(playerId);
@@ -242,27 +211,22 @@ export default class extends DynamoDBAdapter {
       this.createItem({ id:player.id, type:'player' }, player),
       this._createIdentity(player.identity),
     ]);
-    this._subscribePlayer(player);
+    Player.cache.use(player.id, player);
+    return this._subscribePlayer(player);
   }
   async _getPlayer(playerId, ifExists = false) {
-    const cache = this.cache.get('player');
-    const buffer = this.buffer.get('player');
+    return Player.cache.use(playerId, async () => {
+      const player = await this.getItem({
+        id: playerId,
+        type: 'player',
+        name: `player_${playerId}`,
+      }, {}, ifExists ? null : undefined);
+      if (!player)
+        return player;
+      player.identity = await this._getIdentity(player.identityId, player);
 
-    if (cache.has(playerId))
-      return cache.get(playerId);
-    else if (buffer.has(playerId))
-      return buffer.get(playerId);
-
-    const player = await this.getItem({
-      id: playerId,
-      type: 'player',
-      name: `player_${playerId}`,
-    }, {}, ifExists ? null : undefined);
-    if (!player)
-      return player;
-    player.identity = await this._getIdentity(player.identityId, player);
-
-    return this._subscribePlayer(player);
+      return this._subscribePlayer(player);
+    });
   }
   async _subscribePlayer(player) {
     const buffer = this.buffer.get('player');
@@ -294,40 +258,47 @@ export default class extends DynamoDBAdapter {
   async _createPlayerDevice(player, device) {
     this._addPlayerDevice(player, device);
 
-    await this.createItem({
-      id: device.player.id,
-      type: 'player',
-      childId: device.id,
-      childType: 'device',
-      data: device,
-      // Make sure the device is deleted before the player
-      ttl: device.ttl - 7 * 86400,
+    return PlayerDevice.cache.use(device.id, async () => {
+      await this.createItem({
+        id: device.player.id,
+        type: 'player',
+        childId: device.id,
+        childType: 'device',
+        data: device,
+        // Make sure the device is deleted before the player
+        ttl: device.ttl - 7 * 86400,
+      });
+
+      return player;
     });
   }
   async _addPlayerDevice(player, device) {
-    // Redundant, but prevents destroying the device if it is not in the cache
-    const playerCache = this.cache.get('player');
-    const deviceCache = this.cache.get('playerDevice');
-    deviceCache.sync(playerCache, player.id, device.id, device);
-
     device.player = player;
     player.addDevice(device);
   }
   async _getAllPlayerDevices(player) {
-    if (player.hasAllDevices)
-      return Array.from(player.devices.values());
+    // Main benefit is to handle concurrent requests.
+    return PlayerDevice.cache.use(`${player.id}:allPlayerDevices`, async () => {
+      if (player.hasAllDevices)
+        return Array.from(player.devices.values());
 
-    const devices = await this.queryItemChildren({
-      id: player.id,
-      type: 'player',
-      query: {
-        indexValue: `device#`,
-      },
+      const devices = await this.queryItemChildren({
+        id: player.id,
+        type: 'player',
+        query: {
+          indexValue: `device#`,
+        },
+      });
+
+      for (let device of devices) {
+        // Main benefit is to prevent duplicate device objects
+        device = await PlayerDevice.cache.use(device.id, device);
+        this._addPlayerDevice(player, device);
+      }
+      player.hasAllDevices = true;
+
+      return devices;
     });
-    devices.forEach(d => this._addPlayerDevice(player, d));
-    player.hasAllDevices = true;
-
-    return devices;
   }
   async _getPlayerDevice(player, deviceId) {
     if (player.hasAllDevices)
@@ -335,16 +306,17 @@ export default class extends DynamoDBAdapter {
     if (player.devices.has(deviceId))
       return player.getDevice(deviceId);
 
-    const device = await this.getItem({
-      id: player.id,
-      type: 'player',
-      childId: deviceId,
-      childType: 'device',
-    }, {}, null);
-    if (device)
-      this._addPlayerDevice(player, device);
-
-    return device;
+    return PlayerDevice.cache.use(deviceId, async () => {
+      const device = await this.getItem({
+        id: player.id,
+        type: 'player',
+        childId: deviceId,
+        childType: 'device',
+      }, {}, null);
+      if (device)
+        this._addPlayerDevice(player, device);
+      return device;
+    });
   }
   async _savePlayerDevice(device) {
     await this.putItem({
@@ -363,7 +335,7 @@ export default class extends DynamoDBAdapter {
       return;
     player.removeDevice(deviceId);
 
-    this.cache.get('playerDevice').delete(deviceId);
+    PlayerDevice.cache.delete(deviceId);
     this.buffer.get('playerDevice').delete(deviceId);
     device.destroy();
 
@@ -381,25 +353,20 @@ export default class extends DynamoDBAdapter {
 
   async _createIdentity(identity) {
     await this.createItem({ id:identity.id, type:'identity' }, identity);
+    Identity.cache.use(identity.id, identity);
     this._subscribeIdentity(identity);
   }
   async _getIdentity(identityId, player = null) {
-    const cache = this.cache.get('identity');
-    const buffer = this.buffer.get('identity');
+    return Identity.cache.use(identityId, async () => {
+      const identity = await this.getItem({
+        id: identityId,
+        type: 'identity',
+        name: `identity_${identityId}`,
+      }, {}, () => player ? Identity.create(player) : undefined);
+      identity.pruneRanks(this.gameTypes);
 
-    if (cache.has(identityId))
-      return cache.get(identityId);
-    else if (buffer.has(identityId))
-      return buffer.get(identityId);
-
-    const identity = await this.getItem({
-      id: identityId,
-      type: 'identity',
-      name: `identity_${identityId}`,
-    }, {}, () => player ? Identity.create(player) : undefined);
-    identity.pruneRanks(this.gameTypes);
-
-    return this._subscribeIdentity(identity);
+      return this._subscribeIdentity(identity);
+    });
   }
   async _saveIdentity(identity) {
     identity.once('change', () => this.buffer.get('identity').add(identity.id, identity));
@@ -416,6 +383,7 @@ export default class extends DynamoDBAdapter {
     const cache = this.cache.get('identity');
     const buffer = this.buffer.get('identity');
 
+    Identity.cache.delete(identity.id);
     if (cache.has(identity.id))
       cache.delete(identity.id);
     if (buffer.has(identity.id))
@@ -428,6 +396,8 @@ export default class extends DynamoDBAdapter {
     const identities = this.state.identities;
     const cache = this.cache.get('identity');
     const buffer = this.buffer.get('identity');
+
+    cache.add(identity.id, identity, identity.expireAt);
 
     identity.once('change', () => buffer.add(identity.id, identity));
     identity.on('change:lastSeenAt', () => {

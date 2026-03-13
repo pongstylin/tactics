@@ -1,9 +1,12 @@
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import type Player from '#models/Player.js';
 import TeamSet from '#models/TeamSet.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+import Cache from '#utils/Cache.js';
 
 import setsBySlot, { type Slot } from '#config/sets.js';
+// @ts-ignore
 import ServerError from '#server/Error.js';
 
 import GameType from '#tactics/GameType.js';
@@ -20,20 +23,29 @@ type PlayerSet = {
   slot: Slot;
   createdAt: Date;
 };
+type PlayerSetsEvents = AbstractEvents & {
+  'change:set': {},
+  'change:unset': {},
+};
 
-export default class PlayerSets extends ActiveModel {
+export default class PlayerSets extends ActiveModel<PlayerSetsEvents> {
+  protected static _cache: Cache<string, PlayerSets>;
+
   protected data: {
     playerId: string;
     sets: PlayerSet[];
   };
   public player: Player | null = null;
 
-  constructor(data) {
+  constructor(data:PlayerSets['data']) {
     super();
     this.data = data;
   }
 
-  static create(playerId) {
+  static get cache() {
+    return this._cache ??= new Cache();
+  }
+  static create(playerId:string) {
     return new PlayerSets({
       playerId,
       sets: [],
@@ -95,7 +107,7 @@ export default class PlayerSets extends ActiveModel {
 
     return set;
   }
-  unset(gameType, slot) {
+  unset(gameType:GameType, slot:Slot) {
     const index = this.data.sets.findIndex(s => s.gameTypeId === gameType.id && s.slot === slot);
     if (index > -1) {
       this.data.sets.splice(index, 1);

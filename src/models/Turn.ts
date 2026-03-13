@@ -1,72 +1,78 @@
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import type Team from '#models/Team.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
 
+type TurnEvents = AbstractEvents & {
+  'change:startedAt': {},
+  'change:drawCounts': {},
+  'change:actionId': {},
+  'change:pushAction': {},
+  'change:set': {},
+};
 interface CreateProps {
-  id?: number | null
-  team?: Team | null
+  id?: number,
+  team?: Team,
   data: {
-    startedAt?: Date | null
-    actions?: any[]
-    units: any[][]
+    startedAt?: Date,
+    actions?: any[],
+    units: any[][],
     drawCounts: {
-      passedTurnCount: number
-      attackTurnCount: number
+      passedTurnCount: number,
+      attackTurnCount: number,
     } | null;
   }
-  isCurrent?: boolean
-  timeLimit?: number | null
-}
+  isCurrent?: boolean,
+  timeLimit?: number | null,
+};
 
-export default class Turn extends ActiveModel {
+export default class Turn extends ActiveModel<TurnEvents> {
   protected data: {
-    startedAt: Date
-    actions: any[]
-    units: any[][]
+    // startedAt can be null in a fork game that hasn't started yet
+    startedAt: Date | null,
+    actions: any[],
+    units: any[][],
     drawCounts: {
-      passedTurnCount: number
-      attackTurnCount: number
-    } | null;
+      passedTurnCount: number,
+      attackTurnCount: number,
+    } | null,
 
     // e.g. timeBuffer?: number
-    [x: string]: unknown;
+    [ x:string ]: unknown,
   }
-  public id: number | null
-  public team: Team | null
-  protected _isCurrent: boolean
-  protected _timeLimit: number | null
+  public id: number | null;
+  public team: Team | null;
+  protected _isCurrent: boolean;
+  protected _timeLimit: number | null;
 
-  constructor(props) {
-    super();
-
-    if (props.isCurrent !== undefined) {
-      props._isCurrent = props.isCurrent;
-      delete props.isCurrent;
-    }
-
-    if (props.timeLimit !== undefined) {
-      props._timeLimit = props.timeLimit;
-      delete props.timeLimit;
-    }
+  constructor(props:{
+    isClean?: boolean,
+    isPersisted?: boolean,
+    data: Turn['data'],
+    id?: number,
+    team?: Team,
+    isCurrent?: boolean,
+    timeLimit?: number | null,
+  }) {
+    super(props.pick('isClean', 'isPersisted'));
 
     Object.assign(this, {
-      id: null,
-      team: null,
-      _isCurrent: false,
-      _timeLimit: null,
-    }, props, {
       data: Object.assign({
         startedAt: null,
         actions: [],
         units: [],
         drawCounts: null,
       }, props.data.clone()),
+      id: props.id ?? null,
+      team: props.team ?? null,
+      _isCurrent: props.isCurrent === undefined ? false : props.isCurrent,
+      _timeLimit: props.timeLimit === undefined ? null : props.timeLimit,
     });
 
     if (this.team)
       this.team.isCurrent = this._isCurrent;
   }
-  static fromJSON(data) {
+  static fromJSON(data:Turn['data']) {
     return new Turn({ data });
   }
 
@@ -89,15 +95,18 @@ export default class Turn extends ActiveModel {
   get startedAt() {
     return this.data.startedAt;
   }
-  set startedAt(startedAt:Date) {
+  set startedAt(startedAt:Date | null) {
+    if (!startedAt)
+      throw new TypeError(`Can not set startedAt to null`);
+
     this.data.startedAt = startedAt;
     this.emit('change:startedAt');
   }
   get actions() {
-    return (this.data.actions as any).clone();
+    return this.data.actions.clone();
   }
   get units() {
-    return (this.data.units as any).clone();
+    return this.data.units.clone();
   }
   get drawCounts() {
     return this.data.drawCounts;
@@ -110,7 +119,10 @@ export default class Turn extends ActiveModel {
    * Right now, the only consumer expects number of seconds, rounded down.
    */
   get timeElapsed() {
-    return Math.floor(((this.endedAt ?? new Date()).getTime() - this.startedAt.getTime()) / 1000);
+    if (!this.data.startedAt)
+      return null;
+
+    return Math.floor(((this.endedAt ?? new Date()).getTime() - this.data.startedAt.getTime()) / 1000);
   }
 
   get isCurrent() {
@@ -143,18 +155,21 @@ export default class Turn extends ActiveModel {
     this.emit('change:actionId');
   }
 
-  pushAction(action) {
+  pushAction(action:any) {
     this.data.actions.push(action);
     this.emit('change:pushAction');
   }
-  resetTimeLimit(timeLimit) {
-    this._timeLimit = Math.floor((Date.now() - this.startedAt.getTime())) / 1000 + timeLimit;
+  resetTimeLimit(timeLimit:number) {
+    if (!this.data.startedAt)
+      return;
+
+    this._timeLimit = Math.floor((Date.now() - this.data.startedAt.getTime())) / 1000 + timeLimit;
   }
 
-  get(name, defaultValue = null) {
+  get(name:string, defaultValue:unknown = null) {
     return this.data[name] === undefined ? defaultValue : this.data[name];
   }
-  set(name, value) {
+  set(name:string, value:unknown) {
     if (this.data[name] === value)
       return;
     this.data[name] = value;
@@ -165,35 +180,51 @@ export default class Turn extends ActiveModel {
    * Number of whole seconds that the turn has lasted.
    */
   get duration() {
-    const turnEndedAt = this.isEnded ? (this.data.actions as any).last.createdAt.getTime() : Date.now();
-    return Math.floor((turnEndedAt - this.startedAt.getTime()) / 1000);
+    if (!this.data.startedAt)
+      return null;
+
+    const turnEndedAt = this.isEnded ? this.data.actions.last.createdAt.getTime() : Date.now();
+    return Math.floor((turnEndedAt - this.data.startedAt.getTime()) / 1000);
   }
   get updatedAt() {
-    return this.isEmpty ? this.startedAt : (this.data.actions as any).last.createdAt;
+    return this.isEmpty ? this.startedAt : this.data.actions.last.createdAt;
   }
   get endedAt() {
-    return this.isEnded ? (this.data.actions as any).last.createdAt : null;
+    return this.isEnded ? this.data.actions.last.createdAt : null;
   }
   get gameEndedAt() {
-    return this.isGameEnded ? (this.data.actions as any).last.createdAt : null;
+    return this.isGameEnded ? this.data.actions.last.createdAt : null;
   }
 
   get isEmpty() {
     return this.data.actions.length === 0;
   }
   get isEnded() {
-    return (this.data.actions as any).last?.type === 'endTurn';
+    return this.data.actions.last?.type === 'endTurn';
   }
   get isForcedEnded() {
-    const lastAction = (this.data.actions as any).last;
+    const lastAction = this.data.actions.last;
     return lastAction?.type === 'endTurn' && lastAction?.forced === true;
   }
   get isGameEnded() {
-    return (this.data.actions as any).last?.type === 'endGame';
+    return this.data.actions.last?.type === 'endGame';
   }
   get isPlayable() {
     const actions = this.data.actions;
-    return actions.length !== 1 || ![ 'endTurn', 'endGame' ].includes(actions[0].type) || !actions[0].forced;
+    // If more than one action took place, it must be playable.
+    if (actions.length !== 1)
+      return true;
+    // If the only action is not an end turn or end game action, it must be playable.
+    if (![ 'endTurn', 'endGame' ].includes(actions[0].type))
+      return true;
+    // If the end turn or end game action was not forced, it must be playable.
+    if (!actions[0].forced)
+      return true;
+    // If this turn ended the game in a truce, this turn must be playable.
+    if (actions[0].type === 'endGame' && actions[0].winnerId === 'truce')
+      return true;
+
+    return false;
   }
   get isSkipped() {
     const actions = this.data.actions;

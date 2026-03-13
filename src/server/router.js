@@ -1,4 +1,3 @@
-import url from 'url';
 import { v4 as uuid } from 'uuid';
 import DebugLogger from 'debug';
 import ws from 'ws';
@@ -7,10 +6,14 @@ import addFormats from 'ajv-formats';
 import addKeywords from 'ajv-keywords';
 
 import config from '#config/server.js';
+import Session from '#models/Session.js';
 import Timeout from '#server/Timeout.js';
 import services, { servicesReady } from '#server/services.js';
 import ServerError from '#server/Error.js';
 import serializer, { enableValidation } from '#utils/serializer.js';
+import ticker from '#utils/ticker.js';
+
+ticker.start();
 
 const CLOSE_GOING_AWAY     = 1001;
 const CLOSE_NO_STATUS      = 1005;
@@ -190,8 +193,6 @@ schema.oneOf.forEach((schema, i) => {
     throw new Error('Unsupported sub-schema');
 });
 
-const sessions = new Map();
-
 /*
  * This Set and Map guards against duplicate/concurrent API requests.
  * The Set is used for detecting and rejecting duplicate/concurrent API requests.
@@ -273,7 +274,7 @@ function joinGroup(serviceName, { client:clientId, body }) {
     };
 
     for (let groupedClientId of group.keys()) {
-      enqueue(sessions.get(groupedClientId), 'enter', messageBody);
+      enqueue(Session.cache.get(groupedClientId), 'enter', messageBody);
     }
 
     groupUsers.push(body.user);
@@ -281,7 +282,7 @@ function joinGroup(serviceName, { client:clientId, body }) {
 
   group.set(clientId, body.user);
 
-  enqueue(sessions.get(clientId), 'join', {
+  enqueue(Session.cache.get(clientId), 'join', {
     service: serviceName,
     group: body.group,
     users: groupUsers,
@@ -310,13 +311,13 @@ function leaveGroup(serviceName, { client:clientId, body }) {
       };
 
       for (const groupedClientId of group.keys()) {
-        enqueue(sessions.get(groupedClientId), 'exit', messageBody);
+        enqueue(Session.cache.get(groupedClientId), 'exit', messageBody);
       }
     }
   }
 
   // The session won't exist if the user left as the result of disconnecting.
-  const session = sessions.get(clientId);
+  const session = Session.cache.get(clientId);
   if (session)
     enqueue(session, 'leave', {
       service: serviceName,
@@ -334,7 +335,7 @@ function closeGroup(serviceName, { body }) {
   groups.delete(groupId);
 
   for (let sessionId of group.keys()) {
-    enqueue(sessions.get(sessionId), 'leave', {
+    enqueue(Session.cache.get(sessionId), 'leave', {
       service: serviceName,
       group: body.group,
     });
@@ -343,11 +344,11 @@ function closeGroup(serviceName, { body }) {
 
 function logout(serviceName, { clientId }) {
   // Only expected to happen when something else went wrong first.
-  if (!sessions.has(clientId)) {
-    console.log('Warning: Attempt to logout a session that does not exist!', clientId);
+  if (!Session.cache.has(clientId)) {
+    console.warn('Warning: Attempt to logout a session that does not exist!', clientId);
     return;
   }
-  const client = sessions.get(clientId).client;
+  const client = Session.cache.get(clientId).client;
 
   closeClient(client, CLOSE_CLIENT_LOGOUT);
 }
@@ -370,17 +371,34 @@ function sendEvent(serviceName, { clientId, userId, body }) {
 
   const groupId = [serviceName, body.group].join(':');
   const group = groups.get(groupId);
-  if (!group) return;
+  if (!group) {
+    console.warn('Warning: Sending event to group that cannot be found:', groupId);
+    return;
+  }
 
   if (clientId) {
-    if (group.has(clientId))
-      enqueue(sessions.get(clientId), 'event', messageBody);
+    if (group.has(clientId)) {
+      const session = Session.cache.get(clientId);
+      if (session)
+        enqueue(Session.cache.get(clientId), 'event', messageBody);
+      else {
+        group.delete(clientId);
+        console.warn('Warning: Sending event to a client that cannot be found:', clientId);
+      }
+    } else
+      console.warn('Warning: Sending event direct to client that is not in group:', clientId, groupId);
   } else {
-    for (const [ sessionId, user ] of group) {
+    for (const [ groupClientId, user ] of group) {
       if (userId && userId !== user.id)
         continue;
 
-      enqueue(sessions.get(sessionId), 'event', messageBody);
+      const session = Session.cache.get(groupClientId);
+      if (session)
+        enqueue(session, 'event', messageBody);
+      else {
+        group.delete(groupClientId);
+        console.warn('Warning: Sending event broadcast to client that cannot be found:', groupClientId, groupId);
+      }
     }
   }
 }
@@ -548,12 +566,12 @@ function closeClient(client, code, reason) {
   let session = client.session;
   if (session)
     if (code === CLOSE_GOING_AWAY || code === CLOSE_SERVER_SHUTDOWN || code === CLOSE_CLIENT_LOGOUT || code > CLOSE_SERVER_TIMEOUT)
-      deleteSession(session, code);
+      closeSession(session, code);
     else if (code !== CLOSE_REPLACED)
       closedSessionTimeout.add(session.id, session);
 }
 
-function deleteSession(session, code) {
+function closeSession(session, code) {
   const client = session.client;
   if (code === CLOSE_CLIENT_TIMEOUT)
     debug(`gone: client=${client.id}; [${client.closed.code}] session timeout`);
@@ -561,10 +579,6 @@ function deleteSession(session, code) {
     debug(`gone: client=${client.id}; [${client.closed.code}] client exit`);
 
   closedSessionTimeout.delete(session.id);
-
-  // Delete the session immediately since the client won't come back.
-  // This code is used when the websocket webpage is refreshed or closed.
-  sessions.delete(session.id);
 
   for (const [ groupId, group ] of groups) {
     if (!group.has(client.id))
@@ -578,9 +592,15 @@ function deleteSession(session, code) {
       throw new Error(`Expected to leave group: ${groupId}`);
   }
 
-  for (const service of services.values()) {
+  // When a session is closed, it is removed from any joined groups.
+  // So, the session must be deleted to inform the client they need to rejoin.
+  Session.cache.delete(session.id);
+
+  // Deprecated
+  for (const service of services.values())
     service.dropClient(client);
-  }
+
+  session.emit('close');
 }
 
 /*******************************************************************************
@@ -686,13 +706,8 @@ async function onMessage(data) {
        * idle change can enqueue a new outbound message.  This can cause the
        * outbound message to be sent twice if it is in response to a 'sync'.
        */
-      if (message.idle !== undefined) {
-        const oldIdle = session.idle;
+      if (message.idle !== undefined)
         session.idle = message.idle;
-
-        if (session.onIdleChange)
-          session.onIdleChange(session, oldIdle);
-      }
     } else {
       if (message.type === 'open')
         onOpenMessage(client, message);
@@ -887,21 +902,18 @@ function onOpenMessage(client, message) {
   if (client.session)
     throw new ServerError(400, 'Session already established');
 
-  const session = {
+  const session = Session.create({
     id: client.id,
     clientMessageId: 0,
     serverMessageId: 0,
     lastSentMessageId: 0,
     outbox: [],
-    client: client,
-    idle: null,
-    onIdleChange: null,
-  };
+    client,
+    idle: 0,
+  });
 
   client.version = message.body.version;
   client.session = session;
-
-  sessions.set(client.id, session);
 
   send(client, {
     type: 'session',
@@ -919,7 +931,7 @@ function onResumeMessage(client, message) {
   if (client.session)
     throw new ServerError(401, 'Not authorized');
 
-  const session = sessions.get(message.body.sessionId);
+  const session = Session.cache.get(message.body.sessionId);
   if (!session)
     throw new ServerError(401, 'Not authorized');
 
@@ -988,6 +1000,4 @@ outboundClientTimeout.on('expire', ({ data:clients }) => clients.forEach((c,i) =
 
 const closedSessionTimeout = new Timeout('closedSession', { expireIn:30000 });
 
-closedSessionTimeout.on('expire', ({ data:sessions }) => sessions.forEach((s,i) => deleteSession(s, CLOSE_CLIENT_TIMEOUT)));
-
-setInterval(Timeout.tick, 1000);
+closedSessionTimeout.on('expire', ({ data:sessions }) => sessions.forEach((s,i) => closeSession(s, CLOSE_CLIENT_TIMEOUT)));

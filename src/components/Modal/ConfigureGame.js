@@ -791,8 +791,12 @@ export default class ConfigureGame extends Modal {
           const getName = team => {
             if (team.forkOf.playerId === team.playerId)
               return team.playerId === authClient.playerId ? 'yourself' : 'themself';
+            if (team.forkOf.playerId === authClient.playerId)
+              return 'you';
+            if (team.forkOf.playerId === gameData.createdBy)
+              return 'them';
             if (team.forkOf.name && gameData.state.teams.filter(t => t.forkOf.name === team.forkOf.name).length === 1)
-              return team.name;
+              return team.forkOf.name;
             // This color moniker can be wrong in cases where the player participated in the origin game.
             // This is due to how the Game class rotates the board.
             return gameConfig.getTeamColorId(team);

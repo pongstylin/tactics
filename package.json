@@ -23,6 +23,7 @@
     "dshell": "docker compose exec app sh",
     "script": "docker compose run -it --rm app node --require dotenv/config",
     "escript": "docker compose exec app node --require dotenv/config",
+    "gcscript": "docker compose run -it --rm app node --require dotenv/config --expose-gc",
     "memscript": "docker compose run -it --rm app node --optimize-for-size --max-old-space-size=4096 --require dotenv/config"
   },
   "imports": {
@@ -50,7 +51,7 @@
     "sass": "^1.49.9",
     "sass-loader": "^12.6.0",
     "style-loader": "^2.0.0",
-    "typescript": "^5.9.2",
+    "typescript": "^5.9.3",
     "util": "^0.12.5",
     "webpack": "^5.97.1",
     "webpack-cli": "^4.10.0"
@@ -67,6 +68,7 @@
     "decancer": "^1.6.5",
     "discord.js": "^14.14.1",
     "dynamodb-size": "^1.0.9",
+    "eventemitter3": "^5.0.4",
     "events": "^3.3.0",
     "express": "^4.16.4",
     "howler": "^2.2.4",

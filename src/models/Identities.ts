@@ -1,16 +1,25 @@
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import Identity from '#models/Identity.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+// @ts-ignore
 import decancer from '#utils/decancer.js';
 
 import type { Rank } from '#models/Identity.ts';
 import type Player from '#models/Player.ts';
 
-export default class Identities extends ActiveModel {
+type IdentitiesEvents = AbstractEvents & {
+  'change:deleteId': { data:{ identityId:string } },
+  'change:add': { data:{ identity:Identity } },
+  'change:merge': { data:{ identity:Identity } },
+  'change:archive': { data:{ identity:Identity } },
+};
+
+export default class Identities extends ActiveModel<IdentitiesEvents> {
   protected data: Set<string>
   protected identities: Set<Identity>
 
-  constructor(data) {
+  constructor(data:Identities['data']) {
     super();
     this.data = data;
     this.identities = new Set();
@@ -19,11 +28,11 @@ export default class Identities extends ActiveModel {
   static create() {
     return new Identities(new Set());
   }
-  static fromJSON(data) {
+  static fromJSON(data:Identities['data']) {
     return new Identities(new Set(data));
   }
 
-  findByPlayerId(playerId) {
+  findByPlayerId(playerId:string) {
     for (const identity of this.identities)
       if (identity.playerIds.includes(playerId))
         return identity;
@@ -36,10 +45,7 @@ export default class Identities extends ActiveModel {
   }
   deleteId(identityId:string) {
     this.data.delete(identityId);
-    this.emit({
-      type: 'change:deleteId',
-      data: { identityId },
-    });
+    this.emit('change:deleteId', { data:{ identityId } });
   }
   setValues(identities:Identity[]) {
     this.identities = new Set(identities);
@@ -52,10 +58,10 @@ export default class Identities extends ActiveModel {
     return this.identities.values();
   }
 
-  has(identity) {
+  has(identity:Identity) {
     return this.data.has(identity.id);
   }
-  add(identity) {
+  add(identity:Identity) {
     if (this.data.has(identity.id))
       return false;
     if (!identity.needsIndex)
@@ -63,14 +69,11 @@ export default class Identities extends ActiveModel {
 
     this.data.add(identity.id);
     this.identities.add(identity);
-    this.emit({
-      type: 'change:add',
-      data: { identity },
-    });
+    this.emit('change:add', { data:{ identity } });
 
     return true;
   }
-  merge(identity1, identity2, players) {
+  merge(identity1:Identity, identity2:Identity, players:Player[]) {
     identity1.merge(identity2);
     for (const player of players) {
       player.identityId = identity1.id;
@@ -80,26 +83,20 @@ export default class Identities extends ActiveModel {
     this.add(identity1);
     this.data.delete(identity2.id);
     this.identities.delete(identity2);
-    this.emit({
-      type: 'change:merge',
-      data: { identity:identity2 },
-    });
+    this.emit('change:merge', { data:{ identity:identity2 } });
   }
-  archive(identity) {
+  archive(identity:Identity) {
     if (!this.identities.has(identity))
       return false;
 
     this.data.delete(identity.id);
     this.identities.delete(identity);
-    this.emit({
-      type: 'change:archive',
-      data: { identity:identity },
-    });
+    this.emit('change:archive', { data:{ identity:identity } });
 
     return true;
   }
 
-  getRelationships(playerId) {
+  getRelationships(playerId:string) {
     const relationships = new Map();
 
     for (const identity of this.identities) {
@@ -121,7 +118,7 @@ export default class Identities extends ActiveModel {
    *   Among partial matches, the smaller the name/alias the better the match.
    *   All else being equal, prefer matches on nicknames before names before aliases.
    */
-  queryRated(query, myPlayer:Player) {
+  queryRated(query:string, myPlayer:Player) {
     type Match = {
       identityId: string;
       playerId: string;
@@ -139,7 +136,6 @@ export default class Identities extends ActiveModel {
     const relationships = this.getRelationships(myPlayer.id);
     const curedQuery = decancer(query);
     const typeSeq = [ 'exact', 'fuzzy', 'start', 'partial' ];
-    const lengthSeq = m => m.alias === undefined ? m.name.length : m.alias.length;
     const textMatchSeq = [ 'nickname', 'name', 'alias' ];
     const applyMatchType = (text:string, match:Match) => {
       const cured = decancer(text);
@@ -204,18 +200,18 @@ export default class Identities extends ActiveModel {
       else if (identityMatches.length > 1)
         matches.push(identityMatches.sort((a,b) => (
           typeSeq.indexOf(a.type) - typeSeq.indexOf(b.type) ||
-          lengthSeq(a) - lengthSeq(b) ||
+          a.text.length - b.text.length ||
           textMatchSeq.indexOf(a.textType) - textMatchSeq.indexOf(b.textType)
         ))[0]);
     }
 
     return matches.sort((a,b) => (
       typeSeq.indexOf(a.type) - typeSeq.indexOf(b.type) ||
-      lengthSeq(a) - lengthSeq(b) ||
+      a.text.length - b.text.length ||
       textMatchSeq.indexOf(a.textType) - textMatchSeq.indexOf(b.textType)
     )).slice(0, 5);
   }
-  getRated(playerIds, myPlayer) {
+  getRated(playerIds:string[], myPlayer:Player) {
     const myIdentity = myPlayer.identity;
     const relationships = this.getRelationships(myPlayer.id);
     const ratedPlayers = new Map();
@@ -251,7 +247,7 @@ export default class Identities extends ActiveModel {
 
     return ratedPlayers;
   }
-  sharesName(name, forIdentity) {
+  sharesName(name:string, forIdentity:boolean | Identity) {
     const curedName = decancer(name);
 
     for (const identity of this.identities) {

@@ -1,14 +1,22 @@
+// @ts-ignore
 import { ReParse } from 'reparse';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import TeamSet from '#models/TeamSet.js';
 import type TeamSetCardinality from '#models/TeamSetCardinality.js';
 import { Index } from '#models/TeamSetCardinality.js';
 import { defaultStats } from '#models/TeamSetStats.js';
-import emitter from '#utils/emitter.js';
+import Cache from '#utils/Cache.js';
 
+type TeamSetSearchEvents = AbstractEvents & {
+  'getTeamSetIndexCurrentPage': { indexPath:string, resolve:Function, reject:Function },
+  'getTeamSetIndexNextPage': { indexPath:string, resolve:Function, reject:Function },
+};
+type MetricName = 'rating' | 'gameCount' | 'playerCount';
 type GrammarValue = (
   { type:'token',       count?:number, tokens:string[] } |
   { type:'quotedToken', count?:number, token:string    } |
-  { type:'groups',      groups:string[][]              }
+  { type:'groups',      groups:string[][]              } |
+  { type:'operator',    operator:'or' | 'and'          }
 );
 
 type TeamSetIndexPage = { truncated:boolean, completed:boolean, teamSets:TeamSet[] };
@@ -25,7 +33,7 @@ export const grammar = {
     // Combine consecutive tokens into a single token list so they can be evaluated together
     for (let i = 0; i < values.length; i++) {
       const value = values[i];
-      if (value.type !== 'token' || (value.tokens as any).last.endsWith('less')) continue;
+      if (value.type !== 'token' || value.tokens.last!.endsWith('less')) continue;
       for (let j = i + 1; j < values.length; j) {
         const nextValue = values[j];
         if (nextValue.type !== 'token' || nextValue.count !== undefined) break;
@@ -37,7 +45,7 @@ export const grammar = {
     // Split value list into groups by the or operator
     const valueOrGroups:GrammarValue[][] = [];
     while (values.length) {
-      const indexOfOr = values.findIndex(v => v['operator'] === 'or');
+      const indexOfOr = values.findIndex(v => v.type === 'operator' && v.operator === 'or');
       if (indexOfOr === -1) {
         valueOrGroups.push(values);
         break;
@@ -47,7 +55,7 @@ export const grammar = {
     }
 
     // Transform to a list of search groups
-    const groups = valueOrGroups.map(values => values.filter(v => v['operator'] !== 'and').reduce<string[][]>((ss, value) => {
+    const groups = valueOrGroups.map(values => values.filter(v => v.type !== 'operator').reduce<string[][]>((ss, value) => {
       switch (value.type) {
         case 'token':
           if (ss.length === 0) ss.push([]);
@@ -99,10 +107,18 @@ export const grammar = {
 };
 const filterCache = new Map<string, WeakMap<object, Set<string>>>();
 
-export default class TeamSetSearch {
+type CacheValue = TeamSetSearch | TeamSetSearchGroup;
+const cache = new Cache<string, CacheValue>();
+
+export default class TeamSetSearch extends ActiveModel<TeamSetSearchEvents> {
+  protected static _cache: Cache<string, CacheValue> = cache;
+
+  protected data: {
+    metricName: MetricName;
+    query: string[];
+  };
+
   private _cardinality:TeamSetCardinality;
-  private _metricName:string;
-  private _query:string[];
   private _filters:string[];
   private _index:Index;
   private _teamSets:TeamSet[] | null = null;
@@ -110,17 +126,22 @@ export default class TeamSetSearch {
   private _completed:boolean = false;
   private _numUnfiltered:number = 0;
 
-  constructor(cardinality:TeamSetCardinality, metricName:string, query:string[]) {
+  constructor(cardinality:TeamSetCardinality, metricName:MetricName, query:string[]) {
+    super();
+
+    this.data = { metricName, query };
+
     this._cardinality = cardinality;
-    this._metricName = metricName;
-    this._query = query;
     this._filters = Array.from(new Set(this._cardinality.getFiltersFromQuery(query)));
     this._index = this._cardinality.selectIndex(this._filters);
     this._filters = this._filters.filter(f => f !== this._index.path);
   }
 
+  static get cache() {
+    return this._cache ??= new Cache();
+  }
   static parseText(text:string) {
-    const groups = new ReParse(text, true).start(grammar.values);
+    const groups = new ReParse(text, true).start(grammar.values) as string[][];
     if (groups.length === 0) return [[]];
 
     for (const group of groups)
@@ -130,7 +151,7 @@ export default class TeamSetSearch {
   }
 
   get id() {
-    return `${this._cardinality.gameType.id}/${this._metricName}/${JSON.stringify(this._query)}`;
+    return `${this._cardinality.gameType.id}/${this.data.metricName}/${JSON.stringify(this.data.query)}`;
   }
   get indexPath() {
     return this._index.path;
@@ -173,7 +194,7 @@ export default class TeamSetSearch {
   async getTeamSet(offset:number) {
     if (this._teamSets === null) {
       const page = await new Promise<TeamSetIndexPage>((resolve, reject) => {
-        (this as any)._emit({ type:'getTeamSetIndexCurrentPage', indexPath:this._index.path, resolve, reject });
+        this.emit('getTeamSetIndexCurrentPage', { indexPath:this._index.path, resolve, reject });
       });
       this._teamSets = [];
       this._applyTeamSetIndexPage(page);
@@ -181,7 +202,7 @@ export default class TeamSetSearch {
 
     while (!this._completed && !this._truncated && offset >= this.numFiltered) {
       const page = await new Promise<TeamSetIndexPage>((resolve, reject) => {
-        (this as any)._emit({ type:'getTeamSetIndexNextPage', indexPath:this._index.path, resolve, reject });
+        this.emit('getTeamSetIndexNextPage', { indexPath:this._index.path, resolve, reject });
       });
       this._applyTeamSetIndexPage(page);
     }
@@ -194,7 +215,7 @@ export default class TeamSetSearch {
     if (page.completed)
       for (const set of this._cardinality.gameType.config.sets)
         if (!this._teamSets!.concat(page.teamSets).some(ts => ts.id === set.id)) {
-          const teamSet = TeamSet.create({ units:set.units, [this._metricName]:defaultStats[this._metricName] }, set.id);
+          const teamSet = TeamSet.create({ units:set.units, [this.data.metricName]:defaultStats[this.data.metricName] }, set.id);
           teamSet.cardinality = this._cardinality;
           const teamSetFilters = this._getTeamSetFilters(teamSet);
           if (teamSetFilters.has(this._index.path))
@@ -225,10 +246,15 @@ export default class TeamSetSearch {
   }
 }
 
-export class TeamSetSearchGroup {
+export class TeamSetSearchGroup extends ActiveModel {
+  protected static _cache: Cache<string, CacheValue> = cache;
+
+  protected data: {
+    metricName: MetricName;
+    query: string[][];
+  };
+
   private _cardinality:TeamSetCardinality;
-  private _metricName:'rating' | 'gameCount' | 'playerCount';
-  private _query:string[][];
   private _groups:TeamSetSearch[];
   private _groupOffsets:number[];
   private _teamSets:TeamSet[];
@@ -236,10 +262,12 @@ export class TeamSetSearchGroup {
   private _completed:boolean = false;
   private _numUnfiltered:number = 0;
 
-  constructor(cardinality:TeamSetCardinality, metricName:'rating' | 'gameCount' | 'playerCount', query:string[][], groups:TeamSetSearch[]) {
+  constructor(cardinality:TeamSetCardinality, metricName:MetricName, query:string[][], groups:TeamSetSearch[]) {
+    super();
+
+    this.data = { metricName, query };
+
     this._cardinality = cardinality;
-    this._metricName = metricName;
-    this._query = query;
     this._groups = groups;
     this._groupOffsets = new Array(groups.length).fill(0);
     this._teamSets = [];
@@ -247,8 +275,12 @@ export class TeamSetSearchGroup {
     return this;
   }
 
+  static get cache() {
+    return this._cache ??= new Cache();
+  }
+
   get id() {
-    return `${this._cardinality.gameType.id}/${this._metricName}/${JSON.stringify(this._query)}`;
+    return `${this._cardinality.gameType.id}/${this.data.metricName}/${JSON.stringify(this.data.query)}`;
   }
   get count() {
     return this._groups.reduce((sum, g) => sum + g.getTotal(0, 0).count, 0) - this._numUnfiltered + this.numFiltered;
@@ -275,13 +307,13 @@ export class TeamSetSearchGroup {
     while (!this._truncated && !this._completed && offset >= this.numFiltered) {
       const next = (
         await Promise.all(this._groups.map(async (g, gi) => ({ gi, teamSet:await g.getTeamSet(this._groupOffsets[gi]) })))
-      ).filter(n => !!n.teamSet).sort((a,b) => b.teamSet[this._metricName] - a.teamSet[this._metricName])[0];
+      ).filter(n => !!n.teamSet).sort((a,b) => b.teamSet[this.data.metricName] - a.teamSet[this.data.metricName])[0];
       this._truncated = this._groups.some((g, gi) => g.truncated && g.numFiltered === this._groupOffsets[gi]);
       this._completed = this._groups.every(g => g.completed);
 
       if (this._completed) {
         // Sort and deduplicate the remaining results so that we have an accurate count
-        const teamSets = this._groups.map((g, gi) => g.getAllTeamSets(this._groupOffsets[gi])).flat().sort((a,b) => b[this._metricName] - a[this._metricName]);
+        const teamSets = this._groups.map((g, gi) => g.getAllTeamSets(this._groupOffsets[gi])).flat().sort((a,b) => b[this.data.metricName] - a[this.data.metricName]);
         this._numUnfiltered += teamSets.length;
         for (const teamSet of teamSets)
           if (this._teamSets.findIndex(ts => ts.id === teamSet.id) === -1)
@@ -295,6 +327,3 @@ export class TeamSetSearchGroup {
     }
   }
 };
-
-emitter(TeamSetSearch);
-emitter(TeamSetSearchGroup);
