@@ -467,7 +467,7 @@ export class GameSessionGameSummaryListGroup extends ActiveModel {
   static register(gameSession:GameSession, groupPath:string, gsls:GameSummaryList[], filters:Record<string, any>[]) {
     const id = `${gameSession.session.id}:${groupPath}`;
     if (this.cache.has(id))
-      throw new Error(`Attempt to register '${id}' twice`);
+      console.log(`Warning: Attempt to register '${id}' twice`);
 
     return this.cache.set(id, () => new GameSessionGameSummaryListGroup(gameSession, groupPath, gsls, filters));
   }
