@@ -497,8 +497,7 @@ whenDOMReady.then(() => {
     .on('login', () => showTabs())
     .on('name-change', () => setMyName())
     .on('logout', () => hideTabs());
-  if (authClient.isAuthorized)
-    showTabs();
+  authClient.whenAuthorized.then(() => showTabs());
 
   gameClient
     .on('event', ({ body }) => {
@@ -560,7 +559,10 @@ whenDOMReady.then(() => {
 });
 
 async function showTabs() {
-  console.log('showTabs');
+  console.log('showTabs', document.querySelector('.tabs').style.display !== '');
+  if (document.querySelector('.tabs').style.display === '')
+    return;
+
   const page = document.querySelector('.page');
   const header = page.querySelector('HEADER');
   const divPN = page.querySelector('#pn');
