@@ -493,7 +493,6 @@ whenDOMReady.then(() => {
   resize(dynamicStyle.sheet);
 
   authClient
-    .on('login', () => showTabs())
     .on('name-change', () => setMyName())
     .on('logout', () => hideTabs());
   authClient.whenAuthorized.then(() => showTabs());
@@ -558,9 +557,6 @@ whenDOMReady.then(() => {
 });
 
 async function showTabs() {
-  if (document.querySelector('.tabs').style.display === '')
-    return;
-
   const page = document.querySelector('.page');
   const header = page.querySelector('HEADER');
   const divPN = page.querySelector('#pn');

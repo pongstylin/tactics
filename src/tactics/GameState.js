@@ -274,7 +274,7 @@ export default class GameState extends TypedEmitter {
   }
   get losingTeams() {
     if (!this.gameType)
-      this.gameType = new GameType({ config:{} });
+      this.gameType = new GameType({ config:{ sets:[] } });
 
     return this.gameType.getLosingTeams(this.teams);
   }
@@ -406,7 +406,7 @@ export default class GameState extends TypedEmitter {
       // Place the units according to team position.
       const units = teams.map(team => {
         const degree = board.getDegree('N', team.position);
-        const units = this.gameType.applySetUnitState({ units:team.set.units.clone() }).units;
+        const units = this.gameType ? this.gameType.applySetUnitState({ units:team.set.units.clone() }).units : team.set.units.clone();
 
         // First team must skip their first turn.
         if (this.type !== 'chaos' && team.id === 0)
