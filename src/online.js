@@ -493,11 +493,9 @@ whenDOMReady.then(() => {
   resize(dynamicStyle.sheet);
 
   authClient
-    .on('login', () => showTabs())
     .on('name-change', () => setMyName())
     .on('logout', () => hideTabs());
-  if (authClient.isAuthorized)
-    showTabs();
+  authClient.whenAuthorized.then(() => showTabs());
 
   gameClient
     .on('event', ({ body }) => {
