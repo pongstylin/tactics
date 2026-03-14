@@ -45,6 +45,10 @@ interface Object {
   pick<T, K extends keyof T>(this:T, ...keys: K[]): Pick<T, K>
 };
 
+interface PromiseConstructor {
+  isThenable(value:unknown): value is PromiseLike<unknown>;
+};
+
 type UnwrapFunction<T> = T extends (...args: any[]) => infer U ? U : T;
 type Constructor<T> = new (...args: any[]) => T;
 type ValueType<T> = 

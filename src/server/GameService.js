@@ -1055,7 +1055,7 @@ export default class GameService extends Service {
     const playerId = GameSession.cache.get(client.id).player.id;
     const player = await this.auth.getPlayer(playerId);
 
-    const game = await Game.cache.await(gameId);
+    const game = await Game.cache.peek(gameId);
     if (!game.state.startedAt)
       throw new ServerError(403, 'To get player info for this game, the game must first start.');
 

@@ -231,7 +231,7 @@ export default class extends DynamoDBAdapter {
       gameType = this._gameTypes.get(gameType);
 
     const game = await (async () => {
-      const game = await Game.cache.await(gameId);
+      const game = await Game.cache.peek(gameId);
       if (game) return game;
 
       for (const gsl of GameSummaryList.cache.values()) {

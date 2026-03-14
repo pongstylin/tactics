@@ -3,6 +3,8 @@ import '#models/Game.js';
 import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
 import Timeout from '#server/Timeout.js';
 
+const gameTypeId = process.argv[2] ?? null;
+
 // Required for DynamoDBAdapter
 const ticker = setInterval(Timeout.tick, 5000);
 const dryRun = false;
@@ -13,6 +15,7 @@ const gamesIndex = await gameAdapter.indexAllGames();
 gameAdapter.readonly = dryRun;
 
 for (const gameType of gameAdapter.getGameTypesById().values()) {
+  if (gameTypeId && gameType.id !== gameTypeId) continue;
   if (gameType.config.archived) continue;
 
   const gameIds = Array.from(gamesIndex.entries()).filter(gi => gi[1].gameTypeId === gameType.id).map(gi => gi[0]);
