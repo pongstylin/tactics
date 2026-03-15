@@ -1040,7 +1040,8 @@ export default class GameService extends Service {
           gameCount: rank.gameCount,
         })),
         aliases: [...vsStats.aliases.values()]
-          .filter(a => a.name.toLowerCase() !== team.name.toLowerCase())
+          // An alias name is always expected to exist, but due to bugs...
+          .filter(a => a.name && a.name.toLowerCase() !== team.name.toLowerCase())
           .sort((a, b) =>
             b.count - a.count || b.lastSeenAt - a.lastSeenAt
           )
