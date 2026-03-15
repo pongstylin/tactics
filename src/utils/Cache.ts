@@ -112,7 +112,17 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
     meta.stackEntry = stackEntry;
     this.stack.unshift(stackEntry);
     if (!hadStackEntry && this.stack.length > this.limit)
-      this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
+      this._evict(this.stack[this.stack.length - 1]!.key);
+  }
+
+  private _evict(key:K):void {
+    const meta = this.data.get(key);
+    if (!meta || meta.type !== 'value') return;
+    this.stack.pop();
+    if (meta.value !== null && typeof meta.value === 'object')
+      this._setWeakRef(key, meta.value);
+    else
+      this._delete(key, 'finalized');
   }
 
   private _setWeakRef(key:K, value:V & object):void {
@@ -176,7 +186,7 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
         this.data.set(key, valueMeta);
         this.stack.unshift(stackEntry);
         if (this.stack.length > this.limit)
-          this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
+          this._evict(this.stack[this.stack.length - 1]!.key);
       }
       return value;
     }
@@ -212,7 +222,7 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
       this.data.set(key, meta);
       this.stack.unshift(stackEntry);
       if (this.stack.length > this.limit)
-        this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
+        this._evict(this.stack[this.stack.length - 1]!.key);
     } else if (value !== null && typeof value === 'object') {
       this._setWeakRef(key, value);
     } else {
