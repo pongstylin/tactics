@@ -228,7 +228,14 @@ export default class GameService extends Service {
       },
     }));
     GameSessionGameSummaryListGroup.on('game', seqAsync(async event => {
+      // Abort if a group is closed before we could deliver the event.
+      if (!event.target.isRegistered)
+        return;
+
       const player = event.target.gameSession.player;
+      const data = await this._cloneGameSummaryWithMeta(event.gameSummary, player);
+      if (!event.target.isRegistered)
+        return;
 
       this._emit({
         type: 'event',
@@ -236,7 +243,7 @@ export default class GameService extends Service {
         body: {
           group: event.target.groupPath,
           type: event.type,
-          data: await this._cloneGameSummaryWithMeta(event.gameSummary, player),
+          data,
         },
       });
     }));
@@ -1651,11 +1658,11 @@ export default class GameService extends Service {
       },
     });
   }
-  onLeaveMyGamesGroup(client, groupPath, playerId, reason = null) {
+  onLeaveMyGamesGroup(client, groupPath, playerId) {
     const session = GameSession.cache.get(client.id);
     const player = session.player;
-
-    if (reason === 'abort') return;
+    session.leaveGroup(groupPath);
+    session.closeGameSummaryListGroup(groupPath);
 
     this._emit({
       type: 'leaveGroup',
@@ -1669,13 +1676,11 @@ export default class GameService extends Service {
       },
     });
   }
-  onLeaveCollectionGroup(client, groupPath, collectionId, reason = null) {
+  onLeaveCollectionGroup(client, groupPath, collectionId) {
     const session = GameSession.cache.get(client.id);
     const player = session.player;
     session.leaveGroup(groupPath);
     session.closeGameSummaryListGroup(groupPath);
-
-    if (reason === 'abort') return;
 
     this._emit({
       type: 'leaveGroup',

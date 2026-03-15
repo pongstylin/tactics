@@ -372,7 +372,7 @@ function sendEvent(serviceName, { clientId, userId, body }) {
   const groupId = [serviceName, body.group].join(':');
   const group = groups.get(groupId);
   if (!group) {
-    console.warn('Warning: Sending event to group that cannot be found:', groupId);
+    console.warn(`Warning: Sending '${body.type}' event to group that cannot be found:`, groupId);
     return;
   }
 
@@ -383,10 +383,10 @@ function sendEvent(serviceName, { clientId, userId, body }) {
         enqueue(Session.cache.get(clientId), 'event', messageBody);
       else {
         group.delete(clientId);
-        console.warn('Warning: Sending event to a client that cannot be found:', clientId);
+        console.warn(`Warning: Sending '${body.type}' event to a client that cannot be found:`, clientId);
       }
     } else
-      console.warn('Warning: Sending event direct to client that is not in group:', clientId, groupId);
+      console.warn(`Warning: Sending '${body.type}' event direct to client that is not in group:`, clientId, groupId);
   } else {
     for (const [ groupClientId, user ] of group) {
       if (userId && userId !== user.id)
@@ -397,7 +397,7 @@ function sendEvent(serviceName, { clientId, userId, body }) {
         enqueue(session, 'event', messageBody);
       else {
         group.delete(groupClientId);
-        console.warn('Warning: Sending event broadcast to client that cannot be found:', groupClientId, groupId);
+        console.warn(`Warning: Sending '${body.type}' event broadcast to client that cannot be found:`, groupClientId, groupId);
       }
     }
   }

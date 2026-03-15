@@ -500,6 +500,10 @@ export class GameSessionGameSummaryListGroup {
       stats.set(gsl.id, gslStats);
     return stats;
   }
+  get isRegistered() {
+    const id = `${this.data.gameSession.session.id}:${this.data.groupPath}`;
+    return GameSessionGameSummaryListGroup.cache.has(id);
+  }
 
   _onChangeGameSummaryList(gameSummaryList:GameSummaryList, event:{ data:{ oldSummary?:GameSummary, gameSummary:GameSummary } }) {
     const wasVisible = this._isGameVisible(event.data.oldSummary);
