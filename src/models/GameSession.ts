@@ -290,6 +290,9 @@ export class GameSessionGame {
   get game() {
     return this.data.game;
   }
+  get gameSessions() {
+    return this.data.gameSessions;
+  }
   get playerStatus() {
     return this.data.playerStatus;
   }
