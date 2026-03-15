@@ -120,7 +120,7 @@ export async function fillArena(divArena, arena = true, disabled = false) {
       fillTeam(divArena, 'btm', arena, oldArena),
     ]);
   }
-  divArena.classList.toggle('disabled', disabled && !arena?.startedAt && (!arena || arena.collection?.startsWith('lobby/')));
+  divArena.classList.toggle('disabled', disabled);
 
   const labels = [];
   if (!arena.startedAt) {
@@ -211,10 +211,9 @@ async function fillTeam(divArena, slot, arena, oldArena) {
   }
 }
 async function emptyArena(divArena, disabled = false) {
-  if (divArena.classList.contains('empty')) {
-    divArena.classList.toggle('disabled', disabled);
+  divArena.classList.toggle('disabled', disabled);
+  if (divArena.classList.contains('empty'))
     return false;
-  }
 
   const oldArena = arenaGameSummary.get(divArena);
 

@@ -72,12 +72,14 @@ export default class GameType {
   constructor(data) {
     Object.assign(this, data);
 
-    this.config.sets = this.config.sets.map(s => {
-      // The id is necessary for displaying curated set names instead of generated names.
-      s.id = TeamSet.createId(s);
-      s.name ??= 'Default';
-      return s;
-    });
+    if (this.config.sets)
+      this.config.sets = this.config.sets.map(s => {
+        // The id is necessary for displaying curated set names instead of generated names.
+        s.id = TeamSet.createId(s);
+        s.name ??= 'Default';
+        return s;
+      });
+
     this._tagByKeyword = null;
   }
 

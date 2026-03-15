@@ -39,7 +39,7 @@ UL.choices {
   padding-left: 12px;
   list-style: none;
 
-  LI {
+  LI, LI > DIV {
     display: flex;
     align-items: center;
 
@@ -56,10 +56,12 @@ INPUT[type=radio] {
   margin: 0;
   vertical-align: middle;
 }
-LABEL:not(.disabled) {
+LABEL {
   display: inline-flex;
   align-items: center;
   padding: 4px;
+}
+LABEL:not(.disabled) {
   cursor: pointer;
 }
 LABEL:first-child {

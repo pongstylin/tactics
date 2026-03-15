@@ -1,5 +1,6 @@
 import type GameSummary from '#models/GameSummary.js';
 import type GameType from '#tactics/GameType.js';
+import Cache from '#utils/Cache.js';
 
 type TeamSetGameSearchParams = {
   setId:string;
@@ -13,9 +14,11 @@ const defaultParams = {
 };
 
 export default class TeamSetGameSearch implements Iterable<GameSummary> {
+  protected static _cache: Cache<string, TeamSetGameSearch>
+
   public gameType:GameType;
   private _params:TeamSetGameSearchParams;
-  private _cursor?:object;
+  private _cursor:object | undefined;
   private _complete:boolean = false;
   private _gamesSummary:GameSummary[] = [];
 
@@ -25,6 +28,10 @@ export default class TeamSetGameSearch implements Iterable<GameSummary> {
     this._params = Object.assign({}, defaultParams, params);
     this._cursor = undefined;
     this._gamesSummary = [];
+  }
+
+  static get cache() {
+    return this._cache ??= new Cache();
   }
 
   get id() {
@@ -60,7 +67,7 @@ export default class TeamSetGameSearch implements Iterable<GameSummary> {
     this._gamesSummary.sortIn((a:GameSummary, b:GameSummary) => b.rating! - a.rating!, gameSummary);
   }
   includes(gameSummary:GameSummary) {
-    const setIds = new Set(gameSummary.teams.map(t => t.set.id));
+    const setIds = new Set(gameSummary.teams.map(t => t.set!.id));
     if (!setIds.has(this._params.setId)) return false;
 
     if (this._params.vsSetId) {
@@ -70,7 +77,7 @@ export default class TeamSetGameSearch implements Iterable<GameSummary> {
         if (!setIds.has(this._params.vsSetId)) return false;
 
         if (this._params.result) {
-          const team = gameSummary.teams.find(t => t.set.id === this._params.setId);
+          const team = gameSummary.teams.find(t => t.set!.id === this._params.setId)!;
           const winnerId = this._params.result === 'W' ? team.id : (team.id + 1) % 2;
           if (gameSummary.winnerId !== winnerId)
             return false;

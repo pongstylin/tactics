@@ -20,14 +20,34 @@
  * A challenge game may be created with one JOINED and one RESERVED team.
  * A tournament game may be created with 2 RESERVED teams.
  */
+// @ts-ignore
 import seedrandom from 'seedrandom';
 
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import type Game from '#models/Game.js';
+import type GameSession from '#models/GameSession.js';
 import type TeamSet from '#models/TeamSet.js';
+// @ts-ignore
 import ServerError from '#server/Error.js';
-import type GameType from '#tactics/GameType.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+
+type TeamEvents = AbstractEvents & {
+  'change:id': {},
+  'change:set': {},
+  'change:setVia': {},
+  'change:position': {},
+  'change:colorId': {},
+  'change:useRandom': {},
+  'change:bot': {},
+  'change:initialTurnId': {},
+  'change:checkinAt': {},
+  'change:checkoutAt': {},
+  'change:lastActiveAt': {},
+  'change:usedUndo': {},
+  'change:usedSim': {},
+  'change:setRating': {},
+};
 
 class Random {
   protected data: {
@@ -36,7 +56,7 @@ class Random {
     current: any
   }
 
-  constructor(data) {
+  constructor(data:Random['data']) {
     this.data = data;
   }
 
@@ -49,7 +69,7 @@ class Random {
       current: rng,
     });
   }
-  static fromJSON(data) {
+  static fromJSON(data:Random['data']) {
     return new Random(Object.assign(data, {
       current: seedrandom("", { state:data.current }),
     }));
@@ -70,7 +90,7 @@ class Random {
   }
 };
 
-export default class Team extends ActiveModel {
+export default class Team extends ActiveModel<TeamEvents> {
   protected data: {
     id: number;
     slot: number;
@@ -80,25 +100,25 @@ export default class Team extends ActiveModel {
     checkoutAt: Date | null;
     lastActiveAt: Date | null;
     playerId: string;
-    name: string;
+    name?: string;
     position: string;
     colorId: any;
     useRandom: boolean;
     randomState: Random;
-    set: TeamSet | null;
+    set?: TeamSet;
     setVia: 'mirror' | 'random' | 'same' | 'top' | 'temp' | 'default' | 'alt1' | 'alt2' | 'alt3' | null
     randomSide: boolean;
     bot: any;
     usedUndo: boolean;
     usedSim: boolean;
-    forkOf: any;
+    forkOf: { playerId:string, name:string };
     ratings: Map<string, [ number, number ]> | null;
     initialTurnId: number | null;
   };
   public isCurrent: boolean = false;
   public units: any[][] | null = null;
 
-  constructor(data, props?:ConstructorParameters<typeof ActiveModel>[0]) {
+  constructor(data:Partial<Team['data']>, props?:ConstructorParameters<typeof ActiveModel>[0]) {
     super(props);
     this.data = Object.assign({
       // The position of the team in the teams array post game start
@@ -168,7 +188,12 @@ export default class Team extends ActiveModel {
       this.data.randomState = Random.create();
   }
 
-  static validateSet(data, game:Game) {
+  validateSet(data:(
+    Partial<Pick<Team['data'], 'setVia' | 'randomSide'>> &
+    { set?:Team['data']['set'] | Team['data']['setVia'] }
+  ), game:Game) {
+    if (!data.set) return;
+
     const firstTeam = game.state.teams.filter(t => !!t?.joinedAt).sort((a,b) => a!.joinedAt!.getTime() - b!.joinedAt!.getTime())[0];
 
     if (typeof data.set === 'string') {
@@ -187,14 +212,14 @@ export default class Team extends ActiveModel {
         throw new ServerError(403, `May not use same set for rated games.`);
       if (game.state.teams.length !== 2)
         throw new ServerError(403, `May only use the 'same' set option for 2-player games`);
-      if (!firstTeam || firstTeam.slot === data.slot)
+      if (!firstTeam || firstTeam === this)
         throw new ServerError(403, `May not use the 'same' set option on the first team to join the game`);
     } else if (data.setVia === 'mirror') {
       if (game.state.rated)
         throw new ServerError(403, `May not use mirror set for rated games.`);
       if (game.state.teams.length !== 2)
         throw new ServerError(403, `May only use the 'mirror' set option for 2-player games`);
-      if (!firstTeam || firstTeam.slot === data.slot)
+      if (!firstTeam || firstTeam === this)
         throw new ServerError(403, `May not use the 'mirror' set option on the first team to join the game`);
       if (game.state.gameType.hasFixedSides)
         throw new ServerError(403, `May not use the 'mirror' set option for opp-side game styles`);
@@ -204,7 +229,7 @@ export default class Team extends ActiveModel {
       throw new ServerError(403, 'May not randomize side in this game type');
   }
 
-  static create(data) {
+  static create(data:Partial<Team['data']>) {
     if (typeof data.slot !== 'number')
       throw new TypeError('Required slot');
 
@@ -212,14 +237,18 @@ export default class Team extends ActiveModel {
 
     return new Team(data, { isClean:false, isPersisted:false });
   }
-  static createReserve(data) {
+  static createReserve(data:Team['data']) {
     if (data.setVia)
       throw new ServerError(403, 'May not assign a set to a reserved team');
 
     return Team.create(data);
   }
-  static createJoin(data, clientPara, game) {
-    return Team.create({ slot:data.slot }).join(data, clientPara, game);
+  static createJoin(data:(
+    Pick<Team['data'], 'slot'> &
+    Partial<Pick<Team['data'], 'name' | 'setVia' | 'randomSide'>> &
+    { set:Team['data']['set'] | Team['data']['setVia'] }
+  ), gameSession:GameSession, game:Game) {
+    return Team.create({ slot:data.slot }).join(data, gameSession, game);
   }
 
   get id() {
@@ -242,13 +271,16 @@ export default class Team extends ActiveModel {
     return this.data.name;
   }
   get set() {
-    return this.data.set;
+    return this.data.set ?? null;
   }
-  set set(set:Team['data']['set']) {
+  set set(set:NonNullable<Team['data']['set']> | null) {
     if (this.data.set === set)
       return;
 
-    this.data.set = set;
+    if (set === null)
+      delete this.data.set;
+    else
+      this.data.set = set;
     this.emit('change:set');
   }
   get setVia() {
@@ -366,7 +398,7 @@ export default class Team extends ActiveModel {
     this.emit('change:lastActiveAt');
   }
 
-  loadSet(set:Team['data']['set']) {
+  loadSet(set:NonNullable<Team['data']['set']>) {
     this.data.set = set;
   }
 
@@ -408,7 +440,7 @@ export default class Team extends ActiveModel {
     this.data.usedSim = true;
     this.emit('change:usedSim');
   }
-  setRating(rankingId, oldRating, newRating) {
+  setRating(rankingId:string, oldRating:number, newRating:number) {
     if (
       this.data.ratings?.has(rankingId) &&
       this.data.ratings.get(rankingId)![0] === oldRating &&
@@ -421,23 +453,25 @@ export default class Team extends ActiveModel {
     this.emit('change:setRating');
   }
 
-  fork(props) {
+  fork(props:Pick<Team['data'], 'id' | 'slot' | 'position' | 'set'>) {
     return Team.create(Object.assign({
       slot: this.data.slot,
-      forkOf: { playerId:this.data.playerId, name:this.data.name },
+      forkOf: { playerId:this.data.playerId, name:this.data.name! },
       useRandom: this.data.useRandom,
-      set: this.data.set,
+      set: this.data.set!,
     }, props));
   }
 
-  reserve(data) {
-    this.data.playerId = data.playerId;
-    this.data.name = data.name ?? null;
+  reserve(data:PickPartial<Pick<Team['data'], 'playerId' | 'name'>, 'name'>) {
+    Object.assign(this.data, data);
   }
-  join(data, clientPara, game:Game | null = null) {
+  join(data:(
+    Partial<Pick<Team['data'], 'name' | 'setVia' | 'randomSide'>> &
+    { set?:Team['data']['set'] | Team['data']['setVia'] }
+  ), gameSession:GameSession, game:Game | null = null) {
     if (this.data.joinedAt)
       throw new ServerError(409, 'This team has already been joined');
-    if (this.data.playerId && this.data.playerId !== clientPara.playerId)
+    if (this.data.playerId && this.data.playerId !== gameSession.player.id)
       throw new ServerError(403, 'This team is reserved');
 
     if (game && !game.state.gameType.isCustomizable) {
@@ -445,13 +479,13 @@ export default class Team extends ActiveModel {
       delete data.set;
     } else if (data.set)
       if (game)
-        Team.validateSet(data, game);
+        this.validateSet(data, game);
       else
         throw new Error(`Game is required to validate a set`);
 
     this.data.joinedAt = new Date();
-    this.data.playerId = clientPara.playerId;
-    this.data.name = data.name ?? clientPara.name;
+    this.data.playerId = gameSession.player.id;
+    this.data.name = data.name ?? gameSession.player.name;
     this.data.setVia = data.setVia ?? null;
     this.data.randomSide = data.randomSide ?? this.data.randomSide;
 
@@ -471,8 +505,7 @@ export default class Team extends ActiveModel {
   clone() {
     return new Team(this.data);
   }
-  merge(teamData) {
-    // @ts-ignore
+  merge(teamData:Team['data']) {
     this.data.merge(teamData);
     return this;
   }

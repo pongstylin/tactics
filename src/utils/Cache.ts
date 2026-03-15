@@ -1,0 +1,271 @@
+import { TypedEmitter } from '#utils/emitter.js';
+// @ts-expect-error
+import ticker from '#utils/ticker.js';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type CacheKey = {};
+
+type DeleteReason = 'finalized' | 'collected' | 'rejected' | 'replaced' | 'deleted' | (string & {});
+type ExternalDeleteReason = Exclude<DeleteReason, 'finalized'>;
+
+type CacheEvents<V> = {
+  delete: { key: CacheKey; reason: DeleteReason };
+};
+
+type StackEntry<K extends CacheKey> = {
+  key: K;
+  expireAt: number;
+};
+
+type BaseMeta<K extends CacheKey> = {
+  key: K;
+  stackEntry: StackEntry<K> | null;
+};
+
+type ValueMeta<K extends CacheKey, V> = BaseMeta<K> & {
+  type: 'value';
+  value: V;
+};
+
+type PromiseMeta<K extends CacheKey, V> = BaseMeta<K> & {
+  type: 'Promise';
+  value: PromiseLike<V | undefined>;
+};
+
+type WeakRefMeta<K extends CacheKey, V> = BaseMeta<K> & {
+  type: 'WeakRef';
+  value: WeakRef<V & object>;
+};
+
+type Meta<K extends CacheKey, V> =
+  | ValueMeta<K, V>
+  | PromiseMeta<K, V>
+  | WeakRefMeta<K, V>;
+
+type CacheOptions = {
+  ttl?: number | null;
+  limit?: number;
+};
+
+type CacheValue = object | string | number | boolean | symbol | bigint | null;
+
+type Getter<K extends CacheKey, V extends CacheValue> =
+  | V
+  | ((key:K) => V | PromiseLike<V | undefined> | undefined);
+
+// ---------------------------------------------------------------------------
+// Module-level state
+// ---------------------------------------------------------------------------
+
+// Caches are expected to be global, so we will assume they are never garbage collected.
+const caches:Cache<CacheKey, any>[] = [];
+let lastTick = Date.now();
+
+// ---------------------------------------------------------------------------
+// Cache
+// ---------------------------------------------------------------------------
+
+export default class Cache<K extends CacheKey, V extends CacheValue> extends TypedEmitter<CacheEvents<V>> {
+  private readonly ttl:number | null;
+  private readonly limit:number;
+  private readonly data:Map<K, Meta<K, V>>;
+  private readonly stack:StackEntry<K>[]; // sorted shortest expiration at end for efficient array truncation
+  private readonly registry:FinalizationRegistry<WeakRefMeta<K, V>>;
+
+  constructor({ ttl = 3_600_000, limit = 100 }:CacheOptions = {}) {
+    super();
+    this.ttl = ttl;
+    this.limit = limit;
+    this.data = new Map();
+    this.stack = [];
+    this.registry = new FinalizationRegistry(m => this._delete(m.key, 'finalized'));
+    caches.push(this);
+  }
+
+  static tick({ now }:{ now:number }): void {
+    if ((now - lastTick) < 5000) return;
+    lastTick = now;
+    for (const cache of caches)
+      cache.tick(now);
+  }
+
+  private _indexOfStackEntry(stackEntry:StackEntry<K>):number {
+    let i = this.stack.findSortIndex(s => s.expireAt - stackEntry.expireAt);
+    while (i < this.stack.length) {
+      if (this.stack[i] === stackEntry) return i;
+      i++;
+    }
+    return -1;
+  }
+
+  private _refresh(key:K, meta:ValueMeta<K, V>):void {
+    if (this.ttl === null) return;
+    const hadStackEntry = meta.stackEntry !== null;
+    if (hadStackEntry) {
+      const i = this._indexOfStackEntry(meta.stackEntry!);
+      if (i !== -1) this.stack.splice(i, 1);
+    }
+    const stackEntry:StackEntry<K> = { key, expireAt: Date.now() + this.ttl };
+    meta.stackEntry = stackEntry;
+    this.stack.unshift(stackEntry);
+    if (!hadStackEntry && this.stack.length > this.limit)
+      this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
+  }
+
+  private _setWeakRef(key:K, value:V & object):void {
+    const weakMeta:WeakRefMeta<K, V> = { key, type:'WeakRef', value:new WeakRef(value), stackEntry:null };
+    this.data.set(key, weakMeta);
+    this.registry.register(value, weakMeta, value);
+  }
+
+  private tick(now:number): void {
+    const stack = this.stack;
+    let i = stack.length;
+    for (; i > 0; i--) {
+      const item = stack[i - 1]!;
+      if (item.expireAt > now) break;
+      const meta = this.data.get(item.key);
+      if (!meta) continue;
+      if (meta.type === 'value' && meta.value !== null && typeof meta.value === 'object') {
+        this._setWeakRef(item.key, meta.value);
+      } else {
+        this._delete(item.key, 'finalized');
+      }
+    }
+    stack.length = i;
+  }
+
+  use(key:K, getter:V | ((key:K) => V)):V;
+  use(key:K, getter:Getter<K, V>):V | PromiseLike<V | undefined> | undefined;
+  use(key:K, getter:Getter<K, V>):V | PromiseLike<V | undefined> | undefined {
+    const value = this.peek(key);
+    if (value !== undefined) return value;
+    return this.set(key, getter);
+  }
+
+  has(key:K):boolean {
+    // Can't rely on the has method since the key might exist even though the WeakRef has been collected
+    return this.get(key) !== undefined;
+  }
+
+  get(key:K):V | undefined {
+    const value = this.peek(key);
+    if (Promise.isThenable(value))
+      return undefined;
+    return value;
+  }
+
+  peek(key:K):V | PromiseLike<V | undefined> | undefined {
+    if (key === undefined || key === null)
+      throw new Error(`Cache key cannot be ${typeof key}`);
+    const meta = this.data.get(key);
+    if (!meta) return undefined;
+    if (meta.type === 'WeakRef') {
+      const value = meta.value.deref();
+      if (value === undefined) {
+        this._delete(key, 'collected');
+        return undefined;
+      }
+      if (this.ttl !== null) {
+        this.registry.unregister(value);
+        const stackEntry:StackEntry<K> = { key, expireAt:Date.now() + this.ttl };
+        const valueMeta:ValueMeta<K, V> = { key, type:'value', value:value as V, stackEntry };
+        this.data.set(key, valueMeta);
+        this.stack.unshift(stackEntry);
+        if (this.stack.length > this.limit)
+          this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
+      }
+      return value;
+    }
+    if (meta.type === 'value') this._refresh(key, meta);
+    return meta.value;
+  }
+
+  set(key:K, getter:V | ((key:K) => V)):V;
+  set(key:K, getter:Getter<K, V>):V | PromiseLike<V | undefined> | undefined;
+  set(key:K, getter:Getter<K, V>):V | PromiseLike<V | undefined> | undefined {
+    if (key === undefined || key === null)
+      throw new Error(`Cache key cannot be ${typeof key}`);
+    const expireAt = this.ttl !== null ? Date.now() + this.ttl : null;
+    const value = typeof getter === 'function' ? getter(key) : getter;
+    if (value === undefined) return undefined;
+    const existing = this.data.get(key);
+    if (existing) {
+      const existingValue = existing.type === 'WeakRef' ? existing.value.deref() : existing.value;
+      if (existingValue === value) return value;
+      this._delete(key, 'replaced');
+    }
+    if (Promise.isThenable(value)) {
+      const promise = value.then(
+        (v:unknown) => this.set(key, v as V),
+        (e:unknown) => { this._delete(key, 'rejected'); throw e; }
+      );
+      const meta:PromiseMeta<K, V> = { key, type:'Promise', value:promise, stackEntry:null };
+      this.data.set(key, meta);
+      return promise;
+    } else if (expireAt) {
+      const stackEntry:StackEntry<K> = { key, expireAt };
+      const meta:ValueMeta<K, V> = { key, type:'value', value, stackEntry };
+      this.data.set(key, meta);
+      this.stack.unshift(stackEntry);
+      if (this.stack.length > this.limit)
+        this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
+    } else if (value !== null && typeof value === 'object') {
+      this._setWeakRef(key, value);
+    } else {
+      const meta:ValueMeta<K, V> = { key, type:'value', value, stackEntry:null };
+      this.data.set(key, meta);
+    }
+    return value;
+  }
+
+  delete(key:K, reason:ExternalDeleteReason = 'deleted'):void {
+    if ((reason as DeleteReason) === 'finalized')
+      throw new Error(`'finalized' is a reserved delete reason`);
+    this._delete(key, reason);
+  }
+
+  private _delete(key:K, reason:DeleteReason):void {
+    if (reason !== 'finalized') {
+      const meta = this.data.get(key);
+      if (meta?.type === 'WeakRef') {
+        const value = meta.value.deref();
+        if (value !== undefined)
+          this.registry.unregister(value);
+      }
+      if (meta?.stackEntry != null) {
+        const i = this._indexOfStackEntry(meta.stackEntry);
+        if (i !== -1) this.stack.splice(i, 1);
+      }
+    }
+    this.data.delete(key);
+    this.emit('delete', { key, reason });
+  }
+
+  *values():Generator<V> {
+    for (const [key, meta] of this.data.entries()) {
+      if (meta.type === 'WeakRef') {
+        const value = meta.value.deref();
+        if (value !== undefined) yield value;
+      } else if (meta.type === 'value') {
+        yield meta.value;
+      }
+    }
+  }
+
+  *[Symbol.iterator]():Generator<[K, V]> {
+    for (const [key, meta] of this.data.entries()) {
+      if (meta.type === 'WeakRef') {
+        const value = meta.value.deref();
+        if (value !== undefined) yield [key, value];
+      } else if (meta.type === 'value') {
+        yield [key, meta.value];
+      }
+    }
+  }
+}
+
+ticker.on('tick', Cache.tick);

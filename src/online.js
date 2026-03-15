@@ -500,17 +500,13 @@ whenDOMReady.then(() => {
   gameClient
     .on('event', ({ body }) => {
       const statsContent = state.tabContent.stats;
-      const yourContent = state.tabContent.yourGames;
       const lobbyContent = state.tabContent.lobby;
-      const publicContent = state.tabContent.publicGames;
 
       if (body.group === `/myGames/${myPlayerId}`) {
-        if (body.type === 'stats') {
-          yourContent.stats = body.data;
-          renderStats('my');
-        } else if (body.type === 'add' || body.type === 'change')
+        if (body.type === 'game:add' || body.type === 'game:change') {
           setYourGame(body.data);
-        else if (body.type === 'remove')
+          renderStats('my');
+        } else if (body.type === 'game:remove')
           unsetYourGame(body.data);
       } else if (body.group === '/collections') {
         if (body.type === 'stats') {
@@ -518,9 +514,9 @@ whenDOMReady.then(() => {
           renderStats('collections');
         }
       } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
-        if (body.type === 'add' || body.type === 'change')
+        if (body.type === 'game:add' || body.type === 'game:change')
           setLobbyGame(body.data);
-        else if (body.type === 'remove') {
+        else if (body.type === 'game:remove') {
           // A game can be removed from the lobby list when you join it.
           // This is because the lobby excludes your games from the list.
           // But our own active lobby games should remain visible.
@@ -530,9 +526,9 @@ whenDOMReady.then(() => {
           unsetLobbyGame(body.data);
         }
       } else if (body.group === '/collections/public') {
-        if (body.type === 'add' || body.type === 'change')
+        if (body.type === 'game:add' || body.type === 'game:change')
           setPublicGame(body.data);
-        else if (body.type === 'remove')
+        else if (body.type === 'game:remove')
           unsetPublicGame(body.data);
       }
     })
@@ -1301,7 +1297,7 @@ function renderStats(scope = 'all') {
       if (game.turnEndedAt)
         continue;
       // Exclude practice games
-      if (!game.teams.find(t => t.playerId !== myPlayerId))
+      if (!game.teams.some(t => t.playerId !== myPlayerId))
         continue;
 
       numYourTurn++;
@@ -1816,12 +1812,12 @@ async function resetLobbyGames() {
 function queueFillArena(divArena, arena) {
   const index = divArena.dataset.index;
   const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
-  const disabled = !!lobbyGame && !arena.startedAt && arena.collection?.startsWith('lobby/');
+  const disabled = !!lobbyGame && arena?.id !== lobbyGame.id;
 
   if (fillArenaQueueMap.has(index))
     fillArenaQueueMap.set(index, fillArenaQueueMap.get(index).then(() => gameArena.fillArena(divArena, arena, disabled)));
   else
-    fillArenaQueueMap.set(index, gameArena.fillArena(divArena, arena));
+    fillArenaQueueMap.set(index, gameArena.fillArena(divArena, arena, disabled));
 
   return fillArenaQueueMap.get(index);
 }
@@ -3089,7 +3085,7 @@ async function fetchTabData(tabName) {
       },
       {
         filter: {
-          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          // Removed the playerId filter so that your own active games stay viewable in lobby.
           startedAt: { not:null },
           endedAt: null,
         },
@@ -3108,7 +3104,7 @@ async function fetchTabData(tabName) {
 
     const join = styleId =>
       gameClient.joinCollectionGroup(`lobby/${styleId}`, { query }).then(rsp => {
-        tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
+        tabContent.games = rsp.results.get(`lobby/${styleId}`).map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
 
         tabContent.view.gameTypeId = styleId;
@@ -3116,7 +3112,7 @@ async function fetchTabData(tabName) {
 
         const yourLobbyGames = Array.from(state.tabContent.yourGames.games[4].values());
         const yourLobbyGame = yourLobbyGames.find(gs => gs.collection === `lobby/${styleId}`);
-        const games = rsp.results.map(r => r.hits).flat();
+        const games = rsp.results.get(`lobby/${styleId}`).map(r => r.hits).flat();
         if (yourLobbyGame)
           games.push(yourLobbyGame);
 
@@ -3185,7 +3181,7 @@ async function fetchTabData(tabName) {
 
     promises.push(
       gameClient.joinCollectionGroup(`public`, { query }).then(rsp => {
-        tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
+        tabContent.games = rsp.results.get('public').map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
       }),
     );

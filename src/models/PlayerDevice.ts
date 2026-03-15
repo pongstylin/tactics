@@ -1,12 +1,25 @@
 import { v4 as uuid } from 'uuid';
 
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import type Session from '#models/Session.js';
 import type Player from '#models/Player.js';
+// @ts-ignore
 import AccessToken from '#server/AccessToken.js';
+// @ts-ignore
 import ServerError from '#server/Error.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
 
-export default class PlayerDevice extends ActiveModel {
+type PlayerDeviceEvents = AbstractEvents & {
+  'change:name': {},
+  'change:token': {},
+  'change:nextToken': {},
+  'change:activateAccessToken': {},
+  'change:checkin': {},
+  'change:checkout': {},
+};
+
+export default class PlayerDevice extends ActiveModel<PlayerDeviceEvents> {
   protected data: {
     id: string
     name: string | null
@@ -15,16 +28,16 @@ export default class PlayerDevice extends ActiveModel {
     agents: Map<string, Map<string, Date>>
     createdAt: Date
     checkinAt: Date
-    checkoutAt: Date
+    checkoutAt: Date | null
   }
   public player: Player | null = null;
 
-  constructor(data) {
+  constructor(data:PlayerDevice['data']) {
     super();
     this.data = data;
   }
 
-  static create(client) {
+  static create(client:Session['client']) {
     const now = new Date();
     const deviceId = uuid();
     const data = {
@@ -80,7 +93,7 @@ export default class PlayerDevice extends ActiveModel {
   }
 
   get lastSeenAt() {
-    return this.data.checkinAt > this.data.checkoutAt ? new Date() : this.data.checkoutAt;
+    return !this.data.checkoutAt || this.data.checkinAt > this.data.checkoutAt ? new Date() : this.data.checkoutAt;
   }
   get ttl() {
     // Delete the object after 3 months of inactivity
@@ -98,18 +111,18 @@ export default class PlayerDevice extends ActiveModel {
     this.data.nextToken = null;
     this.emit('change:activateAccessToken');
   }
-  checkin(client, checkinAt = new Date()) {
+  checkin(client:Session['client'], checkinAt = new Date()) {
     this._setAgentAddress(client, checkinAt);
     this.data.checkinAt = checkinAt;
     this.emit('change:checkin');
   }
-  checkout(client, checkoutAt = new Date()) {
+  checkout(client:Session['client'], checkoutAt = new Date()) {
     this._setAgentAddress(client, checkoutAt);
     this.data.checkoutAt = checkoutAt;
     this.emit('change:checkout');
   }
 
-  _setAgentAddress(client, lastSeenAt:Date) {
+  _setAgentAddress(client:Session['client'], lastSeenAt:Date) {
     if (this.data.agents.has(client.agent))
       this.data.agents.get(client.agent)!.set(client.address, lastSeenAt);
     else

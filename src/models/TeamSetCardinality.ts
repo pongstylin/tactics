@@ -1,12 +1,19 @@
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import type TeamSet from '#models/TeamSet.js';
+// @ts-ignore
 import ServerError from '#server/Error.js';
 import GameType from '#tactics/GameType.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+
+type TeamSetCardinalityEvents = AbstractEvents & {
+  'change:applySet': {},
+  'change:optimize': {},
+};
 
 export type Index = { path:string, count:number, disabled:boolean };
 
-export default class TeamSetCardinality extends ActiveModel {
+export default class TeamSetCardinality extends ActiveModel<TeamSetCardinalityEvents> {
   public indexes: Map<string, Index>;
 
   private _gameType:GameType;
@@ -16,7 +23,7 @@ export default class TeamSetCardinality extends ActiveModel {
     indexes: Index[];
   };
 
-  constructor(data, props?:ConstructorParameters<typeof ActiveModel>[0]) {
+  constructor(data:PickPartial<TeamSetCardinality['data'], 'indexes'>, props?:ConstructorParameters<typeof ActiveModel>[0]) {
     super(props);
 
     data.indexes ??= [{ path:'/', count:0, disabled:false }];

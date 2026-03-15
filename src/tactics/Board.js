@@ -550,12 +550,9 @@ export default class Board {
 
     return null;
   }
-  rotateUnits(units, degree, flipSide = false) {
+  rotateUnits(units, degree) {
     return units.map(unitState => {
-      const tile = flipSide === false || unitState.assignment[0] === 5
-        ? this.getTileRotation(unitState.assignment, degree)
-        : this.getTileRotation([ 10 - unitState.assignment[0], unitState.assignment[1] ], degree);
-
+      const tile = this.getTileRotation(unitState.assignment, degree);
       const newUnitState = Object.assign({}, unitState, {
         assignment: [tile.x, tile.y],
       });

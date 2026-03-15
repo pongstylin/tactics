@@ -21,6 +21,10 @@ import ServerError from '#server/Error.js';
 
 const gameSummaryCache = new WeakMap();
 
+// The keys are games that have a changed game summary that hasn't been saved yet.
+// The values are game summary list ids applicable to the game.
+const dirtyGamesSummary = new Map();
+
 export default class extends DynamoDBAdapter {
   constructor(options = {}) {
     super({
@@ -46,33 +50,17 @@ export default class extends DynamoDBAdapter {
         [
           'teamSetStats', {
             saver: '_saveTeamSetStats',
-            // Stats will live as long as the team sets to which they are attached.
-            destroyOnExpire: false,
           },
         ],
         [
           'teamSetCardinality', {
             saver: '_saveTeamSetCardinality',
-            // Permanently cached... outside the cache.
-            destroyOnExpire: false,
           },
         ],
         [
           'teamSetIndex', {
             saver: '_saveTeamSetIndex',
-            destroyOnExpire: false,
           },
-        ],
-        [
-          'teamSetSearch', {
-            destroyOnExpire: false,
-          },
-        ],
-        [
-          'teamSetGameSearch', {}
-        ],
-        [
-          'defaultTeamSets', {}
         ],
         [
           'playerSets', {
@@ -84,20 +72,10 @@ export default class extends DynamoDBAdapter {
             saver: '_savePlayerAvatars',
           },
         ],
-        [
-          'gameSummaryLists', {},
-        ],
       ]),
 
       _gameTypes: null,
       _teamSetCardinalities: new Map(),
-
-      // The keys are games that have a changed game summary that hasn't been saved yet.
-      // The values are game summary list ids applicable to the game.
-      _dirtyGamesSummary: new Map(),
-
-      // Trigger a close for an object when a parent object is garbage collected
-      _closer: new FinalizationRegistry(({ objectType, objectKey }) => this.cache.get(objectType).close(objectKey)),
     });
   }
 
@@ -145,56 +123,12 @@ export default class extends DynamoDBAdapter {
     return cardinalities.get(gameTypeId);
   }
 
-  /*
-   * This opens the player's game and set list.
-   */
-  async openPlayer(player) {
-    await Promise.all([
-      this._getPlayerStats(player).then(playerStats => this.cache.get('playerStats').open(player.id, playerStats)),
-      this._getPlayerGames(player.id).then(playerGames => this.cache.get('gameSummaryLists').open(`playerGames#${player.id}`, playerGames)),
-      this._getPlayerSets(player).then(playerSets => this.cache.get('playerSets').open(player.id, playerSets)),
-      this._getPlayerAvatars(player).then(playerAvatars => this.cache.get('playerAvatars').open(player.id, playerAvatars)),
-    ]);
-  }
-  closePlayer(player) {
-    this.cache.get('playerStats').close(player.id);
-    this.cache.get('gameSummaryLists').close(`playerGames#${player.id}`);
-    this.cache.get('playerSets').close(player.id);
-    this.cache.get('playerAvatars').close(player.id);
-
-    /*
-     * Refresh the TTL of player objects if needed as players check out.
-     */
-    for (const itemType of [ 'playerStats', 'playerSets', 'playerAvatars' ]) {
-      const obj = this.cache.get(itemType).get(player.id);
-      const itemMeta = this.getItemMeta(obj);
-      // The obj won't have meta if it was just created and not saved
-      if (!itemMeta.item)
-        continue;
-      // Subtract the 1 week so this TTL doesn't end up being too close to the player TTL.
-      if (!itemMeta.item.TTL || (itemMeta.item.TTL - 7 * 86400) < player.ttl)
-        this.buffer.get(itemType).add(obj.playerId, obj);
-    }
+  async getPlayerGames(playerId) {
+    return this._getPlayerGames(playerId);
   }
 
-  async openPlayerGames(playerId) {
-    const playerGames = await this._getPlayerGames(playerId);
-    return this.cache.get('gameSummaryLists').open(`playerGames#${playerId}`, playerGames);
-  }
-  closePlayerGames(playerId) {
-    return this.cache.get('gameSummaryLists').close(`playerGames#${playerId}`);
-  }
-
-  async openGameCollection(collectionId) {
-    const collection = await this._getGameCollection(collectionId);
-    return this.cache.get('gameSummaryLists').open(collectionId, collection);
-  }
-  closeGameCollection(collectionId) {
-    return this.cache.get('gameSummaryLists').close(collectionId);
-  }
   async getGameCollection(collectionId) {
-    const collection = await this._getGameCollection(collectionId);
-    return this.cache.get('gameSummaryLists').add(collectionId, collection);
+    return this._getGameCollection(collectionId);
   }
 
   async getPlayerStats(myPlayer, vsPlayerIds = []) {
@@ -202,7 +136,6 @@ export default class extends DynamoDBAdapter {
     if (vsPlayerIds.length)
       await Promise.all(vsPlayerIds.map(vsPlayerId => this._loadPlayerStatsVS(playerStats, vsPlayerId)));
 
-    this.cache.get('playerStats').add(myPlayer.id, playerStats);
     return playerStats;
   }
   async clearPlayerWLDStats(myPlayer, vsPlayerId, gameTypeId) {
@@ -212,11 +145,9 @@ export default class extends DynamoDBAdapter {
   }
 
   async createGame(game) {
-    await this._createGame(game);
-    this.cache.get('game').add(game.id, game);
-    return game;
+    return this._createGame(game);
   }
-  async forkGame(game, clientPara, options) {
+  async forkGame(game, gameSession, options) {
     options.vs ??= 'yourself';
 
     if (options.turnId === undefined)
@@ -230,27 +161,14 @@ export default class extends DynamoDBAdapter {
     while (!(await this._getGameTurn(game, options.turnId)).isPlayable)
       options.turnId--;
 
-    const forkGame = game.fork(clientPara, options);
+    const forkGame = game.fork(gameSession, options);
     return this.createGame(forkGame);
   }
-  async openGame(gameId) {
-    const game = await this._getGame(gameId);
-    return this.cache.get('game').open(gameId, game);
-  }
-  getOpenGames() {
-    return this.cache.get('game').openedValues();
-  }
-  closeGame(gameId) {
-    return this.cache.get('game').close(gameId);
-  }
   async getGames(gameIds) {
-    const games = await Promise.all([ ...gameIds ].map(gId => this._getGame(gId)));
-    games.forEach(g => this.cache.get('game').add(g.id, g));
-    return games;
+    return Promise.all([ ...gameIds ].map(gId => this._getGame(gId)));
   }
   async getGame(gameId, withRecentTurns = true) {
-    const game = await this._getGame(gameId, withRecentTurns);
-    return this.cache.get('game').add(gameId, game);
+    return this._getGame(gameId, withRecentTurns);
   }
   async getGameFromFile(gameId, teamSets = null, initial = false) {
     const game = await this.getFile(`game_${gameId}`, data => {
@@ -291,11 +209,7 @@ export default class extends DynamoDBAdapter {
 
     return game;
   }
-  getOpenGame(gameId) {
-    return this.cache.get('game').getOpen(gameId);
-  }
   async deleteGame(game) {
-    this.cache.get('game').delete(game.id);
     this.buffer.get('game').delete(game.id);
     game.destroy();
 
@@ -317,11 +231,10 @@ export default class extends DynamoDBAdapter {
       gameType = this._gameTypes.get(gameType);
 
     const game = await (async () => {
-      const game = this.cache.get('game').get(gameId) ?? this.buffer.get('game').get(gameId);
+      const game = await Game.cache.peek(gameId);
       if (game) return game;
 
-      const cache = this.cache.get('gameSummaryLists');
-      for (const gsl of cache.values()) {
+      for (const gsl of GameSummaryList.cache.values()) {
         const gs = gsl.find(gs => gs.id === gameId);
         if (gs) return gs;
       }
@@ -422,12 +335,11 @@ export default class extends DynamoDBAdapter {
 
   async getPlayerAvatars(player, playerId = null) {
     playerId ??= player.id;
-    const playerAvatars = await this._getPlayerAvatars(player, playerId);
-    return this.cache.get('playerAvatars').add(playerId, playerAvatars);
+    return this._getPlayerAvatars(player, playerId);
   }
   async listPlayersAvatar(playerIds) {
-    const playerAvatars = await Promise.all(playerIds.map(pId => this.getPlayerAvatars(null, pId)));
-    return playerAvatars.map(pa => pa.avatar);
+    const playerAvatarsList = await Promise.all(playerIds.map(pId => this.getPlayerAvatars(null, pId)));
+    return playerAvatarsList.map(pa => pa.avatar);
   }
 
   async searchPlayerGames(player, query) {
@@ -454,8 +366,6 @@ export default class extends DynamoDBAdapter {
   }
   async getRatedGames(rankingId) {
     const gamesSummary = await this._getGameCollection(`rated/${rankingId}`);
-    this.cache.get('gameSummaryLists').add(gamesSummary.id, gamesSummary);
-
     const results = Array.from(gamesSummary.values());
 
     return results.sort((a,b) => b.endedAt - a.endedAt).slice(0, 50);
@@ -498,7 +408,7 @@ export default class extends DynamoDBAdapter {
     };
   }
   async getPlayerPendingGamesInCollection(playerId, collection) {
-    const gamesSummary = await this._getPlayerGames(playerId, true);
+    const gamesSummary = await this._getPlayerGames(playerId);
     const results = [];
 
     for (const gameSummary of gamesSummary.values()) {
@@ -520,8 +430,6 @@ export default class extends DynamoDBAdapter {
    */
   async getPlayerRatedGames(playerId, rankingId) {
     const gamesSummary = await this._getPlayerRatedGames(playerId, rankingId);
-    this.cache.get('gameSummaryLists').add(gamesSummary.id, gamesSummary);
-
     const results = [];
 
     for (const gameSummary of gamesSummary.values())
@@ -531,7 +439,7 @@ export default class extends DynamoDBAdapter {
   }
 
   async listMyTurnGamesSummary(myPlayerId) {
-    const games = await this._getPlayerGames(myPlayerId, true);
+    const games = await this._getPlayerGames(myPlayerId);
 
     const myTurnGames = [];
     for (const game of games.values()) {
@@ -614,45 +522,43 @@ export default class extends DynamoDBAdapter {
    * Game Management
    */
   async _createGame(game) {
-    if (this.cache.get('game').has(game.id) || this.buffer.get('game').has(game.id))
+    if (Game.cache.has(game.id))
       throw new Error('Game already exists');
 
-    // Save the game asynchronously.  This does mean that I trust that the game
-    // does not already exist in storage.  One benefit is a person jumping their
-    // avatar up and down in the lobby does not hammer storage.
-    await this._attachGame(game);
-    this._onGameChange(game, 'game:create');
+    return Game.cache.use(game.id, async () => {
+      await this._attachGame(game);
+      // Save the game asynchronously.  This does mean that I trust that the game
+      // does not already exist in storage.  One benefit is a person jumping their
+      // avatar up and down in the lobby does not hammer storage.
+      this._onGameChange(game, 'game:create');
+      return game;
+    });
   }
   async _getGame(gameId, withRecentTurns = true) {
-    if (this.cache.get('game').has(gameId))
-      return this.cache.get('game').get(gameId);
-    else if (this.buffer.get('game').has(gameId))
-      return this.buffer.get('game').get(gameId);
+    const game = await Game.cache.use(gameId, async () => {
+      // Get the root item first, if it exists.
+      const game = await this.getItem({
+        id: gameId,
+        type: 'game',
+        name: `game_${gameId}`,
+      });
 
-    // Get the root item first, if it exists.
-    const game = await this.getItem({
-      id: gameId,
-      type: 'game',
-      name: `game_${gameId}`,
+      await this._getAllGameTeams(game);
+      await this._attachGame(game);
+      return game;
     });
 
-    // If the full game wasn't loaded from file...
-    if (!game.state.teams.some(t => !!t)) {
-      await this._getAllGameTeams(game);
-
-      // A game is usually loaded with the last turn, which is required to view the game.
-      if (game.state.lastTurnId !== null)
-        if (withRecentTurns === 'all')
-          await this._getAllGameTurns(game);
-        else if (withRecentTurns)
-          await this._getGameRecentTurns(game);
-    }
-
-    await this._attachGame(game);
+    // A game is usually loaded with the last turn, which is required to view the game.
+    if (game.state.lastTurnId !== null)
+      if (withRecentTurns === 'all')
+        await this._getAllGameTurns(game);
+      else if (withRecentTurns)
+        await this._getGameRecentTurns(game);
 
     // Always set the summary even if the game ended.  We might need it to sync game summaries.
-    if (game.state.turns.last)
+    if (!gameSummaryCache.has(game) && game.state.turns.last)
       gameSummaryCache.set(game, GameSummary.create(game));
+
     return game;
   }
   async _getAllGameTeams(game) {
@@ -739,7 +645,9 @@ export default class extends DynamoDBAdapter {
     }));
   }
   _saveGameSummary(game, force = false, ts = new Date().toISOString(), gslIds = null) {
-    if (!force && !this._dirtyGamesSummary.has(game)) return;
+    // Only save the summary if it has actually changed.
+    // Some game changes, like team check in/out, does not change the summary.
+    if (!force && !dirtyGamesSummary.has(game)) return;
 
     const children = [];
     const exChildren = [];
@@ -838,7 +746,7 @@ export default class extends DynamoDBAdapter {
     ]).then(() => {
       // If the game summary didn't change while saving, then it's clean now.
       if (gameSummaryCache.get(game) === gs)
-        this._dirtyGamesSummary.delete(game);
+        dirtyGamesSummary.delete(game);
     });
   }
   _onGameChange(game, source, event = null) {
@@ -879,42 +787,42 @@ export default class extends DynamoDBAdapter {
       return;
     gameSummaryCache.set(game, summary);
 
-    const gameSummaryListCache = this.cache.get('gameSummaryLists');
     const gameSummaryListIds = this._getGameSummaryListIds(game);
-    this._dirtyGamesSummary.set(game, gameSummaryListIds);
+    dirtyGamesSummary.set(game, gameSummaryListIds);
 
     for (const [ gslId, assign ] of gameSummaryListIds) {
       if (gslId.startsWith('teamSetGames#')) {
-        for (const teamSetGameSearch of this.cache.get('teamSetGameSearch').values())
+        for (const teamSetGameSearch of TeamSetGameSearch.cache.values())
           teamSetGameSearch.sortInIfIncluded(summary);
       } else {
-        const gameSummaryList = gameSummaryListCache.get(gslId);
+        const gameSummaryList = GameSummaryList.cache.get(gslId);
         if (!gameSummaryList) continue;
 
-        if (assign) {
-          gameSummaryList.set(game.id, summary);
-          this._pruneGameSummaryList(gameSummaryList);
-        } else
-          gameSummaryList.prune(game.id);
+        Promise.resolve(gameSummaryList).then(gsl => {
+          if (assign) {
+            gsl.set(game.id, summary);
+            this._pruneGameSummaryList(gsl);
+          } else
+            gsl.prune(game.id);
+        });
       }
     }
   }
   _clearGameSummary(game) {
-    const gameSummaryListCache = this.cache.get('gameSummaryLists');
     const gameSummaryListIds = this._getGameSummaryListIds(game);
-    this._dirtyGamesSummary.delete(game);
+    dirtyGamesSummary.delete(game);
 
     for (const [ gslId, assign ] of gameSummaryListIds) {
       if (!assign) continue;
 
-      const gameSummaryList = gameSummaryListCache.get(gslId);
+      const gameSummaryList = GameSummaryList.cache.get(gslId);
       if (!gameSummaryList) continue;
 
       gameSummaryList.delete(game.id);
     }
   }
   _applyDirtyGamesSummary(gameSummaryList) {
-    for (const [ game, gslIds ] of this._dirtyGamesSummary) {
+    for (const [ game, gslIds ] of dirtyGamesSummary) {
       if (!gslIds.get(gameSummaryList.id)) continue;
 
       gameSummaryList.set(game.id, gameSummaryCache.get(game));      
@@ -1004,21 +912,19 @@ export default class extends DynamoDBAdapter {
    * Player Stats Management
    */
   async _getPlayerStats(player) {
-    if (this.cache.get('playerStats').has(player.id))
-      return this.cache.get('playerStats').get(player.id);
-    else if (this.buffer.get('playerStats').has(player.id))
-      return this.buffer.get('playerStats').get(player.id);
+    return PlayerStats.cache.use(player.id, async () => {
+      const playerStats = await this.getItem({
+        type: 'playerStats',
+        id: player.id,
+        name: `player_${player.id}_stats`,
+      }, { playerId:player.id }, () => PlayerStats.create(player.id));
+      playerStats.player = player;
+      playerStats.once('change', () => this.buffer.get('playerStats').add(player.id, playerStats));
+      // Tricky tricky... Add the playerStats instance to the buffer to keep it alive until vs stats are saved
+      playerStats.on('vs:change', e => this.buffer.get('playerStatsVS').add(`${player.id}:${e.data.vsPlayerId}`, { playerStats, ...e.data }));
 
-    const playerStats = await this.getItem({
-      type: 'playerStats',
-      id: player.id,
-      name: `player_${player.id}_stats`,
-    }, { playerId:player.id }, () => PlayerStats.create(player.id));
-    playerStats.player = player;
-    playerStats.once('change', () => this.buffer.get('playerStats').add(player.id, playerStats));
-    playerStats.on('vs:change', e => this.buffer.get('playerStatsVS').add(`${player.id}:${e.data.vsPlayerId}`, e.data));
-
-    return playerStats;
+      return playerStats;
+    });
   }
   async _savePlayerStats(playerStats) {
     const playerId = playerStats.playerId;
@@ -1034,7 +940,7 @@ export default class extends DynamoDBAdapter {
     });
   }
   async _loadPlayerStatsVS(playerStats, vsPlayerId) {
-    if (vsPlayerId === playerStats.playerId || playerStats.vs.has(vsPlayerId))
+    if (vsPlayerId === playerStats.playerId || playerStats.hasVS(vsPlayerId))
       return;
 
     const vsStats = await this.getItem({
@@ -1043,7 +949,7 @@ export default class extends DynamoDBAdapter {
       path: `/vs/${vsPlayerId}`,
     }, {}, null);
     if (vsStats)
-      playerStats.vs.set(vsPlayerId, vsStats);
+      playerStats.loadVS(vsPlayerId, vsStats);
   }
   async _savePlayerStatsVS({ playerId, vsPlayerId, vsStats }) {
     await this.putItem({
@@ -1058,98 +964,94 @@ export default class extends DynamoDBAdapter {
   /*
    * Player Games Management
    */
-  async _getPlayerGames(playerId, consistent = false, empty = false) {
-    const gslId = `playerGames#${playerId}`;
-    if (this.cache.get('gameSummaryLists').has(gslId))
-      return this.cache.get('gameSummaryLists').get(gslId);
+  async _getPlayerGames(playerId, empty = false) {
+    return GameSummaryList.cache.use(`playerGames#${playerId}`, async gslId => {
+      const gamesSummary = [];
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
 
-    const gamesSummary = [];
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      if (!empty)
+        await Promise.all([
+          this.queryItemChildren({
+            id: playerId,
+            type: 'playerGames',
+            name: `player_${playerId}_games`,
+            query: {
+              indexKey: 'LSK0',
+              indexValue: `a=`,
+              order: 'DESC',
+              limit: 50,
+            },
+          }, gss => gamesSummary.push(...gss)),
+          this.queryItemChildren({
+            id: playerId,
+            type: 'playerGames',
+            name: `player_${playerId}_games`,
+            query: {
+              indexKey: 'LSK0',
+              indexValue: `b=`,
+              order: 'DESC',
+              limit: 50,
+            },
+          }, gss => gamesSummary.push(...gss)),
+          this.queryItemChildren({
+            id: playerId,
+            type: 'playerGames',
+            name: `player_${playerId}_games`,
+            query: {
+              indexKey: 'LSK0',
+              indexValue: `c=`,
+              order: 'DESC',
+              limit: 50,
+            },
+          }, gss => gamesSummary.push(...gss)),
+          this.queryItemChildren({
+            id: playerId,
+            type: 'playerGames',
+            name: `player_${playerId}_games`,
+            query: {
+              indexKey: 'LSK4',
+              indexValue: [ 'gt', threeDaysAgo.toISOString() ],
+              order: 'DESC',
+              limit: 50,
+            },
+          }, gss => gamesSummary.push(...gss)),
+        ]);
 
-    if (!empty)
-      await Promise.all([
-        this.queryItemChildren({
-          id: playerId,
-          type: 'playerGames',
-          name: `player_${playerId}_games`,
-          query: {
-            indexKey: 'LSK0',
-            indexValue: `a=`,
-            order: 'DESC',
-            limit: 50,
-          },
-        }, gss => gamesSummary.push(...gss)),
-        this.queryItemChildren({
-          id: playerId,
-          type: 'playerGames',
-          name: `player_${playerId}_games`,
-          query: {
-            indexKey: 'LSK0',
-            indexValue: `b=`,
-            order: 'DESC',
-            limit: 50,
-          },
-        }, gss => gamesSummary.push(...gss)),
-        this.queryItemChildren({
-          id: playerId,
-          type: 'playerGames',
-          name: `player_${playerId}_games`,
-          query: {
-            indexKey: 'LSK0',
-            indexValue: `c=`,
-            order: 'DESC',
-            limit: 50,
-          },
-        }, gss => gamesSummary.push(...gss)),
-        this.queryItemChildren({
-          id: playerId,
-          type: 'playerGames',
-          name: `player_${playerId}_games`,
-          query: {
-            indexKey: 'LSK4',
-            indexValue: [ 'gt', threeDaysAgo.toISOString() ],
-            order: 'DESC',
-            limit: 50,
-          },
-        }, gss => gamesSummary.push(...gss)),
-      ]);
+      const playerGames = new GameSummaryList({
+        id: gslId,
+        gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
+      });
+      this._applyDirtyGamesSummary(playerGames);
 
-    const playerGames = new GameSummaryList({
-      id: gslId,
-      gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
+      return playerGames;
     });
-    this._applyDirtyGamesSummary(playerGames);
-
-    return playerGames;
   }
 
   /*
    * Player Rated Games
    */
   async _getPlayerRatedGames(playerId, rankingId) {
-    const gslId = `rated/${playerId}/${rankingId}`;
-    if (this.cache.get('gameSummaryLists').has(gslId))
-      return this.cache.get('gameSummaryLists').get(gslId);
+    return GameSummaryList.cache.use(`rated/${playerId}/${rankingId}`, async gslId => {
+      const gamesSummary = await this.queryItemChildren({
+        id: playerId,
+        type: 'playerGames',
+        name: `player_${playerId}_games`,
+        query: {
+          indexKey: rankingId === 'FORTE' ? 'LSK2' : 'LSK3',
+          indexValue: rankingId === 'FORTE' ? undefined : `${rankingId}&`,
+          order: 'DESC',
+          limit: 50,
+        },
+      });
 
-    const gamesSummary = await this.queryItemChildren({
-      id: playerId,
-      type: 'playerGames',
-      name: `player_${playerId}_games`,
-      query: {
-        indexKey: rankingId === 'FORTE' ? 'LSK2' : 'LSK3',
-        indexValue: rankingId === 'FORTE' ? undefined : `${rankingId}&`,
-        order: 'DESC',
-        limit: 50,
-      },
+      const playerRatedGames = new GameSummaryList({
+        id: gslId,
+        gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
+      });
+      this._applyDirtyGamesSummary(playerRatedGames);
+
+      return playerRatedGames;
     });
-
-    const playerRatedGames = new GameSummaryList({
-      id: gslId,
-      gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
-    });
-    this._applyDirtyGamesSummary(playerRatedGames);
-
-    return playerRatedGames;
   }
 
   async _getDefaultPlayerSet(gameType) {
@@ -1240,11 +1142,11 @@ export default class extends DynamoDBAdapter {
   }
 
   _getTeamSetIndex(gameTypeId, metricName, indexPath = '/') {
-    const teamSetIndexId = `${gameTypeId}/${metricName}${indexPath}`;
-    const teamSetIndex = this.cache.get('teamSetIndex').get(teamSetIndexId) ?? new TeamSetIndex(metricName, indexPath);
-    teamSetIndex.cardinality = this.getTeamSetCardinality(gameTypeId);
-    this.cache.get('teamSetIndex').add(teamSetIndexId, teamSetIndex);
-    return teamSetIndex;
+    return TeamSetIndex.cache.use(`${gameTypeId}/${metricName}${indexPath}`, () => {
+      const teamSetIndex = new TeamSetIndex(metricName, indexPath);
+      teamSetIndex.cardinality = this.getTeamSetCardinality(gameTypeId);
+      return teamSetIndex;
+    });
   }
   _getTeamSetIndexCurrentPage(gameTypeId, metricName, indexPath = '/') {
     const teamSetIndex = this._getTeamSetIndex(gameTypeId, metricName, indexPath);
@@ -1291,10 +1193,11 @@ export default class extends DynamoDBAdapter {
 
   _getTeamSetGameSearch(gameTypeId, { setId, vsSetId, result }) {
     const teamSetGameSearchId = [ gameTypeId, setId, vsSetId, result ].filter(p => p !== null).join(':');
-    const teamSetGameSearch = this.cache.get('teamSetGameSearch').get(teamSetGameSearchId) ?? new TeamSetGameSearch({ setId, vsSetId, result });
-    teamSetGameSearch.gameType = this._gameTypes.get(gameTypeId);
-    this.cache.get('teamSetGameSearch').add(teamSetGameSearchId, teamSetGameSearch);
-    return teamSetGameSearch;
+    return TeamSetGameSearch.cache.use(teamSetGameSearchId, () => {
+      const teamSetGameSearch = new TeamSetGameSearch({ setId, vsSetId, result });
+      teamSetGameSearch.gameType = this._gameTypes.get(gameTypeId);
+      return teamSetGameSearch;
+    });
   }
   _getTeamSetGameSearchCurrentPage(teamSetGameSearch) {
     return {
@@ -1346,85 +1249,70 @@ export default class extends DynamoDBAdapter {
   _getTeamSetSearch(gameTypeId, metricName, text) {
     const query = TeamSetSearch.parseText(text);
     const teamSetSearchId = `${gameTypeId}/${metricName}/${JSON.stringify(query.length === 1 ? query[0] : query)}`;
-    if (this.cache.get('teamSetSearch').has(teamSetSearchId))
-      return this.cache.get('teamSetSearch').get(teamSetSearchId);
+    return TeamSetSearch.cache.use(teamSetSearchId, () => {
+      const cardinality = this.getTeamSetCardinality(gameTypeId);
+      const teamSetIndexes = new Set();
+      const teamSetSearches = query.map(q => {
+        const teamSetSearchId = `${gameTypeId}/${metricName}/${JSON.stringify(q)}`;
+        return TeamSetSearch.cache.use(teamSetSearchId, () => {
+          const teamSetSearch = new TeamSetSearch(cardinality, metricName, q);
+          teamSetSearch.on('getTeamSetIndexCurrentPage', event =>
+            event.resolve(this._getTeamSetIndexCurrentPage(gameTypeId, metricName, event.indexPath))
+          );
+          teamSetSearch.on('getTeamSetIndexNextPage', event =>
+            this._getTeamSetIndexNextPage(gameTypeId, metricName, event.indexPath).then(event.resolve, event.reject)
+          );
 
-    const cardinality = this.getTeamSetCardinality(gameTypeId);
-    const teamSetIndexes = new Set();
-    const teamSetSearches = query.map(q => {
-      const teamSetSearchId = `${gameTypeId}/${metricName}/${JSON.stringify(q)}`;
-      if (this.cache.get('teamSetSearch').has(teamSetSearchId))
-        return this.cache.get('teamSetSearch').get(teamSetSearchId);
-      const teamSetSearch = new TeamSetSearch(cardinality, metricName, q);
-      teamSetSearch.on('getTeamSetIndexCurrentPage', event =>
-        event.resolve(this._getTeamSetIndexCurrentPage(gameTypeId, metricName, event.indexPath))
-      );
-      teamSetSearch.on('getTeamSetIndexNextPage', event =>
-        this._getTeamSetIndexNextPage(gameTypeId, metricName, event.indexPath).then(event.resolve, event.reject)
-      );
-      this.cache.get('teamSetSearch').add(teamSetSearchId, teamSetSearch);
+          const teamSetIndex = this._getTeamSetIndex(gameTypeId, metricName, teamSetSearch.indexPath);
+          teamSetIndex.teamSetSearches.add(teamSetSearch);
+          teamSetIndexes.add(teamSetIndex);
 
-      const teamSetIndex = this._getTeamSetIndex(gameTypeId, metricName, teamSetSearch.indexPath);
-      teamSetIndex.teamSetSearches.add(teamSetSearch);
-      teamSetIndexes.add(teamSetIndex);
+          return teamSetSearch;
+        });
+      });
+      if (teamSetSearches.length === 1)
+        return teamSetSearches[0];
+
+      const teamSetSearch = new TeamSetSearchGroup(cardinality, metricName, query, teamSetSearches);
+      for (const teamSetIndex of teamSetIndexes)
+        teamSetIndex.add(teamSetSearch);
 
       return teamSetSearch;
     });
-    if (teamSetSearches.length === 1)
-      return teamSetSearches[0];
-
-    const teamSetSearch = new TeamSetSearchGroup(cardinality, metricName, query, teamSetSearches);
-    for (const teamSetIndex of teamSetIndexes)
-      teamSetIndex.add(teamSetSearch);
-
-    this.cache.get('teamSetSearch').add(teamSetSearchId, teamSetSearch);
-    return teamSetSearch;
   }
   async _getTeamSetStats(gameTypeId, teamSetId) {
-    const teamSetKey = `${teamSetId}:${gameTypeId}`
-    const cache = this.cache.get('teamSetStats');
-    if (cache.has(teamSetKey))
-      return cache.get(teamSetKey);
+    return TeamSetStats.cache.use(`${teamSetId}:${gameTypeId}`, async () => {
+      const [ teamSetStats, mostPlayedBy ] = await Promise.all([
+        this.getItem({
+          type: 'teamSet',
+          id: teamSetId,
+          path: `/stats/${gameTypeId}`,
+        }, {}, TeamSetStats.create()),
+        this.query({
+          attributes: [ 'SK', 'PD' ],
+          filters: {
+            PK: `teamSet#${teamSetId}`,
+            LSK0: { beginsWith:`${gameTypeId}&` },
+          },
+          order: 'DESC',
+          limit: 1,
+        }).then(rsp => {
+          if (rsp.items.length === 0) return null;
 
-    const [ teamSetStats, mostPlayedBy ] = await Promise.all([
-      this.getItem({
-        type: 'teamSet',
-        id: teamSetId,
-        path: `/stats/${gameTypeId}`,
-      }, {}, TeamSetStats.create()),
-      this.query({
-        attributes: [ 'SK', 'PD' ],
-        filters: {
-          PK: `teamSet#${teamSetId}`,
-          LSK0: { beginsWith:`${gameTypeId}&` },
-        },
-        order: 'DESC',
-        limit: 1,
-      }).then(rsp => {
-        if (rsp.items.length === 0) return null;
+          const { SK, data } = rsp.items[0];
+          return { playerId:SK.split('/').last, playerStats:data };
+        }),
+      ]);
+      teamSetStats.id = teamSetId;
+      if (mostPlayedBy)
+        teamSetStats.playerIds.set(mostPlayedBy.playerId, mostPlayedBy.playerStats);
 
-        const { SK, data } = rsp.items[0];
-        return { playerId:SK.split('/').last, playerStats:data };
-      }),
-    ]);
-    teamSetStats.id = teamSetId;
-    if (mostPlayedBy)
-      teamSetStats.playerIds.set(mostPlayedBy.playerId, mostPlayedBy.playerStats);
-
-    cache.add(teamSetKey, teamSetStats);
-
-    return teamSetStats;
+      return teamSetStats;
+    });
   }
   async _getTeamSetStatsForTeamSet(teamSet) {
     if (teamSet.stats) return teamSet;
-    const cache = this.cache.get('teamSetStats');
-    const teamSetStats = await this._getTeamSetStats(teamSet.gameType.id, teamSet.id);
-
-    teamSet.stats = teamSetStats;
-
-    cache.open(teamSet.key, teamSetStats);
-    this._closer.register(teamSet, { objectType:'teamSetStats', objectKey:teamSet.key });
-
+    teamSet.stats = await this._getTeamSetStats(teamSet.gameType.id, teamSet.id);
     return teamSet;
   }
   async _getTeamSetStatsPlayer(teamSet, playerId) {
@@ -1504,16 +1392,16 @@ export default class extends DynamoDBAdapter {
       indexPaths.add(teamSet.cardinality.selectIndex([ indexPath ]).path);
 
     // Update cached indexes
-    for (const teamSetIndex of this.cache.get('teamSetIndex').values()) {
+    for (const teamSetIndex of TeamSetIndex.cache.values()) {
       if (teamSetIndex.gameTypeId !== teamSet.gameTypeId) continue;
       if (teamSetIndex.metricName !== metricName) continue;
       if (!indexPaths.has(teamSetIndex.path)) continue;
       if (!teamSetIndex.sortIn(teamSet)) continue;
 
       // Invalidate related searches
-      for (const teamSetSearch of this.cache.get('teamSetSearch').values())
+      for (const teamSetSearch of TeamSetSearch.cache.values())
         if (teamSetIndex.teamSetSearches.has(teamSetSearch))
-          this.cache.get('teamSetSearch').delete(teamSetSearch.id);
+          TeamSetSearch.cache.delete(teamSetSearch.id);
     }
   }
 
@@ -1521,20 +1409,17 @@ export default class extends DynamoDBAdapter {
    * Player Sets Management
    */
   async _getPlayerSets(player) {
-    if (this.cache.get('playerSets').has(player.id))
-      return this.cache.get('playerSets').get(player.id);
-    else if (this.buffer.get('playerSets').has(player.id))
-      return this.buffer.get('playerSets').get(player.id);
+    return PlayerSets.cache.use(player.id, async () => {
+      const playerSets = await this.getItem({
+        id: player.id,
+        type: 'playerSets',
+        name: `player_${player.id}_sets`,
+      }, { playerId:player.id }, () => PlayerSets.create(player.id));
+      playerSets.player = player;
+      playerSets.once('change', () => this.buffer.get('playerSets').add(player.id, playerSets));
 
-    const playerSets = await this.getItem({
-      id: player.id,
-      type: 'playerSets',
-      name: `player_${player.id}_sets`,
-    }, { playerId:player.id }, () => PlayerSets.create(player.id));
-    playerSets.player = player;
-    playerSets.once('change', () => this.buffer.get('playerSets').add(player.id, playerSets));
-
-    return playerSets;
+      return playerSets;
+    });
   }
   async _savePlayerSets(playerSets) {
     const playerId = playerSets.playerId;
@@ -1554,31 +1439,24 @@ export default class extends DynamoDBAdapter {
    * Player Avatars Management
    */
   async _getPlayerAvatars(player, playerId) {
-    playerId ??= player.id;
-    const cachedPlayerAvatars = (() => {
-      if (this.cache.get('playerAvatars').has(playerId))
-        return this.cache.get('playerAvatars').get(playerId);
-      else if (this.buffer.get('playerAvatars').has(playerId))
-        return this.buffer.get('playerAvatars').get(playerId);
-    })();
-    if (cachedPlayerAvatars) {
-      // The player may not be set if originally cached via listPlayersAvatar()
-      if (player && !cachedPlayerAvatars.player)
-        cachedPlayerAvatars.player = player;
-      return cachedPlayerAvatars;
-    }
+    const playerAvatars = await PlayerAvatars.cache.use(playerId ?? player.id, async playerId => {
+      const playerAvatars = await this.getItem({
+        id: playerId,
+        type: 'playerAvatars',
+        name: `player_${playerId}_avatars`,
+      }, { playerId }, () => PlayerAvatars.create(playerId));
+      playerAvatars.player = player;
+      playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
 
-    const playerAvatars = await this.getItem({
-      id: playerId,
-      type: 'playerAvatars',
-      name: `player_${playerId}_avatars`,
-    }, { playerId }, () => PlayerAvatars.create(playerId));
-    playerAvatars.player = player;
-    playerAvatars.once('change', () => this.buffer.get('playerAvatars').add(playerId, playerAvatars));
+      if (!playerAvatars.isClean)
+        this.buffer.get('playerAvatars').add(playerId, playerAvatars);
 
-    if (!playerAvatars.isClean)
-      this.buffer.get('playerAvatars').add(playerId, playerAvatars);
+      return playerAvatars;
+    });
 
+    // The player may not be set if originally cached via listPlayersAvatar()
+    if (player && !playerAvatars.player)
+      playerAvatars.player = player;
     return playerAvatars;
   }
   async _savePlayerAvatars(playerAvatars) {
@@ -1599,39 +1477,38 @@ export default class extends DynamoDBAdapter {
    * Game Collection Management
    */
   async _getGameCollection(collectionId, empty = false) {
-    if (this.cache.get('gameSummaryLists').has(collectionId))
-      return this.cache.get('gameSummaryLists').get(collectionId);
+    return GameSummaryList.cache.use(collectionId, async () => {
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const parts = collectionId.split('/');
+      const gamesSummary = empty ? [] : (await Promise.all([
+        collectionId === 'rated/FORTE' ? {
+          indexKey: 'LSK4',
+        } : parts[0] === 'rated' ? {
+          indexKey: 'LSK5',
+          indexValue: `${parts[1]}&`,
+        } : parts.length === 2 ? [
+          { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&a=` },
+          { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&b=` },
+          { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&c=` },
+        ] : [
+          { indexKey:'LSK2', indexValue:`${parts[0]}&a=` },
+          { indexKey:'LSK2', indexValue:[ 'between', `${parts[0]}&b=${oneWeekAgo.toISOString()}`, `${parts[0]}&c=` ] },
+          { indexKey:'LSK2', indexValue:`${parts[0]}&c=` },
+        ],
+      ].flat().map(query => this.queryItemChildren({
+        type: 'collection',
+        name: `collection/${collectionId}`,
+        query: Object.assign(query, { order:'DESC', limit:50 }),
+      })))).flat();
 
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const parts = collectionId.split('/');
-    const gamesSummary = empty ? [] : (await Promise.all([
-      collectionId === 'rated/FORTE' ? {
-        indexKey: 'LSK4',
-      } : parts[0] === 'rated' ? {
-        indexKey: 'LSK5',
-        indexValue: `${parts[1]}&`,
-      } : parts.length === 2 ? [
-        { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&a=` },
-        { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&b=` },
-        { indexKey:'LSK3', indexValue:`${parts[0]}&${parts[1]}&c=` },
-      ] : [
-        { indexKey:'LSK2', indexValue:`${parts[0]}&a=` },
-        { indexKey:'LSK2', indexValue:[ 'between', `${parts[0]}&b=${oneWeekAgo.toISOString()}`, `${parts[0]}&c=` ] },
-        { indexKey:'LSK2', indexValue:`${parts[0]}&c=` },
-      ],
-    ].flat().map(query => this.queryItemChildren({
-      type: 'collection',
-      name: `collection/${collectionId}`,
-      query: Object.assign(query, { order:'DESC', limit:50 }),
-    })))).flat();
+      const collection = new GameSummaryList({
+        id: collectionId,
+        gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
+      });
+      this._applyDirtyGamesSummary(collection);
 
-    const collection = new GameSummaryList({
-      id: collectionId,
-      gamesSummary: new Map(gamesSummary.map(gs => [ gs.id, gs ])),
+      return collection;
     });
-    this._applyDirtyGamesSummary(collection);
-
-    return collection;
   }
 
   /*****************************************************************************

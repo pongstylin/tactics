@@ -1,4 +1,5 @@
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
 
 interface Links {
@@ -9,14 +10,19 @@ interface Links {
   inactive: Map<string,string>
 }
 
-export default class Provider extends ActiveModel {
+type ProviderEvents = AbstractEvents & {
+  'change:linkPlayerId': {},
+  'change:unlinkPlayerId': {},
+};
+
+export default class Provider extends ActiveModel<ProviderEvents> {
   protected data: {
     id: string
     links: Links
   }
   protected reverseLinks: Map<string,string>
 
-  constructor(data) {
+  constructor(data:Provider['data']) {
     super();
     this.data = data;
     this.reverseLinks = new Map();
@@ -26,7 +32,7 @@ export default class Provider extends ActiveModel {
     }
   }
 
-  static create(providerId) {
+  static create(providerId:string) {
     return new Provider({
       id: providerId,
       links: {
@@ -40,11 +46,11 @@ export default class Provider extends ActiveModel {
     return this.data.id;
   }
 
-  getActivePlayerId(memberId) {
+  getActivePlayerId(memberId:string) {
     return this.data.links.active.get(memberId) ?? null;
   }
 
-  getLinkByMemberId(memberId) {
+  getLinkByMemberId(memberId:string) {
     if (this.data.links.active.has(memberId))
       return {
         playerId: this.data.links.active.get(memberId),
@@ -61,7 +67,7 @@ export default class Provider extends ActiveModel {
       return null;
   }
 
-  linkPlayerId(playerId, memberId) {
+  linkPlayerId(playerId:string, memberId:string) {
     if (this.data.links.active.get(memberId) === playerId)
       return false;
 
@@ -77,7 +83,7 @@ export default class Provider extends ActiveModel {
 
     return true;
   }
-  unlinkPlayerId(playerId) {
+  unlinkPlayerId(playerId:string) {
     const memberId = this.reverseLinks.get(playerId);
     if (!memberId)
       return false;

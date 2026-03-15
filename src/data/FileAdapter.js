@@ -141,9 +141,7 @@ export default class FileAdapter {
     }, props);
 
     for (const [ fileType, fileConfig ] of this.fileTypes) {
-      const fileConfigWithDefaults = Object.assign({
-        destroyOnExpire: true,
-      }, fileConfig);
+      const fileConfigWithDefaults = Object.assign({}, fileConfig);
 
       const cache = new Timeout(
         `${fileType}Cache`,
@@ -159,11 +157,8 @@ export default class FileAdapter {
       this.buffer.set(fileType, buffer);
 
       cache.on('expire', ({ data:items }) => {
-        for (const [ itemId, item ] of items) {
+        for (const itemId of items.keys())
           this.debugV(`${cache.name}:expire=${itemId}; destroy=${!buffer.has(itemId)}`);
-          if (fileConfigWithDefaults.destroyOnExpire && !buffer.has(itemId) && 'destroy' in item)
-            item.destroy();
-        }
       });
       buffer.on('expire', async ({ data:items }) => {
         await Promise.all([ ...items.values() ].map(item => {
@@ -171,11 +166,8 @@ export default class FileAdapter {
           fileConfigWithDefaults.whenSaved.set(item, whenSaved);
           return whenSaved;
         }));
-        for (const [ itemId, item ] of items) {
+        for (const itemId of items.keys())
           this.debugV(`${buffer.name}:expire=${itemId}; destroy=${!cache.has(itemId)}`);
-          if (fileConfigWithDefaults.destroyOnExpire && !cache.has(itemId) && 'destroy' in item)
-            item.destroy();
-        }
       });
     }
   }

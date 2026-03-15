@@ -5,7 +5,7 @@ import ServerError from '#server/Error.js';
 import Board from '#tactics/Board.js';
 import botFactory from '#tactics/botFactory.js';
 import GameType from '#tactics/GameType.js';
-import emitter from '#utils/emitter.js';
+import { TypedEmitter } from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
 
 const defaultData = {
@@ -16,7 +16,7 @@ const defaultData = {
   endedAt: null,
   winnerId: null,
   rated: false,
-  unratedReason: null,
+  unratedReason: undefined,
   randomFirstTurn: true,
   randomHitChance: true,
   undoMode: 'normal',
@@ -27,7 +27,7 @@ const defaultData = {
   numTurns: 0,
 };
 
-export default class GameState {
+export default class GameState extends TypedEmitter {
   /*****************************************************************************
    * Constructors
    ****************************************************************************/
@@ -35,6 +35,8 @@ export default class GameState {
    * The default constructor is intended for internal use only.
    */
   constructor(data) {
+    super();
+
     const board = new Board();
 
     Object.assign(this, {
@@ -82,7 +84,7 @@ export default class GameState {
     return this._board;
   }
   get type() {
-    return this._data.type;
+    return this._data.type ?? null;
   }
   get randomFirstTurn() {
     return this._data.randomFirstTurn;
@@ -199,7 +201,7 @@ export default class GameState {
       return 'unseen';
 
     // Should not happen
-    return null;
+    return;
   }
   set unratedReason(reason) {
     this._data.unratedReason = reason;
@@ -340,7 +342,7 @@ export default class GameState {
     const slot = team.id ?? team.slot;
     teams[slot] = team;
 
-    this._emit({
+    this.emit({
       type: 'join',
       data: team,
     });
@@ -404,8 +406,7 @@ export default class GameState {
       // Place the units according to team position.
       const units = teams.map(team => {
         const degree = board.getDegree('N', team.position);
-        const flipSide = team.randomSide && Math.random() < 0.5;
-        const units = this.gameType.applySetUnitState({ units:team.set.units.clone() }).units;
+        const units = this.gameType ? this.gameType.applySetUnitState({ units:team.set.units.clone() }).units : team.set.units.clone();
 
         // First team must skip their first turn.
         if (this.type !== 'chaos' && team.id === 0)
@@ -418,7 +419,7 @@ export default class GameState {
           return team.id + teams.length * waitTurns;
         })();
 
-        return board.rotateUnits(units, degree, flipSide).map(u => Object.assign(u, {
+        return board.rotateUnits(units, degree).map(u => Object.assign(u, {
           id: unitId++,
         }));
       });
@@ -447,7 +448,7 @@ export default class GameState {
     // "Your Turn" notifications at the right times.
     this.autoPass();
 
-    this._emit({
+    this.emit({
       type: 'startGame',
       data: {
         startedAt: this.startedAt,
@@ -500,7 +501,7 @@ export default class GameState {
     if (this.turns[turnId] === undefined)
       throw new ServerError(409, 'No such turn ID');
 
-    return new Promise((resolve, reject) => this._emit({
+    return new Promise((resolve, reject) => this.emit({
       type: 'loadTurn',
       data: { turnId, resolve, reject },
     }));
@@ -801,7 +802,7 @@ export default class GameState {
     };
 
     this._newActions.length = 0;
-    this._emit(actionEvent);
+    this.emit(actionEvent);
     // At the very least, echo actions back to submitter.
     this.sync(actionEvent);
   }
@@ -1100,7 +1101,7 @@ export default class GameState {
     /*
      * Walk backward through turns and actions until we reach the undo limit.
      */
-    for (let turnId = this.currentTurnId; turnId > -1; turnId--) {
+    for (let turnId = this.currentTurnId; turnId >= lockedTurnId; turnId--) {
       const turn = this.getTurn(turnId);
 
       if (turn.isCurrent) {
@@ -1236,8 +1237,9 @@ export default class GameState {
 
     if (pointer)
       this.revert(pointer.turnId, pointer.actionId, true, approved);
+    // Added this.endedAt check to handle cases where the game ended in a forced truce on the first turn.
     // The current turn is not playable when the game ended in a draw.
-    else if (team === this.currentTeam && this.currentTurn.isPlayable && this.currentTurn.nextActionId)
+    else if ((team === this.currentTeam || this.endedAt) && this.currentTurn.isPlayable && this.currentTurn.nextActionId)
       this.revert(this.currentTurnId, 0, true, approved);
     else {
       const turnId = this.getTeamPreviousPlayableTurnId(team);
@@ -1256,7 +1258,7 @@ export default class GameState {
       },
     };
 
-    this._emit(startTurnEvent);
+    this.emit(startTurnEvent);
     this.sync(startTurnEvent);
   }
   end(winnerId) {
@@ -1266,7 +1268,7 @@ export default class GameState {
       forced: true,
     });
 
-    this._emit({
+    this.emit({
       type: 'action',
       data: this._board.encodeAction(this._newActions),
     });
@@ -1277,7 +1279,7 @@ export default class GameState {
       data: this.currentTurn.actions.last,
     };
 
-    this._emit(endGameEvent);
+    this.emit(endGameEvent);
     this.sync(endGameEvent);
   }
   /*
@@ -1310,7 +1312,7 @@ export default class GameState {
         return this.startTurn();
     }
 
-    this._emit({ type:'sync', data:originalEvent });
+    this.emit({ type:'sync', data:originalEvent });
 
     // Only active non-practice games require scheduling a sync after a timeout.
     if (!this.endedAt && !this.isPracticeMode)
@@ -1345,13 +1347,15 @@ export default class GameState {
     const timeout = currentTurn.isEnded || this.undoMode === 'strict' ? Math.min(turnEndTimeout, actionTimeout) : turnEndTimeout;
 
     if (timeout)
-      this._emit({ type:'willSync', data:timeout });
+      this.emit({ type:'willSync', data:timeout });
   }
   revert(turnId, nextActionId = 0, isUndo = false, resetStartDate) {
     const board = this._board;
 
     if (turnId < this.currentTurnId)
       this._popHistory(turnId, resetStartDate);
+    else if (this.endedAt)
+      this.currentTurn.startedAt = new Date();
     if (nextActionId < this.currentTurn.actions.length)
       this.currentTurn.nextActionId = nextActionId;
 
@@ -1367,8 +1371,10 @@ export default class GameState {
       data: this.currentTurn.getData(),
     };
 
-    this._emit(revertEvent);
-    this.sync(revertEvent);
+    // Allow a data adapter to load additional turns into memory before syncing clients.
+    // This avoids a race condition between loading turns and reading turns in the
+    // GameState.getUndoPointer() method.
+    this.emitAsync(revertEvent).finally(() => this.sync(revertEvent));
   }
 
   /*
@@ -1670,8 +1676,6 @@ export default class GameState {
     return turn;
   }
 }
-
-emitter(GameState);
 
 serializer.addType({
   name: 'GameState',

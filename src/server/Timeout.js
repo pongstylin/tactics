@@ -2,6 +2,7 @@ import DebugLogger from 'debug';
 
 import emitter from '#utils/emitter.js';
 import serializer from '#utils/serializer.js';
+import ticker from '#utils/ticker.js';
 
 const timeouts = new Map();
 const intervals = [];
@@ -29,14 +30,13 @@ export default class Timeout {
     timeouts.set(name, this);
   }
 
-  static tick() {
-    const now = Date.now();
-    for (let itemTimeout of timeouts.values())
+  static tick({ now }) {
+    for (const itemTimeout of timeouts.values())
       itemTimeout._tick(now);
 
-    if (intervals.length && intervals[0].expireAt <= Date.now()) {
+    if (intervals.length && intervals[0].expireAt <= now) {
       for (const interval of intervals.slice()) {
-        if (interval.expireAt > Date.now())
+        if (interval.expireAt > now)
           break;
         interval.expireAt += interval.duration;
         interval.callback();
@@ -172,12 +172,6 @@ export default class Timeout {
   }
   get(itemId) {
     return this._opened.get(itemId)?.item ?? this._closed.get(itemId)?.item;
-  }
-  getOpen(itemId) {
-    if (!this._opened.has(itemId))
-      throw new Error(`${this.name}: ${itemId} is not open`);
-
-    return this._opened.get(itemId).item;
   }
   delete(itemId) {
     if (!this._opened.has(itemId) && !this._closed.has(itemId))
@@ -383,3 +377,5 @@ serializer.addType({
     },
   },
 });
+
+ticker.on('tick', Timeout.tick);
