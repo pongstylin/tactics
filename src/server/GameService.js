@@ -1453,8 +1453,8 @@ export default class GameService extends Service {
       const reason = event.type.slice(7);
       const sessionGame = GameSessionGame.cache.get(game);
       if (sessionGame)
-        for (const session of sessionGame.sessions.keys())
-          this.onLeaveGameGroup(session.session.client, `/games/${game.id}`, game.id, reason);
+        for (const gameSession of sessionGame.gameSessions.keys())
+          this.onLeaveGameGroup(gameSession.session.client, `/games/${game.id}`, game.id, reason);
 
       this.data.deleteGame(game).then(event.whenDeleted.resolve, event.whenDeleted.reject);
     });
@@ -1642,8 +1642,6 @@ export default class GameService extends Service {
     for (const team of game.state.teams)
       if (team?.playerId === player.id)
         game.checkout(team, checkoutAt, lastActiveAt);
-
-    if (reason === 'abort') return;
 
     this._emit({
       type: 'leaveGroup',
