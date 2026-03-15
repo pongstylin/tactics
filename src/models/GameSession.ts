@@ -22,7 +22,7 @@ export default class GameSession {
 
   protected data: {
     joinedGroups: Set<string>;
-    openedGames: Set<Game>;
+    openedGameSessions: Set<GameSessionGame>;
     openedGameSummaryListGroups: Set<GameSessionGameSummaryListGroup>,
     deviceType: 'mobile' | string;
   };
@@ -38,7 +38,7 @@ export default class GameSession {
       // Typically, a given session can only have one open game at any given point in time.
       // But a given player might have the same game opened in 2 sessions.
       // So, to determine if a player is idle, you need to only look at the sessions in which that player has opened the game.
-      openedGames: new Set(),
+      openedGameSessions: new Set(),
       openedGameSummaryListGroups: new Set(),
       deviceType: uaparser(session.client.agent).device.type,
     };
@@ -74,7 +74,7 @@ export default class GameSession {
     return this._token.playerName;
   }
   get openedGames() {
-    return this.data.openedGames;
+    return Array.from(this.data.openedGameSessions).map(gsg => gsg.game);
   }
   get isMobile() {
     return this.data.deviceType === 'mobile';
@@ -94,17 +94,18 @@ export default class GameSession {
   }
 
   openGame(game:Game, reference:Reference) {
-    this.data.openedGames.add(game);
-
     const sessionGame = GameSessionGame.cache.use(game, () => GameSessionGame.create(game));
     sessionGame.addSession(this, reference);
+
+    this.data.openedGameSessions.add(sessionGame);
+
     return sessionGame;
   }
   closeGame(game:Game) {
-    this.data.openedGames.delete(game);
-
     const sessionGame = GameSessionGame.cache.get(game)!;
     sessionGame.dropSession(this);
+
+    this.data.openedGameSessions.delete(sessionGame);
   }
 
   openGameSummaryListGroup(groupPath:string, gsls:GameSummaryList[], filters:Record<string, any>[]) {
@@ -122,8 +123,8 @@ export default class GameSession {
     const oldInactive = oldValue > ACTIVE_LIMIT;
     if (newInactive === oldInactive) return;
 
-    for (const game of this.openedGames)
-      GameSessionGame.cache.get(game)!.emitPlayerStatus(this._player.id);
+    for (const gameSession of this.data.openedGameSessions)
+      gameSession.emitPlayerStatus(this._player.id);
   }
 };
 
