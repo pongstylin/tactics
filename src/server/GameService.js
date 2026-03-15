@@ -1842,7 +1842,7 @@ export default class GameService extends Service {
    * In that case, show the idle time based on the checked out client rather
    * than the longer idle times of client(s) still checked in.
    */
-  async _getPlayerIdle(player) {
+  _getPlayerIdle(player) {
     const idle = Math.floor((new Date() - player.checkoutAt) / 1000);
 
     const sessionPlayer = GameSessionPlayer.cache.get(player);
