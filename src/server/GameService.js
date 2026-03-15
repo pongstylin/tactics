@@ -504,14 +504,14 @@ export default class GameService extends Service {
     // Did the connection close while fetching data?
     if (client.closed) return;
 
-    const session = GameSession.cache.use(client.id, () => GameSession.create(client.session, player));
-    if (session.player !== player)
+    const gameSession = GameSession.cache.use(client.id, () => GameSession.create(client.session, player));
+    if (gameSession.player !== player)
       throw new ServerError(501, 'Unsupported change of player');
 
-    session.authorize(token);
+    gameSession.authorize(token);
 
     this._openAutoCancel(player.id);
-    session.once('close', () =>
+    gameSession.session.once('close', () =>
       this.push.hasAnyPushSubscription(player.id).then(extended => this._closeAutoCancel(player.id, extended))
     );
   }
