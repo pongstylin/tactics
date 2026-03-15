@@ -308,11 +308,12 @@ export class GameSessionGame {
   }
   addSession(gameSession:GameSession, reference:Reference) {
     this.data.gameSessions.set(gameSession, reference);
+    // The player might become active
     // Only emit if others might see
-    if (this.data.gameSessions.size > 1) {
-      // The player might become active
+    if (this.data.gameSessions.size > 1)
       this.emitPlayerStatus(gameSession.player.id);
-    }
+    else
+      this.data.playerStatus.set(gameSession.player.id, this._getPlayerStatus(gameSession.player.id));      
   }
   dropSession(gameSession:GameSession) {
     this.data.gameSessions.delete(gameSession);
