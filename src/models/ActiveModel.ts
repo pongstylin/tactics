@@ -31,7 +31,7 @@ abstract class ActiveModel<ModelEvents extends AbstractEvents & Record<string, o
     });
   }
 
-  // This needs to be copied to sub classes to expose the overridden types on the _cache property.
+  // This needs to be implemented in sub classes to expose the overridden types on the _cache property.
   static get cache() {
     return this._cache ??= new Cache();
   }

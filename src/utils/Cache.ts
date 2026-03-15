@@ -8,7 +8,8 @@ import ticker from '#utils/ticker.js';
 
 type CacheKey = {};
 
-type DeleteReason = 'finalized' | 'collected' | 'rejected' | null;
+type DeleteReason = 'finalized' | 'collected' | 'rejected' | 'replaced' | 'deleted' | (string & {});
+type ExternalDeleteReason = Exclude<DeleteReason, 'finalized'>;
 
 type CacheEvents<V> = {
   delete: { key: CacheKey; reason: DeleteReason };
@@ -21,7 +22,7 @@ type StackEntry<K extends CacheKey> = {
 
 type BaseMeta<K extends CacheKey> = {
   key: K;
-  expireAt: number | null;
+  stackEntry: StackEntry<K> | null;
 };
 
 type ValueMeta<K extends CacheKey, V> = BaseMeta<K> & {
@@ -46,6 +47,7 @@ type Meta<K extends CacheKey, V> =
 
 type CacheOptions = {
   ttl?: number | null;
+  limit?: number;
 };
 
 type CacheValue = object | string | number | boolean | symbol | bigint | null;
@@ -68,16 +70,18 @@ let lastTick = Date.now();
 
 export default class Cache<K extends CacheKey, V extends CacheValue> extends TypedEmitter<CacheEvents<V>> {
   private readonly ttl:number | null;
+  private readonly limit:number;
   private readonly data:Map<K, Meta<K, V>>;
   private readonly stack:StackEntry<K>[]; // sorted shortest expiration at end for efficient array truncation
   private readonly registry:FinalizationRegistry<WeakRefMeta<K, V>>;
 
-  constructor({ ttl = null }:CacheOptions = {}) {
+  constructor({ ttl = 3_600_000, limit = 100 }:CacheOptions = {}) {
     super();
     this.ttl = ttl;
+    this.limit = limit;
     this.data = new Map();
     this.stack = [];
-    this.registry = new FinalizationRegistry(m => this.delete(m.key, 'finalized'));
+    this.registry = new FinalizationRegistry(m => this._delete(m.key, 'finalized'));
     caches.push(this);
   }
 
@@ -88,13 +92,36 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
       cache.tick(now);
   }
 
-  private _setWeakRef(key:K, value:V & object, expireAt:number | null):void {
-    const weakMeta:WeakRefMeta<K, V> = { key, type: 'WeakRef', value: new WeakRef(value), expireAt };
+  private _indexOfStackEntry(stackEntry:StackEntry<K>):number {
+    let i = this.stack.findSortIndex(s => s.expireAt - stackEntry.expireAt);
+    while (i < this.stack.length) {
+      if (this.stack[i] === stackEntry) return i;
+      i++;
+    }
+    return -1;
+  }
+
+  private _refresh(key:K, meta:ValueMeta<K, V>):void {
+    if (this.ttl === null) return;
+    const hadStackEntry = meta.stackEntry !== null;
+    if (hadStackEntry) {
+      const i = this._indexOfStackEntry(meta.stackEntry!);
+      if (i !== -1) this.stack.splice(i, 1);
+    }
+    const stackEntry:StackEntry<K> = { key, expireAt: Date.now() + this.ttl };
+    meta.stackEntry = stackEntry;
+    this.stack.unshift(stackEntry);
+    if (!hadStackEntry && this.stack.length > this.limit)
+      this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
+  }
+
+  private _setWeakRef(key:K, value:V & object):void {
+    const weakMeta:WeakRefMeta<K, V> = { key, type:'WeakRef', value:new WeakRef(value), stackEntry:null };
     this.data.set(key, weakMeta);
     this.registry.register(value, weakMeta, value);
   }
 
-  tick(now:number): void {
+  private tick(now:number): void {
     const stack = this.stack;
     let i = stack.length;
     for (; i > 0; i--) {
@@ -103,9 +130,9 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
       const meta = this.data.get(item.key);
       if (!meta) continue;
       if (meta.type === 'value' && meta.value !== null && typeof meta.value === 'object') {
-        this._setWeakRef(item.key, meta.value, meta.expireAt);
+        this._setWeakRef(item.key, meta.value);
       } else {
-        this.delete(item.key);
+        this._delete(item.key, 'finalized');
       }
     }
     stack.length = i;
@@ -139,54 +166,69 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
     if (meta.type === 'WeakRef') {
       const value = meta.value.deref();
       if (value === undefined) {
-        this.delete(key, 'collected');
+        this._delete(key, 'collected');
         return undefined;
+      }
+      if (this.ttl !== null) {
+        this.registry.unregister(value);
+        const stackEntry:StackEntry<K> = { key, expireAt:Date.now() + this.ttl };
+        const valueMeta:ValueMeta<K, V> = { key, type:'value', value:value as V, stackEntry };
+        this.data.set(key, valueMeta);
+        this.stack.unshift(stackEntry);
+        if (this.stack.length > this.limit)
+          this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
       }
       return value;
     }
+    if (meta.type === 'value') this._refresh(key, meta);
     return meta.value;
   }
 
-  set(key:K, getter:V | ((key:K) => V), expireAt?:number | Date | null):V;
-  set(key:K, getter:Getter<K, V>, expireAt?:number | Date | null):V | PromiseLike<V | undefined> | undefined;
-  set(key:K, getter:Getter<K, V>, expireAt:number | Date | null = null):V | PromiseLike<V | undefined> | undefined {
+  set(key:K, getter:V | ((key:K) => V)):V;
+  set(key:K, getter:Getter<K, V>):V | PromiseLike<V | undefined> | undefined;
+  set(key:K, getter:Getter<K, V>):V | PromiseLike<V | undefined> | undefined {
     if (key === undefined || key === null)
       throw new Error(`Cache key cannot be ${typeof key}`);
-    if (expireAt instanceof Date) expireAt = expireAt.getTime();
-    if (expireAt === null && this.ttl !== null) expireAt = Date.now() + this.ttl;
+    const expireAt = this.ttl !== null ? Date.now() + this.ttl : null;
     const value = typeof getter === 'function' ? getter(key) : getter;
     if (value === undefined) return undefined;
+    const existing = this.data.get(key);
+    if (existing) {
+      const existingValue = existing.type === 'WeakRef' ? existing.value.deref() : existing.value;
+      if (existingValue === value) return value;
+      this._delete(key, 'replaced');
+    }
     if (Promise.isThenable(value)) {
       const promise = value.then(
-        (v:unknown) => this.set(key, v as V, expireAt),
-        (e:unknown) => { this.delete(key, 'rejected'); throw e; }
+        (v:unknown) => this.set(key, v as V),
+        (e:unknown) => { this._delete(key, 'rejected'); throw e; }
       );
-      const meta:PromiseMeta<K, V> = { key, type:'Promise', value:promise, expireAt };
+      const meta:PromiseMeta<K, V> = { key, type:'Promise', value:promise, stackEntry:null };
       this.data.set(key, meta);
       return promise;
     } else if (expireAt) {
-      const existing = this.data.get(key);
-      if (existing?.expireAt) {
-        let staleIndex = this.stack.findSortIndex(s => s.expireAt - existing.expireAt!);
-        while (staleIndex < this.stack.length && this.stack[staleIndex]!.expireAt === existing.expireAt) {
-          if (this.stack[staleIndex]!.key === key) { this.stack.splice(staleIndex, 1); break; }
-          staleIndex++;
-        }
-      }
-      const meta:ValueMeta<K, V> = { key, type:'value', value, expireAt };
+      const stackEntry:StackEntry<K> = { key, expireAt };
+      const meta:ValueMeta<K, V> = { key, type:'value', value, stackEntry };
       this.data.set(key, meta);
-      const index = this.stack.findSortIndex(s => s.expireAt - expireAt!);
-      this.stack.splice(index, 0, { key, expireAt });
+      this.stack.unshift(stackEntry);
+      if (this.stack.length > this.limit)
+        this._delete(this.stack[this.stack.length - 1]!.key, 'finalized');
     } else if (value !== null && typeof value === 'object') {
-      this._setWeakRef(key, value, expireAt);
+      this._setWeakRef(key, value);
     } else {
-      const meta:ValueMeta<K, V> = { key, type:'value', value, expireAt:null };
+      const meta:ValueMeta<K, V> = { key, type:'value', value, stackEntry:null };
       this.data.set(key, meta);
     }
     return value;
   }
 
-  delete(key:K, reason:DeleteReason = null):void {
+  delete(key:K, reason:ExternalDeleteReason = 'deleted'):void {
+    if ((reason as DeleteReason) === 'finalized')
+      throw new Error(`'finalized' is a reserved delete reason`);
+    this._delete(key, reason);
+  }
+
+  private _delete(key:K, reason:DeleteReason):void {
     if (reason !== 'finalized') {
       const meta = this.data.get(key);
       if (meta?.type === 'WeakRef') {
@@ -194,22 +236,34 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
         if (value !== undefined)
           this.registry.unregister(value);
       }
+      if (meta?.stackEntry != null) {
+        const i = this._indexOfStackEntry(meta.stackEntry);
+        if (i !== -1) this.stack.splice(i, 1);
+      }
     }
     this.data.delete(key);
     this.emit('delete', { key, reason });
   }
 
   *values():Generator<V> {
-    for (const key of this.data.keys()) {
-      const value = this.get(key);
-      if (value !== undefined) yield value;
+    for (const [key, meta] of this.data.entries()) {
+      if (meta.type === 'WeakRef') {
+        const value = meta.value.deref();
+        if (value !== undefined) yield value;
+      } else if (meta.type === 'value') {
+        yield meta.value;
+      }
     }
   }
 
   *[Symbol.iterator]():Generator<[K, V]> {
-    for (const key of this.data.keys()) {
-      const value = this.get(key);
-      if (value !== undefined) yield [key, value];
+    for (const [key, meta] of this.data.entries()) {
+      if (meta.type === 'WeakRef') {
+        const value = meta.value.deref();
+        if (value !== undefined) yield [key, value];
+      } else if (meta.type === 'value') {
+        yield [key, meta.value];
+      }
     }
   }
 }

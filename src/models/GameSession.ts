@@ -1,7 +1,6 @@
 // @ts-ignore
 import uaparser from 'ua-parser-js';
 
-import ActiveModel from '#models/ActiveModel.js';
 import type Game from '#models/Game.js';
 import type GameSummary from '#models/GameSummary.js';
 import type GameSummaryList from '#models/GameSummaryList.js';
@@ -18,7 +17,7 @@ import { test } from '#utils/jsQuery.js';
 
 const ACTIVE_LIMIT = 120;
 
-export default class GameSession extends ActiveModel {
+export default class GameSession {
   protected static _cache: Cache<string, GameSession>;
 
   protected data: {
@@ -32,8 +31,6 @@ export default class GameSession extends ActiveModel {
   private _player: Player;
 
   constructor(session:Session, player:Player) {
-    super();
-
     this._session = session;
     this._player = player;
     this.data = {
@@ -55,7 +52,7 @@ export default class GameSession extends ActiveModel {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache({ ttl:null });
   }
   static create(session:Session, player:Player) {
     return this.cache.use(session.id, new GameSession(session, player));
@@ -150,7 +147,7 @@ export class GameSessionPlayer {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache({ ttl:null });
   }
   static create(player:Player) {
     return this.cache.set(player, () => new GameSessionPlayer(player));
@@ -239,7 +236,7 @@ const gameSessionGameEmitter = new TypedEmitter<GameSessionGameStaticEvents>();
 /*
  * Keep track of which games are currently opened by at least one player.
  */
-export class GameSessionGame extends ActiveModel {
+export class GameSessionGame {
   protected static _cache: Cache<Game, GameSessionGame>;
 
   protected data: {
@@ -249,8 +246,6 @@ export class GameSessionGame extends ActiveModel {
   };
 
   constructor(game:Game) {
-    super();
-
     this.data = {
       game,
       gameSessions: new Map(),
@@ -273,7 +268,7 @@ export class GameSessionGame extends ActiveModel {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache({ ttl:null });
   }
   static create(game:Game) {
     return this.cache.set(game, () => new GameSessionGame(game));
@@ -439,7 +434,7 @@ type GameSessionGameSummaryListStaticEvents = {
 };
 const gameSessionGameSummaryListGroupEmitter = new TypedEmitter<GameSessionGameSummaryListStaticEvents>();
 
-export class GameSessionGameSummaryListGroup extends ActiveModel {
+export class GameSessionGameSummaryListGroup {
   protected static _cache: Cache<string, GameSessionGameSummaryListGroup>;
 
   protected data: {
@@ -451,8 +446,6 @@ export class GameSessionGameSummaryListGroup extends ActiveModel {
   };
 
   constructor(gameSession:GameSession, groupPath:string, gameSummaryLists:GameSummaryList[], filters:Record<string, any>[]) {
-    super();
-
     this.data = { gameSession, groupPath, filters, gameSummaryLists, stats:new Map() };
 
     for (const gsl of gameSummaryLists) {
@@ -462,7 +455,7 @@ export class GameSessionGameSummaryListGroup extends ActiveModel {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache({ ttl:null });
   }
   static register(gameSession:GameSession, groupPath:string, gsls:GameSummaryList[], filters:Record<string, any>[]) {
     const id = `${gameSession.session.id}:${groupPath}`;

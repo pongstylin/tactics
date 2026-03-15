@@ -138,7 +138,7 @@ export default class TeamSetSearch extends ActiveModel<TeamSetSearchEvents> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache;
   }
   static parseText(text:string) {
     const groups = new ReParse(text, true).start(grammar.values) as string[][];
@@ -276,7 +276,7 @@ export class TeamSetSearchGroup extends ActiveModel {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache;
   }
 
   get id() {
