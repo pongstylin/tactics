@@ -948,8 +948,7 @@ export default class extends DynamoDBAdapter {
       id: playerStats.playerId,
       path: `/vs/${vsPlayerId}`,
     }, {}, null);
-    if (vsStats)
-      playerStats.loadVS(vsPlayerId, vsStats);
+    playerStats.loadVS(vsPlayerId, vsStats);
   }
   async _savePlayerStatsVS({ playerId, vsPlayerId, vsStats }) {
     await this.putItem({
