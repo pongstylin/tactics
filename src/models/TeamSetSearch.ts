@@ -108,7 +108,7 @@ export const grammar = {
 const filterCache = new Map<string, WeakMap<object, Set<string>>>();
 
 type CacheValue = TeamSetSearch | TeamSetSearchGroup;
-const cache = new Cache<string, CacheValue>();
+const cache = new Cache<string, CacheValue>('TeamSetSearch');
 
 export default class TeamSetSearch extends ActiveModel<TeamSetSearchEvents> {
   protected static _cache: Cache<string, CacheValue> = cache;

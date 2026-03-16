@@ -33,7 +33,7 @@ abstract class ActiveModel<ModelEvents extends AbstractEvents & Record<string, o
 
   // This needs to be implemented in sub classes to expose the overridden types on the _cache property.
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('ActiveModel');
   }
 
   clean(force = false):object | true | false {

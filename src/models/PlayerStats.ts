@@ -60,7 +60,7 @@ export default class PlayerStats extends ActiveModel<PlayerStatsEvents> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('PlayerStats');
   }
   static create(playerId:string) {
     return new PlayerStats({ playerId });

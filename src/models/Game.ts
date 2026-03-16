@@ -125,7 +125,7 @@ export default class Game extends ActiveModel<GameEvents> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('Game');
   }
   static create(gameOptions:any) {
     const gameData:any = {

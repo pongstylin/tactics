@@ -49,7 +49,7 @@ export default class TeamSetStats extends ActiveModel {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('TeamSetStats');
   }
   static create() {
     return new TeamSetStats({}, { isClean:false, isPersisted:false });

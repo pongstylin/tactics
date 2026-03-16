@@ -258,7 +258,7 @@ export default class extends DynamoDBAdapter {
   async _createPlayerDevice(player, device) {
     this._addPlayerDevice(player, device);
 
-    return PlayerDevice.cache.use(device.id, async () => {
+    await PlayerDevice.cache.use(device.id, async () => {
       await this.createItem({
         id: device.player.id,
         type: 'player',
@@ -269,7 +269,7 @@ export default class extends DynamoDBAdapter {
         ttl: device.ttl - 7 * 86400,
       });
 
-      return player;
+      return device;
     });
   }
   async _addPlayerDevice(player, device) {
@@ -351,20 +351,25 @@ export default class extends DynamoDBAdapter {
 
   async _createIdentity(identity) {
     await this.createItem({ id:identity.id, type:'identity' }, identity);
-    Identity.cache.use(identity.id, identity);
     this._subscribeIdentity(identity);
   }
   async _getIdentity(identityId, player = null) {
-    return Identity.cache.use(identityId, async () => {
-      const identity = await this.getItem({
-        id: identityId,
-        type: 'identity',
-        name: `identity_${identityId}`,
-      }, {}, () => player ? Identity.create(player) : undefined);
-      identity.pruneRanks(this.gameTypes);
+    const cache = this.cache.get('identity');
+    const buffer = this.buffer.get('identity');
 
-      return this._subscribeIdentity(identity);
-    });
+    if (cache.has(identityId))
+      return cache.get(identityId);
+    else if (buffer.has(identityId))
+      return buffer.get(identityId);
+
+    const identity = await this.getItem({
+      id: identityId,
+      type: 'identity',
+      name: `identity_${identityId}`,
+    }, {}, () => player ? Identity.create(player) : undefined);
+    identity.pruneRanks(this.gameTypes);
+
+    return this._subscribeIdentity(identity);
   }
   async _saveIdentity(identity) {
     identity.once('change', () => this.buffer.get('identity').add(identity.id, identity));
@@ -381,7 +386,6 @@ export default class extends DynamoDBAdapter {
     const cache = this.cache.get('identity');
     const buffer = this.buffer.get('identity');
 
-    Identity.cache.delete(identity.id);
     if (cache.has(identity.id))
       cache.delete(identity.id);
     if (buffer.has(identity.id))

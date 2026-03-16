@@ -31,7 +31,7 @@ export default class TeamSetGameSearch implements Iterable<GameSummary> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('TeamSetGameSearch');
   }
 
   get id() {
