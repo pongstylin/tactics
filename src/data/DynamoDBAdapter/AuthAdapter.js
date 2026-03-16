@@ -306,17 +306,15 @@ export default class extends DynamoDBAdapter {
     if (player.devices.has(deviceId))
       return player.getDevice(deviceId);
 
-    return PlayerDevice.cache.use(deviceId, async () => {
-      const device = await this.getItem({
-        id: player.id,
-        type: 'player',
-        childId: deviceId,
-        childType: 'device',
-      }, {}, null);
-      if (device)
-        this._addPlayerDevice(player, device);
-      return device;
-    });
+    const device = await PlayerDevice.cache.use(deviceId, async () => this.getItem({
+      id: player.id,
+      type: 'player',
+      childId: deviceId,
+      childType: 'device',
+    }, {}, null));
+    if (device)
+      this._addPlayerDevice(player, device);
+    return device;
   }
   async _savePlayerDevice(device) {
     await this.putItem({
