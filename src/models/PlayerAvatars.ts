@@ -33,7 +33,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('PlayerAvatars');
   }
   static create(playerId:string) {
     const unitTypes = Array.from(unitData).filter(([k,d]) => d.tier === 1).map(([k,d]) => k);

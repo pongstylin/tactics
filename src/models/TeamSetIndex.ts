@@ -29,7 +29,7 @@ export default class TeamSetIndex extends ActiveModel implements Iterable<TeamSe
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('TeamSetIndex');
   }
 
   get id() {

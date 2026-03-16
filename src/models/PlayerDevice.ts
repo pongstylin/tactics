@@ -7,6 +7,7 @@ import type Player from '#models/Player.js';
 import AccessToken from '#server/AccessToken.js';
 // @ts-ignore
 import ServerError from '#server/Error.js';
+import Cache from '#utils/Cache.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
@@ -20,6 +21,8 @@ type PlayerDeviceEvents = AbstractEvents & {
 };
 
 export default class PlayerDevice extends ActiveModel<PlayerDeviceEvents> {
+  protected static _cache: Cache<string, PlayerDevice>;
+
   protected data: {
     id: string
     name: string | null
@@ -35,6 +38,10 @@ export default class PlayerDevice extends ActiveModel<PlayerDeviceEvents> {
   constructor(data:PlayerDevice['data']) {
     super();
     this.data = data;
+  }
+
+  static get cache() {
+    return this._cache ??= new Cache('PlayerDevice');
   }
 
   static create(client:Session['client']) {

@@ -106,7 +106,7 @@ export default class Player extends ActiveModel<PlayerEvents> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('Player');
   }
   static async create(data:Player['data']) {
     if (data.name !== undefined && data.name !== null)

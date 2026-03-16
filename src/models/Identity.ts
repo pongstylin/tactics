@@ -2,6 +2,7 @@ import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import type Player from '#models/Player.js';
 import GameType from '#tactics/GameType.js';
 import { addForteRank } from '#models/PlayerStats.js';
+import Cache from '#utils/Cache.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
@@ -40,6 +41,8 @@ const defaultData = {
 };
 
 export default class Identity extends ActiveModel<IdentityEvents> {
+  protected static _cache: Cache<string, Identity>
+
   protected data: {
     id: string;
     name: string | null;
@@ -76,6 +79,11 @@ export default class Identity extends ActiveModel<IdentityEvents> {
         rating: r.rating,
         gameCount: r.gameCount,
       })));
+  }
+
+  static get cache() {
+    // Disable TTL since we're using the Timeout cache.
+    return this._cache ??= new Cache('Identity', { ttl:null });
   }
 
   static create(player:Player) {

@@ -24,7 +24,7 @@ export default class GameSummaryList extends ActiveModel<GameSummaryListEvents> 
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('GameSummaryList');
   }
   static create(id:string) {
     return new GameSummaryList({

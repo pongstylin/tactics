@@ -41,7 +41,7 @@ export default class Room extends ActiveModel<RoomEvents> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('Room');
   }
   static create(players:Pick<Player, 'id' | 'name'>[], options:Partial<{ id:string, applyRules:boolean }>) {
     if (players.length < 0)

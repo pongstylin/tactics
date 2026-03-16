@@ -52,7 +52,7 @@ export default class GameSession {
   }
 
   static get cache() {
-    return this._cache ??= new Cache({ ttl:null });
+    return this._cache ??= new Cache('GameSession', { ttl:null });
   }
   static create(session:Session, player:Player) {
     return this.cache.use(session.id, new GameSession(session, player));
@@ -149,7 +149,7 @@ export class GameSessionPlayer {
   }
 
   static get cache() {
-    return this._cache ??= new Cache({ ttl:null });
+    return this._cache ??= new Cache('GameSessionPlayer', { ttl:null });
   }
   static create(player:Player) {
     return this.cache.set(player, () => new GameSessionPlayer(player));
@@ -270,7 +270,7 @@ export class GameSessionGame {
   }
 
   static get cache() {
-    return this._cache ??= new Cache({ ttl:null });
+    return this._cache ??= new Cache('GameSessionGame', { ttl:null });
   }
   static create(game:Game) {
     return this.cache.set(game, () => new GameSessionGame(game));
@@ -461,7 +461,7 @@ export class GameSessionGameSummaryListGroup {
   }
 
   static get cache() {
-    return this._cache ??= new Cache({ ttl:null });
+    return this._cache ??= new Cache('GameSessionGameSummaryListGroup', { ttl:null });
   }
   static register(gameSession:GameSession, groupPath:string, gsls:GameSummaryList[], filters:Record<string, any>[]) {
     const id = `${gameSession.session.id}:${groupPath}`;

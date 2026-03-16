@@ -43,7 +43,7 @@ export default class PlayerSets extends ActiveModel<PlayerSetsEvents> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache();
+    return this._cache ??= new Cache('PlayerSets');
   }
   static create(playerId:string) {
     return new PlayerSets({

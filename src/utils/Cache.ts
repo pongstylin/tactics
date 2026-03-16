@@ -1,3 +1,5 @@
+// @ts-expect-error
+import DebugLogger from 'debug';
 import { TypedEmitter } from '#utils/emitter.js';
 // @ts-expect-error
 import ticker from '#utils/ticker.js';
@@ -56,12 +58,19 @@ type Getter<K extends CacheKey, V extends CacheValue> =
   | V
   | ((key:K) => V | PromiseLike<V | undefined> | undefined);
 
+type CacheStats = {
+  hits: number;
+  misses: number;
+  sets: number;
+  deletes: Map<string, number>;
+};
+
 // ---------------------------------------------------------------------------
 // Module-level state
 // ---------------------------------------------------------------------------
 
 // Caches are expected to be global, so we will assume they are never garbage collected.
-const caches:Cache<CacheKey, any>[] = [];
+const caches = new Map<string, Cache<CacheKey, any>>();
 let lastTick = Date.now();
 
 // ---------------------------------------------------------------------------
@@ -74,26 +83,41 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
   private readonly data:Map<K, Meta<K, V>>;
   private readonly stack:StackEntry<K>[]; // sorted shortest expiration at end for efficient array truncation
   private readonly registry:FinalizationRegistry<WeakRefMeta<K, V>>;
+  private readonly stats:CacheStats;
+  private readonly debug:(...args:any[]) => void;
 
-  constructor({ ttl = 3_600_000, limit = 100 }:CacheOptions = {}) {
+  constructor(name:string, options:CacheOptions = {}) {
     super();
+    if (caches.has(name))
+      throw new Error(`Cache with name '${name}' already exists`);
+    const { ttl = 3_600_000, limit = 100 } = options;
     this.ttl = ttl;
     this.limit = limit;
     this.data = new Map();
     this.stack = [];
     this.registry = new FinalizationRegistry(m => this._delete(m.key, 'finalized'));
-    caches.push(this);
+    this.stats = { hits:0, misses:0, sets:0, deletes:new Map() };
+    this.debug = DebugLogger(`cache:${name}`);
+    caches.set(name, this);
   }
 
   static tick({ now }:{ now:number }): void {
     if ((now - lastTick) < 5000) return;
     lastTick = now;
-    for (const cache of caches)
+    for (const cache of caches.values()) {
       cache.tick(now);
+      const s = cache.stats;
+      const deleteStr = [...s.deletes.entries()].map(([r,n]) => `${r}=${n}`).join('; ');
+      cache.debug(
+        `data=${cache.data.size}; stack=${cache.stack.length}` +
+        `; hits=${s.hits}; misses=${s.misses}; sets=${s.sets}` +
+        (deleteStr ? `; deletes: ${deleteStr}` : '; deletes=0')
+      );
+    }
   }
 
   private _indexOfStackEntry(stackEntry:StackEntry<K>):number {
-    let i = this.stack.findSortIndex(s => s.expireAt - stackEntry.expireAt);
+    let i = this.stack.findSortIndex(s => stackEntry.expireAt - s.expireAt);
     while (i < this.stack.length) {
       if (this.stack[i] === stackEntry) return i;
       i++;
@@ -162,15 +186,29 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
   }
 
   get(key:K):V | undefined {
-    const value = this.peek(key);
-    if (Promise.isThenable(value))
-      return undefined;
+    if (key === undefined || key === null)
+      throw new Error(`Cache key cannot be ${typeof key}`);
+    const value = this._fetch(key);
+    if (value === undefined)
+      this.stats.misses++;
+    else if (!Promise.isThenable(value))
+      this.stats.hits++;
+    if (Promise.isThenable(value)) return undefined;
     return value;
   }
 
   peek(key:K):V | PromiseLike<V | undefined> | undefined {
     if (key === undefined || key === null)
       throw new Error(`Cache key cannot be ${typeof key}`);
+    const value = this._fetch(key);
+    if (value === undefined)
+      this.stats.misses++;
+    else if (!Promise.isThenable(value))
+      this.stats.hits++;
+    return value;
+  }
+
+  private _fetch(key:K):V | PromiseLike<V | undefined> | undefined {
     const meta = this.data.get(key);
     if (!meta) return undefined;
     if (meta.type === 'WeakRef') {
@@ -203,10 +241,15 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
     const value = typeof getter === 'function' ? getter(key) : getter;
     if (value === undefined) return undefined;
     const existing = this.data.get(key);
-    if (existing) {
+    if (existing?.type === 'Promise') {
+      // The promise is resolving to its final value — not a new set.
+    } else if (existing) {
       const existingValue = existing.type === 'WeakRef' ? existing.value.deref() : existing.value;
       if (existingValue === value) return value;
       this._delete(key, 'replaced');
+      this.stats.sets++;
+    } else {
+      this.stats.sets++;
     }
     if (Promise.isThenable(value)) {
       const promise = value.then(
@@ -252,6 +295,7 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
       }
     }
     this.data.delete(key);
+    this.stats.deletes.set(reason, (this.stats.deletes.get(reason) ?? 0) + 1);
     this.emit('delete', { key, reason });
   }
 

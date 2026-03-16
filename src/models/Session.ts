@@ -26,7 +26,7 @@ export default class Session extends ActiveModel<SessionEvents> {
   }
 
   static get cache() {
-    return this._cache ??= new Cache({ ttl:null });
+    return this._cache ??= new Cache('Session', { ttl:null });
   }
   static create(data:Session['data']) {
     return this.cache.set(data.id, new Session(data));
