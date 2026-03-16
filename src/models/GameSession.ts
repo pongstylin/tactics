@@ -95,9 +95,10 @@ export default class GameSession {
 
   openGame(game:Game, reference:Reference) {
     const sessionGame = GameSessionGame.cache.use(game, () => GameSessionGame.create(game));
-    sessionGame.addSession(this, reference);
-
     this.data.openedGameSessions.add(sessionGame);
+
+    // Add the session after adding sessionGame to openedGameSessions for accurate playerStatus.
+    sessionGame.addSession(this, reference);
 
     return sessionGame;
   }
