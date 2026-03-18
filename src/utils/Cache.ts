@@ -18,6 +18,7 @@ type CacheEvents<V> = {
 };
 
 type StackEntry<K extends CacheKey> = {
+  id: number;
   key: K;
   expireAt: number;
 };
@@ -72,6 +73,7 @@ type CacheStats = {
 // Caches are expected to be global, so we will assume they are never garbage collected.
 const caches = new Map<string, Cache<CacheKey, any>>();
 let lastTick = Date.now();
+let monoCounter = 0;
 
 // ---------------------------------------------------------------------------
 // Cache
@@ -81,7 +83,7 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
   private readonly ttl:number | null;
   private readonly limit:number;
   private readonly data:Map<K, Meta<K, V>>;
-  private readonly stack:StackEntry<K>[]; // sorted shortest expiration at end for efficient array truncation
+  private readonly stack:StackEntry<K>[]; // sorted newest (highest id) at front, oldest at end
   private readonly registry:FinalizationRegistry<WeakRefMeta<K, V>>;
   private readonly stats:CacheStats;
   private readonly debug:(...args:any[]) => void;
@@ -95,7 +97,10 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
     this.limit = limit;
     this.data = new Map();
     this.stack = [];
-    this.registry = new FinalizationRegistry(m => this._delete(m.key, 'finalized'));
+    this.registry = new FinalizationRegistry((weakMeta:WeakRefMeta<K, V>) => {
+      if (this.data.get(weakMeta.key) === weakMeta)
+        this._delete(weakMeta.key, 'finalized');
+    });
     this.stats = { hits:0, misses:0, sets:0, deletes:new Map() };
     this.debug = DebugLogger(`cache:${name}`);
     caches.set(name, this);
@@ -116,27 +121,24 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
     }
   }
 
-  private _indexOfStackEntry(stackEntry:StackEntry<K>):number {
-    let i = this.stack.findSortIndex(s => stackEntry.expireAt - s.expireAt);
-    while (i < this.stack.length) {
-      if (this.stack[i] === stackEntry) return i;
-      i++;
-    }
-    return -1;
+  private _popStack(meta:ValueMeta<K, V>):void {
+    const i = this.stack.findSortIndex(s => meta.stackEntry!.id - s.id);
+    if (this.stack[i] === meta.stackEntry) this.stack.splice(i, 1);
+    meta.stackEntry = null;
+  }
+
+  private _pushStack(key:K, meta:ValueMeta<K, V>):void {
+    if (meta.stackEntry !== null) this._popStack(meta);
+    const stackEntry:StackEntry<K> = { id: ++monoCounter, key, expireAt: Date.now() + this.ttl! };
+    meta.stackEntry = stackEntry;
+    this.stack.unshift(stackEntry);
+    if (this.stack.length > this.limit)
+      this._evict(this.stack[this.stack.length - 1]!.key);
   }
 
   private _refresh(key:K, meta:ValueMeta<K, V>):void {
     if (this.ttl === null) return;
-    const hadStackEntry = meta.stackEntry !== null;
-    if (hadStackEntry) {
-      const i = this._indexOfStackEntry(meta.stackEntry!);
-      if (i !== -1) this.stack.splice(i, 1);
-    }
-    const stackEntry:StackEntry<K> = { key, expireAt: Date.now() + this.ttl };
-    meta.stackEntry = stackEntry;
-    this.stack.unshift(stackEntry);
-    if (!hadStackEntry && this.stack.length > this.limit)
-      this._evict(this.stack[this.stack.length - 1]!.key);
+    this._pushStack(key, meta);
   }
 
   private _evict(key:K):void {
@@ -219,12 +221,9 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
       }
       if (this.ttl !== null) {
         this.registry.unregister(value);
-        const stackEntry:StackEntry<K> = { key, expireAt:Date.now() + this.ttl };
-        const valueMeta:ValueMeta<K, V> = { key, type:'value', value:value as V, stackEntry };
+        const valueMeta:ValueMeta<K, V> = { key, type:'value', value:value as V, stackEntry:null };
         this.data.set(key, valueMeta);
-        this.stack.unshift(stackEntry);
-        if (this.stack.length > this.limit)
-          this._evict(this.stack[this.stack.length - 1]!.key);
+        this._pushStack(key, valueMeta);
       }
       return value;
     }
@@ -260,12 +259,9 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
       this.data.set(key, meta);
       return promise;
     } else if (expireAt) {
-      const stackEntry:StackEntry<K> = { key, expireAt };
-      const meta:ValueMeta<K, V> = { key, type:'value', value, stackEntry };
+      const meta:ValueMeta<K, V> = { key, type:'value', value, stackEntry:null };
       this.data.set(key, meta);
-      this.stack.unshift(stackEntry);
-      if (this.stack.length > this.limit)
-        this._evict(this.stack[this.stack.length - 1]!.key);
+      this._pushStack(key, meta);
     } else if (value !== null && typeof value === 'object') {
       this._setWeakRef(key, value);
     } else {
@@ -289,10 +285,8 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
         if (value !== undefined)
           this.registry.unregister(value);
       }
-      if (meta?.stackEntry != null) {
-        const i = this._indexOfStackEntry(meta.stackEntry);
-        if (i !== -1) this.stack.splice(i, 1);
-      }
+      if (meta?.type === 'value')
+        if (meta.stackEntry !== null) this._popStack(meta);
     }
     this.data.delete(key);
     this.stats.deletes.set(reason, (this.stats.deletes.get(reason) ?? 0) + 1);
