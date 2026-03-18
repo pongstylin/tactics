@@ -351,7 +351,7 @@ export default class PlayerStats extends ActiveModel<PlayerStatsEvents> {
   }
 
   _syncVS(team:Team, game:Game) {
-    if (!this._vs.has(team.playerId)) {
+    if (this._vs.get(team.playerId) == null) {
       if (game.state.endedAt)
         console.log(`Warning: Game start not recorded: ${team.playerId} (${this.data.playerId})`);
 
