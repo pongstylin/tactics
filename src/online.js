@@ -749,21 +749,59 @@ function unsetLobbyGame(gameSummary) {
   if (isDirty)
     displaceLobbyGame(gameSummary);
 }
-function setPublicLobbyGame(gameSummary) {
+async function setPublicLobbyGame(gameSummary) {
   const publicGames = state.tabContent.publicGames;
   if (!publicGames.lobbyGames) return;
+
+  const wasWaiting = publicGames.lobbyGames[0].has(gameSummary.id);
+  const wasActive  = publicGames.lobbyGames[1].has(gameSummary.id);
 
   publicGames.lobbyGames[0].delete(gameSummary.id);
   publicGames.lobbyGames[1].delete(gameSummary.id);
 
   if (!gameSummary.startedAt)
-    publicGames.lobbyGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames.lobbyGames[0] ]);
+    publicGames.lobbyGames[0].set(gameSummary.id, gameSummary);
   else if (!gameSummary.endedAt)
-    publicGames.lobbyGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames.lobbyGames[1] ]);
+    publicGames.lobbyGames[1].set(gameSummary.id, gameSummary);
   // endedAt: falls out of both maps naturally
 
-  if (state.currentTab === 'publicGames')
-    renderPublicGames();
+  if (state.currentTab !== 'publicGames' || !publicGames.els) return;
+
+  await gameArena.fetchAvatars(
+    gameSummary.teams.filter(t => t?.playerId).map(t => t.playerId)
+  );
+
+  // Re-check after await: an unset may have arrived while we were fetching avatars.
+  if (state.currentTab !== 'publicGames' || !publicGames.els) return;
+  const stillWaiting = publicGames.lobbyGames[0].has(gameSummary.id);
+  const stillActive  = publicGames.lobbyGames[1].has(gameSummary.id);
+  if (!stillWaiting && !stillActive) {
+    // The game was removed while we were awaiting — ensure DOM is clean.
+    removePublicCard(publicGames.els.secWaiting, gameSummary.id);
+    removePublicCard(publicGames.els.secActive, gameSummary.id);
+    updatePublicSectionVisibility();
+    return;
+  }
+
+  const isNowWaiting = !gameSummary.startedAt;
+  const isNowActive  = !!gameSummary.startedAt && !gameSummary.endedAt;
+
+  if (isNowWaiting) {
+    updatePublicWaitingCard(gameSummary);
+    if (wasActive)
+      removePublicCard(publicGames.els.secActive, gameSummary.id);
+  } else if (isNowActive) {
+    updatePublicActiveCard(gameSummary, !wasActive);
+    if (wasWaiting)
+      removePublicCard(publicGames.els.secWaiting, gameSummary.id);
+  } else {
+    if (wasWaiting)
+      removePublicCard(publicGames.els.secWaiting, gameSummary.id);
+    if (wasActive)
+      removePublicCard(publicGames.els.secActive, gameSummary.id);
+  }
+
+  updatePublicSectionVisibility();
 }
 function unsetPublicLobbyGame(gameSummary) {
   const publicGames = state.tabContent.publicGames;
@@ -773,8 +811,11 @@ function unsetPublicLobbyGame(gameSummary) {
   if (publicGames.lobbyGames[0].delete(gameSummary.id)) isDirty = true;
   if (publicGames.lobbyGames[1].delete(gameSummary.id)) isDirty = true;
 
-  if (isDirty && state.currentTab === 'publicGames')
-    renderPublicGames();
+  if (!isDirty || state.currentTab !== 'publicGames' || !publicGames.els) return;
+
+  removePublicCard(publicGames.els.secWaiting, gameSummary.id);
+  removePublicCard(publicGames.els.secActive, gameSummary.id);
+  updatePublicSectionVisibility();
 }
 function placeLobbyGame(gameSummary, skipRender = false) {
   const tabContent = state.tabContent.lobby;
@@ -866,23 +907,75 @@ function displaceLobbyGame(gameSummary) {
 
   renderLobbyGames();
 }
-function setPublicGame(gameSummary) {
-  const publicGames = state.tabContent.publicGames.games;
+async function setPublicGame(gameSummary) {
+  const tabContent = state.tabContent.publicGames;
+  const publicGames = tabContent.games;
+
+  const wasWaiting  = publicGames[0].has(gameSummary.id);
+  const wasActive   = publicGames[1].has(gameSummary.id);
+  const wasComplete = publicGames[2].has(gameSummary.id);
 
   publicGames[0].delete(gameSummary.id);
   publicGames[1].delete(gameSummary.id);
   publicGames[2].delete(gameSummary.id);
-  if (!gameSummary.startedAt)
-    publicGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[0] ]);
-  else if (!gameSummary.endedAt)
-    publicGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[1] ]);
-  else
-    publicGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[2] ]);
 
-  renderPublicGames();
+  if (!gameSummary.startedAt)
+    publicGames[0].set(gameSummary.id, gameSummary);
+  else if (!gameSummary.endedAt)
+    publicGames[1].set(gameSummary.id, gameSummary);
+  else
+    publicGames[2].set(gameSummary.id, gameSummary);
+
+  if (state.currentTab !== 'publicGames' || !tabContent.els) return;
+
+  await gameArena.fetchAvatars(
+    gameSummary.teams.filter(t => t?.playerId).map(t => t.playerId)
+  );
+
+  // Re-check after await: an unset may have arrived while we were fetching avatars.
+  if (state.currentTab !== 'publicGames' || !tabContent.els) return;
+  const stillWaiting  = publicGames[0].has(gameSummary.id);
+  const stillActive   = publicGames[1].has(gameSummary.id);
+  const stillComplete = publicGames[2].has(gameSummary.id);
+  if (!stillWaiting && !stillActive && !stillComplete) {
+    // The game was removed while we were awaiting — ensure DOM is clean.
+    removePublicCard(tabContent.els.secWaiting, gameSummary.id);
+    removePublicCard(tabContent.els.secActive, gameSummary.id);
+    removePublicCard(tabContent.els.secComplete, gameSummary.id);
+    updatePublicSectionVisibility();
+    return;
+  }
+
+  const isNowWaiting  = !gameSummary.startedAt;
+  const isNowActive   = !!gameSummary.startedAt && !gameSummary.endedAt;
+  const isNowComplete = !!gameSummary.endedAt;
+
+  if (isNowWaiting) {
+    updatePublicWaitingCard(gameSummary);
+    if (wasActive)   removePublicCard(tabContent.els.secActive, gameSummary.id);
+    if (wasComplete) removePublicCard(tabContent.els.secComplete, gameSummary.id);
+  } else if (isNowActive) {
+    updatePublicActiveCard(gameSummary, !wasActive);
+    if (wasWaiting)  removePublicCard(tabContent.els.secWaiting, gameSummary.id);
+    if (wasComplete) removePublicCard(tabContent.els.secComplete, gameSummary.id);
+  } else {
+    // Complete — prepend to complete section
+    const divBody = tabContent.els.secComplete.querySelector('.body');
+    const existing = divBody.querySelector(`#${gameSummary.id}`);
+    const newCard = gameCard.renderGame(gameSummary);
+    if (existing)
+      existing.replaceWith(newCard);
+    else
+      divBody.prepend(newCard);
+    if (wasWaiting) removePublicCard(tabContent.els.secWaiting, gameSummary.id);
+    if (wasActive)  removePublicCard(tabContent.els.secActive, gameSummary.id);
+  }
+
+  updatePublicSectionVisibility();
 }
 function unsetPublicGame(gameSummary) {
-  const publicGames = state.tabContent.publicGames.games;
+  const tabContent = state.tabContent.publicGames;
+  const publicGames = tabContent.games;
   let isDirty = false;
 
   for (let i = 0; i < publicGames.length; i++) {
@@ -890,8 +983,12 @@ function unsetPublicGame(gameSummary) {
       isDirty = true;
   }
 
-  if (isDirty)
-    renderPublicGames();
+  if (!isDirty || state.currentTab !== 'publicGames' || !tabContent.els) return;
+
+  removePublicCard(tabContent.els.secWaiting, gameSummary.id);
+  removePublicCard(tabContent.els.secActive, gameSummary.id);
+  removePublicCard(tabContent.els.secComplete, gameSummary.id);
+  updatePublicSectionVisibility();
 }
 
 function resize(sheet) {
@@ -1357,7 +1454,7 @@ function renderStats(scope = 'all') {
     }
 
     document.querySelector('.tabs .lobby .badge').textContent = numLobby || '';
-    document.querySelector('.tabs .publicGames .badge').textContent = numPublic || '';
+    document.querySelector('.tabs .publicGames .badge').textContent = (numPublic + numLobby) || '';
 
     const floors = document.querySelector('.floors UL');
     if (floors) {
@@ -2082,20 +2179,11 @@ async function renderYourGames() {
 async function renderPublicGames() {
   const tabContent = state.tabContent.publicGames;
   const divTabContent = document.querySelector('.tabContent .publicGames');
+
+  // On initial render, build the stable DOM skeleton and store element refs.
+  // On subsequent calls (tab re-sync after reconnect), tear down and rebuild.
   divTabContent.innerHTML = '';
-
-  const waitingLobbyGames = tabContent.lobbyGames ? [ ...tabContent.lobbyGames[0].values() ] : [];
-  const activeLobbyGames  = tabContent.lobbyGames ? [ ...tabContent.lobbyGames[1].values() ] : [];
-  const waitingGames = [ ...tabContent.games[0].values() ];
-  const activeGames  = [ ...tabContent.games[1].values() ];
-  const completeGames = [ ...tabContent.games[2].values() ];
-
-  await gameArena.fetchAvatars(
-    [ ...tabContent.games, ...(tabContent.lobbyGames ?? []) ]
-      .map(gsm => Array.from(gsm.values())
-        .map(g => g.teams.filter(t => t && t.playerId)
-          .map(t => t.playerId))).flat(3)
-  );
+  tabContent.els = null;
 
   const header = document.createElement('HEADER');
   header.addEventListener('mouseenter', event => {
@@ -2127,86 +2215,124 @@ async function renderPublicGames() {
   });
   divControls.appendChild(btnSettings);
 
-  /*
-   * Open Lobby Games
-   */
-  if (waitingLobbyGames.length) {
-    const secWaitingLobby = document.createElement('SECTION');
-    secWaitingLobby.classList.add('game-list');
-    divTabContent.appendChild(secWaitingLobby);
+  // Create all three stable sections up front.
+  const makeSection = (labelHtml, withShowResults = false) => {
+    const sec = document.createElement('SECTION');
+    sec.classList.add('game-list');
+    sec.style.display = 'none';
 
-    const header = document.createElement('HEADER');
-    header.innerHTML = '<SPAN class="left">Open Lobby Games</SPAN>';
-    secWaitingLobby.append(header);
+    const hdr = document.createElement('HEADER');
+    hdr.innerHTML = `<SPAN class="left">${labelHtml}</SPAN>${withShowResults ? '<SPAN class="right"></SPAN>' : ''}`;
+    if (withShowResults)
+      hdr.querySelector('.right').append(renderShowResults());
+    sec.append(hdr);
 
-    for (const game of waitingLobbyGames)
-      secWaitingLobby.appendChild(gameCard.renderGame(game));
-  }
+    const body = document.createElement('DIV');
+    body.classList.add('body');
+    sec.append(body);
 
-  /*
-   * Active Lobby Games
-   */
-  if (activeLobbyGames.length) {
-    const secActiveLobby = document.createElement('SECTION');
-    secActiveLobby.classList.add('game-list');
-    divTabContent.appendChild(secActiveLobby);
+    divTabContent.appendChild(sec);
+    return sec;
+  };
 
-    const header = document.createElement('HEADER');
-    header.innerHTML = '<SPAN class="left">Active Lobby Games</SPAN>';
-    secActiveLobby.append(header);
+  const secWaiting  = makeSection('Waiting for Opponent');
+  const secActive   = makeSection('Active Games');
+  const secComplete = makeSection('Complete Games', true);
 
-    for (const game of activeLobbyGames)
-      secActiveLobby.appendChild(gameCard.renderGame(game));
-  }
+  tabContent.els = { secWaiting, secActive, secComplete };
 
-  /*
-   * Waiting for Opponent
-   */
-  if (waitingGames.length) {
-    const secWaitingGames = document.createElement('SECTION');
-    secWaitingGames.classList.add('game-list');
-    divTabContent.appendChild(secWaitingGames);
-
-    const header = document.createElement('HEADER');
-    header.innerHTML = '<SPAN class="left">Waiting for Opponent</SPAN>';
-    secWaitingGames.append(header);
-
-    waitingGames.forEach(game => secWaitingGames.appendChild(gameCard.renderGame(game)));
-  }
+  // Collect all game summaries for avatar pre-fetch.
+  const allGames = [
+    ...[ ...(tabContent.lobbyGames?.[0].values() ?? []) ],
+    ...[ ...(tabContent.lobbyGames?.[1].values() ?? []) ],
+    ...[ ...tabContent.games[0].values() ],
+    ...[ ...tabContent.games[1].values() ],
+    ...[ ...tabContent.games[2].values() ],
+  ];
+  await gameArena.fetchAvatars(
+    allGames.flatMap(g => g.teams.filter(t => t?.playerId).map(t => t.playerId))
+  );
 
   /*
-   * Active Games
+   * Waiting for Opponent — lobby waiting + public waiting, sorted by createdAt asc.
    */
-  if (activeGames.length) {
-    const secActiveGames = document.createElement('SECTION');
-    secActiveGames.classList.add('game-list');
-    divTabContent.appendChild(secActiveGames);
+  const waitingGames = [
+    ...[ ...(tabContent.lobbyGames?.[0].values() ?? []) ],
+    ...[ ...tabContent.games[0].values() ],
+  ].sort((a, b) => a.createdAt - b.createdAt);
 
-    const header = document.createElement('HEADER');
-    header.innerHTML = '<SPAN class="left">Active Games</SPAN>';
-    secActiveGames.append(header);
-
-    activeGames.forEach(game => secActiveGames.appendChild(gameCard.renderGame(game)));
-  }
+  const waitingBody = secWaiting.querySelector('.body');
+  for (const game of waitingGames)
+    waitingBody.appendChild(gameCard.renderGame(game));
 
   /*
-   * Complete Games
+   * Active Games — lobby active + public active, sorted by startedAt desc.
    */
-  if (completeGames.length) {
-    const secCompleteGames = document.createElement('SECTION');
-    secCompleteGames.classList.add('game-list');
-    divTabContent.appendChild(secCompleteGames);
+  const activeGames = [
+    ...[ ...(tabContent.lobbyGames?.[1].values() ?? []) ],
+    ...[ ...tabContent.games[1].values() ],
+  ].sort((a, b) => b.startedAt - a.startedAt);
 
-    const header = document.createElement('HEADER');
-    header.innerHTML = [
-      `<SPAN class="left">Complete Games</SPAN>`,
-      `<SPAN class="right"></SPAN>`,
-    ].join('');
-    header.querySelector('.right').append(renderShowResults());
-    secCompleteGames.append(header);
+  const activeBody = secActive.querySelector('.body');
+  for (const game of activeGames)
+    activeBody.appendChild(gameCard.renderGame(game));
 
-    completeGames.forEach(game => secCompleteGames.appendChild(gameCard.renderGame(game)));
-  }
+  /*
+   * Complete Games — public only.
+   */
+  const completeGames = [ ...tabContent.games[2].values() ];
+  const completeBody = secComplete.querySelector('.body');
+  for (const game of completeGames)
+    completeBody.appendChild(gameCard.renderGame(game));
+
+  updatePublicSectionVisibility();
+}
+
+/*
+ * Remove a game card by ID from a section's .body, if present.
+ */
+function removePublicCard(section, gameId) {
+  section.querySelector(`.body #${gameId}`)?.remove();
+}
+
+/*
+ * Replace or append a card in the waiting section.
+ * New waiting games are always newer than existing ones so appending is correct.
+ */
+function updatePublicWaitingCard(gameSummary) {
+  const body = state.tabContent.publicGames.els.secWaiting.querySelector('.body');
+  const existing = body.querySelector(`#${gameSummary.id}`);
+  const newCard = gameCard.renderGame(gameSummary);
+
+  if (existing)
+    existing.replaceWith(newCard);
+  else
+    body.appendChild(newCard);
+}
+
+/*
+ * Insert or replace a card in the active section.
+ * New games are prepended (no re-sort on incremental updates).
+ * Updated games are replaced in place.
+ */
+function updatePublicActiveCard(gameSummary, isNew) {
+  const body = state.tabContent.publicGames.els.secActive.querySelector('.body');
+  const existing = body.querySelector(`#${gameSummary.id}`);
+  const newCard = gameCard.renderGame(gameSummary);
+
+  if (existing)
+    existing.replaceWith(newCard);
+  else if (isNew)
+    body.prepend(newCard);
+}
+
+/*
+ * Show or hide each section based on whether its .body has any children.
+ */
+function updatePublicSectionVisibility() {
+  const { secWaiting, secActive, secComplete } = state.tabContent.publicGames.els;
+  for (const sec of [ secWaiting, secActive, secComplete ])
+    sec.style.display = sec.querySelector('.body').children.length ? '' : 'none';
 }
 
 function initializeRankingsPage(className, crumbs) {
