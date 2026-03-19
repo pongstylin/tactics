@@ -961,9 +961,9 @@ async function setPublicGame(gameSummary) {
   } else {
     // Complete — prepend to complete section
     const divBody = tabContent.els.secComplete.querySelector('.body');
-    const existing = divBody.querySelector(`#${gameSummary.id}`);
+    const existing = document.getElementById(gameSummary.id);
     const newCard = gameCard.renderGame(gameSummary);
-    if (existing)
+    if (existing && divBody.contains(existing))
       existing.replaceWith(newCard);
     else
       divBody.prepend(newCard);
@@ -2292,7 +2292,9 @@ async function renderPublicGames() {
  * Remove a game card by ID from a section's .body, if present.
  */
 function removePublicCard(section, gameId) {
-  section.querySelector(`.body #${gameId}`)?.remove();
+  const el = document.getElementById(gameId);
+  if (el && section.querySelector('.body').contains(el))
+    el.remove();
 }
 
 /*
@@ -2301,10 +2303,10 @@ function removePublicCard(section, gameId) {
  */
 function updatePublicWaitingCard(gameSummary) {
   const body = state.tabContent.publicGames.els.secWaiting.querySelector('.body');
-  const existing = body.querySelector(`#${gameSummary.id}`);
+  const existing = document.getElementById(gameSummary.id);
   const newCard = gameCard.renderGame(gameSummary);
 
-  if (existing)
+  if (existing && body.contains(existing))
     existing.replaceWith(newCard);
   else
     body.appendChild(newCard);
@@ -2317,10 +2319,10 @@ function updatePublicWaitingCard(gameSummary) {
  */
 function updatePublicActiveCard(gameSummary, isNew) {
   const body = state.tabContent.publicGames.els.secActive.querySelector('.body');
-  const existing = body.querySelector(`#${gameSummary.id}`);
+  const existing = document.getElementById(gameSummary.id);
   const newCard = gameCard.renderGame(gameSummary);
 
-  if (existing)
+  if (existing && body.contains(existing))
     existing.replaceWith(newCard);
   else if (isNew)
     body.prepend(newCard);
