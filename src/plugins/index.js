@@ -1,3 +1,4 @@
+import '#plugins/shim.js';
 import '#plugins/array.js';
 import '#plugins/json.js';
 import '#plugins/merge.js';

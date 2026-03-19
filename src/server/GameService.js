@@ -4,7 +4,7 @@ import Service from '#server/Service.js';
 import ServerError from '#server/Error.js';
 import Timeout from '#server/Timeout.js';
 import Game from '#models/Game.js';
-import GameSession, { GameSessionGame, GameSessionPlayer, GameSessionGameSummaryListGroup } from '#models/GameSession.js';
+import GameSession, { ACTIVE_LIMIT, GameSessionGame, GameSessionPlayer, GameSessionGameSummaryListGroup } from '#models/GameSession.js';
 import GameSummary from '#models/GameSummary.js';
 import Team from '#models/Team.js';
 import TeamSet from '#models/TeamSet.js';
