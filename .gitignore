@@ -4,6 +4,7 @@ docker-compose.*.yml
 dist
 config/*.pem
 static/node_modules_*
+static/vendors-node_modules_*
 static/sprites/
 static/*.min.js
 static/sw.js

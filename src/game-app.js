@@ -6,7 +6,6 @@ import tappable from 'components/tappable.js';
 import wakelock from 'components/wakelock.js';
 import ConfigureGame from 'components/Modal/ConfigureGame.js';
 import GameSettingsModal from 'components/Modal/GameSettings.js';
-import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
 import PlayerInfoModal from 'components/Modal/PlayerInfo.js';
 import PlayerInfoSelfModal from 'components/Modal/PlayerInfoSelf.js';
 import SetPicker from 'components/Modal/SetPicker.js';
@@ -417,13 +416,10 @@ $(() => {
     $('body').addClass(pointer = 'mouse');
 
   $('BODY')
-    .on('click', '#field .player .link', event => {
-      const $link = $(event.currentTarget);
-      const team = $link.closest('.player').data('team');
+    .on('click', '#field .player.link', event => {
+      const team = $(event.currentTarget).data('team');
 
-      if ($link.hasClass('status')) {
-        new PlayerActivityModal({ game, team });
-      } else if (team.playerId !== authClient.playerId) {
+      if (team.playerId !== authClient.playerId) {
         playerInfo = new PlayerInfoModal(
           { game, gameType, team },
           { onClose: () => playerInfo = null }
@@ -1871,14 +1867,12 @@ function resetPlayerBanners() {
       .data('team', team);
 
     const playerStatus = game.state.playerStatus.get(team.playerId);
-    const showLink = playerStatus !== 'unavailable' && !!game.collection || !game.isViewOnly;
+    $player.toggleClass('link', !!game.collection || !game.isViewOnly);
     const $status = $player.find('.status')
       .removeClass('offline online active unavailable')
       .addClass(playerStatus.status)
       .toggleClass('mobile', playerStatus.deviceType === 'mobile')
-      .toggleClass('link', showLink && !isMyTeam && !game.state.endedAt);
     const $name = $player.find('.name')
-      .toggleClass('link', showLink)
       .text(team.name);
 
     if (team.forkOf) {
