@@ -15,7 +15,7 @@ import { TypedEmitter, type NamespaceEventMap } from '#utils/emitter.js';
 // @ts-ignore
 import { test } from '#utils/jsQuery.js';
 
-const ACTIVE_LIMIT = 120;
+export const ACTIVE_LIMIT = 120;
 
 export default class GameSession {
   protected static _cache: Cache<string, GameSession>;
@@ -530,26 +530,21 @@ export class GameSessionGameSummaryListGroup {
     if (eventType === 'none')
       return;
 
-    // Do not emit game events for the collection stats group
-    if (this.data.groupPath !== '/collections')
-      GameSessionGameSummaryListGroup.emit(`game:${eventType}`, {
-        target: this,
-        gameSummaryList,
-        gameSummary: event.data.gameSummary ?? event.data.oldSummary,
-      });
+    GameSessionGameSummaryListGroup.emit(`game:${eventType}`, {
+      target: this,
+      gameSummaryList,
+      gameSummary: event.data.gameSummary ?? event.data.oldSummary,
+    });
 
-    // Do not emit stats events for specific collection groups.
-    if (!this.data.groupPath.startsWith('/collections/')) {
-      const stats = this._adjustStats(gameSummaryList, eventType, event.data);
-      if (!stats)
-        return;
+    const stats = this._adjustStats(gameSummaryList, eventType, event.data);
+    if (!stats)
+      return;
 
-      GameSessionGameSummaryListGroup.emit('stats', {
-        target: this,
-        gameSummaryList,
-        stats,
-      });
-    }
+    GameSessionGameSummaryListGroup.emit('stats', {
+      target: this,
+      gameSummaryList,
+      stats,
+    });
   }
   /*
    * This method assumes that all pending game creators are loaded in the cache.
