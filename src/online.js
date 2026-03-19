@@ -525,6 +525,11 @@ whenDOMReady.then(() => {
 
           unsetLobbyGame(body.data);
         }
+      } else if (body.group === '/collections/lobby') {
+        if (body.type === 'game:add' || body.type === 'game:change')
+          setPublicLobbyGame(body.data);
+        else if (body.type === 'game:remove')
+          unsetPublicLobbyGame(body.data);
       } else if (body.group === '/collections/public') {
         if (body.type === 'game:add' || body.type === 'game:change')
           setPublicGame(body.data);
@@ -743,6 +748,33 @@ function unsetLobbyGame(gameSummary) {
 
   if (isDirty)
     displaceLobbyGame(gameSummary);
+}
+function setPublicLobbyGame(gameSummary) {
+  const publicGames = state.tabContent.publicGames;
+  if (!publicGames.lobbyGames) return;
+
+  publicGames.lobbyGames[0].delete(gameSummary.id);
+  publicGames.lobbyGames[1].delete(gameSummary.id);
+
+  if (!gameSummary.startedAt)
+    publicGames.lobbyGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames.lobbyGames[0] ]);
+  else if (!gameSummary.endedAt)
+    publicGames.lobbyGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames.lobbyGames[1] ]);
+  // endedAt: falls out of both maps naturally
+
+  if (state.currentTab === 'publicGames')
+    renderPublicGames();
+}
+function unsetPublicLobbyGame(gameSummary) {
+  const publicGames = state.tabContent.publicGames;
+  if (!publicGames.lobbyGames) return;
+
+  let isDirty = false;
+  if (publicGames.lobbyGames[0].delete(gameSummary.id)) isDirty = true;
+  if (publicGames.lobbyGames[1].delete(gameSummary.id)) isDirty = true;
+
+  if (isDirty && state.currentTab === 'publicGames')
+    renderPublicGames();
 }
 function placeLobbyGame(gameSummary, skipRender = false) {
   const tabContent = state.tabContent.lobby;
@@ -2052,16 +2084,18 @@ async function renderPublicGames() {
   const divTabContent = document.querySelector('.tabContent .publicGames');
   divTabContent.innerHTML = '';
 
+  const waitingLobbyGames = tabContent.lobbyGames ? [ ...tabContent.lobbyGames[0].values() ] : [];
+  const activeLobbyGames  = tabContent.lobbyGames ? [ ...tabContent.lobbyGames[1].values() ] : [];
+  const waitingGames = [ ...tabContent.games[0].values() ];
+  const activeGames  = [ ...tabContent.games[1].values() ];
+  const completeGames = [ ...tabContent.games[2].values() ];
+
   await gameArena.fetchAvatars(
-    tabContent.games
+    [ ...tabContent.games, ...(tabContent.lobbyGames ?? []) ]
       .map(gsm => Array.from(gsm.values())
         .map(g => g.teams.filter(t => t && t.playerId)
           .map(t => t.playerId))).flat(3)
   );
-
-  const waitingGames = [ ...tabContent.games[0].values() ];
-  const activeGames = [ ...tabContent.games[1].values() ];
-  const completeGames = [ ...tabContent.games[2].values() ];
 
   const header = document.createElement('HEADER');
   header.addEventListener('mouseenter', event => {
@@ -2092,6 +2126,38 @@ async function renderPublicGames() {
     configureGame.show('configurePublic');
   });
   divControls.appendChild(btnSettings);
+
+  /*
+   * Open Lobby Games
+   */
+  if (waitingLobbyGames.length) {
+    const secWaitingLobby = document.createElement('SECTION');
+    secWaitingLobby.classList.add('game-list');
+    divTabContent.appendChild(secWaitingLobby);
+
+    const header = document.createElement('HEADER');
+    header.innerHTML = '<SPAN class="left">Open Lobby Games</SPAN>';
+    secWaitingLobby.append(header);
+
+    for (const game of waitingLobbyGames)
+      secWaitingLobby.appendChild(gameCard.renderGame(game));
+  }
+
+  /*
+   * Active Lobby Games
+   */
+  if (activeLobbyGames.length) {
+    const secActiveLobby = document.createElement('SECTION');
+    secActiveLobby.classList.add('game-list');
+    divTabContent.appendChild(secActiveLobby);
+
+    const header = document.createElement('HEADER');
+    header.innerHTML = '<SPAN class="left">Active Lobby Games</SPAN>';
+    secActiveLobby.append(header);
+
+    for (const game of activeLobbyGames)
+      secActiveLobby.appendChild(gameCard.renderGame(game));
+  }
 
   /*
    * Waiting for Opponent
@@ -2881,6 +2947,7 @@ function closeTab() {
         tabContent.whenSynced = Promise.resolve();
       } else if (state.currentTab === 'publicGames') {
         gameClient.leaveCollectionGroup('public');
+        gameClient.leaveCollectionGroup('lobby');
         tabContent.isSynced = false;
         tabContent.whenSynced = Promise.resolve();
       }
@@ -3151,7 +3218,7 @@ async function fetchTabData(tabName) {
 
     promises.push(tabContent.whenSynced);
   } else if (tabName === 'publicGames') {
-    const query = [
+    const publicQuery = [
       {
         filter: {
           '$.teams[*].playerId': { not:{ includes:myPlayerId } },
@@ -3179,10 +3246,39 @@ async function fetchTabData(tabName) {
       },
     ];
 
+    const lobbyQuery = [
+      {
+        filter: {
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          startedAt: null,
+        },
+        sort: { field:'createdAt', order:'asc' },
+        limit: 50,
+      },
+      {
+        filter: {
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          startedAt: { not:null },
+          endedAt: null,
+        },
+        sort: { field:'updatedAt', order:'desc' },
+        limit: 50,
+      },
+    ];
+
     promises.push(
-      gameClient.joinCollectionGroup(`public`, { query }).then(rsp => {
+      gameClient.joinCollectionGroup('public', { query: publicQuery }).then(rsp => {
         tabContent.games = rsp.results.get('public').map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
+      }),
+      gameClient.joinCollectionGroup('lobby', { query: lobbyQuery }).then(rsp => {
+        const waiting = new Map();
+        const active  = new Map();
+        for (const results of rsp.results.values()) {
+          for (const hit of results[0].hits) waiting.set(hit.id, hit);
+          for (const hit of results[1].hits) active.set(hit.id, hit);
+        }
+        tabContent.lobbyGames = [ waiting, active ];
       }),
     );
   }
@@ -3213,4 +3309,3 @@ async function fetchTabData(tabName) {
     return fetchTabData(tabName);
   });
 }
-

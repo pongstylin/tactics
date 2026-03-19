@@ -156,11 +156,6 @@
           border-radius: 50%;
           text-align: center;
 
-          &.link {
-            cursor: pointer;
-            z-index: 1;
-          }
-
           // offline color
           background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.2) 25%, rgba(0,0,0,0.8));
           &.active {
@@ -270,6 +265,10 @@
           }
         }
       }
+      .player.show.link {
+        cursor: pointer;
+        z-index: 1;
+      }
       #player-n {
         top: 0;
       }
@@ -286,11 +285,6 @@
       .name {
         color: white;
         text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-
-        &.link {
-          cursor: pointer;
-          z-index: 1;
-        }
       }
       .fork, .forkName {
         color: black;
