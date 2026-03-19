@@ -1,6 +1,6 @@
 {
   "name": "tactics",
-  "version": "2.14.3",
+  "version": "2.14.4",
   "description": "A tactical turn-based board game",
   "main": "src/tactics.js",
   "type": "module",
@@ -71,6 +71,7 @@
     "eventemitter3": "^5.0.4",
     "events": "^3.3.0",
     "express": "^4.16.4",
+    "fflate": "^0.8.2",
     "howler": "^2.2.4",
     "impetus": "^0.8.8",
     "isomorphic-fetch": "^3.0.0",
