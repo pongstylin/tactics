@@ -60,6 +60,21 @@
   }
 }
 
+// Same as confirmBeforeJoin but with gameType visible for style selection.
+.modal.configureGame.confirmBeforeJoinGroup .content {
+  .audio, .confirm, .visibility, .vs, .as, .timeLimit {
+    display: none;
+  }
+
+  .taglist {
+    grid-template-columns: 97px;
+
+    SPAN:not(.randomSide) {
+      display: none;
+    }
+  }
+}
+
 .modal.configureGame.configurePublic .content {
   .createGame, .playerName, .gameType, .visibility, .vs, .as, .timeLimit {
     display: none !important;

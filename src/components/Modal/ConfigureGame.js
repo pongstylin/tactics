@@ -184,6 +184,7 @@ export default class ConfigureGame extends Modal {
       this._toggleFields(event.currentTarget.querySelector('INPUT'));
     }));
     this._els.selGameType.addEventListener('change', async event => {
+      if (this.data.view === 'confirmBeforeJoinGroup') return;
       await this.setGameType(event.target.value);
       this._applyStyleConfig();
     });
@@ -303,6 +304,7 @@ export default class ConfigureGame extends Modal {
     this.root.classList.toggle('confirmBeforeJoin', view === 'confirmBeforeJoin');
     this.root.classList.toggle('configureLobby', view === 'configureLobby');
     this.root.classList.toggle('configurePublic', view === 'configurePublic');
+    this.root.classList.toggle('confirmBeforeJoinGroup', view === 'confirmBeforeJoinGroup');
 
     switch (view) {
       case 'challenge':
@@ -334,6 +336,12 @@ export default class ConfigureGame extends Modal {
         this.title = `Want to play ${props.gameSummary.creator.name}?`;
         this.data.timeLimitType = null;
         break;
+      case 'confirmBeforeJoinGroup': {
+        const oldest = props.gameSummaries.reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+        this.title = `Want to play ${oldest.creator.name}?`;
+        this.data.timeLimitType = null;
+        break;
+      }
       case 'configureLobby':
         this.title = 'Arena Settings';
         this.data.timeLimitType = 'short';
@@ -344,6 +352,18 @@ export default class ConfigureGame extends Modal {
         break;
       default:
         throw new TypeError(`Unrecognized view '${view}'`);
+    }
+
+    if (view !== 'confirmBeforeJoinGroup' && this._groupStyleListener) {
+      this.root.querySelector('SELECT[name=type]').removeEventListener('change', this._groupStyleListener);
+      this._groupStyleListener = null;
+    }
+    if (view !== 'confirmBeforeJoinGroup') {
+      const selType = this._els.selGameType;
+      const gameTypes = this.data.gameTypes;
+      if (gameTypes)
+        selType.innerHTML = gameTypes.map(gt => `<OPTION value="${gt.id}">${gt.name}</OPTION>`).join('');
+      selType.disabled = false;
     }
 
     await this._applyStyleConfig();
@@ -547,6 +567,12 @@ export default class ConfigureGame extends Modal {
       btnSubmit.textContent = 'Create Game';
     } else if (this.data.view === 'confirmBeforeJoin') {
       if (this.data.props.gameSummary.meta.creator.relationship.type === 'blocked')
+        btnSubmit.textContent = 'Mute and Join Game';
+      else
+        btnSubmit.textContent = 'Join Game';
+    } else if (this.data.view === 'confirmBeforeJoinGroup') {
+      const oldest = this.data.props.gameSummaries.reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+      if (oldest.meta.creator.relationship.type === 'blocked')
         btnSubmit.textContent = 'Mute and Join Game';
       else
         btnSubmit.textContent = 'Join Game';
@@ -764,6 +790,8 @@ export default class ConfigureGame extends Modal {
 
     selSet.querySelector('OPTION[value=same]').style.display = 'none';
     selSet.querySelector('OPTION[value=mirror]').style.display = 'none';
+    selSet.querySelector('OPTION[value=random]').style.display = gameType.isCustomizable ? '' : 'none';
+    selSet.querySelector('OPTION[value=top]').style.display = gameType.isCustomizable ? '' : 'none';
     this._els.set.style.display = '';
     this._els.customize.style.display = '';
     this._els.remember.style.display = '';
@@ -867,6 +895,93 @@ export default class ConfigureGame extends Modal {
         <DIV>${ratedMessage}</DIV>
         ${ messages.length ? `<DIV>${messages.join('<BR>')}</DIV>` : '' }
       `;
+    } else if (this.data.view === 'confirmBeforeJoinGroup') {
+      const gameSummaries = this.data.props.gameSummaries;
+      const oldest = gameSummaries.reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+      const creatorIndex = oldest.teams.findIndex(t => t?.playerId === oldest.createdBy);
+      const ranks = oldest.meta.ranks[creatorIndex];
+      const messages = [];
+
+      // Rated message is shared across all games in the group.
+      const ratedMessage = oldest.meta.rated
+        ? `This will be a rated game.`
+        : await (async () => {
+            let reason;
+            if (!authClient.isVerified)
+              reason = `you are a guest`;
+            else if (!ranks)
+              reason = `they are a guest`;
+            else
+              switch (oldest.meta.unratedReason) {
+                case 'not rated':      reason = `they want an unrated game`; break;
+                case 'same identity':  reason = `you can't play yourself in a rated game`; break;
+                case 'in game':        reason = `you are already playing a rated game against this player in this style`; break;
+                case 'too many games': reason = `you have 2 rated games against this player in this style within the past week`; break;
+                default:               reason = `of a bug`;
+              }
+            return `This will not be a rated game because ${reason}.`;
+          })();
+
+      if (oldest.meta.creator.relationship.type)
+        messages.push(`You ${oldest.meta.creator.relationship.type} this player as ${oldest.meta.creator.relationship.name}.`);
+
+      messages.push(`They created their account ${getElapsed(oldest.meta.creator.createdAt)} ago.`);
+
+      // Repopulate the style selector with only the styles in this group.
+      const selType = this.root.querySelector('SELECT[name=type]');
+      const allGameTypes = this.data.gameTypes;
+      selType.innerHTML = gameSummaries
+        .slice()
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map(gs => {
+          const gt = allGameTypes.find(t => t.id === gs.type);
+          return `<OPTION value="${gs.type}">${gt ? gt.name : gs.type}</OPTION>`;
+        })
+        .join('');
+      selType.disabled = false;
+      // Ensure the first option is selected after repopulating.
+      selType.selectedIndex = 0;
+
+      // Render rank info for the currently selected style.
+      const renderGroupRanks = (selectedTypeId) => {
+        if (!ranks) return '';
+        const rankMessages = [];
+        const forteRank = ranks.find(r => r.rankingId === 'FORTE');
+        const styleRank = ranks.find(r => r.rankingId === selectedTypeId);
+        const provisional = styleRank && styleRank.gameCount < 10 ? ' provisional' : '';
+        if (forteRank)
+          rankMessages.push(`They have Forte rank #${forteRank.num} (${forteRank.rating}).`);
+        if (styleRank)
+          rankMessages.push(`They have${provisional} style rank #${styleRank.num} (${styleRank.rating}).`);
+        else
+          rankMessages.push(`They are unranked in this style.`);
+        return rankMessages.join('<BR>');
+      };
+
+      const staticHtml = [
+        `<DIV>${ratedMessage}</DIV>`,
+        messages.length ? `<DIV>${messages.join('<BR>')}</DIV>` : '',
+      ].join('');
+      const introEl = this.root.querySelector('.intro');
+      const updateGroupIntro = (selectedTypeId) => {
+        const rankHtml = renderGroupRanks(selectedTypeId);
+        introEl.innerHTML = staticHtml + (rankHtml ? `<DIV>${rankHtml}</DIV>` : '');
+      };
+      updateGroupIntro(selType.value);
+
+      // Update ranks and set options when style selection changes.
+      if (this._groupStyleListener)
+        selType.removeEventListener('change', this._groupStyleListener);
+      this._groupStyleListener = async (event) => {
+        const selectedTypeId = event.target.value;
+        updateGroupIntro(selectedTypeId);
+        // Load the selected style into cache so sets and customizability are correct.
+        await this.setGameType(selectedTypeId);
+        await this._applyGroupSetOptions();
+        await this._toggleFields();
+      };
+      selType.addEventListener('change', this._groupStyleListener);
+
     } else if (this.data.view === 'forkGame') {
       const game = this.data.props.game;
       const forkOf = game.state.forkOf;
@@ -962,7 +1077,8 @@ export default class ConfigureGame extends Modal {
     const timeLimitName = this.data.timeLimitType ? config[`${this.data.timeLimitType}TimeLimitName`] : config.timeLimitName;
 
     try {
-      this.root.querySelector('SELECT[name=type]').value = config.gameTypeId;
+      if (this.data.view !== 'confirmBeforeJoinGroup')
+        this.root.querySelector('SELECT[name=type]').value = config.gameTypeId;
       this.root.querySelector(`INPUT[name=collection][value=${config.collection}]`).checked = true;
       this.root.querySelector(`INPUT[name=vs][value=${config.vs}`).checked = true;
       selSet.value = config.set;
@@ -1073,6 +1189,8 @@ export default class ConfigureGame extends Modal {
         await this._submitConfirmBeforeCreate();
       else if (this.data.view === 'confirmBeforeJoin')
         await this._submitConfirmBeforeJoin();
+      else if (this.data.view === 'confirmBeforeJoinGroup')
+        await this._submitConfirmBeforeJoinGroup();
     } catch (error) {
       if (error.code === 404) {
         popup('Oops!  The game disappeared.');
@@ -1334,10 +1452,62 @@ export default class ConfigureGame extends Modal {
       },
     });
   }
+  /*
+   * Re-populate the set selector for the currently selected style in the
+   * confirmBeforeJoinGroup view, without touching the style selector itself.
+   */
+  async _applyGroupSetOptions() {
+    const { aChangeLink, selSet } = this._els;
+    const gameType = this.gameType;
+    const sets = this.sets;
+    const config = this.styleConfigData;
+
+    selSet.querySelector('OPTION[value=same]').style.display = 'none';
+    selSet.querySelector('OPTION[value=mirror]').style.display = 'none';
+    selSet.querySelector('OPTION[value=random]').style.display = gameType.isCustomizable ? '' : 'none';
+    selSet.querySelector('OPTION[value=top]').style.display = gameType.isCustomizable ? '' : 'none';
+
+    for (const slot of gameConfig.setsBySlot.keys()) {
+      const setOption = selSet.querySelector(`OPTION[value="${slot}"]`);
+      const set = sets.find(s => s.slot === slot);
+      if (set) {
+        setOption.textContent = set.name;
+        setOption.style.display = '';
+      } else {
+        setOption.style.display = 'none';
+        setOption.textContent = gameConfig.setsBySlot.get(slot);
+      }
+    }
+
+    if ([ 'random', 'top' ].includes(config.set))
+      aChangeLink.style.display = 'none';
+    else {
+      aChangeLink.style.display = '';
+      aChangeLink.textContent = gameType.isCustomizable ? 'Change Set' : 'View Set';
+    }
+
+    // Reset to default if current selection is no longer visible.
+    const selectedSetOption = selSet.querySelector(`OPTION[value="${config.set}"]`);
+    if (selectedSetOption.style.display === 'none')
+      selSet.value = 'default';
+    else
+      selSet.value = config.set;
+  }
+
   _submitConfirmBeforeJoin() {
     this._compileStyleConfig();
 
     return gameClient.joinGame(this.data.props.gameSummary.id, this.joinGameOptions());
+  }
+  _submitConfirmBeforeJoinGroup() {
+    this._compileStyleConfig();
+
+    const selectedTypeId = this.root.querySelector('SELECT[name=type]').value;
+    const gameSummary = this.data.props.gameSummaries.find(gs => gs.type === selectedTypeId);
+    if (!gameSummary)
+      throw new Error(`No game found for style ${selectedTypeId}`);
+
+    return gameClient.joinGame(gameSummary.id, this.joinGameOptions('confirmBeforeJoinGroup', { gameSummary }));
   }
 
   showMessage(message) {

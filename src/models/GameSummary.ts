@@ -141,10 +141,10 @@ export default class GameSummary {
     return this.data.teams;
   }
   get currentTeamId() {
-    return this.data.currentTeamId;
+    return this.data.currentTeamId ?? null;
   }
   get currentTeam() {
-    return this.data.currentTeamId && this.data.teams[this.data.currentTeamId];
+    return this.currentTeamId === null ? null : this.data.teams[this.currentTeamId];
   }
   get tags() {
     return this.data.tags;
