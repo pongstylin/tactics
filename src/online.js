@@ -2354,7 +2354,7 @@ function getPublicWaitingGroups() {
 
   const allWaiting = [
     ...(tabContent.lobbyGames?.[0].values() ?? []),
-    ...tabContent.games[0].values(),
+    ...(tabContent.games?.[0].values() ?? []),
   ];
 
   for (const gs of allWaiting) {
