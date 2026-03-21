@@ -2,6 +2,7 @@ import config from 'config/client.js';
 import copy from 'components/copy.js';
 import * as gameArena from 'components/GameArena.js';
 import * as gameCard from 'components/GameCard.js';
+import { getWaitingGroupId, renderGameGroup } from 'components/GameCard.js';
 import SearchSets from 'components/SearchSets.js';
 import SearchSetGames from 'components/SearchSetGames.js';
 import Setup from 'components/Setup.js';
@@ -415,8 +416,6 @@ whenDOMReady.then(() => {
       return;
     }
 
-    const link = new URL(`game.html?${gameId}`, location.href);
-
     const aDecline = event.target.closest('.decline A');
     if (aDecline) {
       popup({
@@ -433,6 +432,8 @@ whenDOMReady.then(() => {
         maxWidth: '250px',
       });
     }
+
+    const link = new URL(`game.html?${gameId}`, location.href);
 
     const spnCopy = event.target.closest('.copy');
     if (spnCopy) {
@@ -777,7 +778,7 @@ async function setPublicLobbyGame(gameSummary) {
   const stillActive  = publicGames.lobbyGames[1].has(gameSummary.id);
   if (!stillWaiting && !stillActive) {
     // The game was removed while we were awaiting — ensure DOM is clean.
-    removePublicCard(publicGames.els.secWaiting, gameSummary.id);
+    syncPublicWaitingGroup(gameSummary);
     removePublicCard(publicGames.els.secActive, gameSummary.id);
     updatePublicSectionVisibility();
     return;
@@ -787,16 +788,16 @@ async function setPublicLobbyGame(gameSummary) {
   const isNowActive  = !!gameSummary.startedAt && !gameSummary.endedAt;
 
   if (isNowWaiting) {
-    updatePublicWaitingCard(gameSummary);
+    syncPublicWaitingGroup(gameSummary);
     if (wasActive)
       removePublicCard(publicGames.els.secActive, gameSummary.id);
   } else if (isNowActive) {
     updatePublicActiveCard(gameSummary, !wasActive);
     if (wasWaiting)
-      removePublicCard(publicGames.els.secWaiting, gameSummary.id);
+      syncPublicWaitingGroup(gameSummary);
   } else {
     if (wasWaiting)
-      removePublicCard(publicGames.els.secWaiting, gameSummary.id);
+      syncPublicWaitingGroup(gameSummary);
     if (wasActive)
       removePublicCard(publicGames.els.secActive, gameSummary.id);
   }
@@ -813,7 +814,7 @@ function unsetPublicLobbyGame(gameSummary) {
 
   if (!isDirty || state.currentTab !== 'publicGames' || !publicGames.els) return;
 
-  removePublicCard(publicGames.els.secWaiting, gameSummary.id);
+  syncPublicWaitingGroup(gameSummary);
   removePublicCard(publicGames.els.secActive, gameSummary.id);
   updatePublicSectionVisibility();
 }
@@ -939,7 +940,7 @@ async function setPublicGame(gameSummary) {
   const stillComplete = publicGames[2].has(gameSummary.id);
   if (!stillWaiting && !stillActive && !stillComplete) {
     // The game was removed while we were awaiting — ensure DOM is clean.
-    removePublicCard(tabContent.els.secWaiting, gameSummary.id);
+    syncPublicWaitingGroup(gameSummary);
     removePublicCard(tabContent.els.secActive, gameSummary.id);
     removePublicCard(tabContent.els.secComplete, gameSummary.id);
     updatePublicSectionVisibility();
@@ -951,12 +952,12 @@ async function setPublicGame(gameSummary) {
   const isNowComplete = !!gameSummary.endedAt;
 
   if (isNowWaiting) {
-    updatePublicWaitingCard(gameSummary);
+    syncPublicWaitingGroup(gameSummary);
     if (wasActive)   removePublicCard(tabContent.els.secActive, gameSummary.id);
     if (wasComplete) removePublicCard(tabContent.els.secComplete, gameSummary.id);
   } else if (isNowActive) {
     updatePublicActiveCard(gameSummary, !wasActive);
-    if (wasWaiting)  removePublicCard(tabContent.els.secWaiting, gameSummary.id);
+    if (wasWaiting)  syncPublicWaitingGroup(gameSummary);
     if (wasComplete) removePublicCard(tabContent.els.secComplete, gameSummary.id);
   } else {
     // Complete — prepend to complete section
@@ -967,7 +968,7 @@ async function setPublicGame(gameSummary) {
       existing.replaceWith(newCard);
     else
       divBody.prepend(newCard);
-    if (wasWaiting) removePublicCard(tabContent.els.secWaiting, gameSummary.id);
+    if (wasWaiting) syncPublicWaitingGroup(gameSummary);
     if (wasActive)  removePublicCard(tabContent.els.secActive, gameSummary.id);
   }
 
@@ -985,7 +986,7 @@ function unsetPublicGame(gameSummary) {
 
   if (!isDirty || state.currentTab !== 'publicGames' || !tabContent.els) return;
 
-  removePublicCard(tabContent.els.secWaiting, gameSummary.id);
+  syncPublicWaitingGroup(gameSummary);
   removePublicCard(tabContent.els.secActive, gameSummary.id);
   removePublicCard(tabContent.els.secComplete, gameSummary.id);
   updatePublicSectionVisibility();
@@ -1108,8 +1109,14 @@ async function selectArena(event) {
       }
 
       cancelGame(arena);
-    } else
-      joinGame(arena);
+    } else {
+      const groupId = getWaitingGroupId(arena);
+      const group = getPublicWaitingGroupById(groupId);
+      if (group && group.size > 1)
+        joinGameGroup(groupId);
+      else
+        joinGame(arena);
+    }
   } else {
     const arena = gameArena.arenaGameSummary.get(divArena);
     const link = `/game.html?${arena.id}`;
@@ -1186,8 +1193,6 @@ async function declineGame(gameId) {
   }
 }
 async function joinGame(arena) {
-  const tabContent = state.tabContent.lobby;
-
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
   if (arena.meta.creator.relationship?.blockedByRule) {
     let message;
@@ -1260,6 +1265,44 @@ async function joinGame(arena) {
     }
     return false;
   }
+}
+
+/*
+ * Join a group card — always goes through confirmBeforeJoinGroup so the
+ * player can select which style to join.
+ */
+async function joinGameGroup(groupId) {
+  const games = getPublicWaitingGroupById(groupId);
+  if (!games || games.size === 0) return;
+
+  const oldest = Array.from(games.values()).reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+  const creatorTeam = oldest.teams.find(t => t?.playerId === oldest.createdBy);
+
+  if (oldest.meta.creator.relationship?.blockedByRule) {
+    let message;
+    if (oldest.meta.creator.relationship.blockedByRule === 'guest')
+      message = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked guests from joining their public and lobby games.
+        You can verify your account on your <A href="security.html">Account Security</A> page.
+      `;
+    else if (oldest.meta.creator.relationship.blockedByRule === 'new')
+      message = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
+        You can try again later or create your own game.
+      `;
+    else
+      message = `You are blocked for unknown reasons.`;
+
+    return popup({
+      message,
+      buttons: [
+        { label:'Ok', value:false },
+      ],
+      maxWidth: '300px',
+    });
+  }
+
+  await configureGame.show('confirmBeforeJoinGroup', { gameSummaries: Array.from(games.values()) });
 }
 
 function renderPN(reg) {
@@ -2027,6 +2070,7 @@ async function renderYourGames() {
    */
   const divMyTurnGames = [];
   for (const game of activeGames) {
+    console.log('test', game.currentTeam.playerId, myPlayerId);
     // Exclude games where it is someone else's turn
     if (game.currentTeam.playerId !== myPlayerId)
       continue;
@@ -2254,16 +2298,20 @@ async function renderPublicGames() {
   );
 
   /*
-   * Waiting for Opponent — lobby waiting + public waiting, sorted by createdAt asc.
+   * Waiting for Opponent — grouped by shared details, sorted by oldest createdAt asc.
    */
-  const waitingGames = [
-    ...[ ...(tabContent.lobbyGames?.[0].values() ?? []) ],
-    ...[ ...tabContent.games[0].values() ],
-  ].sort((a, b) => a.createdAt - b.createdAt);
-
   const waitingBody = secWaiting.querySelector('.body');
-  for (const game of waitingGames)
-    waitingBody.appendChild(gameCard.renderGame(game));
+  const waitingGroupsMap = getPublicWaitingGroups();
+  const sortedGroups = Array.from(waitingGroupsMap.entries())
+    .sort(([ , aGames ], [ , bGames ]) => {
+      const aOldest = Math.min(...Array.from(aGames.values()).map(g => g.createdAt));
+      const bOldest = Math.min(...Array.from(bGames.values()).map(g => g.createdAt));
+      return aOldest - bOldest;
+    });
+
+  for (const [ groupId, games ] of sortedGroups)
+    waitingBody.appendChild(renderGameGroup(groupId, games));
+
 
   /*
    * Active Games — lobby active + public active, sorted by startedAt desc.
@@ -2298,13 +2346,69 @@ function removePublicCard(section, gameId) {
 }
 
 /*
- * Replace or append a card in the waiting section.
- * New waiting games are always newer than existing ones so appending is correct.
+ * Build a Map<groupId, Map<gameId, gameSummary>> from all current waiting games.
  */
-function updatePublicWaitingCard(gameSummary) {
-  const body = state.tabContent.publicGames.els.secWaiting.querySelector('.body');
-  const existing = document.getElementById(gameSummary.id);
-  const newCard = gameCard.renderGame(gameSummary);
+function getPublicWaitingGroups() {
+  const tabContent = state.tabContent.publicGames;
+  const result = new Map();
+
+  const allWaiting = [
+    ...(tabContent.lobbyGames?.[0].values() ?? []),
+    ...tabContent.games[0].values(),
+  ];
+
+  for (const gs of allWaiting) {
+    const groupId = getWaitingGroupId(gs);
+    if (!result.has(groupId))
+      result.set(groupId, new Map());
+    result.get(groupId).set(gs.id, gs);
+  }
+
+  return result;
+}
+
+/*
+ * Return the Map<gameId, gameSummary> for the given groupId, or null.
+ */
+function getPublicWaitingGroupById(groupId) {
+  return getPublicWaitingGroups().get(groupId) ?? null;
+}
+
+/*
+ * Re-render or remove the group card for the group that contains gameSummary.
+ * Reads current state maps fresh — safe to call after any map mutation.
+ *
+ * Single-game groups render with the game's own id as the DOM id.
+ * Multi-game groups render with the group id as the DOM id.
+ * We must account for both when finding an existing card to replace,
+ * and when removing a card whose group has become empty.
+ */
+function syncPublicWaitingGroup(gameSummary) {
+  const tabContent = state.tabContent.publicGames;
+  if (!tabContent.els) return;
+
+  const groupId = getWaitingGroupId(gameSummary);
+  const body = tabContent.els.secWaiting.querySelector('.body');
+  const games = getPublicWaitingGroupById(groupId);
+
+  if (!games || games.size === 0) {
+    // Group is now empty. Card may have been a single (game id) or multi (group id).
+    const el = document.getElementById(groupId) ?? document.getElementById(gameSummary.id);
+    if (el && body.contains(el)) el.remove();
+    return;
+  }
+
+  // Single-game groups use the game id as the card id.
+  // Multi-game groups use the group id as the card id.
+  const cardId = games.size === 1 ? Array.from(games.keys())[0] : groupId;
+
+  // Search for an existing card by group id first (multi-game case), then
+  // by any game id in the group (single-game or boundary-crossing case).
+  const existing =
+    document.getElementById(groupId) ??
+    Array.from(games.keys()).reduce((found, id) => found ?? document.getElementById(id), null);
+
+  const newCard = renderGameGroup(groupId, games);
 
   if (existing && body.contains(existing))
     existing.replaceWith(newCard);

@@ -7,6 +7,22 @@ setInterval(() => {
 
 export const teamInfo = new WeakMap();
 
+/*
+ * Compute a stable group id for a waiting game based on the fields that are
+ * shared across grouped games.  Style (type) is intentionally excluded since
+ * that is what varies within a group.  The colon-separated string is safe to
+ * use as a DOM id since all lookups use getElementById rather than querySelector.
+ */
+export function getWaitingGroupId(gameSummary) {
+  return [
+    gameSummary.createdBy,
+    gameSummary.timeLimitName,
+    gameSummary.randomHitChance,
+    gameSummary.rated,
+    gameSummary.mode ?? '',
+  ].join(':');
+}
+
 export function renderGame(game, { playerId = null, setId = null, rankingId = null } = {}) {
   const team1 = game.teams.find(t => setId ? t?.set?.id === setId : t?.playerId === (playerId ?? game.createdBy));
   const ranks1 = game.meta.ranks[team1.id];
@@ -41,13 +57,68 @@ export function renderGame(game, { playerId = null, setId = null, rankingId = nu
   else if (team2?.playerId)
     divVS.append(renderGameTeam(game, team2, ranks2, rankingId));
   else if (game.createdBy === Tactics.authClient.playerId)
-    divVS.append(renderGameInvite(game))
+    divVS.append(renderGameInvite(game));
   divGame.append(divVS);
 
   divGame.append(renderGameInfo(game));
 
   return divGame;
 }
+
+/*
+ * Render a grouped card for multiple waiting games from the same creator that
+ * share the same details except style.  The group id is used as the DOM id.
+ *
+ * When the group contains only one game, delegates to renderGame with the
+ * group id substituted as the DOM id — normal single-game appearance and join
+ * semantics apply (no style selector).
+ *
+ * When the group contains 2+ games, renders a combined card using the oldest
+ * game for shared metadata (avatar, name, ranks) and shows "<n> Styles" in
+ * the info bar instead of a style name.
+ */
+export function renderGameGroup(groupId, games) {
+  const gameList = Array.from(games.values());
+
+  if (gameList.length === 1)
+    return renderGame(gameList[0]);
+
+  // Use the oldest game for shared metadata.
+  const oldest = gameList.reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+
+  const divGame = document.createElement('DIV');
+  divGame.id = groupId;
+  divGame.dataset.type = 'group';
+  divGame.classList.add('game');
+
+  const divVS = document.createElement('DIV');
+  divVS.classList.add('vs');
+
+  const divArenaWrapper = document.createElement('DIV');
+  divArenaWrapper.classList.add('arena-wrapper');
+
+  const divArena = arena.renderArena(0);
+  divArenaWrapper.append(divArena);
+  arena.fillArena(divArena, oldest);
+
+  const team1 = oldest.teams.find(t => t?.playerId === oldest.createdBy);
+  const ranks1 = oldest.meta.ranks[team1.id];
+
+  divVS.append(divArenaWrapper);
+
+  const divTeam1 = document.createElement('DIV');
+  divTeam1.classList.add('team');
+  divTeam1.classList.toggle('linkable', !!ranks1);
+  teamInfo.set(divTeam1, { game: oldest, team: { ...team1, set: null }, ranks: ranks1 });
+  divTeam1.innerHTML = `<DIV class="name">${team1.name}</DIV>`;
+  divVS.append(divTeam1);
+  divVS.append(renderGameResult(oldest, team1.playerId));
+  divGame.append(divVS);
+  divGame.append(renderGameGroupInfo(oldest, gameList.length));
+
+  return divGame;
+}
+
 function renderGameTeam(game, team, ranks, rankingId) {
   const divTeam = document.createElement('DIV');
   divTeam.classList.add('team');
@@ -75,7 +146,7 @@ function renderGameTeam(game, team, ranks, rankingId) {
   else if (rank)
     rating.push(`<SPAN class="current">(${rank.rating})</SPAN>`);
   else
-    rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);  
+    rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
 
   divTeam.innerHTML = `
     <DIV class="name">${team.name}</DIV>
@@ -193,6 +264,42 @@ function renderGameInfo(game) {
       spnRight.append(renderClock(game.updatedAt, 'Updated At'));
   } else
     spnRight.append(renderClock(game.createdAt, 'Created At'));
+
+  return divInfo;
+}
+
+/*
+ * Info bar for a group card.  Uses the oldest game for all shared fields.
+ * Style name is replaced with "<n> Styles".
+ */
+function renderGameGroupInfo(oldest, numStyles) {
+  const divInfo = document.createElement('DIV');
+  divInfo.classList.add('info');
+
+  const labels = [];
+  labels.push(`${numStyles} Styles`);
+  if (!oldest.randomHitChance)
+    labels.push('No Luck');
+  if (oldest.timeLimitName && oldest.timeLimitName !== 'standard')
+    labels.push(oldest.timeLimitName.toUpperCase('first'));
+  if (oldest.mode)
+    labels.push(oldest.mode.toUpperCase('first'));
+
+  const isGuestGame = oldest.meta.ranks.some(r => r === false);
+  if (oldest.rated === true)
+    labels.push('Rated');
+  else if (![ 'fork', 'practice' ].includes(oldest.mode) && oldest.rated === false && !isGuestGame)
+    labels.push('Unrated');
+
+  const spnLeft = document.createElement('SPAN');
+  spnLeft.classList.add('left');
+  spnLeft.textContent = labels.join(', ');
+  divInfo.append(spnLeft);
+
+  const spnRight = document.createElement('SPAN');
+  spnRight.classList.add('right');
+  spnRight.append(renderClock(oldest.createdAt, 'Created At'));
+  divInfo.append(spnRight);
 
   return divInfo;
 }

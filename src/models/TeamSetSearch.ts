@@ -87,7 +87,7 @@ export const grammar = {
     return Object.assign(token, { count });
   },
   operator() {
-    return { type:'operator', operator:this.match(/^(?:or|and)/i).toLowerCase() };
+    return { type:'operator', operator:this.match(/^(?:or|and)/i) };
   },
   token() {
     return { type:'token', tokens:[ this.match(/^\w+/) ] };
@@ -141,7 +141,7 @@ export default class TeamSetSearch extends ActiveModel<TeamSetSearchEvents> {
     return this._cache;
   }
   static parseText(text:string) {
-    const groups = new ReParse(text, true).start(grammar.values) as string[][];
+    const groups = new ReParse(text.toLowerCase(), true).start(grammar.values) as string[][];
     if (groups.length === 0) return [[]];
 
     for (const group of groups)
