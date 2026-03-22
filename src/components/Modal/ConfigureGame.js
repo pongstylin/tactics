@@ -463,7 +463,7 @@ export default class ConfigureGame extends Modal {
     }
 
     const radAudio = this.root.querySelector('INPUT[name=audio]:checked');
-    if ((radAudio.value === 'on') !== gameConfig.audio) {
+    if (radAudio && (radAudio.value === 'on') !== gameConfig.audio) {
       gameConfig.audio = radAudio.value === 'on';
       Howler.mute(!gameConfig.audio);
     }

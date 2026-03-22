@@ -1,6 +1,6 @@
 import 'components/Modal.scss';
 import Overlay from 'components/overlay.js';
-import trapFocus from 'components/trapFocus.js';
+import trapFocus, { releaseTrap } from 'components/trapFocus.js';
 import whenDOMReady from 'components/whenDOMReady.js';
 import emitter from 'utils/emitter.js';
 
@@ -207,6 +207,7 @@ export default class Modal {
   }
 
   destroy() {
+    releaseTrap(this._els.modal);
     this._overlay.root.remove();
     this._overlay = null;
   }
