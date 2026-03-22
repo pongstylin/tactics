@@ -943,11 +943,16 @@ export default class ConfigureGame extends Modal {
       selType.selectedIndex = 0;
 
       // Render rank info for the currently selected style.
+      // Each game summary only carries ranks for Forte + its own style,
+      // so find the game summary matching the selected style to get its ranks.
       const renderGroupRanks = (selectedTypeId) => {
-        if (!ranks) return '';
+        const gs = gameSummaries.find(s => s.type === selectedTypeId) ?? oldest;
+        const gsCreatorIndex = gs.teams.findIndex(t => t?.playerId === gs.createdBy);
+        const gsRanks = gs.meta.ranks[gsCreatorIndex];
+        if (!gsRanks) return '';
         const rankMessages = [];
-        const forteRank = ranks.find(r => r.rankingId === 'FORTE');
-        const styleRank = ranks.find(r => r.rankingId === selectedTypeId);
+        const forteRank = gsRanks.find(r => r.rankingId === 'FORTE');
+        const styleRank = gsRanks.find(r => r.rankingId === selectedTypeId);
         const provisional = styleRank && styleRank.gameCount < 10 ? ' provisional' : '';
         if (forteRank)
           rankMessages.push(`They have Forte rank #${forteRank.num} (${forteRank.rating}).`);
