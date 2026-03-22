@@ -142,14 +142,25 @@ serializer.addType({
         type: 'array',
         items: {
           type: 'object',
-          required: [ 'type', 'name', 'units', 'createdAt' ],
+          required: [ 'id', 'name', 'units', 'gameTypeId', 'slot', 'createdAt' ],
           properties: {
-            type: { type:'string' },
+            id: { type:'string' },
             name: { type:'string' },
             units: {
               type:'array',
-              items: { type:'object' },
+              items: {
+                type:'object',
+                required: [ 'type', 'assignment' ],
+                properties: {
+                  type: { type:'string' },
+                  assignment: { type:'array', items:[ { type:'number' }, { type:'number' } ] },
+                  direction: { type:'string', enum:[ 'N', 'E', 'S', 'W' ] }
+                },
+                additionalProperties: false,
+              },
             },
+            gameTypeId: { type:'string' },
+            slot: { type:'string', enum:Array.from(setsBySlot.keys()) },
             createdAt: { type:'string', subType:'Date' },
           },
           additionalProperties: false,
