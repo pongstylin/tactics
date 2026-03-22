@@ -1,10 +1,11 @@
 import '#plugins/index.js';
 import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
 import TeamSet from '#models/TeamSet.js';
-import Timeout from '#server/Timeout.js';
+import ticker from '#utils/ticker.js';
 
-const ticker = setInterval(Timeout.tick, 5000);
-const dryRun = false;
+ticker.start();
+
+const dryRun = true;
 const gameAdapter = await new GameAdapter({ hasState:false, readonly:dryRun }).bootstrap();
 
 for (const gameType of gameAdapter.getGameTypesById().values()) {
@@ -14,7 +15,7 @@ for (const gameType of gameAdapter.getGameTypesById().values()) {
       attributes: [ 'SK', 'PD' ],
       filters: {
         PK: `teamSetIndex#${gameType.id}/${metricName}`,
-        LSK0: { beginsWith:`/` },
+        LSK0: { beginsWith:`/&` },
       },
       order: 'DESC',
       cursor: undefined,
@@ -40,10 +41,10 @@ for (const gameType of gameAdapter.getGameTypesById().values()) {
 
         if (oldTeamSetId === newTeamSetId && isValid) continue;
 
-        gameAdapter.deleteItem({
+        gameAdapter.deleteItems({ filters:{
           PK: `teamSetIndex#${gameType.id}/${metricName}`,
-          SK: item.SK,
-        });
+          SK: { beginsWith:item.SK },
+        } });
         // Avoid deleting the same items multiple times
         if (metricName === 'rating') {
           gameAdapter.deleteItem({
@@ -67,5 +68,5 @@ for (const gameType of gameAdapter.getGameTypesById().values()) {
 }
 
 await gameAdapter.cleanup();
-clearInterval(ticker);
+ticker.stop();
 console.log('Audit complete');

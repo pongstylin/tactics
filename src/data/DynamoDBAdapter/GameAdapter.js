@@ -1061,10 +1061,17 @@ export default class extends DynamoDBAdapter {
         return gameType.config.sets.random();
 
       const topTeamSets = await this.getTopTeamSets(gameType.id);
-      if (topTeamSets.length === 0)
-        return gameType.config.sets.random();
+      for (const topTeamSet of topTeamSets.shuffle()) {
+        try {
+          gameType.validateSet({ units:topTeamSet.units });
+          return topTeamSet;
+        } catch (e) {
+          console.log(`Warning: Invalid set in top 100 for ${gameType.id}: setId=${topTeamSet.id}; units=${topTeamSet.units}; error=`, e.message);
+        }
+      }
 
-      return topTeamSets.random();
+      console.log(`Warning: No valid sets in top 100 for ${gameType.id}, falling back to config`);
+      return gameType.config.sets.random();
     })();
 
     const defaultSet = {
