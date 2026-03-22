@@ -147,13 +147,13 @@ serializer.addType({
             id: { type:'string' },
             name: { type:'string' },
             units: {
-              type:'array',
+              type: 'array',
               items: {
                 type:'object',
                 required: [ 'type', 'assignment' ],
                 properties: {
                   type: { type:'string' },
-                  assignment: { type:'array', items:[ { type:'number' }, { type:'number' } ] },
+                  assignment: { type:'array', items:[ { type:'number' }, { type:'number' } ], additionalItems:false },
                   direction: { type:'string', enum:[ 'N', 'E', 'S', 'W' ] }
                 },
                 additionalProperties: false,
