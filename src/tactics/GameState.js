@@ -289,7 +289,10 @@ export default class GameState extends TypedEmitter {
     return !hasBot && !isMultiplayer;
   }
   get isPracticeMode() {
-    return this.rated === false && this.undoMode === 'loose';
+    // Prevent isPracticeMode from crashing when turns haven't been loaded yet.
+    // Evaluate this._data.rated instead of this.rated.  This is semantically
+    // appropriate since we only care how the game started, not ended.
+    return this._data.rated === false && this.undoMode === 'loose';
   }
   get isTournamentMode() {
     return this.undoMode === 'strict' && this.strictFork === true && this.autoSurrender === true;

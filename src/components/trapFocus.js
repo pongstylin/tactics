@@ -1,86 +1,120 @@
 const traps = new WeakMap();
-const KEYCODE_TAB = 9;
 
-const trapListener = function (focusTargets, e) {
-  const isTabPressed = (e.key === 'Tab' || e.keyCode === KEYCODE_TAB);
-  if (!isTabPressed)
+const FOCUSABLE_SELECTORS = [
+  'A[href]',
+  'BUTTON:not([disabled])',
+  'TEXTAREA:not([disabled])',
+  'INPUT[type="text"]:not([disabled])',
+  'INPUT[type="radio"]:not([disabled])',
+  'INPUT[type="checkbox"]:not([disabled])',
+  'SELECT:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function getFocusTargets(element) {
+  const targets = [ ...element.querySelectorAll(FOCUSABLE_SELECTORS) ];
+
+  // Filter out visually hidden elements (display:none, visibility:hidden, zero-size, etc.)
+  const visible = targets.filter(el => el.offsetParent !== null || el === document.activeElement);
+
+  visible.sort((a, b) => {
+    const ta = a.tabIndex;
+    const tb = b.tabIndex;
+    // tabIndex === 0 means "natural order", sort those after any explicit positive tabindex
+    if (ta === tb) return 0;
+    if (ta === 0)  return 1;
+    if (tb === 0)  return -1;
+    return ta - tb;
+  });
+
+  return visible;
+}
+
+const trapListener = function (element, e) {
+  if (e.key !== 'Tab' && e.keyCode !== 9)
     return;
 
-  e.preventDefault();
-
+  const focusTargets = getFocusTargets(element);
   const numFocusTargets = focusTargets.length;
-  let index = focusTargets.indexOf(document.activeElement);
+
+  // Nothing to cycle through — prevent Tab from escaping but don't crash
+  if (numFocusTargets === 0) {
+    e.preventDefault();
+    return;
+  }
+
+  const index = focusTargets.indexOf(document.activeElement);
 
   if (e.shiftKey) {
+    // Shift+Tab: move backwards
+    e.preventDefault();
+
     if (index === -1) {
-      const lastFocusTarget = focusTargets[numFocusTargets - 1];
-      if (lastFocusTarget.disabled === true)
-        index = numFocusTargets - 1;
-      else
-        return lastFocusTarget.focus();
+      // Focus is outside the trap (e.g. on the modal container itself);
+      // land on the last focusable target
+      focusTargets[numFocusTargets - 1].focus();
+      return;
     }
 
-    for (let i = index - 1; i !== index; i--) {
-      if (i === -1)
-        i = numFocusTargets - 1;
-
-      const target = focusTargets[i];
-      target.focus();
-      if (document.activeElement === target)
-        break;
+    // Cycle backwards, skipping any target that refuses focus
+    for (let i = 1; i <= numFocusTargets; i++) {
+      const candidate = focusTargets[(index - i + numFocusTargets) % numFocusTargets];
+      candidate.focus();
+      if (document.activeElement === candidate)
+        return;
     }
   } else {
+    // Tab: move forwards
+    e.preventDefault();
+
     if (index === -1) {
-      const firstFocusTarget = focusTargets[0];
-      if (firstFocusTarget.disabled === true)
-        index = 0;
-      else
-        return firstFocusTarget.focus();
+      // Focus is outside the trap; land on the first focusable target
+      focusTargets[0].focus();
+      return;
     }
 
-    for (let i = index + 1; i !== index; i++) {
-      if (i === numFocusTargets)
-        i = 0;
-
-      const target = focusTargets[i];
-      target.focus();
-      if (document.activeElement === target)
-        break;
+    // Cycle forwards, skipping any target that refuses focus
+    for (let i = 1; i <= numFocusTargets; i++) {
+      const candidate = focusTargets[(index + i) % numFocusTargets];
+      candidate.focus();
+      if (document.activeElement === candidate)
+        return;
     }
   }
 };
 
-/*
- * If element content materially changes, call this function again
+/**
+ * Trap keyboard Tab navigation inside `element`.
+ *
+ * Focus targets are re-queried on every keydown so the trap automatically
+ * adapts to dynamic content changes (async renders, show/hide toggles, etc.)
+ * without needing to be called again.
+ *
+ * Call again if you need to force a reset (e.g. after a major DOM replacement),
+ * but it is generally not required for incremental changes.
+ *
+ * @param {HTMLElement} element
  */
 export default function trapFocus(element) {
-  const focusTargets = [ ...element.querySelectorAll([
-    'A[href]',
-    'BUTTON',
-    'TEXTAREA',
-    'INPUT[type="text"]',
-    'INPUT[type="radio"]',
-    'INPUT[type="checkbox"]',
-    'SELECT',
-    '[tabindex]:not([tabindex="-1"])',
-  ].join(',')) ];
-
-  focusTargets.sort((a,b) => {
-    if (a.tabIndex === b.tabIndex)
-      return 0;
-    else if (a.tabIndex === 0)
-      return 1;
-    else if (b.tabIndex === 0)
-      return -1;
-    else
-      return a.tabIndex - b.tabIndex;
-  });
-
   const oldTrap = traps.get(element);
   if (oldTrap)
     element.removeEventListener('keydown', oldTrap);
 
-  const newTrap = trapListener.bind(this, focusTargets);
+  const newTrap = trapListener.bind(null, element);
   traps.set(element, newTrap);
   element.addEventListener('keydown', newTrap);
+}
+
+/**
+ * Remove the focus trap from `element`.
+ * Call this when the element is destroyed to avoid a listener leak.
+ *
+ * @param {HTMLElement} element
+ */
+export function releaseTrap(element) {
+  const trap = traps.get(element);
+  if (trap) {
+    element.removeEventListener('keydown', trap);
+    traps.delete(element);
+  }
 }
