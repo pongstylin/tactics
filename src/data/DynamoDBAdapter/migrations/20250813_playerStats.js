@@ -1,3 +1,5 @@
+import serializer from '#utils/serializer.js';
+
 export default async function (itemMap) {
   const item = itemMap.get('/');
   const data = item.D.$data;
@@ -29,7 +31,7 @@ export default async function (itemMap) {
     opponents.push({
       PK: `playerStats#${data.playerId}`,
       SK: `/vs/${playerId}`,
-      D: stats,
+      D: serializer.transform(stats),
       TTL: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365,
     });
   }
