@@ -118,7 +118,7 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
         `; hits=${s.hits}; misses=${s.misses}; sets=${s.sets}` +
         (deleteStr ? `; deletes: ${deleteStr}` : '; deletes=0')
       );
-      if (cache.stack.length && cache.stack.length > cache.data.size) {
+      if (cache.stack.length && cache.stack.length < cache.data.size) {
         const typeCounts = Array.from(cache.data.values()).reduce((p,c) => {
           const type = c.type satisfies keyof typeof p;
           p[type] = (p[type] ?? 0) + 1;
