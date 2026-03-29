@@ -13,6 +13,7 @@ export default class Unit {
     Object.assign(this, data, {
       data: data,
       board: board,
+      direction: data.direction ?? 'S',
       spriteSource: data.type,
       spriteName: null,
       unitSprite: 'unit',
@@ -57,9 +58,15 @@ export default class Unit {
       // Unit state at start of turn.  Set by Board.setInitialState().
       initialState: null,
 
-      _sprite: null,
       _pulse: null,
+      __sprite: null,
     });
+  }
+
+  get _sprite() {
+    if (!this.__sprite)
+      this.__sprite = Tactics.getSprite(this.spriteSource);
+    return this.__sprite;
   }
 
   /*
@@ -566,9 +573,6 @@ export default class Unit {
     return this.drawStand();
   }
   drawAvatar(options) {
-    if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.spriteSource);
-
     options = Object.assign({
       renderer: Tactics.game?.renderer,
       direction: 'S',
@@ -578,9 +582,11 @@ export default class Unit {
       as: 'frame',
     }, options);
 
+    const [ standActionName, standFrameId ] = this.getStandRenderOptions();
     const frame = this._sprite.renderFrame({
       spriteName: this.spriteName,
-      actionName: 'stand',
+      actionName: standActionName,
+      frameId: standFrameId,
       direction: options.direction,
       styles: this.getStyles(),
       fixup: this.fixupFrame.bind(this),
@@ -627,10 +633,18 @@ export default class Unit {
 
     return avatar;
   }
-  drawFrame(actionName, direction = this.direction, frameId) {
-    if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.spriteSource);
+  getStandRenderOptions() {
+    if (this._sprite.name === 'avatars')
+      return [ 'stand' ];
 
+    const standAction = this.actions?.stand;
+
+    return [
+      standAction?.actionName ?? 'stand',
+      standAction?.frameId,
+    ];
+  }
+  drawFrame(actionName, direction = this.direction, frameId) {
     const frame = this._sprite.renderFrame({
       actionName,
       direction,
@@ -665,7 +679,9 @@ export default class Unit {
       if (!isNaN(direction)) direction = this.board.getRotation(this.direction, direction);
     }
 
-    return this.drawFrame('stand', direction);
+    const [ standActionName, standFrameId ] = this.getStandRenderOptions();
+
+    return this.drawFrame(standActionName, direction, standFrameId);
   }
   drawStagger(direction = this.direction) {
     if (!this.hasAction('stagger'))

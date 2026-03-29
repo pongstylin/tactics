@@ -47,6 +47,14 @@ export default class GameClient extends Client {
         throw error;
       });
   }
+  grantUnit(playerId, unitType) {
+    return this._server.requestAuthorized(this.name, 'grantUnit', [ playerId, unitType ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.grantUnit(playerId, unitType);
+        throw error;
+      });
+  }
 
   createGame(gameTypeId, gameOptions) {
     return this._server.requestAuthorized(this.name, 'createGame', [ gameTypeId, gameOptions ])

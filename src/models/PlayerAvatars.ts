@@ -11,7 +11,8 @@ import Cache from '#utils/Cache.js';
 
 type PlayerAvatarsEvents = AbstractEvents & {
   'change:avatar': {},
-  'change:grant': {},
+  'change:addAvatar': {},
+  'change:addUnit': {},
 };
 
 export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
@@ -22,6 +23,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
     unitType: string
     colorId: string
     avatars: string[]
+    units: Map<string, number>
     createdAt: Date
     updatedAt: Date | null
   }
@@ -29,7 +31,9 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
 
   constructor(data:PlayerAvatars['data']) {
     super();
-    this.data = data;
+    this.data = Object.assign({
+      units: new Map(),
+    }, data);
   }
 
   static get cache() {
@@ -44,6 +48,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
       unitType: unitTypes.random(),
       colorId: colorIds.random(),
       avatars: [],
+      units: new Map(),
       createdAt: new Date(),
       updatedAt: null,
     });
@@ -69,7 +74,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
 
     if (!unitData.has(avatar.unitType))
       throw new ServerError(400, 'Unrecognized unit type');
-    if (!this.list.includes(avatar.unitType))
+    if (!this.listAvatars.includes(avatar.unitType))
       throw new ServerError(403, 'Disallowed unit type');
     if (!colorFilterMap.has(avatar.colorId))
       throw new ServerError(400, 'Unrecognized color id');
@@ -80,11 +85,11 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
 
     this.emit('change:avatar');
   }
-  get list() {
+  get listAvatars() {
     const tier = Math.min(4, 1 + Math.floor((Date.now() - this.data.createdAt.getTime()) / 1000 / 60 / 60 / 24 / 7));
     const unitTypes = [ ...unitData ].filter(([k,d]) => d.tier <= tier).sort((a,b) => a[1].tier - b[1].tier).map(([k,d]) => k);
 
-    return unitTypes.concat(this.data.avatars);
+    return unitTypes.concat(this.data.avatars).concat(Array.from(this.data.units.keys()));
   }
 
   get ttl() {
@@ -99,17 +104,32 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
     return Math.round(Date.now() / 1000) + days * 86400;
   }
 
-  grant(unitType:string) {
+  addAvatar(unitType:string) {
     if (this.data.avatars.includes(unitType))
       return;
 
     if (!unitData.has(unitType))
       throw new ServerError(400, 'Unrecognized unit type');
-    if (this.list.includes(unitType))
+    if (this.listAvatars.includes(unitType))
       throw new ServerError(403, 'Already granted unit type');
 
     this.data.avatars.push(unitType);
-    this.emit('change:grant');
+    this.emit('change:addAvatar');
+  }
+  addUnit(unitType:string) {
+    if (!unitData.has(unitType))
+      throw new ServerError(400, 'Unrecognized unit type');
+
+    this.data.units.set(unitType, (this.data.units.get(unitType) ?? 0) + 1);
+    this.emit('change:addUnit');
+  }
+
+  toJSON() {
+    const json = super.toJSON();
+    if (json.units.size === 0)
+      delete json.units;
+
+    return json;
   }
 };
 
@@ -127,6 +147,15 @@ serializer.addType({
         type: 'array',
         items: {
           type: 'string',
+        },
+      },
+      units: {
+        type: 'array',
+        subType: 'Map',
+        items: {
+          type: 'array',
+          items: [ { type:'string' }, { type:'number' } ],
+          additionalItems: false,
         },
       },
       updatedAt: { type:[ 'string', 'null' ], subType:'Date' },
