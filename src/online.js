@@ -2070,7 +2070,6 @@ async function renderYourGames() {
    */
   const divMyTurnGames = [];
   for (const game of activeGames) {
-    console.log('test', game.currentTeam.playerId, myPlayerId);
     // Exclude games where it is someone else's turn
     if (game.currentTeam.playerId !== myPlayerId)
       continue;

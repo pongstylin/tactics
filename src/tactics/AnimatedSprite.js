@@ -178,7 +178,7 @@ export default class AnimatedSprite {
   }
 
   get name() {
-    return this._data.sprites[0].name;
+    return this._data.name ?? this._data.sprites[0].name;
   }
 
   get images() {

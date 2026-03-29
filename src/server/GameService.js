@@ -37,6 +37,7 @@ export default class GameService extends Service {
         // Admin actions
         resetRatings: [ 'uuid', 'string | null' ],
         grantAvatar: [ 'uuid', 'string' ],
+        grantUnit: [ 'uuid', 'string' ],
 
         createGame: ['string', 'game:options'],
         tagGame: ['uuid', 'game:tags'],
@@ -578,7 +579,21 @@ export default class GameService extends Service {
 
     const target = await this.auth.getPlayer(targetPlayerId);
     const avatars = await this.data.getPlayerAvatars(target);
-    avatars.grant(unitType);
+    avatars.addAvatar(unitType);
+  }
+  async onGrantUnitRequest(client, targetPlayerId, unitType) {
+    if (!GameSession.cache.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    if (process.env.NODE_ENV !== 'development') {
+      const session = GameSession.cache.get(client.id);
+      if (!session.player.identity.admin)
+        throw new ServerError(403, 'You must be an admin to use this feature.');
+    }
+
+    const target = await this.auth.getPlayer(targetPlayerId);
+    const avatars = await this.data.getPlayerAvatars(target);
+    avatars.addUnit(unitType);
   }
 
   /*
@@ -894,7 +909,7 @@ export default class GameService extends Service {
     const player = GameSession.cache.get(client.id).player;
     const playerAvatars = await this.data.getPlayerAvatars(player);
 
-    return playerAvatars.list;
+    return playerAvatars.listAvatars;
   }
   async onGetPlayersAvatarRequest(client, playerIds) {
     return this.data.listPlayersAvatar(playerIds);

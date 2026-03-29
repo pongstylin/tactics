@@ -16,6 +16,7 @@ import Shrub from '#tactics/Unit/Shrub.js';
 import Berserker from '#tactics/Unit/Berserker.js';
 import ChaosSeed from '#tactics/Unit/ChaosSeed.js';
 import ChaosDragon from '#tactics/Unit/ChaosDragon.js';
+import StormDragon from '#tactics/Unit/StormDragon.js';
 
 const unitClassMap = new Map([
   ['Pyromancer',        Pyromancer],
@@ -32,6 +33,7 @@ const unitClassMap = new Map([
   ['Furgon',            Furgon],
   ['Shrub',             Shrub],
   ['Berserker',         Berserker],
+  ['StormDragon',       StormDragon],
 
   ['ChaosSeed',         ChaosSeed],
   ['ChaosDragon',       ChaosDragon],
