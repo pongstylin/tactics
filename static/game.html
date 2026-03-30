@@ -117,16 +117,19 @@
       text-align: center;
     }
 
-    .mySet {
+    .selectSet .setName:empty {
+      display: none;
+    }
+    .selectSet, .mySet {
       flex-direction: column;
       align-items: start !important;
     }
-    .mySet > div:nth-child(1) {
+    .selectSet > div:nth-child(1), .mySet > div:nth-child(1) {
       display: flex;
       flex-direction: row;
       align-items: center;
     }
-    .mySet > div:nth-child(2) {
+    .selectSet > div:nth-child(2), .mySet > div:nth-child(2) {
       margin-left: 18px;
     }
 
@@ -154,6 +157,14 @@
       <DIV class="set" style="display:none">
         <DIV>Choose opponent set:</DIV>
         <UL class="choices">
+          <LI class="selectSet">
+            <DIV>
+              <LABEL class="disabled"><INPUT type="radio" name="setChoice" value="selectSet" disabled>Select Set</LABEL>
+              <SPAN class="sep"></SPAN>
+              <A href="javascript:void(0)">Search Sets</A>
+            </DIV>
+            <DIV class="setName"></DIV>
+          </LI>
           <LI class="mySet">
             <DIV>
               <LABEL><INPUT type="radio" name="setChoice" value="mySet"> My Set</LABEL>
@@ -235,9 +246,18 @@
                 <OPTION value="alt1">Alternate 1</OPTION>
                 <OPTION value="alt2">Alternate 2</OPTION>
                 <OPTION value="alt3">Alternate 3</OPTION>
-                <OPTION value="random">Random</OPTION>
+                <OPTION value="random">Random Saved</OPTION>
+                <OPTION value="top">Random Top 100</OPTION>
               </SELECT>
             </DIV>
+          </LI>
+          <LI class="selectSet">
+            <DIV>
+              <LABEL class="disabled"><INPUT type="radio" name="setChoice" value="selectSet" disabled>Select Set</LABEL>
+              <SPAN class="sep"></SPAN>
+              <A href="javascript:void(0)">Search Sets</A>
+            </DIV>
+            <DIV class="setName"></DIV>
           </LI>
           <LI class="same">
             <LABEL><INPUT type="radio" name="setChoice" value="same">Same Set</LABEL>

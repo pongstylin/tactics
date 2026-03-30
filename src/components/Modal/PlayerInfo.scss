@@ -39,6 +39,7 @@
     border-color: #CCFFFF;
     color: #CCFFFF;
   }
+
   .player.bronze {
     display: inline-block;
     background-image: linear-gradient(to right, #804a00 10%, 40%, #b08d57 60%, 80%, #804a00 94%, black 102%);
@@ -92,6 +93,12 @@
       }
     }
 
+    .set-details {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2px 12px;
+    }
+
     .indent {
       margin-left: 16px;
     }
@@ -107,5 +114,20 @@
     font-size: 11px;
     margin-left: 10px;
     font-style: italic;
+  }
+
+  // Activity section
+  .content .status {
+    font-weight: bold;
+
+    &.active {
+      color: #00FF00;
+    }
+    &.inactive {
+      color: #FFFF00;
+    }
+    &.offline, &.closed {
+      color: #FF0000;
+    }
   }
 }

@@ -2,18 +2,34 @@ const migrationsByKey = new Map();
 
 migrationsByKey.set('game:/', [
   './migrations/20250628_game.js',
+  './migrations/20251025_game.js',
+  './migrations/20251025b_game.js',
+  './migrations/20251025c_game.js',
+  './migrations/20251108_game.js',
+  './migrations/20260118_game.js',
+  './migrations/20260122_game.js',
 ]);
 
 migrationsByKey.set('playerStats:/', [
   './migrations/20250813_playerStats.js',
 ]);
 
+migrationsByKey.set('playerSets:/', [
+  './migrations/20251108_playerSets.js',
+  './migrations/20260122_playerSets.js',
+]);
+
 export default async function migrateItem(item, props = {}) {
   const itemType = item.PK.split('#')[0];
   const key = `${itemType}:${item.SK}`;
-  const migrations = migrationsByKey.get(key);
-  if (!migrations)
+  const migrations = migrationsByKey.get(key) ?? [];
+  if ((item.V ?? 0) === migrations.length)
     return item;
+  if ((item.V ?? 0) > migrations.length) {
+    // Only a warning since it might be intentional and compatible.
+    console.log(`Warning: Item version is ahead of known migrations '${key}': ${item.V} > ${migrations.length}`);
+    return;
+  }
 
   // This cache allows multiple migrations to not perform redundant DDB operations.
   const cacheItemMap = new Map([
@@ -22,10 +38,11 @@ export default async function migrateItem(item, props = {}) {
   ]);
 
   for (let i = item.V ?? 0; i < migrations.length; i++)
-    await (await import(migrations[i])).default.call(this, cacheItemMap, props);
+    if (migrations[i])
+      await (await import(migrations[i])).default.call(this, cacheItemMap, props);
 
   const ops = new Map();
-  for (let cacheItems of cacheItemMap.values()) {
+  for (let [ cacheKey, cacheItems ] of cacheItemMap.entries()) {
     if (!Array.isArray(cacheItems))
       cacheItems = [cacheItems];
 
@@ -35,7 +52,7 @@ export default async function migrateItem(item, props = {}) {
 
       const cacheItemKey = `${cacheItem.PK}:${cacheItem.SK}`;
       if (ops.has(cacheItemKey))
-        throw new Error(`Duplicate item key while migrating '${key}': ${cacheItemKey}`);
+        throw new Error(`Duplicate item key while migrating '${key}' from version ${item.V ?? 0}: ${cacheItemKey} (${cacheKey})`);
 
       if (cacheItem.D)
         cacheItem.D = JSON.stringify(cacheItem.D);

@@ -1,0 +1,53 @@
+.component.gameTeamSet {
+  position: relative;
+  cursor: pointer;
+
+  .details {
+    position: absolute;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+
+    .name {
+      font-style: italic;
+      font-weight: bold;
+      color: #b08d57;
+    }
+    & > :not(.name) {
+      font-size: 85%;
+      color: #ddd;
+    }
+  }
+  .image {
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+
+    padding-bottom: 67%;
+    width: 100%;
+  }
+
+  &.rotation-N {
+    .details { bottom:10%; right:5%; text-align:right; display:flex; flex-direction:column-reverse; }
+  }
+  &.rotation-S {
+    .details { top:10%; left:5%; }
+  }
+  &.rotation-E {
+    .details { bottom:10%; left:5%; text-align:left; display:flex; flex-direction:column-reverse; }
+  }
+  &.rotation-W {
+    .details { top:10%; right:5%; text-align:right; }
+  }
+
+  &:hover .details .name {
+    color: #FFCC00;
+  }
+}
+
+/*
+ * Very Narrow Layout
+ */
+@media (max-width: 563px) {
+  .component.gameTeamSet {
+    width: 100%;
+  }
+}

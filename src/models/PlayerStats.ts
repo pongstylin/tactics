@@ -1,11 +1,23 @@
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+// @ts-ignore
+import { computeElo } from '#utils/elo.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+import Cache from '#utils/Cache.js';
 
 import type Game from '#models/Game.ts';
 import type Player from '#models/Player.ts';
 import type Team from '#models/Team.ts';
 
 const DEFAULT_RATING = 750.0;
+
+type PlayerStatsEvents = AbstractEvents & {
+  'change:setRating': {},
+  'change:numCompleted': {},
+  'change:numAbandoned': {},
+  'vs:change:clearWLDStats': { data:{ playerId:string, vsPlayerId:string, vsStats:any } },
+  'vs:change:sync': { data:{ playerId:string, vsPlayerId:string, vsStats:any } },
+};
 
 type RatingStats = {
   rating: number;
@@ -25,7 +37,9 @@ type VSStats = {
   style: Map<string, WLDStats>;
 };
 
-export default class PlayerStats extends ActiveModel {
+export default class PlayerStats extends ActiveModel<PlayerStatsEvents> {
+  protected static _cache: Cache<string, PlayerStats>
+
   protected data: {
     playerId: string
     numCompleted: number
@@ -33,7 +47,7 @@ export default class PlayerStats extends ActiveModel {
     ratings: Map<string, RatingStats>
   }
   public player: Player | null = null;
-  public vs: Map<string, VSStats>;
+  private _vs: Map<string, VSStats | null>;
 
   constructor(data:any) {
     super();
@@ -42,11 +56,38 @@ export default class PlayerStats extends ActiveModel {
       numAbandoned: 0,
       ratings: new Map(),
     }, data);
-    this.vs = new Map();
+    this._vs = new Map();
   }
 
+  static get cache() {
+    return this._cache ??= new Cache('PlayerStats');
+  }
   static create(playerId:string) {
     return new PlayerStats({ playerId });
+  }
+
+  // This function computes the optimal values for "K" which is the maximum change that can occur to a player's rating in a single game.
+  // In general, a new player should have a large value for K, and an experienced player should have a smaller value for K.
+  static computeMaxRatingChange(gameCount1:number, gameCount2:number) {
+    // Note that the original game had 32, which was a bit high.
+    // Suggested reading: https://en.wikipedia.org/wiki/Elo_rating_system#Most_accurate_K-factor
+    const DEFAULT_K_FACTOR = 1;
+
+    // Players who have played this many games or more are no longer considered "new".
+    const EXPERIENCE_THRESHOLD = 10;
+
+    // High confidence - both sides played a sufficient number of games. Return standard value.
+    // In the long-term, this should be the most common case.
+    if (gameCount1 >= EXPERIENCE_THRESHOLD && gameCount2 >= EXPERIENCE_THRESHOLD)
+      return [DEFAULT_K_FACTOR, DEFAULT_K_FACTOR];
+
+    // In this case, at least one player is "new", meaning we do not have confidence that their rating is representative of their skill.
+    // As such, K is doubled for the new player, so they can reach their "true rating" faster.
+    // And K is halved for their opponent when their opponent is experienced (to protect against new accounts used as stat killers)
+    const k1 = gameCount1 < EXPERIENCE_THRESHOLD ? 2 : 0.5;
+    const k2 = gameCount2 < EXPERIENCE_THRESHOLD ? 2 : 0.5;
+
+    return [k1, k2];
   }
 
   /*
@@ -60,15 +101,16 @@ export default class PlayerStats extends ActiveModel {
 
     const teamsMeta = game.state.teams.map((t:Team) => {
       const stats = playersStatsMap.get(t.playerId)!;
-      const ratingStats = stats._getRatingStats(game.state.type);
+      const ratingStats = stats._getRatingInfo(game.state.type!);
 
       return { id:t.id, stats, ...ratingStats };
     });
     teamsMeta.sort((a,b) => game.state.winnerId === a.id ? -1 : game.state.winnerId === b.id ? 1 : 0);
 
     const isDraw = game.state.winnerId === 'draw';
-    const k = slowMode ? teamsMeta.map(() => 5) : computeMaxRatingChange(...teamsMeta.map(t => t.gameCount) as [ number, number ]);
+    const scale = slowMode ? teamsMeta.map(() => 0.5) : PlayerStats.computeMaxRatingChange(...teamsMeta.map(t => t.gameCount) as [ number, number ]);
     const ratings = teamsMeta.map(t => t.rating) as [ number, number ];
+    const newRatings = computeElo(...ratings, isDraw, scale);
 
     for (const [ t, teamMeta ] of teamsMeta.entries()) {
       const team = game.state.teams[teamMeta.id]!;
@@ -77,16 +119,16 @@ export default class PlayerStats extends ActiveModel {
       const oldRating = teamMeta.rating;
 
       stats._setRating(
-        game.state.type,
-        Math.max(100, _computeElo(...ratings, k[t], isDraw)[t]),
+        game.state.type!,
+        newRatings[t],
       );
 
       const newForte = stats.calcForteRating();
-      const newRating = stats._getRatingStats(game.state.type).rating;
+      const newRating = stats._getRatingInfo(game.state.type!).rating;
 
       if (newForte)
         team.setRating('FORTE', oldForte, newForte);
-      team.setRating(game.state.type, Math.round(oldRating), Math.round(newRating));
+      team.setRating(game.state.type!, Math.round(oldRating), Math.round(newRating));
     }
 
     return true;
@@ -123,11 +165,41 @@ export default class PlayerStats extends ActiveModel {
     return Math.round(Date.now() / 1000) + days * 86400;
   }
 
+  hasVS(playerId:string) {
+    return this._vs.has(playerId);
+  }
+  loadVS(playerId:string, vsStats:VSStats | null) {
+    this._vs.set(playerId, vsStats);
+  }
+  getVS(team:Team, force = false) {
+    if (!force && !this._vs.has(team.playerId))
+      throw new Error(`Attempt to get VS stats without loading them first: ${team.playerId}`);
+
+    return this._vs.get(team.playerId) ?? {
+      name: team.name!,
+      aliases: new Map(),
+      all: {
+        startedAt: team.joinedAt!,
+        win: [0, 0],
+        lose: [0, 0],
+        draw: [0, 0],
+      },
+      style: new Map(),
+    };
+  }
+
   getRating(gameTypeId:string) {
-    return Math.round(this._getRatingStats(gameTypeId).rating);
+    return Math.round(this._getRatingInfo(gameTypeId).rating);
+  }
+  getRatingInfo(gameTypeId:string) {
+    const stats = this._getRatingInfo(gameTypeId);
+    return {
+      rating: Math.round(stats.rating),
+      gameCount: stats.gameCount,
+    };
   }
   _setRating(gameTypeId:string, rating:number) {
-    const ratingStats = this._getRatingStats(gameTypeId);
+    const ratingStats = this._getRatingInfo(gameTypeId);
     ratingStats.gameCount++;
     ratingStats.updatedAt = new Date();
     ratingStats.rating = rating;
@@ -152,7 +224,7 @@ export default class PlayerStats extends ActiveModel {
     return rating;
   }
 
-  recordGameStart(game) {
+  recordGameStart(game:Game) {
     if (!game.state.startedAt)
       throw new Error('Game has not started yet');
     if (game.state.endedAt)
@@ -165,10 +237,10 @@ export default class PlayerStats extends ActiveModel {
       return;
 
     for (const team of game.state.teams)
-      if (team.playerId !== this.playerId)
-        this._syncVS(team, game);
+      if (team!.playerId !== this.playerId)
+        this._syncVS(team!, game);
   }
-  recordGameEnd(game) {
+  recordGameEnd(game:Game) {
     if (!game.state.startedAt)
       throw new Error('Game has not started yet');
     if (!game.state.endedAt)
@@ -184,12 +256,15 @@ export default class PlayerStats extends ActiveModel {
     /*
      * Determine which players played a turn.
      */
-    const hasPlayed = new Set();
+    const hasPlayed = new Set<Team>();
     for (const team of game.state.teams)
-      if (game.state.teamHasPlayed(team))
-        hasPlayed.add(team);
+      if (game.state.teamHasPlayed(team!))
+        hasPlayed.add(team!);
 
     for (const [ teamId, team ] of game.state.teams.entries()) {
+      // Should never happen, but makes Typescript happy.
+      if (!team) continue;
+
       if (team.playerId === this.playerId) {
         if (hasPlayed.has(team)) {
           // I didn't really complete a game if every other player abandoned it.
@@ -221,18 +296,18 @@ export default class PlayerStats extends ActiveModel {
         // If I won with advantage, but they didn't use advantage, win is with advantage.
         const wldIndex = myAdvantage && !vsAdvantage ? 1 : 0;
         vsStats.all.win[wldIndex]++;
-        vsStats.style.get(game.state.type)!.win[wldIndex]++;
+        vsStats.style.get(game.state.type!)!.win[wldIndex]++;
       } else if (game.state.winnerId === teamId) {
         // If I lost without advantage, but they used advantage, the loss is at disadvantage.
         const wldIndex = vsAdvantage && !myAdvantage ? 1 : 0;
         vsStats.all.lose[wldIndex]++;
-        vsStats.style.get(game.state.type)!.lose[wldIndex]++;
+        vsStats.style.get(game.state.type!)!.lose[wldIndex]++;
       } else if (game.state.winnerId === 'draw') {
         // If I drew with advantage, but they didn't use advantage, draw is with advantage.
         // Note: If we both lost in a 4-player game, we drew with each other.
         const wldIndex = myAdvantage && !vsAdvantage ? 1 : 0;
         vsStats.all.draw[wldIndex]++;
-        vsStats.style.get(game.state.type)!.draw[wldIndex]++;
+        vsStats.style.get(game.state.type!)!.draw[wldIndex]++;
       }
     }
   }
@@ -244,7 +319,7 @@ export default class PlayerStats extends ActiveModel {
       this.data.ratings.clear();
   }
   clearWLDStats(playerId:string, gameTypeId:string | null = null) {
-    const vsStats = this.vs.get(playerId);
+    const vsStats = this._vs.get(playerId);
     if (!vsStats)
       return;
     if (gameTypeId && !vsStats.style.has(gameTypeId))
@@ -266,8 +341,7 @@ export default class PlayerStats extends ActiveModel {
       draw: [0, 0],
     });
 
-    this.emit({
-      type: 'vs:change:clearWLDStats',
+    this.emit('vs:change:clearWLDStats', {
       data: {
         playerId: this.playerId,
         vsPlayerId: playerId,
@@ -277,42 +351,32 @@ export default class PlayerStats extends ActiveModel {
   }
 
   _syncVS(team:Team, game:Game) {
-    if (!this.vs.has(team.playerId)) {
+    if (this._vs.get(team.playerId) == null) {
       if (game.state.endedAt)
         console.log(`Warning: Game start not recorded: ${team.playerId} (${this.data.playerId})`);
 
-      this.vs.set(team.playerId, {
-        name: team.name,
-        aliases: new Map(),
-        all: {
-          startedAt: team.joinedAt!,
-          win: [0, 0],
-          lose: [0, 0],
-          draw: [0, 0],
-        },
-        style: new Map(),
-      });
+      this._vs.set(team.playerId, this.getVS(team, true));
     }
 
-    const vsStats = this.vs.get(team.playerId)!;
+    const vsStats = this._vs.get(team.playerId)!;
 
-    if (vsStats.aliases.has(team.name.toLowerCase())) {
-      const alias = vsStats.aliases.get(team.name.toLowerCase())!;
-      alias.name = team.name;
+    if (vsStats.aliases.has(team.name!.toLowerCase())) {
+      const alias = vsStats.aliases.get(team.name!.toLowerCase())!;
+      alias.name = team.name!;
       // Avoid double counting
       if (!game.state.endedAt)
         alias.count++;
       alias.lastSeenAt = team.joinedAt!;
     } else {
-      vsStats.aliases.set(team.name.toLowerCase(), {
-        name: team.name,
+      vsStats.aliases.set(team.name!.toLowerCase(), {
+        name: team.name!,
         count: 1,
         lastSeenAt: team.joinedAt!,
       });
     }
 
-    if (!vsStats.style.has(game.state.type)) {
-      vsStats.style.set(game.state.type, {
+    if (!vsStats.style.has(game.state.type!)) {
+      vsStats.style.set(game.state.type!, {
         startedAt: team.joinedAt!,
         win: [0, 0],
         lose: [0, 0],
@@ -320,8 +384,7 @@ export default class PlayerStats extends ActiveModel {
       });
     }
 
-    this.emit({
-      type: 'vs:change:sync',
+    this.emit('vs:change:sync', {
       data: {
         playerId: this.playerId,
         vsPlayerId: team.playerId,
@@ -330,7 +393,7 @@ export default class PlayerStats extends ActiveModel {
     });
     return vsStats;
   }
-  _getRatingStats(rankingId:string) {
+  _getRatingInfo(rankingId:string) {
     return this.data.ratings.get(rankingId) ?? {
       rating: rankingId === 'FORTE' ? 0 : DEFAULT_RATING,
       gameCount: 0,
@@ -380,61 +443,6 @@ export function addForteRank(ranks:{ rankingId:string, playerId:string, name:str
     });
 
   return ranks;
-}
-
-// Inspired by: https://www.geeksforgeeks.org/elo-rating-algorithm/
-function _probability(rating1:number, rating2:number) {
-  return (
-    (1.0 * 1.0) / (1 + 1.0 * Math.pow(10, (1.0 * (rating1 - rating2)) / 400))
-  );
-}
-
-/**
- * Computes the updated Elo Ratings for two players. Returns an array of size 2, in which the first and second elements
- * are the updated ratings of the winner and loser respectively.
- * @param ratingWinner
- * @param ratingLoser
- * @param K
- */
-function _computeElo(ratingWinner:number, ratingLoser:number, K:number, isDraw:boolean) {
-  const pWinner = _probability(ratingLoser, ratingWinner);
-  const pLoser = _probability(ratingWinner, ratingLoser);
-  const ratings = [] as number[];
-
-  if (isDraw) {
-    ratings.push(ratingWinner + K * (0.5 - pWinner));
-    ratings.push(ratingLoser + K * (0.5 - pLoser));
-  } else {
-    ratings.push(ratingWinner + K * (1 - pWinner));
-    ratings.push(ratingLoser + K * (0 - pLoser));
-  }
-
-  return ratings;
-}
-
-// This function computes the optimal values for "K" which is the maximum change that can occur to a player's rating in a single game.
-// In general, a new player should have a large value for K, and an experienced player should have a smaller value for K.
-function computeMaxRatingChange(gameCount1:number, gameCount2:number) {
-
-  // Note that the original game had 32, which was a bit high.
-  // Suggested reading: https://en.wikipedia.org/wiki/Elo_rating_system#Most_accurate_K-factor
-  const DEFAULT_K_FACTOR = 20;
-
-  // Players who have played this many games or more are no longer considered "new".
-  const EXPERIENCE_THRESHOLD = 10;
-
-  // High confidence - both sides played a sufficient number of games. Return standard value.
-  // In the long-term, this should be the most common case.
-  if (gameCount1 >= EXPERIENCE_THRESHOLD && gameCount2 >= EXPERIENCE_THRESHOLD)
-    return [DEFAULT_K_FACTOR, DEFAULT_K_FACTOR];
-
-  // In this case, at least one player is "new", meaning we do not have confidence that their rating is representative of their skill.
-  // As such, K is doubled for the new player, so they can reach their "true rating" faster.
-  // And K is halved for their opponent when their opponent is experienced (to protect against new accounts used as stat killers)
-  const k1 = gameCount1 < EXPERIENCE_THRESHOLD ? DEFAULT_K_FACTOR * 2 : DEFAULT_K_FACTOR / 2;
-  const k2 = gameCount2 < EXPERIENCE_THRESHOLD ? DEFAULT_K_FACTOR * 2 : DEFAULT_K_FACTOR / 2;
-
-  return [k1, k2];
 }
 
 serializer.addType({

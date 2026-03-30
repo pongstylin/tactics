@@ -1,13 +1,53 @@
 import { v4 as uuid } from 'uuid';
 
+// @ts-ignore
 import timeLimit, { getTurnTimeLimit } from '#config/timeLimit.js';
-import ActiveModel from '#models/ActiveModel.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+import Cache from '#utils/Cache.js';
 
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import type GameSession from '#models/GameSession.js';
 import Team from '#models/Team.js';
 import Turn from '#models/Turn.js';
 import GameState from '#tactics/GameState.js';
+// @ts-ignore
 import ServerError from '#server/Error.js';
+import TeamSet from './TeamSet.js';
+
+type PlayerRequest = {
+  createdAt: Date;
+  createdBy: string;
+  status: 'pending' | 'completed' | 'rejected' | 'cancelled';
+  type: 'undo' | 'truce';
+  accepted: Set<string>;
+  rejected: Map<string, string>;
+  teamId?: number;
+};
+export type Reference = 'creation' | [ number, string | null, number | null, ...string[] ];
+
+type WhenDeleted = {
+  promise: Promise<void>,
+  resolve: (value:any) => void,
+  reject: (reason?:any) => void,
+};
+export type GameEvents = AbstractEvents & {
+  'change:state': {},
+  'change:mergeTags': {},
+  'change:setRated': {},
+  'change:submitPlayerRequest': {},
+  'change:acceptPlayerRequest': {},
+  'change:rejectPlayerRequest': {},
+  'change:cancelPlayerRequest': {},
+  'delete:cancel': { whenDeleted:WhenDeleted },
+  'delete:expire': { whenDeleted:WhenDeleted },
+  'delete:decline': { whenDeleted:WhenDeleted },
+  'playerRequest': { data:PlayerRequest },
+  'playerRequest:accept': { data:{ playerId:string } },
+  'playerRequest:reject': { data:{ playerId:string } },
+  'playerRequest:cancel': {},
+  'playerRequest:complete': {},
+};
 
 const gameKeys = new Set([
   'forkOf',
@@ -37,48 +77,57 @@ const defaultData = {
   collection: null,
 };
 
-export default class Game extends ActiveModel {
-  protected data: {
-    id: string
-    playerRequest: any
-    state: GameState
-    forkOf: any
-    collection: string
-    timeLimitName: string | null
-    tags: Map<string, string | number | boolean>
-    createdBy: string
-    createdAt: Date
-  }
-  protected isCancelled: boolean = false
+export default class Game extends ActiveModel<GameEvents> {
+  protected static _cache: Cache<string, Game>
 
-  constructor(data, props?:ConstructorParameters<typeof ActiveModel>[0]) {
+  public toFile:boolean = false;
+  protected data: {
+    id: string;
+    playerRequest: any;
+    state: GameState;
+    forkOf?: { gameId:string, turnId:number };
+    collection: string;
+    timeLimitName: string | null;
+    tags: {
+      // e.g. arenaIndex
+      [x: string]: string | number | boolean;
+    },
+    createdBy: string;
+    createdAt: Date;
+  };
+  protected isCancelled: boolean = false;
+
+  constructor(data:PickPartial<Game['data'], keyof typeof defaultData>, props?:ConstructorParameters<typeof ActiveModel>[0]) {
     super(props);
 
     // Clear a player's rejected requests when their turn starts.
-    data.state.on('startTurn', event => {
-      if (data.playerRequest) {
-        const playerId = data.state.currentTurn.team.playerId;
-        const oldRejected = data.playerRequest.rejected;
-        const newRejected = [ ...oldRejected ].filter(([k,v]) => !k.startsWith(`${playerId}:`));
+    data.state.on('startTurn', (_event:object) => {
+      const data = this.data;
+      if (!data.playerRequest) return;
 
-        if (newRejected.length !== oldRejected.size) {
-          if (newRejected.length)
-            data.playerRequest.rejected = new Map(newRejected);
-          else
-            data.playerRequest = null;
-        }
-      }
+      const playerId = data.state.currentTurn!.team!.playerId;
+      const oldRejected = data.playerRequest.rejected;
+      const newRejected = [ ...oldRejected ].filter(([k]) => !k.startsWith(`${playerId}:`));
+
+      if (newRejected.length !== oldRejected.size)
+        if (newRejected.length)
+          data.playerRequest.rejected = new Map(newRejected);
+        else
+          data.playerRequest = null;
     });
     // Clear a player request when game ends.
     data.state.on('endGame', () => {
-      data.playerRequest = null;
+      this.data.playerRequest = null;
     });
     data.state.on('sync', () => this.emit('change:state'));
 
     this.data = Object.assign({}, defaultData, data);
   }
 
-  static create(gameOptions) {
+  static get cache() {
+    return this._cache ??= new Cache('Game');
+  }
+  static create(gameOptions:any) {
     const gameData:any = {
       id: uuid(),
       createdAt: new Date(),
@@ -157,18 +206,33 @@ export default class Game extends ActiveModel {
     if (endedAt)
       return endedAt;
     else if (actions?.length)
-      return (actions as any).last.createdAt;
+      return actions.last.createdAt;
     else
       return turnStartedAt || createdAt;
   }
+  get teams() {
+    return this.state.teams;
+  }
   get startedAt() {
     return this.state.startedAt;
+  }
+  get currentTurnId() {
+    return this.state.currentTurnId;
+  }
+  get currentTurn() {
+    return this.state.currentTurn;
+  }
+  get currentTeam() {
+    return this.state.currentTeam;
   }
   get turnStartedAt() {
     return this.state.turnStartedAt;
   }
   get endedAt() {
     return this.state.endedAt;
+  }
+  get isPracticeMode() {
+    return this.state.isPracticeMode;
   }
 
   /*
@@ -184,11 +248,11 @@ export default class Game extends ActiveModel {
     return !state.teams.some(t => t === null);
   }
 
-  getTeamForPlayer(playerId) {
+  getTeamForPlayer(playerId:string) {
     return this.data.state.getTeamForPlayer(playerId);
   }
 
-  mergeTags(tags) {
+  mergeTags(tags:Game['data']['tags']) {
     let changed = false;
 
     if (!this.data.tags) {
@@ -211,38 +275,39 @@ export default class Game extends ActiveModel {
     return changed;
   }
 
-  setRated(rated, reason) {
+  setRated(rated:boolean, reason?:string) {
     this.state.rated = rated;
-    this.state.unratedReason = reason;
+    if (reason)
+      this.state.unratedReason = reason;
     this.emit('change:setRated');
   }
 
-  checkin(team, checkinAt = new Date()) {
+  checkin(team:Team, checkinAt = new Date()) {
     // Stop tracking checkin after game ends.
     if (this.state.endedAt)
       return false;
 
     let changed = false;
 
-    if (team.checkinAt < checkinAt) {
+    if (!team.checkinAt || team.checkinAt < checkinAt) {
       team.checkinAt = checkinAt;
       changed = true;
     }
 
     return changed;
   }
-  checkout(team, checkoutAt, lastActiveAt) {
+  checkout(team:Team, checkoutAt:Date, lastActiveAt:Date) {
     // Stop tracking checkout after game ends.
     if (this.state.endedAt)
       return false;
 
     let changed = false;
 
-    if (team.checkoutAt < checkoutAt) {
+    if (!team.checkoutAt || team.checkoutAt < checkoutAt) {
       team.checkoutAt = checkoutAt;
       changed = true;
     }
-    if (team.lastActiveAt < lastActiveAt) {
+    if (!team.lastActiveAt || team.lastActiveAt < lastActiveAt) {
       team.lastActiveAt = lastActiveAt;
       changed = true;
     }
@@ -250,7 +315,7 @@ export default class Game extends ActiveModel {
     return changed;
   }
 
-  submitAction(playerId, actions) {
+  submitAction(playerId:string, actions:any[]) {
     if (!Array.isArray(actions))
       actions = [ actions ];
 
@@ -278,7 +343,7 @@ export default class Game extends ActiveModel {
     this.data.state.submitAction(actions);
   }
 
-  submitPlayerRequest(playerId, requestType, receivedAt = Date.now()) {
+  submitPlayerRequest(playerId:string, requestType:'undo' | 'truce', receivedAt = Date.now()) {
     const oldRequest = this.data.playerRequest;
     if (oldRequest?.status === 'pending')
       throw new ServerError(409, `A '${oldRequest.type}' request is still pending`);
@@ -289,7 +354,7 @@ export default class Game extends ActiveModel {
     const newRequest = {
       createdAt: new Date(),
       createdBy: playerId,
-      status: 'pending',
+      status: 'pending' as const,
       type: requestType,
       accepted: new Set([ playerId ]),
       rejected: oldRequest?.rejected || new Map(),
@@ -305,14 +370,13 @@ export default class Game extends ActiveModel {
       this.data.playerRequest = newRequest;
 
       // The request is sent to all players.  The initiator may cancel.
-      this.emit({
-        type: `playerRequest`,
+      this.emit('playerRequest', {
         data: newRequest,
       });
       this.emit('change:submitPlayerRequest');
     }
   }
-  submitUndoRequest(request, receivedAt = Date.now()) {
+  submitUndoRequest(request:PlayerRequest, receivedAt = Date.now()) {
     const state = this.data.state;
     if (state.endedAt && state.undoMode !== 'loose')
       throw new ServerError(409, 'Game already ended');
@@ -337,7 +401,7 @@ export default class Game extends ActiveModel {
 
     return true;
   }
-  submitTruceRequest(request) {
+  submitTruceRequest(request:PlayerRequest) {
     if (request.rejected.has(`${request.createdBy}:${request.type}`))
       throw new ServerError(403, `Your '${request.type}' request was already rejected`);
 
@@ -349,7 +413,7 @@ export default class Game extends ActiveModel {
 
     return true;
   }
-  acceptPlayerRequest(playerId, createdAt) {
+  acceptPlayerRequest(playerId:string, createdAt:Date) {
     const request = this.data.playerRequest;
     if (request?.status !== 'pending')
       throw new ServerError(409, 'No request');
@@ -363,14 +427,13 @@ export default class Game extends ActiveModel {
     const teams = this.data.state.teams;
     const acceptedTeams = teams.filter(t => request.accepted.has(t!.playerId));
 
-    this.emit({
-      type: `playerRequest:accept`,
+    this.emit('playerRequest:accept', {
       data: { playerId },
     });
 
     if (acceptedTeams.length === teams.length) {
       request.status = 'completed';
-      this.emit(`playerRequest:complete`);
+      this.emit('playerRequest:complete');
 
       if (request.type === 'undo') {
         teams[request.teamId]!.setUsedUndo();
@@ -382,7 +445,7 @@ export default class Game extends ActiveModel {
 
     this.emit('change:acceptPlayerRequest');
   }
-  rejectPlayerRequest(playerId, createdAt) {
+  rejectPlayerRequest(playerId:string, createdAt:Date) {
     const request = this.data.playerRequest;
     if (request?.status !== 'pending')
       throw new ServerError(409, 'No request');
@@ -392,13 +455,12 @@ export default class Game extends ActiveModel {
     request.status = 'rejected';
     request.rejected.set(`${request.createdBy}:${request.type}`, playerId);
 
-    this.emit({
-      type: `playerRequest:reject`,
+    this.emit('playerRequest:reject', {
       data: { playerId },
     });
     this.emit('change:rejectPlayerRequest');
   }
-  cancelPlayerRequest(playerId, createdAt) {
+  cancelPlayerRequest(playerId:string, createdAt:Date) {
     const request = this.data.playerRequest;
     if (request?.status !== 'pending')
       throw new ServerError(409, 'No request');
@@ -409,11 +471,16 @@ export default class Game extends ActiveModel {
 
     request.status = 'cancelled';
 
-    this.emit(`playerRequest:cancel`);
+    this.emit('playerRequest:cancel');
     this.emit('change:cancelPlayerRequest');
   }
 
-  fork(clientPara, { turnId, vs, as, timeLimitName }) {
+  fork(gameSession:GameSession, { turnId, vs, as, timeLimitName }:{
+    turnId: number,
+    vs: 'yourself' | 'same' | 'invite' | { playerId:string, name:string },
+    as: number,
+    timeLimitName: 'day' | 'week',
+  }) {
     if (this.state.strictFork && !this.state.endedAt)
       throw new ServerError(403, 'Forking is restricted for this game until it ends.');
 
@@ -426,6 +493,7 @@ export default class Game extends ActiveModel {
     for (let i = 0; i < firstTurn.team!.id; i++) {
       teams.push(teams.shift()!);
       units.push(units.shift()!);
+      as = (as + teams.length - 1) % teams.length;
     }
 
     for (const [ teamId, team ] of teams.entries())
@@ -433,14 +501,14 @@ export default class Game extends ActiveModel {
         id: teamId,
         slot: team!.id,
         position: team!.position,
-        set: {
+        set: TeamSet.create({
           units: board.rotateUnits(units[teamId], board.getDegree(team!.position, 'N')),
-        },
+        }, null),
       });
 
     const forkGame = Game.create({
       forkOf: { gameId:this.data.id, turnId },
-      createdBy: clientPara.playerId,
+      createdBy: gameSession.player.id,
       timeLimitName: vs === 'yourself' ? null : timeLimitName,
       type: this.state.type,
       randomFirstTurn: false,
@@ -453,7 +521,7 @@ export default class Game extends ActiveModel {
     });
     forkGame.state.turns.push(Turn.create({
       id: 0,
-      team: teams[0],
+      team: teams[0]!,
       data: {
         units,
         drawCounts: firstTurn.drawCounts ?? null,
@@ -464,23 +532,23 @@ export default class Game extends ActiveModel {
 
     if (vs === 'yourself') {
       if (!this.state.endedAt && this.state.undoMode !== 'loose') {
-        const myTeam = this.state.teams.find(t => t!.playerId === clientPara.playerId);
+        const myTeam = this.state.teams.find(t => t!.playerId === gameSession.player.id);
         if (myTeam)
           myTeam.setUsedSim();
       }
 
       for (const team of teams)
-        team!.join({}, clientPara);
+        team!.join({}, gameSession);
       forkGame.state.start();
     } else {
       if (teams[as] === undefined)
         throw new ServerError(400, "Invalid 'as' option value");
 
-      teams[as]!.join({}, clientPara);
+      teams[as]!.join({}, gameSession);
 
       const vsIndex = (as + 1) % teams.length;
       if (vs === 'same') {
-        const opponents = teams.filter(t => t!.forkOf.playerId !== clientPara.playerId);
+        const opponents = teams.filter(t => t!.forkOf.playerId !== gameSession.player.id);
         if (opponents.length !== 1)
           throw new ServerError(400, `There is no 'same' opponent`);
 
@@ -498,18 +566,14 @@ export default class Game extends ActiveModel {
     if (this.state.startedAt)
       throw new ServerError(409, 'Game already started');
 
-    const whenDeleted = {} as {
-      promise: Promise<any>
-      resolve: (value:any) => void
-      reject: (reason?:any) => void
-    };
+    const whenDeleted = {} as WhenDeleted;
     whenDeleted.promise = new Promise((resolve, reject) => {
       whenDeleted.resolve = resolve;
       whenDeleted.reject = reject;
     });
 
     this.isCancelled = true;
-    this.emit({ type:'delete:cancel', whenDeleted });
+    this.emit('delete:cancel', { whenDeleted });
     return whenDeleted;
   }
   expire() {
@@ -518,18 +582,14 @@ export default class Game extends ActiveModel {
     if (this.state.startedAt)
       throw new ServerError(409, 'Game already started');
 
-    const whenDeleted = {} as {
-      promise: Promise<any>
-      resolve: (value:any) => void
-      reject: (reason?:any) => void
-    };
+    const whenDeleted = {} as WhenDeleted;
     whenDeleted.promise = new Promise((resolve, reject) => {
       whenDeleted.resolve = resolve;
       whenDeleted.reject = reject;
     });
 
     this.isCancelled = true;
-    this.emit({ type:'delete:expire', whenDeleted });
+    this.emit('delete:expire', { whenDeleted });
     return whenDeleted;
   }
   decline() {
@@ -538,22 +598,18 @@ export default class Game extends ActiveModel {
     if (this.state.startedAt)
       throw new ServerError(409, 'Game already started');
 
-    const whenDeleted = {} as {
-      promise: Promise<any>
-      resolve: (value:any) => void
-      reject: (reason?:any) => void
-    };
+    const whenDeleted = {} as WhenDeleted;
     whenDeleted.promise = new Promise((resolve, reject) => {
       whenDeleted.resolve = resolve;
       whenDeleted.reject = reject;
     });
 
     this.isCancelled = true;
-    this.emit({ type:'delete:decline', whenDeleted });
+    this.emit('delete:decline', { whenDeleted });
     return whenDeleted.promise;
   }
 
-  getSyncForPlayer(playerId, reference) {
+  getSyncForPlayer(playerId:string | undefined, reference:Reference) {
     const gameData = this.toJSON();
     const state = gameData.state = this.state.getDataForPlayer(playerId);
 
@@ -568,14 +624,14 @@ export default class Game extends ActiveModel {
         state.currentTurnId,
         lastTurn?.startedAt.toISOString() ?? null,
         lastTurn?.timeLimit ?? null,
-        ...(lastTurn?.actions.map(a => a.createdAt.toISOString()) ?? []),
+        ...(lastTurn?.actions.map((a:any) => a.createdAt.toISOString()) ?? []),
       ];
     }
 
     if (state.recentTurns) {
       const includeTimeLimit = !!this.state.timeLimit && this.state.teams.some(t => t!.playerId === playerId);
 
-      state.recentTurns = state.recentTurns.map((turn, i) => turn.getDigest(i === 0, i === (state.recentTurns.length - 1), includeTimeLimit));
+      state.recentTurns = state.recentTurns.map((turn:any, i:number) => turn.getDigest(i === 0, i === (state.recentTurns.length - 1), includeTimeLimit));
     }
 
     if (!reference)
@@ -621,16 +677,16 @@ export default class Game extends ActiveModel {
     return gameData;
   }
 
-  _pruneGameState(gameData, reference) {
+  _pruneGameState(gameData:any, reference:Exclude<Reference, 'creation'>) {
     const state = gameData.state;
     const toTurnId = gameData.reference[REF_TURN_ID];
     const toTurnLimit = gameData.reference[REF_TURN_LIMIT];
     const toTurn = state.recentTurns.last;
     const fromTurnId = reference[REF_TURN_ID];
-    const fromTurnStartedAt = new Date(reference[REF_TURN_AT]);
+    const fromTurnStartedAt = reference[REF_TURN_AT] && new Date(reference[REF_TURN_AT]);
     const fromTurnLimit = reference[REF_TURN_LIMIT];
     const fromActionId = reference.length - REF_ACTION_AT;
-    const fromActionsAt = reference.slice(REF_ACTION_AT).map(d => new Date(d));
+    const fromActionsAt = reference.slice(REF_ACTION_AT).map((d:string) => new Date(d));
 
     // locked turn id does not progress in practice games
     // Otherwise, if turns have not progressed, locked turn id hasn't either.
@@ -644,7 +700,7 @@ export default class Game extends ActiveModel {
 
     const fromTurn = fromTurnId === toTurnId ? toTurn : this.data.state.getTurn(fromTurnId).getDigest();
     // Only patch the from turn if it wasn't reverted
-    if (fromTurnStartedAt.getTime() !== fromTurn.startedAt.getTime())
+    if (!fromTurnStartedAt || fromTurnStartedAt.getTime() !== fromTurn.startedAt.getTime())
       return;
 
     // Either it hasn't changed or events will catch them up.
@@ -713,7 +769,15 @@ export default class Game extends ActiveModel {
   toJSON() {
     const data = super.toJSON();
 
-    for (const dataProp of Object.keys(defaultData))
+    if (this.toFile) {
+      data.state = data.state.toJSON();
+      delete data.state.numTeams;
+      data.state.teams = this.state.teams;
+      delete data.state.numTurns;
+      data.state.turns = this.state.turns;
+    }
+
+    for (const dataProp of Object.keys(defaultData) as (keyof typeof defaultData)[])
       if (defaultData[dataProp] === data[dataProp])
         delete data[dataProp];
 
@@ -722,6 +786,7 @@ export default class Game extends ActiveModel {
   toParts(allParts = false) {
     const parts = new Map();
 
+    // Use 'this' for the data so that this object gets serialized as a Game object.
     if (this.clean(allParts))
       parts.set('/', { data:this });
 
@@ -735,12 +800,11 @@ export default class Game extends ActiveModel {
       if (turn && turn.clean(allParts))
         parts.set(`/turns/${turn.id}`, { data:turn });
 
-    // The numTurns data is not synced as turns are pushed.
+    // The numTurns data is not synced as turns are reverted
     // This allows us to track the number of persisted turns.
     // So, we can use it to determine if turns need to be deleted.
     for (let t = state.turns.length; t < state._data.numTurns; t++)
       parts.set(`/turns/${t}`, null);
-    state._data.numTurns = state.turns.length;
 
     return parts;
   }

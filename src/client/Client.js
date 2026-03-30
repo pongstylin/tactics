@@ -1,4 +1,3 @@
-import config from 'config/client.js';
 import emitter from 'utils/emitter.js';
 
 export default class Client {

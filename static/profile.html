@@ -42,6 +42,9 @@
     * {
       -webkit-tap-highlight-color: transparent;
     }
+    BUTTON[name="WebGL"], BUTTON[name="WebGPU"] {
+      padding: 0 8px;
+    }
 
     .page {
       box-sizing: border-box;
@@ -128,6 +131,15 @@
 
     .row {
       padding: 4px 0;
+    }
+    .row .label, .row .value {
+      display: inline-block;
+    }
+    .row .label {
+      font-weight: bold;
+      width: 120px;
+      text-align: right;
+      padding-right: 8px;
     }
     .intro {
       padding-bottom: 8px;
@@ -218,6 +230,21 @@
       </DIV>
       <DIV class="break">Individual relationships override the above rules.</DIV>
       <DIV class="relationships"></DIV>
+    </DIV>
+    <DIV class="section">
+      Application
+    </DIV>
+    <DIV class="row client-version">
+      <DIV class="label">Client Version:</DIV><DIV class="value"></DIV>
+    </DIV>
+    <DIV class="row server-version">
+      <DIV class="label">Server Version:</DIV><DIV class="value"></DIV>
+    </DIV>
+    <DIV class="row webgl-engine">
+      <DIV class="label">WebGL:</DIV><DIV class="value"></DIV>
+    </DIV>
+    <DIV class="row webgpu-engine">
+      <DIV class="label">WebGPU:</DIV><DIV class="value"></DIV>
     </DIV>
   </DIV>
 </BODY>

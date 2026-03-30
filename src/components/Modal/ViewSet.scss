@@ -1,0 +1,18 @@
+.modal.viewSet {
+  width: 600px;
+
+  HEADER .setName {
+    white-space: nowrap;
+  }
+}
+
+/*
+ * Portrait Layout
+ */
+@media (max-width: 440px) and (max-aspect-ratio: 2/3) {
+  .modal.viewSet {
+    .content {
+      padding: 8px;
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import setsById from '#config/sets.js';
+import setsBySlot from '#config/sets.js';
 
 const local = {
   secure: process.env.LOCAL_SECURE === 'true',
@@ -93,8 +93,8 @@ const gameConfigProps = {
 };
 
 export const gameConfig = {
-  get setsById() {
-    return setsById;
+  get setsBySlot() {
+    return setsBySlot;
   },
 
   get myColorId() {

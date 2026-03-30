@@ -71,24 +71,11 @@ export default class extends FileAdapter {
    ****************************************************************************/
   async createPlayer(player) {
     if (!(player instanceof Player))
-      player = Player.create(player);
+      player = await Player.create(player);
 
     await this._createPlayer(player);
     this.cache.get('player').add(player.id, player);
     this.cache.get('identity').add(player.identityId, player.identity);
-    return player;
-  }
-  async openPlayer(playerId) {
-    const playerCache = this.cache.get('player');
-    const player = await this._getPlayer(playerId);
-    playerCache.open(playerId, player);
-    this.cache.get('identity').sync(player.identityId, player.identity, playerCache, playerId);
-    return player;
-  }
-  closePlayer(playerId) {
-    const playerCache = this.cache.get('player');
-    const player = playerCache.close(playerId);
-    this.cache.get('identity').sync(player.identityId, player.identity, playerCache, playerId);
     return player;
   }
   async getPlayer(playerId) {
@@ -96,9 +83,6 @@ export default class extends FileAdapter {
     this.cache.get('player').add(playerId, player);
     this.cache.get('identity').add(player.identityId, player.identity);
     return player;
-  }
-  getOpenPlayer(playerId) {
-    return this.cache.get('player').getOpen(playerId);
   }
 
   async createPlayerDevice(player, device) {

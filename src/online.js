@@ -1,11 +1,19 @@
 import config from 'config/client.js';
 import copy from 'components/copy.js';
-import ConfigureGameModal from 'components/Modal/ConfigureGame.js';
+import * as gameArena from 'components/GameArena.js';
+import * as gameCard from 'components/GameCard.js';
+import { getWaitingGroupId, renderGameGroup } from 'components/GameCard.js';
+import SearchSets from 'components/SearchSets.js';
+import SearchSetGames from 'components/SearchSetGames.js';
 import Setup from 'components/Setup.js';
 import ScrollButton from 'components/ScrollButton.js';
 import share from 'components/share.js';
+import Spinner from 'components/Spinner.js';
 import whenDOMReady from 'components/whenDOMReady.js';
 import whenTransitionEnds from 'components/whenTransitionEnds.js';
+import ConfigureGameModal from 'components/Modal/ConfigureGame.js';
+import ViewSetModal from 'components/Modal/ViewSet.js';
+import { getParam, unsetParam } from 'utils/hashParams.js';
 import sleep from 'utils/sleep.js';
 
 const authClient = Tactics.authClient;
@@ -13,7 +21,6 @@ const gameClient = Tactics.gameClient;
 const pushClient = Tactics.pushClient;
 const popup = Tactics.popup;
 
-const arenaGameSummary = new WeakMap();
 const groups = new Map([
   [ 'lobby',    'Lobby' ],
   [ 'active',   'Active Games' ],
@@ -76,9 +83,18 @@ const state = {
     rankings: {
     },
   },
-  avatars: new Map(),
+  viewSetModal: new ViewSetModal(),
 };
 const routes = new Map([
+  [ '#lobby/:styleId/searchSets', p => ({
+    route: () => toggleSearchSets(true), 
+  }) ],
+  [ '#lobby/:styleId/searchSetGames', p => ({
+    route: () => toggleSearchSetGames(),
+  }) ],
+  [ '#lobby/:styleId/setup', p => ({
+    route: () => toggleSetup(true), 
+  }) ],
   [ '#rankings', p => ({
     route: renderRankings,
     data: Promise.all([
@@ -222,10 +238,8 @@ const pushPublicKey = Uint8Array.from(
 );
 
 let avatars;
-let arena;
 const handleAvatarsData = () => {
   avatars = Tactics.getSprite('avatars');
-  arena = avatars.getImage('arena');
   ScrollButton.config.icons = {
     up: avatars.getImage('scrollup').src,
     down: avatars.getImage('scrolldown').src,
@@ -236,39 +250,124 @@ const handleAvatarsData = () => {
   };
 }
 
-const getDataFromService = Tactics.load(['avatars']).then(async () => {
+const loadAvatarsAndDependants = Tactics.load(['avatars']).then(async () => {
   state.styles = await gameClient.getGameTypes();
   handleAvatarsData();
   await Tactics.makeAvatarRenderer();
   await whenDOMReady;
+
+  const lobbyState = state.tabContent.lobby;
+  lobbyState.setup = new Setup();
+  lobbyState.setup.on('change:avatar', async ({ data:avatar }) => {
+    setMyAvatar(avatar);
+
+    gameClient.saveMyAvatar(avatar);
+  });
+  lobbyState.searchSets = new SearchSets();
+  lobbyState.searchSets.on('search', ({ searchText }) => {
+    history.pushState(null, '', `#lobby/${lobbyState.selectedStyleId}/searchSets?q=${encodeURIComponent(searchText)}`);
+  });
+  lobbyState.searchSets.on('select', ({ set }) => {
+    state.viewSetModal.show(lobbyState.selectedStyleId, set);
+  });
+  lobbyState.searchSetGames = new SearchSetGames();
+  lobbyState.searchSetGames.on('search', async ({ set, vsSet }) => {
+    history.pushState(null, '', `#lobby/${lobbyState.selectedStyleId}/searchSetGames?` + new URLSearchParams({
+      set: await JSON.compress(set),
+      ...(vsSet ? { vsSet:await JSON.compress(vsSet) } : {}),
+    }));
+  });
+  lobbyState.searchSetGames.on('select:player', ({ playerId }) => {
+    location.hash = `#rankings/${playerId}/FORTE`;
+  });
+  lobbyState.searchSetGames.on('select:set', ({ set, vsSet }) => {
+    state.viewSetModal.show(lobbyState.selectedStyleId, set, vsSet);
+  });
+
   renderLobby();
 });
 
-const fetchAvatars = async playerIds => {
-  const newPlayerIds = Array.from(new Set(playerIds.filter(pId => !state.avatars.has(pId))));
+const spinner = new Spinner({ autoShow:false });
+const announcements = [
+  {
+    id: 1,
+    startAt: new Date('2026-04-01T00:00:00Z'),
+    endAt: new Date('2026-04-15T00:00:00Z'),
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
+      <DIV style="margin:0 8px">
+        A $200 Prize Pool is waiting, and we've leveled the playing field! Whether you're a pro or a rising star, everyone has a shot at the gold:<BR>
+        <UL style="list-style:none; margin-left:16px; padding-left:0">
+          <LI style="margin:4px 0"><B>TOP TIER</B>: 3 Prizes for the ultimate champions.</LI>
+          <LI style="margin:4px 0"><B>CHALLENGER TIER</B>: 3 Prizes reserved for the "Bottom Bracket"—so even if you aren't a pro, you can still win CASH!</LI>
+          <LI style="margin:4px 0"><B>EXCLUSIVE REWARD</B>: Play all your games to claim the legendary Storm Dragon unit—no victory required!</LI>
+        </UL>
+        Don't just watch the storm. Join it.<BR>
+        Tap the arena below to join our Discord for sign-ups and full details!<BR>
+      </DIV>
+      <DIV style="text-align:center; margin-top:16px">
+        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
+          <IMG src="/StormDragonPreview.png" />
+          <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Claim your reward!</SPAN>
+        </A>
+      </DIV>
+    `,
+  },
+  {
+    id: 2,
+    startAt: new Date('2026-04-15T00:00:00Z'),
+    endAt: new Date('2026-05-02T00:00:00Z'),
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
+      <DIV style="margin:0 8px">
+        Final call and reminder!  Don't miss out on your chance to earn $$ while playing in a brand new Tournament starting May 2nd.  If you play all of your games, you will earn the brand new Storm Dragon unit.  Tap the arena below to visit our Discord to learn more and sign up.
+      </DIV>
+      <DIV style="text-align:center; margin-top:16px">
+        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
+          <IMG src="/StormDragonPreview.png" />
+          <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Claim your reward!</SPAN>
+        </A>
+      </DIV>
+    `,
+  },
+];
 
-  if (newPlayerIds.length) {
-    const avatars = await gameClient.getPlayersAvatar(newPlayerIds);
-    for (let i = 0; i < newPlayerIds.length; i++)
-      state.avatars.set(newPlayerIds[i], avatars[i]);
+whenDOMReady.then(async () => {
+  const now = Date.now();
+  const responses = new Map(config.getItem('announcementResponses', []));
+
+  for (const announcement of announcements) {
+    if (now < announcement.startAt) continue;
+    if (now > announcement.endAt) continue;
+
+    const response = responses.get(announcement.id);
+    if (response?.type === 'dismiss') continue;
+    if (response?.type === 'remind' && Date.now() < new Date(response.startAt)) continue;
+
+    const newResponse = await popup({
+      message: announcement.message,
+      buttons: [
+        { label:'Remind me later.', value:'remind' },
+        { label:'Got it !', value:'dismiss' },
+      ],
+      maxWidth: '343px',
+    }).whenClosed;
+
+    if (newResponse === 'remind')
+      responses.set(announcement.id, { type:'remind', startAt:new Date(Date.now() + 86400000) });
+    else if (newResponse === 'dismiss')
+      responses.set(announcement.id, { type:'dismiss' });
   }
-}
-const getAvatar = (playerId, options = {}) => {
-  const avatar = state.avatars.get(playerId);
 
-  return Tactics.drawAvatar(avatar, { direction:'S', withShadow:true, ...options });
-};
+  config.setItem('announcementResponses', responses);
+});
 
 whenDOMReady.then(() => {
-  const divLoading = document.querySelector(`.tabContent .loading`);
-  divLoading.classList.add('is-active');
-  divLoading.classList.add('hide');
-  whenTransitionEnds(divLoading, () => {
-    divLoading.classList.remove('hide');
-  });
+  document.querySelector(`.tabContent`).appendChild(spinner.el);
+  spinner.fadeIn();
 
   authClient.whenReady.then(async () => {
-    divLoading.classList.remove('is-active');
+    spinner.hide();
 
     if (await authClient.requireAuth())
       history.replaceState(null, null, '#lobby');
@@ -372,12 +471,23 @@ whenDOMReady.then(() => {
 
     const divTeam = event.target.closest('.team');
     if (divTeam) {
-      const playerId = divTeam.dataset.playerId;
-      location.href = `#rankings/${playerId}/FORTE`;
+      if (event.target.classList.contains('name')) {
+        const teamInfo = gameCard.teamInfo.get(divTeam);
+        if (!teamInfo.team.set) {
+          location.hash = `#rankings/${teamInfo.team.playerId}/FORTE`;
+          return;
+        }
+        const teamId = teamInfo.team.id;
+        const vsTeam = teamInfo.game.teams[(teamId + 1) % 2];
+
+        const [ teamSet, vsTeamSet ] = await Promise.all([
+          gameClient.getGameTeamSet(divGame.dataset.type, gameId, teamId),
+          vsTeam.set ? gameClient.getGameTeamSet(divGame.dataset.type, gameId, vsTeam.id) : null,
+        ]);
+        state.viewSetModal.show(divGame.dataset.type, teamSet, vsTeamSet, teamInfo);
+      }
       return;
     }
-
-    const link = `game.html?${gameId}`;
 
     const aDecline = event.target.closest('.decline A');
     if (aDecline) {
@@ -395,6 +505,8 @@ whenDOMReady.then(() => {
         maxWidth: '250px',
       });
     }
+
+    const link = new URL(`game.html?${gameId}`, location.href);
 
     const spnCopy = event.target.closest('.copy');
     if (spnCopy) {
@@ -455,26 +567,20 @@ whenDOMReady.then(() => {
   resize(dynamicStyle.sheet);
 
   authClient
-    .on('login', () => showTabs())
     .on('name-change', () => setMyName())
     .on('logout', () => hideTabs());
-  if (authClient.isAuthorized)
-    showTabs();
+  authClient.whenAuthorized.then(() => showTabs());
 
   gameClient
     .on('event', ({ body }) => {
       const statsContent = state.tabContent.stats;
-      const yourContent = state.tabContent.yourGames;
       const lobbyContent = state.tabContent.lobby;
-      const publicContent = state.tabContent.publicGames;
 
       if (body.group === `/myGames/${myPlayerId}`) {
-        if (body.type === 'stats') {
-          yourContent.stats = body.data;
-          renderStats('my');
-        } else if (body.type === 'add' || body.type === 'change')
+        if (body.type === 'game:add' || body.type === 'game:change') {
           setYourGame(body.data);
-        else if (body.type === 'remove')
+          renderStats('my');
+        } else if (body.type === 'game:remove')
           unsetYourGame(body.data);
       } else if (body.group === '/collections') {
         if (body.type === 'stats') {
@@ -482,9 +588,9 @@ whenDOMReady.then(() => {
           renderStats('collections');
         }
       } else if (body.group === `/collections/lobby/${lobbyContent.selectedStyleId}`) {
-        if (body.type === 'add' || body.type === 'change')
+        if (body.type === 'game:add' || body.type === 'game:change')
           setLobbyGame(body.data);
-        else if (body.type === 'remove') {
+        else if (body.type === 'game:remove') {
           // A game can be removed from the lobby list when you join it.
           // This is because the lobby excludes your games from the list.
           // But our own active lobby games should remain visible.
@@ -493,16 +599,21 @@ whenDOMReady.then(() => {
 
           unsetLobbyGame(body.data);
         }
+      } else if (body.group === '/collections/lobby') {
+        if (body.type === 'game:add' || body.type === 'game:change')
+          setPublicLobbyGame(body.data);
+        else if (body.type === 'game:remove')
+          unsetPublicLobbyGame(body.data);
       } else if (body.group === '/collections/public') {
-        if (body.type === 'add' || body.type === 'change')
+        if (body.type === 'game:add' || body.type === 'game:change')
           setPublicGame(body.data);
-        else if (body.type === 'remove')
+        else if (body.type === 'game:remove')
           unsetPublicGame(body.data);
       }
     })
     .on('open', async ({ data:{ reason } }) => {
       if (state.currentTab === null || reason === 'resume')
-        document.querySelector('.tabContent .loading').classList.remove('is-active');
+        spinner.hide();
       else {
         /*
          * Now that the connection is open, sync the current tab.  This is always
@@ -520,7 +631,7 @@ whenDOMReady.then(() => {
     })
     .on('close', ({ data:{ reopen } }) => {
       if (reopen)
-        document.querySelector('.tabContent .loading').classList.add('is-active');
+        spinner.hide();
     });
 });
 
@@ -537,7 +648,7 @@ async function showTabs() {
 
   document.body.classList.toggle('account-is-at-risk', isAccountAtRisk);
 
-  await getDataFromService;
+  await loadAvatarsAndDependants;
   setMyAvatar(avatar);
   state.tabContent.lobby.setup.avatar = avatar;
 
@@ -558,7 +669,7 @@ function hideTabs() {
   divPN.style.display = 'none';
 
   document.querySelector('.tabs').style.display = 'none';
-  document.querySelector('.tabContent .loading').classList.remove('is-active');
+  spinner.hide();
 }
 
 function setMyName() {
@@ -569,7 +680,7 @@ function setMyName() {
 function setMyAvatar(avatar) {
   const divAvatar = document.querySelector('.page HEADER .account .avatar-badge .image');
 
-  state.avatars.set(myPlayerId, avatar);
+  gameArena.avatars.set(myPlayerId, avatar);
 
   const imgAvatar = Tactics.getAvatarImage(avatar, { withFocus:false });
   const avatarData = JSON.parse(imgAvatar.dataset.avatar);
@@ -712,6 +823,74 @@ function unsetLobbyGame(gameSummary) {
   if (isDirty)
     displaceLobbyGame(gameSummary);
 }
+async function setPublicLobbyGame(gameSummary) {
+  const publicGames = state.tabContent.publicGames;
+  if (!publicGames.lobbyGames) return;
+
+  const wasWaiting = publicGames.lobbyGames[0].has(gameSummary.id);
+  const wasActive  = publicGames.lobbyGames[1].has(gameSummary.id);
+
+  publicGames.lobbyGames[0].delete(gameSummary.id);
+  publicGames.lobbyGames[1].delete(gameSummary.id);
+
+  if (!gameSummary.startedAt)
+    publicGames.lobbyGames[0].set(gameSummary.id, gameSummary);
+  else if (!gameSummary.endedAt)
+    publicGames.lobbyGames[1].set(gameSummary.id, gameSummary);
+  // endedAt: falls out of both maps naturally
+
+  if (state.currentTab !== 'publicGames' || !publicGames.els) return;
+
+  await gameArena.fetchAvatars(
+    gameSummary.teams.filter(t => t?.playerId).map(t => t.playerId)
+  );
+
+  // Re-check after await: an unset may have arrived while we were fetching avatars.
+  if (state.currentTab !== 'publicGames' || !publicGames.els) return;
+  const stillWaiting = publicGames.lobbyGames[0].has(gameSummary.id);
+  const stillActive  = publicGames.lobbyGames[1].has(gameSummary.id);
+  if (!stillWaiting && !stillActive) {
+    // The game was removed while we were awaiting — ensure DOM is clean.
+    syncPublicWaitingGroup(gameSummary);
+    removePublicCard(publicGames.els.secActive, gameSummary.id);
+    updatePublicSectionVisibility();
+    return;
+  }
+
+  const isNowWaiting = !gameSummary.startedAt;
+  const isNowActive  = !!gameSummary.startedAt && !gameSummary.endedAt;
+
+  if (isNowWaiting) {
+    syncPublicWaitingGroup(gameSummary);
+    if (wasActive)
+      removePublicCard(publicGames.els.secActive, gameSummary.id);
+  } else if (isNowActive) {
+    updatePublicActiveCard(gameSummary, !wasActive);
+    if (wasWaiting)
+      syncPublicWaitingGroup(gameSummary);
+  } else {
+    if (wasWaiting)
+      syncPublicWaitingGroup(gameSummary);
+    if (wasActive)
+      removePublicCard(publicGames.els.secActive, gameSummary.id);
+  }
+
+  updatePublicSectionVisibility();
+}
+function unsetPublicLobbyGame(gameSummary) {
+  const publicGames = state.tabContent.publicGames;
+  if (!publicGames.lobbyGames) return;
+
+  let isDirty = false;
+  if (publicGames.lobbyGames[0].delete(gameSummary.id)) isDirty = true;
+  if (publicGames.lobbyGames[1].delete(gameSummary.id)) isDirty = true;
+
+  if (!isDirty || state.currentTab !== 'publicGames' || !publicGames.els) return;
+
+  syncPublicWaitingGroup(gameSummary);
+  removePublicCard(publicGames.els.secActive, gameSummary.id);
+  updatePublicSectionVisibility();
+}
 function placeLobbyGame(gameSummary, skipRender = false) {
   const tabContent = state.tabContent.lobby;
   const isVisible = state.currentTab === 'lobby' && gameSummary.collection === `lobby/${tabContent.view.gameTypeId}`;
@@ -802,23 +981,75 @@ function displaceLobbyGame(gameSummary) {
 
   renderLobbyGames();
 }
-function setPublicGame(gameSummary) {
-  const publicGames = state.tabContent.publicGames.games;
+async function setPublicGame(gameSummary) {
+  const tabContent = state.tabContent.publicGames;
+  const publicGames = tabContent.games;
+
+  const wasWaiting  = publicGames[0].has(gameSummary.id);
+  const wasActive   = publicGames[1].has(gameSummary.id);
+  const wasComplete = publicGames[2].has(gameSummary.id);
 
   publicGames[0].delete(gameSummary.id);
   publicGames[1].delete(gameSummary.id);
   publicGames[2].delete(gameSummary.id);
-  if (!gameSummary.startedAt)
-    publicGames[0] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[0] ]);
-  else if (!gameSummary.endedAt)
-    publicGames[1] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[1] ]);
-  else
-    publicGames[2] = new Map([ [ gameSummary.id, gameSummary ], ...publicGames[2] ]);
 
-  renderPublicGames();
+  if (!gameSummary.startedAt)
+    publicGames[0].set(gameSummary.id, gameSummary);
+  else if (!gameSummary.endedAt)
+    publicGames[1].set(gameSummary.id, gameSummary);
+  else
+    publicGames[2].set(gameSummary.id, gameSummary);
+
+  if (state.currentTab !== 'publicGames' || !tabContent.els) return;
+
+  await gameArena.fetchAvatars(
+    gameSummary.teams.filter(t => t?.playerId).map(t => t.playerId)
+  );
+
+  // Re-check after await: an unset may have arrived while we were fetching avatars.
+  if (state.currentTab !== 'publicGames' || !tabContent.els) return;
+  const stillWaiting  = publicGames[0].has(gameSummary.id);
+  const stillActive   = publicGames[1].has(gameSummary.id);
+  const stillComplete = publicGames[2].has(gameSummary.id);
+  if (!stillWaiting && !stillActive && !stillComplete) {
+    // The game was removed while we were awaiting — ensure DOM is clean.
+    syncPublicWaitingGroup(gameSummary);
+    removePublicCard(tabContent.els.secActive, gameSummary.id);
+    removePublicCard(tabContent.els.secComplete, gameSummary.id);
+    updatePublicSectionVisibility();
+    return;
+  }
+
+  const isNowWaiting  = !gameSummary.startedAt;
+  const isNowActive   = !!gameSummary.startedAt && !gameSummary.endedAt;
+  const isNowComplete = !!gameSummary.endedAt;
+
+  if (isNowWaiting) {
+    syncPublicWaitingGroup(gameSummary);
+    if (wasActive)   removePublicCard(tabContent.els.secActive, gameSummary.id);
+    if (wasComplete) removePublicCard(tabContent.els.secComplete, gameSummary.id);
+  } else if (isNowActive) {
+    updatePublicActiveCard(gameSummary, !wasActive);
+    if (wasWaiting)  syncPublicWaitingGroup(gameSummary);
+    if (wasComplete) removePublicCard(tabContent.els.secComplete, gameSummary.id);
+  } else {
+    // Complete — prepend to complete section
+    const divBody = tabContent.els.secComplete.querySelector('.body');
+    const existing = document.getElementById(gameSummary.id);
+    const newCard = gameCard.renderGame(gameSummary);
+    if (existing && divBody.contains(existing))
+      existing.replaceWith(newCard);
+    else
+      divBody.prepend(newCard);
+    if (wasWaiting) syncPublicWaitingGroup(gameSummary);
+    if (wasActive)  removePublicCard(tabContent.els.secActive, gameSummary.id);
+  }
+
+  updatePublicSectionVisibility();
 }
 function unsetPublicGame(gameSummary) {
-  const publicGames = state.tabContent.publicGames.games;
+  const tabContent = state.tabContent.publicGames;
+  const publicGames = tabContent.games;
   let isDirty = false;
 
   for (let i = 0; i < publicGames.length; i++) {
@@ -826,8 +1057,12 @@ function unsetPublicGame(gameSummary) {
       isDirty = true;
   }
 
-  if (isDirty)
-    renderPublicGames();
+  if (!isDirty || state.currentTab !== 'publicGames' || !tabContent.els) return;
+
+  syncPublicWaitingGroup(gameSummary);
+  removePublicCard(tabContent.els.secActive, gameSummary.id);
+  removePublicCard(tabContent.els.secComplete, gameSummary.id);
+  updatePublicSectionVisibility();
 }
 
 function resize(sheet) {
@@ -879,26 +1114,24 @@ function resize(sheet) {
   `, sheet.cssRules.length);
 }
 function selectStyle(styleId) {
-  const tabContent = state.tabContent.lobby;
+  const lobbyState = state.tabContent.lobby;
   const spnStyle = document.querySelector('.lobby HEADER .style');
   const divArenas = document.querySelector('.lobby .arenas');
   const ulFloorList = divArenas.querySelector('.floors UL');
-  const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
 
-  if (tabContent.selectedStyleId)
-    ulFloorList.querySelector(`[data-style-id=${tabContent.selectedStyleId}]`).classList.remove('selected');
+  if (lobbyState.selectedStyleId)
+    ulFloorList.querySelector(`[data-style-id=${lobbyState.selectedStyleId}]`).classList.remove('selected');
   ulFloorList.querySelector(`[data-style-id=${styleId}]`).classList.add('selected');
 
   const styles = state.styles;
   spnStyle.textContent = styles.find(style => style.id === styleId).name;
-  tabContent.selectedStyleId = styleId;
+  lobbyState.selectedStyleId = styleId;
 }
 async function selectGroup(groupId) {
   const tabContent = state.tabContent.lobby;
   const divArenas = document.querySelector('.lobby .arenas');
   const divGroups = divArenas.querySelector('.groups');
   const ulGroupList = divGroups.querySelector('UL');
-  const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
   const footer = document.querySelector('.lobby FOOTER');
   const spnGroup = footer.querySelector('.group');
 
@@ -933,7 +1166,7 @@ async function selectArena(event) {
     else
       createGame(divArena);
   } else if (divArena.classList.contains('waiting')) {
-    const arena = arenaGameSummary.get(divArena);
+    const arena = gameArena.arenaGameSummary.get(divArena);
 
     if (arena.createdBy === myPlayerId) {
       if (state.currentTab !== 'lobby') {
@@ -949,10 +1182,16 @@ async function selectArena(event) {
       }
 
       cancelGame(arena);
-    } else
-      joinGame(arena);
+    } else {
+      const groupId = getWaitingGroupId(arena);
+      const group = getPublicWaitingGroupById(groupId);
+      if (group && group.size > 1)
+        joinGameGroup(groupId);
+      else
+        joinGame(arena);
+    }
   } else {
-    const arena = arenaGameSummary.get(divArena);
+    const arena = gameArena.arenaGameSummary.get(divArena);
     const link = `/game.html?${arena.id}`;
 
     // Support common open-new-tab semantics
@@ -1027,8 +1266,6 @@ async function declineGame(gameId) {
   }
 }
 async function joinGame(arena) {
-  const tabContent = state.tabContent.lobby;
-
   const creatorTeam = arena.teams.find(t => t?.playerId === arena.createdBy);
   if (arena.meta.creator.relationship?.blockedByRule) {
     let message;
@@ -1101,6 +1338,44 @@ async function joinGame(arena) {
     }
     return false;
   }
+}
+
+/*
+ * Join a group card — always goes through confirmBeforeJoinGroup so the
+ * player can select which style to join.
+ */
+async function joinGameGroup(groupId) {
+  const games = getPublicWaitingGroupById(groupId);
+  if (!games || games.size === 0) return;
+
+  const oldest = Array.from(games.values()).reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+  const creatorTeam = oldest.teams.find(t => t?.playerId === oldest.createdBy);
+
+  if (oldest.meta.creator.relationship?.blockedByRule) {
+    let message;
+    if (oldest.meta.creator.relationship.blockedByRule === 'guest')
+      message = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked guests from joining their public and lobby games.
+        You can verify your account on your <A href="security.html">Account Security</A> page.
+      `;
+    else if (oldest.meta.creator.relationship.blockedByRule === 'new')
+      message = `
+        Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
+        You can try again later or create your own game.
+      `;
+    else
+      message = `You are blocked for unknown reasons.`;
+
+    return popup({
+      message,
+      buttons: [
+        { label:'Ok', value:false },
+      ],
+      maxWidth: '300px',
+    });
+  }
+
+  await configureGame.show('confirmBeforeJoinGroup', { gameSummaries: Array.from(games.values()) });
 }
 
 function renderPN(reg) {
@@ -1267,7 +1542,7 @@ function renderStats(scope = 'all') {
       if (game.turnEndedAt)
         continue;
       // Exclude practice games
-      if (!game.teams.find(t => t.playerId !== myPlayerId))
+      if (!game.teams.some(t => t.playerId !== myPlayerId))
         continue;
 
       numYourTurn++;
@@ -1295,7 +1570,7 @@ function renderStats(scope = 'all') {
     }
 
     document.querySelector('.tabs .lobby .badge').textContent = numLobby || '';
-    document.querySelector('.tabs .publicGames .badge').textContent = numPublic || '';
+    document.querySelector('.tabs .publicGames .badge').textContent = (numPublic + numLobby) || '';
 
     const floors = document.querySelector('.floors UL');
     if (floors) {
@@ -1333,9 +1608,16 @@ function renderLobby() {
   divControls.classList.add('controls');
   header.appendChild(divControls);
 
+  const btnSearchSets = document.createElement('BUTTON');
+  btnSearchSets.classList.add('toggle-searchSets');
+  btnSearchSets.textContent = 'Search Sets';
+  btnSearchSets.addEventListener('click', () => toggleSearchSets());
+  divControls.appendChild(btnSearchSets);
+
   const btnSetup = document.createElement('BUTTON');
+  btnSetup.classList.add('toggle-setup');
   btnSetup.textContent = 'Setup';
-  btnSetup.addEventListener('click', () => toggleSetup(btnSetup, lobbyState));
+  btnSetup.addEventListener('click', () => toggleSetup());
   divControls.appendChild(btnSetup);
 
   const btnSettings = document.createElement('BUTTON');
@@ -1356,22 +1638,19 @@ function renderLobby() {
   divContent.classList.add('content');
   liLobby.appendChild(divContent);
 
-  lobbyState.setup = new Setup();
-  lobbyState.setup
-    .on('change:avatar', async ({ data:avatar }) => {
-      setMyAvatar(avatar);
-
-      gameClient.saveMyAvatar(avatar);
-    })
-    .on('change:sets', ({ data:sets }) => {
-      lobbyState.sets = sets;
-    });
-
   const divSetup = lobbyState.setup.el;
   divSetup.classList.add('hide');
   divContent.appendChild(divSetup);
 
-  const divArenas = renderArenas(divContent);
+  const divSearchSets = lobbyState.searchSets.el;
+  divSearchSets.classList.add('hide');
+  divContent.appendChild(divSearchSets);
+
+  const divSearchSetGames = lobbyState.searchSetGames.el;
+  divSearchSetGames.classList.add('hide');
+  divContent.appendChild(divSearchSetGames);
+
+  renderArenas(divContent);
 
   /*****************************************************************************
    * Footer
@@ -1402,37 +1681,157 @@ function renderLobby() {
 
   liLobby.appendChild(footer);
 }
-async function toggleSetup(btnSetup, lobbyState) {
-  const divLoading = document.querySelector(`.tabContent .loading`);
+async function toggleSearchSets(force = false) {
+  const lobbyState = state.tabContent.lobby;
+  const btnSearchSets = document.querySelector('.lobby HEADER .controls .toggle-searchSets');
+  const btnSetup = document.querySelector('.lobby HEADER .controls .toggle-setup');
   const divSetup = lobbyState.setup.el;
+  const divSearchSets = lobbyState.searchSets.el;
+  const divSearchSetGames = lobbyState.searchSetGames.el;
+  const divArenas = document.querySelector('.lobby .arenas');
+  const footer = document.querySelector('.lobby FOOTER');
+  btnSearchSets.disabled = true;
+
+  if (force || btnSearchSets.textContent === 'Search Sets') {
+    btnSearchSets.textContent = 'Lobby';
+    footer.style.display = 'none';
+
+    spinner.fadeIn();
+
+    const routePath = `#lobby/${lobbyState.selectedStyleId}/searchSets?`;
+    if (!location.hash.startsWith(routePath))
+      history.pushState(null, '', routePath.slice(0, -1));
+
+    const untilReady = lobbyState.searchSets.setGameType(lobbyState.gameType, lobbyState.params?.get('q') ?? '');
+
+    if (divSetup.classList.contains('show')) {
+      btnSetup.textContent = 'Setup';
+      divSetup.classList.remove('show');
+      await whenTransitionEnds(divSetup, () => divSetup.classList.add('hide'));
+    } else if (divSearchSetGames.classList.contains('show')) {
+      divSearchSetGames.classList.remove('show');
+      await whenTransitionEnds(divSearchSetGames, () => divSearchSetGames.classList.add('hide'));
+    } else if (divArenas.classList.contains('show')) {
+      divArenas.classList.remove('show');
+      await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+    }
+    await untilReady;
+
+    divSearchSets.classList.remove('hide');
+    await sleep();
+    spinner.hide();
+    divSearchSets.classList.add('show');
+    await whenTransitionEnds(divSearchSets);
+  } else {
+    btnSearchSets.textContent = 'Search Sets';
+    footer.style.display = '';
+
+    const routePath = `#lobby/${lobbyState.selectedStyleId}/lobby?`;
+    if (!location.hash.startsWith(routePath))
+      history.pushState(null, '', routePath.slice(0, -1));
+
+    if (divSearchSetGames.classList.contains('show')) {
+      divSearchSetGames.classList.remove('show');
+      await whenTransitionEnds(divSearchSetGames, () => divSearchSetGames.classList.add('hide'));
+    }
+
+    divSearchSets.classList.remove('show');
+    await whenTransitionEnds(divSearchSets, () => divSearchSets.classList.add('hide'));
+
+    divArenas.classList.remove('hide');
+    await sleep();
+    divArenas.classList.add('show');
+    await whenTransitionEnds(divArenas);
+  }
+
+  btnSearchSets.disabled = false;
+}
+async function toggleSearchSetGames() {
+  const lobbyState = state.tabContent.lobby;
+  const btnSetup = document.querySelector('.lobby HEADER .controls .toggle-setup');
+  const btnSearchSets = document.querySelector('.lobby HEADER .controls .toggle-searchSets');
+  const divSetup = lobbyState.setup.el;
+  const divSearchSets = lobbyState.searchSets.el;
+  const divSearchSetGames = lobbyState.searchSetGames.el;
+  const divArenas = document.querySelector('.lobby .arenas');
+  const footer = document.querySelector('.lobby FOOTER');
+
+  btnSearchSets.textContent = 'Lobby';
+  footer.style.display = 'none';
+
+  spinner.fadeIn();
+
+  const set = await JSON.decompress(getParam('set'));
+  const vsSet = getParam('vsSet') && await JSON.decompress(getParam('vsSet'));
+  const untilReady = lobbyState.searchSetGames.setGameType(lobbyState.gameType, set, vsSet);
+
+  if (divSetup.classList.contains('show')) {
+    btnSetup.textContent = 'Setup';
+    divSetup.classList.remove('show');
+    await whenTransitionEnds(divSetup, () => divSetup.classList.add('hide'));
+  } else if (divSearchSets.classList.contains('show')) {
+    divSearchSets.classList.remove('show');
+    await whenTransitionEnds(divSearchSets, () => divSearchSets.classList.add('hide'));
+  } else if (divArenas.classList.contains('show')) {
+    divArenas.classList.remove('show');
+    await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+  }
+  await untilReady;
+
+  divSearchSetGames.classList.remove('hide');
+  await sleep();
+  spinner.hide();
+  divSearchSetGames.classList.add('show');
+  await whenTransitionEnds(divSearchSetGames);
+}
+async function toggleSetup(force = false) {
+  const lobbyState = state.tabContent.lobby;
+  const btnSetup = document.querySelector('.lobby HEADER .controls .toggle-setup');
+  const btnSearchSets = document.querySelector('.lobby HEADER .controls .toggle-searchSets');
+  const divSetup = lobbyState.setup.el;
+  const divSearchSets = lobbyState.searchSets.el;
+  const divSearchSetGames = lobbyState.searchSetGames.el;
   const divArenas = document.querySelector('.lobby .arenas');
   const footer = document.querySelector('.lobby FOOTER');
   btnSetup.disabled = true;
 
-  if (btnSetup.textContent === 'Setup') {
+  if (force || btnSetup.textContent === 'Setup') {
     btnSetup.textContent = 'Lobby';
     footer.style.display = 'none';
 
-    divLoading.classList.add('is-active');
-    divLoading.classList.add('hide');
-    whenTransitionEnds(divLoading, () => {
-      divLoading.classList.remove('hide');
-    });
+    spinner.fadeIn();
 
-    const untilReady = lobbyState.setup.setGameType(lobbyState.gameType, lobbyState.sets);
+    const routePath = `#lobby/${lobbyState.selectedStyleId}/setup?`;
+    if (!location.hash.startsWith(routePath))
+      history.pushState(null, '', routePath.slice(0, -1));
 
-    divArenas.classList.remove('show');
-    await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+    const untilReady = lobbyState.setup.setGameType(lobbyState.gameType);
+
+    if (divSearchSets.classList.contains('show')) {
+      btnSearchSets.textContent = 'Search Sets';
+      divSearchSets.classList.remove('show');
+      await whenTransitionEnds(divSearchSets, () => divSearchSets.classList.add('hide'));
+    } else if (divSearchSetGames.classList.contains('show')) {
+      divSearchSetGames.classList.remove('show');
+      await whenTransitionEnds(divSearchSetGames, () => divSearchSetGames.classList.add('hide'));
+    } else if (divArenas.classList.contains('show')) {
+      divArenas.classList.remove('show');
+      await whenTransitionEnds(divArenas, () => divArenas.classList.add('hide'));
+    }
     await untilReady;
 
     divSetup.classList.remove('hide');
     await sleep();
-    divLoading.classList.remove('is-active');
+    spinner.hide();
     divSetup.classList.add('show');
     await whenTransitionEnds(divSetup);
   } else {
     btnSetup.textContent = 'Setup';
     footer.style.display = '';
+
+    const routePath = `#lobby/${lobbyState.selectedStyleId}/lobby?`;
+    if (!location.hash.startsWith(routePath))
+      history.pushState(null, '', routePath.slice(0, -1));
 
     divSetup.classList.remove('show');
     await whenTransitionEnds(divSetup, () => divSetup.classList.add('hide'));
@@ -1455,7 +1854,7 @@ function renderArenas(divContent) {
   divArenas.appendChild(renderGroups());
 
   for (let i = 0; i < 14; i++) {
-    divArenas.appendChild(renderArena(i));
+    divArenas.appendChild(gameArena.renderArena(i));
   }
 
   return divArenas;
@@ -1603,58 +2002,6 @@ function renderGroups() {
 
   return divGroups;
 }
-function renderArena(index) {
-  const divArena = document.createElement('DIV');
-  divArena.classList.add('arena');
-  divArena.classList.add('empty');
-  divArena.dataset.index = index;
-
-  const shpArena = document.createElement('DIV');
-  shpArena.classList.add('arena-shape');
-  shpArena.addEventListener('mouseenter', () => {
-    if (divArena.classList.contains('disabled'))
-      return;
-
-    avatars.getSound('focus').howl.play();
-  });
-  divArena.appendChild(shpArena);
-
-  const imgArena = document.createElement('IMG');
-  imgArena.classList.add('arena-image');
-  imgArena.src = arena.src;
-  shpArena.appendChild(imgArena);
-
-  const btnJoin = document.createElement('IMG');
-  btnJoin.classList.add('arena-button-bottom');
-  btnJoin.src = '/arenaJoin.svg';
-  shpArena.appendChild(btnJoin);
-
-  const avatarTop = document.createElement('IMG');
-  avatarTop.classList.add('unit');
-  avatarTop.classList.add('top');
-  shpArena.appendChild(avatarTop);
-
-  const avatarBtm = document.createElement('IMG');
-  avatarBtm.classList.add('unit');
-  avatarBtm.classList.add('btm');
-  shpArena.appendChild(avatarBtm);
-
-  const nameTop = document.createElement('SPAN');
-  nameTop.classList.add('name');
-  nameTop.classList.add('top');
-  shpArena.appendChild(nameTop);
-
-  const nameBtm = document.createElement('SPAN');
-  nameBtm.classList.add('name');
-  nameBtm.classList.add('btm');
-  shpArena.appendChild(nameBtm);
-
-  const divLabel = document.createElement('DIV');
-  divLabel.classList.add('labels');
-  shpArena.appendChild(divLabel);
-
-  return divArena;
-}
 async function renderLobbyGames() {
   const divArenas = document.querySelector('.lobby .arenas');
   const divArenaList = Array.from(divArenas.querySelectorAll('.arena'));
@@ -1687,10 +2034,10 @@ async function renderLobbyGames() {
   /*
    * Cache the avatars for all the players we're about to see
    */
-  await fetchAvatars(arenas.filter(a => !!a).map(a => a.teams.filter(t => !!t).map(t => t.playerId)).flat());
+  await gameArena.fetchAvatars(arenas.filter(a => !!a).map(a => a.teams.filter(t => !!t).map(t => t.playerId)).flat());
 
   while (divArenaList.length < arenas.length) {
-    const divArena = renderArena(divArenaList.length);
+    const divArena = gameArena.renderArena(divArenaList.length);
     divArenas.appendChild(divArena);
     divArenaList.push(divArena);
   }
@@ -1707,171 +2054,17 @@ async function resetLobbyGames() {
   await Promise.all(divArenaList.map(d => queueFillArena(d, false)));
   renderLobbyGames();
 }
-function hideArena(divArena) {
-  if (divArena.classList.contains('hide'))
-    return false;
-
-  divArena.classList.add('hide');
-  return emptyArena(divArena);
-}
 function queueFillArena(divArena, arena) {
   const index = divArena.dataset.index;
+  const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
+  const disabled = !!lobbyGame && arena?.id !== lobbyGame.id;
 
   if (fillArenaQueueMap.has(index))
-    fillArenaQueueMap.set(index, fillArenaQueueMap.get(index).then(() => fillArena(divArena, arena)));
+    fillArenaQueueMap.set(index, fillArenaQueueMap.get(index).then(() => gameArena.fillArena(divArena, arena, disabled)));
   else
-    fillArenaQueueMap.set(index, fillArena(divArena, arena));
+    fillArenaQueueMap.set(index, gameArena.fillArena(divArena, arena, disabled));
 
   return fillArenaQueueMap.get(index);
-}
-async function fillArena(divArena, arena = true) {
-  if (arena === false)
-    return hideArena(divArena);
-
-  divArena.classList.remove('hide');
-  if (arena === true)
-    return emptyArena(divArena);
-
-  const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
-  divArena.classList.toggle('disabled', !!lobbyGame && !arena.startedAt && arena.collection?.startsWith('lobby/'));
-
-  const oldArena = arenaGameSummary.get(divArena) ?? null;
-  if (arena === oldArena)
-    return false;
-
-  arenaGameSummary.set(divArena, arena);
-  divArena.classList.remove('empty');
-  divArena.classList.toggle('waiting', !arena.startedAt);
-  divArena.classList.toggle('active', !!arena.startedAt && !arena.endedAt);
-  divArena.classList.toggle('complete', !!arena.endedAt);
-
-  if (oldArena && oldArena.id !== arena.id) {
-    divArena.classList.add('disabled');
-    await Promise.all([
-      fillTeam(divArena, 'top', null, oldArena),
-      fillTeam(divArena, 'btm', null, oldArena),
-    ]);
-    await Promise.all([
-      fillTeam(divArena, 'top', arena, null),
-      fillTeam(divArena, 'btm', arena, null),
-    ]);
-    divArena.classList.toggle('disabled', !!lobbyGame?.startedAt && !arena.startedAt);
-  } else {
-    await Promise.all([
-      fillTeam(divArena, 'top', arena, oldArena),
-      fillTeam(divArena, 'btm', arena, oldArena),
-    ]);
-  }
-
-  const labels = [];
-  if (!arena.startedAt) {
-    if (arena.randomHitChance === false)
-      labels.push('No Luck');
-    if (arena.rated === true)
-      labels.push('Rated');
-    else if (arena.rated === false && authClient.isVerified && arena.mode !== 'practice')
-      labels.push('Unrated');
-    if (arena.mode)
-      labels.push(arena.mode.toUpperCase('first'));
-    if (arena.timeLimitName && arena.timeLimitName !== 'standard')
-      labels.push(arena.timeLimitName.toUpperCase('first'));
-  }
-
-  const divLabels = divArena.querySelector('.labels');
-  divLabels.innerHTML = '';
-
-  for (const label of labels) {
-    const divLabel = document.createElement('DIV');
-    divLabel.classList.add('label');
-    divLabel.textContent = label;
-    divLabels.append(divLabel);
-  }
-}
-async function fillTeam(divArena, slot, arena, oldArena) {
-  const spnName = divArena.querySelector(`.name.${slot}`);
-  const imgUnit = divArena.querySelector(`.unit.${slot}`);
-
-  /*
-   * My team, if present, must be on bottom else the creator team must be on top.
-   */
-  const oldTeam = oldArena && (() => {
-    const myIndex = oldArena.teams.findIndex(t => t?.playerId === myPlayerId);
-    const creatorIndex = oldArena.teams.findIndex(t => t?.playerId === oldArena.createdBy);
-    const topIndex = myIndex > -1 ? (myIndex + oldArena.teams.length/2) % oldArena.teams.length : creatorIndex;
-    const indexMap = new Map([ [ 'top',0 ], [ 'btm',1 ] ]);
-    const teamIndex = (topIndex + indexMap.get(slot)) % oldArena.teams.length;
-
-    return oldArena.teams[teamIndex];
-  })();
-  const newTeam = arena && (() => {
-    const myIndex = arena.teams.findIndex(t => t?.playerId === myPlayerId);
-    const creatorIndex = arena.teams.findIndex(t => t?.playerId === arena.createdBy);
-    const topIndex = myIndex > -1 ? (myIndex + arena.teams.length/2) % arena.teams.length : creatorIndex;
-    const indexMap = new Map([ [ 'top',0 ], [ 'btm',1 ] ]);
-    const teamIndex = (topIndex + indexMap.get(slot)) % arena.teams.length;
-
-    const team = arena.teams[teamIndex];
-    if (team?.joinedAt)
-      team.isLoser = ![ undefined, teamIndex ].includes(arena.winnerId);
-    else
-      return null;
-    return team;
-  })();
-
-  if (oldTeam && newTeam) {
-    if (
-      oldTeam.playerId === newTeam.playerId &&
-      oldTeam.name === newTeam.name &&
-      /*
-      oldTeam.avatar === newTeam.avatar &&
-      oldTeam.color === newTeam.color &&
-      */
-      imgUnit.classList.contains('loser') === newTeam.isLoser
-    ) return false;
-  }
-
-  if (oldTeam) {
-    await whenTransitionEnds(spnName, () => {
-      spnName.classList.remove('show');
-      imgUnit.classList.remove('show');
-    });
-  }
-
-  if (newTeam) {
-    const avatar = getAvatar(newTeam.playerId, { direction:slot === 'top' ? 'S' : 'N' });
-    spnName.textContent = newTeam.name;
-    imgUnit.classList.toggle('loser', newTeam.isLoser);
-    imgUnit.style.top = `${avatar.y}px`;
-    imgUnit.style.left = `${avatar.x}px`;
-    imgUnit.src = avatar.src;
-
-    await whenTransitionEnds(spnName, () => {
-      spnName.classList.add('show');
-      imgUnit.classList.add('show');
-    });
-  }
-}
-async function emptyArena(divArena) {
-  if (divArena.classList.contains('empty')) {
-    const lobbyGame = Array.from(state.tabContent.yourGames.games[4].values()).find(gs => !!gs.startedAt);
-    divArena.classList.toggle('disabled', !!lobbyGame);
-    return false;
-  }
-
-  const oldArena = arenaGameSummary.get(divArena);
-
-  arenaGameSummary.delete(divArena);
-  divArena.classList.remove('waiting');
-  divArena.classList.remove('active');
-  divArena.classList.remove('complete');
-  divArena.classList.add('empty');
-
-  divArena.querySelector('.labels').innerHTML = '';
-
-  return Promise.all([
-    fillTeam(divArena, 'top', null, oldArena),
-    fillTeam(divArena, 'btm', null, oldArena),
-  ]);
 }
 
 async function renderYourGames() {
@@ -1907,7 +2100,7 @@ async function renderYourGames() {
       return gs;
     });
 
-  await fetchAvatars(
+  await gameArena.fetchAvatars(
     tabContent.games
       .map(gsm => Array.from(gsm.values())
         .map(g => g.teams.filter(t => t && t.playerId)
@@ -1942,7 +2135,7 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Active Lobby Game</SPAN>';
     secLobbyGames.append(header);
 
-    secLobbyGames.appendChild(renderGame(activeLobbyGame, authClient.playerId));
+    secLobbyGames.appendChild(gameCard.renderGame(activeLobbyGame, { playerId:authClient.playerId }));
   }
 
   /*
@@ -1950,6 +2143,7 @@ async function renderYourGames() {
    */
   const divMyTurnGames = [];
   for (const game of activeGames) {
+    console.log('test', game.currentTeam.playerId, myPlayerId);
     // Exclude games where it is someone else's turn
     if (game.currentTeam.playerId !== myPlayerId)
       continue;
@@ -1960,7 +2154,7 @@ async function renderYourGames() {
     if (game.isSimulation)
       continue;
 
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divMyTurnGames.push(divGame);
   }
@@ -1982,7 +2176,7 @@ async function renderYourGames() {
    */
   const divChallenges = [];
   for (const game of challenges) {
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divChallenges.push(divGame);
   }
@@ -2011,7 +2205,7 @@ async function renderYourGames() {
     if (game.isSimulation)
       continue;
 
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divTheirTurnGames.push(divGame);
   }
@@ -2036,7 +2230,7 @@ async function renderYourGames() {
     if (!game.isSimulation)
       continue;
 
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divSinglePlayerGames.push(divGame);
   }
@@ -2063,7 +2257,7 @@ async function renderYourGames() {
     if (game.startedAt)
       continue;
 
-    const divGame = renderGame(game, authClient.playerId);
+    const divGame = gameCard.renderGame(game, { playerId:authClient.playerId });
 
     divWaitingGames.push(divGame);
   }
@@ -2093,7 +2287,7 @@ async function renderYourGames() {
     header.innerHTML = '<SPAN class="left">Complete Games</SPAN>';
     secCompleteGames.append(header);
 
-    completeGames.forEach(game => secCompleteGames.appendChild(renderGame(game, authClient.playerId)));
+    completeGames.forEach(game => secCompleteGames.appendChild(gameCard.renderGame(game, { playerId:authClient.playerId })));
   }
 
   divTabContent.replaceChildren(...childNodes);
@@ -2102,18 +2296,11 @@ async function renderYourGames() {
 async function renderPublicGames() {
   const tabContent = state.tabContent.publicGames;
   const divTabContent = document.querySelector('.tabContent .publicGames');
+
+  // On initial render, build the stable DOM skeleton and store element refs.
+  // On subsequent calls (tab re-sync after reconnect), tear down and rebuild.
   divTabContent.innerHTML = '';
-
-  await fetchAvatars(
-    tabContent.games
-      .map(gsm => Array.from(gsm.values())
-        .map(g => g.teams.filter(t => t && t.playerId)
-          .map(t => t.playerId))).flat(3)
-  );
-
-  const waitingGames = [ ...tabContent.games[0].values() ];
-  const activeGames = [ ...tabContent.games[1].values() ];
-  const completeGames = [ ...tabContent.games[2].values() ];
+  tabContent.els = null;
 
   const header = document.createElement('HEADER');
   header.addEventListener('mouseenter', event => {
@@ -2145,54 +2332,186 @@ async function renderPublicGames() {
   });
   divControls.appendChild(btnSettings);
 
+  // Create all three stable sections up front.
+  const makeSection = (labelHtml, withShowResults = false) => {
+    const sec = document.createElement('SECTION');
+    sec.classList.add('game-list');
+    sec.style.display = 'none';
+
+    const hdr = document.createElement('HEADER');
+    hdr.innerHTML = `<SPAN class="left">${labelHtml}</SPAN>${withShowResults ? '<SPAN class="right"></SPAN>' : ''}`;
+    if (withShowResults)
+      hdr.querySelector('.right').append(renderShowResults());
+    sec.append(hdr);
+
+    const body = document.createElement('DIV');
+    body.classList.add('body');
+    sec.append(body);
+
+    divTabContent.appendChild(sec);
+    return sec;
+  };
+
+  const secWaiting  = makeSection('Waiting for Opponent');
+  const secActive   = makeSection('Active Games');
+  const secComplete = makeSection('Complete Games', true);
+
+  tabContent.els = { secWaiting, secActive, secComplete };
+
+  // Collect all game summaries for avatar pre-fetch.
+  const allGames = [
+    ...[ ...(tabContent.lobbyGames?.[0].values() ?? []) ],
+    ...[ ...(tabContent.lobbyGames?.[1].values() ?? []) ],
+    ...[ ...tabContent.games[0].values() ],
+    ...[ ...tabContent.games[1].values() ],
+    ...[ ...tabContent.games[2].values() ],
+  ];
+  await gameArena.fetchAvatars(
+    allGames.flatMap(g => g.teams.filter(t => t?.playerId).map(t => t.playerId))
+  );
+
   /*
-   * Waiting for Opponent
+   * Waiting for Opponent — grouped by shared details, sorted by oldest createdAt asc.
    */
-  if (waitingGames.length) {
-    const secWaitingGames = document.createElement('SECTION');
-    secWaitingGames.classList.add('game-list');
-    divTabContent.appendChild(secWaitingGames);
+  const waitingBody = secWaiting.querySelector('.body');
+  const waitingGroupsMap = getPublicWaitingGroups();
+  const sortedGroups = Array.from(waitingGroupsMap.entries())
+    .sort(([ , aGames ], [ , bGames ]) => {
+      const aOldest = Math.min(...Array.from(aGames.values()).map(g => g.createdAt));
+      const bOldest = Math.min(...Array.from(bGames.values()).map(g => g.createdAt));
+      return aOldest - bOldest;
+    });
 
-    const header = document.createElement('HEADER');
-    header.innerHTML = '<SPAN class="left">Waiting for Opponent</SPAN>';
-    secWaitingGames.append(header);
+  for (const [ groupId, games ] of sortedGroups)
+    waitingBody.appendChild(renderGameGroup(groupId, games));
 
-    waitingGames.forEach(game => secWaitingGames.appendChild(renderGame(game)));
+
+  /*
+   * Active Games — lobby active + public active, sorted by startedAt desc.
+   */
+  const activeGames = [
+    ...[ ...(tabContent.lobbyGames?.[1].values() ?? []) ],
+    ...[ ...tabContent.games[1].values() ],
+  ].sort((a, b) => b.startedAt - a.startedAt);
+
+  const activeBody = secActive.querySelector('.body');
+  for (const game of activeGames)
+    activeBody.appendChild(gameCard.renderGame(game));
+
+  /*
+   * Complete Games — public only.
+   */
+  const completeGames = [ ...tabContent.games[2].values() ];
+  const completeBody = secComplete.querySelector('.body');
+  for (const game of completeGames)
+    completeBody.appendChild(gameCard.renderGame(game));
+
+  updatePublicSectionVisibility();
+}
+
+/*
+ * Remove a game card by ID from a section's .body, if present.
+ */
+function removePublicCard(section, gameId) {
+  const el = document.getElementById(gameId);
+  if (el && section.querySelector('.body').contains(el))
+    el.remove();
+}
+
+/*
+ * Build a Map<groupId, Map<gameId, gameSummary>> from all current waiting games.
+ */
+function getPublicWaitingGroups() {
+  const tabContent = state.tabContent.publicGames;
+  const result = new Map();
+
+  const allWaiting = [
+    ...(tabContent.lobbyGames?.[0].values() ?? []),
+    ...(tabContent.games?.[0].values() ?? []),
+  ];
+
+  for (const gs of allWaiting) {
+    const groupId = getWaitingGroupId(gs);
+    if (!result.has(groupId))
+      result.set(groupId, new Map());
+    result.get(groupId).set(gs.id, gs);
   }
 
-  /*
-   * Active Games
-   */
-  if (activeGames.length) {
-    const secActiveGames = document.createElement('SECTION');
-    secActiveGames.classList.add('game-list');
-    divTabContent.appendChild(secActiveGames);
+  return result;
+}
 
-    const header = document.createElement('HEADER');
-    header.innerHTML = '<SPAN class="left">Active Games</SPAN>';
-    secActiveGames.append(header);
+/*
+ * Return the Map<gameId, gameSummary> for the given groupId, or null.
+ */
+function getPublicWaitingGroupById(groupId) {
+  return getPublicWaitingGroups().get(groupId) ?? null;
+}
 
-    activeGames.forEach(game => secActiveGames.appendChild(renderGame(game)));
+/*
+ * Re-render or remove the group card for the group that contains gameSummary.
+ * Reads current state maps fresh — safe to call after any map mutation.
+ *
+ * Single-game groups render with the game's own id as the DOM id.
+ * Multi-game groups render with the group id as the DOM id.
+ * We must account for both when finding an existing card to replace,
+ * and when removing a card whose group has become empty.
+ */
+function syncPublicWaitingGroup(gameSummary) {
+  const tabContent = state.tabContent.publicGames;
+  if (!tabContent.els) return;
+
+  const groupId = getWaitingGroupId(gameSummary);
+  const body = tabContent.els.secWaiting.querySelector('.body');
+  const games = getPublicWaitingGroupById(groupId);
+
+  if (!games || games.size === 0) {
+    // Group is now empty. Card may have been a single (game id) or multi (group id).
+    const el = document.getElementById(groupId) ?? document.getElementById(gameSummary.id);
+    if (el && body.contains(el)) el.remove();
+    return;
   }
 
-  /*
-   * Complete Games
-   */
-  if (completeGames.length) {
-    const secCompleteGames = document.createElement('SECTION');
-    secCompleteGames.classList.add('game-list');
-    divTabContent.appendChild(secCompleteGames);
+  // Single-game groups use the game id as the card id.
+  // Multi-game groups use the group id as the card id.
+  const cardId = games.size === 1 ? Array.from(games.keys())[0] : groupId;
 
-    const header = document.createElement('HEADER');
-    header.innerHTML = [
-      `<SPAN class="left">Complete Games</SPAN>`,
-      `<SPAN class="right"></SPAN>`,
-    ].join('');
-    header.querySelector('.right').append(renderShowResults());
-    secCompleteGames.append(header);
+  // Search for an existing card by group id first (multi-game case), then
+  // by any game id in the group (single-game or boundary-crossing case).
+  const existing =
+    document.getElementById(groupId) ??
+    Array.from(games.keys()).reduce((found, id) => found ?? document.getElementById(id), null);
 
-    completeGames.forEach(game => secCompleteGames.appendChild(renderGame(game)));
-  }
+  const newCard = renderGameGroup(groupId, games);
+
+  if (existing && body.contains(existing))
+    existing.replaceWith(newCard);
+  else
+    body.appendChild(newCard);
+}
+
+/*
+ * Insert or replace a card in the active section.
+ * New games are prepended (no re-sort on incremental updates).
+ * Updated games are replaced in place.
+ */
+function updatePublicActiveCard(gameSummary, isNew) {
+  const body = state.tabContent.publicGames.els.secActive.querySelector('.body');
+  const existing = document.getElementById(gameSummary.id);
+  const newCard = gameCard.renderGame(gameSummary);
+
+  if (existing && body.contains(existing))
+    existing.replaceWith(newCard);
+  else if (isNew)
+    body.prepend(newCard);
+}
+
+/*
+ * Show or hide each section based on whether its .body has any children.
+ */
+function updatePublicSectionVisibility() {
+  const { secWaiting, secActive, secComplete } = state.tabContent.publicGames.els;
+  for (const sec of [ secWaiting, secActive, secComplete ])
+    sec.style.display = sec.querySelector('.body').children.length ? '' : 'none';
 }
 
 function initializeRankingsPage(className, crumbs) {
@@ -2454,7 +2773,7 @@ async function renderTopRanks() {
     `<SPAN>All Top Ranks</SPAN>`,
   ]);
 
-  await fetchAvatars(Array.from(topranks.values()).map(rs => rs.map(r => r.playerId)).flat());
+  await gameArena.fetchAvatars(Array.from(topranks.values()).map(rs => rs.map(r => r.playerId)).flat());
 
   for (const rankingId of [ 'FORTE', ...state.styles.map(s => s.id) ]) {
     if (!topranks.has(rankingId))
@@ -2477,7 +2796,7 @@ async function renderRankingSummary(rankingId) {
   if (!authClient.isVerified)
     divNotice.style.display = '';
 
-  await fetchAvatars([
+  await gameArena.fetchAvatars([
     ...topranks.map(r => r.playerId),
     ...games.map(g => g.teams.map(t => t.playerId)).flat(),
   ]);
@@ -2506,7 +2825,7 @@ async function renderRanking(rankingId) {
     '<SPAN>All Ranks</SPAN>',
   ]);
 
-  await fetchAvatars(ranks.map(r => r.playerId));
+  await gameArena.fetchAvatars(ranks.map(r => r.playerId));
 
   const divRanks = renderRanks(rankingId, ranks);
   const divCaption = divRanks.querySelector('HEADER .caption');
@@ -2533,7 +2852,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
     return;
   }
 
-  await fetchAvatars([ playerId, ...games.map(g => g.teams.map(t => t.playerId)).flat() ]);
+  await gameArena.fetchAvatars([ playerId, ...games.map(g => g.teams.map(t => t.playerId)).flat() ]);
 
   const divPlayer = document.createElement('DIV');
   divPlayer.classList.add('player');
@@ -2563,7 +2882,7 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
   divAvatarImage.classList.add('image');
   divAvatarBadge.append(divAvatarImage);
 
-  const avatar = getAvatar(playerId);
+  const avatar = gameArena.getAvatar(playerId);
   const translateX = 40 + avatar.x - 4;
   const translateY = avatar.y < -60 ? avatar.y + 60 : Math.max(0, avatar.y + 52);
   const imgAvatar = document.createElement('IMG');
@@ -2740,8 +3059,8 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
           <DIV class="info">${info}</DIV>
         </DIV>
       `;
-      divWD.querySelector('.links').append(renderDuration(wd.lose.game.currentTurnId));
-      divWD.querySelector('.links').append(renderClock(wd.lose.game.endedAt, 'Ended At'));
+      divWD.querySelector('.links').append(gameCard.renderDuration(wd.lose.game.currentTurnId));
+      divWD.querySelector('.links').append(gameCard.renderClock(wd.lose.game.endedAt, 'Ended At'));
       divStats.append(divWD);
     }
 
@@ -2760,8 +3079,8 @@ async function renderPlayerRankingSummary(rankingId, playerId) {
           <DIV class="info">${info}</DIV>
         </DIV>
       `;
-      divBV.querySelector('.links').append(renderDuration(bv.win.game.currentTurnId));
-      divBV.querySelector('.links').append(renderClock(bv.win.game.endedAt, 'Ended At'));
+      divBV.querySelector('.links').append(gameCard.renderDuration(bv.win.game.currentTurnId));
+      divBV.querySelector('.links').append(gameCard.renderClock(bv.win.game.endedAt, 'Ended At'));
       divStats.append(divBV);
     }
   }
@@ -2819,7 +3138,7 @@ function renderRank(rankingId, rank) {
   const divAvatarWrapper = document.createElement('DIV');
   divAvatarContainer.append(divAvatarWrapper);
 
-  const avatar = getAvatar(rank.playerId, { withFocus:true });
+  const avatar = gameArena.getAvatar(rank.playerId, { withFocus:true });
   const imgAvatar = document.createElement('IMG');
   const originY = avatar.y - 22;
   imgAvatar.style.transformOrigin = `${-avatar.x}px ${-originY}px`;
@@ -2869,7 +3188,7 @@ function renderRatedGames(games, rankingId, playerId = null) {
   divBody.classList.add('body');
 
   for (const game of games)
-    divBody.append(renderGame(game, playerId, rankingId));
+    divBody.append(gameCard.renderGame(game, { playerId, rankingId }));
 
   secRatedGames.append(divBody);
 
@@ -2891,251 +3210,21 @@ function renderShowResults() {
 
   return label;
 }
-function renderGame(game, playerId = null, rankingId = null) {
-  const team1 = game.teams.find(t => t?.playerId === (playerId ?? game.createdBy));
-  const ranks1 = game.meta.ranks[team1.id];
-  const team2 = game.teams.find(t => t !== team1);
-  const ranks2 = team2 && game.meta.ranks[team2.id];
-
-  rankingId ??= game.type;
-
-  const divGame = document.createElement('DIV');
-  divGame.id = game.id;
-  divGame.classList.add('game');
-
-  const divVS = document.createElement('DIV');
-  divVS.classList.add('vs');
-
-  const divArenaWrapper = document.createElement('DIV');
-  divArenaWrapper.classList.add('arena-wrapper');
-
-  const divArena = renderArena(0);
-  divArenaWrapper.append(divArena);
-  fillArena(divArena, game);
-
-  divVS.append(divArenaWrapper);
-  if (game.isChallenge && !team1.joinedAt)
-    divVS.append(renderGameDecline(game));
-  else
-    divVS.append(renderGameTeam(game, team1, ranks1, rankingId, team1.playerId !== playerId));
-  divVS.append(renderGameResult(game, team1.playerId));
-  if (game.isSimulation && !game.startedAt)
-    divVS.append(renderGameFinishSetup(game));
-  else if (team2?.playerId)
-    divVS.append(renderGameTeam(game, team2, ranks2, rankingId, team2.playerId !== playerId));
-  else if (game.createdBy === authClient.playerId)
-    divVS.append(renderGameInvite(game))
-  divGame.append(divVS);
-
-  divGame.append(renderGameInfo(game));
-
-  return divGame;
-}
-function renderGameTeam(game, team, ranks, rankingId, linkable = true) {
-  const divTeam = document.createElement('DIV');
-  divTeam.classList.add('team');
-  divTeam.classList.toggle('linkable', linkable && !!ranks);
-  divTeam.dataset.playerId = team.playerId;
-
-  const rank = ranks && (ranks.find(r => r.rankingId === rankingId) ?? null);
-  const defaultRating = rankingId === 'FORTE' ? 0 : 750;
-  const rating = [];
-
-  if (game.rated) {
-    const vsRatings = team.ratings.get(rankingId) ?? [ defaultRating, defaultRating ];
-    const change = vsRatings[1] - vsRatings[0];
-    const label = Math.abs(vsRatings[1] - vsRatings[0]) || '';
-
-    rating.push(`<SPAN class="initial">${vsRatings[0]}</SPAN>`);
-    rating.push(`<SPAN class="${label ? change > 0 ? 'up' : 'down' : ''}">${label}</SPAN> `);
-  }
-
-  if (ranks === null)
-    rating.push(`<SPAN class="current">(Inactive)</SPAN>`);
-  else if (ranks === false)
-    rating.push(`<SPAN class="current">(Guest)</SPAN>`);
-  else if (rank)
-    rating.push(`<SPAN class="current">(${rank.rating})</SPAN>`);
-  else
-    rating.push(`<SPAN class="current">(${defaultRating})</SPAN>`);
-
-  divTeam.innerHTML = `
-    <DIV class="name">${team.name}</DIV>
-    <DIV class="rating">${rating.join('')}</DIV>
-  `;
-
-  return divTeam;
-}
-function renderGameDecline() {
-  const divDecline = document.createElement('DIV');
-  divDecline.classList.add('decline');
-  divDecline.innerHTML = `<A href="javascript:void(0)">Decline Game</A>`;
-
-  return divDecline;
-}
-function renderGameFinishSetup(game) {
-  const divFinishSetup = document.createElement('DIV');
-  divFinishSetup.innerHTML = `<A href="game.html?${game.id}">Finish Setup</A>`;
-
-  return divFinishSetup;
-}
-function renderGameInvite(game) {
-  const divInvite = document.createElement('DIV');
-  divInvite.classList.add('invite');
-  if (navigator.share) {
-    divInvite.classList.add('share');
-    divInvite.innerHTML = `<SPAN class="fa fa-share"></SPAN><SPAN class="label">Share Invite Link</SPAN>`;
-  } else {
-    divInvite.classList.add('copy');
-    divInvite.innerHTML = `<SPAN class="fa fa-copy"></SPAN><SPAN class="label">Copy Invite Link</SPAN>`;
-  }
-
-  return divInvite;
-}
-function renderGameResult(game, playerId) {
-  const divResult = document.createElement('DIV');
-  divResult.classList.add('result');
-
-  const spnResult = document.createElement('SPAN');
-  divResult.append(spnResult);
-
-  if (game.endedAt)
-    spnResult.textContent = (
-      game.winnerId === 'draw' ? 'Draw!' :
-      game.winnerId === 'truce' ? 'Truce!' :
-      game.winner?.playerId === playerId ? 'Win!' : 'Lose!'
-    );
-  else
-    spnResult.textContent = 'VS';
-
-  return divResult;
-}
-function renderGameInfo(game) {
-  const divInfo = document.createElement('DIV');
-  divInfo.classList.add('info');
-
-  const labels = [];
-  labels.push(game.typeName);
-  if (!game.randomHitChance)
-    labels.push('No Luck');
-  if (game.timeLimitName && game.timeLimitName !== 'standard')
-    labels.push(game.timeLimitName.toUpperCase('first'));
-
-  if (game.isSimulation) {
-    if (game.mode === 'fork')
-      labels.push(game.mode.toUpperCase('first'));
-  } else {
-    if (game.mode)
-      labels.push(game.mode.toUpperCase('first'));
-
-    const isGuestGame = game.meta.ranks.some(r => r === false);
-
-    if (!game.collection && game.mode !== 'fork')
-      labels.push('Private');
-    else if (!game.startedAt && game.rated === true)
-      labels.push('Rated');
-    else if (![ 'fork', 'practice' ].includes(game.mode) && game.rated === false && !isGuestGame)
-      labels.push('Unrated');
-
-    if (!game.startedAt && state.currentTab === 'yourGames') {
-      const opponent = game.teams.find(t => t?.playerId !== game.createdBy);
-      if (!opponent)
-        labels.push('Anybody');
-      else if (!opponent.playerId)
-        labels.push('Share Link');
-      else
-        labels.push('Challenge');
-    }
-  }
-
-  const spnLeft = document.createElement('SPAN');
-  spnLeft.classList.add('left');
-  spnLeft.textContent = labels.join(', ');
-  divInfo.append(spnLeft);
-
-  const spnRight = document.createElement('SPAN');
-  spnRight.classList.add('right');
-  if (game.startedAt)
-    spnRight.append(renderDuration(game.currentTurnId));
-  divInfo.append(spnRight);
-
-  if (game.endedAt)
-    spnRight.append(renderClock(game.endedAt, 'Ended At'));
-  else if (game.startedAt && !game.isSimulation) {
-    const isParticipant = game.teams.some(t => t.playerId === authClient.playerId);
-    if (isParticipant)
-      spnRight.append(renderClock(spnClock => {
-        const remaining = game.getTurnTimeRemaining();
-        if (remaining < (game.currentTurnTimeLimit * 0.2))
-          spnClock.classList.add('low');
-        return remaining;
-      }, 'Time Remaining'));
-    else
-      spnRight.append(renderClock(game.updatedAt, 'Updated At'));
-  } else
-    spnRight.append(renderClock(game.createdAt, 'Created At'));
-
-  return divInfo;
-}
-
-function renderDuration(numTurns) {
-  const spnTurns = document.createElement('SPAN');
-  spnTurns.classList.add('duration');
-  spnTurns.title = 'Turn Count';
-
-  spnTurns.innerHTML = `
-    <SPAN class="numTurns">${numTurns}</SPAN>
-    <SPAN class="fa fa-hourglass"></SPAN>
-  `;
-
-  return spnTurns;
-}
-// updator can be a Function or a Date
-function renderClock(updator, title = 'Since') {
-  const spnClock = document.createElement('SPAN');
-  spnClock.classList.add('clock');
-  spnClock.title = title;
-  spnClock.innerHTML = `
-    <SPAN class="elapsed"></SPAN>
-    <SPAN class="fa fa-clock"></SPAN>
-  `;
-  spnClock.update = function () {
-    let elapsed = (updator instanceof Function ? updator(spnClock) : gameClient.serverNow - updator) / 1000;
-    if (elapsed <= 0)
-      elapsed = '0';
-    else if (elapsed < 60)
-      elapsed = '<1m';
-    else if (elapsed < 3600)
-      elapsed = Math.floor(elapsed / 60) + 'm';
-    else if (elapsed < 86400)
-      elapsed = Math.floor(elapsed / 3600) + 'h';
-    else if (elapsed < 604800)
-      elapsed = Math.floor(elapsed / 86400) + 'd';
-    else if (elapsed < 31557600)
-      elapsed = Math.floor(elapsed / 604800) + 'w';
-    else
-      elapsed = Math.floor(elapsed / 31557600) + 'y';
-
-    this.querySelector('.elapsed').textContent = elapsed;
-    return this;
-  };
-
-  return spnClock.update();
-}
-setInterval(() => {
-  for (const spnClock of document.querySelectorAll('.clock'))
-    spnClock.update();
-}, 30000);
 
 async function openTab() {
   closeTab();
 
-  const tab = location.hash.split('/')[0];
+  const path = location.hash.split('/');
+  const tab = path[0];
 
   state.currentTab = 'yourGames';
-  if (tab === '#lobby')
+  if (tab === '#lobby') {
     state.currentTab = 'lobby';
-  else if (tab === '#publicGames')
+    if (path.length > 1) {
+      const styleId = path[1];
+      selectStyle(styleId);
+    }
+  } else if (tab === '#publicGames')
     state.currentTab = 'publicGames';
   else if (tab === '#rankings')
     state.currentTab = 'rankings';
@@ -3163,6 +3252,7 @@ function closeTab() {
         tabContent.whenSynced = Promise.resolve();
       } else if (state.currentTab === 'publicGames') {
         gameClient.leaveCollectionGroup('public');
+        gameClient.leaveCollectionGroup('lobby');
         tabContent.isSynced = false;
         tabContent.whenSynced = Promise.resolve();
       }
@@ -3181,15 +3271,7 @@ async function syncTab() {
     return;
   tabContent.isLoading = true;
 
-  const divLoading = document.querySelector(`.tabContent .loading`);
-
-  if (!divLoading.classList.contains('is-active')) {
-    divLoading.classList.add('is-active');
-    divLoading.classList.add('hide');
-    whenTransitionEnds(divLoading, () => {
-      divLoading.classList.remove('hide');
-    });
-  }
+  spinner.fadeIn();
 
   try {
     if (!tabContent.isSynced) {
@@ -3215,10 +3297,23 @@ async function syncTab() {
         await renderYourGames();
       else if (state.currentTab === 'publicGames')
         await renderPublicGames();
-      else
-        await tabContent.route();
 
       document.querySelector(`.tabContent .${currentTab}`).classList.add('is-active');
+    }
+
+    if (tabContent.route) {
+      await loadAvatarsAndDependants;
+      await tabContent.route();
+    }
+
+    const viewSet = getParam('viewSet');
+    if (viewSet) {
+      try {
+        const { gameTypeId, set } = await JSON.decompress(viewSet);
+        state.viewSetModal.show(gameTypeId, set);
+      } catch (e) {
+        unsetParam('viewSet');
+      }
     }
 
     tabContent.isOpen = true;
@@ -3231,7 +3326,7 @@ async function syncTab() {
     }
   }
 
-  divLoading.classList.remove('is-active');
+  spinner.hide();
   tabContent.isLoading = false;
 }
 function showEnterLobby() {
@@ -3362,7 +3457,7 @@ async function fetchTabData(tabName) {
       },
       {
         filter: {
-          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          // Removed the playerId filter so that your own active games stay viewable in lobby.
           startedAt: { not:null },
           endedAt: null,
         },
@@ -3381,7 +3476,7 @@ async function fetchTabData(tabName) {
 
     const join = styleId =>
       gameClient.joinCollectionGroup(`lobby/${styleId}`, { query }).then(rsp => {
-        tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
+        tabContent.games = rsp.results.get(`lobby/${styleId}`).map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
 
         tabContent.view.gameTypeId = styleId;
@@ -3389,7 +3484,7 @@ async function fetchTabData(tabName) {
 
         const yourLobbyGames = Array.from(state.tabContent.yourGames.games[4].values());
         const yourLobbyGame = yourLobbyGames.find(gs => gs.collection === `lobby/${styleId}`);
-        const games = rsp.results.map(r => r.hits).flat();
+        const games = rsp.results.get(`lobby/${styleId}`).map(r => r.hits).flat();
         if (yourLobbyGame)
           games.push(yourLobbyGame);
 
@@ -3400,10 +3495,9 @@ async function fetchTabData(tabName) {
     const fetchGameType = styleId =>
       gameClient.getGameType(styleId).then(rsp => {
         tabContent.gameType = rsp;
-      });
-    const fetchPlayerSets = styleId =>
-      gameClient.getPlayerSets(styleId).then(rsp => {
-        tabContent.sets = rsp;
+
+        const btnSearchSets = document.querySelector('.lobby HEADER .controls .toggle-searchSets');
+        btnSearchSets.style.visibility = tabContent.gameType.isCustomizable ? '' : 'hidden';
       });
 
     // Make sure your lobby games are known before joining lobby collection group
@@ -3419,7 +3513,6 @@ async function fetchTabData(tabName) {
     const styleId = tabContent.selectedStyleId;
     const promises = [
       join(styleId),
-      fetchPlayerSets(styleId),
       fetchGameType(styleId),
     ];
     if (tabContent.whenSynced.styleId)
@@ -3430,7 +3523,7 @@ async function fetchTabData(tabName) {
 
     promises.push(tabContent.whenSynced);
   } else if (tabName === 'publicGames') {
-    const query = [
+    const publicQuery = [
       {
         filter: {
           '$.teams[*].playerId': { not:{ includes:myPlayerId } },
@@ -3458,24 +3551,56 @@ async function fetchTabData(tabName) {
       },
     ];
 
+    const lobbyQuery = [
+      {
+        filter: {
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          startedAt: null,
+        },
+        sort: { field:'createdAt', order:'asc' },
+        limit: 50,
+      },
+      {
+        filter: {
+          '$.teams[*].playerId': { not:{ includes:myPlayerId } },
+          startedAt: { not:null },
+          endedAt: null,
+        },
+        sort: { field:'updatedAt', order:'desc' },
+        limit: 50,
+      },
+    ];
+
     promises.push(
-      gameClient.joinCollectionGroup(`public`, { query }).then(rsp => {
-        tabContent.games = rsp.results.map(r => new Map(r.hits.map(h => [ h.id, h ])));
+      gameClient.joinCollectionGroup('public', { query: publicQuery }).then(rsp => {
+        tabContent.games = rsp.results.get('public').map(r => new Map(r.hits.map(h => [ h.id, h ])));
         tabContent.isSynced = true;
       }),
+      gameClient.joinCollectionGroup('lobby', { query: lobbyQuery }).then(rsp => {
+        const waiting = new Map();
+        const active  = new Map();
+        for (const results of rsp.results.values()) {
+          for (const hit of results[0].hits) waiting.set(hit.id, hit);
+          for (const hit of results[1].hits) active.set(hit.id, hit);
+        }
+        tabContent.lobbyGames = [ waiting, active ];
+      }),
     );
-  } else {
-    const routePath = location.hash;
+  }
 
-    for (const matcher of routeMatcher) {
-      const route = matcher(routePath);
-      if (route) {
-        promises.push(route.data.then(data => {
-          tabContent.route = route.route;
-          tabContent.data = data;
-        }));
-        break;
-      }
+  const [ routePath, params ] = location.hash.split('?');
+  tabContent.route = null;
+  tabContent.params = null;
+  tabContent.data = null;
+
+  for (const matcher of routeMatcher) {
+    const route = matcher(routePath);
+    if (route) {
+      tabContent.route = route.route;
+      tabContent.params = new URLSearchParams(params);
+      if (route.data)
+        promises.push(route.data.then(data => tabContent.data = data));
+      break;
     }
   }
 
@@ -3489,4 +3614,3 @@ async function fetchTabData(tabName) {
     return fetchTabData(tabName);
   });
 }
-

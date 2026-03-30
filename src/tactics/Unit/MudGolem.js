@@ -68,7 +68,7 @@ export default class MudGolem extends Unit {
       let cUnit = cUnits.get(targetUnit.id);
       let result = { unit:targetUnit };
 
-      if (cUnit.barriered || cUnit.type === 'PoisonWisp')
+      if (cUnit.barriered || cUnit.disposition === 'unbreakable' || cUnit.type === 'PoisonWisp')
         result.miss = 'immune';
       else {
         let distance = board.getDistance(this.assignment, target);
@@ -82,8 +82,10 @@ export default class MudGolem extends Unit {
         };
       }
 
-      board.applyActionResults([result]);
+      board.applyActionResults([ result ]);
       this.getAttackSubResults(result);
+      // Reapply the result since getDeadResult can modify it.
+      board.applyActionResults([ result ]);
       return result;
     });
   }

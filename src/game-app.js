@@ -4,11 +4,11 @@ import copy from 'components/copy.js';
 import share from 'components/share.js';
 import tappable from 'components/tappable.js';
 import wakelock from 'components/wakelock.js';
+import ConfigureGame from 'components/Modal/ConfigureGame.js';
 import GameSettingsModal from 'components/Modal/GameSettings.js';
-import PlayerActivityModal from 'components/Modal/PlayerActivity.js';
 import PlayerInfoModal from 'components/Modal/PlayerInfo.js';
 import PlayerInfoSelfModal from 'components/Modal/PlayerInfoSelf.js';
-import ConfigureGame from 'components/Modal/ConfigureGame.js';
+import SetPicker from 'components/Modal/SetPicker.js';
 import sleep from 'utils/sleep.js';
 
 const ServerError = Tactics.ServerError;
@@ -416,13 +416,10 @@ $(() => {
     $('body').addClass(pointer = 'mouse');
 
   $('BODY')
-    .on('click', '#field .player .link', event => {
-      const $link = $(event.currentTarget);
-      const team = $link.closest('.player').data('team');
-      
-      if ($link.hasClass('status')) {
-        new PlayerActivityModal({ game, team });
-      } else if (team.playerId !== authClient.playerId) {
+    .on('click', '#field .player.link', event => {
+      const team = $(event.currentTarget).data('team');
+
+      if (team.playerId !== authClient.playerId) {
         playerInfo = new PlayerInfoModal(
           { game, gameType, team },
           { onClose: () => playerInfo = null }
@@ -662,7 +659,7 @@ async function initGame() {
       const hasJoined = teams.filter(t => t?.playerId === authClient.playerId && t.joinedAt);
       const hasOpenSlot = teams.filter(t => !t?.playerId);
       if (isParticipant.length === teams.length)
-        return showPracticeIntro(gameData);
+        return showSinglePlayerIntro(gameData);
       else if (hasJoined.length)
         if (gameData.collection)
           return showPublicIntro(gameData);
@@ -1318,7 +1315,7 @@ function renderShareLink(gameData, container) {
   });
 }
 
-async function showPracticeIntro(gameData) {
+async function showSinglePlayerIntro(gameData) {
   renderCancelButton(gameData.id, document.querySelector('#practice .cancelButton'));
 
   const root = document.body.querySelector('#practice');
@@ -1335,7 +1332,7 @@ async function showPracticeIntro(gameData) {
 
   const creatorTeam = gameData.state.teams.find(t => !!t.joinedAt);
 
-  challenge.innerHTML = `Configure your opponent in the practice game.`;
+  challenge.innerHTML = `Configure your opponent in the single player game.`;
 
   let person;
   if (gameData.state.randomFirstTurn)
@@ -1354,8 +1351,9 @@ async function showPracticeIntro(gameData) {
   `;
 
   $('#practice .set').show();
-  $('#practice .mirror').toggle(!gameType.hasFixedPositions);
+  $('#practice .mirror').toggle(!gameType.hasFixedSides);
 
+  const $selectSet = $('#practice INPUT[name=setChoice][value=selectSet]');
   const $mySet = $('#practice INPUT[name=setChoice][value=mySet]');
   const $practice = $('#practice INPUT[name=setChoice][value=practice]');
   const $sets = $('#practice .mySet SELECT');
@@ -1368,8 +1366,8 @@ async function showPracticeIntro(gameData) {
 
     $('#practice .mySet A').on('click', async () => {
       const setOption = $sets.find(`OPTION:checked`)[0];
-      const setId = setOption.value;
-      const setIndex = sets.findIndex(s => s.id === setId);
+      const slot = setOption.value;
+      const setIndex = sets.findIndex(s => s.slot === slot);
       const setBuilder = await Tactics.editSet({
         gameType,
         set: sets[setIndex],
@@ -1389,9 +1387,9 @@ async function showPracticeIntro(gameData) {
       }
     });
 
-    for (const setId of gameConfig.setsById.keys()) {
-      const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
-      const set = sets.find(s => s.id === setId);
+    for (const slot of gameConfig.setsBySlot.keys()) {
+      const setOption = $sets.find(`OPTION[value="${slot}"]`)[0];
+      const set = sets.find(s => s.slot === slot);
       if (set) {
         setOption.style.display = '';
         setOption.textContent = set.name;
@@ -1403,8 +1401,35 @@ async function showPracticeIntro(gameData) {
     $('#practice INPUT[name=setChoice][value=same]').prop('checked', true);
   }
 
-  let practiceSet;
-  $('#practice  .practice A').on('click', async () => {
+  let selectSet = {};
+  $('#practice .selectSet A').on('click', async () => {
+    const set = await (async () => {
+      const choice = await popup({
+        className: 'search',
+        buttons: [
+          { label:'Search Sets'  },
+          { label:'Random Top 100' },
+        ],
+      }).whenClosed;
+
+      if (choice === 'Search Sets')
+        return new SetPicker().show(gameType);
+      else if (choice === 'Random Top 100')
+        return Tactics.gameClient.getDefaultSet(gameType.id);
+    })();
+
+    if (set) {
+      selectSet = { units:set.units };
+      $('#practice .selectSet .setName').text(set.name);
+      $selectSet
+        .prop('disabled', false)
+        .prop('checked', true)
+        .closest('LABEL').removeClass('disabled');
+    }
+  });
+
+  let practiceSet = {};
+  $('#practice .practice A').on('click', async () => {
     const setBuilder = await Tactics.editSet({
       gameType,
       set: practiceSet,
@@ -1431,7 +1456,9 @@ async function showPracticeIntro(gameData) {
   return new Promise((resolve, reject) => {
     btnStart.addEventListener('click', async event => {
       let set = $('#practice INPUT[name=setChoice]:checked').val();
-      if (set === 'mySet')
+      if (set === 'selectSet')
+        set = selectSet;
+      else if (set === 'mySet')
         set = $sets.val();
       else if (set === 'practice')
         set = practiceSet;
@@ -1445,16 +1472,15 @@ async function showPracticeIntro(gameData) {
           name: teamName.value,
           set,
         });
-        progress.message = 'Loading game...';
-        resolve(
-          await loadTransportAndGame(gameData.id, gameData)
-        );
-      }
-      catch (error) {
+      } catch (error) {
         root.querySelector('.error').textContent = error.message;
         progress.hide();
         $('#practice').show();
+        return;
       }
+
+      progress.message = 'Loading game...';
+      resolve(loadTransportAndGame(gameData.id, gameData));
     });
 
     progress.hide();
@@ -1663,15 +1689,18 @@ async function showJoinIntro(gameData) {
     ].join('');
 
     const $mySet = $('#join INPUT[name=setChoice][value=mySet]');
+    const $selectSet = $('#join INPUT[name=setChoice][value=selectSet]');
     const $sets = $('#join .mySet SELECT');
 
     $mySet.prop('checked', true);
 
+    let selectSet;
+
     if (gameType.isCustomizable) {
       $('#join .set').show();
-      $('#join .mirror').toggle(!gameType.hasFixedPositions);
+      $('#join .mirror').toggle(!gameType.hasFixedSides);
 
-      const $editSet = $('#join .set A');
+      const $editSet = $('#join .mySet A');
       const sets = await gameClient.getPlayerSets(gameType.id);
 
       if (sets.length === 1)
@@ -1682,9 +1711,9 @@ async function showJoinIntro(gameData) {
           $editSet.toggle($sets.val() !== 'random');
         });
 
-        for (const setId of gameConfig.setsById.keys()) {
-          const setOption = $sets.find(`OPTION[value="${setId}"]`)[0];
-          const set = sets.find(s => s.id === setId);
+        for (const slot of gameConfig.setsBySlot.keys()) {
+          const setOption = $sets.find(`OPTION[value="${slot}"]`)[0];
+          const set = sets.find(s => s.slot === slot);
           if (set) {
             setOption.style.display = '';
             setOption.textContent = set.name;
@@ -1702,8 +1731,8 @@ async function showJoinIntro(gameData) {
         $('#join').hide();
 
         const setOption = $sets.find(`OPTION:checked`)[0];
-        const setId = setOption.value;
-        const setIndex = sets.findIndex(s => s.id === setId);
+        const slot = setOption.value;
+        const setIndex = sets.findIndex(s => s.slot === slot);
         const setBuilder = await Tactics.editSet({
           gameType,
           set: sets[setIndex],
@@ -1721,6 +1750,32 @@ async function showJoinIntro(gameData) {
         }
         $('#join').show();
       });
+
+      $('#join .selectSet A').on('click', async () => {
+        const set = await (async () => {
+          const choice = await popup({
+            className: 'search',
+            buttons: [
+              { label:'Search Sets'  },
+              { label:'Random Top 100' },
+            ],
+          }).whenClosed;
+
+          if (choice === 'Search Sets')
+            return new SetPicker().show(gameType);
+          else if (choice === 'Random Top 100')
+            return Tactics.gameClient.getDefaultSet(gameType.id);
+        })();
+
+        if (set) {
+          selectSet = { units:set.units };
+          $('#join .selectSet .setName').text(set.name);
+          $selectSet
+            .prop('disabled', false)
+            .prop('checked', true)
+            .closest('LABEL').removeClass('disabled');
+        }
+      });
     }
 
     if (gameData.state.undoMode !== 'loose')
@@ -1728,14 +1783,18 @@ async function showJoinIntro(gameData) {
 
     return new Promise((resolve, reject) => {
       btnJoin.addEventListener('click', async event => {
-        const set = $sets.val();
+        let set = $('#join INPUT[name=setChoice]:checked').val();
+        if (set === 'selectSet')
+          set = selectSet;
+        else if (set === 'mySet')
+          set = $sets.val();
 
         $('#join').hide();
         progress.message = 'Joining game...';
         progress.show();
 
         try {
-          await joinGame(gameData.id, teamName.value, set, !gameType.hasFixedPositions && gameConfig.randomSide);
+          await joinGame(gameData.id, teamName.value, set, !gameType.hasFixedSides && gameConfig.randomSide);
           progress.message = 'Loading game...';
           resolve(
             await loadTransportAndGame(gameData.id, gameData)
@@ -1808,14 +1867,12 @@ function resetPlayerBanners() {
       .data('team', team);
 
     const playerStatus = game.state.playerStatus.get(team.playerId);
-    const showLink = playerStatus !== 'unavailable' && !game.isViewOnly;
+    $player.toggleClass('link', !!game.collection || !game.isViewOnly);
     const $status = $player.find('.status')
       .removeClass('offline online active unavailable')
       .addClass(playerStatus.status)
       .toggleClass('mobile', playerStatus.deviceType === 'mobile')
-      .toggleClass('link', showLink && !isMyTeam && !game.state.endedAt);
     const $name = $player.find('.name')
-      .toggleClass('link', showLink)
       .text(team.name);
 
     if (team.forkOf) {
@@ -2020,11 +2077,7 @@ async function startGame() {
         timeoutPopup.close();
     })
     .on('resetTimeout', () => setTurnTimeoutClock())
-    .on('playerRequest', ({ data:request }) => updatePlayerRequest('request', request.status === 'pending'))
-    .on('playerRequest:accept', () => updatePlayerRequest('accept'))
-    .on('playerRequest:reject', () => updatePlayerRequest('reject'))
-    .on('playerRequest:cancel', () => updatePlayerRequest('cancel'))
-    .on('playerRequest:complete', hidePlayerRequest)
+    .on('playerRequest', event => updatePlayerRequest(event))
     .on('startSync', () => {
       $('BUTTON[name=play]').hide();
       $('BUTTON[name=pause]').show();
@@ -2104,9 +2157,14 @@ async function startGame() {
     game.play(-1);
 }
 
-function updatePlayerRequest(eventType, createIfNeeded = false) {
+function updatePlayerRequest(event) {
   if (game.isViewOnly)
     return;
+  if (event.type === 'playerRequest:complete')
+    return hidePlayerRequest();
+
+  const eventType = event.type === 'playerRequest' ? 'request' : event.type.replace(/^playerRequest:/);
+  const createIfNeeded = event.type === 'playerRequest' && event.data.status === 'pending';
 
   if (eventType !== 'accept')
     toggleUndoButton();

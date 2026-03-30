@@ -57,6 +57,7 @@ export default class AuthService extends Service {
         setRelationship: [ 'uuid', 'auth:relationship' ],
         clearRelationship: [ 'uuid' ],
 
+        getPlayers: [ 'uuid[]' ],
         queryRatedPlayers: [ 'string' ],
         getRatedPlayers: [ 'uuid[]' ],
 
@@ -86,12 +87,6 @@ export default class AuthService extends Service {
     this.data.syncRankings(gameTypes);
   }
 
-  openPlayer(playerId) {
-    return this.data.openPlayer(playerId);
-  }
-  closePlayer(playerId) {
-    return this.data.closePlayer(playerId);
-  }
   getPlayer(playerId) {
     return this.data.getPlayer(playerId);
   }
@@ -106,9 +101,8 @@ export default class AuthService extends Service {
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara) return;
 
-    const player = this.data.getOpenPlayer(clientPara.playerId);
+    const { player } = clientPara;
     player.checkout(client, clientPara.device);
-    this.data.closePlayer(player.id);
 
     this.clientPara.delete(client.id);
   }
@@ -132,17 +126,9 @@ export default class AuthService extends Service {
     clientPara.token = token;
 
     if (clientPara.playerId !== token.playerId) {
-      if (clientPara.playerId)
-        this.data.closePlayer(clientPara.playerId);
+      if (client.closed) return;
 
-      // Keep this player open for the duration of the session.
-      await this.data.openPlayer(player.id);
-
-      if (client.closed) {
-        this.data.closePlayer(player.id);
-        return;
-      }
-
+      clientPara.player = player;
       clientPara.playerId = player.id;
     }
 
@@ -179,7 +165,7 @@ export default class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
-    let player = this.data.getOpenPlayer(clientPara.playerId);
+    let player = clientPara.player;
 
     if (playerId && playerId !== clientPara.playerId) {
       if (!player.identity.admin)
@@ -195,8 +181,7 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
+    const { player } = this.clientPara.get(client.id);
     player.clearIdentityToken();
   }
 
@@ -331,9 +316,7 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
-
+    const { player } = this.clientPara.get(client.id);
     return player.getIdentityToken();
   }
   async onGetDevicesRequest(client) {
@@ -341,8 +324,7 @@ export default class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
-    const devices = await this.data.getAllPlayerDevices(player.id);
+    const devices = await this.data.getAllPlayerDevices(clientPara.playerId);
 
     return devices.map(device => ({
       id: device.id,
@@ -377,8 +359,7 @@ export default class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     if (process.env.NODE_ENV !== 'development') {
-      const clientPara = this.clientPara.get(client.id);
-      const player = this.data.getOpenPlayer(clientPara.playerId);
+      const { player } = this.clientPara.get(client.id);
       if (!player.identity.admin)
         throw new ServerError(403, 'You must be an admin to use this feature.');
     }
@@ -390,15 +371,13 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
+    const { player } = this.clientPara.get(client.id);
 
-    if (process.env.NODE_ENV !== 'development') {
-      const player = this.data.getOpenPlayer(clientPara.playerId);
+    if (process.env.NODE_ENV !== 'development')
       if (!player.identity.admin)
         throw new ServerError(403, 'You must be an admin to use this feature.');
-    }
 
-    const target = await this.data.getPlayer(targetPlayerId ?? clientPara.playerId);
+    const target = await this.data.getPlayer(targetPlayerId ?? player.id);
     if (target.verified)
       throw new ServerError(400, 'Player is already verified');
 
@@ -409,18 +388,14 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
-
+    const { player } = this.clientPara.get(client.id);
     return player.acl;
   }
   onSetACLRequest(client, acl) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
-
+    const { player } = this.clientPara.get(client.id);
     player.acl = acl;
   }
   /*
@@ -441,19 +416,16 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
+    const { player } = this.clientPara.get(client.id);
     player.setDeviceName(deviceId, deviceName);
   }
   async onRemoveDeviceRequest(client, deviceId) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-    if (deviceId === clientPara.device.id)
+    const { player, device } = this.clientPara.get(client.id);
+    if (deviceId === device.id)
       throw new ServerError(403, 'To remove current device, logout');
-
-    const player = this.data.getOpenPlayer(clientPara.playerId);
 
     await this.removeDevice(player, deviceId);
   }
@@ -461,9 +433,7 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const { playerId, device } = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(playerId);
-
+    const { player, device } = this.clientPara.get(client.id);
     await this.removeDevice(player, device.id);
   }
   async removeDevice(player, deviceId) {
@@ -482,7 +452,7 @@ export default class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
+    const player = clientPara.player;
 
     // Not at risk if they (assumedly) saved an active identity token somewhere.
     if (player.getIdentityToken())
@@ -564,10 +534,9 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const { playerId, device } = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(playerId);
+    const { player, device } = this.clientPara.get(client.id);
 
-    if (player.updateProfile(profile)) {
+    if (await player.updateProfile(profile)) {
       const newToken = player.getAccessToken(device.id);
       this.debug(`New token: playerId=${player.id}; deviceId=${device.id}; token-sig=${newToken.signature}`);
     }
@@ -579,9 +548,7 @@ export default class AuthService extends Service {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');
 
-    const clientPara = this.clientPara.get(client.id);
-    const player = this.data.getOpenPlayer(clientPara.playerId);
-
+    const { player } = this.clientPara.get(client.id);
     return player.getActiveRelationships();
   }
   async onGetRelationshipRequest(client, targetPlayerId) {
@@ -592,7 +559,7 @@ export default class AuthService extends Service {
     if (clientPara.playerId === targetPlayerId)
       throw new ServerError(403, 'May not get player info for yourself.');
 
-    const me = this.data.getOpenPlayer(clientPara.playerId);
+    const me = clientPara.player;
     const them = await this.data.getPlayer(targetPlayerId);
 
     return {
@@ -616,7 +583,7 @@ export default class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
-    const playerA = this.data.getOpenPlayer(clientPara.playerId);
+    const playerA = clientPara.player;
     const playerB = await this.data.getPlayer(playerId);
     playerA.setRelationship(playerB, relationship);
 
@@ -628,11 +595,26 @@ export default class AuthService extends Service {
       throw new ServerError(401, 'Authorization is required');
 
     const clientPara = this.clientPara.get(client.id);
-    const playerA = this.data.getOpenPlayer(clientPara.playerId);
+    const playerA = clientPara.player;
     const playerB = await this.data.getPlayer(playerId);
     playerA.clearRelationship(playerB);
   }
 
+  async onGetPlayersRequest(client, playerIds) {
+    if (!this.clientPara.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    const players = new Map();
+    await Promise.all(playerIds.map(async pId => {
+      const identity = this.data.getCachedIdentity(pId);
+      if ((identity?.name ?? null) !== null) return players.set(pId, { identityId:identity.id, playerId:pId, name:identity.name, rated:true });
+
+      const player = await this.data.getPlayer(pId, true);
+      if (player) return players.set(pId, { identityId:player.identity.id, playerId:pId, name:player.name, rated:false });
+    }));
+
+    return players;
+  }
   async onQueryRatedPlayersRequest(client, query) {
     if (!this.clientPara.has(client.id))
       throw new ServerError(401, 'Authorization is required');

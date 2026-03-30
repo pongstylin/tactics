@@ -43,34 +43,28 @@ export default class DragonspeakerMage extends Pyromancer {
     if (!(unit.type === 'DragonTyrant' || unit instanceof Pyromancer))
       return;
 
-    let dragons = this.team.units.filter(u =>
-      u.type === 'DragonTyrant' && u.mHealth > -u.health
+    const dragons = this.team.units.filter(u =>
+      u.type === 'DragonTyrant' && u.disposition !== 'dead'
     );
-    let speakers = this.team.units.filter(u =>
-      u.type === 'DragonspeakerMage' && u.mHealth > -u.health
+    const speakers = this.team.units.filter(u =>
+      u.type === 'DragonspeakerMage' && u.disposition !== 'dead'
     );
-    let mages = this.team.units.filter(u =>
-      u instanceof Pyromancer && u.mHealth > -u.health
+    const mages = this.team.units.filter(u =>
+      u instanceof Pyromancer && u.disposition !== 'dead'
     );
-    let counts = [dragons.length, speakers.length, mages.length];
-    let next = calcPowerModifiers(...counts);
-
-    let change = 0;
-    if (type === 'addUnit')
-      change = -1;
-    else if (type === 'dropUnit')
-      change = 1;
+    const counts = [dragons.length, speakers.length, mages.length];
+    const prev = calcPowerModifiers(...counts);
+    const change = type === 'addUnit' ? 1 : type === 'dropUnit' ? -1 : 0;
 
     if (unit.type === 'DragonTyrant')
       counts[0] += change;
     else if (unit.type === 'DragonspeakerMage') {
       counts[1] += change;
       counts[2] += change;
-    }
-    else if (unit.type === 'Pyromancer')
+    } else if (unit.type === 'Pyromancer')
       counts[2] += change;
 
-    let prev = calcPowerModifiers(...counts);
+    const next = calcPowerModifiers(...counts);
     let results = [];
 
     if (dragons.length)

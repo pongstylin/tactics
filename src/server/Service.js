@@ -60,7 +60,12 @@ export default class Service {
         case 'requests':
           for (const [ method, definition ] of Object.entries(validation.requests)) {
             const key = `request:${method}`;
-            validators.set(key, serializer.makeValidator(`${this.name}:/requests/${method}`, definition));
+            try {
+              validators.set(key, serializer.makeValidator(`${this.name}:/requests/${method}`, definition));
+            } catch (e) {
+              console.error(e);
+              throw new Error(`Unable to make validator for '${this.name}:/requests/${method}'`);
+            }
           }
           break;
         case 'events':

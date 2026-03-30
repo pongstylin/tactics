@@ -15,16 +15,75 @@ export default class PlayerInfo extends Modal {
 
     this.root.classList.add('playerInfo');
 
-    this.getPlayerInfo().then(() => {
+    this.data.isParticipant = data.game.hasOneLocalTeam();
+
+    this._load().then(() => {
       this.root.addEventListener('click', this._onClick.bind(this));
     });
+
+    this.data.trigger = ({ data }) => {
+      if (this.data.game.state.endedAt)
+        return;
+
+      if (!Array.isArray(data))
+        data = [data];
+
+      if (data.find(ps => ps.playerId === this.data.team.playerId))
+        this._load();
+    };
+
+    if (this.data.isParticipant) {
+      this.data.game.state.on('playerStatus', this.data.trigger);
+      this.data.game.state.on('endGame', () => {
+        clearTimeout(this.data.timeout);
+      });
+    }
+  }
+
+  _load() {
+    const data = this.data;
+    if (data.request) return;
+
+    clearTimeout(data.timeout);
+
+    const activityRequest = data.isParticipant && !data.game.state.endedAt
+      ? gameClient.getPlayerActivity(data.game.id, data.team.playerId)
+      : Promise.resolve(null);
+
+    data.request = Promise.all([
+      gameClient.getPlayerInfo(data.game.id, data.team.playerId),
+      activityRequest,
+    ])
+      .then(([ info, activity ]) => {
+        // Just in case the modal was closed before the request completed.
+        if (!this.root) return;
+
+        data.info = info;
+        data.activity = activity;
+        data.request = null;
+
+        return this.renderInfo().then(() => {
+          if (data.isParticipant && !data.game.state.endedAt && this.root)
+            data.timeout = setTimeout(() => this._load(), 5000);
+        });
+      })
+      .catch(error => {
+        data.request = null;
+        this.renderContent('Failed to load player info.');
+        throw error;
+      });
+
+    return data.request;
   }
 
   _onClick(event) {
     const { info, team, gameType } = this.data;
-
     const target = event.target;
-    if (target.tagName === 'SPAN' && target.id === "rating_explanation") {
+
+    if (target.tagName === 'A' && target.classList.contains('view-set'))
+      return;
+
+    if (target.tagName === 'SPAN' && target.id === 'rating_explanation') {
       popup({
         title: 'Forte Rating',
         message: [
@@ -45,9 +104,9 @@ export default class PlayerInfo extends Modal {
 
     const playerName = info.relationship.name ?? team.name;
 
-    if (target.tagName === 'SPAN' && target.id === "all_ratings") {
-      const ratingPaddingLeft = "10px";
-      const gameCountPaddingLeft = "25px";
+    if (target.tagName === 'SPAN' && target.id === 'all_ratings') {
+      const ratingPaddingLeft = '10px';
+      const gameCountPaddingLeft = '25px';
       let messages = [
         `<DIV style='display: grid; text-align: left;'>
            <TABLE cellSpacing=10px> <TR>
@@ -67,7 +126,7 @@ export default class PlayerInfo extends Modal {
             </TD>
           </TR>
         `);
-      messages.push(`</TABLE> </DIV>`)
+      messages.push(`</TABLE> </DIV>`);
       popup({
         title: `<I>${playerName}</I> ratings`,
         message: messages.join(' '),
@@ -106,22 +165,7 @@ export default class PlayerInfo extends Modal {
   }
 
   getPlayerInfo() {
-    const data = this.data;
-
-    this.renderContent('Please wait...');
-
-    return gameClient.getPlayerInfo(data.game.id, data.team.playerId)
-      .then(info => {
-        // Just in case the modal was closed before the request completed.
-        if (!this.root) return;
-
-        this.data.info = info;
-        this.renderInfo();
-      })
-      .catch(error => {
-        this.renderContent('Failed to load player info.');
-        throw error;
-      });
+    return this._load();
   }
 
   static getElapsed(diff) {
@@ -137,8 +181,74 @@ export default class PlayerInfo extends Modal {
 
     return elapsed;
   }
+  static getSetViaName(setVia) {
+    switch (setVia) {
+      case 'temp':
+        return 'Temporary';
+      case 'top':
+        return 'Random Top 100';
+      case 'random':
+        return 'Random Saved';
+      case 'same':
+        return 'Same';
+      case 'mirror':
+        return 'Mirror';
+      default:
+        return 'Picked Saved';
+    }
+  }
 
-  renderInfo() {
+  renderActivity() {
+    const { activity, team } = this.data;
+    if (!activity) return '';
+
+    const teamName = `<SPAN class="playerName">${team.name}</SPAN>`;
+    const { generalStatus, gameStatus, idle, gameIdle } = activity;
+
+    const lines = [
+      `<DIV>`,
+        `General Status: `,
+        `<SPAN class="status ${generalStatus}">${generalStatus.toUpperCase('first')}</SPAN> `,
+        `as of ${PlayerInfo.getElapsed(idle)} ago.`,
+      `</DIV>`,
+      `<DIV>`,
+        `Game Status: `,
+        `<SPAN class="status ${gameStatus}">${gameStatus.toUpperCase('first')}</SPAN> `,
+        `as of ${PlayerInfo.getElapsed(gameIdle)} ago.`,
+      `</DIV>`,
+    ];
+
+    if (activity.activity) {
+      const { activeGamesCount, inactiveGamesCount, forkGameId, yourGameId, activeGameId } = activity.activity;
+
+      lines.push(`<DIV>Opened Active Games: ${activeGamesCount}</DIV>`);
+      lines.push(`<DIV>Opened Inactive Games: ${inactiveGamesCount}</DIV>`);
+
+      if (forkGameId) {
+        const link = `<A href="/game.html?${forkGameId}" target="_blank">Watch</A>`;
+        lines.push(`<DIV>${teamName} is running simulations in a fork of this game.  ${link}</DIV>`);
+      }
+      if (yourGameId) {
+        const link = `<A href="/game.html?${yourGameId}" target="_blank">Play</A>`;
+        lines.push(`<DIV>${teamName} is playing you in another game.  ${link}</DIV>`);
+      }
+      if (activeGameId) {
+        const link = `<A href="/game.html?${activeGameId}" target="_blank">Watch</A>`;
+        lines.push(`<DIV>${teamName} is busy playing another game.  ${link}</DIV>`);
+      }
+    }
+
+    return [
+      `<DIV>`,
+        `<B>Activity</B>`,
+        `<HR>`,
+        ...lines,
+      `</DIV>`,
+      `<BR>`,
+    ].join('');
+  }
+
+  async renderInfo() {
     const data = this.data;
     const info = this.data.info;
     const stats = info.stats;
@@ -170,6 +280,9 @@ export default class PlayerInfo extends Modal {
     const content = [
       `<DIV class="relationshipName"></DIV>`,
       `</BR>`,
+
+      // Activity Section
+      this.renderActivity(),
 
       // Ratings section
       ...(info.isVerified.get('them') ? [
@@ -270,9 +383,25 @@ export default class PlayerInfo extends Modal {
         `</DIV>`,
       `</DIV>`,
       `</DIV>`,
-      `</BR>`,
+
+      // Set details section
+      ...(!info.set ? [] : [
+        `<BR>`,
+        `<DIV>`,
+          `<B>Set Details</B>`,
+          `<HR>`,
+          `<DIV class="set-details">`,
+            `<DIV>View Set Details:</DIV>`,
+            `<DIV><A href="${await this.getViewSetURL()}" class="view-set">${info.set.name}</A></DIV>`,
+            `<DIV>Selection Method:</DIV>`,
+            `<DIV>${PlayerInfo.getSetViaName(info.set.via)}</DIV>`,
+            info.set.randomSide ? '<DIV>Random Side</DIV>' : '',
+          `</DIV>`,
+        `</DIV>`,
+      ]),
 
       // Account details section
+      `<BR>`,
       `<DIV>`,
         `<B>Account Details</B>`,
         `<HR>`,
@@ -414,6 +543,13 @@ export default class PlayerInfo extends Modal {
     relationshipName.appendTo(this.root.querySelector('.relationshipName'));
   }
 
+  async getViewSetURL() {
+    const gameTypeId = this.data.gameType.id;
+    const set = { ...this.data.info.set };
+    delete set.via;
+
+    return `online.html#?viewSet=${await JSON.compress({ gameTypeId, set })}`;
+  }
   rename(newName) {
     return this.setRelationship({ name:newName })
       .then(() => {
@@ -424,21 +560,21 @@ export default class PlayerInfo extends Modal {
     return this.setRelationship({ type:'friended' })
       .then(() => {
         this.data.info.relationship.type = 'friended';
-        this.renderInfo();
+        return this.renderInfo();
       });
   }
   mute() {
     return this.setRelationship({ type:'muted' })
       .then(() => {
         this.data.info.relationship.type = 'muted';
-        this.renderInfo();
+        return this.renderInfo();
       });
   }
   block() {
     return this.setRelationship({ type:'blocked' })
       .then(() => {
         this.data.info.relationship.type = 'blocked';
-        this.renderInfo();
+        return this.renderInfo();
       });
   }
   setRelationship(changes) {
@@ -457,15 +593,22 @@ export default class PlayerInfo extends Modal {
       .then(() => {
         delete this.data.info.relationship.type;
         delete this.data.info.relationship.name;
-        this.renderInfo();
+        return this.renderInfo();
       });
   }
   clearStats() {
     return gameClient.clearWLDStats(this.data.team.playerId)
-      .then(() => this.getPlayerInfo());
+      .then(() => this._load());
   }
   clearStyleStats() {
     return gameClient.clearWLDStats(this.data.team.playerId, this.data.gameType.id)
-      .then(() => this.getPlayerInfo());
+      .then(() => this._load());
+  }
+
+  destroy() {
+    super.destroy();
+    clearTimeout(this.data.timeout);
+    if (this.data.isParticipant)
+      this.data.game.state.off('playerStatus', this.data.trigger);
   }
 }

@@ -1,56 +1,36 @@
 import '#plugins/index.js';
 import '#models/Game.js';
 import GameAdapter from '#data/DynamoDBAdapter/GameAdapter.js';
-import gameTypes from '#data/files/game/game_types.json' with { type:'json' };
 import Timeout from '#server/Timeout.js';
+
+const gameTypeId = process.argv[2] ?? null;
 
 // Required for DynamoDBAdapter
 const ticker = setInterval(Timeout.tick, 5000);
+const dryRun = false;
+const gameAdapter = await new GameAdapter({ hasState:false, readonly:dryRun }).bootstrap();
 
-const gameTypeMap = new Map(gameTypes);
-const dataAdapter = new GameAdapter({ readonly:false });
-await dataAdapter.bootstrap();
+gameAdapter.readonly = false;
+const gamesIndex = await gameAdapter.indexAllGames();
+gameAdapter.readonly = dryRun;
 
-const since = process.argv[2] ? new Date(process.argv[2]) : null;
-const queue = [];
-let numProcessed = 0;
+for (const gameType of gameAdapter.getGameTypesById().values()) {
+  if (gameTypeId && gameType.id !== gameTypeId) continue;
+  if (gameType.config.archived) continue;
 
-queue.push('86aab879-d074-4acf-ad98-ad6c879377f5');
-/*
-for (const gs of await dataAdapter.queryItemChildren({
-  type: 'collection',
-  query: {
-    indexKey: 'LSK0',
-    indexValue: 'b=',
-  },
-})) {
-  queue.push(gs.id);
-  if (queue.length === 100)
-    await sync();
+  const gameIds = Array.from(gamesIndex.entries()).filter(gi => gi[1].gameTypeId === gameType.id).map(gi => gi[0]);
+
+  console.log(`Now syncing game summary lists for ${gameIds.length} ${gameType.id} games...`);
+
+  for (let i = 0; i < gameIds.length; i += 50) {
+    await Promise.all(gameIds.slice(i, i+50).map(async gId => {
+      const game = await gameAdapter.getGameFromFile(gId);
+      return gameAdapter._saveGameSummary(game, true);
+    }));
+    console.log(`Saved ${i+50} of ${gameIds.length} game summary lists.`);
+  }
 }
-*/
-/*
-for await (const gameId of dataAdapter.listAllGameIds(since)) {
-  queue.push(gameId);
-  if (queue.length === 100)
-    await sync();
-}
-*/
 
-if (queue.length)
-  await sync();
-
-await dataAdapter.cleanup();
+await gameAdapter.cleanup();
 clearInterval(ticker);
 console.log('Sync complete');
-
-async function sync() {
-  await Promise.all(queue.map(qId => dataAdapter._getGame(qId).then(game => {
-    if (!gameTypeMap.has(game.state.type))
-      return;
-    return dataAdapter._saveGameSummary(game, true);
-  }).catch(error => console.error(error))));
-  await dataAdapter.flush();
-  console.log('synced', numProcessed += queue.length);
-  queue.length = 0;
-}

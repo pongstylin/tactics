@@ -62,12 +62,13 @@ const WCU_INDEX = 0;
 const WCU_THROTTLE_PERIOD = 60; // 1 minute
 const WCU_LIMIT = parseInt(process.env.DDB_WCU_LIMIT ?? '25') * WCU_THROTTLE_PERIOD;
 const workerQueue = {
-  max: os.cpus().length * 2,
+  max: (process.env.DDB_MAX_WORKERS ? parseInt(process.env.DDB_MAX_WORKERS) : os.cpus().length) * 2,
   size: 0,
   adapters: new Set(),
 };
 const pool = workerpool.pool(`./src/data/DynamoDBAdapter/worker.js`, {
   minWorkers: 'max',
+  ...(process.env.DDB_MAX_WORKERS ? { maxWorkers:parseInt(process.env.DDB_MAX_WORKERS) } : {}),
   maxQueueSize: workerQueue.max,
   workerType: 'thread',
   workerThreadOpts: { workerData },
@@ -100,6 +101,41 @@ const keyAttributes = {
   // Local Secondary Index Primary Keys (technically implemented as GSIs)
   LSK0:'RANGE', LSK1:'RANGE', LSK2:'RANGE', LSK3:'RANGE', LSK4:'RANGE', LSK5:'RANGE',
 };
+const GlobalSecondaryIndexes = [
+  ...[ 0, 1 ].map(id => ({
+    IndexName: `GPK${id}-GSK${id}`,
+    KeySchema: [
+      {
+        AttributeName: `GPK${id}`,
+        KeyType: 'HASH',
+      },
+      {
+        AttributeName: `GSK${id}`,
+        KeyType: 'RANGE',
+      },
+    ],
+    Projection: {
+      ProjectionType: 'KEYS_ONLY',
+    },
+  })),
+  ...[ 0, 1, 2, 3, 4, 5 ].map(id => ({
+    IndexName: `PK-LSK${id}`,
+    KeySchema: [
+      {
+        AttributeName: 'PK',
+        KeyType: 'HASH',
+      },
+      {
+        AttributeName: `LSK${id}`,
+        KeyType: 'RANGE',
+      },
+    ],
+    Projection: {
+      ProjectionType: 'INCLUDE',
+      NonKeyAttributes: [ 'PD', 'PF' ],
+    },
+  })),
+];
 
 await docClient.send(new DescribeTableCommand({
   TableName: TABLE_NAME,
@@ -116,41 +152,7 @@ await docClient.send(new DescribeTableCommand({
     TableName: TABLE_NAME,
     KeySchema: Object.entries(keyAttributes).filter(([a]) => ['PK','SK'].includes(a)).map(([ AttributeName, KeyType ]) => ({ AttributeName, KeyType })),
     AttributeDefinitions: Object.keys(keyAttributes).map(AttributeName => ({ AttributeName, AttributeType:'S' })),
-    GlobalSecondaryIndexes: [
-      ...[ 0, 1 ].map(id => ({
-        IndexName: `GPK${id}-GSK${id}`,
-        KeySchema: [
-          {
-            AttributeName: `GPK${id}`,
-            KeyType: 'HASH',
-          },
-          {
-            AttributeName: `GSK${id}`,
-            KeyType: 'RANGE',
-          },
-        ],
-        Projection: {
-          ProjectionType: 'KEYS_ONLY',
-        },
-      })),
-      ...[ 0, 1, 2, 3, 4, 5 ].map(id => ({
-        IndexName: `PK-LSK${id}`,
-        KeySchema: [
-          {
-            AttributeName: 'PK',
-            KeyType: 'HASH',
-          },
-          {
-            AttributeName: `LSK${id}`,
-            KeyType: 'RANGE',
-          },
-        ],
-        Projection: {
-          ProjectionType: 'INCLUDE',
-          NonKeyAttributes: [ 'PD', 'PF' ],
-        },
-      })),
-    ],
+    GlobalSecondaryIndexes,
     LocalSecondaryIndexes: undefined,
     StreamSpecification: {
       StreamEnabled: true,
@@ -258,6 +260,17 @@ export default class DynamoDBAdapter extends FileAdapter {
     const queueKey = 'write:' + keyOfItem(key);
     return this._pushItemQueue({ key:queueKey, method:'_deleteItem', args:[ key ] });
   }
+  deleteItems(query, filterFn = () => true) {
+    query = Object.assign({ attributes:[] }, query, { limit:true });
+    if (!query.attributes.includes('PK') && !query.filters.PK)
+      query.attributes.push('PK');
+    if (!query.attributes.includes('SK'))
+      query.attributes.push('SK');
+
+    // This actually needs to encode the PK key and value, e.g. GPK0
+    const queueKey = 'write:' + query.filters.PK;
+    return this._pushItemQueue({ key:queueKey, method:'_deleteItems', args:[ query, filterFn ]})
+  }
 
   createItemParts(key, obj, parts) {
     if (!parts.has('/'))
@@ -284,7 +297,7 @@ export default class DynamoDBAdapter extends FileAdapter {
   getItemParts(key, transform = p => p, migrateProps = undefined) {
     key = this._processKey(key);
 
-    const queueKey = key.name ?? key.PK;
+    const queueKey = keyOfItem(key);
     return this._pushItemQueue({ key:queueKey, method:'_getItemParts', args:[ key, transform, migrateProps ] });
   }
   putItemParts(key, obj, parts) {
@@ -404,7 +417,7 @@ export default class DynamoDBAdapter extends FileAdapter {
 
     return returnType === 'single' ? promises[0] : Promise.all(promises);
   }
-  async _triggerItemQueue() {
+  _triggerItemQueue() {
     if (this.itemQueue.size === 0)
       return;
 
@@ -478,10 +491,10 @@ export default class DynamoDBAdapter extends FileAdapter {
         .finally(() => this.itemQueue.delete(op.key))
       );
 
-    return Promise.all(queue.map(op => op.promise));
+    return Promise.all(queue.map(op => op.promise.catch(() => {})));
   }
 
-  async _getItemBatch(ops) {
+  _getItemBatch(ops) {
     const chunks = [];
     for (let i = 0; i < ops.length; i += 100)
       chunks.push(ops.slice(i, i+100));
@@ -541,7 +554,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       }
     }));
   }
-  async _writeItemBatch(deleteOps) {
+  _writeItemBatch(deleteOps) {
     const requests = deleteOps.map(op => ({
       DeleteRequest: { Key:{ PK:op.args[0].PK, SK:op.args[0].SK } },
     }));
@@ -556,7 +569,7 @@ export default class DynamoDBAdapter extends FileAdapter {
         ReturnConsumedCapacity: 'NONE',
         ReturnItemCollectionMetrics: 'NONE',
       }));
-      const delayed = new Map((rsp.UnprocessedItems[TABLE_NAME] ?? []).map(i => [ keyOfItem(i), i ]));
+      const delayed = new Map((rsp.UnprocessedItems?.[TABLE_NAME] ?? []).map(i => [ keyOfItem(i), i ]));
 
       for (const op of deleteOps) {
         const itemKey = keyOfItem(op.args[0]);
@@ -642,31 +655,31 @@ export default class DynamoDBAdapter extends FileAdapter {
       });
     });
   }
-  async _parseItem(item) {
+  async _parseItem(item, parser = JSON) {
     try {
       if (item.D)
-        item.D = JSON.parse(await this._decompress(item.D));
+        item.D = parser.parse(await this._decompress(item.D));
       if (item.PD)
-        item.PD = JSON.parse(await this._decompress(item.PD));
+        item.PD = parser.parse(await this._decompress(item.PD));
     } catch (error) {
       if (error.code === 'ERR_RING_BUFFER_2') {
         console.log(`Warning: (Retrying) ${error.message}: ${keyOfItem(item)}: ${error.code} (${error.errno})`);
-        return this._parseItem(item);
+        return this._parseItem(item, parser);
       }
 
       console.error(`Error while decompressing item: ${keyOfItem(item)}: `, error);
-      console.error('data:', item.D ?? item.PD);
+      console.error('data:', item.D ?? item.PD ?? item.PF);
       throw new ServerError(500, 'Item is malformed');
     }
     return item;
   }
   async _migrate(item, props = {}) {
-    if (!(item.D ?? item.PD)) {
+    if (!(item.D ?? item.PD ?? item.PF)) {
       console.log('Item is missing data!', item, new Error().stack);
       throw new ServerError(500, 'Item is malformed');
     }
     item = await migrateItem.call(this, await this._parseItem(item), props);
-    return serializer.normalize(item.D ?? item.PD);
+    return item.D ?? item.PD ? serializer.normalize(item.D ?? item.PD) : item.PF;
   }
 
   /*
@@ -685,7 +698,7 @@ export default class DynamoDBAdapter extends FileAdapter {
       const op = writeOps.shift();
       const method = op.method.slice(1);
       const [ item, obj ] = op.args;
-      if (!(item.D ?? item.PD)) {
+      if (!(item.D ?? item.PD ?? item.PF)) {
         console.log('Item is missing data!', method, item);
         op.reject(new ServerError(500, 'Item is missing data!'));
         this.itemQueue.delete(op.key);
@@ -872,7 +885,7 @@ export default class DynamoDBAdapter extends FileAdapter {
     return transform(await Promise.all(items.map(i => this._migrate(i, migrateProps))));
   }
   async _putItemChildren(key, children) {
-    const ops = children.map(child => (child.D ?? child.PD ?? null) === null ? ({
+    const ops = children.map(child => (child.D ?? child.PD ?? child.PF ?? null) === null ? ({
       key: 'write:' + keyOfItem({ PK:key.PK, SK:child.PK }),
       method: '_deleteItem',
       args: [{ PK:key.PK, SK:child.PK }],
@@ -898,9 +911,9 @@ export default class DynamoDBAdapter extends FileAdapter {
       key.query.order = 'ASC';
 
     return Object.assign({
-      // If PK is not supplied, a type and id is required.
+      // If PK is not supplied, a type is required.
       PK: key.id ? `${key.type}#${key.id}` : key.type,
-      SK: key.childId ? `${key.childType}#${key.childId}` : key.childType ? key.childType : key.path ?? '/',
+      SK: ((key.childType && key.childId ? `${key.childType}#${key.childId}` : key.childType ? key.childType : '') + (key.path ?? '')) || '/',
     }, key);
   }
   _processItem(item, key = null) {
@@ -917,6 +930,91 @@ export default class DynamoDBAdapter extends FileAdapter {
       ...Object.assign({}, key?.indexes, item.indexes),
     };
   }
+  /*
+   * When limit is false (default) all results are returned.
+   * When limit is true, only the first chunk of results are returned with a cursor for getting the next, if any.
+   * When limit is a number, no more than that will be returned.
+   */
+  async query(query, testMode = null) {
+    query.limit ??= false;
+    query.indexName ??= GlobalSecondaryIndexes.find(gsi => gsi.KeySchema.every(ks => ks.AttributeName in query.filters))?.IndexName;
+
+    const input = {
+      TableName: TABLE_NAME,
+      Select: query.attributes ? 'SPECIFIC_ATTRIBUTES' : query.indexName ? 'ALL_PROJECTED_ATTRIBUTES' : 'ALL_ATTRIBUTES',
+      ProjectionExpression: query.attributes ? query.attributes.join(', ') : undefined,
+      IndexName: query.indexName,
+      KeyConditionExpression: null,
+      ExpressionAttributeValues: {},
+      ScanIndexForward: (query.order ?? 'ASC') === 'ASC',
+      Limit: typeof query.limit === 'number' ? query.limit : undefined,
+      ConsistentRead: false,
+      ReturnConsumedCapacity: 'NONE',
+    };
+    const needsNormalize = !query.attributes || query.attributes.includes('D') || query.attributes.includes('PD');
+    const canMigrate = !query.attributes || (
+      (query.attributes.includes('PK') || query.filters.PK) &&
+      query.attributes.includes('SK') &&
+      needsNormalize
+    );
+
+    const aliasByValue = new Map();
+    const conditions = [];
+    for (let [ attribute, filter ] of Object.entries(query.filters)) {
+      if (typeof filter === 'string')
+        filter = { eq:filter };
+
+      for (const [ op, value ] of Object.entries(filter)) {
+        if (op === 'beginsWith') {
+          const valueAlias = aliasByValue.has(value) ? aliasByValue.get(value) : `:V${aliasByValue.size}`;
+          aliasByValue.set(value, valueAlias);
+          input.ExpressionAttributeValues[valueAlias] = value;
+
+          conditions.push(`begins_with(${attribute}, ${valueAlias})`);
+        } else if (filterOpByName.has(op)) {
+          const valueAlias = aliasByValue.has(value) ? aliasByValue.get(value) : `:V${aliasByValue.size}`;
+          aliasByValue.set(value, valueAlias);
+          input.ExpressionAttributeValues[valueAlias] = value;
+
+          conditions.push(`${attribute} ${filterOpByName.get(op)} ${valueAlias}`);
+        } else
+          throw new Error(`Unsupported condition '${op}'`);
+      }
+    }
+    input.KeyConditionExpression = conditions.join(' AND ');
+
+    const ret = {
+      items: [],
+      cursor: query.cursor,
+    };
+    do {
+      const rsp = await this._send(new QueryCommand(Object.assign({}, input, {
+        ExclusiveStartKey: ret.cursor,
+        Limit: typeof query.limit === 'number' ? query.limit - ret.items.length : undefined,
+      })));
+      ret.items = ret.items.concat(await Promise.all(rsp.Items.map(async i => {
+        if (!i.PK && query.filters.PK) i.PK = query.filters.PK;
+
+        // migration and normalization not (des|requ)ired?
+        if (testMode || !needsNormalize) return this._parseItem(i);
+        if (canMigrate) return Object.assign(i, { data:await this._migrate(i) });
+
+        await this._parseItem(i, serializer);
+        return Object.assign(i, { data:i.D ?? i.PD });
+      })));
+      ret.cursor = rsp.LastEvaluatedKey;
+    } while (ret.cursor && (query.limit === false || typeof query.limit === 'number' && query.limit > ret.items.length));
+
+    return ret;
+  }
+  async _deleteItems(query, filterFn) {
+    do {
+      const rsp = await this.query(query);
+      await Promise.all(rsp.items.filter(filterFn).map(i => this.deleteItem({ PK:i.PK, SK:i.SK })));
+      query.cursor = rsp.cursor;
+    } while (query.cursor);
+  }
+
   async *_query(query) {
     const input = {
       TableName: TABLE_NAME,

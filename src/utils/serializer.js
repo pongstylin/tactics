@@ -871,7 +871,7 @@ const compileSchema = (schema, subSchema = schema, isRequired = true) => {
   if (Object.keys(subSchema).length === 0)
     return { type:'any' };
 
-  if (subSchema.$ref) {
+  while (subSchema.$ref) {
     const ref = subSchema.$ref;
     if (ref.startsWith('#/definitions/')) {
       subSchema = schema.definitions[ref.replace(/^#\/definitions\//, '')];
@@ -1205,6 +1205,8 @@ const serializer = {
 
     if (serialized.$type) {
       const type = classTypeMap.get(serialized.$type);
+      if (!type)
+        throw new Error(`Unknown type: ${serialized.$type}`);
       return type.normalize(serialized.$data);
     } else if (serialized.$transform) {
       const type = classTypeMap.get(serialized.$transform.type);

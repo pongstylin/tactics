@@ -1,5 +1,4 @@
 import Client from 'client/Client.js';
-import popup from 'components/popup.js';
 import Auth from 'components/Modal/Auth.js';
 import config from 'config/client.js';
 import { CLOSE_CLIENT_LOGOUT } from 'client/ServerSocket.js';
@@ -258,6 +257,18 @@ export default class AuthClient extends Client {
       });
   }
 
+  getPlayers(inPlayerIds) {
+    const playerIds = inPlayerIds.filter(pId => reUUIDv4.test(pId));
+    if (playerIds.length === 0)
+      return new Map();
+
+    return this._server.requestAuthorized(this.name, 'getPlayers', [ playerIds ])
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getPlayers(playerIds);
+        throw error;
+      });
+  }
   queryRatedPlayers(query) {
     return this._server.requestAuthorized(this.name, 'queryRatedPlayers', [ query ])
       .catch(error => {
@@ -331,8 +342,13 @@ export default class AuthClient extends Client {
 
         if (authLink === 'failed')
           this.requireAuth('Please try again.  Temporary authorization failure.');
-        else if (await this.linkAuthProvider(authLink) === false)
-          this.requireAuth('Please try again.  Authorization token expired.');
+
+        try {
+          if (await this.linkAuthProvider(authLink) === false)
+            this.requireAuth('Please try again.  Authorization token expired.');
+        } catch (error) {
+          this.requireAuth('Please try again.  Temporary authorization failure.');
+        }
       } else if (this.token === null) {
         await this._restoreToken();
         await this._refreshToken();

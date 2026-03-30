@@ -2,16 +2,58 @@
  * This model is used to generate JSON with a summary of a game.
  * The summary can be used to render a game in a list.
  */
+// @ts-ignore
 import serializer from '#utils/serializer.js';
+import type Game from '#models/Game.js';
+import type GameState from '#tactics/GameState.js';
+import type GameType from '#tactics/GameType.js';
+import type Player from '#models/Player.js';
+import type Team from '#models/Team.js';
+import type TeamSet from '#models/TeamSet.js';
 
 export default class GameSummary {
-  protected data: any
+  protected data: {
+    id: Game['id'],
+    type: NonNullable<GameState['type']>,
+    collection: Game['collection'],
+    typeName: GameType['name'],
+    createdBy: Game['createdBy'],
+    createdAt: Game['createdAt'],
+    updatedAt: Game['updatedAt'],
+    startedAt: Game['startedAt'],
+    endedAt: Game['endedAt'],
+    randomFirstTurn: GameState['randomFirstTurn'],
+    randomHitChance: GameState['randomHitChance'],
+    turnStartedAt: GameState['turnStartedAt'],
+    turnEndedAt: GameState['turnEndedAt'],
+    timeLimitName: Game['timeLimitName'],
+    currentTurnId: GameState['currentTurnId'],
+    currentTurnTimeLimit: GameState['currentTurnTimeLimit'],
+    mode: 'fork' | 'practice' | 'tournament' | null,
+    rated: GameState['rated'],
+    teams: {
+      id: number,
+      createdAt: Team['createdAt'],
+      joinedAt: Team['joinedAt'],
+      playerId: Team['playerId'],
+      name: Team['name'],
+      ratings: Team['ratings'],
+      set?: Pick<TeamSet, 'id' | 'name'>,
+      setVia: Team['setVia'],
+    }[],
+    tags: Game['tags'],
 
-  constructor(data) {
+    winnerId?: GameState['winnerId'],
+    currentTeamId?: GameState['currentTeamId'],
+    meta?: object;
+  };
+  protected _rating?: number | null
+
+  constructor(data:GameSummary['data']) {
     this.data = data;
   }
 
-  static create(game) {
+  static create(game:Game) {
     const data:any = {
       id: game.id,
       type: game.state.type,
@@ -33,11 +75,16 @@ export default class GameSummary {
       mode: game.isFork ? 'fork' : game.state.isPracticeMode ? 'practice' : game.state.isTournamentMode ? 'tournament' : null,
       rated: game.state.rated,
       teams: game.state.teams.map(t => t && {
+        id: t.id,
         createdAt: t.createdAt,
         joinedAt: t.joinedAt,
         playerId: t.playerId,
         name: t.name,
         ratings: t.ratings,
+        // t.set can be null if it is being hidden
+        // t.set.id can be null for fork games
+        set: t.set?.id ? { id:t.set.id, name:t.set.name } : undefined,
+        setVia: t.setVia,
       }),
       tags: { ...game.tags },
     };
@@ -49,7 +96,7 @@ export default class GameSummary {
 
     return new GameSummary(data);
   }
-  static fromJSON(data) {
+  static fromJSON(data:GameSummary['data']) {
     data.teams = data.teams.map((t,tId) => t && { ...t, id:tId });
     return new GameSummary(data);
   }
@@ -94,10 +141,10 @@ export default class GameSummary {
     return this.data.teams;
   }
   get currentTeamId() {
-    return this.data.currentTeamId;
+    return this.data.currentTeamId ?? null;
   }
   get currentTeam() {
-    return this.data.teams[this.data.currentTeamId];
+    return this.currentTeamId === null ? null : this.data.teams[this.currentTeamId];
   }
   get tags() {
     return this.data.tags;
@@ -122,7 +169,7 @@ export default class GameSummary {
   }
   get creator() {
     return this.data.teams.filter(t => t?.playerId === this.data.createdBy).sort((a,b) => (
-      (a.joinedAt ?? 0) - (b.joinedAt ?? 0)
+      (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0)
     ))[0] ?? null;
   }
   get winner() {
@@ -143,6 +190,27 @@ export default class GameSummary {
   get isSimulation() {
     return new Set(this.teams.map(t => t?.playerId)).size === 1;
   }
+  /*
+   * The game rating is based on the ratings of the two players.  If either
+   * player is unrated, then the game is unrated.  If both players are
+   * rated, then the game is rated.  The game rating is higher if both
+   * players have a higher rating.  The game rating is higher if the two
+   * players have roughly the same rating.
+   */
+  get rating() {
+    if (this._rating !== undefined) return this._rating;
+
+    return this._rating = (() => {
+      if (!this.data.endedAt || !this.data.rated) return null;
+      const [ t1, t2 ] = this.data.teams;
+      const r1 = t1.ratings?.get(this.data.type)?.[0] ?? null;
+      if (r1 === null) return null;
+      const r2 = t2.ratings?.get(this.data.type)?.[0] ?? null;
+      if (r2 === null) return null;
+      const ratio = Math.min(r1, r2) / Math.max(r1, r2);
+      return (r1 + r2) / 2 * ratio;
+    })();
+  }
   get meta() {
     return this.data.meta ?? {};
   }
@@ -154,23 +222,36 @@ export default class GameSummary {
       return Infinity;
 
     const turnTimeLimit = this.data.currentTurnTimeLimit;
-    const turnTimeout = this.data.turnStartedAt.getTime() + turnTimeLimit*1000 - Date.now();
+    const turnTimeout = this.data.turnStartedAt!.getTime() + turnTimeLimit!*1000 - now;
 
     return Math.max(0, turnTimeout);
   }
 
-  equals(gs) {
+  equals(gs:GameSummary) {
     if (!(gs instanceof GameSummary))
       return false;
 
     return JSON.stringify(this) === JSON.stringify(gs);
   }
-  cloneWithMeta(meta) {
-    return new GameSummary({ ...this.data, meta });
+  cloneWithMeta(meta:object, player:Player | null = null) {
+    const data = this.data.clone();
+    // Do not reveal your opponent's set until you have played a turn in the game (or it ends).
+    if (![ 'fork', 'practice' ].includes(this.data.mode ?? ''))
+      if (!this.startedAt || (!this.endedAt && this.data.currentTurnId! < 4))
+        for (const team of data.teams)
+          if (team && team.set && (team.playerId !== player?.id || team.setVia === 'top'))
+            delete team.set;
+
+    return new GameSummary({ ...data, meta });
   }
 
   toJSON() {
-    return { ...this.data };
+    const data = this.data.clone() as any;
+    for (const team of data.teams)
+      if (team)
+        delete team.id;
+
+    return data;
   }
 };
 

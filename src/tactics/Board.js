@@ -162,14 +162,18 @@ export default class Board {
         divider: {
           type: 'G',
           draw: pixi => {
-            const colorStops = [
-              [0,    '#000000'],
-              [0.09, '#FFFFFF'],
-              [0.62, '#FFEECC'],
-              [1,    '#000000'],
-            ];
-            const fill = new PIXI.FillGradient(0, 0, 176, 0);
-            colorStops.forEach(cs => fill.addColorStop(...cs));
+            const fill = new PIXI.FillGradient({
+              type: 'linear',
+              start: { x:0, y:0 },
+              end: { x:176, y:0 },
+              colorStops: [
+                { offset:0,    color:0x000000 },
+                { offset:0.09, color:0xFFFFFF },
+                { offset:0.62, color:0xFFEECC },
+                { offset:1,    color:0x000000 },
+              ],
+              textureSpace: 'global',
+            });
 
             pixi.moveTo(0, 60.5);
             pixi.lineTo(176, 60.5);
@@ -267,7 +271,7 @@ export default class Board {
    *
    * Code must be as optimized as possible.
    */
-  getTileRange(start, min, max, isUnassigned) {
+  getTileRange(start, min, max, isUnassigned = null) {
     let tiles = this.tiles;
     let ylb = Math.max(0,  start.y - max);     // Y Lower-Bound (inclusive)
     let yub = Math.min(10, start.y + max) + 1; // Y Upper-Bound (exclusive)
@@ -546,12 +550,9 @@ export default class Board {
 
     return null;
   }
-  rotateUnits(units, degree, flipSide = false) {
+  rotateUnits(units, degree) {
     return units.map(unitState => {
-      const tile = flipSide === false || unitState.assignment[0] === 5
-        ? this.getTileRotation(unitState.assignment, degree)
-        : this.getTileRotation([ 10 - unitState.assignment[0], unitState.assignment[1] ], degree);
-
+      const tile = this.getTileRotation(unitState.assignment, degree);
       const newUnitState = Object.assign({}, unitState, {
         assignment: [tile.x, tile.y],
       });
@@ -663,8 +664,11 @@ export default class Board {
       if (this.locked === true) return;
       if (event.target.label === 'tiles') return;
 
-      if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data))
+      // This really should be an emitted event.
+      if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data)) {
         Tactics.game.selectMode = 'attack'; 
+        return;
+      }
 
       if (this.viewed || this.selected)
         this._emit({
@@ -811,19 +815,26 @@ export default class Board {
     return new PIXI.Sprite(healthBarData.texture);
   }
   drawHealth(unit) {
-    const currentHealth = Math.max(0, unit.health + unit.mHealth);
-    const healthRatio = currentHealth / unit.health;
+    const baseHealth = unit.health;
+    const currentHealth = Math.max(0, baseHealth + unit.mHealth);
+    const healthRatio = baseHealth ? currentHealth / baseHealth : 1;
+    const baseLifespan = unit.lifespan;
+    const currentLifespan = Math.max(0, baseLifespan + unit.mLifespan);
+    const lifespanRatio = baseLifespan < Infinity ? currentLifespan / baseLifespan : 1;
+    const ratio = Math.min(healthRatio, lifespanRatio);
+
+    // Determine the health bar colors
     const toColorCode = num => '#' + parseInt(num).toString(16);
-    const gradientStartColor = Tactics.utils.getColorStop(0xFF0000, 0xc2f442, healthRatio);
+    const gradientStartColor = Tactics.utils.getColorStop(0xFF0000, 0xc2f442, ratio);
     const gradientShineColor = Tactics.utils.getColorStop(gradientStartColor, 0xFFFFFF, 0.7);
     const gradientEndColor = gradientStartColor;
 
     // Create the health bar sprites
     let healthBarSprite;
-    if (healthRatio > 0)
+    if (ratio > 0)
       healthBarSprite = this.createGradientSpriteForHealthBar({
         id:         'healthBar',
-        size:       healthRatio,
+        size:       ratio,
         startColor: toColorCode(gradientStartColor),
         shineColor: toColorCode(gradientShineColor),
         endColor:   toColorCode(gradientEndColor),
@@ -848,7 +859,7 @@ export default class Board {
       fill: 'white',
     };
     const currentHealthText = new PIXI.Text({
-      text: currentHealth,
+      text: unit.health ? currentHealth : '—',
       style: textOptions,
     });
     currentHealthText.x = 28;
@@ -861,7 +872,7 @@ export default class Board {
     dividedByText.x = 27;
     dividedByText.y = -16;
     const totalHealthText = new PIXI.Text({
-      text: unit.health,
+      text: baseHealth ? baseHealth : '—',
       style: textOptions,
     });
     totalHealthText.x = 34;
@@ -902,7 +913,6 @@ export default class Board {
     let els  = card.elements;
     let notice;
     let notices = [];
-    let important = 0;
 
     if (unit === undefined)
       unit = this.focused
@@ -920,9 +930,9 @@ export default class Board {
       els.healthBar.addChild(this.drawHealth(unit));
 
       //
-      //  Status Detection
+      // Status Detection
       //
-      if (unit.mHealth === -unit.health) {
+      if (unit.disposition === 'dead') {
         if (unit.type === 'ChaosSeed')
           notice = 'Hatched!';
         else
@@ -937,6 +947,14 @@ export default class Board {
       if (unit.mRecovery)
         notices.push('Wait '+unit.mRecovery+' Turn'+(unit.mRecovery > 1 ? 's' : '')+'!');
 
+      if (unit.mLifespan < 0) {
+        const numTurns = unit.lifespan + unit.mLifespan - 1;
+        if (numTurns === 0)
+          notices.push('Last Turn !');
+        else
+          notices.push(`${numTurns} Turn${numTurns === 1 ? '' : 's'} Left !`);
+      }
+
       if (unit.poisoned)
         notices.push('Poisoned!');
 
@@ -945,7 +963,8 @@ export default class Board {
           notices.push('Enraged!');
         else if (unit.type === 'Furgon' && unit.mRecovery <= unit.recovery)
           notices.push('Empowered!');
-      }
+      } else if (unit.disposition)
+        notices.push(unit.disposition.toUpperCase('first') + '!');
 
       if (unit.focusing)
         notices.push('Focused!');
@@ -970,7 +989,7 @@ export default class Board {
         els.sfIcon.text = '\uf132';
         els.shIcon.text = unit.directional !== false ? '\uf3ed' : '';
 
-        if (unit.paralyzed || unit.focusing) {
+        if (!unit.canBlock()) {
           els.sfIcon.style.fill = '#FF4444';
           els.sfLabel.text = '∞';
           els.shIcon.style.fill = '#FF4444';
@@ -1263,8 +1282,11 @@ export default class Board {
 
     return unit;
   }
-  dropUnit(unit) {
-    var units = unit.team.units;
+  dropUnit(unit, skipDrawCard = false) {
+    const units = unit.team.units;
+    const unitIndex = units.indexOf(unit);
+    if (unitIndex === -1)
+      return;
 
     if (unit === this.focused) {
       unit.blur();
@@ -1284,12 +1306,12 @@ export default class Board {
       this.selected = null;
     }
 
-    if (unit === this.carded)
+    if (unit === this.carded && !skipDrawCard)
       this.drawCard();
 
     this.dismiss(unit);
 
-    units.splice(units.indexOf(unit), 1);
+    units.splice(unitIndex, 1);
     unit.detach();
 
     return this;
@@ -1315,16 +1337,15 @@ export default class Board {
     if (unit.assignment)
       unit.assignment.dismiss();
 
-    let unitsContainer = this.unitsContainer;
-    if (unitsContainer) {
+    const unitsContainer = this.unitsContainer;
+    if (unitsContainer)
       unitsContainer.removeChild(unit.pixi);
-    }
 
     return this;
   }
 
   applyAction(action) {
-    let unit = action.unit;
+    const unit = action.unit;
 
     if (unit) {
       if (action.assignment)
@@ -1336,21 +1357,12 @@ export default class Board {
     }
 
     this.applyActionResults(action.results);
-
-    // Remove dead units.
-    this.teamsUnits.flat().forEach(unit => {
-      // Chaos Seed doesn't die.  It hatches.
-      if (unit.type === 'ChaosSeed') return;
-
-      if (unit.mHealth === -unit.health)
-        this.dropUnit(unit);
-    });
   }
   applyActionResults(results) {
     if (!results) return;
 
     results.forEach(result => {
-      let unit = result.unit;
+      const unit = result.unit;
 
       if (result.type === 'summon') {
         // Add a clone of the unit so that the original unit remains unchanged
@@ -1361,26 +1373,24 @@ export default class Board {
 
         if (Object.keys(changes).length) {
           // For a change in type, we need to replace the unit instance.
-          // Only Chaos Seed changes type to a Chaos Dragon.
-          // By default, only the old unit id, direction, assignment, and color is inherited.
+          // Unless overridden, the old unit id, assignment, direction, and color are inherited.
           if (changes.type) {
-            // Dropping a unit clears the assignment.  So get it first.
-            const assignment = unit.assignment;
+            const newUnit = this.makeUnit(Object.assign({
+              id: unit.id,
+              assignment: unit.assignment,
+              direction: unit.direction,
+              color: unit.color,
+            }, changes));
 
-            unit = this
-              .dropUnit(unit)
-              .addUnit({
-                id:         unit.id,
-                type:       changes.type,
-                assignment: assignment,
-                direction:  changes.direction || unit.direction,
-                color:      unit.color,
-              }, unit.team);
-            delete changes.type;
+            this.dropUnit(unit).addUnit(newUnit, unit.team);
+          } else {
+            // Make sure dead disposition is applied before dropping the unit.
+            // This allows GameState to detect when the attacker has died.
+            if (Object.keys(changes).length)
+              unit.change(changes);
+            if (changes.disposition === 'dead')
+              this.dropUnit(unit);
           }
-
-          if (Object.keys(changes).length)
-            unit.change(changes);
         }
       }
 
@@ -1505,8 +1515,7 @@ export default class Board {
           if (unit.direction)
             unit.direction = this.getRotation(unit.direction, degree);
           unit.assignment = this.getTileRotation(unit.assignment, degree).coords;
-        }
-        else
+        } else
           encoded.unit = encoded.unit.id;
       if (encoded.assignment !== undefined)
         encoded.assignment = this.getTileRotation(encoded.assignment, degree).coords;
@@ -1540,22 +1549,37 @@ export default class Board {
   }
   /*
    * Decode unit and tile references by modifying original object.
+   * If a unit kills itself, initialUnits is necessary to decode the unit for earlier actions.
+   * The initial units are the units at the beginning of the turn (turn.units or cursor.units).
    */
-  decodeAction(action) {
-    let degree = this.getDegree('N', this.rotation);
-    let units = this.teamsUnits.flat();
-    let decode = obj => {
-      let decoded = {...obj};
+  decodeAction(action, initialUnits = null) {
+    const degree = this.getDegree('N', this.rotation);
+    const units = this.teamsUnits.flat();
+    const decode = obj => {
+      const decoded = {...obj};
 
       if ('unit' in decoded) {
         if (obj.type === 'summon') {
-          let unit = decoded.unit = this.makeUnit(decoded.unit);
+          const unit = decoded.unit = this.makeUnit(decoded.unit);
           if (unit.directional !== false)
             unit.direction = this.getRotation(unit.direction, degree);
           unit.assignment = this.getTileRotation(unit.assignment, degree);
+        } else {
+          const unit = units.find(u => u.id === decoded.unit);
+          if (unit === undefined) {
+            if (initialUnits) {
+              const unitData = initialUnits.flat().find(u => u.id === decoded.unit);
+              if (unitData) {
+                decoded.unit = this.makeUnit(unitData);
+              } else {
+                //throw new Error(`Unable to find unit in initial state (${decoded.unit})`);
+              }
+            } else {
+              //throw new Error(`Unable to find unit in board state (${decoded.unit})`);
+            }
+          } else
+            decoded.unit = unit;
         }
-        else
-          decoded.unit = units.find(u => u.id === decoded.unit);
       }
       if (decoded.assignment !== undefined)
         decoded.assignment = this.getTileRotation(decoded.assignment, degree);
@@ -1619,18 +1643,16 @@ export default class Board {
 
     // The Game class calls this method so the North-normalized data needs
     // to be rotated appropriately based on board rotation.
-    let degree = this.getDegree('N', this.rotation);
+    const degree = this.getDegree('N', this.rotation);
 
     // Set the board
-    teamsUnits.forEach((unitsState, teamId) => {
-      let team = teams[teamId];
+    // Clone the units to protect against modification.
+    teamsUnits.clone().forEach((unitsState, teamId) => {
+      const team = teams[teamId];
 
       this.teamsUnits.push(team.units = []);
 
       unitsState.forEach(unitState => {
-        // Clone the object to protect against modification.
-        unitState = Object.assign({}, unitState);
-
         // Adjust assignment and direction based on current board rotation.
         if (degree) {
           unitState.assignment = this.getTileRotation(unitState.assignment, degree);
@@ -1643,18 +1665,20 @@ export default class Board {
     });
 
     // Now that all units exist, resolve unit references.
-    let units = this.teamsUnits.flat();
+    const units = this.teamsUnits.flat();
     units.forEach(unit => {
-      if (unit.focusing)
-        unit.focusing = unit.focusing.map(uId => units.find(u => u.id === uId));
-      if (unit.paralyzed)
-        unit.paralyzed = unit.paralyzed.map(uId => units.find(u => u.id === uId));
-      if (unit.barriered)
-        unit.barriered = unit.barriered.map(uId => units.find(u => u.id === uId));
-      if (unit.poisoned)
-        unit.poisoned = unit.poisoned.map(uId => units.find(u => u.id === uId));
-      if (unit.armored)
-        unit.armored = unit.armored.map(uId => units.find(u => u.id === uId));
+      for (const prop of [ 'focusing', 'paralyzed', 'barriered', 'poisoned', 'armored' ]) {
+        if (!unit[prop]) continue;
+
+        const unitIds = unit[prop];
+        unit[prop] = unitIds.map(uId => units.find(u => u.id === uId));
+        if (unit[prop].includes(undefined)) {
+          console.warn(`Unit has invalid unit reference for property '${prop}' (${unit.id} => [ ${unitIds.join(', ')} ])`);
+          unit[prop] = unit[prop].filter(u => !!u);
+          if (unit[prop].length === 0)
+            unit[prop] = false;
+        }
+      }
 
       if (unit.pixi) {
         if (unit.focusing || unit.paralyzed || unit.poisoned)
@@ -1710,8 +1734,6 @@ export default class Board {
     let unit = this.viewed || this.selected;
     if (!unit) return;
 
-    let mode = unit.activated;
-
     // Useful when clearing an attack or target mode
     let focused = this.focused;
     if (focused && focused.notice)
@@ -1733,8 +1755,12 @@ export default class Board {
   }
 
   showTargets(target) {
-    let selected = this.selected;
-    let targeted = this.targeted = new Set(selected.getTargetUnits(target));
+    const selected = this.selected;
+    const targeted = this.targeted = new Set((() => {
+      if (selected.canSpecial() && (target ?? selected.assignment) === selected.assignment)
+        return selected.getSpecialTargetTiles(target).filter(t => !!t.assigned).map(t => t.assigned);
+      return selected.getTargetUnits(target);
+    })());
 
     // Units affected by the attack will pulsate.
     targeted.forEach(tu => {

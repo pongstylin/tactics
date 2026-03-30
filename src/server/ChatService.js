@@ -1,6 +1,7 @@
 import AccessToken from '#server/AccessToken.js';
 import Service from '#server/Service.js';
 import ServerError from '#server/Error.js';
+import Player from '#models/Player.js';
 import Room from '#models/Room.js';
 
 export default class ChatService extends Service {
@@ -100,12 +101,9 @@ export default class ChatService extends Service {
    * a room is created with the game participants.
    */
   async onJoinRoomGroup(client, groupPath, roomId, resume) {
-    const room = await this.data.openRoom(roomId);
+    const room = await this.data.getRoom(roomId);
     // Abort if the client is no longer connected.
-    if (client.closed) {
-      this.data.closeRoom(roomId);
-      return;
-    }
+    if (client.closed) return;
 
     const clientPara = this.clientPara.get(client.id);
     const member = room.players.find(p => p.id === clientPara.playerId);
@@ -116,12 +114,9 @@ export default class ChatService extends Service {
      * Get the players now to avoid 'firstJoined' triggering more than once.
      */
     const memberIds = room.players.map(p => p.id);
-    const players = await Promise.all(memberIds.map(id => this.auth.openPlayer(id)));
+    const players = await Promise.all(memberIds.map(id => this.auth.getPlayer(id)));
     // Abort if the client is no longer connected.
-    if (client.closed) {
-      this.data.closeRoom(roomId);
-      return;
-    }
+    if (client.closed) return;
 
     const firstJoined = !this.roomPara.has(roomId);
     if (firstJoined) {
@@ -192,14 +187,14 @@ export default class ChatService extends Service {
    * No longer send message events to the client about this room.
    */
   onLeaveRoomGroup(client, groupPath, roomId) {
-    const room = this.data.closeRoom(roomId);
+    const room = Room.cache.get(roomId);
     const memberIds = room.players.map(p => p.id);
 
     const clientPara = this.clientPara.get(client.id);
     clientPara.roomIds.delete(roomId);
 
     const roomPara = this.roomPara.get(roomId);
-    const players = memberIds.map(id => this.auth.closePlayer(id));
+    const players = memberIds.map(id => Player.cache.get(id));
     if (roomPara.clientIds.size > 1)
       roomPara.clientIds.delete(client.id);
     else {

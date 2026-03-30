@@ -1,18 +1,51 @@
 import { v4 as uuid } from 'uuid';
 import XRegExp from 'xregexp';
+// @ts-ignore
 import getTextWidth from 'string-pixel-width';
 
-import ActiveModel from '#models/ActiveModel.js';
+import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import Session from '#models/Session.js';
 import PlayerDevice from '#models/PlayerDevice.js';
+import type Provider from '#models/Provider.js';
 import Identities from '#models/Identities.js';
 import Identity from '#models/Identity.js';
+// @ts-ignore
 import obscenity from '#utils/obscenity.js';
+// @ts-ignore
+import { moderationException } from '#utils/openai.js';
+import Cache from '#utils/Cache.js';
+// @ts-ignore
 import serializer from '#utils/serializer.js';
 
+// @ts-ignore
 import IdentityToken from '#server/IdentityToken.js';
+// @ts-ignore
 import AccessToken from '#server/AccessToken.js';
+// @ts-ignore
 import config from '#config/server.js';
+// @ts-ignore
 import ServerError from '#server/Error.js';
+
+type PlayerEvents = AbstractEvents & {
+  'change:identityId': {},
+  'change:verified': {},
+  'change:acl': {},
+  'change:linkAuthProvider': {},
+  'change:unlinkAuthProvider': {},
+  'change:profile': {},
+  'change:checkin': {},
+  'change:checkout': {},
+  'change:setIdentityToken': {},
+  'change:expireIdentityToken': {},
+  'change:clearIdentityToken': {},
+  'device:create': { device:PlayerDevice },
+  'device:change': { device:PlayerDevice, originalEvent:any },
+  'device:remove': { device:PlayerDevice },
+  'acl': { target:Player, data:{ acl:ACL } },
+  'acl:toggleGlobalMute': { target:Player },
+  'acl:relationship': { target:Player, data:{ playerId:string, relationship:any } },
+  'acl:clear': { target:Player, data:{ playerId:string } },
+};
 
 /*
  * Player names may have the following characters:
@@ -37,7 +70,9 @@ interface ACL {
 
 const listeners = new WeakMap();
 
-export default class Player extends ActiveModel {
+export default class Player extends ActiveModel<PlayerEvents> {
+  protected static _cache: Cache<string, Player>;
+
   protected data: {
     id: string
     identityId: string
@@ -56,25 +91,26 @@ export default class Player extends ActiveModel {
   public identity: Identity
   public hasAllDevices: boolean = false
 
-  constructor(data) {
+  constructor(data:Player['data']) {
     super();
-    this.data = {
+    this.data = Object.assign({
       name: null,
       confirmName: null,
       verified: false,
       identityToken: null,
       acl: { newAccounts:null, guestAccounts:null },
       authProviderLinks: new Map(),
-
-      ...data,
-    };
+    }, data);
 
     data.devices.forEach(d => this._subscribeDevice(d));
   }
 
-  static create(data) {
+  static get cache() {
+    return this._cache ??= new Cache('Player');
+  }
+  static async create(data:Player['data']) {
     if (data.name !== undefined && data.name !== null)
-      Player.validatePlayerName(data.name);
+      await Player.validatePlayerName(data.name);
     else if (data.confirmName === undefined || data.confirmName === null)
       throw new Error('Required player name');
 
@@ -86,15 +122,19 @@ export default class Player extends ActiveModel {
 
     return new Player(data);
   }
-  static fromJSON(data) {
-    // Map the devices array to a map.
-    data.devices = new Map(data.devices.map(d => [ d.id, d ]));
+  static fromJSON(data:Override<Player['data'], {
+    devices: PlayerDevice[],
+  }>) {
+    const player = new Player({
+      ...data,
 
-    const player = new Player(data);
+      // Map the devices array to a map.
+      devices: new Map(data.devices.map(d => [ d.id, d ])),
+    });
 
     // This will always be true under the file adapter and false for the DynamoDB adapter.
     // The DynamoDB adapter will set it to true when loading all devices.
-    if (data.devices.size > 0) {
+    if (player.devices.size > 0) {
       player.hasAllDevices = true;
       for (const device of player.devices.values())
         device.player = player;
@@ -109,7 +149,22 @@ export default class Player extends ActiveModel {
    *  false: Do not check identities.
    *  Identity: Check all identities on behalf of provided Identity.
    */
-  static validatePlayerName(name, checkIdentity:boolean | Identity = true) {
+  static async validatePlayerName(name:string, checkIdentity:boolean | Identity = true, skipModeration = false, retries = 3) {
+    Player.checkPlayerName(name);
+
+    if (!skipModeration) {
+      if (obscenity.hasMatch(name))
+        throw new ServerError(403, 'The name is obscene');
+
+      const exception = await moderationException(name, retries);
+      if (exception)
+        throw new ServerError(403, exception);
+    }
+
+    if (checkIdentity && Player.identities.sharesName(name, checkIdentity))
+      throw new ServerError(403, 'The name is currently in use');
+  }
+  static checkPlayerName(name:string) {
     if (!name)
       throw new ServerError(422, 'Player name is required');
     if (name.length > 20)
@@ -133,11 +188,6 @@ export default class Player extends ActiveModel {
       throw new ServerError(403, 'The # symbol is reserved');
     if (/<[a-z].*?>|<\//i.test(name) || /&[#a-z0-9]+;/i.test(name))
       throw new ServerError(403, 'The name may not contain markup');
-    if (obscenity.hasMatch(name))
-      throw new ServerError(403, 'The name is obscene');
-
-    if (checkIdentity && Player.identities.sharesName(name, checkIdentity))
-      throw new ServerError(403, 'The name is currently in use');
   }
 
   get id() {
@@ -181,8 +231,7 @@ export default class Player extends ActiveModel {
     if (acl.newAccounts === this.data.acl.newAccounts && acl.guestAccounts === this.data.acl.guestAccounts)
       return;
     this.data.acl = acl;
-    this.emit({
-      type: 'acl',
+    this.emit('acl', {
       target: this,
       data: { acl },
     });
@@ -215,13 +264,13 @@ export default class Player extends ActiveModel {
     return oneWeekAgo < this.data.createdAt;
   }
 
-  hasAuthProviderLink(providerId) {
+  hasAuthProviderLink(providerId:string) {
     return this.data.authProviderLinks.has(providerId);
   }
   getAuthProviderLinkIds() {
     return this.data.authProviderLinks.keys();
   }
-  linkAuthProvider(provider, memberId) {
+  linkAuthProvider(provider:Provider, memberId:string) {
     if (this.data.authProviderLinks.get(provider.id) === memberId)
       return;
 
@@ -231,7 +280,7 @@ export default class Player extends ActiveModel {
     this.identity.name = this.name;
     this.emit('change:linkAuthProvider');
   }
-  unlinkAuthProvider(provider) {
+  unlinkAuthProvider(provider:Provider) {
     if (!this.data.authProviderLinks.has(provider.id))
       return;
 
@@ -240,10 +289,10 @@ export default class Player extends ActiveModel {
     this.emit('change:unlinkAuthProvider');
   }
 
-  updateProfile(profile) {
+  async updateProfile(profile:Pick<Player, 'name'>, skipModeration = false) {
     let hasChanged = false;
 
-    Object.keys(profile).forEach(property => {
+    for (const property of Object.keys(profile) as (keyof Pick<Player, 'name'>)[]) {
       const oldValue = this[property];
       const newValue = profile[property];
 
@@ -251,7 +300,7 @@ export default class Player extends ActiveModel {
         if (oldValue === newValue && this.data.confirmName === null)
           return;
 
-        Player.validatePlayerName(profile.name, this.identity);
+        await Player.validatePlayerName(profile.name, this.identity, skipModeration);
 
         this.data.name = profile.name;
         this.data.confirmName = null;
@@ -265,7 +314,7 @@ export default class Player extends ActiveModel {
         hasChanged = true;
       } else
         throw new Error('Invalid profile');
-    });
+    }
 
     if (hasChanged) {
       this.emit('change:profile');
@@ -274,7 +323,7 @@ export default class Player extends ActiveModel {
 
     return false;
   }
-  refreshAccessToken(deviceId) {
+  refreshAccessToken(deviceId:string) {
     const device = this.getDevice(deviceId);
     if (!device)
       return null;
@@ -295,7 +344,7 @@ export default class Player extends ActiveModel {
 
     return true;
   }
-  activateAccessToken(token) {
+  activateAccessToken(token:AccessToken) {
     const device = this.getDevice(token.deviceId);
     if (!device)
       return null;
@@ -305,13 +354,13 @@ export default class Player extends ActiveModel {
     return true;
   }
 
-  checkin(client, device) {
+  checkin(client:Session['client'], device:PlayerDevice) {
     device.checkin(client, this.data.checkinAt = new Date());
     this.emit('change:checkin');
     this.identity.lastSeenAt = this.lastSeenAt;
   }
-  checkout(client, device) {
-    const checkoutAt = new Date(Date.now() - client.session.idle * 1000);
+  checkout(client:Session['client'], device:PlayerDevice) {
+    const checkoutAt = new Date(Date.now() - client.session.idle! * 1000);
     device.checkout(client, checkoutAt);
     if (checkoutAt > this.data.checkoutAt) {
       this.data.checkoutAt = checkoutAt;
@@ -321,8 +370,7 @@ export default class Player extends ActiveModel {
   }
 
   _subscribeDevice(device:PlayerDevice) {
-    const listener = event => this.emit({
-      type: 'device:change',
+    const listener = (event:any) => this.emit('device:change', {
       device,
       originalEvent: event,
     });
@@ -332,7 +380,7 @@ export default class Player extends ActiveModel {
   _unsubscribeDevice(device:PlayerDevice) {
     device.off('change', listeners.get(device));
   }
-  createDevice(client, token:IdentityToken | null = null) {
+  createDevice(client:Session['client'], token:IdentityToken | null = null) {
     if (token) {
       if (!token.equals(this.data.identityToken))
         throw new ServerError(403, 'Identity token was revoked');
@@ -342,8 +390,7 @@ export default class Player extends ActiveModel {
 
     const device = PlayerDevice.create(client);
     device.token = this.createAccessToken(device.id);
-    this.emit({
-      type: 'device:create',
+    this.emit('device:create', {
       device,
     });
     this._subscribeDevice(device);
@@ -378,8 +425,7 @@ export default class Player extends ActiveModel {
 
     this._unsubscribeDevice(device);
     this.data.devices.delete(deviceId);
-    this.emit({
-      type: 'device:remove',
+    this.emit('device:remove', {
       device,
     });
 
@@ -388,8 +434,7 @@ export default class Player extends ActiveModel {
 
   toggleGlobalMute() {
     this.identity.muted = !this.identity.muted;
-    this.emit({
-      type: 'acl:toggleGlobalMute',
+    this.emit('acl:toggleGlobalMute', {
       target: this,
     });
 
@@ -398,78 +443,80 @@ export default class Player extends ActiveModel {
   getActiveRelationships() {
     return Player.identities.getRelationships(this.id);
   }
-  getRelationship(player) {
-    const relationship:any = player.identity.getRelationship(this.id) ?? {};
-    const reverse:any = this.identity.getRelationship(player.id) ?? {};
+  getRelationship(player:Player) {
+    const relationship = player.identity.getRelationship(this.id);
+    const reverse = this.identity.getRelationship(player.id);
 
-    let blockedByRule:any = false;
+    let blockedByRule:false | 'new' | 'guest' = false as const;
     if (player.acl.newAccounts === 'blocked' && this.isNew)
       blockedByRule = 'new';
     else if (player.acl.guestAccounts === 'blocked' && !this.data.verified)
       blockedByRule = 'guest';
 
     return {
-      type: relationship.type,
-      name: relationship.nickname,
-      reverseType: reverse.type,
+      type: relationship?.type,
+      name: relationship?.nickname,
+      reverseType: reverse?.type,
       blockedByRule,
     };
   }
-  setRelationship(player, relationship) {
+  setRelationship(player:Player, relationship:Partial<{
+    type?: string | null,
+    name?: string | null,
+  }>) {
     const oldRelationship = this.getRelationship(player);
 
-    if (relationship.type === undefined)
-      relationship.type = oldRelationship.type;
-    else if (relationship.type === null)
-      delete relationship.type;
+    if (oldRelationship.type)
+      if (relationship.type === undefined)
+        relationship.type = oldRelationship.type;
+      else if (relationship.type === null)
+        delete relationship.type;
 
-    if (relationship.name === undefined)
-      relationship.name = oldRelationship.name;
-    else if (relationship.name === null)
-      delete relationship.name;
+    if (oldRelationship.name)
+      if (relationship.name === undefined)
+        relationship.name = oldRelationship.name;
+      else if (relationship.name === null)
+        delete relationship.name;
 
     if (relationship.type === undefined && relationship.name === undefined)
       return this.clearRelationship(player);
-    if (oldRelationship?.type === relationship.type && oldRelationship.name === relationship.name)
+    if (oldRelationship.type === relationship.type && oldRelationship.name === relationship.name)
       return false;
 
-    Player.validatePlayerName(relationship.name, false);
+    Player.checkPlayerName(relationship.name!);
 
     player.identity.setRelationship(this.id, {
-      type: relationship.type,
-      nickname: relationship.name,
-      createdAt: relationship.createdAt,
+      type: relationship.type!,
+      nickname: relationship.name!,
     });
 
-    this.emit({
-      type: 'acl:relationship',
+    this.emit('acl:relationship', {
       target: this,
       data: { playerId:player.id, relationship },
     });
 
     return true;
   }
-  mute(player, playerName) {
+  mute(player:Player, playerName:string) {
     return this.setRelationship(player, {
       type: 'muted',
       name: playerName,
     });
   }
-  clearRelationship(player) {
+  clearRelationship(player:Player) {
     if (!player.identity.hasRelationship(this.id))
       return false;
 
     player.identity.deleteRelationship(this.id);
 
-    this.emit({
-      type: 'acl:clear',
+    this.emit('acl:clear', {
       target: this,
       data: { playerId:player.id },
     });
 
     return true;
   }
-  hasBlocked(player, applyRules = true) {
+  hasBlocked(player:Player, applyRules = true) {
     if (player === this)
       return false;
 
@@ -486,7 +533,7 @@ export default class Player extends ActiveModel {
 
     return false;
   }
-  hasMuted(player, applyRules = true) {
+  hasMuted(player:Player, applyRules = true) {
     if (player === this)
       return false;
 
@@ -505,15 +552,15 @@ export default class Player extends ActiveModel {
 
     return false;
   }
-  hasMutedOrBlocked(players, applyRules = true) {
+  hasMutedOrBlocked(players:Player[], applyRules = true) {
     return players.filter(p => this.hasMuted(p, applyRules) || this.hasBlocked(p, applyRules)).map(p => p.id);
   }
 
   /*
    * An access token allows a device to access resources.
    */
-  createAccessToken(deviceId) {
-    const payload:any = {
+  createAccessToken(deviceId:string) {
+    const payload:Record<string, string | number | boolean> = {
       subject: this.data.id,
       expiresIn: config.ACCESS_TOKEN_TTL || '1h',
       deviceId,
@@ -523,7 +570,7 @@ export default class Player extends ActiveModel {
     if (this.data.name !== null)
       payload.name = this.data.name;
     else
-      payload.confirmName = this.data.confirmName;
+      payload.confirmName = this.data.confirmName!;
 
     if (this.identity.admin)
       payload.admin = true;
