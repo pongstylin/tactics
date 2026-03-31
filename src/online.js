@@ -337,6 +337,8 @@ whenDOMReady.then(async () => {
   const responses = new Map(config.getItem('announcementResponses', []));
 
   for (const announcement of announcements) {
+    // Disable for now
+    return;
     if (now < announcement.startAt) continue;
     if (now > announcement.endAt) continue;
 
