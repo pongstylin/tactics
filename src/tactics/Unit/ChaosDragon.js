@@ -139,7 +139,6 @@ export default class ChaosDragon extends Unit {
 
     targets.forEach(target => {
       let result = action.results.find(r => r.unit === target.assigned);
-      let isHit = result && !result.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -149,13 +148,13 @@ export default class ChaosDragon extends Unit {
 
       anim.splice(
         effectOffset,
-        this.animAttackEffect(spriteAction.effect, target, isHit),
+        this.animAttackEffect(spriteAction.effect, target, result?.miss),
       );
     });
 
     return anim;
   }
-  animAttackEffect(effect, target, isHit) {
+  animAttackEffect(effect, target, miss) {
     let board     = this.board;
     let anim      = new Tactics.Animation();
     let tunit     = target.assigned;
@@ -331,7 +330,7 @@ export default class ChaosDragon extends Unit {
       .splice(0, super.animAttackEffect(
         { spriteId:'sprite:Sparkle', type:'heal' },
         this.assignment,
-        true, // isHit
+        undefined, // miss
       ))
       .splice(-1, block.frames.slice(3));
 

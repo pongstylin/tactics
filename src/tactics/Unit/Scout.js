@@ -20,14 +20,13 @@ export default class Scout extends Unit {
       let target = targetUnit.assignment;
       let offset = effectOffset + Math.ceil(board.getDistance(this.assignment, target) / 2);
       let result = action.results.find(r => r.unit === targetUnit);
-      let isHit = result && !result.miss;
 
       while (anim.frames.length < offset)
         anim.addFrame([]);
 
       anim.splice(
         offset,
-        this.animAttackEffect(spriteAction.effect, target, isHit),
+        this.animAttackEffect(spriteAction.effect, target, result?.miss),
       );
     }
 

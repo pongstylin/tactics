@@ -32,7 +32,6 @@ export default class Pyromancer extends Unit {
     targets.forEach(target => {
       let offset = effectOffset + (board.getDistance(this.assignment, target) - closest);
       let result = action.results.find(r => r.unit === target.assigned);
-      let isHit = result && !result.miss;
 
       if (anim.frames.length < offset)
         anim.addFrame({
@@ -42,7 +41,7 @@ export default class Pyromancer extends Unit {
 
       anim.splice(
         offset,
-        this.animAttackEffect(spriteAction.effect, target, isHit),
+        this.animAttackEffect(spriteAction.effect, target, result?.miss),
       );
     });
 

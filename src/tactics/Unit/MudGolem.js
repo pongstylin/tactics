@@ -33,7 +33,6 @@ export default class MudGolem extends Unit {
 
     for (let result of action.results) {
       let target = result.unit.assignment;
-      let isHit = !result.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -42,7 +41,7 @@ export default class MudGolem extends Unit {
         });
 
       anim.splice(effectOffset,
-        this.animAttackEffect({ silent:true }, target, isHit)
+        this.animAttackEffect({ silent:true }, target, result?.miss)
       );
     }
 
