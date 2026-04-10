@@ -537,8 +537,9 @@ unitDataMap.set('StormDragon', {
     },
   },
   sounds: {
-    heal: 'sprite:core/sounds/sound1203',
     attack: 'sprite:core/sounds/sound1602',
+    flap: 'sprite:core/sounds/sound7',
+    strike: 'sprite:core/sounds/sound1370',
     charge: { src:'charge', rate:0.6 },
     buzz: { src:'buzz', rate:0.6 },
   },

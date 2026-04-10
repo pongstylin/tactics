@@ -390,6 +390,7 @@ export default class StormDragon extends Unit {
       fixup: frame => this.fixupFrame(frame, action.direction || this.direction),
     });
 
+    anim.splice(0, () => this.sounds.flap.howl.play());
     anim.splice(block.frames.slice(0, 2));
     anim.splice(-1, () => this.change({ disposition:'Grounded' }));
 
@@ -415,6 +416,8 @@ export default class StormDragon extends Unit {
         this.assignment,
         undefined, // miss
       ))
+      .splice(4, () => this.sounds.buzz.howl.play())
+      .splice(10, () => this.sounds.strike.howl.play())
       .splice(-1, block.frames.slice(3))
       .splice(() => this.stand(direction));
 
