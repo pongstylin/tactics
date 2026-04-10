@@ -37,7 +37,7 @@ export default class ChaosDragon extends Unit {
 
     return this.drawFrame(hatchFrame[0], this.direction, hatchFrame[1]);
   }
-  getPhaseAction(attacker, result) {
+  getEndTurnAction(attacker = undefined) {
     const banned = this.banned.slice();
     if (attacker)
       banned.push(attacker.team.id);
@@ -344,9 +344,9 @@ export default class ChaosDragon extends Unit {
   canCounter() {
     return this.mHealth !== -this.health;
   }
-  getCounterAction(attacker, result) {
+  getCounterAction(attacker, _result) {
     if (attacker !== this && attacker.color.join() === this.color.join())
-      return this.getPhaseAction(attacker, result);
+      return this.getEndTurnAction(attacker);
   }
 
   toJSON() {

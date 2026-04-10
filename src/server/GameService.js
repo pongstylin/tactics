@@ -290,7 +290,7 @@ export default class GameService extends Service {
         if (protectedGameIds.has(game.id) && !game.state.currentTeam.seen(this.startupAt)) {
           protectedGameIds.delete(game.id);
           game.state.end('truce');
-        } else if (game.state.actions.length) {
+        } else if (game.state.actions.some(a => !a.forced)) {
           if (game.state.actions.last.type === 'endTurn') {
             this.debug(`autoSurrender: ${game.id}: error: Need sync!`);
             game.state.sync({ type:'willSync' });

@@ -138,10 +138,13 @@ export default class Turn extends ActiveModel<TurnEvents> {
     this._timeLimit = v;
   }
 
-  get unit() {
-    return this.data.actions[0]?.unit ?? null;
+  get selected() {
+    return this.data.actions.find(a => a.type === 'select')?.unit ?? null;
   }
 
+  get firstActionId() {
+    return Math.max(0, this.data.actions.findIndex(a => !a.forced));
+  }
   get lastActionId() {
     return this.data.actions.length - 1;
   }
@@ -197,7 +200,7 @@ export default class Turn extends ActiveModel<TurnEvents> {
   }
 
   get isEmpty() {
-    return this.data.actions.length === 0;
+    return this.data.actions.filter(a => !a.forced).length === 0;
   }
   get isEnded() {
     return this.data.actions.last?.type === 'endTurn';
@@ -211,28 +214,25 @@ export default class Turn extends ActiveModel<TurnEvents> {
   }
   get isPlayable() {
     const actions = this.data.actions;
-    // If more than one action took place, it must be playable.
-    if (actions.length !== 1)
+    // If there are no actions yet, this turn must be playable.
+    if (actions.length === 0)
       return true;
-    // If the only action is not an end turn or end game action, it must be playable.
-    if (![ 'endTurn', 'endGame' ].includes(actions[0].type))
-      return true;
-    // If the end turn or end game action was not forced, it must be playable.
-    if (!actions[0].forced)
+    // If there are unforced actions, this turn must be playable.
+    if (actions.some(a => !a.forced))
       return true;
     // If this turn ended the game in a truce, this turn must be playable.
-    if (actions[0].type === 'endGame' && actions[0].winnerId === 'truce')
+    if (actions.last.type === 'endGame' && actions[0].winnerId === 'truce')
       return true;
 
     return false;
   }
   get isSkipped() {
-    const actions = this.data.actions;
+    const actions = this.data.actions.filter(a => !a.forced);
     return actions.length === 1 && actions[0].type === 'endTurn';
   }
   get isAutoSkipped() {
     const actions = this.data.actions;
-    return actions.length === 1 && [ 'endTurn', 'endGame' ].includes(actions[0].type) && actions[0].forced;
+    return actions.length > 0 && actions.every(a => a.forced) && [ 'endTurn', 'endGame' ].includes(actions.last.type) && actions.last.forced;
   }
 
   /*
