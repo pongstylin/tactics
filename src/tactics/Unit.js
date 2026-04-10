@@ -1364,7 +1364,6 @@ export default class Unit {
 
     targets.forEach(target => {
       const result = action.results.find(r => r.unit === target.assigned);
-      const miss = result?.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -1374,7 +1373,7 @@ export default class Unit {
 
       anim.splice(
         effectOffset,
-        this.animAttackEffect(spriteAction.effect, target, miss),
+        this.animAttackEffect(spriteAction.effect, target, result?.miss),
       );
     });
 

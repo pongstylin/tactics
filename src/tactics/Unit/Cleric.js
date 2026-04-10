@@ -28,7 +28,7 @@ export default class Cleric extends Unit {
       .map(u => u.assignment);
 
     targets.forEach(target => {
-      let isHit = !target.assigned.barriered;
+      const miss = target.assigned.barriered ? 'immune' : undefined;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -38,7 +38,7 @@ export default class Cleric extends Unit {
 
       anim.splice(
         effectOffset,
-        this.animAttackEffect(spriteAction.effect, target, isHit),
+        this.animAttackEffect(spriteAction.effect, target, miss),
       );
     });
 

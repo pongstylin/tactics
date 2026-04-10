@@ -42,7 +42,6 @@ export default class Assassin extends Unit {
 
     targets.forEach(target => {
       const result = action.results.find(r => r.unit === target.assigned);
-      const isHit = result && !result.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -53,7 +52,7 @@ export default class Assassin extends Unit {
       anim.splice(effectOffset, this.animAttackEffect(
         Object.assign({ type:'magic' }, spriteAction.effect),
         target,
-        isHit,
+        result?.miss,
       ));
     });
 
