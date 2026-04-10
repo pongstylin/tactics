@@ -52,7 +52,7 @@ export default class Game {
         else if (this.selected) {
           if (
             this._inReplay ||
-            this.state.actions.length ||
+            this.state.actions.some(a => a.type === 'select') ||
             this._selectMode === 'target'
           ) return;
 
@@ -605,7 +605,7 @@ export default class Game {
    * Used to jump to a cursor:
    *   resume()
    */
-  setState() {
+  async setState() {
     const board = this._board;
     board.setState(this.units, this._teams);
 
@@ -613,20 +613,22 @@ export default class Game {
       team.isCurrent = team.id === this.cursor.teamId;
 
     // Do not use this.actions or expect bugs
-    let actions = this.cursor.actions.slice(0, this.cursor.nextActionId);
-    actions.forEach(a => this._applyAction(board.decodeAction(a)));
+    const actions = this.cursor.actions.slice(0, this.cursor.nextActionId);
+    // After applying the action, change the actor's frame to:
+    // 1) Show a change of the unit's direction, or
+    // 2) Show a change of the unit's pose, e.g. Storm Dragon disposition change.
+    await Promise.all(actions.map(action => this._applyAction(board.decodeAction(action)).then(a => a.unit?.stand())));
 
     this.selectMode = 'move';
 
-    if (actions.length) {
-      const selectAction = board.decodeAction(actions[0]);
-      if (selectAction.unit?.assignment)
-        this.selected = selectAction.unit;
-    } else if (this._inReplay && this.cursor.actions.length) {
-      const selectAction = board.decodeAction(this.cursor.actions[0]);
-      if (selectAction.unit?.assignment)
-        this.selected = selectAction.unit;
-    } else
+    const selectAction = this.cursor.actions.find(a => a.type === 'select');
+    const selected = selectAction && board.decodeAction(selectAction).unit;
+
+    if (actions.includes(selectAction) && selected?.assignment)
+      this.selected = selected;
+    else if (this._inReplay && selected?.assignment)
+      this.selected = selected;
+    else
       this.render();
   }
 
@@ -641,7 +643,7 @@ export default class Game {
 
     if (this.state.endedAt) {
       this.cursor.setToCurrent();
-      this.setState();
+      await this.setState();
       this.notice = null;
       this._endGame(true);
 
@@ -675,7 +677,6 @@ export default class Game {
         resolve();
       };
     });
-    const board = this._board;
 
     // Clear a 'Sending order' notice, if present
     // Or, clear 'Your Turn' notice so that it may be redisplayed after.
@@ -691,7 +692,7 @@ export default class Game {
 
     if (turnId !== undefined || actionId !== undefined) {
       await cursor.set(turnId, actionId, skipPassedTurns);
-      this.setState();
+      await this.setState();
 
       // Give the board a chance to appear before playing
       await sleep(100);
@@ -706,7 +707,7 @@ export default class Game {
 
       if (movement === 'back')
         // The undo button can cause the next action to be a previous one
-        this.setState();
+        await this.setState();
       else if (movement === 'forward')
         await this._performAction(cursor.thisAction);
 
@@ -724,7 +725,7 @@ export default class Game {
 
       this._endGame();
     } else if (!this._inReplay)
-      if (!cursor.actions.length)
+      if (cursor.actions.filter(a => !a.forced).length === 0)
         this._startTurn();
       else if (cursor.actions.last.type === 'endTurn')
         this._endTurn();
@@ -756,7 +757,7 @@ export default class Game {
   async showTurn(turnId = this.turnId, actionId = 0, skipAutoPassedTurns) {
     await this.pause();
     await this.cursor.set(turnId, actionId, skipAutoPassedTurns);
-    this.setState();
+    await this.setState();
 
     if (this.cursor.atEnd)
       this._endGame(true);
@@ -901,7 +902,7 @@ export default class Game {
    */
   canSelect(unit) {
     let selected = this.selected;
-    if (selected && selected !== unit && this.state.actions.length)
+    if (selected && selected !== unit && this.state.actions.some(a => a.type === 'select'))
       return false;
 
     return !this.isViewOnly
@@ -1175,25 +1176,24 @@ export default class Game {
 
     const actor = action.unit;
 
-    // Select the initial actor
-    if (!board.selected) {
-      board.selected = actor;
-      if (action.type !== 'phase')
-        actor.activate();
+    if (board.viewed && board.viewed !== actor) {
+      await board.viewed.deactivate();
+      board.viewed = null;
       this.drawCard();
     }
 
-    if (action.type === 'select')
+    if (action.type === 'select') {
+      board.selected = actor;
+      actor.activate();
+      this.drawCard();
       return;
+    }
 
     // View the current actor
     if (board.selected !== actor) {
-      await board.selected.deactivate();
+      if (board.selected)
+        await board.selected.deactivate();
       board.viewed = actor;
-      this.drawCard();
-    } else if (board.viewed) {
-      await board.viewed.deactivate();
-      board.viewed = null;
       this.drawCard();
     }
 
@@ -1201,8 +1201,9 @@ export default class Game {
      * For actions initiated by the viewing player, perform the quick version.
      */
     const quick = (
-      (!board.selected || board.selected === actor) &&
+      board.selected === actor &&
       this.isMyTeam(action.teamId) &&
+      !action.forced &&
       !this._inReplay
     );
     if (quick) {
@@ -1216,7 +1217,8 @@ export default class Game {
       return;
     }
 
-    this._showActions(false, actor);
+    if (actor === board.selected)
+      this._showActions(false);
 
     if (actionType === 'move') {
       // Show the player where the unit will move.
@@ -1305,13 +1307,8 @@ export default class Game {
       await this._playResults(action, speed);
       await sleep(2000 / speed);
     } else {
-      this.drawCard(actor);
-
-      // For counter-attacks, the actor may differ from selected.
-      if (board.selected !== actor) {
-        await board.selected.deactivate();
+      if (board.selected !== actor)
         actor.activate();
-      }
 
       await sleep(2000 / speed);
 
@@ -1325,30 +1322,26 @@ export default class Game {
     board.selected?.activate();
     this.drawCard();
   }
-  _showActions(all = false, unit) {
-    let board = this._board;
-    let allActions = board.decodeAction(this.cursor.actions, this.cursor.units);
-    if (!allActions.length)
+  _showActions(all = false) {
+    const board = this._board;
+    const allActions = board.decodeAction(this.cursor.actions, this.cursor.units);
+    const actions = (all ? allActions : this.actions).filter(a => !a.forced);
+    if (!actions.length)
       return;
 
-    let actions = all ? allActions : this.actions;
-    if (unit)
-      actions = actions.filter(a => !a.unit || a.unit === unit);
-    else
-      unit = allActions[0].unit;
+    const unit = actions[0].unit;
+    // Possible when this turn was passed manually without action.
+    if (!unit)
+      return;
 
     board.clearHighlight();
     board.hideCompass();
 
-    // Possible if no unit argument and this turn was passed.
-    if (!unit)
-      return;
-
     if (board.selected !== unit)
       this.drawCard(unit);
 
-    let degree = board.getDegree('N', board.rotation);
-    let tracker = {};
+    const degree = board.getDegree('N', board.rotation);
+    const tracker = {};
 
     let origin = this.units.flat().find(u => u.id === unit.id).assignment;
     origin = tracker.assignment = board.getTileRotation(origin, degree);
@@ -1358,7 +1351,7 @@ export default class Game {
       color: FOCUS_TILE_COLOR,
     }, true);
 
-    actions.forEach(action => {
+    for (const action of actions) {
       if (action.unit !== unit) return;
 
       if (action.type === 'move') {
@@ -1391,7 +1384,7 @@ export default class Game {
         if (unit.directional !== false)
           board.showDirection(unit, tracker.assignment, tracker.direction);
       }
-    });
+    }
   }
   /*
    * Show the player the results of an attack
@@ -1839,12 +1832,14 @@ export default class Game {
       if (action.assignment)
         board.assign(unit, action.assignment);
       if (action.direction)
-        unit.stand(action.direction);
+        unit.direction = action.direction;
       if (action.colorId)
         unit.color = colorFilterMap.get(action.colorId);
     }
 
     await this._animApplyChangeResults(action.results, { instant:true }).play();
+
+    return action;
   }
   _animApplyChangeResults(results, options) {
     const anim = new Tactics.Animation();

@@ -963,7 +963,8 @@ export default class Board {
           notices.push('Enraged!');
         else if (unit.type === 'Furgon' && unit.mRecovery <= unit.recovery)
           notices.push('Empowered!');
-      } else if (unit.disposition)
+      }
+      if (unit.disposition)
         notices.push(unit.disposition.toUpperCase('first') + '!');
 
       if (unit.focusing)

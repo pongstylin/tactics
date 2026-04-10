@@ -4,11 +4,80 @@ const DIAGONAL_SCALE_X = 0.82;
 const VERTICAL_SCALE_Y = 0.88;
 
 export default class StormDragon extends Unit {
-  constructor(data, board) {
-    super(data, board);
+  attach() {
+    this._adjustBonusListener = this._adjustBonus.bind(this);
+    this.board
+      .on('addUnit', this._adjustBonusListener)
+      .on('dropUnit', this._adjustBonusListener);
+  }
+  detach() {
+    this.board
+      .off('addUnit', this._adjustBonusListener)
+      .off('dropUnit', this._adjustBonusListener);
+  }
 
-    Object.assign(this, {
-    });
+  _adjustBonus({ type, unit, addResults }, assignment = this.assignment) {
+    if (unit !== this && unit.type !== 'LightningWard' || unit.team !== this.team)
+      return;
+
+    const SDs = this.team.units.filter(u => u.type === 'StormDragon');
+    if (SDs.length > 1)
+      return;
+
+    const LW = (() => {
+      const LWs = this.team.units.filter(u => u.type === 'LightningWard');
+      if (LWs.length === 1)
+        return LWs[0];
+    })();
+    if (!LW)
+      return;
+
+    const lwIsDead = unit === LW && type === 'dropUnit';
+    // Don't allow a channeling disposition to prevent us from getting the LW's attack tiles.
+    const isInRange = !lwIsDead && Unit.prototype.getAttackTiles.call(LW).some(t => t === assignment);
+    const wasInRange = this.mPower === 6;
+    if (isInRange === wasInRange)
+      return;
+
+    const results = [];
+    if (isInRange) {
+      results.push(
+        {
+          unit: this,
+          changes: {
+            mPower: Math.max(0, LW.power - this.power),
+          },
+        },
+        {
+          unit: LW,
+          changes: {
+            disposition: 'channeling',
+          },
+        },
+      );
+    } else {
+      results.push(
+        {
+          unit: this,
+          changes: {
+            mPower: 0,
+          },
+        },
+        {
+          unit: LW,
+          changes: {
+            disposition: null,
+          },
+        },
+      );
+    }
+
+    addResults(results);
+  }
+  getMoveResults(action) {
+    const results = [];
+    this._adjustBonus({ type:'moveUnit', unit:this, addResults:rs => results.push(...rs) }, action.assignment);
+    return results;
   }
 
   /*
@@ -18,6 +87,12 @@ export default class StormDragon extends Unit {
     return Object.assign(super.getStyles(), {
       fire: { alpha:0 },
     });
+  }
+  getStandRenderOptions(forAvatar = false) {
+    if (forAvatar || this._sprite.name === 'avatars' || this.disposition !== 'Grounded')
+      return super.getStandRenderOptions();
+
+    return [ 'block', 2 ];
   }
   applyDiagonalScale(container, direction = this.direction) {
     const scaleX = DIAGONAL_SCALE_X;
@@ -38,9 +113,8 @@ export default class StormDragon extends Unit {
     ));
   }
   fixupFrame(frame, direction = this.direction) {
-    const shadow = this.getContainerByName(this.shadowSprite, frame.container);
     const unit = this.getContainerByName(this.unitSprite, frame.container);
-    if (unit.children.length === 1) return;
+    if (!unit || unit.children.length === 1) return;
 
     let filter = new PIXI.filters.ColorMatrixFilter();
     filter.matrix[0] = 2;    // R multiply
@@ -50,8 +124,9 @@ export default class StormDragon extends Unit {
     // Apply whitening to base sprite
     unit.children[0].filters = [ filter ];
     // Narrow the dragon along the board diagonal that matches its facing.
-    this.applyDiagonalScale(shadow, direction);
-    this.applyDiagonalScale(unit, direction);
+    this.applyDiagonalScale(frame.container, direction);
+
+    return super.fixupFrame(frame, direction);
   }
   animAttack(action) {
     let anim = this._sprite.renderAnimation({
@@ -85,8 +160,7 @@ export default class StormDragon extends Unit {
       let targetUnit = this.getLOSTargetUnit(action.target);
       if (targetUnit)
         targets.push(targetUnit.assignment);
-    }
-    else
+    } else
       targets = this.getTargetTiles(action.target);
 
     targets.forEach(target => {
@@ -248,18 +322,67 @@ export default class StormDragon extends Unit {
     return this;
   }
 
+  isImmune(attacker, stats) {
+    if (attacker.type === 'LightningWard' && !this.paralyzed)
+      return true;
+
+    return super.isImmune(attacker, stats);
+  }
   /*
    * Implement ability to self-heal
    */
   canSpecial() {
     return this.mHealth < 0;
   }
+  canContinue() {
+    if (this.disposition === 'Grounded')
+      return false;
+    return super.canContinue();
+  }
   getSpecialTargetTiles(target, source = this.assignment) {
     return [ source ];
   }
+  /*
+   * Apply stun effect on a unit that is successfully hit.
+   */
+  getAttackResult(action, unit, cUnit) {
+    const result = super.getAttackResult(action, unit, cUnit);
+    if (result.miss) return result;
+
+    result.changes.mRecovery = result.unit.mRecovery + 1;
+    return result;
+  }
+  getAttackSpecialResults(action) {
+    return [{
+      unit: this,
+      changes: {
+        disposition: 'Grounded',
+        blocking: 100,
+        mBlocking: 0,
+      },
+    }];
+  }
+  getStartTurnAction() {
+    if (this.disposition !== 'Grounded' || this.mRecovery !== 0)
+      return null;
+
+    return {
+      type: 'recharge',
+      unit: this,
+      results: [{
+        unit: this,
+        damage: -this.power,
+        changes: {
+          disposition: null,
+          blocking: this.data.blocking,
+          mHealth: Math.min(0, this.mHealth + this.power),
+        },
+      }],
+    };
+  }
   animAttackSpecial(action) {
-    let anim = new Tactics.Animation();
-    let block = this._sprite.renderAnimation({
+    const anim = new Tactics.Animation();
+    const block = this._sprite.renderAnimation({
       actionName: 'block',
       direction: action.direction || this.direction,
       container: this.frame,
@@ -268,15 +391,33 @@ export default class StormDragon extends Unit {
       fixup: frame => this.fixupFrame(frame, action.direction || this.direction),
     });
 
-    anim
-      .splice(block.frames.slice(0, 2))
-      .splice(0, () => this.sounds.heal.howl.play())
+    anim.splice(block.frames.slice(0, 2));
+    anim.splice(-1, () => this.change({ disposition:'Grounded' }));
+
+    return anim;
+  }
+  recharge(action, speed) {
+    return this.animRecharge(action, speed).play();
+  }
+  animRecharge(action, speed) {
+    const direction = action.direction || this.direction;
+    const block = this._sprite.renderAnimation({
+      actionName: 'block',
+      direction,
+      container: this.frame,
+      silent: true,
+      styles: super.getStyles(),
+      fixup: frame => this.fixupFrame(frame, direction),
+    });
+    const anim = new Tactics.Animation({ speed })
+      .splice(0, () => this.change({ disposition:'Recharge' }))
       .splice(0, super.animAttackEffect(
-        { spriteId:'sprite:Sparkle', type:'heal' },
+        { spriteId:'sprite:Lightning', type:'heal' },
         this.assignment,
         true, // isHit
       ))
-      .splice(-1, block.frames.slice(3));
+      .splice(-1, block.frames.slice(3))
+      .splice(() => this.stand(direction));
 
     return anim;
   }

@@ -91,14 +91,17 @@ export default class Unit {
       throw new TypeError('Unsupported mType');
   }
   getAttackTiles(source = this.assignment) {
-    let board  = this.board;
-    let range  = this.aRange;
+    const board = this.board;
+    const range = this.aRange;
 
-    if (this.aLinear)
-      // Dark Magic Witch, Beast Rider, Dragon Tyrant, Chaos Dragon
+    if (this.aLinear) {
+      // Dark Magic Witch, Beast Rider, Dragon Tyrant, Storm Dragon, Chaos Dragon
       // All existing units have a minimum range of 1.
-      return board.getTileLinearRange(source, range[1]);
-    else if (range) {
+      const tiles = board.getTileLinearRange(source, range[1]);
+      if (this.canSpecial() && !tiles.some(t => t === source))
+        tiles.unshift(source);
+      return tiles;
+    } else if (range) {
       const tiles = board.getTileRange(source, ...range);
       if (this.canSpecial() && !tiles.some(t => t === source))
         tiles.unshift(source);
@@ -269,18 +272,7 @@ export default class Unit {
       // Another unit is in the way.  No chance to hit target unit.
       calc.chance = 0;
       calc.miss = 'miss';
-    } else if (
-      (
-        /^(melee|magic|heal)$/.test(stats.aType) &&
-        (targetUnit.barriered || targetUnit.disposition === 'unbreakable')
-      ) || (
-        stats.aType === 'melee' &&
-        targetUnit.blocking === 100 &&
-        targetUnit.directional === false &&
-        !targetUnit.paralyzed &&
-        !targetUnit.focusing
-      )
-    ) {
+    } else if (targetUnit.isImmune(this, stats)) {
       calc.miss = 'immune';
       calc.chance = 0;
       calc.damage = 0;
@@ -582,7 +574,7 @@ export default class Unit {
       as: 'frame',
     }, options);
 
-    const [ standActionName, standFrameId ] = this.getStandRenderOptions();
+    const [ standActionName, standFrameId ] = this.getStandRenderOptions(true);
     const frame = this._sprite.renderFrame({
       spriteName: this.spriteName,
       actionName: standActionName,
@@ -633,8 +625,8 @@ export default class Unit {
 
     return avatar;
   }
-  getStandRenderOptions() {
-    if (this._sprite.name === 'avatars')
+  getStandRenderOptions(forAvatar = false) {
+    if (forAvatar || this._sprite.name === 'avatars')
       return [ 'stand' ];
 
     const standAction = this.actions?.stand;
@@ -1372,7 +1364,7 @@ export default class Unit {
 
     targets.forEach(target => {
       const result = action.results.find(r => r.unit === target.assigned);
-      const isHit = result && !result.miss;
+      const miss = result?.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -1382,13 +1374,13 @@ export default class Unit {
 
       anim.splice(
         effectOffset,
-        this.animAttackEffect(spriteAction.effect, target, isHit),
+        this.animAttackEffect(spriteAction.effect, target, miss),
       );
     });
 
     return anim;
   }
-  animAttackEffect(effect, target, isHit) {
+  animAttackEffect(effect, target, miss) {
     let anim = new Tactics.Animation();
     let board = this.board;
     let effectSprite = effect.spriteId && Tactics.getSprite(effect.spriteId);
@@ -1399,7 +1391,7 @@ export default class Unit {
 
     // Render stagger animation before the effect so that it may be colored
     let targetUnit = target.assigned;
-    if (!isHit && targetUnit && targetUnit.type === 'Shrub' && targetUnit.name !== 'Golden Shrub')
+    if (miss && targetUnit && targetUnit.type === 'Shrub' && targetUnit.name !== 'Golden Shrub')
       targetUnit = null;
 
     if (targetUnit) {
@@ -1414,8 +1406,8 @@ export default class Unit {
         anim.addFrame([]);
 
       let offsetRatio;
-      if (!isHit) {
-        anim.splice(targetUnit.animMiss(this, effect.type));
+      if (miss) {
+        anim.splice(targetUnit.animMiss(miss, this, effect.type));
         offsetRatio = 0.50;
       } else if (targetUnit !== this) {
         anim.splice(-1, targetUnit.animHit(this, effect.type, effect.silent));
@@ -1462,7 +1454,7 @@ export default class Unit {
       let effectAnimation = effectSprite.renderAnimation({
         container,
         // Attack effects can apply coloring to an affected unit
-        unit: isHit && targetUnit,
+        unit: targetUnit && !targetUnit.barriered ? targetUnit : null,
         styles: {
           [effectSprite.name]: { position:offset },
         },
@@ -1475,12 +1467,12 @@ export default class Unit {
 
     return anim;
   }
-  animMiss(attacker, attackType) {
+  animMiss(miss, attacker, attackType) {
     let anim;
 
     if (this.barriered)
       anim = this.animBarrierDeflect(attacker, attackType);
-    else if (this.hasAction('block')) {
+    else if (miss === 'block' && this.hasAction('block')) {
       let direction;
       if (this.directional !== false)
         direction = this.board.getDirection(
@@ -1543,8 +1535,7 @@ export default class Unit {
         anim.addFrame([]);
       else
         anim.addFrame(spriteAction.sounds);
-    }
-    else if (attackType === 'magic') {
+    } else if (attackType === 'magic') {
       // Magic attacks cause a stagger
       doStagger = true;
 
@@ -1719,6 +1710,12 @@ export default class Unit {
   }
   setSpecialTargetNotice(targetUnit) {
     return;
+  }
+  getStartTurnAction() {
+    return null;
+  }
+  getEndTurnAction() {
+    return null;
   }
   /*
    * Certain actions can break certain status effects.
@@ -1916,8 +1913,33 @@ export default class Unit {
   canCounter() {
     return false;
   }
+  canContinue() {
+    if (this.mRecovery)
+      return false;
+    if (this.disposition === 'dead')
+      return false;
+    if (this.focusing)
+      return false;
+    return true;
+  }
   canTurn() {
     return this.directional !== false;
+  }
+  isImmune(_attacker, stats) {
+    if (
+      /^(melee|magic|heal)$/.test(stats.aType) &&
+      (this.barriered || this.disposition === 'unbreakable')
+    ) return true;
+
+    if (
+      stats.aType === 'melee' &&
+      this.blocking === 100 &&
+      this.directional === false &&
+      !this.paralyzed &&
+      !this.focusing
+    ) return true;
+
+    return false;
   }
   isPassable() {
     return (
@@ -1960,6 +1982,7 @@ export default class Unit {
 
     const properties = [
       'disposition',
+      'blocking',
       'mHealth',
       'mLifespan',
       'mBlocking',
@@ -1972,20 +1995,27 @@ export default class Unit {
       'poisoned',
       'armored',
     ];
+    const baseProperties = new Set([
+      'blocking',
+    ]);
+    const unitListProperties = new Set([
+      'focusing',
+      'paralyzed',
+      'barriered',
+      'poisoned',
+      'armored',
+    ]);
 
-    properties.forEach(prop => {
-      if (this[prop])
-        if (
-          prop === 'focusing' ||
-          prop === 'paralyzed' ||
-          prop === 'barriered' ||
-          prop === 'poisoned' ||
-          prop === 'armored'
-        )
-          state[prop] = this[prop].map(u => u.id);
-        else
-          state[prop] = this[prop];
-    });
+    for (const prop of properties) {
+      if (!this[prop]) continue;
+
+      if (unitListProperties.has(prop))
+        state[prop] = this[prop].map(u => u.id);
+      else if (baseProperties.has(prop) && this[prop] !== this.data[prop])
+        state[prop] = this[prop];
+      else
+        state[prop] = this[prop];
+    }
 
     return state;
   }

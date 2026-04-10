@@ -440,7 +440,7 @@ export default class Game extends ActiveModel<GameEvents> {
 
         this.data.state.undo(teams[request.teamId]!, true);
       } else if (request.type === 'truce')
-        this.data.state.end('truce');
+        this.data.state.end('truce', false);
     }
 
     this.emit('change:acceptPlayerRequest');

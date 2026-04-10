@@ -521,12 +521,15 @@ unitDataMap.set('StormDragon', {
   mRadius: 4,
   mPass: false,
   aType: 'magic',
+  aRange: [ 1, 3 ],
   aLOS: true,
   aLinear: true,
-  aRange: [ 1, 3 ],
+  waitFirstTurn: true,
+  tier: 5,
+  rarity: 19,
 
   baseSprite: 'DragonTyrant',
-  imports: [ 'Sparkle' ],
+  imports: [ 'Lightning' ],
   actions: {
     stand: {
       actionName: 'moveOut',
@@ -539,7 +542,6 @@ unitDataMap.set('StormDragon', {
     charge: { src:'charge', rate:0.6 },
     buzz: { src:'buzz', rate:0.6 },
   },
-  tier: 5,
 });
 
 // Map unit type names to IDs until we get rid of the IDs.
