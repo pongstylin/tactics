@@ -1471,7 +1471,7 @@ export default class Unit {
 
     if (this.barriered)
       anim = this.animBarrierDeflect(attacker, attackType);
-    else if (miss === 'block' && this.hasAction('block')) {
+    else if (miss === 'blocked' && this.hasAction('block')) {
       let direction;
       if (this.directional !== false)
         direction = this.board.getDirection(
