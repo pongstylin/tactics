@@ -540,6 +540,7 @@ unitDataMap.set('StormDragon', {
     attack: 'sprite:core/sounds/sound1602',
     flap: 'sprite:core/sounds/sound7',
     strike: 'sprite:core/sounds/sound1370',
+    block: 'sprite:core/sounds/sound11',
     charge: { src:'charge', rate:0.6 },
     buzz: { src:'buzz', rate:0.6 },
   },
