@@ -819,7 +819,7 @@ export default class GameState extends TypedEmitter {
       });
 
       if (turnEnded) {
-        this._pushAction(this._endTurn(true));
+        this._endTurn(true);
         this._pushHistory();
       }
     }

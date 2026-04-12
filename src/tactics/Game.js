@@ -605,7 +605,7 @@ export default class Game {
    * Used to jump to a cursor:
    *   resume()
    */
-  async setState() {
+  setState() {
     const board = this._board;
     board.setState(this.units, this._teams);
 
@@ -617,7 +617,10 @@ export default class Game {
     // After applying the action, change the actor's frame to:
     // 1) Show a change of the unit's direction, or
     // 2) Show a change of the unit's pose, e.g. Storm Dragon disposition change.
-    await Promise.all(actions.map(action => this._applyAction(board.decodeAction(action)).then(a => a.unit?.stand())));
+    for (const action of actions) {
+      const decoded = this._applyAction(board.decodeAction(action));
+      decoded.unit?.stand();
+    }
 
     this.selectMode = 'move';
 
@@ -643,7 +646,7 @@ export default class Game {
 
     if (this.state.endedAt) {
       this.cursor.setToCurrent();
-      await this.setState();
+      this.setState();
       this.notice = null;
       this._endGame(true);
 
@@ -692,7 +695,7 @@ export default class Game {
 
     if (turnId !== undefined || actionId !== undefined) {
       await cursor.set(turnId, actionId, skipPassedTurns);
-      await this.setState();
+      this.setState();
 
       // Give the board a chance to appear before playing
       await sleep(100);
@@ -707,7 +710,7 @@ export default class Game {
 
       if (movement === 'back')
         // The undo button can cause the next action to be a previous one
-        await this.setState();
+        this.setState();
       else if (movement === 'forward')
         await this._performAction(cursor.thisAction);
 
@@ -757,7 +760,7 @@ export default class Game {
   async showTurn(turnId = this.turnId, actionId = 0, skipAutoPassedTurns) {
     await this.pause();
     await this.cursor.set(turnId, actionId, skipAutoPassedTurns);
-    await this.setState();
+    this.setState();
 
     if (this.cursor.atEnd)
       this._endGame(true);
@@ -877,8 +880,7 @@ export default class Game {
         this.render(true);
 
         count++;
-      }
-      else {
+      } else {
         delete this._animators[fps];
       }
     };
@@ -1262,7 +1264,7 @@ export default class Game {
       }));
 
       await actor.deactivate();
-      await actor.attack(action, speed);
+      await actor[action.type](action, speed);
       await this._playResults(action, speed);
     } else if (actionType === 'turn') {
       await actor.deactivate();
@@ -1824,7 +1826,7 @@ export default class Game {
       }
     }
   }
-  async _applyAction(action) {
+  _applyAction(action) {
     const board = this._board;
     const unit = action.unit;
 
@@ -1837,7 +1839,7 @@ export default class Game {
         unit.color = colorFilterMap.get(action.colorId);
     }
 
-    await this._animApplyChangeResults(action.results, { instant:true }).play();
+    this._animApplyChangeResults(action.results, { instant:true }).exec();
 
     return action;
   }
