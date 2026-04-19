@@ -2,12 +2,12 @@ import Unit from '#tactics/Unit.js';
 
 export default class Cleric extends Unit {
   getAttackTiles() {
-    return [ this.assignment, ...this.getTargetUnits().filter(u => u !== this).map(u => u.assignment) ];
+    return [ this.assignment, ...this.getAttackTargetUnits().filter(u => u !== this).map(u => u.assignment) ];
   }
-  getTargetTiles() {
+  getAttackTargetTiles() {
     return this.getAttackTiles();
   }
-  getTargetUnits() {
+  getAttackTargetUnits() {
     return this.team.units.filter(u => u.mHealth < 0);
   }
   /*

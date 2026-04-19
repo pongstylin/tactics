@@ -323,7 +323,10 @@ window.Tactics = {
         const unit = unitFactory(avatar.unitType, this._avatars.board);
         unit.color = colorFilterMap.get(avatar.colorId);
 
-        const spriteName = unit.baseSprite ?? unit.type;
+        // Normally the Storm Dragon uses Dragon Tyrant frames.  But avatars.json doesn't.
+        // It would be better if we check for the presence of unit.type inside avatars.json.
+        const baseSprite = unit.type === 'StormDragon' ? unit.type : unit.baseSprite;
+        const spriteName = baseSprite ?? unit.type;
         const superSpriteName = unit.type === 'DragonspeakerMage' ? 'Pyromancer' : spriteName;
         unit.spriteSource = 'avatars';
         unit.spriteName = spriteName;

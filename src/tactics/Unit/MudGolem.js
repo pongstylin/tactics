@@ -9,19 +9,20 @@ export default class MudGolem extends Unit {
 
     return true;
   }
-  setSpecialTargetNotice(targetUnit) {
+  getSpecialTargetTiles(_target, source = this.assignment) {
+    return this.board.getTileRange(source, 1, 3);
+  }
+  getSpecialTargetNotice(targetUnit, target, source = this.assignment) {
     if (targetUnit === this)
-      return targetUnit.change({ notice:'Quake!' });
-    const distance = this.board.getDistance(this.assignment, targetUnit.assignment);
+      return 'Quake!';
 
-    return this.setTargetNotice(targetUnit, this.assignment, {
+    const distance = this.board.getDistance(source, targetUnit.assignment);
+
+    return this.getAttackTargetNotice(targetUnit, source, target, {
       power: this.power - distance * 5,
       aType: 'magic',
       aLOS: false,
     });
-  }
-  getSpecialTargetTiles(target, source = this.assignment) {
-    return this.board.getTileRange(source, 1, 3);
   }
   animAttackSpecial(action) {
     let anim = this.renderAnimation('attackSpecial', action.direction);

@@ -15,7 +15,7 @@ export default class Scout extends Unit {
     if (this.directional !== false)
       anim.addFrame(() => this.stand());
 
-    let targetUnit = this.getLOSTargetUnit(action.target);
+    const targetUnit = this.getLOSTargetUnit(action.target);
     if (targetUnit) {
       let target = targetUnit.assignment;
       let offset = effectOffset + Math.ceil(board.getDistance(this.assignment, target) / 2);

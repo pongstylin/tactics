@@ -421,7 +421,7 @@ export default class GameType {
           if (unit.type !== unitType) return false;
 
           return unit.getAttackTiles().find(target => {
-            let area = unit.getTargetTiles(target);
+            let area = unit.getAttackTargetTiles(target);
             if (area.length < 5) return false;
 
             // True if we DON'T find a tile that is NOT assigned

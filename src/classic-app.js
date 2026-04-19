@@ -274,9 +274,9 @@ async function startGame() {
       $('BUTTON[name=select]').removeClass('selected');
       $('BUTTON[name=select][value='+new_mode+']').addClass('selected');
 
-      if (new_mode === 'target')
+      if (new_mode?.startsWith('target'))
         $('BUTTON[name=select][value=attack]').addClass('selected targeting');
-      else if (old_mode === 'target')
+      else if (old_mode?.startsWith('target'))
         $('BUTTON[name=select][value=attack]').removeClass('targeting');
 
       if (!$('#game-play').hasClass('active')) {

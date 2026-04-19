@@ -133,9 +133,8 @@ export default class ChaosDragon extends Unit {
       let targetUnit = this.getLOSTargetUnit(action.target);
       if (targetUnit)
         targets.push(targetUnit.assignment);
-    }
-    else
-      targets = this.getTargetTiles(action.target);
+    } else
+      targets = this.getAttackTargetTiles(action.target);
 
     targets.forEach(target => {
       let result = action.results.find(r => r.unit === target.assigned);
@@ -303,6 +302,13 @@ export default class ChaosDragon extends Unit {
   }
   getSpecialTargetTiles(target, source = this.assignment) {
     return [source];
+  }
+  getSpecialTargetNotice(targetUnit, target, source = this.assignment) {
+    return this.getAttackTargetNotice(targetUnit, source, target, {
+      power: this.power,
+      aType: 'heal',
+      aLOS: false,
+    });
   }
   getAttackSpecialResults(action) {
     return [{

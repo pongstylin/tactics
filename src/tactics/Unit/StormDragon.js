@@ -1,7 +1,7 @@
 import Unit from '#tactics/Unit.js';
 
-const DIAGONAL_SCALE_X = 0.82;
-const VERTICAL_SCALE_Y = 0.88;
+const DIAGONAL_SCALE_X = 0.72;
+const VERTICAL_SCALE_Y = 0.78;
 
 export default class StormDragon extends Unit {
   attach() {
@@ -88,8 +88,8 @@ export default class StormDragon extends Unit {
       fire: { alpha:0 },
     });
   }
-  getStandRenderOptions(forAvatar = false) {
-    if (forAvatar || this._sprite.name === 'avatars' || this.disposition !== 'Grounded')
+  getStandRenderOptions() {
+    if (this.disposition !== 'grounded')
       return super.getStandRenderOptions();
 
     return [ 'block', 2 ];
@@ -161,7 +161,7 @@ export default class StormDragon extends Unit {
       if (targetUnit)
         targets.push(targetUnit.assignment);
     } else
-      targets = this.getTargetTiles(action.target);
+      targets = this.getAttackTargetTiles(action.target);
 
     targets.forEach(target => {
       let result = action.results.find(r => r.unit === target.assigned);
@@ -243,7 +243,7 @@ export default class StormDragon extends Unit {
         },
         repeat: 5,
       })
-      .splice(1, tunit.animHit(this))
+      .splice(2, tunit.animHit(this))
       .splice(3, {
         script: () => tunit.whiten(whiten.shift()),
         repeat: 3,
@@ -334,12 +334,35 @@ export default class StormDragon extends Unit {
     return this.mHealth < 0;
   }
   canContinue() {
-    if (this.disposition === 'Grounded')
+    if (this.disposition === 'grounded')
       return false;
     return super.canContinue();
   }
-  getSpecialTargetTiles(target, source = this.assignment) {
+  canBlock() {
+    return !this.paralyzed;
+  }
+  canBlockAllSides() {
+    return this.disposition === 'grounded';
+  }
+  getSpecialTargetTiles(_target, source = this.assignment) {
     return [ source ];
+  }
+  getSpecialTargetNotice(_targetUnit, _target, _source = this.assignment) {
+    return 'Recharge!';
+  }
+  getBreakFocusResult(flatten = false) {
+    const result = {
+      unit: this,
+      changes: {
+        focusing: false,
+        disposition: null,
+        blocking: this.data.blocking,
+        mBlocking: 0,
+        mRecovery: this.mRecovery + 1,
+      },
+    };
+
+    return flatten ? [ result ] : result;
   }
   /*
    * Apply stun effect on a unit that is successfully hit.
@@ -355,14 +378,15 @@ export default class StormDragon extends Unit {
     return [{
       unit: this,
       changes: {
-        disposition: 'Grounded',
+        focusing: [ this ],
+        disposition: 'grounded',
         blocking: 100,
         mBlocking: 0,
       },
     }];
   }
   getStartTurnAction() {
-    if (this.disposition !== 'Grounded' || this.mRecovery !== 0)
+    if (this.disposition !== 'grounded' || this.mRecovery !== 0)
       return null;
 
     return {
@@ -372,6 +396,7 @@ export default class StormDragon extends Unit {
         unit: this,
         damage: -this.power,
         changes: {
+          focusing: false,
           disposition: null,
           blocking: this.data.blocking,
           mHealth: Math.min(0, this.mHealth + this.power),
@@ -379,22 +404,64 @@ export default class StormDragon extends Unit {
       }],
     };
   }
-  animAttackSpecial(action) {
+  animHit(attacker, attackType, silent = false) {
+    const anim = super.animHit(attacker, attackType, silent);
+    if (this.disposition === 'grounded')
+      anim.splice(this.animUncover());
+
+    return anim;
+  }
+  animBlock(attacker) {
+    if (this.disposition !== 'grounded')
+      return super.animBlock(attacker);
+
+    const anim = this.animUncover();
+    anim.splice(0, () => this.sounds.block.howl.play());
+
+    return anim;
+  }
+  animCover() {
     const anim = new Tactics.Animation();
     const block = this._sprite.renderAnimation({
       actionName: 'block',
-      direction: action.direction || this.direction,
+      direction: this.direction,
       container: this.frame,
       silent: true,
       styles: super.getStyles(),
-      fixup: frame => this.fixupFrame(frame, action.direction || this.direction),
+      fixup: frame => this.fixupFrame(frame, this.direction),
     });
 
     anim.splice(0, () => this.sounds.flap.howl.play());
     anim.splice(block.frames.slice(0, 2));
-    anim.splice(-1, () => this.change({ disposition:'Grounded' }));
+    anim.splice(() => {
+      this.change({ disposition:'grounded' })
+      this.drawStand();
+    });
 
     return anim;
+  }
+  animUncover() {
+    const anim = new Tactics.Animation();
+    const block = this._sprite.renderAnimation({
+      actionName: 'block',
+      direction: this.direction,
+      container: this.frame,
+      silent: true,
+      styles: super.getStyles(),
+      fixup: frame => this.fixupFrame(frame, this.direction),
+    });
+
+    anim.splice(0, block.frames.slice(3))
+    anim.splice(2, () => this.sounds.flap.howl.play())
+    anim.splice(() => {
+      this.change({ disposition:null });
+      this.drawStand();
+    });
+
+    return anim;
+  }
+  animAttackSpecial(_action) {
+    return this.animCover();
   }
   recharge(action, speed) {
     return this.animRecharge(action, speed).play();
@@ -410,7 +477,7 @@ export default class StormDragon extends Unit {
       fixup: frame => this.fixupFrame(frame, direction),
     });
     const anim = new Tactics.Animation({ speed })
-      .splice(0, () => this.change({ disposition:'Recharge' }))
+      .splice(0, () => this.change({ disposition:'recharge' }))
       .splice(0, super.animAttackEffect(
         { spriteId:'sprite:Lightning', type:'heal' },
         this.assignment,

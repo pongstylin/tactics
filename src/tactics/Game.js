@@ -53,7 +53,7 @@ export default class Game {
           if (
             this._inReplay ||
             this.state.actions.some(a => a.type === 'select') ||
-            this._selectMode === 'target'
+            this._selectMode?.startsWith('target')
           ) return;
 
           this.selected = null;
@@ -357,7 +357,10 @@ export default class Game {
       board.hideMode();
       viewed.activate(selectMode, true);
     } else if (selected && this.isMyTurn && !this._inReplay) {
-      if (selectMode === 'target')
+      if (selectMode === 'attack')
+        selectMode = selected.getAttackSelectMode();
+
+      if (selectMode?.startsWith('target'))
         // Clear highlight, but not target tile
         board.hideMode();
       else
@@ -1233,11 +1236,11 @@ export default class Game {
       await actor.deactivate();
       await actor.move(action, speed);
       await this._playResults(action, speed, true);
-    } else if (actionType === 'attack') {
+    } else if (actionType.startsWith('attack')) {
       // Show the player the units that will be attacked.
       const target = action.target;
-      const targetTiles = actor.getTargetTiles(target);
-      const targetUnits = actor.getTargetUnits(target);
+      const targetTiles = actor.getTargetTiles(actionType, target);
+      const targetUnits = actor.getTargetUnits(actionType, target);
 
       targetTiles.forEach(tile => {
         board.setHighlight(tile, {
@@ -1250,7 +1253,7 @@ export default class Game {
         targetUnits.forEach(tu => tu.activate());
 
         if (targetUnits.length === 1) {
-          actor.setTargetNotice(targetUnits[0], target);
+          targetUnits[0].setTargetNotice(actor, actionType, target);
           this.drawCard(targetUnits[0]);
         } else
           this.drawCard(actor);
@@ -1364,16 +1367,8 @@ export default class Game {
           action: 'move',
           color: MOVE_TILE_COLOR,
         }, true);
-      } else if (action.type === 'attack') {
-        tracker.attack = unit.getTargetTiles(action.target, tracker.assignment);
-        tracker.direction = action.direction;
-
-        board.setHighlight(tracker.attack, {
-          action: 'attack',
-          color: ATTACK_TILE_COLOR,
-        }, true);
-      } else if (action.type === 'attackSpecial') {
-        tracker.attack = unit.getSpecialTargetTiles(action.target, tracker.assignment);
+      } else if (action.type.startsWith('attack')) {
+        tracker.attack = unit.getTargetTiles(action.type, action.target, tracker.assignment);
         tracker.direction = action.direction;
 
         board.setHighlight(tracker.attack, {
