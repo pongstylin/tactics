@@ -1,4 +1,17 @@
+import config from 'config/client.js';
 import emitter from 'utils/emitter.js';
+import serializer from 'utils/serializer.js';
+
+export const api = {
+  async get(path) {
+    const rsp = await fetch(config.local.apiEndpoint + path);
+    const json = await rsp.json();
+    return serializer.normalize(json);
+  },
+  post(path, data) {
+    throw new Error(`Not implemented`);
+  },
+};
 
 export default class Client {
   constructor(serviceName, server) {

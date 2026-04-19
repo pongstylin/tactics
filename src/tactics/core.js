@@ -3,6 +3,7 @@ import 'plugins/pixi.js';
 
 import config, { gameConfig } from 'config/client.js';
 import ServerError from 'server/Error.js';
+import { api } from 'client/Client.js';
 import clientFactory from 'client/clientFactory.js';
 import Board from 'tactics/Board.js';
 import Game from 'tactics/Game.js';
@@ -27,6 +28,7 @@ const pushClient = clientFactory('push');
 Howler.mute(!gameConfig.audio);
 
 window.Tactics = {
+  api,
   version: config.version,
   width:  22 + 88*9 + 22,
   height: 44 + 4 + 56*9,
