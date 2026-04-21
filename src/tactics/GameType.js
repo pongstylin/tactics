@@ -221,7 +221,11 @@ export default class GameType {
   getUnitMaxCount(unitType) {
     return this.config.limits.units.types.get(unitType).max;
   }
-  getStats(units) {
+  getUnitIncludedCount(unitType) {
+    const limit = this.config.limits.units.types.get(unitType);
+    return limit.included ?? limit.max;
+  }
+  getStats(units, grants = new Map()) {
     if (!this.isCustomizable)
       return { available:0 };
 
@@ -255,10 +259,12 @@ export default class GameType {
         type: unitType,
         points: this.getUnitPoints(unitType),
         max: this.getUnitMaxCount(unitType),
+        included: this.getUnitIncludedCount(unitType),
+        granted: grants.get(unitType) ?? 0,
         count: unitCounts.get(unitType) ?? 0,
       };
       unitStats.available = Math.min(
-        unitStats.max - unitStats.count,
+        Math.min(unitStats.max, unitStats.included + unitStats.granted) - unitStats.count,
         Math.floor(stats.points.remaining / unitStats.points),
       );
 

@@ -1,5 +1,5 @@
 [
-    [
+  [
     "freestyle",
     {
       "name": "Freestyle",
@@ -28,7 +28,8 @@
             ["DragonspeakerMage", { "max":1  }],
             ["BeastRider",        { "max":10 }],
             ["GolemAmbusher",     { "max":1  }],
-            ["Berserker",         { "max":1  }]
+            ["Berserker",         { "max":1  }],
+            ["StormDragon",       { "max":1, "points":2, "included":0 }]
           ]
         }
       },
@@ -853,7 +854,8 @@
             ["DragonspeakerMage", { "max":10 }],
             ["BeastRider",        { "max":10 }],
             ["GolemAmbusher",     { "max":10 }],
-            ["Berserker",         { "max":10 }]
+            ["Berserker",         { "max":10 }],
+            ["StormDragon",       { "max":5, "points":2, "included":0 }]
           ]
         }
       },

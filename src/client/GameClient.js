@@ -261,6 +261,14 @@ export default class GameClient extends Client {
         throw error;
       });
   }
+  getMyUnitList() {
+    return this._server.requestAuthorized(this.name, 'getMyUnitList')
+      .catch(error => {
+        if (error === 'Connection reset')
+          return this.getMyUnitList();
+        throw error;
+      });
+  }
   getPlayersAvatar(playerIds) {
     return this._server.requestAuthorized(this.name, 'getPlayersAvatar', [ playerIds ])
       .catch(error => {

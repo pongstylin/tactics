@@ -91,6 +91,9 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
 
     return unitTypes.concat(this.data.avatars).concat(Array.from(this.data.units.keys()));
   }
+  get listUnits() {
+    return this.data.units;
+  }
 
   get ttl() {
     if (this.player)

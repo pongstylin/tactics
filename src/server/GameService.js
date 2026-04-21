@@ -75,6 +75,7 @@ export default class GameService extends Service {
         getMyAvatar: [],
         saveMyAvatar: ['game:avatar'],
         getMyAvatarList: [],
+        getMyUnitList: [],
         getPlayersAvatar: ['uuid[]'],
       },
       events: {
@@ -293,7 +294,7 @@ export default class GameService extends Service {
           !game.state.currentTeam.seen(this.startupAt)
         )
           game.state.end('truce');
-        } else if (game.state.actions.some(a => !a.forced)) {
+        else if (game.state.actions.some(a => !a.forced)) {
           if (game.state.actions.last.type === 'endTurn') {
             this.debug(`autoSurrender: ${game.id}: error: Need sync!`);
             game.state.sync({ type:'willSync' });
@@ -885,6 +886,12 @@ export default class GameService extends Service {
     const playerAvatars = await this.data.getPlayerAvatars(player);
 
     return playerAvatars.listAvatars;
+  }
+  async onGetMyUnitListRequest(client) {
+    const player = GameSession.cache.get(client.id).player;
+    const playerAvatars = await this.data.getPlayerAvatars(player);
+
+    return playerAvatars.listUnits;
   }
   async onGetPlayersAvatarRequest(client, playerIds) {
     return this.data.listPlayersAvatar(playerIds);
