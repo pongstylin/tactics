@@ -1310,20 +1310,21 @@ async function joinGame(arena) {
  * player can select which style to join.
  */
 async function joinGameGroup(groupId) {
-  const games = getPublicWaitingGroupById(groupId);
-  if (!games || games.size === 0) return;
+  const gamesSet = getPublicWaitingGroupById(groupId);
+  if (!gamesSet || gamesSet.size === 0) return;
 
-  const oldest = Array.from(games.values()).reduce((a, b) => a.createdAt < b.createdAt ? a : b);
-  const creatorTeam = oldest.teams.find(t => t?.playerId === oldest.createdBy);
+  const games = Array.from(gamesSet.values()).sort((a, b) => a.createdAt - b.createdAt);
+  const relationship = games[0].meta.creator.relationship;
+  const creatorTeam = games[0].teams.find(t => t?.playerId === games[0].createdBy);
 
-  if (oldest.meta.creator.relationship?.blockedByRule) {
+  if (relationship?.blockedByRule) {
     let message;
-    if (oldest.meta.creator.relationship.blockedByRule === 'guest')
+    if (relationship.blockedByRule === 'guest')
       message = `
         Sorry!  <I>${creatorTeam.name}</I> blocked guests from joining their public and lobby games.
         You can verify your account on your <A href="security.html">Account Security</A> page.
       `;
-    else if (oldest.meta.creator.relationship.blockedByRule === 'new')
+    else if (relationship.blockedByRule === 'new')
       message = `
         Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
         You can try again later or create your own game.
@@ -1340,7 +1341,8 @@ async function joinGameGroup(groupId) {
     });
   }
 
-  await configureGame.show('confirmBeforeJoinGroup', { gameSummaries: Array.from(games.values()) });
+  await configureGame.setGameType(games[0].type);
+  await configureGame.show('confirmBeforeJoinGroup', { gameSummaries:games });
 }
 
 function renderPN(reg) {
