@@ -163,7 +163,7 @@ export default class Turn extends ActiveModel<TurnEvents> {
     if (!this.data.startedAt)
       return;
 
-    this._timeLimit = Math.floor((Date.now() - this.data.startedAt.getTime())) / 1000 + timeLimit;
+    this._timeLimit = Math.floor((Date.now() - this.data.startedAt.getTime()) / 1000) + timeLimit;
   }
 
   get(name:string, defaultValue:unknown = null) {

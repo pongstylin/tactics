@@ -59,8 +59,7 @@ const servicesReady = Promise.all(
   /*
    * Now that all services are ready, initialize them.
    */
-  for (const service of services.values())
-    service.initialize();
+  return Promise.all(Array.from(services.values()).map(s => s.initialize()));
 }).catch(error => {
   console.error(error);
   process.exit(1);

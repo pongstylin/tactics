@@ -20,14 +20,13 @@ const gameSummaryWithMetaCacheByPlayer = new WeakMap();
 // When the server is shut down in the middle of an auto surrender game,
 // the participants are allowed to safely bail on the game if they do not
 // show up.  When their time limit expires, the game ends in truce.
-const protectedGameIds = new Set();
 
 export default class GameService extends Service {
   constructor(props) {
     super({
       ...props,
 
-      startupAt: new Date(),
+      startupAt: null,
       attachedGames: new WeakSet(),
     });
 
@@ -264,7 +263,7 @@ export default class GameService extends Service {
     this.setCollections();
   }
 
-  async initialize() {
+  initialize() {
     const state = this.data.state;
 
     if (!state.willSync)
@@ -286,10 +285,14 @@ export default class GameService extends Service {
           continue;
         }
 
-        if (protectedGameIds.has(game.id) && !game.state.currentTeam.seen(this.startupAt)) {
-          protectedGameIds.delete(game.id);
+        // If the current player hasn't opened the game since the server started up, end the game in a truce.
+        if (
+          game.state.currentTurn.startedAt < this.startupAt &&
+          game.state.timeLimit.base < 300 &&
+          !game.state.currentTeam.seen(this.startupAt)
+        )
           game.state.end('truce');
-        } else if (game.state.actions.length) {
+        else if (game.state.actions.length) {
           if (game.state.actions.last.type === 'endTurn') {
             this.debug(`autoSurrender: ${game.id}: error: Need sync!`);
             game.state.sync({ type:'willSync' });
@@ -319,36 +322,9 @@ export default class GameService extends Service {
           game.expire();
     });
 
-    if (state.shutdownAt) {
-      delete state.shutdownAt;
-
-      state.autoSurrender.pause();
-
-      for (const gameId of state.autoSurrender.keys()) {
-        let game;
-        try {
-          game = await this._getGame(gameId);
-        } catch (e) {
-          // Only expected to happen when manually deleting files.
-          state.autoSurrender.delete(gameId);
-          continue;
-        }
-
-        if (!game.state.startedAt || game.state.endedAt)
-          state.autoSurrender.delete(gameId);
-        else if (game.state.getTurnTimeRemaining() < 300000) {
-          protectedGameIds.add(game.id);
-          game.state.currentTurn.resetTimeLimit(300);
-          state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
-          this._notifyYourTurn(game);
-        }
-      }
-
-      state.autoSurrender.resume();
-    }
-
     this.auth.syncRankings(this.data.getGameTypesById());
 
+    this.startupAt = new Date();
     return super.initialize();
   }
 
@@ -356,7 +332,6 @@ export default class GameService extends Service {
     const state = this.data.state;
     state.autoSurrender.pause();
     state.willSync.pause();
-    state.shutdownAt = new Date();
 
     const games = await this._getGames(state.autoCancel.keys());
     await Promise.all(games.filter(g => !g.state.startedAt).map(g => g.expire()));
@@ -1492,11 +1467,25 @@ export default class GameService extends Service {
   _syncAutoSurrender(game) {
     if (!game.state.startedAt || !game.state.autoSurrender)
       return;
-
-    if (game.state.endedAt)
+    if (game.state.endedAt) {
       this.data.state.autoSurrender.delete(game.id);
-    else
-      this.data.state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
+      return;
+    }
+
+    // Allow the current turn in games to have at least 5 minutes remaining from the point of server startup.
+    if (
+      // The current turn must have started before server startup
+      game.state.currentTurn.startedAt < this.startupAt &&
+      // The time limit must be less than 5 minutes.
+      game.state.timeLimit.base < 300 &&
+      // The server must have started less than 5 minutes ago.
+      (Date.now() - this.startupAt) < 300000
+    ) {
+      game.state.currentTurn.resetTimeLimit(Math.ceil((300000 - (Date.now() - this.startupAt)) / 1000));
+      this._notifyYourTurn(game);
+    }
+
+    this.data.state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
   }
 
   /*
