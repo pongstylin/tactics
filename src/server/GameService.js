@@ -294,7 +294,7 @@ export default class GameService extends Service {
           !game.state.currentTeam.seen(this.startupAt)
         )
           game.state.end('truce');
-        else if (game.state.actions.some(a => !a.forced)) {
+        else if (game.state.currentTurn.hasPlayedActions) {
           if (game.state.actions.last.type === 'endTurn') {
             this.debug(`autoSurrender: ${game.id}: error: Need sync!`);
             game.state.sync({ type:'willSync' });

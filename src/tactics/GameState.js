@@ -1231,7 +1231,7 @@ export default class GameState extends TypedEmitter {
       this.revert(pointer.turnId, pointer.actionId, true, approved);
     // Added this.endedAt check to handle cases where the game ended in a forced truce on the first turn.
     // The current turn is not playable when the game ended in a draw.
-    else if ((team === this.currentTeam || this.endedAt) && this.currentTurn.isPlayable && this.currentTurn.nextActionId)
+    else if ((team === this.currentTeam || this.endedAt) && this.currentTurn.hasPlayedActions)
       this.revert(this.currentTurnId, 0, true, approved);
     else {
       const turnId = this.getTeamPreviousPlayableTurnId(team);
@@ -1367,14 +1367,15 @@ export default class GameState extends TypedEmitter {
   revert(turnId, nextActionId = 0, isUndo = false, resetStartDate) {
     const board = this._board;
 
-    if (turnId < this.currentTurnId)
+    if (turnId < this.currentTurnId) {
       this._popHistory(turnId, resetStartDate);
-    else if (this.endedAt) {
+      this.currentTurn.nextActionId = nextActionId;
+    } else if (this.endedAt) {
       this.currentTurn.startedAt = new Date();
       this.currentTurn.nextActionId = nextActionId;
       if (this.timeLimit)
         applyTurnTimeLimit[this.timeLimit.type].call(this, 'revert');
-    } else if (nextActionId < this.currentTurn.actions.length)
+    } else if (nextActionId < this.currentTurn.nextActionId)
       this.currentTurn.nextActionId = nextActionId;
 
     this._newActions.length = 0;

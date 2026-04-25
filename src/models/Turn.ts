@@ -226,6 +226,9 @@ export default class Turn extends ActiveModel<TurnEvents> {
 
     return false;
   }
+  get hasPlayedActions() {
+    return this.data.actions.some(a => !a.forced);
+  }
   get isSkipped() {
     const actions = this.data.actions.filter(a => !a.forced);
     return actions.length === 1 && actions[0].type === 'endTurn';
