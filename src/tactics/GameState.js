@@ -1355,14 +1355,15 @@ export default class GameState extends TypedEmitter {
   revert(turnId, nextActionId = 0, isUndo = false, resetStartDate) {
     const board = this._board;
 
-    if (turnId < this.currentTurnId)
+    if (turnId < this.currentTurnId) {
       this._popHistory(turnId, resetStartDate);
-    else if (this.endedAt) {
+      this.currentTurn.nextActionId = nextActionId;
+    } else if (this.endedAt) {
       this.currentTurn.startedAt = new Date();
       this.currentTurn.nextActionId = nextActionId;
       if (this.timeLimit)
         applyTurnTimeLimit[this.timeLimit.type].call(this, 'revert');
-    } else if (nextActionId < this.currentTurn.actions.length)
+    } else if (nextActionId < this.currentTurn.nextActionId)
       this.currentTurn.nextActionId = nextActionId;
 
     this._newActions.length = 0;
