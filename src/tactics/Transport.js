@@ -228,9 +228,13 @@ export default class Transport {
         return null;
       if (useEarliest)
         return { turnId:initialTurnId, actionId:0 };
-      if (this.currentTurn.isEmpty || this.currentTurn.isAutoSkipped)
-        return { turnId:this.getPreviousPlayableTurnId(), actionId:0 };
-      return { turnId:this.currentTurnId, actionId:0 };
+      if (this.currentTurn.isEmpty) {
+        const turn = this.getPreviousPlayableTurn();
+        // If the turn isn't loaded, fake it so that the undo button is enabled.
+        if (!turn) return { turnId:this.previousTurnId, actionId:0 };
+        return { turnId:turn.id, actionId:turn.firstActionId };
+      }
+      return { turnId:this.currentTurnId, actionId:this.currentTurn.firstActionId };
     }
 
     const numTeams = this.teams.length;
@@ -328,7 +332,7 @@ export default class Transport {
           return pointer;
 
         // May not undo counter-attacks without permission.
-        if (action.unit !== undefined && action.unit !== turn.unit)
+        if (action.unit !== undefined && action.unit !== turn.selected)
           return pointer;
 
         // May undo forced end turns if something can be undone earlier.
@@ -435,11 +439,8 @@ export default class Transport {
 
     return null;
   }
-  getPreviousPlayableTurnId(contextTurnId = this.currentTurnId) {
-    const turnId = this.playableTurnsInReverse(contextTurnId - 1).next().value?.id ?? null;
-    if (turnId === null && contextTurnId > this.initialTurnId)
-      return contextTurnId - 1;
-    return turnId;
+  getPreviousPlayableTurn(contextTurnId = this.currentTurnId) {
+    return this.playableTurnsInReverse(contextTurnId - 1).next().value ?? null;
   }
   *playableTurnsInReverse(contextTurnId = this.currentTurnId) {
     const index = this.recentTurns.findIndex(t => t.id === contextTurnId);

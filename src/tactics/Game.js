@@ -52,8 +52,8 @@ export default class Game {
         else if (this.selected) {
           if (
             this._inReplay ||
-            this.state.actions.length ||
-            this._selectMode === 'target'
+            this.state.actions.some(a => a.type === 'select') ||
+            this._selectMode?.startsWith('target')
           ) return;
 
           this.selected = null;
@@ -357,7 +357,10 @@ export default class Game {
       board.hideMode();
       viewed.activate(selectMode, true);
     } else if (selected && this.isMyTurn && !this._inReplay) {
-      if (selectMode === 'target')
+      if (selectMode === 'attack')
+        selectMode = selected.getAttackSelectMode();
+
+      if (selectMode?.startsWith('target'))
         // Clear highlight, but not target tile
         board.hideMode();
       else
@@ -613,20 +616,25 @@ export default class Game {
       team.isCurrent = team.id === this.cursor.teamId;
 
     // Do not use this.actions or expect bugs
-    let actions = this.cursor.actions.slice(0, this.cursor.nextActionId);
-    actions.forEach(a => this._applyAction(board.decodeAction(a)));
+    const actions = this.cursor.actions.slice(0, this.cursor.nextActionId);
+    // After applying the action, change the actor's frame to:
+    // 1) Show a change of the unit's direction, or
+    // 2) Show a change of the unit's pose, e.g. Storm Dragon disposition change.
+    for (const action of actions) {
+      const decoded = this._applyAction(board.decodeAction(action));
+      decoded.unit?.stand();
+    }
 
     this.selectMode = 'move';
 
-    if (actions.length) {
-      const selectAction = board.decodeAction(actions[0]);
-      if (selectAction.unit?.assignment)
-        this.selected = selectAction.unit;
-    } else if (this._inReplay && this.cursor.actions.length) {
-      const selectAction = board.decodeAction(this.cursor.actions[0]);
-      if (selectAction.unit?.assignment)
-        this.selected = selectAction.unit;
-    } else
+    const selectAction = this.cursor.actions.find(a => a.type === 'select');
+    const selected = selectAction && board.decodeAction(selectAction).unit;
+
+    if (actions.includes(selectAction) && selected?.assignment)
+      this.selected = selected;
+    else if (this._inReplay && selected?.assignment)
+      this.selected = selected;
+    else
       this.render();
   }
 
@@ -675,7 +683,6 @@ export default class Game {
         resolve();
       };
     });
-    const board = this._board;
 
     // Clear a 'Sending order' notice, if present
     // Or, clear 'Your Turn' notice so that it may be redisplayed after.
@@ -724,7 +731,7 @@ export default class Game {
 
       this._endGame();
     } else if (!this._inReplay)
-      if (!cursor.actions.length)
+      if (cursor.actions.filter(a => !a.forced).length === 0)
         this._startTurn();
       else if (cursor.actions.last.type === 'endTurn')
         this._endTurn();
@@ -876,8 +883,7 @@ export default class Game {
         this.render(true);
 
         count++;
-      }
-      else {
+      } else {
         delete this._animators[fps];
       }
     };
@@ -901,7 +907,7 @@ export default class Game {
    */
   canSelect(unit) {
     let selected = this.selected;
-    if (selected && selected !== unit && this.state.actions.length)
+    if (selected && selected !== unit && this.state.actions.some(a => a.type === 'select'))
       return false;
 
     return !this.isViewOnly
@@ -1175,25 +1181,24 @@ export default class Game {
 
     const actor = action.unit;
 
-    // Select the initial actor
-    if (!board.selected) {
-      board.selected = actor;
-      if (action.type !== 'phase')
-        actor.activate();
+    if (board.viewed && board.viewed !== actor) {
+      await board.viewed.deactivate();
+      board.viewed = null;
       this.drawCard();
     }
 
-    if (action.type === 'select')
+    if (action.type === 'select') {
+      board.selected = actor;
+      actor.activate();
+      this.drawCard();
       return;
+    }
 
     // View the current actor
     if (board.selected !== actor) {
-      await board.selected.deactivate();
+      if (board.selected)
+        await board.selected.deactivate();
       board.viewed = actor;
-      this.drawCard();
-    } else if (board.viewed) {
-      await board.viewed.deactivate();
-      board.viewed = null;
       this.drawCard();
     }
 
@@ -1201,8 +1206,9 @@ export default class Game {
      * For actions initiated by the viewing player, perform the quick version.
      */
     const quick = (
-      (!board.selected || board.selected === actor) &&
+      board.selected === actor &&
       this.isMyTeam(action.teamId) &&
+      !action.forced &&
       !this._inReplay
     );
     if (quick) {
@@ -1216,7 +1222,8 @@ export default class Game {
       return;
     }
 
-    this._showActions(false, actor);
+    if (actor === board.selected)
+      this._showActions(false);
 
     if (actionType === 'move') {
       // Show the player where the unit will move.
@@ -1229,11 +1236,11 @@ export default class Game {
       await actor.deactivate();
       await actor.move(action, speed);
       await this._playResults(action, speed, true);
-    } else if (actionType === 'attack') {
+    } else if (actionType.startsWith('attack')) {
       // Show the player the units that will be attacked.
       const target = action.target;
-      const targetTiles = actor.getTargetTiles(target);
-      const targetUnits = actor.getTargetUnits(target);
+      const targetTiles = actor.getTargetTiles(actionType, target);
+      const targetUnits = actor.getTargetUnits(actionType, target);
 
       targetTiles.forEach(tile => {
         board.setHighlight(tile, {
@@ -1246,7 +1253,7 @@ export default class Game {
         targetUnits.forEach(tu => tu.activate());
 
         if (targetUnits.length === 1) {
-          actor.setTargetNotice(targetUnits[0], target);
+          targetUnits[0].setTargetNotice(actor, actionType, target);
           this.drawCard(targetUnits[0]);
         } else
           this.drawCard(actor);
@@ -1260,7 +1267,7 @@ export default class Game {
       }));
 
       await actor.deactivate();
-      await actor.attack(action, speed);
+      await actor[action.type](action, speed);
       await this._playResults(action, speed);
     } else if (actionType === 'turn') {
       await actor.deactivate();
@@ -1305,13 +1312,8 @@ export default class Game {
       await this._playResults(action, speed);
       await sleep(2000 / speed);
     } else {
-      this.drawCard(actor);
-
-      // For counter-attacks, the actor may differ from selected.
-      if (board.selected !== actor) {
-        await board.selected.deactivate();
+      if (board.selected !== actor)
         actor.activate();
-      }
 
       await sleep(2000 / speed);
 
@@ -1325,30 +1327,26 @@ export default class Game {
     board.selected?.activate();
     this.drawCard();
   }
-  _showActions(all = false, unit) {
-    let board = this._board;
-    let allActions = board.decodeAction(this.cursor.actions, this.cursor.units);
-    if (!allActions.length)
+  _showActions(all = false) {
+    const board = this._board;
+    const allActions = board.decodeAction(this.cursor.actions, this.cursor.units);
+    const actions = (all ? allActions : this.actions).filter(a => !a.forced);
+    if (!actions.length)
       return;
 
-    let actions = all ? allActions : this.actions;
-    if (unit)
-      actions = actions.filter(a => !a.unit || a.unit === unit);
-    else
-      unit = allActions[0].unit;
+    const unit = actions[0].unit;
+    // Possible when this turn was passed manually without action.
+    if (!unit)
+      return;
 
     board.clearHighlight();
     board.hideCompass();
 
-    // Possible if no unit argument and this turn was passed.
-    if (!unit)
-      return;
-
     if (board.selected !== unit)
       this.drawCard(unit);
 
-    let degree = board.getDegree('N', board.rotation);
-    let tracker = {};
+    const degree = board.getDegree('N', board.rotation);
+    const tracker = {};
 
     let origin = this.units.flat().find(u => u.id === unit.id).assignment;
     origin = tracker.assignment = board.getTileRotation(origin, degree);
@@ -1358,7 +1356,7 @@ export default class Game {
       color: FOCUS_TILE_COLOR,
     }, true);
 
-    actions.forEach(action => {
+    for (const action of actions) {
       if (action.unit !== unit) return;
 
       if (action.type === 'move') {
@@ -1369,16 +1367,8 @@ export default class Game {
           action: 'move',
           color: MOVE_TILE_COLOR,
         }, true);
-      } else if (action.type === 'attack') {
-        tracker.attack = unit.getTargetTiles(action.target, tracker.assignment);
-        tracker.direction = action.direction;
-
-        board.setHighlight(tracker.attack, {
-          action: 'attack',
-          color: ATTACK_TILE_COLOR,
-        }, true);
-      } else if (action.type === 'attackSpecial') {
-        tracker.attack = unit.getSpecialTargetTiles(action.target, tracker.assignment);
+      } else if (action.type.startsWith('attack')) {
+        tracker.attack = unit.getTargetTiles(action.type, action.target, tracker.assignment);
         tracker.direction = action.direction;
 
         board.setHighlight(tracker.attack, {
@@ -1391,7 +1381,7 @@ export default class Game {
         if (unit.directional !== false)
           board.showDirection(unit, tracker.assignment, tracker.direction);
       }
-    });
+    }
   }
   /*
    * Show the player the results of an attack
@@ -1831,7 +1821,7 @@ export default class Game {
       }
     }
   }
-  async _applyAction(action) {
+  _applyAction(action) {
     const board = this._board;
     const unit = action.unit;
 
@@ -1839,12 +1829,14 @@ export default class Game {
       if (action.assignment)
         board.assign(unit, action.assignment);
       if (action.direction)
-        unit.stand(action.direction);
+        unit.direction = action.direction;
       if (action.colorId)
         unit.color = colorFilterMap.get(action.colorId);
     }
 
-    await this._animApplyChangeResults(action.results, { instant:true }).play();
+    this._animApplyChangeResults(action.results, { instant:true }).exec();
+
+    return action;
   }
   _animApplyChangeResults(results, options) {
     const anim = new Tactics.Animation();

@@ -60,5 +60,5 @@ export default class GameState extends TypedEmitter<GameStateEvents> {
   undo(team?:Team, approved?:boolean): void;
   getTurn(turnId:number): Turn;
   teamHasPlayed(team:Team): boolean;
-  end(winnerId?:number | 'draw' | 'truce'): void;
+  end(winnerId?:number | 'draw' | 'truce', forced:boolean = false): void;
 };

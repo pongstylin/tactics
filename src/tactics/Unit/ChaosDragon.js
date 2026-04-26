@@ -37,7 +37,7 @@ export default class ChaosDragon extends Unit {
 
     return this.drawFrame(hatchFrame[0], this.direction, hatchFrame[1]);
   }
-  getPhaseAction(attacker, result) {
+  getEndTurnAction(attacker = undefined) {
     const banned = this.banned.slice();
     if (attacker)
       banned.push(attacker.team.id);
@@ -133,13 +133,11 @@ export default class ChaosDragon extends Unit {
       let targetUnit = this.getLOSTargetUnit(action.target);
       if (targetUnit)
         targets.push(targetUnit.assignment);
-    }
-    else
-      targets = this.getTargetTiles(action.target);
+    } else
+      targets = this.getAttackTargetTiles(action.target);
 
     targets.forEach(target => {
       let result = action.results.find(r => r.unit === target.assigned);
-      let isHit = result && !result.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -149,13 +147,13 @@ export default class ChaosDragon extends Unit {
 
       anim.splice(
         effectOffset,
-        this.animAttackEffect(spriteAction.effect, target, isHit),
+        this.animAttackEffect(spriteAction.effect, target, result?.miss),
       );
     });
 
     return anim;
   }
-  animAttackEffect(effect, target, isHit) {
+  animAttackEffect(effect, target, miss) {
     let board     = this.board;
     let anim      = new Tactics.Animation();
     let tunit     = target.assigned;
@@ -305,6 +303,13 @@ export default class ChaosDragon extends Unit {
   getSpecialTargetTiles(target, source = this.assignment) {
     return [source];
   }
+  getSpecialTargetNotice(targetUnit, target, source = this.assignment) {
+    return this.getAttackTargetNotice(targetUnit, source, target, {
+      power: this.power,
+      aType: 'heal',
+      aLOS: false,
+    });
+  }
   getAttackSpecialResults(action) {
     return [{
       unit: this,
@@ -331,7 +336,7 @@ export default class ChaosDragon extends Unit {
       .splice(0, super.animAttackEffect(
         { spriteId:'sprite:Sparkle', type:'heal' },
         this.assignment,
-        true, // isHit
+        undefined, // miss
       ))
       .splice(-1, block.frames.slice(3));
 
@@ -344,9 +349,9 @@ export default class ChaosDragon extends Unit {
   canCounter() {
     return this.mHealth !== -this.health;
   }
-  getCounterAction(attacker, result) {
+  getCounterAction(attacker, _result) {
     if (attacker !== this && attacker.color.join() === this.color.join())
-      return this.getPhaseAction(attacker, result);
+      return this.getEndTurnAction(attacker);
   }
 
   toJSON() {

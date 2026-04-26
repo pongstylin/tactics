@@ -665,9 +665,12 @@ export default class Board {
       if (event.target.label === 'tiles') return;
 
       // This really should be an emitted event.
-      if (Tactics.game.selectMode === 'target' && !this.isAdjacentToHighlighted(event.target.data)) {
-        Tactics.game.selectMode = 'attack'; 
-        return;
+      if (Tactics.game.selectMode?.startsWith('target') && !this.isAdjacentToHighlighted(event.target.data)) {
+        const activated = this.viewed || this.selected;
+        if (activated?.getAttackSelectMode() === 'attack') {
+          Tactics.game.selectMode = 'attack';
+          return;
+        }
       }
 
       if (this.viewed || this.selected)
@@ -692,9 +695,9 @@ export default class Board {
         return highlight.onSelect(event);
       else if (action === 'move')
         return this.onMoveSelect(tile);
-      else if (action === 'attack')
+      else if (action?.startsWith('attack'))
         return this.onAttackSelect(tile);
-      else if (action === 'target')
+      else if (action?.startsWith('target'))
         return this.onTargetSelect(tile);
 
       let unit = tile.assigned;
@@ -963,7 +966,8 @@ export default class Board {
           notices.push('Enraged!');
         else if (unit.type === 'Furgon' && unit.mRecovery <= unit.recovery)
           notices.push('Empowered!');
-      } else if (unit.disposition)
+      }
+      if (unit.disposition)
         notices.push(unit.disposition.toUpperCase('first') + '!');
 
       if (unit.focusing)
@@ -1719,7 +1723,7 @@ export default class Board {
       this._highlightMove(unit, view_only);
     else if (mode === 'attack')
       this._highlightAttack(unit, view_only);
-    else if (mode === 'target')
+    else if (mode?.startsWith('target'))
       this._highlightTarget(unit);
     else if (mode === 'turn') {
       if (this.viewed)
@@ -1756,18 +1760,15 @@ export default class Board {
 
   showTargets(target) {
     const selected = this.selected;
-    const targeted = this.targeted = new Set((() => {
-      if (selected.canSpecial() && (target ?? selected.assignment) === selected.assignment)
-        return selected.getSpecialTargetTiles(target).filter(t => !!t.assigned).map(t => t.assigned);
-      return selected.getTargetUnits(target);
-    })());
+    const actionType = target?.action ?? selected.activated;
+    const targeted = this.targeted = new Set(selected.getTargetUnits(actionType, target));
 
     // Units affected by the attack will pulsate.
-    targeted.forEach(tu => {
+    for (const targetUnit of targeted) {
       // Edge case: A pyro can target himself.
-      if (tu !== selected) tu.activate();
-      selected.setTargetNotice(tu, target);
-    });
+      if (targetUnit !== selected) targetUnit.activate();
+      targetUnit.setTargetNotice(selected, actionType, target);
+    }
 
     // If only one unit is affected, draw card.
     if (targeted.size === 1)
@@ -1913,24 +1914,20 @@ export default class Board {
     return this;
   }
   _highlightAttack(unit, view_only) {
-    if (!view_only && unit.aAll)
-      return this._highlightTarget(unit);
-
-    let tiles = unit.getAttackTiles();
-
-    this.setHighlight(tiles, {
+    this.setHighlight(unit.getAttackTiles(), {
       action: 'attack',
-      color:  ATTACK_TILE_COLOR,
+      color: ATTACK_TILE_COLOR,
     }, view_only);
 
     return this;
   }
   _highlightTarget(unit) {
-    let target = this.target;
-    let tiles = unit.getTargetTiles(target);
+    const target = this.target;
+    const actionType = unit.activated;
+    const tiles = unit.getTargetTiles(actionType, target);
 
     this.setHighlight(tiles, {
-      action: 'target',
+      action: actionType,
       color:  TARGET_TILE_COLOR,
     });
 
@@ -1940,20 +1937,25 @@ export default class Board {
   }
 
   _highlightTargetMix(target) {
-    let selected = this.selected;
+    const selected = this.selected;
+    const targetAction = selected.getTargetSelectMode(target);
+
+    // Configure the target before repainting tiles because setHighlight()
+    // can synchronously re-enter tile focus handlers.
+    this.target = target;
 
     // Necessary for special attacks
     this.setHighlight(target, {
-      action: 'target',
+      action: targetAction,
       color: ATTACK_TILE_COLOR,
     });
 
     // Show target tiles
-    selected.getTargetTiles(target).forEach(tile => {
+    selected.getTargetTiles(targetAction, target).forEach(tile => {
       if (tile === target)
         // Reconfigure the focused tile to be a target tile.
         this.setHighlight(tile, {
-          action: 'target',
+          action: targetAction,
           color:  TARGET_TILE_COLOR,
         });
       else
@@ -1964,15 +1966,16 @@ export default class Board {
         });
     });
 
-    // Configure the target in case the attack is initiated.
-    this.target = target;
     this.showTargets(target);
 
     return this;
   }
   _clearTargetMix(target) {
-    let selected = this.selected;
+    const selected = this.selected;
     if (selected.aAll) return;
+
+    const targetAction = target.action;
+    const attackTiles = selected.getAttackTiles();
 
     // Necessary for special attacks
     this.setHighlight(target, {
@@ -1980,10 +1983,8 @@ export default class Board {
       color: ATTACK_TILE_COLOR,
     });
 
-    let attackTiles = selected.getAttackTiles();
-
     // Reset target tiles to attack tiles
-    selected.getTargetTiles(target).forEach(tile => {
+    for (const tile of selected.getTargetTiles(targetAction, target))
       if (attackTiles.includes(tile))
         this.setHighlight(tile, {
           action: 'attack',
@@ -1991,7 +1992,6 @@ export default class Board {
         });
       else
         this.clearHighlight(tile);
-    });
 
     this.target = null;
     this.hideTargets();
@@ -2025,15 +2025,15 @@ export default class Board {
     let unit = tile.assigned;
     let game = Tactics.game;
 
-    if (tile.action === 'attack') {
+    if (tile.action?.startsWith('attack')) {
       // Single-click attacks are only enabled for mouse pointers.
       if (game.pointerType === 'mouse')
         this._highlightTargetMix(tile);
       else if (unit)
-        selected.setTargetNotice(unit);
-    } else if (tile.action === 'target') {
+        unit.setTargetNotice(selected, tile.action, tile);
+    } else if (tile.action?.startsWith('target')) {
       if (unit)
-        selected.setTargetNotice(unit, this.target);
+        unit.setTargetNotice(selected, tile.action, this.target);
     }
 
     /*
@@ -2046,8 +2046,8 @@ export default class Board {
     this._emit({ type:'focus', tile:tile, unit:unit });
   }
   onTileBlur(event) {
-    let tile = event.target;
-    let focusedTile = this.focusedTile;
+    const tile = event.target;
+    const focusedTile = this.focusedTile;
     // The tile might still be focused if the blur event was fired in
     // response to the board becoming locked and tile non-interactive
     if (focusedTile && !focusedTile.focused)
@@ -2061,7 +2061,7 @@ export default class Board {
     /*
      * Darken the tile when no longer focused.
      */
-    let highlighted = this._highlighted.get(tile);
+    const highlighted = this._highlighted.get(tile);
     if (highlighted && highlighted.onBlur)
       highlighted.onBlur(event);
     else if (tile.action)
@@ -2069,14 +2069,14 @@ export default class Board {
     else if (tile.painted && tile.painted !== 'focus')
       tile.setAlpha(0.15);
 
-    let unit = tile.assigned;
-    let game = Tactics.game;
+    const unit = tile.assigned;
+    const game = Tactics.game;
 
     // Single-click attacks are only enabled for mouse pointers.
-    if (tile.action === 'attack') {
+    if (tile.action?.startsWith('attack')) {
       if (unit)
         unit.change({ notice:null });
-    } else if (tile.action === 'target') {
+    } else if (tile.action?.startsWith('target')) {
       if (game.pointerType === 'mouse')
         this._clearTargetMix(tile);
       if (unit)
@@ -2086,7 +2086,7 @@ export default class Board {
     /*
      * Emit a change in unit focus.
      */
-    let focused = this.focused;
+    const focused = this.focused;
     if (focused !== unit || !focused)
       return;
 
@@ -2101,32 +2101,32 @@ export default class Board {
   }
   onAttackSelect(tile) {
     this.target = tile;
-    Tactics.game.selectMode = 'target';
+    Tactics.game.selectMode = this.selected.getTargetSelectMode(tile);
   }
   onTargetSelect(tile) {
-    let selected = this.selected;
-    let target = this.target;
-    if (selected.canSpecial() && (target ?? tile) === selected.assignment)
-      return this._emit({ type:'attackSpecial' });
-
-    let action = {
-      type: 'attack',
+    const action = {
+      type: tile.action.replace(/^target/, 'attack'),
     };
 
-    // Units that attack all targets don't have a specific target tile.
-    if (target)
-      action.target = target;
-    else {
-      // Set unit to face the direction of the tapped tile.
-      // (This is an aesthetic data point that needs no server validation)
-      let direction = this.getDirection(
-        selected.assignment,
-        target || tile,
-        selected.direction
-      );
-      if (direction !== selected.direction)
-        action.direction = direction;
+    // Special attacks submit without target payload.
+    if (action.type === 'attackSpecial') {
+      this._emit(action);
+      return;
     }
+
+    // Units that attack all targets don't have a specific target tile.
+    if (this.target)
+      action.target = this.target;
+
+    // Set unit to face the direction of the tapped tile.
+    // (This is an aesthetic data point that needs no server validation)
+    const direction = this.getDirection(
+      this.selected.assignment,
+      this.target || tile,
+      this.selected.direction,
+    );
+    if (direction !== this.selected.direction)
+      action.direction = direction;
 
     this._emit(action);
   }
@@ -2186,7 +2186,7 @@ export default class Board {
         tile.strip();
 
       // Only deactivate units that have a mode in case one of them is the attacker.
-      if (tile.action == 'target' && tile.assigned && tile.assigned.activated === true)
+      if (tile.action?.startsWith('target') && tile.assigned && tile.assigned.activated === true)
         tile.assigned.deactivate();
 
       if (tile.action) {

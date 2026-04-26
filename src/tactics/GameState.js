@@ -602,9 +602,9 @@ export default class GameState extends TypedEmitter {
     const board = this._board;
     actions = board.decodeAction(actions);
 
-    let endTurn;
+    let endTurnAction;
     const setEndTurn = forced => {
-      endTurn = this._getEndTurnAction(forced);
+      endTurnAction = this._endTurn(forced, false);
       return true;
     };
 
@@ -719,11 +719,7 @@ export default class GameState extends TypedEmitter {
         }
 
         const forceEndTurn = () => {
-          if (unit.disposition === 'dead')
-            return true;
-          if (unit.focusing)
-            return true;
-          if (unit.mRecovery)
+          if (!unit.canContinue())
             return true;
           if ((this.moved || !unit.canMove()) && !unit.canTurn())
             return true;
@@ -735,7 +731,7 @@ export default class GameState extends TypedEmitter {
       }
     });
 
-    return endTurn;
+    return endTurnAction;
   }
   _pushAction(action) {
     const currentTurn = this.currentTurn;
@@ -764,13 +760,13 @@ export default class GameState extends TypedEmitter {
     this._applyAction(action);
   }
   submitAction(actions) {
-    let endTurn;
+    let endTurnAction;
 
     /*
      * If the full transaction isn't a success, rollback any changes that were pending.
      */
     try {
-      endTurn = this._pushActions(actions);
+      endTurnAction = this._pushActions(actions);
     } catch(error) {
       this.revert(this.currentTurnId, this._actions.length - this._newActions.length);
 
@@ -784,19 +780,9 @@ export default class GameState extends TypedEmitter {
     else if (winners.length)
       return this.end(winners[0].id);
 
-    if (endTurn) {
-      if (this.type === 'chaos') {
-        // Team Chaos needs a chance to phase before ending their turn.
-        const currentTeam = this.currentTeam;
-        if (currentTeam.name === 'Chaos') {
-          const phaseAction = currentTeam.units[0].getPhaseAction();
-          if (phaseAction)
-            this._pushAction(phaseAction);
-        }
-      }
-
-      this._pushAction(endTurn);
-    } else if (this._newActions.length === 0)
+    if (endTurnAction)
+      this._pushAction(endTurnAction);
+    else if (this._newActions.length === 0)
       return;
 
     const actionEvent = {
@@ -833,7 +819,7 @@ export default class GameState extends TypedEmitter {
       });
 
       if (turnEnded) {
-        this._pushAction(this._getEndTurnAction(true));
+        this._endTurn(true);
         this._pushHistory();
       }
     }
@@ -873,7 +859,7 @@ export default class GameState extends TypedEmitter {
     drawCounts.attackTurnCount++;
 
     // Reset the counts when particular actions take place...
-    if (previousTurn.actions.length > 1) {
+    if (previousTurn.actions.some(a => a.type === 'select')) {
       drawCounts.passedTurnCount = 0;
 
       for (const action of previousTurn.actions) {
@@ -982,8 +968,8 @@ export default class GameState extends TypedEmitter {
 
     return null;
   }
-  getPreviousPlayableTurnId(contextTurnId = this.currentTurnId) {
-    return this.playableTurnsInReverse(contextTurnId - 1).next().value?.id ?? null;
+  getPreviousPlayableTurn(contextTurnId = this.currentTurnId) {
+    return this.playableTurnsInReverse(contextTurnId - 1).next().value ?? null;
   }
   *playableTurnsInReverse(contextTurnId = this.currentTurnId) {
     const minTurnId = this.initialTurnId - 1;
@@ -1084,9 +1070,12 @@ export default class GameState extends TypedEmitter {
         return null;
       if (useEarliest)
         return { turnId:initialTurnId, actionId:0 };
-      if (this.currentTurn.isEmpty || this.currentTurn.isAutoSkipped)
-        return { turnId:this.getPreviousPlayableTurnId(), actionId:0 };
-      return { turnId:this.currentTurnId, actionId:0 };
+      if (this.currentTurn.isEmpty) {
+        const turn = this.getPreviousPlayableTurn();
+        if (!turn) return null;
+        return { turnId:turn.id, actionId:turn.firstActionId };
+      }
+      return { turnId:this.currentTurnId, actionId:this.currentTurn.firstActionId };
     }
 
     const numTeams = this.teams.length;
@@ -1182,7 +1171,7 @@ export default class GameState extends TypedEmitter {
           return pointer;
 
         // May not undo counter-attacks without permission.
-        if (action.unit !== undefined && action.unit !== turn.unit)
+        if (action.unit !== undefined && action.unit !== turn.selected)
           return pointer;
 
         // May undo forced end turns if something can be undone earlier.
@@ -1242,7 +1231,7 @@ export default class GameState extends TypedEmitter {
       this.revert(pointer.turnId, pointer.actionId, true, approved);
     // Added this.endedAt check to handle cases where the game ended in a forced truce on the first turn.
     // The current turn is not playable when the game ended in a draw.
-    else if ((team === this.currentTeam || this.endedAt) && this.currentTurn.isPlayable && this.currentTurn.nextActionId)
+    else if ((team === this.currentTeam || this.endedAt) && this.currentTurn.hasPlayedActions)
       this.revert(this.currentTurnId, 0, true, approved);
     else {
       const turnId = this.getTeamPreviousPlayableTurnId(team);
@@ -1264,11 +1253,34 @@ export default class GameState extends TypedEmitter {
     this.emit(startTurnEvent);
     this.sync(startTurnEvent);
   }
-  end(winnerId) {
+  _initTurn() {
+    for (const unit of this.currentTeam.units) {
+      const startTurnAction = unit.getStartTurnAction();
+      if (startTurnAction) {
+        startTurnAction.forced = true;
+        this._pushAction(startTurnAction);
+      }
+    }
+  }
+  _endTurn(forced = false, withPush = true) {
+    for (const unit of this.currentTeam.units) {
+      const endTurnAction = unit.getEndTurnAction();
+      if (endTurnAction) {
+        endTurnAction.forced = true;
+        this._pushAction(endTurnAction);
+      }
+    }
+
+    const endTurnAction = this._getEndTurnAction(forced);
+    if (withPush)
+      this._pushAction(endTurnAction);
+    return endTurnAction;
+  }
+  end(winnerId, forced = true) {
     this._pushAction({
       type: 'endGame',
       winnerId,
-      forced: true,
+      forced,
     });
 
     this.emit({
@@ -1659,6 +1671,7 @@ export default class GameState extends TypedEmitter {
 
     this._newActions.length = 0;
     this._actions.length = 0;
+    this._initTurn();
 
     return this;
   }

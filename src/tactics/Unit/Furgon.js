@@ -13,13 +13,6 @@ export default class Furgon extends Unit {
   }
 
   /*
-   * Furgon does not target units
-   */
-  setTargetNotice() {
-    return;
-  }
-
-  /*
    * The Furgon, if any, on the dead unit's team becomes enraged if a non-
    * ward ally is killed by an opponent team.
    */
@@ -90,13 +83,10 @@ export default class Furgon extends Unit {
       board.getTileRange(tile, 0, 1).find(t => !t.assigned)
     );
   }
-  getTargetTiles(target) {
-    if (this.canSpecial())
-      return [this.assignment, ...this.getSpecialTargetTiles()];
-
+  getAttackTargetTiles(target) {
     return this.board.getTileRange(target, 0, 1);
   }
-  getSpecialTargetTiles(target, source) {
+  getSpecialTargetTiles(target, source = this.assignment) {
     const board = this.board;
     const enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
     const targets = new Set();
@@ -113,8 +103,17 @@ export default class Furgon extends Unit {
 
     return [...targets];
   }
-  getTargetUnits() {
+  getSpecialTargetNotice(targetUnit, target, source = this.assignment) {
+    if (targetUnit === this)
+      return 'Entangle!';
+
+    return 'Transform!';
+  }
+  getAttackTargetUnits() {
     return [];
+  }
+  getAttackSelectMode() {
+    return this.canSpecial() ? 'targetSpecial' : 'attack';
   }
   validateAttackAction(validate) {
     const action = super.validateAttackAction(validate);
