@@ -1228,10 +1228,11 @@ export default class GameState extends TypedEmitter {
     if (pointer)
       this.revert(pointer.turnId, pointer.actionId, true, approved);
     else if (team === this.currentTeam && (this.currentTurn.hasPlayedActions || this.endedAt))
-      this.revert(this.currentTurnId, 0, true, approved);
+      this.revert(this.currentTurnId, this.currentTurn.firstActionId, true, approved);
     else {
       const turnId = this.getTeamPreviousPlayableTurnId(team);
-      this.revert(turnId, 0, true, approved);
+      const turn = this.getTurn(turnId);
+      this.revert(turnId, turn.firstActionId, true, approved);
     }
 
     return true;
@@ -1360,7 +1361,7 @@ export default class GameState extends TypedEmitter {
     if (timeout)
       this.emit({ type:'willSync', data:timeout });
   }
-  revert(turnId, nextActionId = 0, isUndo = false, resetStartDate) {
+  revert(turnId, nextActionId, isUndo = false, resetStartDate) {
     const board = this._board;
 
     if (turnId < this.currentTurnId) {
