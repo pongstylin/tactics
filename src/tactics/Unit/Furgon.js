@@ -86,7 +86,7 @@ export default class Furgon extends Unit {
   getAttackTargetTiles(target) {
     return this.board.getTileRange(target, 0, 1);
   }
-  getSpecialTargetTiles(target, source = this.assignment) {
+  getSpecialTargetTiles(_source = this.assignment) {
     const board = this.board;
     const enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
     const targets = new Set();

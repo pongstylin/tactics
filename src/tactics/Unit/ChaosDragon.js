@@ -300,9 +300,6 @@ export default class ChaosDragon extends Unit {
   canSpecial() {
     return this.mHealth < 0;
   }
-  getSpecialTargetTiles(target, source = this.assignment) {
-    return [source];
-  }
   getSpecialTargetNotice(targetUnit, target, source = this.assignment) {
     return this.getAttackTargetNotice(targetUnit, source, target, {
       power: this.power,

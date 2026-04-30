@@ -9,19 +9,22 @@ export default class Assassin extends Unit {
 
     return (this.health + this.mHealth) < 5;
   }
-  getSpecialTargetTiles(target, source = this.assignment) {
-    return this.board.getTileRange(source, 0, 1, false);
+  getSpecialTargetTiles(source = this.assignment) {
+    const board   = this.board;
+    const targets = board.getTileRange(source, 0, 1, false);
+
+    // Detonate closer tiles before further tiles.
+    targets.sort((a, b) =>
+      board.getDistance(this.assignment, a) - board.getDistance(this.assignment, b)
+    );
+
+    return targets;
   }
   getSpecialTargetNotice(targetUnit, target, source = this.assignment) {
     if (targetUnit === this)
       return 'Explode!';
 
-    return this.getAttackTargetNotice(targetUnit, source, target, {
-      power: 99,
-      aType: 'magic',
-      aLOS: false,
-      aPierce: true,
-    });
+    return this.getAttackTargetNotice(targetUnit, source, target, this.getAttackSpecialStats(targetUnit));
   }
   getAttackTargetUnits(target) {
     return super.getAttackTargetUnits(target).filter(t => t !== this);
@@ -58,35 +61,12 @@ export default class Assassin extends Unit {
 
     return anim;
   }
-  getAttackSpecialResults() {
-    const board = this.board;
-    const targets = board.getTileRange(this.assignment, 0, 1, false);
-    const cUnits = new Map();
-
-    board.teamsUnits.flat().forEach(unit => cUnits.set(unit.id, unit.clone()));
-
-    // Show assassin result before victims.
-    targets.sort((a, b) =>
-      board.getDistance(this.assignment, a) - board.getDistance(this.assignment, b)
-    );
-
-    return targets.map(target => {
-      const targetUnit = target.assigned;
-      const cUnit = cUnits.get(targetUnit.id);
-      const result = { unit:targetUnit };
-
-      if (cUnit.barriered || cUnit.disposition === 'unbreakable')
-        result.miss = 'immune';
-      else {
-        result.damage = 99;
-        result.changes = { mHealth:-cUnit.health };
-      }
-
-      board.applyActionResults([ result ]);
-      this.getAttackSubResults(result);
-      // Reapply the result since getDeadResult can modify it.
-      board.applyActionResults([ result ]);
-      return result;
-    });
+  getAttackSpecialStats(_targetUnit) {
+    return {
+      power: 99,
+      aType: 'magic',
+      aLOS: false,
+      aPierce: true,
+    };
   }
 }

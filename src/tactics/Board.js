@@ -1256,7 +1256,7 @@ export default class Board {
       unit.color = colorFilterMap.get(unitState.colorId);
     else if (unitState.color)
       unit.color = unitState.color;
-    unit.direction = unit.directional === false ? 'S' : unitState.direction;
+    unit.direction = unit.directional === false ? 'S' : (unitState.direction ?? unit.direction);
 
     for (let [key, value] of Object.entries(unitState)) {
       if (key === 'type' || key === 'direction' || key === 'color' || key === 'colorId')
@@ -1269,7 +1269,7 @@ export default class Board {
 
     return unit;
   }
-  addUnit(unit, team) {
+  addUnit(unit, team, initialize = false) {
     if (!(unit instanceof Unit))
       unit = this.makeUnit(unit);
 
@@ -1283,6 +1283,8 @@ export default class Board {
 
     team.units.push(unit);
     unit.attach();
+    if (initialize)
+      this._emit({ type:'addUnit', unit, addResults:rs => this.applyActionResults(rs) });
 
     return unit;
   }
@@ -1641,7 +1643,7 @@ export default class Board {
     for (const unit of this.teamsUnits.flat())
       unit.initialState = unit.toJSON();
   }
-  setState(teamsUnits, teams) {
+  setState(teamsUnits, teams, initializeUnits = false) {
     this.clear();
     this.teams = teams;
 
@@ -1664,7 +1666,7 @@ export default class Board {
             unitState.direction = this.getRotation(unitState.direction, degree);
         }
 
-        this.addUnit(unitState, team);
+        this.addUnit(unitState, team, initializeUnits);
       });
     });
 

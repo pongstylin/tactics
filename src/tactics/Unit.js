@@ -113,7 +113,7 @@ export default class Unit {
     if (actionType === 'attack' || actionType === 'target')
       return this.getAttackTargetTiles(target, source);
     if (actionType === 'attackSpecial' || actionType === 'targetSpecial')
-      return this.getSpecialTargetTiles(target, source);
+      return this.getSpecialTargetTiles(source);
     return [];
   }
   getAttackTargetTiles(target, source = this.assignment) {
@@ -138,8 +138,8 @@ export default class Unit {
 
     return [ target ];
   }
-  getSpecialTargetTiles(_target, _source = this.assignment) {
-    return [];
+  getSpecialTargetTiles(source = this.assignment) {
+    return this.canSpecial() ? [ source ] : [];
   }
   /*
    * Reviews all combinations of moving (or not) then attacking to determine all
@@ -174,7 +174,7 @@ export default class Unit {
     if (actionType === 'attack' || actionType === 'target')
       return this.getAttackTargetUnits(target, source);
     if (actionType === 'attackSpecial' || actionType === 'targetSpecial')
-      return this.getSpecialTargetUnits(target, source);
+      return this.getSpecialTargetUnits(source);
     return [];
   }
   getAttackTargetUnits(target, source = this.assignment) {
@@ -194,8 +194,8 @@ export default class Unit {
 
     return targetUnits;
   }
-  getSpecialTargetUnits(target, source = this.assignment) {
-    return this.getSpecialTargetTiles(target, source)
+  getSpecialTargetUnits(source = this.assignment) {
+    return this.getSpecialTargetTiles(source)
       .filter(tile => !!tile.assigned)
       .map(tile => tile.assigned);
   }
@@ -236,7 +236,7 @@ export default class Unit {
 
     return 'target';
   }
-  getAttackStats() {
+  getAttackStats(_targetUnit) {
     return {
       power: Math.max(0, this.power + this.mPower),
       aType: this.aType,
@@ -314,7 +314,7 @@ export default class Unit {
     if (!target)
       target = targetUnit.assignment;
 
-    stats ??= this.getAttackStats();
+    stats ??= this.getAttackStats(targetUnit);
 
     const calc     = { stats };
     const armor    = stats.aPierce ? 0 : Math.max(0, Math.min(100, targetUnit.armor + targetUnit.mArmor));
@@ -379,8 +379,8 @@ export default class Unit {
           calc.penalty = 100*factor - targetUnit.blocking;
         }
       }
-    } else if (stats.aType === 'magic') {
-      // Armor reduces magic damage.
+    } else if (stats.aType === 'magic' || stats.aType === 'ground') {
+      // Armor reduces magic or ground damage.
       calc.damage = Math.round(stats.power * (100 - armor) / 100);
 
       // Magic can only be stopped by barriers.
@@ -427,6 +427,22 @@ export default class Unit {
     ]);
 
     return calcs.map(([targetUnit, calc]) => {
+      const result = this.getAttackResult(action, targetUnit, calc);
+      board.applyActionResults([ result ]);
+      this.getAttackSubResults(result, calc);
+      // Reapply the result since getDeadResult can modify it.
+      board.applyActionResults([ result ]);
+      return result;
+    });
+  }
+  getAttackSpecialResults(action) {
+    const board = this.board;
+    const calcs = this.getSpecialTargetUnits().map(targetUnit => [
+      targetUnit,
+      this.calcAttack(targetUnit, this.assignment, this.assignment, this.getAttackSpecialStats(targetUnit)),
+    ]);
+
+    return calcs.map(([ targetUnit, calc ]) => {
       const result = this.getAttackResult(action, targetUnit, calc);
       board.applyActionResults([ result ]);
       this.getAttackSubResults(result, calc);
@@ -494,7 +510,7 @@ export default class Unit {
   /*
    * Apply sub-results that are after-effects of certain results.
    */
-  getAttackSubResults(result, calc = null) {
+  getAttackSubResults(result, calc) {
     const board = this.board;
     const unit = result.unit;
     const subResults = result.results ??= [];
@@ -1973,7 +1989,7 @@ export default class Unit {
   }
   isImmune(_attacker, stats) {
     if (
-      /^(melee|magic|heal)$/.test(stats.aType) &&
+      /^(melee|magic|ground|heal)$/.test(stats.aType) &&
       (this.barriered || this.disposition === 'unbreakable')
     ) return true;
 

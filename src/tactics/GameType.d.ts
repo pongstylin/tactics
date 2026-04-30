@@ -30,5 +30,4 @@ export default class GameType {
   validateSet<T extends Set>(set:T): void;
   getTeamSetTags(teamSet:TeamSet): Tag[];
   validateSetIsFull(units:TeamSetUnit[]): boolean;
-  applySetUnitState<T extends Set>(set:T): T;
 };

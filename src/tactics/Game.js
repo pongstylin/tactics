@@ -1426,6 +1426,7 @@ export default class Game {
       if (!unit.assignment) return;
 
       const mArmorChange = changes.mArmor === undefined ? 0 : changes.mArmor - unit.mArmor;
+      const priorDisposition = unit.disposition;
 
       anim.splice(this._animApplyChangeResults([ result ], { andDie:false }));
 
@@ -1436,7 +1437,7 @@ export default class Game {
         anim.splice(0, unit.animCaption(caption));
 
         return anim.play();
-      } else if ('focusing' in changes || changes.barriered === false) {
+      } else if (('focusing' in changes || changes.barriered === false) && mHealth === undefined) {
         const caption = result.notice;
         if (caption)
           anim.splice(0, unit.animCaption(caption));
@@ -1506,12 +1507,13 @@ export default class Game {
                 } else
                   progress += (diff / 8) * -1;
 
-                const changes = {
-                  mHealth: Math.round(progress),
-                  disposition: null,
-                };
-                if (disposition !== undefined && Math.round(progress) === mHealth)
-                  changes.disposition = disposition;
+                const changes = { mHealth: Math.round(progress) };
+                if (disposition !== undefined) {
+                  if (Math.round(progress) === mHealth)
+                    changes.disposition = disposition;
+                  else
+                    changes.disposition = priorDisposition;
+                }
                 unit.change(changes);
               },
               repeat: 8,

@@ -404,37 +404,35 @@ export default class GameState extends TypedEmitter {
         });
       }
 
-      let unitId = 1;
-
       // Place the units according to team position.
+      let unitId = 1;
       const units = teams.map(team => {
         const degree = board.getDegree('N', team.position);
-        const units = this.gameType ? this.gameType.applySetUnitState({ units:team.set.units.clone() }).units : team.set.units.clone();
+        const units = this.gameType.applyTeamSetUnitsState(team.set.units.clone(), degree);
 
-        // First team must skip their first turn.
-        if (this.type !== 'chaos' && team.id === 0)
-          for (const unit of units)
-            if (!unit.mRecovery)
-              unit.mRecovery = 1;
-
-        team.initialTurnId = (() => {
-          const waitTurns = Math.min(...units.map(u => u.mRecovery ?? 0));
-          return team.id + teams.length * waitTurns;
-        })();
-
-        return board.rotateUnits(units, degree).map(u => Object.assign(u, {
-          id: unitId++,
-        }));
+        return units.map(u => Object.assign(u, { id:unitId++ }));
       });
+
+      board.setState(units, teams, true);
+
+      for (const team of teams) {
+        if (this.gameType)
+          this.gameType.applyInitialGameState(team);
+        else
+          GameType.applyInitialGameState(team, this.type !== 'chaos' && team.id === 0);
+
+        const waitTurns = Math.min(...team.units.map(u => u.mRecovery ?? 0));
+        team.initialTurnId = team.id + teams.length * waitTurns;
+      }
 
       this.turns.push(Turn.create({
         id: 0,
         team: this.teams[0],
-        data: { startedAt, units },
+        data: { startedAt, units:board.getState() },
       }));
+    } else {
+      board.setState(this.turns.last.units, teams);
     }
-
-    board.setState(this.turns.last.units, teams);
 
     this._bots = teams
       .filter(t => !!t.bot)
@@ -1229,9 +1227,7 @@ export default class GameState extends TypedEmitter {
 
     if (pointer)
       this.revert(pointer.turnId, pointer.actionId, true, approved);
-    // Added this.endedAt check to handle cases where the game ended in a forced truce on the first turn.
-    // The current turn is not playable when the game ended in a draw.
-    else if ((team === this.currentTeam || this.endedAt) && this.currentTurn.hasPlayedActions)
+    else if (team === this.currentTeam && (this.currentTurn.hasPlayedActions || this.endedAt))
       this.revert(this.currentTurnId, 0, true, approved);
     else {
       const turnId = this.getTeamPreviousPlayableTurnId(team);

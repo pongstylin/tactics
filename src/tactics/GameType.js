@@ -2,7 +2,6 @@ import TeamSet from '#models/TeamSet.js';
 import ServerError from '#server/Error.js';
 import Board from '#tactics/Board.js';
 import unitDataMap from '#tactics/unitData.js';
-import { calcPowerModifiers } from '#tactics/Unit/DragonspeakerMage.js';
 import serializer from '#utils/serializer.js';
 
 export const tagByKeyword = new Map([
@@ -81,6 +80,28 @@ export default class GameType {
       });
 
     this._tagByKeyword = null;
+  }
+
+  static applyTeamSetUnitsState(unitsState, degree = 0) {
+    const board = new Board();
+
+    for (const unitState of unitsState) {
+      const unitData = unitDataMap.get(unitState.type);
+      const tile = board.getTileRotation(unitState.assignment, degree);
+
+      unitState.assignment = [tile.x, tile.y];
+      unitState.direction = unitData.directional === false ? 'S' : board.getRotation(unitState.direction ?? 'S', degree);
+      if (unitData.waitFirstTurn && !unitState.mRecovery)
+        unitState.mRecovery = 1;
+    }
+
+    return unitsState;
+  }
+  static applyInitialGameState(team, skipTurn = true) {
+    // First team must skip their first turn.
+    if (skipTurn)
+      for (const unit of team.units)
+        unit.mRecovery ||= 1;
   }
 
   get name() {
@@ -301,31 +322,11 @@ export default class GameType {
 
     return tiles;
   }
-  applySetUnitState(set) {
-    // Compute dragonspeaker modifiers
-    let dragons = set.units.filter(u => u.type === 'DragonTyrant').length;
-    let speakers = set.units.filter(u => u.type === 'DragonspeakerMage').length;
-    let pyros = set.units.filter(u => u.type === 'Pyromancer').length;
-    let powerModifiers = calcPowerModifiers(dragons, speakers, speakers + pyros);
-
-    for (let unitState of set.units) {
-      let unitData = unitDataMap.get(unitState.type);
-
-      if (unitData.directional !== false && !unitState.direction)
-        unitState.direction = 'S';
-
-      if (powerModifiers.dragonModifier) {
-        if (unitState.type === 'DragonTyrant')
-          unitState.mPower = powerModifiers.dragonModifier;
-        else if (unitState.type === 'DragonspeakerMage' || unitState.type === 'Pyromancer')
-          unitState.mPower = powerModifiers.mageModifier;
-      }
-
-      if (unitData.waitFirstTurn)
-        unitState.mRecovery = 1;
-    }
-
-    return set;
+  applyTeamSetUnitsState(units, degree) {
+    return GameType.applyTeamSetUnitsState(units, degree);
+  }
+  applyInitialGameState(team) {
+    GameType.applyInitialGameState(team, team.id === 0);
   }
 
   validateSetIsNotEmpty(units) {

@@ -344,9 +344,6 @@ export default class StormDragon extends Unit {
   canBlockAllSides() {
     return this.disposition === 'grounded';
   }
-  getSpecialTargetTiles(_target, source = this.assignment) {
-    return [ source ];
-  }
   getSpecialTargetNotice(_targetUnit, _target, _source = this.assignment) {
     return 'Recharge!';
   }
@@ -406,7 +403,10 @@ export default class StormDragon extends Unit {
   }
   animHit(attacker, attackType, silent = false) {
     const anim = super.animHit(attacker, attackType, silent);
-    if (this.disposition === 'grounded')
+    if (
+      this.disposition === 'grounded' &&
+      this.canBreakFocus({ miss:undefined, stats:{ aType:attackType } })
+    )
       anim.splice(this.animUncover());
 
     return anim;
