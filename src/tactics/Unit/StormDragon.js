@@ -32,9 +32,10 @@ export default class StormDragon extends Unit {
     if (!LW)
       return;
 
+    const sdIsDead = unit === SDs[0] && type === 'dropUnit';
     const lwIsDead = unit === LW && type === 'dropUnit';
     // Don't allow a channeling disposition to prevent us from getting the LW's attack tiles.
-    const isInRange = !lwIsDead && Unit.prototype.getAttackTiles.call(LW).some(t => t === assignment);
+    const isInRange = !sdIsDead && !lwIsDead && Unit.prototype.getAttackTiles.call(LW).some(t => t === assignment);
     const wasInRange = this.mPower === 6;
     if (isInRange === wasInRange)
       return;

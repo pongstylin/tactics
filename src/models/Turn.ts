@@ -200,7 +200,7 @@ export default class Turn extends ActiveModel<TurnEvents> {
   }
 
   get isEmpty() {
-    return this.data.actions.filter(a => !a.forced).length === 0;
+    return this.data.actions.filter(a => !a.forced).length === 0 && !this.isEnded;
   }
   get isEnded() {
     return this.data.actions.last?.type === 'endTurn';

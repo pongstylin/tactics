@@ -405,15 +405,16 @@ export default class SetBuilder extends Modal {
 
   placeUnit(unitType, tile) {
     const board = this._board;
-    const degree = board.getDegree('N', board.rotation);
 
     if (tile.assigned)
       this.removeUnit(tile.assigned);
 
+    // Full rotation not required because the placed tile is relative to current rotation.
     const unit = board.addUnit(this.data.gameType.applyTeamSetUnitsState([{
       type: unitType,
       assignment: tile,
-    }], degree)[0], this._team, true);
+      direction: board.getRotation(board.rotation, 180),
+    }])[0], this._team, true);
     unit.draggable = true;
 
     this._highlightPlaces();
@@ -453,12 +454,8 @@ export default class SetBuilder extends Modal {
       if (unit === board.selected)
         this.selected = null;
 
+      board.trigger({ type:'dropUnit', unit, addResults:rs => board.applyActionResults(rs) });
       unit.change({ disposition:'dead' });
-      board.trigger({
-        type: 'dropUnit',
-        unit,
-        addResults: rs => board.applyActionResults(rs),
-      });
       unit.assignment.set_interactive(false);
       deadUnits.push(unit);
       animDeath.splice(0, unit.animDie());
@@ -485,12 +482,8 @@ export default class SetBuilder extends Modal {
   removeUnit(unit) {
     const board = this._board;
 
+    board.trigger({ type:'dropUnit', unit, addResults:rs => board.applyActionResults(rs) });
     unit.change({ disposition:'dead' });
-    board.trigger({
-      type: 'dropUnit',
-      unit,
-      addResults: rs => board.applyActionResults(rs),
-    });
     board.dropUnit(unit);
   }
   _auditUnitPlaces() {

@@ -1176,6 +1176,9 @@ export default class GameState extends TypedEmitter {
         if (action.type === 'endTurn' && action.forced)
           continue;
 
+        if (action.forced)
+          return pointer;
+
         // Now we know something can be undone
         pointer = { turnId, actionId };
       }
