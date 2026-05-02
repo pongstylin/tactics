@@ -2120,15 +2120,17 @@ export default class Board {
     if (this.target)
       action.target = this.target;
 
-    // Set unit to face the direction of the tapped tile.
-    // (This is an aesthetic data point that needs no server validation)
-    const direction = this.getDirection(
-      this.selected.assignment,
-      this.target || tile,
-      this.selected.direction,
-    );
-    if (direction !== this.selected.direction)
-      action.direction = direction;
+    if (this.selected.directional !== false) {
+      // Set unit to face the direction of the tapped tile.
+      // (This is an aesthetic data point that needs no server validation)
+      const direction = this.getDirection(
+        this.selected.assignment,
+        this.target || tile,
+        this.selected.direction,
+      );
+      if (direction !== this.selected.direction)
+        action.direction = direction;
+    }
 
     this._emit(action);
   }
