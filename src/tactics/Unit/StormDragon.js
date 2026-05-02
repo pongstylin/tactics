@@ -1,7 +1,7 @@
 import Unit from '#tactics/Unit.js';
 
 const DIAGONAL_SCALE_X = 0.72;
-const VERTICAL_SCALE_Y = 0.78;
+const OVERALL_SCALE = 0.82;
 
 export default class StormDragon extends Unit {
   attach() {
@@ -92,7 +92,7 @@ export default class StormDragon extends Unit {
   }
   applyDiagonalScale(container, direction = this.direction) {
     const scaleX = DIAGONAL_SCALE_X;
-    const scaleY = VERTICAL_SCALE_Y;
+    const tileSlope = 56 / 88;
     const halfCompression = (1 - scaleX) / 2;
     const diagonalSign = [ 'N', 'S' ].includes(direction) ? 1 : -1;
     const diagonalScale = 1 - halfCompression;
@@ -100,10 +100,10 @@ export default class StormDragon extends Unit {
     const y = container.position.y;
 
     container.setFromMatrix(new PIXI.Matrix(
-      diagonalScale,
-      diagonalSign * halfCompression,
-      diagonalSign * halfCompression * scaleY,
-      diagonalScale * scaleY,
+      OVERALL_SCALE * diagonalScale,
+      OVERALL_SCALE * diagonalSign * tileSlope * halfCompression,
+      OVERALL_SCALE * diagonalSign * halfCompression / tileSlope,
+      OVERALL_SCALE * diagonalScale,
       x,
       y,
     ));
