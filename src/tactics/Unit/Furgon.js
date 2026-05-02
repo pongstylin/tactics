@@ -3,11 +3,13 @@ import Unit from '#tactics/Unit.js';
 export default class Furgon extends Unit {
   attach() {
     this.board
+      .on('moveUnit', this._onBoardMoveUnit = this.onBoardMoveUnit.bind(this))
       .on('dropUnit', this._onBoardDropUnit = this.onBoardDropUnit.bind(this))
       .on('endTurn', this._onBoardEndTurn = this.onBoardEndTurn.bind(this));
   }
   detach() {
     this.board
+      .off('moveUnit', this._onBoardMoveUnit)
       .off('dropUnit', this._onBoardDropUnit)
       .off('endTurn', this._onBoardEndTurn);
   }
@@ -156,8 +158,8 @@ export default class Furgon extends Unit {
       results,
     };
   }
-  getMoveResults(action) {
-    if (this.features.evergreen) return [];
+  onBoardMoveUnit({ unit, assignment, addResults }) {
+    if (unit !== this || this.features.evergreen) return [];
 
     const allUnits = this.board.teamsUnits.flat();
     if (allUnits.some(u => u.type === 'Shrub' && u.name === 'Golden Shrub'))
@@ -169,7 +171,7 @@ export default class Furgon extends Unit {
 
     for (const shrub of shrubs) {
       const needsEvergreen = furgons.some(f => (
-        this.board.getDistance(f === this ? action.assignment : f.assignment, shrub.assignment) < 4
+        this.board.getDistance(f === this ? assignment : f.assignment, shrub.assignment) < 4
       ));
       const isEvergreen = shrub.disposition === 'evergreen';
 
@@ -179,7 +181,7 @@ export default class Furgon extends Unit {
         results.push({ unit:shrub, changes:{ disposition:null } });
     }
 
-    return results;
+    addResults(results);
   }
   getAttackResults(action) {
     if (this.canSpecial())

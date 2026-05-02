@@ -8,15 +8,17 @@ export default class StormDragon extends Unit {
     this._adjustBonusListener = this._adjustBonus.bind(this);
     this.board
       .on('addUnit', this._adjustBonusListener)
-      .on('dropUnit', this._adjustBonusListener);
+      .on('dropUnit', this._adjustBonusListener)
+      .on('moveUnit', this._adjustBonusListener);
   }
   detach() {
     this.board
       .off('addUnit', this._adjustBonusListener)
-      .off('dropUnit', this._adjustBonusListener);
+      .off('dropUnit', this._adjustBonusListener)
+      .off('moveUnit', this._adjustBonusListener);
   }
 
-  _adjustBonus({ type, unit, addResults }, assignment = this.assignment) {
+  _adjustBonus({ type, unit, assignment = this.assignment, addResults }) {
     if (unit !== this && unit.type !== 'LightningWard' || unit.team !== this.team)
       return;
 
@@ -72,11 +74,6 @@ export default class StormDragon extends Unit {
     }
 
     addResults(results);
-  }
-  getMoveResults(action) {
-    const results = [];
-    this._adjustBonus({ type:'moveUnit', unit:this, addResults:rs => results.push(...rs) }, action.assignment);
-    return results;
   }
 
   /*

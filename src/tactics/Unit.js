@@ -403,7 +403,9 @@ export default class Unit {
   }
 
   getMoveResults(action) {
-    return [];
+    const results = [];
+    this.board.trigger({ type:'moveUnit', unit:this, assignment:action.assignment, addResults:rs => results.push(...rs) });
+    return results;
   }
   /*
    * An attack might affect multiple targets at the same time.  So, it doesn't

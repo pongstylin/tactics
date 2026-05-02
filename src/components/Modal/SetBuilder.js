@@ -428,6 +428,7 @@ export default class SetBuilder extends Modal {
     if (tile.assigned)
       this.removeUnit(tile.assigned);
 
+    this.board.trigger({ type:'moveUnit', unit:this, assignment:tile, addResults:rs => board.applyActionResults(rs) });
     board.assign(unit, tile);
 
     // Moving and replacing units may require removing other units.
