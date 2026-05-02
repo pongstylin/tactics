@@ -428,7 +428,7 @@ export default class SetBuilder extends Modal {
     if (tile.assigned)
       this.removeUnit(tile.assigned);
 
-    this.board.trigger({ type:'moveUnit', unit:this, assignment:tile, addResults:rs => board.applyActionResults(rs) });
+    this.board.trigger({ type:'moveUnit', unit, assignment:tile, addResults:rs => board.applyActionResults(rs) });
     board.assign(unit, tile);
 
     // Moving and replacing units may require removing other units.
@@ -438,9 +438,12 @@ export default class SetBuilder extends Modal {
     const board = this._board;
     const dstUnit = dstTile.assigned;
 
+    this.board.trigger({ type:'moveUnit', unit, assignment:dstTile, addResults:rs => board.applyActionResults(rs) });
     board.assign(unit, dstTile);
-    if (dstUnit)
+    if (dstUnit) {
+      this.board.trigger({ type:'moveUnit', unit:dstUnit, assignment:srcTile, addResults:rs => board.applyActionResults(rs) });
       board.assign(dstUnit, srcTile);
+    }
 
     // Moving units may require removing other units.
     this.killUnits();
