@@ -112,7 +112,6 @@ export default class StormDragon extends Unit {
   drawAvatar(options) {
     const avatar = super.drawAvatar(options);
     if (options.as === 'image') {
-      console.log('options', options, avatar);
       avatar.x -= TILE_WIDTH * 0.1;
       avatar.y -= TILE_HEIGHT * 0.1;
     }
