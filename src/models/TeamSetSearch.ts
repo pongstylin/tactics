@@ -21,7 +21,10 @@ type GrammarValue = (
 
 type TeamSetIndexPage = { truncated:boolean, completed:boolean, teamSets:TeamSet[] };
 
+// Unfortunately, this is the only way to create a keyword that is a union of tags right now.
 const aliasMap = new Map<string, GrammarValue>([
+  [ 'dragon', { type:'groups', groups:[ [ 'sd' ], [ 'dt' ] ] } ],
+  [ 'ward', { type:'groups', groups:[ [ 'lw' ], [ 'bw' ] ] } ],
   [ 'warded', { type:'groups', groups:[ [ 'lw' ], [ 'bw' ] ] } ],
   [ 'double\\s+warded', { type:'groups', groups:[ [ 'lw', 'bw' ] ] } ],
 ]);

@@ -1281,7 +1281,7 @@ export default class extends DynamoDBAdapter {
 
       const teamSetSearch = new TeamSetSearchGroup(cardinality, metricName, query, teamSetSearches);
       for (const teamSetIndex of teamSetIndexes)
-        teamSetIndex.add(teamSetSearch);
+        teamSetIndex.teamSetSearches.add(teamSetSearch);
 
       return teamSetSearch;
     });
