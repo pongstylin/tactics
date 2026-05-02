@@ -447,7 +447,7 @@ whenDOMReady.then(() => {
 
         const [ teamSet, vsTeamSet ] = await Promise.all([
           gameClient.getGameTeamSet(divGame.dataset.type, gameId, teamId),
-          vsTeam.set ? gameClient.getGameTeamSet(divGame.dataset.type, gameId, vsTeam.id) : null,
+          vsTeam?.set ? gameClient.getGameTeamSet(divGame.dataset.type, gameId, vsTeam.id) : null,
         ]);
         state.viewSetModal.show(divGame.dataset.type, teamSet, vsTeamSet, teamInfo);
       }
