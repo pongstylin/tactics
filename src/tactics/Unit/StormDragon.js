@@ -1,3 +1,4 @@
+import { TILE_WIDTH, TILE_HEIGHT } from '#tactics/Board.js';
 import Unit from '#tactics/Unit.js';
 
 const DIAGONAL_SCALE_X = 0.72;
@@ -92,7 +93,7 @@ export default class StormDragon extends Unit {
   }
   applyDiagonalScale(container, direction = this.direction) {
     const scaleX = DIAGONAL_SCALE_X;
-    const tileSlope = 56 / 88;
+    const tileSlope = TILE_HEIGHT / TILE_WIDTH;
     const halfCompression = (1 - scaleX) / 2;
     const diagonalSign = [ 'N', 'S' ].includes(direction) ? 1 : -1;
     const diagonalScale = 1 - halfCompression;
@@ -107,6 +108,15 @@ export default class StormDragon extends Unit {
       x,
       y,
     ));
+  }
+  drawAvatar(options) {
+    const avatar = super.drawAvatar(options);
+    if (options.as === 'image') {
+      console.log('options', options, avatar);
+      avatar.x -= TILE_WIDTH * 0.1;
+      avatar.y -= TILE_HEIGHT * 0.1;
+    }
+    return avatar;
   }
   fixupFrame(frame, direction = this.direction) {
     const unit = this.getContainerByName(this.unitSprite, frame.container);
