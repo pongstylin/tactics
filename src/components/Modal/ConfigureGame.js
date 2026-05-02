@@ -937,8 +937,12 @@ export default class ConfigureGame extends Modal {
         })
         .join('');
       selType.disabled = false;
-      // Ensure the first option is selected after repopulating.
-      selType.selectedIndex = 0;
+
+      // Select the default option based on the currently set game type.
+      const selectedIndex = Array.from(selType.options).findIndex(o => o.value === this.gameTypeId);
+      if (selectedIndex === -1)
+        throw new Error(`Misconfigured game type`);
+      selType.selectedIndex = selectedIndex;
 
       // Render rank info for the currently selected style.
       // Each game summary only carries ranks for Forte + its own style,

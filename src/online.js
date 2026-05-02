@@ -1341,7 +1341,17 @@ async function joinGameGroup(groupId) {
     });
   }
 
-  await configureGame.setGameType(games[0].type);
+  // If we're in the lobby tab, default to the selected lobby style
+  let defaultGameType = games[0].type;
+  if (state.currentTab === 'lobby' && state.tabContent.lobby.selectedStyleId) {
+    // Check if there's a game in the group matching the selected lobby style
+    const matchingGame = games.find(game => game.type === state.tabContent.lobby.selectedStyleId);
+    if (matchingGame) {
+      defaultGameType = matchingGame.type;
+    }
+  }
+
+  await configureGame.setGameType(defaultGameType);
   await configureGame.show('confirmBeforeJoinGroup', { gameSummaries:games });
 }
 
