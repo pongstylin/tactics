@@ -679,14 +679,15 @@ export default class Unit {
 
     let avatar;
     if (options.as === 'image') {
-      const bounds = frame.getLocalBounds();
-      // Need a wrapper container to include scaling.
+      // Need a wrapper container so the extracted image anchor includes the
+      // frame's full transform matrix, including scale, skew, and rotation.
       const wrapper = new PIXI.Container();
       wrapper.addChild(frame);
+      const bounds = wrapper.getLocalBounds();
       const avatarCanvas = options.renderer.extract.canvas(wrapper);
       avatar = {
-        x: bounds.x * frame.scale.x,
-        y: bounds.y * frame.scale.y,
+        x: bounds.x,
+        y: bounds.y,
         src: avatarCanvas.toDataURL('image/png'),
       };
     } else if (options.as === 'sprite') {

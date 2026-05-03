@@ -109,14 +109,6 @@ export default class StormDragon extends Unit {
       y,
     ));
   }
-  drawAvatar(options) {
-    const avatar = super.drawAvatar(options);
-    if (options.as === 'image') {
-      avatar.x -= TILE_WIDTH * 0.1;
-      avatar.y -= TILE_HEIGHT * 0.1;
-    }
-    return avatar;
-  }
   fixupFrame(frame, direction = this.direction) {
     const unit = this.getContainerByName(this.unitSprite, frame.container);
     if (!unit || unit.children.length === 1) return;
