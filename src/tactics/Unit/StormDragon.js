@@ -19,7 +19,7 @@ export default class StormDragon extends Unit {
       .off('moveUnit', this._adjustBonusListener);
   }
 
-  _adjustBonus({ type, unit, assignment = this.assignment, addResults }) {
+  _adjustBonus({ type, unit, source = this.assignment, target = this.assignment, addResults }) {
     if (unit !== this && unit.type !== 'LightningWard' || unit.team !== this.team)
       return;
 
@@ -36,7 +36,9 @@ export default class StormDragon extends Unit {
       return;
 
     // Don't allow a channeling disposition to prevent us from getting the LW's attack tiles.
-    const isInRange = type !== 'dropUnit' && Unit.prototype.getAttackTiles.call(LW).some(t => t === assignment);
+    const isInRange = type !== 'dropUnit' && Unit.prototype.getAttackTiles
+      .call(LW, unit === LW ? target : undefined)
+      .some(t => t === (unit === this ? target : this.assignment));
     const wasInRange = this.mPower === 6;
     if (isInRange === wasInRange)
       return;

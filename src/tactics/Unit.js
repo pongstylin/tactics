@@ -404,7 +404,7 @@ export default class Unit {
 
   getMoveResults(action) {
     const results = [];
-    this.board.trigger({ type:'moveUnit', unit:this, assignment:action.assignment, addResults:rs => results.push(...rs) });
+    this.board.trigger({ type:'moveUnit', unit:this, target:action.assignment, addResults:rs => results.push(...rs) });
     return results;
   }
   /*
