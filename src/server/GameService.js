@@ -846,7 +846,9 @@ export default class GameService extends Service {
   }
 
   async onGetDefaultSetRequest(client, gameTypeId) {
-    return this.data.getDefaultSet(gameTypeId);
+    const player = GameSession.cache.get(client.id).player;
+
+    return this.data.getDefaultSet(player, gameTypeId);
   }
   async onGetPlayerSetsRequest(client, gameTypeId) {
     const player = GameSession.cache.get(client.id).player;
@@ -1783,8 +1785,11 @@ export default class GameService extends Service {
 
   async _resolveTeamSet(game, team) {
     const gameType = game.state.gameType;
+    const player = await this.auth.getPlayer(team.playerId);
+    const playerAvatars = await this.data.getPlayerAvatars(player);
+
     if (team.setVia === 'top') {
-      const playerSet = await this.data.getDefaultSet(gameType.id);
+      const playerSet = await this.data.getDefaultSet(player, gameType.id);
       team.set = this.data.getTeamSet(playerSet, gameType);
     } else if (team.setVia === 'same') {
       const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt - b.joinedAt)[0];
@@ -1797,11 +1802,9 @@ export default class GameService extends Service {
         throw new ServerError(400, `Can't use mirror set when nobody has joined yet.`);
       team.set = firstTeam.set.clone('mirror');
     } else if (team.setVia === 'random') {
-      const player = await this.auth.getPlayer(team.playerId);
       const playerSet = (await this.data.getPlayerSets(player, gameType)).random();
       team.set = this.data.getTeamSet(playerSet, gameType);
     } else {
-      const player = await this.auth.getPlayer(team.playerId);
       const playerSet = await this.data.getPlayerSet(player, gameType, team.setVia);
       if (playerSet === null)
         throw new ServerError(412, 'Sorry!  Looks like the set no longer exists.');
@@ -1809,7 +1812,7 @@ export default class GameService extends Service {
     }
 
     try {
-      gameType.validateSet({ units:team.set.units });
+      gameType.validateSet({ units:team.set.units }, playerAvatars.listUnits);
     } catch (e) {
       console.log('_resolveTeamSet: validateSet: Error', e);
       throw new ServerError(403, `This set cannot be used in the ${gameType.name} style.`);

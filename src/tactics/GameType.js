@@ -101,7 +101,7 @@ export default class GameType {
     // First team must skip their first turn.
     if (skipTurn)
       for (const unit of team.units)
-        unit.mRecovery ||= 1;
+        unit.initialState.mRecovery = unit.mRecovery ||= 1;
   }
 
   get name() {
@@ -358,19 +358,13 @@ export default class GameType {
     /*
      * For each unit validate the following aspects:
      *   1) The unit's type is allowed.
-     *   2) The unit's type max count is not exceeded.
-     *   3) The unit is allowed to be assigned to its tile.
+     *   2) The unit is allowed to be assigned to its tile.
      */
     let unitCounts = new Map();
     for (let unit of units) {
       let unitLimits = unitTypesLimits.get(unit.type);
       if (!unitLimits)
         throw new ServerError(403, 'The set contains invalid units');
-
-      let unitCount = unitCounts.get(unit.type) || 0;
-      if (unitCount === unitLimits.max)
-        throw new ServerError(403, 'Unit max counts exceeded');
-      unitCounts.set(unit.type, unitCount + 1);
 
       let tiles = this.getAvailableTiles(board, unit.type);
       if (!tiles.has(unit.assignment))
@@ -440,6 +434,19 @@ export default class GameType {
       }
     }
   }
+  validateSetUnitCounts(units, grants) {
+    const unitCounts = units.reduce((uc, u) => uc.set(u.type, (uc.get(u.type) ?? 0) + 1), new Map());
+
+    for (const [ unitType, count ] of unitCounts) {
+      const max = this.getUnitMaxCount(unitType);
+      if (count > max)
+        throw new ServerError(429, `Too many ${unitType} units`);
+
+      const granted = this.getUnitIncludedCount(unitType) + (grants.get(unitType) ?? 0);
+      if (count > granted)
+        throw new ServerError(429, `You don't have enough ${unitType} units to save this set.`);
+    }
+  }
   cleanSet(set) {
     for (let propName of Object.keys(set)) {
       if (propName === 'id') continue;
@@ -454,14 +461,15 @@ export default class GameType {
 
     return set;
   }
-  validateSet(set) {
-    let team = {};
-    let board = new Board();
-    board.setState([set.units], [team]);
+  validateSet(set, grants = new Map()) {
+    const team = {};
+    const board = new Board();
+    board.setState([ set.units ], [ team ]);
 
     this.validateSetIsNotEmpty(team.units);
     this.validateSetUnitPlacements(board, team.units);
     this.validateSetIsNotOverFull(team.units);
+    this.validateSetUnitCounts(team.units, grants);
     this.cleanSet(set);
 
     return set;

@@ -219,7 +219,13 @@ export default class SetBuilder extends Modal {
     // But if that involves showing a popup, then the click can fire on the popup!
     canvas.addEventListener('touchend', event => event.preventDefault());
 
-    await board.initCard();
+    await Promise.all([
+      board.initCard(),
+      Tactics.gameClient.getMyUnitList().then(grants => {
+        data.grants = grants;
+      }),
+    ]);
+
     board.draw();
     this._content.addChild(board.pixi);
     this._content.addChild(this._trash);
@@ -380,10 +386,14 @@ export default class SetBuilder extends Modal {
     return super.hide();
   }
 
-  reset(name = this.data.set.name) {
+  /*
+   * Called externally by the ViewSet component with units set to the viewed set.
+   */
+  reset(name = this.data.set.name, units = this.data.set.units) {
     const board = this._board;
     const gameType = this.data.gameType;
-    const units = gameType.applyTeamSetUnitsState(this.data.set.units.clone());
+
+    units = gameType.applyTeamSetUnitsState(units.clone());
 
     const focused = board.focused;
     if (focused) {
@@ -842,7 +852,7 @@ export default class SetBuilder extends Modal {
     }
 
     try {
-      this.data.gameType.validateSet(set);
+      this.data.gameType.validateSet(set, this.data.grants);
     } catch (error) {
       if (error instanceof ServerError)
         popup(error.message);
@@ -1133,7 +1143,7 @@ export default class SetBuilder extends Modal {
       return false;
 
     try {
-      this.data.gameType.validateSet({ units:this._board.getState()[0] });
+      this.data.gameType.validateSet({ units:this._board.getState()[0] }, this.data.grants);
     } catch (e) {
       return false;
     }
