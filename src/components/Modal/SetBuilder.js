@@ -911,8 +911,7 @@ export default class SetBuilder extends Modal {
     if (!set) return;
 
     const board = this._board;
-    const degree = board.getDegree('N', board.rotation);
-    const units = this.data.gameType.applyTeamSetUnitsState(set.units.clone(), degree);
+    const units = this.data.gameType.applyTeamSetUnitsState(set.units.clone());
 
     this._name.value = set.name;
 

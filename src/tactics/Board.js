@@ -1621,7 +1621,7 @@ export default class Board {
   getState() {
     // Right now, degree will always be zero since only the Game class
     // calls this method and the Game board instance is never rotated.
-    let degree = this.getDegree(this.rotation, 'N');
+    const degree = this.getDegree(this.rotation, 'N');
 
     // The 'filter' is to ignore units that are still dying during set setup.
     return this.teamsUnits.map(units => units.filter(u => !!u.assignment).map(unit => {
