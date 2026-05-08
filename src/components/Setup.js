@@ -120,6 +120,8 @@ export default class Setup {
   }
 
   async setGameType(gameType) {
+    if (gameType.id === this.gameType?.id) return;
+
     const [ sets ] = await Promise.all([
       Tactics.gameClient.getPlayerSets(gameType.id),
       this.loadAvatars(),
