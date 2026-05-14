@@ -752,7 +752,7 @@ export default class GameState extends TypedEmitter {
     if (currentTurn.isEnded)
       this._pushHistory(actions.last.forced ? actions.last.createdAt : action.createdAt);
     // Do not use the currentTurn object defined above since the currentTurn may have changed
-    this.currentTurn.pushAction(this._board.encodeAction(action));
+    this.currentTurn.pushAction(this._board.encodeAction(action), this.undoMode === 'strict');
 
     this._newActions.push(action);
     this._applyAction(action);
@@ -1164,8 +1164,8 @@ export default class GameState extends TypedEmitter {
             return pointer;
         }
 
-        // May not undo luck-involved attacks without permission.
-        if (action.results && action.results.findIndex(r => 'luck' in r) > -1)
+        // May not undo locked actions without permission.
+        if (action.locked)
           return pointer;
 
         // May not undo counter-attacks without permission.

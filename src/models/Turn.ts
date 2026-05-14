@@ -158,7 +158,13 @@ export default class Turn extends ActiveModel<TurnEvents> {
     this.emit('change:actionId');
   }
 
-  pushAction(action:any) {
+  pushAction(action:any, lockPrevious = false) {
+    if (action.results && action.results.findIndex((r:any) => 'luck' in r) > -1) {
+      this.data.actions.forEach(a => delete a.locked);
+      action.locked = true;
+    } else if (this.data.actions.last && lockPrevious)
+      this.data.actions.forEach((a, i, as) => i === as.length - 1 ? a.locked = true : delete a.locked);
+
     this.data.actions.push(action);
     this.emit('change:pushAction');
   }

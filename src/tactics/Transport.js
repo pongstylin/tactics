@@ -327,8 +327,8 @@ export default class Transport {
             return pointer;
         }
 
-        // May not undo luck-involved attacks without permission.
-        if (action.results && action.results.findIndex(r => 'luck' in r) > -1)
+        // May not undo locked actions without permission.
+        if (action.locked)
           return pointer;
 
         // May not undo counter-attacks without permission.
@@ -627,7 +627,7 @@ export default class Transport {
     const board = this.board;
 
     for (const action of actions) {
-      this.currentTurn.pushAction(action);
+      this.currentTurn.pushAction(action, state.undoMode === 'strict');
       board.applyAction(board.decodeAction(action));
     }
 
