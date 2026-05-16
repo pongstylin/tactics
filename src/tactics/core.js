@@ -3,6 +3,7 @@ import 'plugins/pixi.js';
 
 import config, { gameConfig } from 'config/client.js';
 import ServerError from 'server/Error.js';
+import { api } from 'client/Client.js';
 import clientFactory from 'client/clientFactory.js';
 import Board from 'tactics/Board.js';
 import Game from 'tactics/Game.js';
@@ -27,6 +28,7 @@ const pushClient = clientFactory('push');
 Howler.mute(!gameConfig.audio);
 
 window.Tactics = {
+  api,
   version: config.version,
   width:  22 + 88*9 + 22,
   height: 44 + 4 + 56*9,
@@ -321,7 +323,10 @@ window.Tactics = {
         const unit = unitFactory(avatar.unitType, this._avatars.board);
         unit.color = colorFilterMap.get(avatar.colorId);
 
-        const spriteName = unit.baseSprite ?? unit.type;
+        // Normally the Storm Dragon uses Dragon Tyrant frames.  But avatars.json doesn't.
+        // It would be better if we check for the presence of unit.type inside avatars.json.
+        const baseSprite = unit.type === 'StormDragon' ? unit.type : unit.baseSprite;
+        const spriteName = baseSprite ?? unit.type;
         const superSpriteName = unit.type === 'DragonspeakerMage' ? 'Pyromancer' : spriteName;
         unit.spriteSource = 'avatars';
         unit.spriteName = spriteName;

@@ -179,6 +179,14 @@
 
         return self;
       },
+      // Like play() except all frames are executed immediately and synchronously
+      // Any rendering must be performed by the caller.
+      exec: function () {
+        for (const frame of frames)
+          for (const script of frame.scripts)
+            if (script.call(self, self.state) === false)
+              return false;
+      },
       /*
        * The play method accepts an optional callback and returns a promise that
        * is resolved when the animation ends or is stopped.  If a callback is
@@ -208,8 +216,7 @@
                   return false;
             }
           };
-        }
-        else if (data.skipFrames) {
+        } else if (data.skipFrames) {
           // Skip frames and scripts.
           render = skip => {
             var frame;
@@ -224,8 +231,7 @@
                   return false;
             }
           };
-        }
-        else {
+        } else {
           // Skip nothing.
           render = () => {
             var frame = frames[cursor++];

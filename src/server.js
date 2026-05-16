@@ -14,6 +14,7 @@ import { onConnect, onShutdown } from '#server/router.js';
 import services, { servicesReady } from '#server/services.js';
 import Timeout from '#server/Timeout.js';
 import useAuth from '#server/useAuth.js';
+import serializer from '#utils/serializer.js';
 
 const app    = createApp();
 const server = createServer(app);
@@ -54,6 +55,62 @@ app.post(`${PATH}/report`, (req, res) => {
   report(util.inspect(req.body, false, null));
   res.send(true);
 });
+app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new Map([
+  [ 1, {
+    silent: true,
+    startAt: new Date('2026-04-01T00:00:00Z'),
+    endAt: new Date('2026-04-15T00:00:00Z'),
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
+      <DIV style="margin:0 8px">
+        A $200 Prize Pool is waiting, and we've leveled the playing field! Whether you're a pro or a rising star, everyone has a shot at the gold:<BR>
+        <UL style="list-style:none; margin-left:16px; padding-left:0">
+          <LI style="margin:4px 0"><B>TOP TIER</B>: 3 Prizes for the ultimate champions.</LI>
+          <LI style="margin:4px 0"><B>CHALLENGER TIER</B>: 3 Prizes reserved for the "Bottom Bracket"—so even if you aren't a pro, you can still win CASH!</LI>
+          <LI style="margin:4px 0"><B>EXCLUSIVE REWARD</B>: Play all your games to claim the legendary Storm Dragon unit—no victory required!</LI>
+        </UL>
+        Don't just watch the storm. Join it.<BR>
+        Tap the arena below to join our Discord for sign-ups and full details!<BR>
+      </DIV>
+      <DIV style="text-align:center; margin-top:16px">
+        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
+          <IMG src="/StormDragonPreview.png" />
+          <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Tap to join!</SPAN>
+        </A>
+      </DIV>
+    `,
+  } ],
+  [ 2, {
+    silent: true,
+    startAt: new Date('2026-04-15T00:00:00Z'),
+    endAt: new Date('2026-05-02T00:00:00Z'),
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
+      <DIV style="margin:0 8px">
+        Final call and reminder!  Don't miss out on your chance to earn $$ while playing in a brand new Tournament starting May 2nd.  If you play all of your games, you will earn the brand new Storm Dragon unit.  Tap the arena below to visit our Discord to learn more and sign up.
+      </DIV>
+      <DIV style="text-align:center; margin-top:16px">
+        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
+          <IMG src="/StormDragonPreview.png" />
+          <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Tap to join!</SPAN>
+        </A>
+      </DIV>
+    `,
+  } ],
+  [ 3, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17</HEADER>
+      <DIV style="margin:8px 8px 0">
+        This release introduces a new unit, but I'm still testing it out.
+        So if you see an unrated game with an unfamiliar dragon avatar camped out in the lobby, come try and kill it.
+        If you fork my games, you can play with the new dragon as well.  Let me know what you think about it.
+        I'm trying to see if it is too overpowered.  Other than that, I fixed many bugs.  Maybe I created a few more.
+        If you see any bugs, please let me know on the <A href="https://discord.gg/juyhghF" target="_blank">Community Discord</A>.
+      </DIV>
+    `,
+    width: '350px',
+  } ],
+]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');
   if (!tokenValue)

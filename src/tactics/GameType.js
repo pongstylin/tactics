@@ -2,7 +2,6 @@ import TeamSet from '#models/TeamSet.js';
 import ServerError from '#server/Error.js';
 import Board from '#tactics/Board.js';
 import unitDataMap from '#tactics/unitData.js';
-import { calcPowerModifiers } from '#tactics/Unit/DragonspeakerMage.js';
 import serializer from '#utils/serializer.js';
 
 export const tagByKeyword = new Map([
@@ -81,6 +80,28 @@ export default class GameType {
       });
 
     this._tagByKeyword = null;
+  }
+
+  static applyTeamSetUnitsState(unitsState, degree = 0) {
+    const board = new Board();
+
+    for (const unitState of unitsState) {
+      const unitData = unitDataMap.get(unitState.type);
+      const tile = board.getTileRotation(unitState.assignment, degree);
+
+      unitState.assignment = [tile.x, tile.y];
+      unitState.direction = unitData.directional === false ? 'S' : board.getRotation(unitState.direction ?? 'S', degree);
+      if (unitData.waitFirstTurn && !unitState.mRecovery)
+        unitState.mRecovery = 1;
+    }
+
+    return unitsState;
+  }
+  static applyInitialGameState(team, skipTurn = true) {
+    // First team must skip their first turn.
+    if (skipTurn)
+      for (const unit of team.units)
+        unit.initialState.mRecovery = unit.mRecovery ||= 1;
   }
 
   get name() {
@@ -216,12 +237,16 @@ export default class GameType {
     return this.config.limits.points;
   }
   getUnitPoints(unitType) {
-    return this.config.limits.units.types.get(unitType).points ?? 1;
+    return this.config.limits.units.types.get(unitType)?.points ?? 1;
   }
   getUnitMaxCount(unitType) {
-    return this.config.limits.units.types.get(unitType).max;
+    return this.config.limits.units.types.get(unitType)?.max ?? 0;
   }
-  getStats(units) {
+  getUnitIncludedCount(unitType) {
+    const limit = this.config.limits.units.types.get(unitType);
+    return limit?.included ?? limit?.max ?? 0;
+  }
+  getStats(units, grants = new Map()) {
     if (!this.isCustomizable)
       return { available:0 };
 
@@ -255,10 +280,12 @@ export default class GameType {
         type: unitType,
         points: this.getUnitPoints(unitType),
         max: this.getUnitMaxCount(unitType),
+        included: this.getUnitIncludedCount(unitType),
+        granted: grants.get(unitType) ?? 0,
         count: unitCounts.get(unitType) ?? 0,
       };
       unitStats.available = Math.min(
-        unitStats.max - unitStats.count,
+        Math.min(unitStats.max, unitStats.included + unitStats.granted) - unitStats.count,
         Math.floor(stats.points.remaining / unitStats.points),
       );
 
@@ -295,31 +322,11 @@ export default class GameType {
 
     return tiles;
   }
-  applySetUnitState(set) {
-    // Compute dragonspeaker modifiers
-    let dragons = set.units.filter(u => u.type === 'DragonTyrant').length;
-    let speakers = set.units.filter(u => u.type === 'DragonspeakerMage').length;
-    let pyros = set.units.filter(u => u.type === 'Pyromancer').length;
-    let powerModifiers = calcPowerModifiers(dragons, speakers, speakers + pyros);
-
-    for (let unitState of set.units) {
-      let unitData = unitDataMap.get(unitState.type);
-
-      if (unitData.directional !== false && !unitState.direction)
-        unitState.direction = 'S';
-
-      if (powerModifiers.dragonModifier) {
-        if (unitState.type === 'DragonTyrant')
-          unitState.mPower = powerModifiers.dragonModifier;
-        else if (unitState.type === 'DragonspeakerMage' || unitState.type === 'Pyromancer')
-          unitState.mPower = powerModifiers.mageModifier;
-      }
-
-      if (unitData.waitFirstTurn)
-        unitState.mRecovery = 1;
-    }
-
-    return set;
+  applyTeamSetUnitsState(units, degree) {
+    return GameType.applyTeamSetUnitsState(units, degree);
+  }
+  applyInitialGameState(team) {
+    GameType.applyInitialGameState(team, team.id === 0);
   }
 
   validateSetIsNotEmpty(units) {
@@ -351,19 +358,13 @@ export default class GameType {
     /*
      * For each unit validate the following aspects:
      *   1) The unit's type is allowed.
-     *   2) The unit's type max count is not exceeded.
-     *   3) The unit is allowed to be assigned to its tile.
+     *   2) The unit is allowed to be assigned to its tile.
      */
     let unitCounts = new Map();
     for (let unit of units) {
       let unitLimits = unitTypesLimits.get(unit.type);
       if (!unitLimits)
         throw new ServerError(403, 'The set contains invalid units');
-
-      let unitCount = unitCounts.get(unit.type) || 0;
-      if (unitCount === unitLimits.max)
-        throw new ServerError(403, 'Unit max counts exceeded');
-      unitCounts.set(unit.type, unitCount + 1);
 
       let tiles = this.getAvailableTiles(board, unit.type);
       if (!tiles.has(unit.assignment))
@@ -421,7 +422,7 @@ export default class GameType {
           if (unit.type !== unitType) return false;
 
           return unit.getAttackTiles().find(target => {
-            let area = unit.getTargetTiles(target);
+            let area = unit.getAttackTargetTiles(target);
             if (area.length < 5) return false;
 
             // True if we DON'T find a tile that is NOT assigned
@@ -431,6 +432,19 @@ export default class GameType {
         if (!unitFound)
           throw new ServerError(429, `A ${unitTypeName} must be able to armor the maximum units without moving`);
       }
+    }
+  }
+  validateSetUnitCounts(units, grants) {
+    const unitCounts = units.reduce((uc, u) => uc.set(u.type, (uc.get(u.type) ?? 0) + 1), new Map());
+
+    for (const [ unitType, count ] of unitCounts) {
+      const max = this.getUnitMaxCount(unitType);
+      if (count > max)
+        throw new ServerError(429, `Too many ${unitType} units`);
+
+      const granted = this.getUnitIncludedCount(unitType) + (grants.get(unitType) ?? 0);
+      if (count > granted)
+        throw new ServerError(429, `You don't have enough ${unitType} units to save this set.`);
     }
   }
   cleanSet(set) {
@@ -447,14 +461,15 @@ export default class GameType {
 
     return set;
   }
-  validateSet(set) {
-    let team = {};
-    let board = new Board();
-    board.setState([set.units], [team]);
+  validateSet(set, grants = new Map()) {
+    const team = {};
+    const board = new Board();
+    board.setState([ set.units ], [ team ]);
 
     this.validateSetIsNotEmpty(team.units);
     this.validateSetUnitPlacements(board, team.units);
     this.validateSetIsNotOverFull(team.units);
+    this.validateSetUnitCounts(team.units, grants);
     this.cleanSet(set);
 
     return set;

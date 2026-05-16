@@ -330,6 +330,10 @@ export class GameSessionGame {
   sync() {
     const { game, gameSessions } = this.data;
 
+    if (game.endedAt)
+      for (const playerId of game.state.playerIds)
+        this.emitPlayerStatus(playerId);
+
     for (const [ gameSession, reference ] of gameSessions.entries()) {
       const sync = game.getSyncForPlayer(gameSession.player.id, reference);
       if (!sync.reference)
@@ -350,6 +354,7 @@ export class GameSessionGame {
    * 3) When a participant closes the game.
    * 4) When a participant becomes inactive while they have the game open.
    * 5) When a participant becomes active while they have the game open.
+   * 6) When a participant doesn't have the game open while it ends. (online => offline)
    * 
    * When the GameSessionGame instance is created by a participant or observer opening the game, an event need not be sent.
    * This is because playerStatus is merely initialized and sent as a response to the joinGameGroup request.
@@ -385,7 +390,7 @@ export class GameSessionGame {
       return { status:'offline' as const };
 
     const sessionPlayer = GameSessionPlayer.cache.get(player);
-    if (!sessionPlayer || (game.state.endedAt && !sessionPlayer.openedGames.has(game)))
+    if (!sessionPlayer || (game.endedAt && !sessionPlayer.openedGames.has(game)))
       return { status:'offline' as const };
 
     const deviceType = sessionPlayer.isMobile ? 'mobile' as const : undefined;

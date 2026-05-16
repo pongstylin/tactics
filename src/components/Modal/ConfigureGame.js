@@ -337,7 +337,7 @@ export default class ConfigureGame extends Modal {
         this.data.timeLimitType = null;
         break;
       case 'confirmBeforeJoinGroup': {
-        const oldest = props.gameSummaries.reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+        const oldest = props.gameSummaries[0];
         this.title = `Want to play ${oldest.creator.name}?`;
         this.data.timeLimitType = null;
         break;
@@ -571,7 +571,7 @@ export default class ConfigureGame extends Modal {
       else
         btnSubmit.textContent = 'Join Game';
     } else if (this.data.view === 'confirmBeforeJoinGroup') {
-      const oldest = this.data.props.gameSummaries.reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+      const oldest = this.data.props.gameSummaries[0];
       if (oldest.meta.creator.relationship.type === 'blocked')
         btnSubmit.textContent = 'Mute and Join Game';
       else
@@ -897,7 +897,7 @@ export default class ConfigureGame extends Modal {
       `;
     } else if (this.data.view === 'confirmBeforeJoinGroup') {
       const gameSummaries = this.data.props.gameSummaries;
-      const oldest = gameSummaries.reduce((a, b) => a.createdAt < b.createdAt ? a : b);
+      const oldest = gameSummaries[0];
       const creatorIndex = oldest.teams.findIndex(t => t?.playerId === oldest.createdBy);
       const ranks = oldest.meta.ranks[creatorIndex];
       const messages = [];
@@ -931,16 +931,18 @@ export default class ConfigureGame extends Modal {
       const selType = this.root.querySelector('SELECT[name=type]');
       const allGameTypes = this.data.gameTypes;
       selType.innerHTML = gameSummaries
-        .slice()
-        .sort((a, b) => a.createdAt - b.createdAt)
         .map(gs => {
           const gt = allGameTypes.find(t => t.id === gs.type);
           return `<OPTION value="${gs.type}">${gt ? gt.name : gs.type}</OPTION>`;
         })
         .join('');
       selType.disabled = false;
-      // Ensure the first option is selected after repopulating.
-      selType.selectedIndex = 0;
+
+      // Select the default option based on the currently set game type.
+      const selectedIndex = Array.from(selType.options).findIndex(o => o.value === this.gameTypeId);
+      if (selectedIndex === -1)
+        throw new Error(`Misconfigured game type`);
+      selType.selectedIndex = selectedIndex;
 
       // Render rank info for the currently selected style.
       // Each game summary only carries ranks for Forte + its own style,

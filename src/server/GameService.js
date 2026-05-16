@@ -20,14 +20,13 @@ const gameSummaryWithMetaCacheByPlayer = new WeakMap();
 // When the server is shut down in the middle of an auto surrender game,
 // the participants are allowed to safely bail on the game if they do not
 // show up.  When their time limit expires, the game ends in truce.
-const protectedGameIds = new Set();
 
 export default class GameService extends Service {
   constructor(props) {
     super({
       ...props,
 
-      startupAt: new Date(),
+      startupAt: null,
       attachedGames: new WeakSet(),
     });
 
@@ -37,6 +36,7 @@ export default class GameService extends Service {
         // Admin actions
         resetRatings: [ 'uuid', 'string | null' ],
         grantAvatar: [ 'uuid', 'string' ],
+        grantUnit: [ 'uuid', 'string' ],
 
         createGame: ['string', 'game:options'],
         tagGame: ['uuid', 'game:tags'],
@@ -75,6 +75,7 @@ export default class GameService extends Service {
         getMyAvatar: [],
         saveMyAvatar: ['game:avatar'],
         getMyAvatarList: [],
+        getMyUnitList: [],
         getPlayersAvatar: ['uuid[]'],
       },
       events: {
@@ -264,7 +265,7 @@ export default class GameService extends Service {
     this.setCollections();
   }
 
-  async initialize() {
+  initialize() {
     const state = this.data.state;
 
     if (!state.willSync)
@@ -286,10 +287,14 @@ export default class GameService extends Service {
           continue;
         }
 
-        if (protectedGameIds.has(game.id) && !game.state.currentTeam.seen(this.startupAt)) {
-          protectedGameIds.delete(game.id);
+        // If the current player hasn't opened the game since the server started up, end the game in a truce.
+        if (
+          game.state.currentTurn.startedAt < this.startupAt &&
+          game.state.timeLimit.base < 300 &&
+          !game.state.currentTeam.seen(this.startupAt)
+        )
           game.state.end('truce');
-        } else if (game.state.actions.length) {
+        else if (game.state.currentTurn.hasPlayedActions) {
           if (game.state.actions.last.type === 'endTurn') {
             this.debug(`autoSurrender: ${game.id}: error: Need sync!`);
             game.state.sync({ type:'willSync' });
@@ -319,36 +324,9 @@ export default class GameService extends Service {
           game.expire();
     });
 
-    if (state.shutdownAt) {
-      delete state.shutdownAt;
-
-      state.autoSurrender.pause();
-
-      for (const gameId of state.autoSurrender.keys()) {
-        let game;
-        try {
-          game = await this._getGame(gameId);
-        } catch (e) {
-          // Only expected to happen when manually deleting files.
-          state.autoSurrender.delete(gameId);
-          continue;
-        }
-
-        if (!game.state.startedAt || game.state.endedAt)
-          state.autoSurrender.delete(gameId);
-        else if (game.state.getTurnTimeRemaining() < 300000) {
-          protectedGameIds.add(game.id);
-          game.state.currentTurn.resetTimeLimit(300);
-          state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
-          this._notifyYourTurn(game);
-        }
-      }
-
-      state.autoSurrender.resume();
-    }
-
     this.auth.syncRankings(this.data.getGameTypesById());
 
+    this.startupAt = new Date();
     return super.initialize();
   }
 
@@ -356,7 +334,6 @@ export default class GameService extends Service {
     const state = this.data.state;
     state.autoSurrender.pause();
     state.willSync.pause();
-    state.shutdownAt = new Date();
 
     const games = await this._getGames(state.autoCancel.keys());
     await Promise.all(games.filter(g => !g.state.startedAt).map(g => g.expire()));
@@ -578,7 +555,21 @@ export default class GameService extends Service {
 
     const target = await this.auth.getPlayer(targetPlayerId);
     const avatars = await this.data.getPlayerAvatars(target);
-    avatars.grant(unitType);
+    avatars.addAvatar(unitType);
+  }
+  async onGrantUnitRequest(client, targetPlayerId, unitType) {
+    if (!GameSession.cache.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    if (process.env.NODE_ENV !== 'development') {
+      const session = GameSession.cache.get(client.id);
+      if (!session.player.identity.admin)
+        throw new ServerError(403, 'You must be an admin to use this feature.');
+    }
+
+    const target = await this.auth.getPlayer(targetPlayerId);
+    const avatars = await this.data.getPlayerAvatars(target);
+    avatars.addUnit(unitType);
   }
 
   /*
@@ -855,7 +846,9 @@ export default class GameService extends Service {
   }
 
   async onGetDefaultSetRequest(client, gameTypeId) {
-    return this.data.getDefaultSet(gameTypeId);
+    const player = GameSession.cache.get(client.id).player;
+
+    return this.data.getDefaultSet(player, gameTypeId);
   }
   async onGetPlayerSetsRequest(client, gameTypeId) {
     const player = GameSession.cache.get(client.id).player;
@@ -894,7 +887,13 @@ export default class GameService extends Service {
     const player = GameSession.cache.get(client.id).player;
     const playerAvatars = await this.data.getPlayerAvatars(player);
 
-    return playerAvatars.list;
+    return playerAvatars.listAvatars;
+  }
+  async onGetMyUnitListRequest(client) {
+    const player = GameSession.cache.get(client.id).player;
+    const playerAvatars = await this.data.getPlayerAvatars(player);
+
+    return playerAvatars.listUnits;
   }
   async onGetPlayersAvatarRequest(client, playerIds) {
     return this.data.listPlayersAvatar(playerIds);
@@ -1492,11 +1491,25 @@ export default class GameService extends Service {
   _syncAutoSurrender(game) {
     if (!game.state.startedAt || !game.state.autoSurrender)
       return;
-
-    if (game.state.endedAt)
+    if (game.state.endedAt) {
       this.data.state.autoSurrender.delete(game.id);
-    else
-      this.data.state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
+      return;
+    }
+
+    // Allow the current turn in games to have at least 5 minutes remaining from the point of server startup.
+    if (
+      // The current turn must have started before server startup
+      game.state.currentTurn.startedAt < this.startupAt &&
+      // The time limit must be less than 5 minutes.
+      game.state.timeLimit.base < 300 &&
+      // The server must have started less than 5 minutes ago.
+      (Date.now() - this.startupAt) < 300000
+    ) {
+      game.state.currentTurn.resetTimeLimit(Math.ceil((300000 - (Date.now() - this.startupAt)) / 1000));
+      this._notifyYourTurn(game);
+    }
+
+    this.data.state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
   }
 
   /*
@@ -1772,8 +1785,11 @@ export default class GameService extends Service {
 
   async _resolveTeamSet(game, team) {
     const gameType = game.state.gameType;
+    const player = await this.auth.getPlayer(team.playerId);
+    const playerAvatars = await this.data.getPlayerAvatars(player);
+
     if (team.setVia === 'top') {
-      const playerSet = await this.data.getDefaultSet(gameType.id);
+      const playerSet = await this.data.getDefaultSet(player, gameType.id);
       team.set = this.data.getTeamSet(playerSet, gameType);
     } else if (team.setVia === 'same') {
       const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt - b.joinedAt)[0];
@@ -1786,11 +1802,9 @@ export default class GameService extends Service {
         throw new ServerError(400, `Can't use mirror set when nobody has joined yet.`);
       team.set = firstTeam.set.clone('mirror');
     } else if (team.setVia === 'random') {
-      const player = await this.auth.getPlayer(team.playerId);
       const playerSet = (await this.data.getPlayerSets(player, gameType)).random();
       team.set = this.data.getTeamSet(playerSet, gameType);
     } else {
-      const player = await this.auth.getPlayer(team.playerId);
       const playerSet = await this.data.getPlayerSet(player, gameType, team.setVia);
       if (playerSet === null)
         throw new ServerError(412, 'Sorry!  Looks like the set no longer exists.');
@@ -1798,7 +1812,7 @@ export default class GameService extends Service {
     }
 
     try {
-      gameType.validateSet({ units:team.set.units });
+      gameType.validateSet({ units:team.set.units }, playerAvatars.listUnits);
     } catch (e) {
       console.log('_resolveTeamSet: validateSet: Error', e);
       throw new ServerError(403, `This set cannot be used in the ${gameType.name} style.`);

@@ -40,6 +40,12 @@ export default class PoisonWisp extends Unit {
     else
       return {...result, results:subResults};
   }
+  isImmune(attacker, stats) {
+    if (stats.aType === 'ground')
+      return true;
+
+    return super.isImmune(attacker, stats);
+  }
 }
 
 // Dynamically add unit data properties to the class.

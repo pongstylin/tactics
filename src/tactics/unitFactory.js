@@ -4,6 +4,7 @@ import Pyromancer from '#tactics/Unit/Pyromancer.js';
 import Scout from '#tactics/Unit/Scout.js';
 import Cleric from '#tactics/Unit/Cleric.js';
 import BarrierWard from '#tactics/Unit/BarrierWard.js';
+import LightningWard from '#tactics/Unit/LightningWard.js';
 import Assassin from '#tactics/Unit/Assassin.js';
 import Enchantress from '#tactics/Unit/Enchantress.js';
 import MudGolem from '#tactics/Unit/MudGolem.js';
@@ -16,12 +17,14 @@ import Shrub from '#tactics/Unit/Shrub.js';
 import Berserker from '#tactics/Unit/Berserker.js';
 import ChaosSeed from '#tactics/Unit/ChaosSeed.js';
 import ChaosDragon from '#tactics/Unit/ChaosDragon.js';
+import StormDragon from '#tactics/Unit/StormDragon.js';
 
 const unitClassMap = new Map([
   ['Pyromancer',        Pyromancer],
   ['Scout',             Scout],
   ['Cleric',            Cleric],
   ['BarrierWard',       BarrierWard],
+  ['LightningWard',     LightningWard],
   ['Assassin',          Assassin],
   ['Enchantress',       Enchantress],
   ['MudGolem',          MudGolem],
@@ -32,6 +35,7 @@ const unitClassMap = new Map([
   ['Furgon',            Furgon],
   ['Shrub',             Shrub],
   ['Berserker',         Berserker],
+  ['StormDragon',       StormDragon],
 
   ['ChaosSeed',         ChaosSeed],
   ['ChaosDragon',       ChaosDragon],

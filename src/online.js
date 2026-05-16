@@ -16,6 +16,7 @@ import ViewSetModal from 'components/Modal/ViewSet.js';
 import { getParam, unsetParam } from 'utils/hashParams.js';
 import sleep from 'utils/sleep.js';
 
+const api = Tactics.api;
 const authClient = Tactics.authClient;
 const gameClient = Tactics.gameClient;
 const pushClient = Tactics.pushClient;
@@ -288,61 +289,23 @@ const loadAvatarsAndDependants = Tactics.load(['avatars']).then(async () => {
 });
 
 const spinner = new Spinner({ autoShow:false });
-const announcements = [
-  {
-    id: 1,
-    startAt: new Date('2026-04-01T00:00:00Z'),
-    endAt: new Date('2026-04-15T00:00:00Z'),
-    message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
-      <DIV style="margin:0 8px">
-        A $200 Prize Pool is waiting, and we've leveled the playing field! Whether you're a pro or a rising star, everyone has a shot at the gold:<BR>
-        <UL style="list-style:none; margin-left:16px; padding-left:0">
-          <LI style="margin:4px 0"><B>TOP TIER</B>: 3 Prizes for the ultimate champions.</LI>
-          <LI style="margin:4px 0"><B>CHALLENGER TIER</B>: 3 Prizes reserved for the "Bottom Bracket"—so even if you aren't a pro, you can still win CASH!</LI>
-          <LI style="margin:4px 0"><B>EXCLUSIVE REWARD</B>: Play all your games to claim the legendary Storm Dragon unit—no victory required!</LI>
-        </UL>
-        Don't just watch the storm. Join it.<BR>
-        Tap the arena below to join our Discord for sign-ups and full details!<BR>
-      </DIV>
-      <DIV style="text-align:center; margin-top:16px">
-        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
-          <IMG src="/StormDragonPreview.png" />
-          <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Claim your reward!</SPAN>
-        </A>
-      </DIV>
-    `,
-  },
-  {
-    id: 2,
-    startAt: new Date('2026-04-15T00:00:00Z'),
-    endAt: new Date('2026-05-02T00:00:00Z'),
-    message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
-      <DIV style="margin:0 8px">
-        Final call and reminder!  Don't miss out on your chance to earn $$ while playing in a brand new Tournament starting May 2nd.  If you play all of your games, you will earn the brand new Storm Dragon unit.  Tap the arena below to visit our Discord to learn more and sign up.
-      </DIV>
-      <DIV style="text-align:center; margin-top:16px">
-        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
-          <IMG src="/StormDragonPreview.png" />
-          <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Claim your reward!</SPAN>
-        </A>
-      </DIV>
-    `,
-  },
-];
 
-whenDOMReady.then(async () => {
+api.get('/announcements').then(async announcements => {
   const now = Date.now();
   const responses = new Map(config.getItem('announcementResponses', []));
 
-  for (const announcement of announcements) {
-    // Disable for now
-    return;
+  await whenDOMReady;
+
+  for (const responseId of responses.keys())
+    if (!announcements.has(responseId))
+      responses.delete(responseId);
+
+  for (const [ announcementId, announcement ] of announcements) {
+    if (announcement.silent) continue;
     if (now < announcement.startAt) continue;
     if (now > announcement.endAt) continue;
 
-    const response = responses.get(announcement.id);
+    const response = responses.get(announcementId);
     if (response?.type === 'dismiss') continue;
     if (response?.type === 'remind' && Date.now() < new Date(response.startAt)) continue;
 
@@ -352,13 +315,13 @@ whenDOMReady.then(async () => {
         { label:'Remind me later.', value:'remind' },
         { label:'Got it !', value:'dismiss' },
       ],
-      maxWidth: '343px',
+      maxWidth: announcement.width ?? '343px',
     }).whenClosed;
 
     if (newResponse === 'remind')
-      responses.set(announcement.id, { type:'remind', startAt:new Date(Date.now() + 86400000) });
+      responses.set(announcementId, { type:'remind', startAt:new Date(Date.now() + 86400000) });
     else if (newResponse === 'dismiss')
-      responses.set(announcement.id, { type:'dismiss' });
+      responses.set(announcementId, { type:'dismiss' });
   }
 
   config.setItem('announcementResponses', responses);
@@ -484,7 +447,7 @@ whenDOMReady.then(() => {
 
         const [ teamSet, vsTeamSet ] = await Promise.all([
           gameClient.getGameTeamSet(divGame.dataset.type, gameId, teamId),
-          vsTeam.set ? gameClient.getGameTeamSet(divGame.dataset.type, gameId, vsTeam.id) : null,
+          vsTeam?.set ? gameClient.getGameTeamSet(divGame.dataset.type, gameId, vsTeam.id) : null,
         ]);
         state.viewSetModal.show(divGame.dataset.type, teamSet, vsTeamSet, teamInfo);
       }
@@ -1347,20 +1310,21 @@ async function joinGame(arena) {
  * player can select which style to join.
  */
 async function joinGameGroup(groupId) {
-  const games = getPublicWaitingGroupById(groupId);
-  if (!games || games.size === 0) return;
+  const gamesSet = getPublicWaitingGroupById(groupId);
+  if (!gamesSet || gamesSet.size === 0) return;
 
-  const oldest = Array.from(games.values()).reduce((a, b) => a.createdAt < b.createdAt ? a : b);
-  const creatorTeam = oldest.teams.find(t => t?.playerId === oldest.createdBy);
+  const games = Array.from(gamesSet.values()).sort((a, b) => a.createdAt - b.createdAt);
+  const relationship = games[0].meta.creator.relationship;
+  const creatorTeam = games[0].teams.find(t => t?.playerId === games[0].createdBy);
 
-  if (oldest.meta.creator.relationship?.blockedByRule) {
+  if (relationship?.blockedByRule) {
     let message;
-    if (oldest.meta.creator.relationship.blockedByRule === 'guest')
+    if (relationship.blockedByRule === 'guest')
       message = `
         Sorry!  <I>${creatorTeam.name}</I> blocked guests from joining their public and lobby games.
         You can verify your account on your <A href="security.html">Account Security</A> page.
       `;
-    else if (oldest.meta.creator.relationship.blockedByRule === 'new')
+    else if (relationship.blockedByRule === 'new')
       message = `
         Sorry!  <I>${creatorTeam.name}</I> blocked new players from joining their public and lobby games.
         You can try again later or create your own game.
@@ -1377,7 +1341,18 @@ async function joinGameGroup(groupId) {
     });
   }
 
-  await configureGame.show('confirmBeforeJoinGroup', { gameSummaries: Array.from(games.values()) });
+  // If we're in the lobby tab, default to the selected lobby style
+  let defaultGameType = games[0].type;
+  if (state.currentTab === 'lobby' && state.tabContent.lobby.selectedStyleId) {
+    // Check if there's a game in the group matching the selected lobby style
+    const matchingGame = games.find(game => game.type === state.tabContent.lobby.selectedStyleId);
+    if (matchingGame) {
+      defaultGameType = matchingGame.type;
+    }
+  }
+
+  await configureGame.setGameType(defaultGameType);
+  await configureGame.show('confirmBeforeJoinGroup', { gameSummaries:games });
 }
 
 function renderPN(reg) {
@@ -2145,7 +2120,6 @@ async function renderYourGames() {
    */
   const divMyTurnGames = [];
   for (const game of activeGames) {
-    console.log('test', game.currentTeam.playerId, myPlayerId);
     // Exclude games where it is someone else's turn
     if (game.currentTeam.playerId !== myPlayerId)
       continue;

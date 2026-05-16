@@ -81,13 +81,13 @@ export default class PlayerSets extends ActiveModel<PlayerSetsEvents> {
 
     return this.data.sets.find(s => s.gameTypeId === gameType.id && s.slot === slot) ?? null;
   }
-  set(gameType:GameType, inSet:PickOptional<PlayerSet, 'units', 'id' | 'slot' | 'name'>) {
+  set(gameType:GameType, inSet:PickOptional<PlayerSet, 'units', 'id' | 'slot' | 'name'>, grants:Map<string, number>) {
     if (inSet.slot && !setsBySlot.has(inSet.slot))
       throw new ServerError(400, 'Unrecognized set slot');
     if (!gameType.isCustomizable)
       throw new ServerError(400, 'May not create sets for this game type.');
 
-    gameType.validateSet(inSet);
+    gameType.validateSet(inSet, grants);
 
     const set = Object.assign({
       id: inSet.id ?? TeamSet.createId(inSet),

@@ -178,7 +178,7 @@ export default class AnimatedSprite {
   }
 
   get name() {
-    return this._data.sprites[0].name;
+    return this._data.name ?? this._data.sprites[0].name;
   }
 
   get images() {
@@ -244,8 +244,7 @@ export default class AnimatedSprite {
         container.removeChildren();
         container.addChild(frame.container);
       });
-    }
-    else {
+    } else {
       anim = new Tactics.Animation();
 
       let frames = framesData.map(frameData => {
@@ -964,17 +963,17 @@ export default class AnimatedSprite {
       if (frameData.unit)
         scripts.push(() => {
           let container = unit.getContainerByName('unit');
-          applyTransform(container, frameData.unit.transform);
-          applyColor(container, frameData.unit.color);
-          applyEffects(container, frameData.unit.effects);
+          if (frameData.unit.transform) applyTransform(container, frameData.unit.transform);
+          if (frameData.unit.color) applyColor(container, frameData.unit.color);
+          if (frameData.unit.effects) applyEffects(container, frameData.unit.effects);
         });
       // Clear previously applied unit styles
       else if (prevFrameData.unit)
         scripts.push(() => {
           let container = unit.getContainerByName('unit');
-          applyTransform(container);
-          applyColor(container);
-          applyEffects(container);
+          if (prevFrameData.unit.transform) applyTransform(container);
+          if (prevFrameData.unit.color) applyColor(container);
+          if (prevFrameData.unit.effects) applyEffects(container);
         });
     }
 

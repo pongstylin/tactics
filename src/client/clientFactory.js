@@ -97,8 +97,7 @@ document.addEventListener('visibilitychange', event => {
           s.open();
       });
     }, 1000);
-  }
-  else {
+  } else {
     clearTimeout(timeout);
     clearInterval(interval);
     sockets.forEach(s => {
