@@ -158,7 +158,7 @@ export default class Furgon extends Unit {
       results,
     };
   }
-  onBoardMoveUnit({ unit, assignment, addResults }) {
+  onBoardMoveUnit({ unit, target, addResults }) {
     if (unit !== this || this.features.evergreen) return [];
 
     const allUnits = this.board.teamsUnits.flat();
@@ -171,7 +171,7 @@ export default class Furgon extends Unit {
 
     for (const shrub of shrubs) {
       const needsEvergreen = furgons.some(f => (
-        this.board.getDistance(f === this ? assignment : f.assignment, shrub.assignment) < 4
+        this.board.getDistance(f === this ? target : f.assignment, shrub.assignment) < 4
       ));
       const isEvergreen = shrub.disposition === 'evergreen';
 

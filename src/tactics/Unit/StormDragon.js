@@ -367,6 +367,7 @@ export default class StormDragon extends Unit {
     const result = super.getAttackResult(action, unit, cUnit);
     if (result.miss) return result;
 
+    result.changes ??= {};
     result.changes.mRecovery = result.unit.mRecovery + 1;
     return result;
   }
@@ -378,6 +379,7 @@ export default class StormDragon extends Unit {
         disposition: 'grounded',
         blocking: 100,
         mBlocking: 0,
+        mRecovery: 1,
       },
     }];
   }
