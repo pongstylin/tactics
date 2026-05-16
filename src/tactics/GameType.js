@@ -369,6 +369,8 @@ export default class GameType {
       let tiles = this.getAvailableTiles(board, unit.type);
       if (!tiles.has(unit.assignment))
         throw new ServerError(403, 'Units have invalid assignments');
+
+      unitCounts.set(unit.type, (unitCounts.get(unit.type) ?? 0) + 1)
     }
 
     let rules = limits.rules || {};
