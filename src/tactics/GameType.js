@@ -237,14 +237,14 @@ export default class GameType {
     return this.config.limits.points;
   }
   getUnitPoints(unitType) {
-    return this.config.limits.units.types.get(unitType).points ?? 1;
+    return this.config.limits.units.types.get(unitType)?.points ?? 1;
   }
   getUnitMaxCount(unitType) {
-    return this.config.limits.units.types.get(unitType).max;
+    return this.config.limits.units.types.get(unitType)?.max ?? 0;
   }
   getUnitIncludedCount(unitType) {
     const limit = this.config.limits.units.types.get(unitType);
-    return limit.included ?? limit.max;
+    return limit?.included ?? limit?.max ?? 0;
   }
   getStats(units, grants = new Map()) {
     if (!this.isCustomizable)

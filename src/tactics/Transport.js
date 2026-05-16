@@ -312,20 +312,9 @@ export default class Transport {
       for (let actionId = turn.lastActionId; actionId > -1; actionId--) {
         const action = turn.actions[actionId];
 
-        if (strictUndo) {
-          // May not undo more than the last playable action in strict mode without permission.
-          const lockedActionId = turn.lastActionId - (turn.isForcedEnded ? 1 : 0);
-          if (actionId < lockedActionId)
-            return pointer;
-
-          // May not undo unit selection in strict mode without permission.
-          if (action.type === 'select')
-            return pointer;
-
-          // May not undo an action after 5 seconds without permission.
-          if (this.now - action.createdAt >= 5000)
-            return pointer;
-        }
+        // May not undo an action after 5 seconds without permission in strict mode.
+        if (strictUndo && this.now - action.createdAt >= 5000)
+          return pointer;
 
         // May not undo locked actions without permission.
         if (action.locked)

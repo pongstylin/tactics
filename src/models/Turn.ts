@@ -158,11 +158,11 @@ export default class Turn extends ActiveModel<TurnEvents> {
     this.emit('change:actionId');
   }
 
-  pushAction(action:any, lockPrevious = false) {
-    if (action.results && action.results.findIndex((r:any) => 'luck' in r) > -1) {
+  pushAction(action:any, strictMode = false) {
+    if (action.results?.some((r:any) => 'luck' in r)) {
       this.data.actions.forEach(a => delete a.locked);
       action.locked = true;
-    } else if (this.data.actions.last && lockPrevious)
+    } else if (strictMode && !action.forced)
       this.data.actions.forEach((a, i, as) => i === as.length - 1 ? a.locked = true : delete a.locked);
 
     this.data.actions.push(action);
@@ -210,10 +210,6 @@ export default class Turn extends ActiveModel<TurnEvents> {
   }
   get isEnded() {
     return this.data.actions.last?.type === 'endTurn';
-  }
-  get isForcedEnded() {
-    const lastAction = this.data.actions.last;
-    return lastAction?.type === 'endTurn' && lastAction?.forced === true;
   }
   get isGameEnded() {
     return this.data.actions.last?.type === 'endGame';
