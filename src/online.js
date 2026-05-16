@@ -315,7 +315,7 @@ api.get('/announcements').then(async announcements => {
         { label:'Remind me later.', value:'remind' },
         { label:'Got it !', value:'dismiss' },
       ],
-      maxWidth: '343px',
+      maxWidth: announcement.width ?? '343px',
     }).whenClosed;
 
     if (newResponse === 'remind')
