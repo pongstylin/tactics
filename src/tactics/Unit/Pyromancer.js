@@ -1,9 +1,9 @@
 import Unit from '#tactics/Unit.js';
 
 export default class Pyromancer extends Unit {
-  getTargetTiles(target) {
-    let board   = this.board;
-    let targets = board.getTileRange(target, 0, 1);
+  getAttackTargetTiles(target) {
+    const board   = this.board;
+    const targets = board.getTileRange(target, 0, 1);
 
     // Blast closer tiles before further tiles.
     targets.sort((a, b) =>
@@ -26,13 +26,12 @@ export default class Pyromancer extends Unit {
     if (this.directional !== false)
       anim.addFrame(() => this.stand());
 
-    let targets = this.getTargetTiles(action.target);
+    let targets = this.getAttackTargetTiles(action.target);
     let closest = board.getDistance(this.assignment, targets[0]);
 
     targets.forEach(target => {
       let offset = effectOffset + (board.getDistance(this.assignment, target) - closest);
       let result = action.results.find(r => r.unit === target.assigned);
-      let isHit = result && !result.miss;
 
       if (anim.frames.length < offset)
         anim.addFrame({
@@ -42,7 +41,7 @@ export default class Pyromancer extends Unit {
 
       anim.splice(
         offset,
-        this.animAttackEffect(spriteAction.effect, target, isHit),
+        this.animAttackEffect(spriteAction.effect, target, result?.miss),
       );
     });
 

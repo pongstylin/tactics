@@ -267,8 +267,8 @@ export default class extends DynamoDBAdapter {
 
     return teamSet;
   }
-  async getDefaultSet(gameTypeId) {
-    const defaultSet = await this._getDefaultPlayerSet(gameTypeId);
+  async getDefaultSet(player, gameTypeId) {
+    const defaultSet = await this._getDefaultPlayerSet(player, gameTypeId);
     const teamSet = await this._getTeamSetStatsForTeamSet(this._getTeamSet({ units:defaultSet.units }, gameTypeId, defaultSet.id));
     return teamSet.toData(await this.getTopTeamSets(gameTypeId));
   }
@@ -278,11 +278,11 @@ export default class extends DynamoDBAdapter {
 
     const playerSets = await (async () => {
       if (!gameType.isCustomizable)
-        return [ await this._getDefaultPlayerSet(gameType) ];
+        return [ await this._getDefaultPlayerSet(player, gameType) ];
 
       const playerSetList = await this._getPlayerSets(player);
       if (playerSetList.get(gameType, 'default') === null)
-        playerSetList.set(gameType, await this._getDefaultPlayerSet(gameType));
+        playerSetList.set(gameType, await this._getDefaultPlayerSet(player, gameType));
       return playerSetList.list(gameType);
     })();
 
@@ -318,8 +318,9 @@ export default class extends DynamoDBAdapter {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
+    const playerAvatars = await this._getPlayerAvatars(player);
     const playerSets = await this._getPlayerSets(player);
-    playerSets.set(gameType, set);
+    playerSets.set(gameType, set, playerAvatars.listUnits);
 
     return this.getPlayerSet(player, gameType, set.slot);
   }
@@ -1053,7 +1054,9 @@ export default class extends DynamoDBAdapter {
     });
   }
 
-  async _getDefaultPlayerSet(gameType) {
+  async _getDefaultPlayerSet(player, gameType) {
+    const playerAvatars = await this._getPlayerAvatars(player);
+
     gameType = typeof gameType === 'string' ? this.getGameType(gameType) : gameType;    
 
     const sourceSet = await (async () => {
@@ -1063,14 +1066,14 @@ export default class extends DynamoDBAdapter {
       const topTeamSets = await this.getTopTeamSets(gameType.id);
       for (const topTeamSet of topTeamSets.shuffle()) {
         try {
-          gameType.validateSet({ units:topTeamSet.units });
+          // This is expected to fail if the player doesn't have enough unit grants to use the set.
+          gameType.validateSet({ units:topTeamSet.units }, playerAvatars.listUnits);
           return topTeamSet;
         } catch (e) {
-          console.log(`Warning: Invalid set in top 100 for ${gameType.id}: setId=${topTeamSet.id}; units=${topTeamSet.units}; error=`, e.message);
+          // skip
         }
       }
 
-      console.log(`Warning: No valid sets in top 100 for ${gameType.id}, falling back to config`);
       return gameType.config.sets.random();
     })();
 
@@ -1281,7 +1284,7 @@ export default class extends DynamoDBAdapter {
 
       const teamSetSearch = new TeamSetSearchGroup(cardinality, metricName, query, teamSetSearches);
       for (const teamSetIndex of teamSetIndexes)
-        teamSetIndex.add(teamSetSearch);
+        teamSetIndex.teamSetSearches.add(teamSetSearch);
 
       return teamSetSearch;
     });

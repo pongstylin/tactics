@@ -315,7 +315,7 @@ api.get('/announcements').then(async announcements => {
         { label:'Remind me later.', value:'remind' },
         { label:'Got it !', value:'dismiss' },
       ],
-      maxWidth: '343px',
+      maxWidth: announcement.width ?? '343px',
     }).whenClosed;
 
     if (newResponse === 'remind')
@@ -447,7 +447,7 @@ whenDOMReady.then(() => {
 
         const [ teamSet, vsTeamSet ] = await Promise.all([
           gameClient.getGameTeamSet(divGame.dataset.type, gameId, teamId),
-          vsTeam.set ? gameClient.getGameTeamSet(divGame.dataset.type, gameId, vsTeam.id) : null,
+          vsTeam?.set ? gameClient.getGameTeamSet(divGame.dataset.type, gameId, vsTeam.id) : null,
         ]);
         state.viewSetModal.show(divGame.dataset.type, teamSet, vsTeamSet, teamInfo);
       }
@@ -1341,7 +1341,17 @@ async function joinGameGroup(groupId) {
     });
   }
 
-  await configureGame.setGameType(games[0].type);
+  // If we're in the lobby tab, default to the selected lobby style
+  let defaultGameType = games[0].type;
+  if (state.currentTab === 'lobby' && state.tabContent.lobby.selectedStyleId) {
+    // Check if there's a game in the group matching the selected lobby style
+    const matchingGame = games.find(game => game.type === state.tabContent.lobby.selectedStyleId);
+    if (matchingGame) {
+      defaultGameType = matchingGame.type;
+    }
+  }
+
+  await configureGame.setGameType(defaultGameType);
   await configureGame.show('confirmBeforeJoinGroup', { gameSummaries:games });
 }
 
@@ -2110,7 +2120,6 @@ async function renderYourGames() {
    */
   const divMyTurnGames = [];
   for (const game of activeGames) {
-    console.log('test', game.currentTeam.playerId, myPlayerId);
     // Exclude games where it is someone else's turn
     if (game.currentTeam.playerId !== myPlayerId)
       continue;

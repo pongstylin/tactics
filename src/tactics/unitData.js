@@ -506,6 +506,47 @@ unitDataMap.set('ChaosDragon', {
   tier: 5,
 });
 
+unitDataMap.set('StormDragon', {
+  code: 'sd',
+  name: 'Storm Dragon',
+  shortName: 'SD',
+  keywords: [ 'storm' ],
+  ability: 'Electric Stun',
+  specialty: 'Recharge',
+  power: 24,
+  armor: 10,
+  health: 46,
+  recovery: 1,
+  blocking: 65,
+  mType: 'teleport',
+  mRadius: 4,
+  mPass: false,
+  aType: 'magic',
+  aRange: [ 1, 3 ],
+  aLOS: true,
+  aLinear: true,
+  waitFirstTurn: true,
+  tier: 5,
+  rarity: 19,
+
+  baseSprite: 'DragonTyrant',
+  imports: [ 'Lightning' ],
+  actions: {
+    stand: {
+      actionName: 'moveOut',
+      frameId: 6,
+    },
+  },
+  sounds: {
+    attack: 'sprite:core/sounds/sound1602',
+    flap: 'sprite:core/sounds/sound7',
+    strike: 'sprite:core/sounds/sound1370',
+    block: 'sprite:core/sounds/sound11',
+    charge: { src:'charge', rate:0.6 },
+    buzz: { src:'buzz', rate:0.6 },
+  },
+});
+
 // Map unit type names to IDs until we get rid of the IDs.
 export const unitTypeToIdMap = new Map();
 

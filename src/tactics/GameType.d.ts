@@ -27,8 +27,7 @@ export default class GameType {
   hasFixedSides: boolean;
 
   getDefaultSet(): Set;
-  validateSet<T extends Set>(set:T): void;
+  validateSet<T extends Set>(set:T, grants:Map<string, count>): void;
   getTeamSetTags(teamSet:TeamSet): Tag[];
   validateSetIsFull(units:TeamSetUnit[]): boolean;
-  applySetUnitState<T extends Set>(set:T): T;
 };

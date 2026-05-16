@@ -13,6 +13,7 @@ export default class Unit {
     Object.assign(this, data, {
       data: data,
       board: board,
+      direction: data.direction ?? 'S',
       spriteSource: data.type,
       spriteName: null,
       unitSprite: 'unit',
@@ -57,9 +58,15 @@ export default class Unit {
       // Unit state at start of turn.  Set by Board.setInitialState().
       initialState: null,
 
-      _sprite: null,
       _pulse: null,
+      __sprite: null,
     });
+  }
+
+  get _sprite() {
+    if (!this.__sprite)
+      this.__sprite = Tactics.getSprite(this.spriteSource);
+    return this.__sprite;
   }
 
   /*
@@ -84,14 +91,17 @@ export default class Unit {
       throw new TypeError('Unsupported mType');
   }
   getAttackTiles(source = this.assignment) {
-    let board  = this.board;
-    let range  = this.aRange;
+    const board = this.board;
+    const range = this.aRange;
 
-    if (this.aLinear)
-      // Dark Magic Witch, Beast Rider, Dragon Tyrant, Chaos Dragon
+    if (this.aLinear) {
+      // Dark Magic Witch, Beast Rider, Dragon Tyrant, Storm Dragon, Chaos Dragon
       // All existing units have a minimum range of 1.
-      return board.getTileLinearRange(source, range[1]);
-    else if (range) {
+      const tiles = board.getTileLinearRange(source, range[1]);
+      if (this.canSpecial() && !tiles.some(t => t === source))
+        tiles.unshift(source);
+      return tiles;
+    } else if (range) {
       const tiles = board.getTileRange(source, ...range);
       if (this.canSpecial() && !tiles.some(t => t === source))
         tiles.unshift(source);
@@ -99,10 +109,14 @@ export default class Unit {
     } else
       return [];
   }
-  getTargetTiles(target, source = this.assignment) {
-    if (target === source && this.canSpecial())
-      return this.getSpecialTargetTiles();
-
+  getTargetTiles(actionType, target, source = this.assignment) {
+    if (actionType === 'attack' || actionType === 'target')
+      return this.getAttackTargetTiles(target, source);
+    if (actionType === 'attackSpecial' || actionType === 'targetSpecial')
+      return this.getSpecialTargetTiles(source);
+    return [];
+  }
+  getAttackTargetTiles(target, source = this.assignment) {
     if (this.aLOS === true)
       return this.getLOSTargetTiles(target, source);
     else if (this.aAll === true)
@@ -124,8 +138,8 @@ export default class Unit {
 
     return [ target ];
   }
-  getSpecialTargetTiles() {
-    return [];
+  getSpecialTargetTiles(source = this.assignment) {
+    return this.canSpecial() ? [ source ] : [];
   }
   /*
    * Reviews all combinations of moving (or not) then attacking to determine all
@@ -146,7 +160,7 @@ export default class Unit {
       attackTiles = this.getAttackTiles(moveTiles[i]);
 
       for (j = 0; j < attackTiles.length; j++) {
-        targetTiles = this.getTargetTiles(attackTiles[j]);
+        targetTiles = this.getAttackTargetTiles(attackTiles[j]);
 
         for (k = 0; k < targetTiles.length; k++) {
           tiles.add(targetTiles[k]);
@@ -156,22 +170,79 @@ export default class Unit {
 
     return tiles;
   }
-  getTargetUnits(target) {
-    let target_units = [];
+  getTargetUnits(actionType, target, source = this.assignment) {
+    if (actionType === 'attack' || actionType === 'target')
+      return this.getAttackTargetUnits(target, source);
+    if (actionType === 'attackSpecial' || actionType === 'targetSpecial')
+      return this.getSpecialTargetUnits(source);
+    return [];
+  }
+  getAttackTargetUnits(target, source = this.assignment) {
+    let targetUnits = [];
 
     if (this.aLOS === true) {
-      let unit = this.getLOSTargetUnit(target);
+      const unit = this.getLOSTargetUnit(target, source);
       if (unit)
-        target_units.push(unit);
+        targetUnits.push(unit);
     } else
-      target_units = this.getTargetTiles(target)
+      targetUnits = this.getAttackTargetTiles(target, source)
         .filter(tile => !!tile.assigned)
         .map(tile => tile.assigned);
 
     if (this.aType !== 'melee' && this.aType !== 'magic')
-      target_units = target_units.filter(u => u.type !== 'Shrub');
+      targetUnits = targetUnits.filter(u => u.type !== 'Shrub');
 
-    return target_units;
+    return targetUnits;
+  }
+  getSpecialTargetUnits(source = this.assignment) {
+    return this.getSpecialTargetTiles(source)
+      .filter(tile => !!tile.assigned)
+      .map(tile => tile.assigned);
+  }
+  getAttackTargetNotice(targetUnit, target, source = this.assignment, stats = this.getAttackStats()) {
+    const calc = this.calcAttack(targetUnit, source, target, stats);
+    const chance =
+      calc.chance === 100 ? 'Hit' :
+      calc.chance === 0 ? `${calc.miss.toUpperCase('first')}` :
+      `${Math.min(99, Math.max(1, Math.round(calc.chance)))}%`;
+    let notice;
+
+    if (calc.effect)
+      notice = calc.effect.toUpperCase('first')+'!';
+    else if (calc.miss === 'immune')
+      notice = 'Immune!';
+    else if (calc.chance === 0 && targetUnit.canBreakFocus(calc))
+      notice = 'Interrupt!';
+    else if (!targetUnit.health)
+      notice = `Destroy!`;
+    else if (calc.damage === 0)
+      notice = `No Damage!`;
+    else if (calc.damage < 0)
+      notice = `+${Math.abs(calc.damage)} • ${chance}`;
+    else
+      notice = `-${calc.damage} • ${chance}`;
+
+    return notice;
+  }
+  getSpecialTargetNotice(_targetUnit, _target, _source = this.assignment) {
+    return null;
+  }
+  getAttackSelectMode() {
+    return this.aAll ? 'target' : 'attack';
+  }
+  getTargetSelectMode(target) {
+    if (target === this.assignment && this.canSpecial())
+      return 'targetSpecial';
+
+    return 'target';
+  }
+  getAttackStats(_targetUnit) {
+    return {
+      power: Math.max(0, this.power + this.mPower),
+      aType: this.aType,
+      aLOS: this.aLOS,
+      aPierce: false,
+    };
   }
   getLOSTargetTiles(target, source) {
     source = source || this.assignment;
@@ -243,14 +314,9 @@ export default class Unit {
     if (!target)
       target = targetUnit.assignment;
 
-    stats ??= {
-      power: Math.max(0, this.power + this.mPower),
-      aType: this.aType,
-      aLOS: this.aLOS,
-      aPierce: false,
-    };
+    stats ??= this.getAttackStats(targetUnit);
 
-    const calc     = {};
+    const calc     = { stats };
     const armor    = stats.aPierce ? 0 : Math.max(0, Math.min(100, targetUnit.armor + targetUnit.mArmor));
     const blocking = targetUnit.blocking + targetUnit.mBlocking;
 
@@ -262,18 +328,7 @@ export default class Unit {
       // Another unit is in the way.  No chance to hit target unit.
       calc.chance = 0;
       calc.miss = 'miss';
-    } else if (
-      (
-        /^(melee|magic|heal)$/.test(stats.aType) &&
-        (targetUnit.barriered || targetUnit.disposition === 'unbreakable')
-      ) || (
-        stats.aType === 'melee' &&
-        targetUnit.blocking === 100 &&
-        targetUnit.directional === false &&
-        !targetUnit.paralyzed &&
-        !targetUnit.focusing
-      )
-    ) {
+    } else if (targetUnit.isImmune(this, stats)) {
       calc.miss = 'immune';
       calc.chance = 0;
       calc.damage = 0;
@@ -283,11 +338,13 @@ export default class Unit {
 
       if (!targetUnit.canBlock())
         calc.chance = 100;
-      else if (targetUnit.directional === false) {
+      else if (targetUnit.canBlockAllSides()) {
         // Wards have 100% blocking from all directions.
         // Chaos Seed has 50% blocking from all directions.
         // Shrubs have 0% blocking from all directions.
         calc.chance = Math.max(0, Math.min(100, 100 - blocking));
+        if (calc.chance === 0)
+          calc.miss = 'block';
 
         // A successful block reduces Chaos Seed blocking temporarily.
         // But, a failed block does not boost Chaos Seed blocking.
@@ -322,8 +379,8 @@ export default class Unit {
           calc.penalty = 100*factor - targetUnit.blocking;
         }
       }
-    } else if (stats.aType === 'magic') {
-      // Armor reduces magic damage.
+    } else if (stats.aType === 'magic' || stats.aType === 'ground') {
+      // Armor reduces magic or ground damage.
       calc.damage = Math.round(stats.power * (100 - armor) / 100);
 
       // Magic can only be stopped by barriers.
@@ -346,7 +403,9 @@ export default class Unit {
   }
 
   getMoveResults(action) {
-    return [];
+    const results = [];
+    this.board.trigger({ type:'moveUnit', unit:this, target:action.assignment, addResults:rs => results.push(...rs) });
+    return results;
   }
   /*
    * An attack might affect multiple targets at the same time.  So, it doesn't
@@ -364,7 +423,7 @@ export default class Unit {
    */
   getAttackResults(action) {
     const board = this.board;
-    const calcs = this.getTargetUnits(action.target).map(targetUnit => [
+    const calcs = this.getAttackTargetUnits(action.target).map(targetUnit => [
       targetUnit,
       this.calcAttack(targetUnit, this.assignment, action.target),
     ]);
@@ -372,7 +431,23 @@ export default class Unit {
     return calcs.map(([targetUnit, calc]) => {
       const result = this.getAttackResult(action, targetUnit, calc);
       board.applyActionResults([ result ]);
-      this.getAttackSubResults(result);
+      this.getAttackSubResults(result, calc);
+      // Reapply the result since getDeadResult can modify it.
+      board.applyActionResults([ result ]);
+      return result;
+    });
+  }
+  getAttackSpecialResults(action) {
+    const board = this.board;
+    const calcs = this.getSpecialTargetUnits().map(targetUnit => [
+      targetUnit,
+      this.calcAttack(targetUnit, this.assignment, this.assignment, this.getAttackSpecialStats(targetUnit)),
+    ]);
+
+    return calcs.map(([ targetUnit, calc ]) => {
+      const result = this.getAttackResult(action, targetUnit, calc);
+      board.applyActionResults([ result ]);
+      this.getAttackSubResults(result, calc);
       // Reapply the result since getDeadResult can modify it.
       board.applyActionResults([ result ]);
       return result;
@@ -418,10 +493,10 @@ export default class Unit {
     } else {
       result.miss = 'blocked';
 
-      if (calc.penalty || unit.directional !== false) {
+      if (calc.penalty || !unit.canBlockAllSides()) {
         result.changes = {};
 
-        if (unit.directional !== false) {
+        if (!unit.canBlockAllSides()) {
           const direction = this.board.getDirection(unit.assignment, this.assignment, unit.direction);
           if (direction !== unit.direction)
             result.changes.direction = unit.direction = direction;
@@ -437,29 +512,12 @@ export default class Unit {
   /*
    * Apply sub-results that are after-effects of certain results.
    */
-  getAttackSubResults(result) {
-    if (result.miss) return;
-
+  getAttackSubResults(result, calc) {
     const board = this.board;
     const unit = result.unit;
-    const subResults = result.results || [];
+    const subResults = result.results ??= [];
 
-    // Most attacks break the focus of focusing units.
-    if (unit.focusing) {
-      if (
-        this.aType === 'heal' ||
-        this.aType === 'barrier' ||
-        this.aType === 'armor'
-      ) return;
-
-      for (const subResult of unit.getBreakFocusResult(true)) {
-        const foundResult = subResults.find(r => r.unit === subResult.unit);
-        if (foundResult)
-          foundResult.changes.merge(subResult.changes);
-        else
-          subResults.push(subResult);
-      }
-    }
+    unit.addDefenseResults(this, result, calc);
 
     if (unit.getDeadResult(this, result)) {
       board.trigger({
@@ -516,8 +574,21 @@ export default class Unit {
       }
     }
 
-    if (subResults.length)
-      result.results = subResults;
+    if (result.results.length === 0)
+      delete result.results;
+  }
+  addDefenseResults(_attacker, attackResult, calc) {
+    const subResults = attackResult.results;
+
+    if (this.canBreakFocus(calc)) {
+      for (const subResult of this.getBreakFocusResult(true)) {
+        const foundResult = subResults.find(r => r.unit === subResult.unit);
+        if (foundResult)
+          foundResult.changes.merge(subResult.changes);
+        else
+          subResults.push(subResult);
+      }
+    }
   }
   getDeadResult(attacker, result) {
     if (![ 'melee', 'magic' ].includes(attacker.aType)) return false;
@@ -566,9 +637,6 @@ export default class Unit {
     return this.drawStand();
   }
   drawAvatar(options) {
-    if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.spriteSource);
-
     options = Object.assign({
       renderer: Tactics.game?.renderer,
       direction: 'S',
@@ -578,9 +646,11 @@ export default class Unit {
       as: 'frame',
     }, options);
 
+    const [ standActionName, standFrameId ] = this.getStandRenderOptions();
     const frame = this._sprite.renderFrame({
       spriteName: this.spriteName,
-      actionName: 'stand',
+      actionName: standActionName,
+      frameId: standFrameId,
       direction: options.direction,
       styles: this.getStyles(),
       fixup: this.fixupFrame.bind(this),
@@ -609,8 +679,12 @@ export default class Unit {
 
     let avatar;
     if (options.as === 'image') {
-      const bounds = frame.getLocalBounds();
-      const avatarCanvas = options.renderer.extract.canvas(frame);
+      // Need a wrapper container so the extracted image anchor includes the
+      // frame's full transform matrix, including scale, skew, and rotation.
+      const wrapper = new PIXI.Container();
+      wrapper.addChild(frame);
+      const bounds = wrapper.getLocalBounds();
+      const avatarCanvas = options.renderer.extract.canvas(wrapper);
       avatar = {
         x: bounds.x,
         y: bounds.y,
@@ -627,10 +701,23 @@ export default class Unit {
 
     return avatar;
   }
-  drawFrame(actionName, direction = this.direction, frameId) {
-    if (!this._sprite)
-      this._sprite = Tactics.getSprite(this.spriteSource);
+  getStandRenderOptions() {
+    // Always use the stand frame when using our own sprite.
+    // This is true for most units regardless of whether we're using avatars.json or eponymous sprite bundle.
+    // This is true for DragonspeakerMage even though it uses Pyromancer frame layers.
+    // This is false for any unit that has a different base sprite (Storm Dragon, Chaos Dragon, Chaos Seed).
+    // This is true for StormDragon when using avatars.json (see core.js).
+    if (this.spriteName === this.type)
+      return [ 'stand' ];
 
+    const standAction = this.actions?.stand;
+
+    return [
+      standAction?.actionName ?? 'stand',
+      standAction?.frameId,
+    ];
+  }
+  drawFrame(actionName, direction = this.direction, frameId) {
     const frame = this._sprite.renderFrame({
       actionName,
       direction,
@@ -665,7 +752,9 @@ export default class Unit {
       if (!isNaN(direction)) direction = this.board.getRotation(this.direction, direction);
     }
 
-    return this.drawFrame('stand', direction);
+    const [ standActionName, standFrameId ] = this.getStandRenderOptions();
+
+    return this.drawFrame(standActionName, direction, standFrameId);
   }
   drawStagger(direction = this.direction) {
     if (!this.hasAction('stagger'))
@@ -1352,11 +1441,10 @@ export default class Unit {
       if (targetUnit)
         targets.push(targetUnit.assignment);
     } else
-      targets = this.getTargetTiles(action.target);
+      targets = this.getAttackTargetTiles(action.target);
 
     targets.forEach(target => {
       const result = action.results.find(r => r.unit === target.assigned);
-      const isHit = result && !result.miss;
 
       if (anim.frames.length < effectOffset)
         anim.addFrame({
@@ -1366,16 +1454,16 @@ export default class Unit {
 
       anim.splice(
         effectOffset,
-        this.animAttackEffect(spriteAction.effect, target, isHit),
+        this.animAttackEffect(spriteAction.effect, target, result?.miss),
       );
     });
 
     return anim;
   }
-  animAttackEffect(effect, target, isHit) {
-    let anim = new Tactics.Animation();
-    let board = this.board;
-    let effectSprite = effect.spriteId && Tactics.getSprite(effect.spriteId);
+  animAttackEffect(effect, target, miss) {
+    const anim = new Tactics.Animation();
+    const board = this.board;
+    const effectSprite = effect.spriteId && Tactics.getSprite(effect.spriteId);
     let offset = [0, 0];
 
     if (!effect.type)
@@ -1383,7 +1471,7 @@ export default class Unit {
 
     // Render stagger animation before the effect so that it may be colored
     let targetUnit = target.assigned;
-    if (!isHit && targetUnit && targetUnit.type === 'Shrub' && targetUnit.name !== 'Golden Shrub')
+    if (miss && targetUnit && targetUnit.type === 'Shrub' && targetUnit.name !== 'Golden Shrub')
       targetUnit = null;
 
     if (targetUnit) {
@@ -1398,8 +1486,8 @@ export default class Unit {
         anim.addFrame([]);
 
       let offsetRatio;
-      if (!isHit) {
-        anim.splice(targetUnit.animMiss(this, effect.type));
+      if (miss) {
+        anim.splice(targetUnit.animMiss(miss, this, effect.type));
         offsetRatio = 0.50;
       } else if (targetUnit !== this) {
         anim.splice(-1, targetUnit.animHit(this, effect.type, effect.silent));
@@ -1438,15 +1526,15 @@ export default class Unit {
 
     // Some effects aren't dispayed if no unit is impacted
     if (effectSprite && (targetUnit || !effect.impactOnly)) {
-      let unitsContainer = board.unitsContainer;
-      let pos = target.getCenter();
-      let container = new PIXI.Container();
+      const unitsContainer = board.unitsContainer;
+      const pos = target.getCenter();
+      const container = new PIXI.Container();
       container.position = new PIXI.Point(pos.x, pos.y);
 
-      let effectAnimation = effectSprite.renderAnimation({
+      const effectAnimation = effectSprite.renderAnimation({
         container,
         // Attack effects can apply coloring to an affected unit
-        unit: isHit && targetUnit,
+        unit: targetUnit && !targetUnit.barriered ? targetUnit : null,
         styles: {
           [effectSprite.name]: { position:offset },
         },
@@ -1459,41 +1547,13 @@ export default class Unit {
 
     return anim;
   }
-  animMiss(attacker, attackType) {
-    let anim;
-
+  animMiss(miss, attacker, attackType) {
     if (this.barriered)
-      anim = this.animBarrierDeflect(attacker, attackType);
-    else if (this.hasAction('block')) {
-      let direction;
-      if (this.directional !== false)
-        direction = this.board.getDirection(
-          this.assignment,
-          attacker.assignment,
-          this.direction,
-        );
-
-      anim = this.renderAnimation('block', direction);
-
-      /*
-       * Poisoned units can block.  Maintain focus as they do so.
-       */
-      let focusContainer = this.getContainerByName('Focus');
-      if (focusContainer) {
-        anim.splice(0, {
-          script: () => {
-            let shadowContainer = this.getContainerByName(this.shadowSprite);
-            shadowContainer.addChild(focusContainer);
-          },
-          repeat: anim.frames.length,
-        });
-      }
-
-      anim.addFrame(() => this.stand(direction));
-    } else if (attackType === 'melee' && this.disposition === 'unbreakable')
-      anim = new Tactics.Animation({ frames:[() => this.sounds.block.howl.play()] });
-
-    return anim;
+      return this.animBarrierDeflect(attacker, attackType);
+    else if (miss === 'blocked' && this.hasAction('block'))
+      return this.animBlock(attacker);
+    else if (attackType === 'melee' && this.disposition === 'unbreakable')
+      return new Tactics.Animation({ frames:[() => this.sounds.block.howl.play()] });
   }
   /*
    * This method is called when this unit is successfully hit.
@@ -1527,8 +1587,7 @@ export default class Unit {
         anim.addFrame([]);
       else
         anim.addFrame(spriteAction.sounds);
-    }
-    else if (attackType === 'magic') {
+    } else if (attackType === 'magic') {
       // Magic attacks cause a stagger
       doStagger = true;
 
@@ -1555,6 +1614,31 @@ export default class Unit {
 
       anim.addFrame(() => this.drawStand());
     }
+
+    return anim;
+  }
+  animBlock(attacker) {
+    const direction = this.directional === false ? this.direction : this.board.getDirection(
+      this.assignment,
+      attacker.assignment,
+      this.direction,
+    );
+    const anim = this.renderAnimation('block', direction);
+
+    /*
+     * Poisoned units can block.  Maintain focus as they do so.
+     */
+    const focusContainer = this.getContainerByName('Focus');
+    if (focusContainer)
+      anim.splice(0, {
+        script: () => {
+          const shadowContainer = this.getContainerByName(this.shadowSprite);
+          shadowContainer.addChild(focusContainer);
+        },
+        repeat: anim.frames.length,
+      });
+
+    anim.addFrame(() => this.stand(direction));
 
     return anim;
   }
@@ -1675,34 +1759,28 @@ export default class Unit {
 
     return anim;
   }
-  setTargetNotice(targetUnit, target, stats = null) {
-    if (this.canSpecial() && (target ?? targetUnit.assignment) === this.assignment && !stats)
-      return this.setSpecialTargetNotice(targetUnit);
+  setTargetNotice(attacker, actionType, target, source = attacker.assignment) {
+    let notice = null;
+    if (actionType === 'attack' || actionType === 'target')
+      notice = attacker.getAttackTargetNotice(this, target, source);
+    else if (actionType === 'attackSpecial' || actionType === 'targetSpecial')
+      notice = attacker.getSpecialTargetNotice(this, target, source);
 
-    const calc = this.calcAttack(targetUnit, null, target, stats);
-    const chance =
-      calc.chance === 100 ? 'Hit' :
-      calc.chance === 0 ? `${calc.miss.toUpperCase('first')}` :
-      `${Math.min(99, Math.max(1, Math.round(calc.chance)))}%`;
-    let notice;
-
-    if (calc.effect)
-      notice = calc.effect.toUpperCase('first')+'!';
-    else if (calc.miss === 'immune')
-      notice = 'Immune!';
-    else if (!targetUnit.health)
-      notice = `Destroy!`;
-    else if (calc.damage === 0)
-      notice = `No Damage!`;
-    else if (calc.damage < 0)
-      notice = `+${Math.abs(calc.damage)} • ${chance}`;
-    else
-      notice = `-${calc.damage} • ${chance}`;
-
-    targetUnit.change({ notice });
+    this.change({ notice });
   }
-  setSpecialTargetNotice(targetUnit) {
-    return;
+  canBreakFocus(calc) {
+    if (!this.focusing)
+      return false;
+    if (calc.miss === 'immune')
+      return false;
+
+    return ![ 'heal', 'barrier', 'armor' ].includes(calc.stats.aType);
+  }
+  getStartTurnAction() {
+    return null;
+  }
+  getEndTurnAction() {
+    return null;
   }
   /*
    * Certain actions can break certain status effects.
@@ -1900,8 +1978,33 @@ export default class Unit {
   canCounter() {
     return false;
   }
+  canContinue() {
+    if (this.mRecovery)
+      return false;
+    if (this.disposition === 'dead')
+      return false;
+    if (this.focusing)
+      return false;
+    return true;
+  }
   canTurn() {
     return this.directional !== false;
+  }
+  isImmune(_attacker, stats) {
+    if (
+      /^(melee|magic|ground|heal)$/.test(stats.aType) &&
+      (this.barriered || this.disposition === 'unbreakable')
+    ) return true;
+
+    if (
+      stats.aType === 'melee' &&
+      this.blocking === 100 &&
+      this.canBlockAllSides() &&
+      // Just in case a unit can block but still lose focus (e.g. Storm Dragon)
+      !this.focusing
+    ) return true;
+
+    return false;
   }
   isPassable() {
     return (
@@ -1913,7 +2016,10 @@ export default class Unit {
     );
   }
   canBlock() {
-    return !this.focusing && !this.paralyzed;
+    return this.blocking && !this.focusing && !this.paralyzed;
+  }
+  canBlockAllSides() {
+    return this.canBlock() && this.directional === false;
   }
 
   clone() {
@@ -1944,6 +2050,7 @@ export default class Unit {
 
     const properties = [
       'disposition',
+      'blocking',
       'mHealth',
       'mLifespan',
       'mBlocking',
@@ -1956,20 +2063,27 @@ export default class Unit {
       'poisoned',
       'armored',
     ];
+    const baseProperties = new Set([
+      'blocking',
+    ]);
+    const unitListProperties = new Set([
+      'focusing',
+      'paralyzed',
+      'barriered',
+      'poisoned',
+      'armored',
+    ]);
 
-    properties.forEach(prop => {
-      if (this[prop])
-        if (
-          prop === 'focusing' ||
-          prop === 'paralyzed' ||
-          prop === 'barriered' ||
-          prop === 'poisoned' ||
-          prop === 'armored'
-        )
-          state[prop] = this[prop].map(u => u.id);
-        else
-          state[prop] = this[prop];
-    });
+    for (const prop of properties) {
+      if (!this[prop]) continue;
+
+      if (unitListProperties.has(prop))
+        state[prop] = this[prop].map(u => u.id);
+      else if (baseProperties.has(prop) && this[prop] !== this.data[prop])
+        state[prop] = this[prop];
+      else
+        state[prop] = this[prop];
+    }
 
     return state;
   }

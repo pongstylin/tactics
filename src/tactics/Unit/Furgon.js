@@ -3,20 +3,15 @@ import Unit from '#tactics/Unit.js';
 export default class Furgon extends Unit {
   attach() {
     this.board
+      .on('moveUnit', this._onBoardMoveUnit = this.onBoardMoveUnit.bind(this))
       .on('dropUnit', this._onBoardDropUnit = this.onBoardDropUnit.bind(this))
       .on('endTurn', this._onBoardEndTurn = this.onBoardEndTurn.bind(this));
   }
   detach() {
     this.board
+      .off('moveUnit', this._onBoardMoveUnit)
       .off('dropUnit', this._onBoardDropUnit)
       .off('endTurn', this._onBoardEndTurn);
-  }
-
-  /*
-   * Furgon does not target units
-   */
-  setTargetNotice() {
-    return;
   }
 
   /*
@@ -90,13 +85,10 @@ export default class Furgon extends Unit {
       board.getTileRange(tile, 0, 1).find(t => !t.assigned)
     );
   }
-  getTargetTiles(target) {
-    if (this.canSpecial())
-      return [this.assignment, ...this.getSpecialTargetTiles()];
-
+  getAttackTargetTiles(target) {
     return this.board.getTileRange(target, 0, 1);
   }
-  getSpecialTargetTiles(target, source) {
+  getSpecialTargetTiles(_source = this.assignment) {
     const board = this.board;
     const enemies = board.teamsUnits.filter((tu, i) => i !== this.team.id).flat();
     const targets = new Set();
@@ -113,8 +105,17 @@ export default class Furgon extends Unit {
 
     return [...targets];
   }
-  getTargetUnits() {
+  getSpecialTargetNotice(targetUnit, target, source = this.assignment) {
+    if (targetUnit === this)
+      return 'Entangle!';
+
+    return 'Transform!';
+  }
+  getAttackTargetUnits() {
     return [];
+  }
+  getAttackSelectMode() {
+    return this.canSpecial() ? 'targetSpecial' : 'attack';
   }
   validateAttackAction(validate) {
     const action = super.validateAttackAction(validate);
@@ -157,8 +158,8 @@ export default class Furgon extends Unit {
       results,
     };
   }
-  getMoveResults(action) {
-    if (this.features.evergreen) return [];
+  onBoardMoveUnit({ unit, assignment, addResults }) {
+    if (unit !== this || this.features.evergreen) return [];
 
     const allUnits = this.board.teamsUnits.flat();
     if (allUnits.some(u => u.type === 'Shrub' && u.name === 'Golden Shrub'))
@@ -170,7 +171,7 @@ export default class Furgon extends Unit {
 
     for (const shrub of shrubs) {
       const needsEvergreen = furgons.some(f => (
-        this.board.getDistance(f === this ? action.assignment : f.assignment, shrub.assignment) < 4
+        this.board.getDistance(f === this ? assignment : f.assignment, shrub.assignment) < 4
       ));
       const isEvergreen = shrub.disposition === 'evergreen';
 
@@ -180,7 +181,7 @@ export default class Furgon extends Unit {
         results.push({ unit:shrub, changes:{ disposition:null } });
     }
 
-    return results;
+    addResults(results);
   }
   getAttackResults(action) {
     if (this.canSpecial())

@@ -36,6 +36,7 @@ export default class GameService extends Service {
         // Admin actions
         resetRatings: [ 'uuid', 'string | null' ],
         grantAvatar: [ 'uuid', 'string' ],
+        grantUnit: [ 'uuid', 'string' ],
 
         createGame: ['string', 'game:options'],
         tagGame: ['uuid', 'game:tags'],
@@ -74,6 +75,7 @@ export default class GameService extends Service {
         getMyAvatar: [],
         saveMyAvatar: ['game:avatar'],
         getMyAvatarList: [],
+        getMyUnitList: [],
         getPlayersAvatar: ['uuid[]'],
       },
       events: {
@@ -292,7 +294,7 @@ export default class GameService extends Service {
           !game.state.currentTeam.seen(this.startupAt)
         )
           game.state.end('truce');
-        else if (game.state.actions.length) {
+        else if (game.state.currentTurn.hasPlayedActions) {
           if (game.state.actions.last.type === 'endTurn') {
             this.debug(`autoSurrender: ${game.id}: error: Need sync!`);
             game.state.sync({ type:'willSync' });
@@ -553,7 +555,21 @@ export default class GameService extends Service {
 
     const target = await this.auth.getPlayer(targetPlayerId);
     const avatars = await this.data.getPlayerAvatars(target);
-    avatars.grant(unitType);
+    avatars.addAvatar(unitType);
+  }
+  async onGrantUnitRequest(client, targetPlayerId, unitType) {
+    if (!GameSession.cache.has(client.id))
+      throw new ServerError(401, 'Authorization is required');
+
+    if (process.env.NODE_ENV !== 'development') {
+      const session = GameSession.cache.get(client.id);
+      if (!session.player.identity.admin)
+        throw new ServerError(403, 'You must be an admin to use this feature.');
+    }
+
+    const target = await this.auth.getPlayer(targetPlayerId);
+    const avatars = await this.data.getPlayerAvatars(target);
+    avatars.addUnit(unitType);
   }
 
   /*
@@ -830,7 +846,9 @@ export default class GameService extends Service {
   }
 
   async onGetDefaultSetRequest(client, gameTypeId) {
-    return this.data.getDefaultSet(gameTypeId);
+    const player = GameSession.cache.get(client.id).player;
+
+    return this.data.getDefaultSet(player, gameTypeId);
   }
   async onGetPlayerSetsRequest(client, gameTypeId) {
     const player = GameSession.cache.get(client.id).player;
@@ -869,7 +887,13 @@ export default class GameService extends Service {
     const player = GameSession.cache.get(client.id).player;
     const playerAvatars = await this.data.getPlayerAvatars(player);
 
-    return playerAvatars.list;
+    return playerAvatars.listAvatars;
+  }
+  async onGetMyUnitListRequest(client) {
+    const player = GameSession.cache.get(client.id).player;
+    const playerAvatars = await this.data.getPlayerAvatars(player);
+
+    return playerAvatars.listUnits;
   }
   async onGetPlayersAvatarRequest(client, playerIds) {
     return this.data.listPlayersAvatar(playerIds);
@@ -1761,8 +1785,11 @@ export default class GameService extends Service {
 
   async _resolveTeamSet(game, team) {
     const gameType = game.state.gameType;
+    const player = await this.auth.getPlayer(team.playerId);
+    const playerAvatars = await this.data.getPlayerAvatars(player);
+
     if (team.setVia === 'top') {
-      const playerSet = await this.data.getDefaultSet(gameType.id);
+      const playerSet = await this.data.getDefaultSet(player, gameType.id);
       team.set = this.data.getTeamSet(playerSet, gameType);
     } else if (team.setVia === 'same') {
       const firstTeam = game.state.teams.filter(t => t?.joinedAt).sort((a, b) => a.joinedAt - b.joinedAt)[0];
@@ -1775,11 +1802,9 @@ export default class GameService extends Service {
         throw new ServerError(400, `Can't use mirror set when nobody has joined yet.`);
       team.set = firstTeam.set.clone('mirror');
     } else if (team.setVia === 'random') {
-      const player = await this.auth.getPlayer(team.playerId);
       const playerSet = (await this.data.getPlayerSets(player, gameType)).random();
       team.set = this.data.getTeamSet(playerSet, gameType);
     } else {
-      const player = await this.auth.getPlayer(team.playerId);
       const playerSet = await this.data.getPlayerSet(player, gameType, team.setVia);
       if (playerSet === null)
         throw new ServerError(412, 'Sorry!  Looks like the set no longer exists.');
@@ -1787,7 +1812,7 @@ export default class GameService extends Service {
     }
 
     try {
-      gameType.validateSet({ units:team.set.units });
+      gameType.validateSet({ units:team.set.units }, playerAvatars.listUnits);
     } catch (e) {
       console.log('_resolveTeamSet: validateSet: Error', e);
       throw new ServerError(403, `This set cannot be used in the ${gameType.name} style.`);

@@ -1,5 +1,5 @@
 [
-    [
+  [
     "freestyle",
     {
       "name": "Freestyle",
@@ -28,7 +28,8 @@
             ["DragonspeakerMage", { "max":1  }],
             ["BeastRider",        { "max":10 }],
             ["GolemAmbusher",     { "max":1  }],
-            ["Berserker",         { "max":1  }]
+            ["Berserker",         { "max":1  }],
+            ["StormDragon",       { "max":1, "points":2, "included":0 }]
           ]
         }
       },
@@ -36,12 +37,12 @@
         "name": "AFO Rush",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
-          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[5, 2], "type":"DragonTyrant" },
           { "assignment":[1, 4], "type":"Scout" },
           { "assignment":[2, 4], "type":"Knight" },
           { "assignment":[4, 4], "type":"MudGolem" },
           { "assignment":[5, 4], "type":"Knight" },
-          { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[6, 4], "type":"DragonspeakerMage" },
           { "assignment":[8, 4], "type":"Knight" },
           { "assignment":[9, 4], "type":"Scout" }
         ],
@@ -52,12 +53,12 @@
         "name": "AFO Rush Variation #1",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
-          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[5, 2], "type":"DragonTyrant" },
           { "assignment":[1, 4], "type":"Scout" },
           { "assignment":[2, 4], "type":"Knight" },
           { "assignment":[4, 4], "type":"Knight" },
           { "assignment":[5, 4], "type":"MudGolem" },
-          { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[6, 4], "type":"DragonspeakerMage" },
           { "assignment":[8, 4], "type":"Knight" },
           { "assignment":[9, 4], "type":"Scout" }
         ],
@@ -69,11 +70,11 @@
         "name": "AFO Rush Variation #2",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
-          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[5, 2], "type":"DragonTyrant" },
           { "assignment":[1, 4], "type":"Scout" },
           { "assignment":[2, 4], "type":"Knight" },
           { "assignment":[4, 4], "type":"MudGolem" },
-          { "assignment":[5, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[5, 4], "type":"DragonspeakerMage" },
           { "assignment":[6, 4], "type":"Knight" },
           { "assignment":[8, 4], "type":"Knight" },
           { "assignment":[9, 4], "type":"Scout" }
@@ -111,13 +112,13 @@
         "name": "Eliminator Rush",
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
-          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-24 },
+          { "assignment":[5, 2], "type":"DragonTyrant" },
           { "assignment":[1, 4], "type":"Scout" },
-          { "assignment":[3, 4], "type":"Pyromancer", "mPower":12 },
+          { "assignment":[3, 4], "type":"Pyromancer" },
           { "assignment":[4, 4], "type":"Knight" },
           { "assignment":[5, 4], "type":"MudGolem" },
           { "assignment":[6, 4], "type":"Knight" },
-          { "assignment":[7, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[7, 4], "type":"DragonspeakerMage" },
           { "assignment":[9, 4], "type":"Scout" }
         ],
         "tags": [
@@ -717,10 +718,10 @@
       "sets": [{
         "units": [
           { "assignment":[2, 0], "type":"Cleric" },
-          { "assignment":[2, 1], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[2, 1], "type":"DragonTyrant" },
           { "assignment":[2, 2], "type":"PoisonWisp" },
           { "assignment":[5, 3], "type":"Scout" },
-          { "assignment":[0, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[0, 4], "type":"DragonspeakerMage" },
           { "assignment":[1, 4], "type":"MudGolem" },
           { "assignment":[2, 4], "type":"Knight" },
           { "assignment":[3, 4], "type":"Pyromancer" },
@@ -812,12 +813,12 @@
       "sets": [{
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
-          { "assignment":[5, 2], "type":"DragonTyrant", "mPower":-12 },
+          { "assignment":[5, 2], "type":"DragonTyrant" },
           { "assignment":[1, 4], "type":"Scout" },
           { "assignment":[2, 4], "type":"Knight" },
           { "assignment":[4, 4], "type":"MudGolem" },
           { "assignment":[5, 4], "type":"Knight" },
-          { "assignment":[6, 4], "type":"DragonspeakerMage", "mPower":12 },
+          { "assignment":[6, 4], "type":"DragonspeakerMage" },
           { "assignment":[8, 4], "type":"Knight" },
           { "assignment":[9, 4], "type":"Scout" }
         ]
@@ -853,20 +854,21 @@
             ["DragonspeakerMage", { "max":10 }],
             ["BeastRider",        { "max":10 }],
             ["GolemAmbusher",     { "max":10 }],
-            ["Berserker",         { "max":10 }]
+            ["Berserker",         { "max":10 }],
+            ["StormDragon",       { "max":5, "points":2, "included":0 }]
           ]
         }
       },
       "sets": [{
         "units": [
           { "assignment":[5, 0], "type":"Cleric" },
-          { "assignment":[3, 1], "type":"DragonTyrant", "mPower":-28 },
-          { "assignment":[7, 1], "type":"DragonTyrant", "mPower":-28 },
+          { "assignment":[3, 1], "type":"DragonTyrant" },
+          { "assignment":[7, 1], "type":"DragonTyrant" },
           { "assignment":[1, 3], "type":"Scout" },
           { "assignment":[5, 3], "type":"MudGolem" },
           { "assignment":[9, 3], "type":"Scout" },
-          { "assignment":[3, 4], "type":"DragonspeakerMage", "mPower":28 },
-          { "assignment":[7, 4], "type":"DragonspeakerMage", "mPower":28 }
+          { "assignment":[3, 4], "type":"DragonspeakerMage" },
+          { "assignment":[7, 4], "type":"DragonspeakerMage" }
         ]
       }]
     }

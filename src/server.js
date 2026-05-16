@@ -97,6 +97,19 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
       </DIV>
     `,
   } ],
+  [ 3, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17</HEADER>
+      <DIV style="margin:8px 8px 0">
+        This release introduces a new unit, but I'm still testing it out.
+        So if you see an unrated game with an unfamiliar dragon avatar camped out in the lobby, come try and kill it.
+        If you fork my games, you can play with the new dragon as well.  Let me know what you think about it.
+        I'm trying to see if it is too overpowered.  Other than that, I fixed many bugs.  Maybe I created a few more.
+        If you see any bugs, please let me know on the <A href="https://discord.gg/juyhghF" target="_blank">Community Discord</A>.
+      </DIV>
+    `,
+    width: '350px',
+  } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');

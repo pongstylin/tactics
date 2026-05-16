@@ -73,6 +73,8 @@ export default class UnitPicker extends Modal {
     });
 
     this._els.rules.textContent = this.data.gameType.description;
+
+    this._unitGrantsPromise = Tactics.gameClient.getMyUnitList().then(units => this.data.unitGrants = units);
   }
 
   get team() {
@@ -90,13 +92,14 @@ export default class UnitPicker extends Modal {
   }
 
   getStats() {
-    return this.data.gameType.getStats(this.data.team.units);
+    return this.data.gameType.getStats(this.data.team.units, this.data.unitGrants);
   }
 
   pick() {
-    this._renderUnits();
-
-    this.show();
+    this._unitGrantsPromise.then(() => {
+      this._renderUnits();
+      this.show();
+    });
 
     return this.whenPicked = new Promise();
   }
@@ -175,6 +178,11 @@ export default class UnitPicker extends Modal {
         </DIV>
       `;
 
+      divDetails.querySelector('.available').classList.toggle('alert', (
+        unitStats.count < unitStats.max &&
+        unitStats.points <= stats.points.remaining &&
+        unitStats.available === 0
+      ));
       divDetails.querySelector('.maximum').classList.toggle('alert', unitStats.count === unitStats.max);
       divDetails.querySelector('.points').classList.toggle('alert', unitStats.points > stats.points.remaining);
     }

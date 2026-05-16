@@ -228,9 +228,13 @@ export default class Transport {
         return null;
       if (useEarliest)
         return { turnId:initialTurnId, actionId:0 };
-      if (this.currentTurn.isEmpty || this.currentTurn.isAutoSkipped)
-        return { turnId:this.getPreviousPlayableTurnId(), actionId:0 };
-      return { turnId:this.currentTurnId, actionId:0 };
+      if (this.currentTurn.isEmpty) {
+        const turn = this.getPreviousPlayableTurn();
+        // If the turn isn't loaded, fake it so that the undo button is enabled.
+        if (!turn) return { turnId:this.previousTurnId, actionId:0 };
+        return { turnId:turn.id, actionId:turn.firstActionId };
+      }
+      return { turnId:this.currentTurnId, actionId:this.currentTurn.firstActionId };
     }
 
     const numTeams = this.teams.length;
@@ -308,27 +312,16 @@ export default class Transport {
       for (let actionId = turn.lastActionId; actionId > -1; actionId--) {
         const action = turn.actions[actionId];
 
-        if (strictUndo) {
-          // May not undo more than the last playable action in strict mode without permission.
-          const lockedActionId = turn.lastActionId - (turn.isForcedEnded ? 1 : 0);
-          if (actionId < lockedActionId)
-            return pointer;
+        // May not undo an action after 5 seconds without permission in strict mode.
+        if (strictUndo && this.now - action.createdAt >= 5000)
+          return pointer;
 
-          // May not undo unit selection in strict mode without permission.
-          if (action.type === 'select')
-            return pointer;
-
-          // May not undo an action after 5 seconds without permission.
-          if (this.now - action.createdAt >= 5000)
-            return pointer;
-        }
-
-        // May not undo luck-involved attacks without permission.
-        if (action.results && action.results.findIndex(r => 'luck' in r) > -1)
+        // May not undo locked actions without permission.
+        if (action.locked)
           return pointer;
 
         // May not undo counter-attacks without permission.
-        if (action.unit !== undefined && action.unit !== turn.unit)
+        if (action.unit !== undefined && action.unit !== turn.selected)
           return pointer;
 
         // May undo forced end turns if something can be undone earlier.
@@ -435,11 +428,8 @@ export default class Transport {
 
     return null;
   }
-  getPreviousPlayableTurnId(contextTurnId = this.currentTurnId) {
-    const turnId = this.playableTurnsInReverse(contextTurnId - 1).next().value?.id ?? null;
-    if (turnId === null && contextTurnId > this.initialTurnId)
-      return contextTurnId - 1;
-    return turnId;
+  getPreviousPlayableTurn(contextTurnId = this.currentTurnId) {
+    return this.playableTurnsInReverse(contextTurnId - 1).next().value ?? null;
   }
   *playableTurnsInReverse(contextTurnId = this.currentTurnId) {
     const index = this.recentTurns.findIndex(t => t.id === contextTurnId);
@@ -626,7 +616,7 @@ export default class Transport {
     const board = this.board;
 
     for (const action of actions) {
-      this.currentTurn.pushAction(action);
+      this.currentTurn.pushAction(action, state.undoMode === 'strict');
       board.applyAction(board.decodeAction(action));
     }
 

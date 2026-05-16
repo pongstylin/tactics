@@ -440,7 +440,7 @@ export default class Game extends ActiveModel<GameEvents> {
 
         this.data.state.undo(teams[request.teamId]!, true);
       } else if (request.type === 'truce')
-        this.data.state.end('truce');
+        this.data.state.end('truce', false);
     }
 
     this.emit('change:acceptPlayerRequest');
@@ -741,7 +741,10 @@ export default class Game extends ActiveModel<GameEvents> {
 
       // Catch up the context turn as necessary.
       if (syncActionId < fromTurn.actions.length)
-        events.push({ type:'action', data:fromTurn.actions.slice(syncActionId) });
+        events.push({ type:'action', data:fromTurn.actions.slice(syncActionId).map((a:any) => {
+          delete a.locked;
+          return a;
+        }) });
 
       // Catch up subsequent turns, if any.
       for (let turnId = fromTurnId+1; turnId <= toTurnId; turnId++) {
@@ -756,7 +759,10 @@ export default class Game extends ActiveModel<GameEvents> {
 
         events.push({ type:'startTurn', data });
         if (turn.actions.length)
-          events.push({ type:'action', data:turn.actions });
+          events.push({ type:'action', data:turn.actions.map((a:any) => {
+            delete a.locked;
+            return a;
+          }) });
       }
     }
 

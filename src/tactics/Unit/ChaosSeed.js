@@ -72,7 +72,7 @@ export default class ChaosSeed extends Unit {
 
     return this;
   }
-  getPhaseAction() {
+  getEndTurnAction() {
     const board = this.board;
     const teamsData = board.getWinningTeams().reverse();
     let colorId = 'White';

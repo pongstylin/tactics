@@ -219,7 +219,13 @@ export default class SetBuilder extends Modal {
     // But if that involves showing a popup, then the click can fire on the popup!
     canvas.addEventListener('touchend', event => event.preventDefault());
 
-    await board.initCard();
+    await Promise.all([
+      board.initCard(),
+      Tactics.gameClient.getMyUnitList().then(grants => {
+        data.grants = grants;
+      }),
+    ]);
+
     board.draw();
     this._content.addChild(board.pixi);
     this._content.addChild(this._trash);
@@ -380,9 +386,14 @@ export default class SetBuilder extends Modal {
     return super.hide();
   }
 
+  /*
+   * Called externally by the ViewSet component with units set to the viewed set.
+   */
   reset(name = this.data.set.name, units = this.data.set.units) {
     const board = this._board;
-    units = units.map(unitData => ({ ...unitData, direction:'S' }));
+    const gameType = this.data.gameType;
+
+    units = gameType.applyTeamSetUnitsState(units.clone());
 
     const focused = board.focused;
     if (focused) {
@@ -393,32 +404,30 @@ export default class SetBuilder extends Modal {
     this._name.value = name;
 
     board.clear();
-    board.setState([ units, [] ], [ this._team, {} ]);
+    board.setState([ units, [] ], [ this._team, {} ], true);
     board.sortUnits();
     board.teamsUnits.flat().forEach(u => u.draggable = true);
 
     this._highlightPlaces();
-    this._setUnitsState();
     this.renderBoard();
     this._renderButtons();
   }
 
   placeUnit(unitType, tile) {
     const board = this._board;
-    const degree = board.getDegree('N', board.rotation);
 
     if (tile.assigned)
       this.removeUnit(tile.assigned);
 
-    const unit = board.addUnit({
+    // Full rotation not required because the placed tile is relative to current rotation.
+    const unit = board.addUnit(this.data.gameType.applyTeamSetUnitsState([{
       type: unitType,
       assignment: tile,
-      direction: board.getRotation('S', degree),
-    }, this._team);
+      direction: board.getRotation(board.rotation, 180),
+    }])[0], this._team, true);
     unit.draggable = true;
 
     this._highlightPlaces();
-    this._setUnitsState();
 
     // Replacing units may require removing other units.
     this.killUnits();
@@ -429,6 +438,7 @@ export default class SetBuilder extends Modal {
     if (tile.assigned)
       this.removeUnit(tile.assigned);
 
+    this.board.trigger({ type:'moveUnit', unit, target:tile, addResults:rs => board.applyActionResults(rs) });
     board.assign(unit, tile);
 
     // Moving and replacing units may require removing other units.
@@ -438,9 +448,12 @@ export default class SetBuilder extends Modal {
     const board = this._board;
     const dstUnit = dstTile.assigned;
 
+    this.board.trigger({ type:'moveUnit', unit, source:srcTile, target:dstTile, addResults:rs => board.applyActionResults(rs) });
     board.assign(unit, dstTile);
-    if (dstUnit)
+    if (dstUnit) {
+      this.board.trigger({ type:'moveUnit', unit:dstUnit, source:dstTile, target:srcTile, addResults:rs => board.applyActionResults(rs) });
       board.assign(dstUnit, srcTile);
+    }
 
     // Moving units may require removing other units.
     this.killUnits();
@@ -455,6 +468,7 @@ export default class SetBuilder extends Modal {
       if (unit === board.selected)
         this.selected = null;
 
+      board.trigger({ type:'dropUnit', unit, addResults:rs => board.applyActionResults(rs) });
       unit.change({ disposition:'dead' });
       unit.assignment.set_interactive(false);
       deadUnits.push(unit);
@@ -472,11 +486,8 @@ export default class SetBuilder extends Modal {
     while (auditUnits = this._auditUnitPlaces())
       auditUnits.forEach(killUnit);
 
-    if (animDeath.frames.length) {
+    if (animDeath.frames.length)
       await animDeath.play();
-
-      this._setUnitsState();
-    }
 
     this._highlightPlaces();
     this._renderButtons();
@@ -485,10 +496,9 @@ export default class SetBuilder extends Modal {
   removeUnit(unit) {
     const board = this._board;
 
+    board.trigger({ type:'dropUnit', unit, addResults:rs => board.applyActionResults(rs) });
     unit.change({ disposition:'dead' });
     board.dropUnit(unit);
-
-    this._setUnitsState();
   }
   _auditUnitPlaces() {
     const auditUnits = [];
@@ -842,7 +852,7 @@ export default class SetBuilder extends Modal {
     }
 
     try {
-      this.data.gameType.validateSet(set);
+      this.data.gameType.validateSet(set, this.data.grants);
     } catch (error) {
       if (error instanceof ServerError)
         popup(error.message);
@@ -901,7 +911,7 @@ export default class SetBuilder extends Modal {
     if (!set) return;
 
     const board = this._board;
-    const units = set.units.map(unitData => ({ ...unitData, direction:'S' }));
+    const units = this.data.gameType.applyTeamSetUnitsState(set.units.clone());
 
     this._name.value = set.name;
 
@@ -911,12 +921,11 @@ export default class SetBuilder extends Modal {
       focused.assignment.strip();
     }
     board.clear();
-    board.setState([ units, [] ], [ this._team, {} ]);
+    board.setState([ units, [] ], [ this._team, {} ], true);
     board.sortUnits();
     board.teamsUnits.flat().forEach(u => u.draggable = true);
 
     this._highlightPlaces();
-    this._setUnitsState();
     this.renderBoard();
     this._renderButtons();
   }
@@ -1133,7 +1142,7 @@ export default class SetBuilder extends Modal {
       return false;
 
     try {
-      this.data.gameType.validateSet({ units:this._board.getState()[0] });
+      this.data.gameType.validateSet({ units:this._board.getState()[0] }, this.data.grants);
     } catch (e) {
       return false;
     }
@@ -1408,26 +1417,6 @@ export default class SetBuilder extends Modal {
     }, true);
 
     return { places, noplaces };
-  }
-  _setUnitsState() {
-    const gameType = this.data.gameType;
-    const set = gameType.applySetUnitState({
-      units: TeamSet.cleanUnits(this._board.getState()[0]),
-    });
-
-    for (let i = 0; i < this._team.units.length; i++) {
-      const unit = this._team.units[i];
-
-      const changes = {
-        mPower: 0,
-        ...set.units[i],
-      };
-      delete changes.type;
-      delete changes.assignment;
-      delete changes.direction;
-
-      unit.change(changes);
-    }
   }
 
   _renderBoard() {

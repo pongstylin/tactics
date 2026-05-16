@@ -145,6 +145,7 @@ export default class PlayerInfoSelf extends Modal {
             `<DIV><A href="${await this.getViewSetURL()}">${info.set.name}</A></DIV>`,
             `<DIV>Selection Method:</DIV>`,
             `<DIV>${PlayerInfo.getSetViaName(info.set.via)}</DIV>`,
+            info.set.randomSide ? '<DIV>Random Side</DIV>' : '',
           `</DIV>`,
         `</DIV>`,
       ]),

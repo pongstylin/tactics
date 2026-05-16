@@ -52,9 +52,10 @@ export default class DragonspeakerMage extends Pyromancer {
     const mages = this.team.units.filter(u =>
       u instanceof Pyromancer && u.disposition !== 'dead'
     );
-    const counts = [dragons.length, speakers.length, mages.length];
-    const prev = calcPowerModifiers(...counts);
-    const change = type === 'addUnit' ? 1 : type === 'dropUnit' ? -1 : 0;
+    const prevCounts = [dragons.length, speakers.length, mages.length];
+    const nextCounts = prevCounts.slice();
+    const counts = type === 'addUnit' ? prevCounts : nextCounts;
+    const change = -1;
 
     if (unit.type === 'DragonTyrant')
       counts[0] += change;
@@ -64,7 +65,8 @@ export default class DragonspeakerMage extends Pyromancer {
     } else if (unit.type === 'Pyromancer')
       counts[2] += change;
 
-    const next = calcPowerModifiers(...counts);
+    const prev = calcPowerModifiers(...prevCounts);
+    const next = calcPowerModifiers(...nextCounts);
     let results = [];
 
     if (dragons.length)
