@@ -516,7 +516,7 @@ unitDataMap.set('StormDragon', {
   power: 24,
   armor: 10,
   health: 46,
-  recovery: 1,
+  recovery: 2,
   blocking: 65,
   mType: 'teleport',
   mRadius: 4,
