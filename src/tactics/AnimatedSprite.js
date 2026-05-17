@@ -24,6 +24,11 @@ export default class AnimatedSprite {
     const spriteData = this.dataMap.get(spriteName);
     const promises = [];
 
+    // Load dependsOn before the sprite so that required sprites are present.
+    // E.g. DragonspeakerMage depends on the Pyromancer sprites.
+    if (spriteData.dependsOn)
+      await Promise.all(spriteData.dependsOn.map(importData => this.load(importData)));
+
     if (spriteData.images) {
       const imagePromises = spriteData.images.map(() => new Promise());
 

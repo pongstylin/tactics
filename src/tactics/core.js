@@ -81,10 +81,13 @@ window.Tactics = {
 
       spriteData.name = unitType;
       spriteData.imports ??= [];
+      spriteData.dependsOn ??= [];
 
       if (unitData) {
         if (unitData.imports)
           spriteData.imports.push(...unitData.imports);
+        if (unitData.dependsOn)
+          spriteData.dependsOn.push(...unitData.dependsOn);
         if (unitData.sounds)
           for (let name of Object.keys(unitData.sounds)) {
             let sound = unitData.sounds[name];

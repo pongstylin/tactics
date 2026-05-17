@@ -19,7 +19,7 @@ export default class StormDragon extends Unit {
       .off('moveUnit', this._adjustBonusListener);
   }
 
-  _adjustBonus({ type, unit, source = this.assignment, target = this.assignment, addResults }) {
+  _adjustBonus({ type, unit, source = unit.assignment, target = unit.assignment, addResults }) {
     if (unit !== this && unit.type !== 'LightningWard' || unit.team !== this.team)
       return;
 
@@ -180,6 +180,9 @@ export default class StormDragon extends Unit {
     return anim;
   }
   animAttackEffect(effect, target, miss) {
+    if (effect.spriteId !== 'sprite:FireBlast')
+      return super.animAttackEffect(effect, target, miss);
+
     let board     = this.board;
     let anim      = new Tactics.Animation();
     let tunit     = target.assigned;
