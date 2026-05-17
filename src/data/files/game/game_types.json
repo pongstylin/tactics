@@ -874,6 +874,49 @@
     }
   ],
   [
+    "ancientStorm",
+    {
+      "name": "Ancient Storm",
+      "description": "<HEADER>The History of Storm Dragons</HEADER><DIV>The Storm Dragons are the very first creatures of the ancient world — the gods’ earliest reptilian prototypes. Forged and tempered by lightning, they possess such immense capacity for power that they can call and absorb lightning to restore their bodies.</DIV><DIV>Compared to the Dragon Tyrants, they have a much slimmer physique, but their glowing metallic exterior can be tightened into impenetrable armor at will. Today, they are exceedingly rare creatures. When the mages discovered the power of the Dragon Tyrants and forged an alliance with them, most of the Storm Dragons were driven to extinction.</DIV>",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
+        "units": {
+          "types": [
+            ["Scout",             { "max":2  }],
+            ["Cleric",            { "max":10 }],
+            ["StoneGolem",        { "max":1  }],
+            ["BarrierWard",       { "max":9  }],
+            ["LightningWard",     { "required":1, "max":1 }],
+            ["MudGolem",          { "max":10 }],
+            ["PoisonWisp",        { "max":1  }],
+            ["FrostGolem",        { "max":10 }],
+            ["DragonTyrant",      { "max":1, "points":2 }],
+            ["Furgon",            { "max":1  }],
+            ["DragonspeakerMage", { "max":1  }],
+            ["BeastRider",        { "max":10 }],
+            ["GolemAmbusher",     { "max":1  }],
+            ["Berserker",         { "max":1  }],
+            ["StormDragon",       { "required":1, "max":1, "points":2 }]
+          ]
+        }
+      },
+      "sets": [{
+        "units": [
+          { "assignment":[2, 0], "type":"Cleric" },
+          { "assignment":[3, 0], "type":"StoneGolem" },
+          { "assignment":[2, 1], "type":"Scout" },
+          { "assignment":[3, 1], "type":"StormDragon" },
+          { "assignment":[4, 1], "type":"Scout" },
+          { "assignment":[1, 2], "type":"DragonTyrant" },
+          { "assignment":[3, 2], "type":"DragonspeakerMage" },
+          { "assignment":[4, 4], "type":"LightningWard" }
+        ]
+      }]
+    }
+  ],
+  [
     "dragonChess",
     {
       "name": "Dragon Chess",
