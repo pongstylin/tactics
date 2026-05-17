@@ -273,6 +273,9 @@ export default class SetBuilder extends Modal {
   /*****************************************************************************
    * Public Properties
    ****************************************************************************/
+  get type() {
+    return this.data.gameType.id;
+  }
   get gameType() {
     return this.data.gameType;
   }
