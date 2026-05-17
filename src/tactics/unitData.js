@@ -296,6 +296,8 @@ unitDataMap.set('DragonspeakerMage', {
   waitFirstTurn: true,
   tier: 4,
   rarity: 9,
+
+  dependsOn: ['Pyromancer'],
 });
 
 unitDataMap.set('ChaosSeed', {

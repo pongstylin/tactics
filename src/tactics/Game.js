@@ -150,6 +150,9 @@ export default class Game {
   /*****************************************************************************
    * Public Properties
    ****************************************************************************/
+  get type() {
+    return this.state.type;
+  }
   get collection() {
     return this.state.collection;
   }
@@ -1574,7 +1577,7 @@ export default class Game {
       let animDie = new Tactics.Animation();
 
       deadUnits.forEach((result, unit) => {
-        animDie.splice(0, unit.animDie());
+        animDie.splice(0, unit.animDie(action));
       });
 
       if (deadUnits.size > 1) {
