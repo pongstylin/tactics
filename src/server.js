@@ -110,6 +110,17 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
     `,
     width: '350px',
   } ],
+  [ 20260517, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17 (patch 0)</HEADER>
+      <DIV style="margin:8px 8px 0">
+        Added the Ancient Storm style, invented by Tuge.
+        This style will let you use the new unit so that you can test it with me.
+        If you see any bugs, please let me know on the <A href="https://discord.gg/juyhghF" target="_blank">Community Discord</A>.
+      </DIV>
+    `,
+    width: '350px',
+  } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');
