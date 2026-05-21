@@ -393,7 +393,15 @@ export default class TeamSet extends ActiveModel<TeamSetEvents> {
           const rarity = unitTypeByCode.get(tag.name)!.rarity!;
           units.push({
             name: ((tag.count ?? 1) > 1 ? `${tag.count} ` : '') + unitTypeByCode.get(tag.name)!.shortName + (tag.count === 0 ? 'less' : ''),
-            count: this.cardinality.indexes.get(tagIndex)?.count ?? 0,
+            count: (() => {
+              if (tag.count !== 0)
+                return this.cardinality.indexes.get(tagIndex)?.count ?? 0;
+              // For newly added units to a style, this is more accurate than the zero count index.
+              // Rebuilding the index is still necessary for accurate search.
+              const maxCount = this.cardinality.indexes.get('/')?.count ?? 0;
+              const count = this.cardinality.indexes.get(`/${tag.type}/${tag.name}`)?.count ?? 0;
+              return maxCount - count;
+            })(),
             rarity: tag.count === 0 ? maxRarity - rarity : rarity,
             tagCount: tag.count ?? 1,
             tagIndex,
