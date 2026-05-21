@@ -808,13 +808,7 @@ export default class GameState extends TypedEmitter {
         return 'draw';
 
       // End the next turn if we can't find one playable unit.
-      turnEnded = !this.currentTeam.units.some(unit => {
-        if (unit.mRecovery) return;
-        if (unit.paralyzed) return;
-        if (unit.type === 'Shrub') return;
-
-        return true;
-      });
+      turnEnded = !this.currentTeam.units.some(unit => unit.canSelect());
 
       if (turnEnded) {
         this._endTurn(true);
