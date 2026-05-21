@@ -1969,8 +1969,21 @@ export default class Unit {
 
     return action;
   }
+  canSelect() {
+    if (this.mRecovery) return false;
+    if (this.paralyzed) return false;
+    if (this.type === 'Shrub') return false;
+
+    return this.canMove() || this.canAttack() || this.canTurn();
+  }
   canMove() {
     return !!this.getMoveTiles().length;
+  }
+  canAttack() {
+    return !!this.getAttackTiles().length;
+  }
+  canTurn() {
+    return this.directional !== false;
   }
   canSpecial() {
     return false;
@@ -1986,9 +1999,6 @@ export default class Unit {
     if (this.focusing)
       return false;
     return true;
-  }
-  canTurn() {
-    return this.directional !== false;
   }
   isImmune(_attacker, stats) {
     if (
