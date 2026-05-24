@@ -11,12 +11,10 @@ export default class Assassin extends Unit {
   }
   getSpecialTargetTiles(source = this.assignment) {
     const board   = this.board;
-    const targets = board.getTileRange(source, 0, 1, false);
+    const targets = board.getTileRange(source, 0, 1);
 
     // Detonate closer tiles before further tiles.
-    targets.sort((a, b) =>
-      board.getDistance(this.assignment, a) - board.getDistance(this.assignment, b)
-    );
+    targets.sort((a, b) => board.getDistance(source, a) - board.getDistance(source, b));
 
     return targets;
   }
