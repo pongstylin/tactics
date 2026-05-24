@@ -1171,15 +1171,15 @@
           "types": [
             [ "StoneGolem",     { "max":3, "points":25, "tiles":{ "start":[0,4], "end":[10,4] }, "required":3 } ],
             [ "DragonTyrant",   { "max":1, "points":12, "tiles":{ "start":[0,0], "end":[10,2] } } ],
-            [ "Knight",         { "max":1, "points":10, "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Knight",         { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Scout",          { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "PoisonWisp",     { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
-            [ "Berserker",      { "max":1, "points":9,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
-            [ "FrostGolem",     { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "Berserker",      { "max":1, "points":10, "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "FrostGolem",     { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "MudGolem",       { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Cleric",         { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
-            [ "BeastRider",     { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
-            [ "GolemAmbusher",  { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "BeastRider",     { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
+            [ "GolemAmbusher",  { "max":1, "points":8,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "Assassin",       { "max":1, "points":7,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "LightningWard",  { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
             [ "DarkMagicWitch", { "max":1, "points":6,  "tiles":{ "start":[0,0], "end":[10,2] } } ],
@@ -1203,17 +1203,6 @@
           { "assignment":[4,2], "type":"DarkMagicWitch" },
           { "assignment":[5,2], "type":"DragonTyrant" },
           { "assignment":[6,2], "type":"Assassin" }
-        ]
-      }, {
-        "name": "Default",
-        "units": [
-          { "assignment":[4,4], "type":"StoneGolem" },
-          { "assignment":[5,4], "type":"StoneGolem" },
-          { "assignment":[6,4], "type":"StoneGolem" },
-          { "assignment":[4,2], "type":"GolemAmbusher" },
-          { "assignment":[5,2], "type":"Enchantress" },
-          { "assignment":[6,2], "type":"Assassin" },
-          { "assignment":[5,1], "type":"BarrierWard" }
         ]
       }, {
         "name": "Default",
