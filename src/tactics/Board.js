@@ -1955,6 +1955,8 @@ export default class Board {
     const selected = this.selected;
     const targetAction = target.action.replace(/^attack/, 'target');
 
+    this.target = target;
+
     // Necessary for mud quake where the trigger tile is not in the target tiles set.
     this.setHighlight(target, {
       action: targetAction,
@@ -2122,7 +2124,7 @@ export default class Board {
       return;
     }
 
-    if (!this.selected.aAll)
+    if (!this.selected.aAll && this.target)
       action.target = this.target;
 
     if (this.selected.directional !== false) {
