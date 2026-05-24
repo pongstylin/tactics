@@ -121,6 +121,19 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
     `,
     width: '350px',
   } ],
+  [ 20260524, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17 (patch 1)</HEADER>
+      <DIV style="margin:8px 8px 0 0">
+        <UL>
+          <LI>Fixed assassin bomb trigger.</LI>
+          <LI>Fixed Faceoff style.</LI>
+          <LI>Fixed display of style rules for the new Ancient Storm style in unit picker popup.</LI>
+          <LI>Adjusted unit points for Stone Race style.  Some previously used and saved sets may no longer be allowed.</LI>
+        </UL>
+      </DIV>
+    `,
+  } ]
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');
