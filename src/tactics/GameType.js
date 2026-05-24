@@ -71,13 +71,23 @@ export default class GameType {
   constructor(data) {
     Object.assign(this, data);
 
-    if (this.config.sets)
-      this.config.sets = this.config.sets.map(s => {
+    if (this.config.sets) {
+      this.config.sets = this.config.sets.filter((set, s) => {
         // The id is necessary for displaying curated set names instead of generated names.
-        s.id = TeamSet.createId(s);
-        s.name ??= 'Default';
-        return s;
+        set.id = TeamSet.createId(set);
+        set.name ??= 'Default';
+        try {
+          this.validateSet(set);
+        } catch (e) {
+          console.warn(`Warning: Skipping ${this.name ?? 'Unknown'} invalid set ${s}: ${e}`, e.stack);
+          return false;
+        }
+        return true;
       });
+
+      if (this.config.sets.length === 0)
+        throw new Error(`Error: No sets remain for ${this.name ?? 'Unknown'}`);
+    }
 
     this._tagByKeyword = null;
   }
@@ -449,6 +459,10 @@ export default class GameType {
         throw new ServerError(429, `You don't have enough ${unitType} units to save this set.`);
     }
   }
+  validateSetExists(units) {
+    const setId = TeamSet.createId({ units });
+    return this.config.sets.some(s => s.id === setId);
+  }
   cleanSet(set) {
     for (let propName of Object.keys(set)) {
       if (propName === 'id') continue;
@@ -464,15 +478,19 @@ export default class GameType {
     return set;
   }
   validateSet(set, grants = new Map()) {
-    const team = {};
-    const board = new Board();
-    board.setState([ set.units ], [ team ]);
-
-    this.validateSetIsNotEmpty(team.units);
-    this.validateSetUnitPlacements(board, team.units);
-    this.validateSetIsNotOverFull(team.units);
-    this.validateSetUnitCounts(team.units, grants);
     this.cleanSet(set);
+
+    if (this.isCustomizable) {
+      const team = {};
+      const board = new Board();
+      board.setState([ set.units ], [ team ]);
+
+      this.validateSetIsNotEmpty(team.units);
+      this.validateSetUnitPlacements(board, team.units);
+      this.validateSetIsNotOverFull(team.units);
+      this.validateSetUnitCounts(team.units, grants);
+    } else
+      this.validateSetExists(set.units);
 
     return set;
   }
