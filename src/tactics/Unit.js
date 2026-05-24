@@ -94,20 +94,13 @@ export default class Unit {
     const board = this.board;
     const range = this.aRange;
 
-    if (this.aLinear) {
+    if (this.aLinear)
       // Dark Magic Witch, Beast Rider, Dragon Tyrant, Storm Dragon, Chaos Dragon
       // All existing units have a minimum range of 1.
-      const tiles = board.getTileLinearRange(source, range[1]);
-      if (this.canSpecial() && !tiles.some(t => t === source))
-        tiles.unshift(source);
-      return tiles;
-    } else if (range) {
-      const tiles = board.getTileRange(source, ...range);
-      if (this.canSpecial() && !tiles.some(t => t === source))
-        tiles.unshift(source);
-      return tiles;
-    } else
-      return [];
+      return board.getTileLinearRange(source, range[1]);
+    else if (range)
+      return board.getTileRange(source, ...range);
+    return [];
   }
   getTargetTiles(actionType, target, source = this.assignment) {
     if (actionType === 'attack' || actionType === 'target')
@@ -228,7 +221,7 @@ export default class Unit {
     return null;
   }
   getAttackSelectMode() {
-    return this.aAll ? 'target' : 'attack';
+    return this.aAll && !this.canSpecial() ? 'target' : 'attack';
   }
   getTargetSelectMode(target) {
     if (target === this.assignment && this.canSpecial())
