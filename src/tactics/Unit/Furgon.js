@@ -369,7 +369,6 @@ export default class Furgon extends Unit {
       me.W && me.W.assigned && me.W.assigned.type === 'Shrub' && me.N.assigned.name === 'Shrub'
     );
   }
-  // Furgon can only be truly killed if paralyzed or poisoned first
   getDeadResult(attacker, result) {
     const isDead = super.getDeadResult(attacker, result);
     if (!isDead) return isDead;
@@ -379,8 +378,6 @@ export default class Furgon extends Unit {
 
     if (!this.features.transform)
       return isDead;
-    if (this.team.units.some(u => u.type === 'Furgon' && u !== this && u.disposition !== 'dead'))
-      return isDead;
     if (attacker.team === this.team)
       return isDead;
     if (this.paralyzed || this.poisoned)
@@ -388,6 +385,8 @@ export default class Furgon extends Unit {
     for (const D of [ 'N', 'S', 'E', 'W' ])
       if (this.assignment[D]?.assigned?.type === 'Shrub' && this.assignment[D]?.assigned?.name === 'Rageweed')
         return isDead;
+    if (this.board.teamsUnits.flat().filter(tu => tu.type === 'Furgon').length > 1)
+      return isDead;
 
     result.changes.disposition = 'transform';
 
