@@ -664,16 +664,18 @@ export default class Board {
       if (this.locked === true) return;
       if (event.target.label === 'tiles') return;
 
+      const activated = this.viewed || this.selected;
+
       // This really should be an emitted event.
       if (Tactics.game.selectMode?.startsWith('target') && !this.isAdjacentToHighlighted(event.target.data)) {
-        const activated = this.viewed || this.selected;
-        if (activated?.getAttackSelectMode() === 'attack') {
-          Tactics.game.selectMode = 'attack';
+        const attackMode = activated?.getAttackSelectMode();
+        if (attackMode.startsWith('attack')) {
+          Tactics.game.selectMode = attackMode;
           return;
         }
       }
 
-      if (this.viewed || this.selected)
+      if (activated)
         this._emit({
           type: 'deselect',
           target: null,
