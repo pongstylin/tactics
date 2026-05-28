@@ -219,12 +219,13 @@ function renderGameInfo(game) {
       labels.push(game.mode.toUpperCase('first'));
 
     const isGuestGame = game.meta.ranks.some(r => r === false);
+    const amGuest = !Tactics.authClient.isVerified;
 
     if (!game.collection && game.mode !== 'fork')
       labels.push('Private');
     else if (!game.startedAt && game.rated === true)
       labels.push('Rated');
-    else if (![ 'fork', 'practice' ].includes(game.mode) && game.rated === false && !isGuestGame)
+    else if (![ 'fork', 'practice' ].includes(game.mode) && game.rated === false && !isGuestGame && !amGuest)
       labels.push('Unrated');
 
     if (!game.startedAt && game.createdBy === Tactics.authClient.playerId) {
@@ -286,9 +287,10 @@ function renderGameGroupInfo(oldest, numStyles) {
     labels.push(oldest.mode.toUpperCase('first'));
 
   const isGuestGame = oldest.meta.ranks.some(r => r === false);
+  const amGuest = !Tactics.authClient.isVerified;
   if (oldest.rated === true)
     labels.push('Rated');
-  else if (![ 'fork', 'practice' ].includes(oldest.mode) && oldest.rated === false && !isGuestGame)
+  else if (![ 'fork', 'practice' ].includes(oldest.mode) && oldest.rated === false && !isGuestGame && !amGuest)
     labels.push('Unrated');
 
   const spnLeft = document.createElement('SPAN');
