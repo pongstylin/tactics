@@ -302,8 +302,8 @@ api.get('/announcements').then(async announcements => {
 
   for (const [ announcementId, announcement ] of announcements) {
     if (announcement.silent) continue;
-    if (now < announcement.startAt) continue;
-    if (now > announcement.endAt) continue;
+    if (announcement.startAt && announcement.startAt > now) continue;
+    if (announcement.endAt && announcement.endAt < now) continue;
 
     const response = responses.get(announcementId);
     if (response?.type === 'dismiss') continue;
