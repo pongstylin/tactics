@@ -133,6 +133,14 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
         </UL>
       </DIV>
     `,
+  } ],
+  [ 20260528, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">Furgon Update!</HEADER>
+      <DIV style="margin:8px 8px 0 0">
+        Furgon will no longer transform into a Golden Shrub if there is another Furgon on the board.  Keep this in mind if you play Mob style.  You might want to kill their Furgon before they kill yours.  This change was made to avoid excessively long games.
+      </DIV>
+    `,
   } ]
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
