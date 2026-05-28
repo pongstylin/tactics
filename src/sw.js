@@ -63,7 +63,7 @@ const INSTALL_CACHE_NAME = 'app' + SUFFIX;
 //   1) A minor change to a file has taken place (e.g. changing an image)
 //   2) A file is moved from the fetch cache to the install cache.
 //   3) One or more files are no longer used by a new app version.
-const FETCH_CACHE_NAME = 'dynamic-20260426';
+const FETCH_CACHE_NAME = 'dynamic-20260528';
 const LOCAL_CACHE_NAME = 'local';
 
 const ACTIVE_CACHE_NAMES = [
@@ -206,6 +206,9 @@ self.addEventListener('fetch', event => {
     return;
   // Do not interfere with the auth callback.
   if (originPath === `${API_ENDPOINT}/auth/callback`)
+    return;
+  // Do not interfere with announcements.
+  if (originPath === `${API_ENDPOINT}/announcements`)
     return;
   // Only handle GET requests.
   // Note: This placement ensures POST/DELETE to the LOCAL_ENDPOINT work.
