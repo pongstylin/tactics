@@ -647,7 +647,7 @@ export default class GameState extends TypedEmitter {
       if (selected && unit !== selected)
         throw new ServerError(400, 'Actor is not the selected unit');
 
-      if (!unit.canContinue())
+      if (!selected && !unit.canSelect())
         throw new ServerError(400, 'Actor is unable to act');
 
       if (this.currentTurn.isEmpty)
