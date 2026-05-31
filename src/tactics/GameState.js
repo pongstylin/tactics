@@ -647,8 +647,7 @@ export default class GameState extends TypedEmitter {
       if (selected && unit !== selected)
         throw new ServerError(400, 'Actor is not the selected unit');
 
-      // Recovering or paralyzed units can't take action.
-      if (unit.mRecovery || unit.paralyzed)
+      if (!unit.canContinue())
         throw new ServerError(400, 'Actor is unable to act');
 
       if (this.currentTurn.isEmpty)
