@@ -584,6 +584,7 @@ export default class Unit {
     }
   }
   getDeadResult(attacker, result) {
+    if (result.miss) return false;
     if (![ 'melee', 'magic' ].includes(attacker.aType)) return false;
 
     const health = this.health ?? 0;
