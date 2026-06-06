@@ -56,10 +56,8 @@ app.post(`${PATH}/report`, (req, res) => {
   res.send(true);
 });
 app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new Map([
-  [ 1, {
-    silent: true,
-    startAt: new Date('2026-04-01T00:00:00Z'),
-    endAt: new Date('2026-04-15T00:00:00Z'),
+  [ 20260606, {
+    endAt: new Date('2026-06-11T00:00:00Z'),
     message: `
       <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
       <DIV style="margin:0 8px">
@@ -73,42 +71,28 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
         Tap the arena below to join our Discord for sign-ups and full details!<BR>
       </DIV>
       <DIV style="text-align:center; margin-top:16px">
-        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
+        <A href="https://discord.gg/MUX5gpStg" target="_blank" style="display:inline-block; position:relative">
           <IMG src="/StormDragonPreview.png" />
           <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Tap to join!</SPAN>
         </A>
       </DIV>
     `,
   } ],
-  [ 2, {
-    silent: true,
-    startAt: new Date('2026-04-15T00:00:00Z'),
-    endAt: new Date('2026-05-02T00:00:00Z'),
+  [ 20260610, {
+    startAt: new Date('2026-06-10T00:00:00Z'),
+    endAt: new Date('2026-06-11T00:00:00Z'),
     message: `
       <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
       <DIV style="margin:0 8px">
-        Final call and reminder!  Don't miss out on your chance to earn $$ while playing in a brand new Tournament starting May 2nd.  If you play all of your games, you will earn the brand new Storm Dragon unit.  Tap the arena below to visit our Discord to learn more and sign up.
+        Final call and reminder!  Don't miss out on your chance to earn $$ while playing in this unique tournament.  If you play all of your games, you will earn the brand new Storm Dragon unit.  You have less than 24 hours to tap the arena below to visit our Discord to sign up.
       </DIV>
       <DIV style="text-align:center; margin-top:16px">
-        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
+        <A href="https://discord.gg/MUX5gpStg" target="_blank" style="display:inline-block; position:relative">
           <IMG src="/StormDragonPreview.png" />
           <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Tap to join!</SPAN>
         </A>
       </DIV>
     `,
-  } ],
-  [ 3, {
-    message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17</HEADER>
-      <DIV style="margin:8px 8px 0">
-        This release introduces a new unit, but I'm still testing it out.
-        So if you see an unrated game with an unfamiliar dragon avatar camped out in the lobby, come try and kill it.
-        If you fork my games, you can play with the new dragon as well.  Let me know what you think about it.
-        I'm trying to see if it is too overpowered.  Other than that, I fixed many bugs.  Maybe I created a few more.
-        If you see any bugs, please let me know on the <A href="https://discord.gg/juyhghF" target="_blank">Community Discord</A>.
-      </DIV>
-    `,
-    width: '350px',
   } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
