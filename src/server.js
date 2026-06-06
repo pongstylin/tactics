@@ -56,10 +56,8 @@ app.post(`${PATH}/report`, (req, res) => {
   res.send(true);
 });
 app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new Map([
-  [ 1, {
-    silent: true,
-    startAt: new Date('2026-04-01T00:00:00Z'),
-    endAt: new Date('2026-04-15T00:00:00Z'),
+  [ 20260606, {
+    endAt: new Date('2026-06-11T00:00:00Z'),
     message: `
       <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
       <DIV style="margin:0 8px">
@@ -73,24 +71,23 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
         Tap the arena below to join our Discord for sign-ups and full details!<BR>
       </DIV>
       <DIV style="text-align:center; margin-top:16px">
-        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
+        <A href="https://discord.gg/MUX5gpStg" target="_blank" style="display:inline-block; position:relative">
           <IMG src="/StormDragonPreview.png" />
           <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Tap to join!</SPAN>
         </A>
       </DIV>
     `,
   } ],
-  [ 2, {
-    silent: true,
-    startAt: new Date('2026-04-15T00:00:00Z'),
-    endAt: new Date('2026-05-02T00:00:00Z'),
+  [ 20260610, {
+    startAt: new Date('2026-06-10T00:00:00Z'),
+    endAt: new Date('2026-06-11T00:00:00Z'),
     message: `
       <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
       <DIV style="margin:0 8px">
-        Final call and reminder!  Don't miss out on your chance to earn $$ while playing in a brand new Tournament starting May 2nd.  If you play all of your games, you will earn the brand new Storm Dragon unit.  Tap the arena below to visit our Discord to learn more and sign up.
+        Final call and reminder!  Don't miss out on your chance to earn $$ while playing in this unique tournament.  If you play all of your games, you will earn the brand new Storm Dragon unit.  You have less than 24 hours to tap the arena below to visit our Discord to sign up.
       </DIV>
       <DIV style="text-align:center; margin-top:16px">
-        <A href="https://discord.gg/nuXcg65" target="_blank" style="display:inline-block; position:relative">
+        <A href="https://discord.gg/MUX5gpStg" target="_blank" style="display:inline-block; position:relative">
           <IMG src="/StormDragonPreview.png" />
           <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Tap to join!</SPAN>
         </A>
@@ -141,7 +138,7 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
         Furgon will no longer transform into a Golden Shrub if there is another Furgon on the board.  Keep this in mind if you play Mob style.  You might want to kill their Furgon before they kill yours.  This change was made to avoid excessively long games.
       </DIV>
     `,
-  } ]
+  } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');
