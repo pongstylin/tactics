@@ -664,16 +664,18 @@ export default class Board {
       if (this.locked === true) return;
       if (event.target.label === 'tiles') return;
 
+      const activated = this.viewed || this.selected;
+
       // This really should be an emitted event.
       if (Tactics.game.selectMode?.startsWith('target') && !this.isAdjacentToHighlighted(event.target.data)) {
-        const activated = this.viewed || this.selected;
-        if (activated?.getAttackSelectMode() === 'attack') {
-          Tactics.game.selectMode = 'attack';
+        const attackMode = activated?.getAttackSelectMode();
+        if (attackMode.startsWith('attack')) {
+          Tactics.game.selectMode = attackMode;
           return;
         }
       }
 
-      if (this.viewed || this.selected)
+      if (activated)
         this._emit({
           type: 'deselect',
           target: null,
@@ -1715,11 +1717,11 @@ export default class Board {
    * been hidden AND the viewed or selected unit activated with the new mode.
    */
   showMode() {
-    let unit = this.viewed || this.selected;
+    const unit = this.viewed || this.selected;
     if (!unit) return;
 
-    let mode = unit.activated;
-    let view_only = !!this.viewed;
+    const mode = unit.activated;
+    const view_only = !!this.viewed;
 
     if (mode === 'move')
       this._highlightMove(unit, view_only);
@@ -1921,6 +1923,12 @@ export default class Board {
       color: ATTACK_TILE_COLOR,
     }, view_only);
 
+    if (unit.canSpecial())
+      this.setHighlight(unit.assignment, {
+        action: 'attackSpecial',
+        color: ATTACK_TILE_COLOR,
+      }, view_only);
+
     return this;
   }
   _highlightTarget(unit) {
@@ -1930,8 +1938,15 @@ export default class Board {
 
     this.setHighlight(tiles, {
       action: actionType,
-      color:  TARGET_TILE_COLOR,
+      color: TARGET_TILE_COLOR,
     });
+
+    // Useful for mud quake where the trigger tile is not in the target tiles set.
+    if (actionType === 'targetSpecial' && !tiles.includes(unit.assignment))
+      this.setHighlight(unit.assignment, {
+        action: actionType,
+        color: TARGET_TILE_COLOR,
+      });
 
     this.showTargets(target);
 
@@ -1940,16 +1955,14 @@ export default class Board {
 
   _highlightTargetMix(target) {
     const selected = this.selected;
-    const targetAction = selected.getTargetSelectMode(target);
+    const targetAction = target.action.replace(/^attack/, 'target');
 
-    // Configure the target before repainting tiles because setHighlight()
-    // can synchronously re-enter tile focus handlers.
     this.target = target;
 
-    // Necessary for special attacks
+    // Necessary for mud quake where the trigger tile is not in the target tiles set.
     this.setHighlight(target, {
       action: targetAction,
-      color: ATTACK_TILE_COLOR,
+      color: TARGET_TILE_COLOR,
     });
 
     // Show target tiles
@@ -1958,13 +1971,13 @@ export default class Board {
         // Reconfigure the focused tile to be a target tile.
         this.setHighlight(tile, {
           action: targetAction,
-          color:  TARGET_TILE_COLOR,
+          color: TARGET_TILE_COLOR,
         });
       else
         // This attack tile only looks like a target tile.
         this.setHighlight(tile, {
-          action: 'attack',
-          color:  TARGET_TILE_COLOR,
+          action: tile.action,
+          color: TARGET_TILE_COLOR,
         });
     });
 
@@ -1974,26 +1987,26 @@ export default class Board {
   }
   _clearTargetMix(target) {
     const selected = this.selected;
-    if (selected.aAll) return;
+    if (selected.aAll && !selected.canSpecial()) return;
 
     const targetAction = target.action;
     const attackTiles = selected.getAttackTiles();
-
-    // Necessary for special attacks
-    this.setHighlight(target, {
-      action: 'attack',
-      color: ATTACK_TILE_COLOR,
-    });
 
     // Reset target tiles to attack tiles
     for (const tile of selected.getTargetTiles(targetAction, target))
       if (attackTiles.includes(tile))
         this.setHighlight(tile, {
-          action: 'attack',
-          color:  ATTACK_TILE_COLOR,
+          action: tile.action.replace(/^target/, 'attack'),
+          color: ATTACK_TILE_COLOR,
         });
       else
         this.clearHighlight(tile);
+
+    if (selected.canSpecial())
+      this.setHighlight(selected.assignment, {
+        action: 'attackSpecial',
+        color: ATTACK_TILE_COLOR,
+      });
 
     this.target = null;
     this.hideTargets();
@@ -2075,10 +2088,7 @@ export default class Board {
     const game = Tactics.game;
 
     // Single-click attacks are only enabled for mouse pointers.
-    if (tile.action?.startsWith('attack')) {
-      if (unit)
-        unit.change({ notice:null });
-    } else if (tile.action?.startsWith('target')) {
+    if (tile.action?.startsWith('attack') || tile.action?.startsWith('target')) {
       if (game.pointerType === 'mouse')
         this._clearTargetMix(tile);
       if (unit)
@@ -2116,8 +2126,7 @@ export default class Board {
       return;
     }
 
-    // Units that attack all targets don't have a specific target tile.
-    if (this.target)
+    if (!this.selected.aAll && this.target)
       action.target = this.target;
 
     if (this.selected.directional !== false) {

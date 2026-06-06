@@ -647,8 +647,7 @@ export default class GameState extends TypedEmitter {
       if (selected && unit !== selected)
         throw new ServerError(400, 'Actor is not the selected unit');
 
-      // Recovering or paralyzed units can't take action.
-      if (unit.mRecovery || unit.paralyzed)
+      if (!selected && !unit.canSelect())
         throw new ServerError(400, 'Actor is unable to act');
 
       if (this.currentTurn.isEmpty)
@@ -808,13 +807,7 @@ export default class GameState extends TypedEmitter {
         return 'draw';
 
       // End the next turn if we can't find one playable unit.
-      turnEnded = !this.currentTeam.units.some(unit => {
-        if (unit.mRecovery) return;
-        if (unit.paralyzed) return;
-        if (unit.type === 'Shrub') return;
-
-        return true;
-      });
+      turnEnded = !this.currentTeam.units.some(unit => unit.canSelect());
 
       if (turnEnded) {
         this._endTurn(true);

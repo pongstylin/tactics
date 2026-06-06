@@ -72,7 +72,7 @@ export default class UnitPicker extends Modal {
       }
     });
 
-    this._els.rules.textContent = this.data.gameType.description;
+    this._els.rules.innerHTML = this.data.gameType.description;
 
     this._unitGrantsPromise = Tactics.gameClient.getMyUnitList().then(units => this.data.unitGrants = units);
   }

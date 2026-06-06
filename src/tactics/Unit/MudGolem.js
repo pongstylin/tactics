@@ -14,9 +14,7 @@ export default class MudGolem extends Unit {
     const targets = board.getTileRange(source, 1, 3);
 
     // Quake closer tiles before further tiles.
-    targets.sort((a, b) =>
-      board.getDistance(this.assignment, a) - board.getDistance(this.assignment, b)
-    );
+    targets.sort((a, b) => board.getDistance(source, a) - board.getDistance(source, b));
 
     return targets;
   }

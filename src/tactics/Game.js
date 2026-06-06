@@ -927,14 +927,14 @@ export default class Game {
   canSelectMove() {
     let viewed = this.viewed;
     if (viewed)
-      return !!viewed.getMoveTiles().length;
+      return viewed.canMove();
 
     let selected = this.selected;
     if (selected) {
       if (this.moved && this.isMyTeam(selected.team))
         return false;
 
-      return !!selected.getMoveTiles().length;
+      return selected.canMove();
     }
 
     return true;

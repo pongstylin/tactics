@@ -94,20 +94,13 @@ export default class Unit {
     const board = this.board;
     const range = this.aRange;
 
-    if (this.aLinear) {
+    if (this.aLinear)
       // Dark Magic Witch, Beast Rider, Dragon Tyrant, Storm Dragon, Chaos Dragon
       // All existing units have a minimum range of 1.
-      const tiles = board.getTileLinearRange(source, range[1]);
-      if (this.canSpecial() && !tiles.some(t => t === source))
-        tiles.unshift(source);
-      return tiles;
-    } else if (range) {
-      const tiles = board.getTileRange(source, ...range);
-      if (this.canSpecial() && !tiles.some(t => t === source))
-        tiles.unshift(source);
-      return tiles;
-    } else
-      return [];
+      return board.getTileLinearRange(source, range[1]);
+    else if (range)
+      return board.getTileRange(source, ...range);
+    return [];
   }
   getTargetTiles(actionType, target, source = this.assignment) {
     if (actionType === 'attack' || actionType === 'target')
@@ -228,7 +221,7 @@ export default class Unit {
     return null;
   }
   getAttackSelectMode() {
-    return this.aAll ? 'target' : 'attack';
+    return this.aAll && !this.canSpecial() ? 'target' : 'attack';
   }
   getTargetSelectMode(target) {
     if (target === this.assignment && this.canSpecial())
@@ -591,6 +584,7 @@ export default class Unit {
     }
   }
   getDeadResult(attacker, result) {
+    if (result.miss) return false;
     if (![ 'melee', 'magic' ].includes(attacker.aType)) return false;
 
     const health = this.health ?? 0;
@@ -1969,8 +1963,21 @@ export default class Unit {
 
     return action;
   }
+  canSelect() {
+    if (this.mRecovery) return false;
+    if (this.paralyzed) return false;
+    if (this.type === 'Shrub') return false;
+
+    return this.canMove() || this.canAttack() || this.canTurn();
+  }
   canMove() {
     return !!this.getMoveTiles().length;
+  }
+  canAttack() {
+    return !!this.getAttackTiles().length;
+  }
+  canTurn() {
+    return this.directional !== false;
   }
   canSpecial() {
     return false;
@@ -1986,9 +1993,6 @@ export default class Unit {
     if (this.focusing)
       return false;
     return true;
-  }
-  canTurn() {
-    return this.directional !== false;
   }
   isImmune(_attacker, stats) {
     if (

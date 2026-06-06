@@ -335,9 +335,14 @@ export default class StormDragon extends Unit {
   canSpecial() {
     return this.mHealth < 0;
   }
-  canContinue() {
+  canMove() {
     if (this.disposition === 'grounded')
       return false;
+    return super.canMove();
+  }
+  canContinue() {
+    if (this.disposition === 'grounded')
+      return true;
     return super.canContinue();
   }
   canBlock() {
@@ -345,6 +350,11 @@ export default class StormDragon extends Unit {
   }
   canBlockAllSides() {
     return this.disposition === 'grounded';
+  }
+  getBreakAction(action) {
+    if (this.disposition === 'grounded' && action.type === 'turn')
+      return null;
+    return super.getBreakAction(action);
   }
   getSpecialTargetNotice(_targetUnit, _target, _source = this.assignment) {
     return 'Recharge!';
