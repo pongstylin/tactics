@@ -76,6 +76,7 @@ export default class Game {
       pointerType: 'ontouchstart' in window ? 'touch' : 'mouse',
 
       playerId,
+      gameType: null,
       state,
 
       _onStateEventListener: this._onStateEvent.bind(this),
@@ -115,7 +116,9 @@ export default class Game {
     });
   }
 
-  async init() {
+  async init(gameType) {
+    this.gameType = gameType;
+
     const renderer = this._renderer = await PIXI.autoDetectRenderer({
       width: Tactics.width,
       height: Tactics.height,

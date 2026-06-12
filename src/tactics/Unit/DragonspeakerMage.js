@@ -1,11 +1,11 @@
 import Pyromancer from '#tactics/Unit/Pyromancer.js';
-import unitDataMap from '#tactics/unitData.js';
+import { getUnitData } from '#tactics/unitData.js';
 
 export function calcPowerModifiers(dragonCount, speakerCount, mageCount) {
   if (!dragonCount || !speakerCount)
     return { dragonModifier:0, mageModifier:0 };
 
-  let dragonData = unitDataMap.get('DragonTyrant');
+  let dragonData = getUnitData('DragonTyrant');
   let maxDragonPower = 12 * speakerCount * mageCount;
   let dragonPower = Math.min(maxDragonPower, dragonData.power);
   let dragonModifier = -dragonPower;

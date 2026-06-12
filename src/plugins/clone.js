@@ -1,3 +1,5 @@
+import clone from '#utils/clone.js';
+
 Object.defineProperty(Object, 'getProperties', {
   value: function (item) {
     let props = {};
@@ -30,14 +32,14 @@ Object.defineProperty(Object, 'clone', {
     if (item === null || typeof item !== 'object')
       return item;
 
-    return typeof item.clone === 'function' ? item.clone() : item;
+    return clone(item);
   },
 });
 
 Object.defineProperty(Object.prototype, 'clone', {
   writable: true,
   value: function () {
-    return Object.create(Object.getPrototypeOf(this), Object.getProperties(this));
+    return clone(this);
   },
 });
 Object.defineProperty(Array.prototype, 'clone', {

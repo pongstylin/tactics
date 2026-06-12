@@ -389,9 +389,9 @@ unitDataMap.set('Furgon', {
   rarity: 15,
   features: {
     // Turn this off to enable limited lifetimes for shrubs.
-    evergreen: true,
+    evergreen: false,
     // Turn this on to enable transform-on-death
-    transform: false,
+    transform: true,
   },
 });
 
@@ -433,12 +433,12 @@ unitDataMap.set('GolemAmbusher', {
   power: 20,
   armor: 0,
   health: 60,
-  recovery: 3,
+  recovery: 2,
   blocking: 0,
   mType: 'path',
-  mRadius: 2,
+  mRadius: 3,
   aType: 'melee',
-  aRange: [4, 5],
+  aRange: [3, 4],
   waitFirstTurn: true,
   tier: 3,
   rarity: 17,
@@ -453,16 +453,16 @@ unitDataMap.set('Berserker', {
   armor: 0,
   health: 42,
   recovery: 1,
-  blocking: 25,
+  blocking: 55,
   mType: 'path',
-  mRadius: 3,
+  mRadius: 4,
   mPass: false,
   aType: 'melee',
   aRange: [1, 1],
   tier: 3,
   rarity: 17,
   features: {
-    unblockableStun: false,
+    unblockableStun: true,
   },
 });
 
@@ -557,5 +557,14 @@ export const unitTypeToIdMap = new Map();
 });
 
 export const unitTypeByCode = new Map(Array.from(unitDataMap.values()).map(ud => [ ud.code, ud ]));
+
+export const getUnitData = (unitType, rebuild) => {
+  const unitData = typeof Tactics !== 'undefined' && Tactics.game ? Tactics.game.gameType.getUnitData(unitType, rebuild) : unitDataMap.get(unitType);
+  if (!unitData)
+    throw new Error('No such unit: '+unitType);
+  unitData.type = unitType;
+
+  return unitData;
+};
 
 export default unitDataMap;

@@ -1,4 +1,4 @@
-import unitDataMap from '#tactics/unitData.js';
+import { getUnitData } from '#tactics/unitData.js';
 import Unit from '#tactics/Unit.js';
 import Pyromancer from '#tactics/Unit/Pyromancer.js';
 import Scout from '#tactics/Unit/Scout.js';
@@ -42,20 +42,10 @@ const unitClassMap = new Map([
 ]);
 
 export default function (unitType, board) {
-  // Unit data is not part of unit class since data can be loaded dynamically
-  let unitData = unitDataMap.get(unitType);
-  if (!unitData)
-    throw new Error('No such unit: '+unitType);
+  // Very expedient.  It would be better to not rely on globals.
+  // Pass rebuild=true to ensure sounds have howl objects.
+  const unitData = getUnitData(unitType, true);
+  const UnitClass = unitClassMap.get(unitType);
 
-  let UnitClass = unitClassMap.get(unitType);
-  let unit;
-
-  unitData.type = unitType;
-
-  if (UnitClass)
-    unit = new UnitClass(unitData, board);
-  else
-    unit = new Unit(unitData, board);
-
-  return unit;
+  return UnitClass ? new UnitClass(unitData, board) : new Unit(unitData, board);
 };
