@@ -15,6 +15,7 @@ import services, { servicesReady } from '#server/services.js';
 import Timeout from '#server/Timeout.js';
 import useAuth from '#server/useAuth.js';
 import serializer from '#utils/serializer.js';
+import { ComponentsV2Assertions } from 'discord.js';
 
 const app    = createApp();
 const server = createServer(app);
@@ -56,43 +57,18 @@ app.post(`${PATH}/report`, (req, res) => {
   res.send(true);
 });
 app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new Map([
-  [ 20260606, {
-    endAt: new Date('2026-06-11T00:00:00Z'),
+  [ 20260614, {
+    title: `Maintenance Release v2.18.2`,
     message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
-      <DIV style="margin:0 8px">
-        A $200 Prize Pool is waiting, and we've leveled the playing field! Whether you're a pro or a rising star, everyone has a shot at the gold:<BR>
-        <UL style="list-style:none; margin-left:16px; padding-left:0">
-          <LI style="margin:4px 0"><B>TOP TIER</B>: 3 Prizes for the ultimate champions.</LI>
-          <LI style="margin:4px 0"><B>CHALLENGER TIER</B>: 3 Prizes reserved for the "Bottom Bracket"—so even if you aren't a pro, you can still win CASH!</LI>
-          <LI style="margin:4px 0"><B>EXCLUSIVE REWARD</B>: Play all your games to claim the legendary Storm Dragon unit—no victory required!</LI>
-        </UL>
-        Don't just watch the storm. Join it.<BR>
-        Tap the arena below to join our Discord for sign-ups and full details!<BR>
-      </DIV>
-      <DIV style="text-align:center; margin-top:16px">
-        <A href="https://discord.gg/MUX5gpStg" target="_blank" style="display:inline-block; position:relative">
-          <IMG src="/StormDragonPreview.png" />
-          <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Tap to join!</SPAN>
-        </A>
-      </DIV>
-    `,
-  } ],
-  [ 20260610, {
-    startAt: new Date('2026-06-10T00:00:00Z'),
-    endAt: new Date('2026-06-11T00:00:00Z'),
-    message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">STORM THE ARENA!⚡</HEADER>
-      <DIV style="margin:0 8px">
-        Final call and reminder!  Don't miss out on your chance to earn $$ while playing in this unique tournament.  If you play all of your games, you will earn the brand new Storm Dragon unit.  You have less than 24 hours to tap the arena below to visit our Discord to sign up.
-      </DIV>
-      <DIV style="text-align:center; margin-top:16px">
-        <A href="https://discord.gg/MUX5gpStg" target="_blank" style="display:inline-block; position:relative">
-          <IMG src="/StormDragonPreview.png" />
-          <SPAN style="display:block; position:absolute; bottom:32px; width:100%">Tap to join!</SPAN>
-        </A>
-      </DIV>
-    `,
+      <P>
+        Fixed "Your Turn" notifications not being sent or being sent needlessly.
+        Fixed gameplay bug where you couldn't deselect a unit that was in "target mode" (red tiles) by tapping an empty tile far away.
+        Fixed cosmetic bug where it didn't tell you a game was unrated due to being a private game while joining a game.
+      </P>
+      <P>
+        Besides that, I've also removed the Storm Dragon tournament announcements since it will start soon.  And, if you're wondering what big features are coming next, I'm working on 2 of them.  First, I plan on adding an "OG Freestyle" style so that people can enjoy the original game units and stats even if other styles might have modified units and a Storm Dragon harassing you.  Also, I'm working on a new bot so that you can play games against bots to test your skills in any style!
+      </P>
+    `
   } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
