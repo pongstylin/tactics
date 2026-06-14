@@ -50,11 +50,8 @@ export default class Game {
         if (this.viewed)
           this.viewed = null;
         else if (this.selected) {
-          if (
-            this._inReplay ||
-            this.state.actions.some(a => a.type === 'select') ||
-            this._selectMode?.startsWith('target')
-          ) return;
+          if (this._inReplay || this.state.actions.some(a => a.type === 'select'))
+            return;
 
           this.selected = null;
         }

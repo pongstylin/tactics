@@ -749,7 +749,7 @@ export default class GameState extends TypedEmitter {
 
     // This can be true when a game ends in a draw after ending a turn.
     if (currentTurn.isEnded)
-      this._pushHistory(actions.last.forced ? actions.last.createdAt : action.createdAt);
+      this._pushHistory();
     // Do not use the currentTurn object defined above since the currentTurn may have changed
     this.currentTurn.pushAction(this._board.encodeAction(action), this.undoMode === 'strict');
 
@@ -1225,11 +1225,7 @@ export default class GameState extends TypedEmitter {
   startTurn() {
     const startTurnEvent = {
       type: 'startTurn',
-      data: {
-        teamId: this.currentTeamId,
-        startedAt: this.turnStartedAt,
-        timeLimit: this.currentTurnTimeLimit,
-      },
+      data: this.currentTurn,
     };
 
     this.emit(startTurnEvent);

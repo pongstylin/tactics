@@ -854,6 +854,9 @@ export default class ConfigureGame extends Modal {
             case 'too many games':
               reason = `you have 2 rated games against this player in this style within the past week`;
               break;
+            case 'private':
+              reason = `it is private`;
+              break;
             default:
               reason = `of a bug`;
           }
@@ -1093,7 +1096,7 @@ export default class ConfigureGame extends Modal {
     } catch (e) {
       report({
         type: 'debug',
-        error: e,
+        error: getErrorData(e),
         message: `timeLimitName is mysteriously falsey`,
         view: this.data.view,
         gameTypeId: this.data.gameTypeId,

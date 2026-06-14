@@ -298,15 +298,6 @@ export class GameSessionGame {
     return this.data.playerStatus;
   }
 
-  getPlayerIdle(playerId:string) {
-    const idles = [];
-    for (const gameSession of this.data.gameSessions.keys())
-      if (gameSession.player.id === playerId)
-        idles.push(gameSession.session.idle);
-
-    if (idles.length === 0) return null;
-    return Math.min(...idles);
-  }
   addSession(gameSession:GameSession, reference:Reference) {
     this.data.gameSessions.set(gameSession, reference);
     // The player might become active
