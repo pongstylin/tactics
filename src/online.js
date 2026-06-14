@@ -310,6 +310,7 @@ api.get('/announcements').then(async announcements => {
     if (response?.type === 'remind' && Date.now() < new Date(response.startAt)) continue;
 
     const newResponse = await popup({
+      title: announcement.title,
       message: announcement.message,
       buttons: [
         { label:'Remind me later.', value:'remind' },

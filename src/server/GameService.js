@@ -379,7 +379,12 @@ export default class GameService extends Service {
     const sessionPlayer = GameSessionPlayer.cache.get(player);
     if (sessionPlayer) {
       const openedGamesById = sessionPlayer.openedGamesById;
-      gamesSummary = gamesSummary.filter(gs => !openedGamesById.has(gs.id));
+      gamesSummary = gamesSummary.filter(gs => {
+        const game = openedGamesById.get(gs.id);
+        if (!game) return true;
+
+        return this._doNotifyYourTurn(player, game);
+      });
     }
 
     const notification = {
@@ -1446,7 +1451,7 @@ export default class GameService extends Service {
       // Send notification, if needed, to the current player
       // Only send a notification after the first playable turn
       // This is because notifications are already sent elsewhere on game start.
-      if (event.type === 'startTurn' && event.data.startedAt > game.state.startedAt)
+      if (event.type === 'startTurn' && event.data.id > game.state.initialTurnId)
         this._notifyYourTurn(game);
     });
     game.on('delete', event => {
@@ -1950,6 +1955,20 @@ export default class GameService extends Service {
 
   async _notifyYourTurn(game) {
     const player = await this.auth.getPlayer(game.state.currentTeam.playerId);
+    if (!this._doNotifyYourTurn(player, game)) return;
+
+    const notification = await this.getYourTurnNotification(player);
+    // Game count should always be >= 1, but just in case...
+    if (notification.gameCount === 0)
+      return true;
+
+    const urgency = game.state.rated === true && game.state.timeLimit.base < 86400 ? 'high' : 'normal';
+
+    this.push.pushNotification(player.id, notification, urgency);
+
+    return true;
+  }
+  _doNotifyYourTurn(player, game) {
     const gameSession = GameSessionGame.cache.get(game);
 
     if (gameSession) {
@@ -1960,20 +1979,11 @@ export default class GameService extends Service {
         return false;
 
       // Also don't notify if the player has been active in the game since turn started.
-      const elapsed = Date.now() - game.currentTurn.startedAt;
-      const idle = gameSession.getPlayerIdle(player);
+      const elapsed = (Date.now() - game.currentTurn.startedAt) / 1000;
+      const idle = this._getPlayerGameIdle(player.id, game);
       if (idle < elapsed)
         return false;
     }
-
-    const notification = await this.getYourTurnNotification(player);
-    // Game count should always be >= 1, but just in case...
-    if (notification.gameCount === 0)
-      return true;
-
-    const urgency = game.state.rated === true && game.state.timeLimit.base < 86400 ? 'high' : 'normal';
-
-    this.push.pushNotification(player.id, notification, urgency);
 
     return true;
   }
