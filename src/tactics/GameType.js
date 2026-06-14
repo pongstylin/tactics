@@ -95,21 +95,6 @@ export default class GameType {
     this._tagByKeyword = null;
   }
 
-  static applyTeamSetUnitsState(unitsState, degree = 0) {
-    const board = new Board();
-
-    for (const unitState of unitsState) {
-      const unitData = this._unitDataMap.get(unitState.type);
-      const tile = board.getTileRotation(unitState.assignment, degree);
-
-      unitState.assignment = [tile.x, tile.y];
-      unitState.direction = unitData.directional === false ? 'S' : board.getRotation(unitState.direction ?? 'S', degree);
-      if (unitData.waitFirstTurn && !unitState.mRecovery)
-        unitState.mRecovery = 1;
-    }
-
-    return unitsState;
-  }
   static applyInitialGameState(team, skipTurn = true) {
     // First team must skip their first turn.
     if (skipTurn)
@@ -344,8 +329,20 @@ export default class GameType {
 
     return tiles;
   }
-  applyTeamSetUnitsState(units, degree) {
-    return GameType.applyTeamSetUnitsState(units, degree);
+  applyTeamSetUnitsState(unitsState, degree = 0) {
+    const board = new Board();
+
+    for (const unitState of unitsState) {
+      const unitData = this._unitDataMap.get(unitState.type);
+      const tile = board.getTileRotation(unitState.assignment, degree);
+
+      unitState.assignment = [tile.x, tile.y];
+      unitState.direction = unitData.directional === false ? 'S' : board.getRotation(unitState.direction ?? 'S', degree);
+      if (unitData.waitFirstTurn && !unitState.mRecovery)
+        unitState.mRecovery = 1;
+    }
+
+    return unitsState;
   }
   applyInitialGameState(team) {
     GameType.applyInitialGameState(team, team.id === 0);

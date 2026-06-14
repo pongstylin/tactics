@@ -3,7 +3,7 @@
     "freestyle",
     {
       "name": "Freestyle",
-      "description": "This style lets you use all the units you could buy including the extra copies (drops) you could earn on the original game commercial site (FPS) without restriction.",
+      "description": "This style lets you use all the units you could buy including the extra copies (drops) you could earn on the original game commercial site (FPS) without restriction.  It also includes new units and unit changes in the remake.",
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,4] },
