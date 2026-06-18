@@ -57,17 +57,12 @@ app.post(`${PATH}/report`, (req, res) => {
   res.send(true);
 });
 app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new Map([
-  [ 20260614, {
-    title: `Maintenance Release v2.18.2`,
+  [ 20260618, {
+    title: `Storm Dragon Tournament`,
     message: `
-      <P>
-        Fixed "Your Turn" notifications not being sent or being sent needlessly.
-        Fixed gameplay bug where you couldn't deselect a unit that was in "target mode" (red tiles) by tapping an empty tile far away.
-        Fixed cosmetic bug where it didn't tell you a game was unrated due to being a private game while joining a game.
-      </P>
-      <P>
-        Besides that, I've also removed the Storm Dragon tournament announcements since it will start soon.  And, if you're wondering what big features are coming next, I'm working on 2 of them.  First, I plan on adding an "OG Freestyle" style so that people can enjoy the original game units and stats even if other styles might have modified units and a Storm Dragon harassing you.  Also, I'm working on a new bot so that you can play games against bots to test your skills in any style!
-      </P>
+      The tournament has officially started.  For those who are participating, you have 40 days to get roughly 40 games played.
+      So make sure you are getting the notificactions from Discord when we send you a message and send challenges to your opponents.
+      You only need to play about 90% of your games to earn the Storm Dragon unit.  So don't give up!
     `
   } ],
   [ 3, {
