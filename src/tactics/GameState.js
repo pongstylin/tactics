@@ -408,7 +408,7 @@ export default class GameState extends TypedEmitter {
       let unitId = 1;
       const units = teams.map(team => {
         const degree = board.getDegree('N', team.position);
-        const units = this.gameType.applyTeamSetUnitsState(team.set.units.clone(), degree);
+        const units = (this.gameType ?? GameType).applyTeamSetUnitsState(team.set.units.clone(), degree);
 
         return units.map(u => Object.assign(u, { id:unitId++ }));
       });
