@@ -42,10 +42,10 @@ const unitClassMap = new Map([
 ]);
 
 export default function (unitType, board) {
+  const UnitClass = unitClassMap.get(unitType) ?? Unit;
   // Very expedient.  It would be better to not rely on globals.
   // Pass rebuild=true to ensure sounds have howl objects.
   const unitData = getUnitData(unitType, true);
-  const UnitClass = unitClassMap.get(unitType);
 
-  return UnitClass ? new UnitClass(unitData, board) : new Unit(unitData, board);
+  return new UnitClass(unitData, board);
 };
