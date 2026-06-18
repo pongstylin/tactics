@@ -1650,16 +1650,27 @@ export default class Unit {
 
     return anim;
   }
-  animDie() {
+  animDie(action = null) {
     let core = Tactics.getSprite('core');
     let container = new PIXI.Container();
-    let anim = core.renderAnimation({
-      spriteName: 'Die',
-      container,
-    });
+    let anim = new Tactics.Animation();
+    let offset = 0;
+
+    if (Tactics.game?.type === 'ancientStorm' && action?.unit?.type !== 'LightningWard') {
+      anim.splice(0, this.animAttackEffect(
+        { spriteId:'sprite:Lightning', type:'magic' },
+        this.assignment,
+        undefined, // miss
+      ));
+      offset = 3;
+    } else
+      anim.splice(0, core.renderAnimation({
+        spriteName: 'Die',
+        container,
+      }));
 
     anim
-      .splice(0, [
+      .splice(offset, [
         () => {
           // The setup component does not lock a board while animating.
           // So, a player might drag-n-drop a unit while it is dying.

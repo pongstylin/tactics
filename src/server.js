@@ -70,6 +70,51 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
       </P>
     `
   } ],
+  [ 3, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17</HEADER>
+      <DIV style="margin:8px 8px 0">
+        This release introduces a new unit, but I'm still testing it out.
+        So if you see an unrated game with an unfamiliar dragon avatar camped out in the lobby, come try and kill it.
+        If you fork my games, you can play with the new dragon as well.  Let me know what you think about it.
+        I'm trying to see if it is too overpowered.  Other than that, I fixed many bugs.  Maybe I created a few more.
+        If you see any bugs, please let me know on the <A href="https://discord.gg/juyhghF" target="_blank">Community Discord</A>.
+      </DIV>
+    `,
+    width: '350px',
+  } ],
+  [ 20260517, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17 (patch 0)</HEADER>
+      <DIV style="margin:8px 8px 0">
+        Added the Ancient Storm style, invented by Tuge.
+        This style will let you use the new unit so that you can test it with me.
+        If you see any bugs, please let me know on the <A href="https://discord.gg/juyhghF" target="_blank">Community Discord</A>.
+      </DIV>
+    `,
+    width: '350px',
+  } ],
+  [ 20260524, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17 (patch 1)</HEADER>
+      <DIV style="margin:8px 8px 0 0">
+        <UL>
+          <LI>Fixed assassin bomb trigger.</LI>
+          <LI>Fixed Faceoff style.</LI>
+          <LI>Fixed display of style rules for the new Ancient Storm style in unit picker popup.</LI>
+          <LI>Adjusted unit points for Stone Race style.  Some previously used and saved sets may no longer be allowed.</LI>
+        </UL>
+      </DIV>
+    `,
+  } ],
+  [ 20260528, {
+    message: `
+      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">Furgon Update!</HEADER>
+      <DIV style="margin:8px 8px 0 0">
+        Furgon will no longer transform into a Golden Shrub if there is another Furgon on the board.  Keep this in mind if you play Mob style.  You might want to kill their Furgon before they kill yours.  This change was made to avoid excessively long games.
+      </DIV>
+    `,
+  } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');
