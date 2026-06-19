@@ -15,6 +15,7 @@ export default class SetImageRenderer {
       _content: new PIXI.Container(),
 
       _board: new Board(),
+      _getImageURL: null,
 
       data: {
         gameType: null,
@@ -159,8 +160,8 @@ export default class SetImageRenderer {
     }
   }
 
-  async getImage(gameType, set) {
-    return (this._getImage ??= seqAsync((gameType, set) => {
+  async getImageURL(gameType, set) {
+    return (this._getImageURL ??= seqAsync((gameType, set) => {
       this.data.gameType = gameType;
       this.data.set = set;
       this._rotateBoard();
