@@ -812,22 +812,6 @@ export default class SetBuilder extends Modal {
     return this;
   }
 
-  async getImage(set) {
-    return (this._getImage ??= seqAsync(set => {
-      if (set) this.set = set;
-
-      // Hide the focused unit tile highlight
-      const focusedTile = this.board.focusedTile;
-      if (focusedTile)
-        this.board.onTileBlur({ target:focusedTile });
-      this._renderer.render(this._stage);
-      if (focusedTile)
-        this.board.onTileFocus({ target:focusedTile });
-
-      return new Promise(resolve => this._canvas.toBlob(blob => resolve(URL.createObjectURL(blob)), 'image/png'));
-    }))(set);
-  }
-
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/

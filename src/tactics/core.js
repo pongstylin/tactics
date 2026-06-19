@@ -50,7 +50,7 @@ window.Tactics = {
     return this._setBuilder ??= new SetBuilder().init();
   },
   getSetImage(gameType, set) {
-    return (this._setImageRenderer ??= new SetImageRenderer().init()).then(r => r.getImage(gameType, set));
+    return (this._setImageRenderer ??= new SetImageRenderer().init()).then(r => r.getImageURL(gameType, set));
   },
 
   load: async function (unitTypes, cb = () => {}) {

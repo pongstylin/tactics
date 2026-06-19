@@ -120,8 +120,6 @@ export default class Setup {
   }
 
   async setGameType(gameType) {
-    if (gameType.id === this.gameType?.id) return;
-
     const [ sets ] = await Promise.all([
       Tactics.gameClient.getPlayerSets(gameType.id),
       this.loadAvatars(),
@@ -224,7 +222,7 @@ export default class Setup {
       await this.renderSets();
       this.renderColorIds();
     } else
-      this.renderSet(set.slot, { set, url:await this._setBuilder.getImage(set) });
+      this.renderSet(set.slot, { set, url:await Tactics.getSetImage(this.gameType, set) });
   }
   selectTeam(newTeamId) {
     const board = this._setBuilder.board;
@@ -256,7 +254,7 @@ export default class Setup {
     const slots = Array.from(gameConfig.setsBySlot.keys());
     const setsBySlot = new Map(await Promise.all(slots.map(slot => {
       const set = this.sets.get(slot) ?? { name:gameConfig.setsBySlot.get(slot), slot, units:[] };
-      return this._setBuilder.getImage(set).then(url => [ slot, { set, url } ]);
+      return Tactics.getSetImage(this.gameType, set).then(url => [ slot, { set, url } ]);
     })));
 
     for (const slot of slots)
