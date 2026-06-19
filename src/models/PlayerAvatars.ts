@@ -2,7 +2,7 @@ import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
 import type Player from '#models/Player.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
-import unitData from '#tactics/unitData.js';
+import unitDataMap from '#tactics/unitData.js';
 // @ts-ignore
 import { colorFilterMap } from '#tactics/colorMap.js';
 // @ts-ignore
@@ -40,7 +40,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
     return this._cache ??= new Cache('PlayerAvatars', { limit:200 });
   }
   static create(playerId:string) {
-    const unitTypes = Array.from(unitData).filter(([k,d]) => d.tier === 1).map(([k,d]) => k);
+    const unitTypes = Array.from(unitDataMap).filter(([k,d]) => d.tier === 1).map(([k,d]) => k);
     const colorIds:any = [ ...colorFilterMap.keys() ];
 
     const playerAvatars = new PlayerAvatars({
@@ -72,7 +72,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
     if (avatar.unitType === this.data.unitType && avatar.colorId === this.data.colorId)
       return;
 
-    if (!unitData.has(avatar.unitType))
+    if (!unitDataMap.has(avatar.unitType))
       throw new ServerError(400, 'Unrecognized unit type');
     if (!this.listAvatars.includes(avatar.unitType))
       throw new ServerError(403, 'Disallowed unit type');
@@ -87,7 +87,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
   }
   get listAvatars() {
     const tier = Math.min(4, 1 + Math.floor((Date.now() - this.data.createdAt.getTime()) / 1000 / 60 / 60 / 24 / 7));
-    const unitTypes = [ ...unitData ].filter(([k,d]) => d.tier <= tier).sort((a,b) => a[1].tier - b[1].tier).map(([k,d]) => k);
+    const unitTypes = [ ...unitDataMap ].filter(([k,d]) => d.tier <= tier).sort((a,b) => a[1].tier - b[1].tier).map(([k,d]) => k);
 
     return unitTypes.concat(this.data.avatars).concat(Array.from(this.data.units.keys()));
   }
@@ -111,7 +111,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
     if (this.data.avatars.includes(unitType))
       return;
 
-    if (!unitData.has(unitType))
+    if (!unitDataMap.has(unitType))
       throw new ServerError(400, 'Unrecognized unit type');
     if (this.listAvatars.includes(unitType))
       throw new ServerError(403, 'Already granted unit type');
@@ -120,7 +120,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
     this.emit('change:addAvatar');
   }
   addUnit(unitType:string) {
-    if (!unitData.has(unitType))
+    if (!unitDataMap.has(unitType))
       throw new ServerError(400, 'Unrecognized unit type');
 
     this.data.units.set(unitType, (this.data.units.get(unitType) ?? 0) + 1);
