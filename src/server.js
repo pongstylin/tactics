@@ -89,24 +89,19 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
     `,
     width: '350px',
   } ],
-  [ 20260524, {
+  [ 20260528, {
+    title: 'Furgon Update!',
     message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17 (patch 1)</HEADER>
-      <DIV style="margin:8px 8px 0 0">
-        <UL>
-          <LI>Fixed assassin bomb trigger.</LI>
-          <LI>Fixed Faceoff style.</LI>
-          <LI>Fixed display of style rules for the new Ancient Storm style in unit picker popup.</LI>
-          <LI>Adjusted unit points for Stone Race style.  Some previously used and saved sets may no longer be allowed.</LI>
-        </UL>
+      <DIV style="margin:0 8px">
+        Furgon will no longer transform into a Golden Shrub if there is another Furgon on the board.  Keep this in mind if you play Mob style.  You might want to kill their Furgon before they kill yours.  This change was made to avoid excessively long games.
       </DIV>
     `,
   } ],
-  [ 20260528, {
+  [ 20260619, {
+    title: 'New Custom Style!',
     message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">Furgon Update!</HEADER>
-      <DIV style="margin:8px 8px 0 0">
-        Furgon will no longer transform into a Golden Shrub if there is another Furgon on the board.  Keep this in mind if you play Mob style.  You might want to kill their Furgon before they kill yours.  This change was made to avoid excessively long games.
+      <DIV style="margin:0 8px">
+        Dark*Dragon wanted a legends gray style that includes Poison Wisp and Berserker.  Sound interesting to you?  Go try out Gray*Gambit!
       </DIV>
     `,
   } ],

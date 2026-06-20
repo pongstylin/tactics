@@ -874,6 +874,89 @@
     }
   ],
   [
+    "grayGambit",
+    {
+      "name": "Gray*Gambit",
+      "description": "This custom style requested by Dark*Dragon is based on Legends Gray... but it includes a wisp AND a berserker!",
+      "customizable": true,
+      "limits": {
+        "tiles": { "start":[0,0], "end":[10,4] },
+        "points": 10,
+        "units": {
+          "types": [
+            ["Cleric",         { "max":10 }],
+            ["Knight",         { "max":3  }],
+            ["Assassin",       { "max":10 }],
+            ["DarkMagicWitch", { "max":10 }],
+            ["Pyromancer",     { "max":10 }],
+            ["Enchantress",    { "max":10 }],
+            ["Scout",          { "max":1  }],
+            ["BeastRider",     { "max":10 }],
+            ["LightningWard",  { "max":1  }],
+            ["MudGolem",       { "max":10 }],
+            ["BarrierWard",    { "max":9  }],
+            ["Furgon",         { "max":1  }],
+            ["FrostGolem",     { "max":10 }],
+            ["Berserker",      { "max":1  }],
+            ["PoisonWisp",     { "max":1  }]
+          ]
+        }
+      },
+      "sets": [{
+        "name":"Brutal Anti",
+        "units":[
+          {"type":"BeastRider","assignment":[0,3]},
+          {"type":"Scout","assignment":[1,3]},
+          {"type":"Knight","assignment":[2,4]},
+          {"type":"Knight","assignment":[3,4]},
+          {"type":"Knight","assignment":[4,4]},
+          {"type":"BeastRider","assignment":[5,3]},
+          {"type":"FrostGolem","assignment":[4,1]},
+          {"type":"FrostGolem","assignment":[2,1]},
+          {"type":"Cleric","assignment":[2,0]},
+          {"type":"MudGolem","assignment":[2,2]}
+        ],
+        "tags": [
+          { "type":"inventor", "name":"BrutalRage", "keywords":[ "brutal" ] }
+        ]
+      },{
+        "name":"Stiv Defense",
+        "units":[
+          {"type":"LightningWard","assignment":[5,4]},
+          {"type":"Cleric","assignment":[5,0]},
+          {"type":"Furgon","assignment":[5,2]},
+          {"type":"MudGolem","assignment":[5,1]},
+          {"type":"FrostGolem","assignment":[4,1]},
+          {"type":"FrostGolem","assignment":[6,1]},
+          {"type":"Knight","assignment":[4,3]},
+          {"type":"Knight","assignment":[3,2]},
+          {"type":"Knight","assignment":[6,3]},
+          {"type":"Scout","assignment":[7,2]}
+        ],
+        "tags": [
+          { "type":"inventor", "name":"Stiv" }
+        ]
+      },{
+        "name":"Stiv Defense Variation #1",
+        "units":[
+          {"type":"LightningWard","assignment":[5,4]},
+          {"type":"Cleric","assignment":[5,0]},
+          {"type":"Furgon","assignment":[5,1]},
+          {"type":"MudGolem","assignment":[5,2]},
+          {"type":"FrostGolem","assignment":[4,1]},
+          {"type":"FrostGolem","assignment":[6,1]},
+          {"type":"Knight","assignment":[4,3]},
+          {"type":"Knight","assignment":[3,2]},
+          {"type":"Knight","assignment":[6,3]},
+          {"type":"Scout","assignment":[7,2]}
+        ],
+        "tags": [
+          { "type":"name", "name":"Stiv Defense Variation #1", "keywords":[ "Stiv", "Stiv Defense", "Stiv Defense Variation" ] }
+        ]
+      }]
+    }
+  ],
+  [
     "ancientStorm",
     {
       "name": "Ancient Storm",
