@@ -289,7 +289,7 @@ export default class GameService extends Service {
 
         // If the current player hasn't opened the game since the server started up, end the game in a truce.
         if (
-          game.state.currentTurn.startedAt < this.startupAt &&
+          game.state.currentTurn.startedAt <= this.startupAt &&
           game.state.timeLimit.base < 300 &&
           !game.state.currentTeam.seen(this.startupAt)
         )
@@ -1426,21 +1426,6 @@ export default class GameService extends Service {
 
     const state = this.data.state;
 
-    if (!game.state.startedAt) {
-      game.state.once('startGame', () => this._recordGameStats(game));
-
-      if (game.collection && game.state.timeLimit.base < 86400) {
-        state.autoCancel.open(game.id, true);
-        game.state.once('startGame', () => state.autoCancel.delete(game.id));
-        game.on('delete', () => state.autoCancel.delete(game.id));
-      }
-    }
-
-    if (!game.state.endedAt)
-      game.state.once('endGame', () => this._recordGameStats(game));
-
-    this._syncAutoSurrender(game);
-
     game.state.on('willSync', ({ data:expireIn }) => {
       state.willSync.add(game.id, true, expireIn);
     });
@@ -1463,6 +1448,54 @@ export default class GameService extends Service {
 
       this.data.deleteGame(game).then(event.whenDeleted.resolve, event.whenDeleted.reject);
     });
+
+    if (!game.state.startedAt) {
+      game.state.once('startGame', () => this._recordGameStats(game));
+      game.state.once('endGame', () => this._recordGameStats(game));
+
+      if (game.collection && game.state.timeLimit.base < 86400) {
+        state.autoCancel.open(game.id, true);
+        game.state.once('startGame', () => state.autoCancel.delete(game.id));
+        game.on('delete', () => state.autoCancel.delete(game.id));
+      }
+    } else if (!game.state.endedAt) {
+      game.state.once('endGame', () => this._recordGameStats(game));
+
+      // If a game is being attached, that means it was just added to the cache.
+      // The game might be loaded as a result of the server starting up and the
+      // game ids expired from the autoSurrender or willSync timeouts.  Or, the
+      // games were not present in those timeouts for any reason, including due
+      // to the server shutting down right after they expired, and was loaded
+      // by player request soon or much later after server startup.  Regardless,
+      // if current turn has ended, it needs to start the next turn immediately
+      // and unconditionally and the next player needs to be notified... unless
+      // the game ends in draw.  Note that this will fire related events since
+      // this logic comes AFTER event subscription above.
+      //
+      // But if the current turn (ended or not) started before server startup
+      // then we need to give 5 minutes from server startup for players to show
+      // up and play their turn.  But if the current turn did end, then the next
+      // turn needs to start at server startup so that we can end the game in a
+      // truce if one of the players didn't show up.
+      if (
+        // The current turn must have started before server startup
+        game.state.currentTurn.startedAt <= this.startupAt &&
+        // The time limit must be less than 5 minutes.
+        game.state.timeLimit?.base < 300 &&
+        // The server must have started less than 5 minutes ago.
+        (Date.now() - this.startupAt) < 300000
+      ) {
+        if (game.state.currentTurn.isEnded)
+          return game.state.startTurn(this.startupAt, 300);
+        else {
+          game.state.currentTurn.resetTimeLimit(Math.ceil((300000 - (Date.now() - this.startupAt)) / 1000));
+          this._notifyYourTurn(game);
+        }
+      } else if (game.state.currentTurn.isEnded)
+        return game.state.startTurn();
+
+      this._syncAutoSurrender(game);
+    }
   }
   async _recordGameStats(game) {
     if (game.state.isSinglePlayer) return;
@@ -1499,19 +1532,6 @@ export default class GameService extends Service {
     if (game.state.endedAt) {
       this.data.state.autoSurrender.delete(game.id);
       return;
-    }
-
-    // Allow the current turn in games to have at least 5 minutes remaining from the point of server startup.
-    if (
-      // The current turn must have started before server startup
-      game.state.currentTurn.startedAt < this.startupAt &&
-      // The time limit must be less than 5 minutes.
-      game.state.timeLimit.base < 300 &&
-      // The server must have started less than 5 minutes ago.
-      (Date.now() - this.startupAt) < 300000
-    ) {
-      game.state.currentTurn.resetTimeLimit(Math.ceil((300000 - (Date.now() - this.startupAt)) / 1000));
-      this._notifyYourTurn(game);
     }
 
     this.data.state.autoSurrender.add(game.id, true, game.state.getTurnTimeRemaining());
