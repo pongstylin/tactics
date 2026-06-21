@@ -209,25 +209,6 @@ const routeMatcher = Array.from(routes.keys()).map(path => {
   };
 });
 
-
-const onceClick = () => {
-  if (Howler.ctx.state === 'running')
-    state.whenAudioEnabled = true;
-  else
-    state.whenAudioEnabled = new Promise(resolve => {
-      const stateChangeListener = () => {
-        if (Howler.ctx.state !== 'running')
-          return;
-
-        Howler.ctx.removeEventListener('statechange', stateChangeListener);
-        resolve(true);
-      };
-      Howler.ctx.addEventListener('statechange', stateChangeListener);
-    });
-  window.removeEventListener('click', onceClick, { passive:true, capture:true });
-};
-window.addEventListener('click', onceClick, { passive:true, capture:true });
-
 const fillArenaQueueMap = new Map();
 
 const pushPublicKey = Uint8Array.from(
@@ -3264,8 +3245,7 @@ async function syncTab() {
     if (state.currentTab === 'lobby') {
       await renderLobbyGames();
 
-      // If audio isn't enabled, make it enabled with a click.
-      if (await state.whenAudioEnabled)
+      if (Tactics.Howler.whenUnlocked.isResolved)
         showLobby();
       else
         showEnterLobby();

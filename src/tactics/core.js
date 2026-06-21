@@ -1,4 +1,3 @@
-import 'howler';
 import 'plugins/pixi.js';
 
 import config, { gameConfig } from 'config/client.js';
@@ -18,6 +17,7 @@ import SetImageRenderer from 'components/SetImageRenderer.js';
 import Progress from 'components/Modal/Progress.js';
 import SetBuilder from 'components/Modal/SetBuilder.js';
 import { colorFilterMap } from 'tactics/colorMap.js';
+import Howler, { Howl } from 'utils/howler.js';
 import sleep from 'utils/sleep.js';
 
 const authClient = clientFactory('auth');
@@ -42,6 +42,8 @@ window.Tactics = {
   RemoteTransport: RemoteTransport,
   Game: Game,
   ServerError: ServerError,
+  Howler,
+  Howl,
   _avatars: { cache:new WeakMap() },
   _setBuilder: null,
   _setImageRenderer: null,

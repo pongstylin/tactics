@@ -112,7 +112,7 @@ export default class AnimatedSprite {
           const soundName = soundData.name[0] || i;
 
           await new Promise((resolve, reject) => {
-            soundData.howl = new Howl({
+            soundData.howl = new Tactics.Howl({
               src: [ soundData.src ],
               format: 'mp3',
               volume: (soundData.volume || 1) * VOLUME_SCALE,

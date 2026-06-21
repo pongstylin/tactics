@@ -440,22 +440,9 @@ export default class GameState extends TypedEmitter {
 
     this.turns.forEach(t => t.startedAt = startedAt);
 
-    // First turn must be passed, but at least recovery drops.
-    // The second turn might be passed, too, if all units are in recovery.
-    // Even after auto passing, the first playable turn startedAt matches the
-    // first turn startedAt.  This guarantee enables us to determine if a
-    // given turn is the first playable turn by comparing the turn start date
-    // with the first turn start date.  This is currently used for triggering
-    // "Your Turn" notifications at the right times.
-    this.autoPass();
-
     this.emit({
       type: 'startGame',
-      data: {
-        startedAt: this.startedAt,
-        teams: this.teams.map(t => t.getData(true)),
-        units: this.units,
-      },
+      data: { startedAt },
     });
 
     this.startTurn();
@@ -797,9 +784,9 @@ export default class GameState extends TypedEmitter {
    * Keep ending turns until a team is capable of making their turn.
    * ...or the game ends due to draw.
    */
-  autoPass() {
+  autoPass(startAt, timeLimit) {
     if (this.currentTurn.isEnded)
-      this._pushHistory();
+      this._pushHistory(startAt, timeLimit);
 
     let turnEnded = true;
     while (turnEnded) {
@@ -811,7 +798,7 @@ export default class GameState extends TypedEmitter {
 
       if (turnEnded) {
         this._endTurn(true);
-        this._pushHistory();
+        this._pushHistory(startAt, timeLimit);
       }
     }
   }
@@ -1222,7 +1209,12 @@ export default class GameState extends TypedEmitter {
 
     return true;
   }
-  startTurn() {
+  startTurn(startAt, timeLimit) {
+    // The turn can be empty on game start.
+    if (this.currentTurn.isEnded || this.currentTurn.isEmpty)
+      if (this.autoPass(startAt, timeLimit))
+        return this.end('draw');
+
     const startTurnEvent = {
       type: 'startTurn',
       data: this.currentTurn,
@@ -1298,12 +1290,7 @@ export default class GameState extends TypedEmitter {
       this.getTurnTimeRemaining() <= 10000 ||
       // Current team can go again if all opponents will be auto passed.
       this.getNextPlayableTeam() === this.currentTeam
-    )) {
-      if (this.autoPass())
-        return this.end('draw');
-      else
-        return this.startTurn();
-    }
+    )) return this.startTurn();
 
     this.emit({ type:'sync', data:originalEvent });
 
@@ -1627,12 +1614,12 @@ export default class GameState extends TypedEmitter {
     this._board.applyAction(action);
   }
 
-  _pushHistory(nextTurnStartsAt = new Date()) {
+  _pushHistory(startAt = new Date(), timeLimit = null) {
     this.turns.push(Turn.create({
       id: this.turns.length,
       team: this.teams[this.turns.length % this.teams.length],
       data: {
-        startedAt: nextTurnStartsAt,
+        startedAt: startAt,
         units: this._board.getState(),
       },
     }));
@@ -1644,7 +1631,10 @@ export default class GameState extends TypedEmitter {
       this.lockedTurnId = this._getLockedTurnId();
 
     if (this.timeLimit)
-      applyTurnTimeLimit[this.timeLimit.type].call(this, 'pushed');
+      if (timeLimit === null)
+        applyTurnTimeLimit[this.timeLimit.type].call(this, 'pushed');
+      else
+        this.currentTurn.timeLimit = timeLimit;
     this._applyTurnDrawCounts();
 
     this._newActions.length = 0;

@@ -97,7 +97,7 @@ export default class GameSettings extends Modal {
       }
     }, true);
 
-    if (Howler.noAudio)
+    if (Tactics.Howler.noAudio)
       this._els.audio.style.display = 'none';
     if (!fullscreen.isAvailable())
       this._els.fullscreen.style.display = 'none';
@@ -144,7 +144,7 @@ export default class GameSettings extends Modal {
   toggleAudio() {
     this.data.settings.audio = !this.data.settings.audio;
     gameConfig.audio = this.data.settings.audio;
-    Howler.mute(!this.data.settings.audio);
+    Tactics.Howler.mute(!this.data.settings.audio);
   }
 
   setGameSpeed(gameSpeed) {

@@ -465,7 +465,7 @@ export default class ConfigureGame extends Modal {
     const radAudio = this.root.querySelector('INPUT[name=audio]:checked');
     if (radAudio && (radAudio.value === 'on') !== gameConfig.audio) {
       gameConfig.audio = radAudio.value === 'on';
-      Howler.mute(!gameConfig.audio);
+      Tactics.Howler.mute(!gameConfig.audio);
     }
 
     const radConfirmBeforeCreate = this.root.querySelector('INPUT[name=confirmBeforeCreate]');
