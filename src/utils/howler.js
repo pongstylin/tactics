@@ -42,6 +42,12 @@
  *     not just context.resume(). The legacy `webkitAudioContext` prefix is
  *     also checked for older WebKit builds, and decodeAudioData falls back
  *     to its legacy callback signature if the Promise form isn't honored.
+ *     Note: Web Audio is treated as "ambient" on iOS by default, meaning
+ *     the hardware mute/ringer switch silences it. This is intentional —
+ *     using navigator.audioSession.type = 'playback' would bypass the mute
+ *     switch but also interrupt background audio from Spotify, Netflix, etc.,
+ *     which is unacceptable for a game. If you ever need to override this
+ *     for a specific use case, that is the API to reach for.
  *
  * WHAT IS *NOT* IMPLEMENTED (vs. real Howler.js)
  *   - HTML5 audio / streaming mode (`html5: true`) — intentionally omitted,
@@ -122,19 +128,6 @@ function ensureContext() {
   } catch (e) {
     // Some older engines don't accept a constructor options dictionary.
     _ctx = new AudioContextClass();
-  }
-
-  // Safari (16.4+) treats Web Audio as "ambient" by default, meaning it's
-  // silenced by the iOS hardware mute/ringer switch regardless of whether
-  // the AudioContext is unlocked and running. Opting into the "playback"
-  // audio session category makes it behave like real media playback and
-  // ignore that switch. Safari-only API; harmless no-op everywhere else.
-  if (typeof navigator !== 'undefined' && 'audioSession' in navigator) {
-    try {
-      navigator.audioSession.type = 'playback';
-    } catch (e) {
-      // Non-fatal — worst case Safari keeps treating audio as ambient.
-    }
   }
 
   _masterGain = _ctx.createGain();
