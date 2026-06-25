@@ -31,14 +31,14 @@ export type Rank = {
   gameCount: number;
 };
 
-const defaultData = {
+const getDefaultData = () => ({
   name: null,
   aliases: new Map<string,Date>(),
   relationships: new Map<string, Relationship>(),
   ranks: null,
   muted: false,
   admin: false,
-};
+});
 
 export default class Identity extends ActiveModel<IdentityEvents> {
   protected static _cache: Cache<string, Identity>
@@ -64,12 +64,12 @@ export default class Identity extends ActiveModel<IdentityEvents> {
     // Used to sync player.identityId when identities are merged.
     playerIds: Set<string>
   }
-  protected gameTypes: Map<string, GameType>
+  protected gameTypes?: Map<string, GameType>
 
-  constructor(data:PickPartial<Identity['data'], keyof typeof defaultData>) {
+  constructor(data:PickPartial<Identity['data'], keyof ReturnType<typeof getDefaultData>>) {
     super();
 
-    this.data = Object.assign({}, defaultData, data);
+    this.data = Object.assign({}, getDefaultData(), data);
 
     if (data.ranks)
       data.ranks.ratings = addForteRank(data.ranks.ratings.map(r => ({
@@ -221,8 +221,8 @@ export default class Identity extends ActiveModel<IdentityEvents> {
     this.pruneRanks();
     this.emit('change:setRanks');
   }
-  pruneRanks(gameTypes:Map<string, GameType> | null = null) {
-    gameTypes = gameTypes ? this.gameTypes = gameTypes : this.gameTypes;
+  pruneRanks(gameTypes:Map<string, GameType> | undefined = this.gameTypes) {
+    if (gameTypes) this.gameTypes = gameTypes;
 
     const ranks = this.data.ranks;
     if (!gameTypes || !ranks)

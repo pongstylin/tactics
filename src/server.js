@@ -105,6 +105,15 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
       </DIV>
     `,
   } ],
+  [ 20260624, {
+    title: `Big Bug Busted`,
+    message: `
+      You might have noticed your profile page filling up with lots of "duplicate" relationships.  It doesn't matter if they were
+      friended, muted, or blocked.  You might look at a player's info in a game and see a completely different nickname and think
+      they are using multiple accounts.  No, it was just a bug!  This bug is about 3 months old, but is finally fixed.  Feel free
+      to clean up your relationships and expect it to be sane going forward.
+    `
+  } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');
