@@ -100,7 +100,7 @@ if (typeof window !== 'undefined' && !self.Promise.isEnhanced) {
     }
   }
 
-  const enhancedFetch = function (resource, init) {
+  const enhancedFetch = function (resource, init = {}) {
     const fetchInit = { ...init };
     delete fetchInit.retry;
 
