@@ -121,38 +121,6 @@ export default class StormDragon extends Unit {
     container.scale.set(OVERALL_SCALE);
   }
 
-  // ── Cloud construction ────────────────────────────────────────────────────
-  /*
-   * Called from draw() the first time this.pixi is created.
-   *
-   * Creates:
-   *   _fogBack  — container inserted below this.frame (behind dragon)
-   *                  holds _cloud1 (main mass) and _cloud2 (upper wisp)
-   *   _fogFront — container inserted above this.frame (in front of dragon)
-   *                  holds _cloud3 (foreground wisp at lower alpha)
-   */
-  _buildClouds() {
-    if (this._fogBack) return;
-
-    this._cloud1 = this._makeCloud(90, 28, /*seed*/3);
-    this._cloud2 = this._makeCloud(74, 20, /*seed*/11);
-    this._cloud3 = this._makeCloud(68, 18, /*seed*/23);
-
-    this._fogBack = new PIXI.Container();
-    this._fogBack.label = 'fogBack';
-    this._fogBack.addChild(this._cloud1);
-    this._fogBack.addChild(this._cloud2);
-
-    this._fogFront = new PIXI.Container();
-    this._fogFront.label = 'fogFront';
-    this._fogFront.addChild(this._cloud3);
-
-    // Insert both into this.pixi now (pixi is guaranteed to exist at this point)
-    const frameIdx = this.pixi.getChildIndex(this.frame);
-    this.pixi.addChildAt(this._fogBack,  frameIdx);      // behind frame
-    this.pixi.addChildAt(this._fogFront, frameIdx + 2);  // in front of frame
-  }
-
   /*
    * Build one cloud: a horizontally-stretched bumpy ellipse rendered as
    * layered filled polygons at decreasing opacity, then blurred.
@@ -255,12 +223,29 @@ export default class StormDragon extends Unit {
     }
   }
 
-  // ── draw() — override so clouds are built right after this.pixi exists ────
-  draw(skipPosition = false) {
-    const result = super.draw(skipPosition);
-    this._buildClouds();          // this.pixi now exists; safe to insert children
-    this._updateFogState(1, 0);   // show fog immediately on first draw
-    return result;
+  drawPIXI(frame) {
+    const pixi = super.drawPIXI(frame);
+
+    if (!this._cloud1) {
+      this._cloud1 = this._makeCloud(90, 28, /*seed*/3);
+      this._cloud2 = this._makeCloud(74, 20, /*seed*/11);
+      this._cloud3 = this._makeCloud(68, 18, /*seed*/23);
+
+      this._fogBack = new PIXI.Container();
+      this._fogBack.label = 'fogBack';
+      this._fogBack.addChild(this._cloud1);
+      this._fogBack.addChild(this._cloud2);
+
+      this._fogFront = new PIXI.Container();
+      this._fogFront.label = 'fogFront';
+      this._fogFront.addChild(this._cloud3);
+      this._updateFogState(1, 0);
+    }
+
+    pixi.addChildAt(this._fogBack, 0);   // behind frame
+    pixi.addChildAt(this._fogFront, 2);  // in front of frame
+
+    return pixi;
   }
 
   fixupFrame(frame, direction = this.direction) {
