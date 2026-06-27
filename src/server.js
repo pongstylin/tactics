@@ -114,6 +114,14 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
       to clean up your relationships and expect it to be sane going forward.
     `
   } ],
+  [ 20260627, {
+    title: `Storm Dragon has a new look!`,
+    message: `
+      I think just about everybody thought the Storm Dragon was ugly.  Worse, it looked... distorted.  I attempted to apply
+      an effect to make it look thinner when compared to the Dragon Tyrant to emphasis that it wasn't as tanky.  It just made it
+      look weird.  So, I abandoned that and applied a new visual effect.  Let me know what you think.
+    `
+  } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');

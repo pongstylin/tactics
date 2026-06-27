@@ -89,7 +89,7 @@ export default class PlayerAvatars extends ActiveModel<PlayerAvatarsEvents> {
     const tier = Math.min(4, 1 + Math.floor((Date.now() - this.data.createdAt.getTime()) / 1000 / 60 / 60 / 24 / 7));
     const unitTypes = [ ...unitData ].filter(([k,d]) => d.tier <= tier).sort((a,b) => a[1].tier - b[1].tier).map(([k,d]) => k);
 
-    return unitTypes.concat(this.data.avatars).concat(Array.from(this.data.units.keys()));
+    return unitTypes.concat(this.data.avatars);
   }
   get listUnits() {
     return this.data.units;
