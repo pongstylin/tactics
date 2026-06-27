@@ -621,14 +621,19 @@ export default class Unit {
     this.frame = new PIXI.Container();
     this.frame.label = 'frame';
 
-    this.pixi = new PIXI.Container();
-    this.pixi.data = {};
-    this.pixi.addChild(this.frame);
+    this.pixi = this.drawPIXI(this.frame);
 
     if (this.assignment && !skipPosition)
       this.setPositionToTile();
 
     return this.drawStand();
+  }
+  drawPIXI(frame) {
+    const pixi = new PIXI.Container()
+    pixi.data = {};
+    pixi.addChild(frame);
+
+    return pixi;
   }
   drawAvatar(options) {
     options = Object.assign({
@@ -675,8 +680,7 @@ export default class Unit {
     if (options.as === 'image') {
       // Need a wrapper container so the extracted image anchor includes the
       // frame's full transform matrix, including scale, skew, and rotation.
-      const wrapper = new PIXI.Container();
-      wrapper.addChild(frame);
+      const wrapper = this.drawPIXI(frame);
       const bounds = wrapper.getLocalBounds();
       const avatarCanvas = options.renderer.extract.canvas(wrapper);
       avatar = {
