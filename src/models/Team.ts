@@ -420,7 +420,7 @@ export default class Team extends ActiveModel<TeamEvents> {
 
     return (Number as any).rangeOverlaps(
       this.checkinAt.getTime(),
-      this.checkoutAt?.getTime() ?? Date.now(),
+      this.checkoutAt && this.checkoutAt > this.checkinAt ? this.checkoutAt.getTime() : Date.now(),
       dateStart,
       dateEnd ?? Date.now(),
     );
