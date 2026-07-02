@@ -1398,7 +1398,7 @@ export default class GameService extends Service {
     }));
 
     if (player)
-      promises.push(this.data.getPlayerSets(player, data.type).then(sets => {
+      promises.push(this.data.getPlayerSets(player, data.type, false).then(sets => {
         meta.setNames = data.teams.map(t => {
           if (!t || !t.set) return null;
 

@@ -272,7 +272,7 @@ export default class extends DynamoDBAdapter {
     const teamSet = await this._getTeamSetStatsForTeamSet(this._getTeamSet({ units:defaultSet.units }, gameTypeId, defaultSet.id));
     return teamSet.toData(await this.getTopTeamSets(gameTypeId));
   }
-  async getPlayerSets(player, gameType) {
+  async getPlayerSets(player, gameType, createDefaultIfMissing = true) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
 
@@ -281,8 +281,10 @@ export default class extends DynamoDBAdapter {
         return [ await this._getDefaultPlayerSet(player, gameType) ];
 
       const playerSetList = await this._getPlayerSets(player);
-      if (playerSetList.get(gameType, 'default') === null)
-        playerSetList.set(gameType, await this._getDefaultPlayerSet(player, gameType));
+      if (createDefaultIfMissing && playerSetList.get(gameType, 'default') === null) {
+        const playerAvatars = await this._getPlayerAvatars(player);
+        playerSetList.set(gameType, await this._getDefaultPlayerSet(player, gameType), playerAvatars.listUnits);
+      }
       return playerSetList.list(gameType);
     })();
 
@@ -301,13 +303,13 @@ export default class extends DynamoDBAdapter {
    * The server may potentially store more than one set, typically one set per
    * game type.  The default set is simply the first one for a given game type.
    */
-  async getPlayerSet(player, gameType, slot) {
+  async getPlayerSet(player, gameType, slot, createDefaultIfMissing = true) {
     if (typeof gameType === 'string')
       gameType = this._gameTypes.get(gameType);
     if (!gameType.isCustomizable && slot !== 'default')
       throw new ServerError(400, 'Only the default set is available for this game type.');
 
-    const playerSets = await this.getPlayerSets(player, gameType);
+    const playerSets = await this.getPlayerSets(player, gameType, createDefaultIfMissing && slot === 'default');
     return playerSets.find(ps => ps.slot === slot) ?? null;
   }
   /*
@@ -1086,7 +1088,7 @@ export default class extends DynamoDBAdapter {
       createdAt: new Date(),
     };
 
-    if (!this.hasFixedSides && Math.random() < 0.5) {
+    if (!gameType.hasFixedSides && Math.random() < 0.5) {
       for (const unit of defaultSet.units) {
         unit.assignment[0] = 10 - unit.assignment[0];
         if (unit.direction === 'W')
