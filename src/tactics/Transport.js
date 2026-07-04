@@ -522,10 +522,20 @@ export default class Transport {
       this.on(eventType, listener);
     }
   }
+  isMyTeam(team) {
+    return !team.bot;
+  }
   _pruneRecentTurns() {
     const recentTurns = this._data.state.recentTurns;
+    const currentTurnId = this.currentTurnId;
+    const minTurnId = (tId => {
+      for (const turn of recentTurns)
+        if (turn.id < currentTurnId && this.isMyTeam(turn.team) && turn.isPlayable)
+          tId = turn.id;
+      return tId;
+    })(recentTurns[0].id);
 
-    while (recentTurns.length > 1)
+    while (recentTurns[0].id < minTurnId)
       recentTurns.shift();
   }
   /*
@@ -584,8 +594,6 @@ export default class Transport {
     if (events)
       for (const event of events)
         this._emit(event);
-
-    this._pruneRecentTurns();
   }
   _onStartTurn({ data }) {
     const board = this.board;
@@ -608,6 +616,7 @@ export default class Transport {
     if (this.previousTurn)
       this.previousTurn.isCurrent = false;
 
+    this._pruneRecentTurns();
     this.whenTurnStarted.resolve();
     this._emit({ type:'change' });
   }

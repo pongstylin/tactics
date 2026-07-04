@@ -1179,16 +1179,112 @@ function refreshDrawMessage() {
     ].join('') } ]);
 }
 
-function resetPrompts() {
-  const divPrompts = document.querySelector('#prompts');
+/*
+ * Get (optionally creating) one of possibly several prompt elements shown
+ * in the '#prompts' area, which is always rendered below chat messages.
+ * Each kind of prompt (player requests, skipped turns, etc) manages its own
+ * '.prompt.<kind>' element and is expected to leave other kinds alone.
+ */
+function getPrompt(kind, createIfNeeded = false) {
+  const divPrompts = document.getElementById('prompts');
+  let divPrompt = divPrompts.querySelector(`.prompt.${kind}`);
 
+  if (!divPrompt && createIfNeeded) {
+    divPrompt = document.createElement('DIV');
+    divPrompt.classList.add('prompt', kind);
+
+    const spnMessage = document.createElement('SPAN');
+    spnMessage.classList.add('message');
+    divPrompt.appendChild(spnMessage);
+
+    const spnActions = document.createElement('SPAN');
+    spnActions.classList.add('actions');
+    divPrompt.appendChild(spnActions);
+
+    divPrompts.appendChild(divPrompt);
+  }
+
+  return divPrompt;
+}
+function removePrompt(kind) {
+  getPrompt(kind)?.remove();
+}
+
+/*
+ * Whenever it becomes the viewing player's turn, let them know how many
+ * turns - mine and my opponent's, reported separately - were automatically
+ * skipped since my own last played turn, e.g. because none of the relevant
+ * team's units were able to move, attack, or turn.
+ */
+function refreshSkippedTurnsPrompt() {
+  if (game.state.currentTurnId === game.state.initialTurnId) {
+    if (game.state.currentTurnId === 2) {
+      const divPrompt = getPrompt('turns-skipped', true);
+      divPrompt.querySelector('.message').innerHTML = `The first turn was skipped since all units had first turn wait.`;
+    }
+    return;
+  }
+
+  const counts = { mine:0, theirs:0 };
+  for (const turn of game.state.recentTurns)
+    if (turn.isAutoSkipped)
+      if (game.isMyTeam(turn.team))
+        counts.mine++;
+      else
+        counts.theirs++;
+
+  if (!counts.mine && !counts.theirs)
+    return removePrompt('turns-skipped');
+
+  let message;
+  if (counts.mine && counts.theirs)
+    message = `You and your opponent had ${counts.mine} and ${counts.theirs} turns skipped respectively.`;
+  else if (counts.mine)
+    message = `You had ${counts.mine} turn${counts.mine === 1 ? '' : 's'} skipped.`;
+  else
+    message = `Your opponent had ${counts.theirs} turn${counts.theirs === 1 ? '' : 's'} skipped.`;
+
+  const divPrompt = getPrompt('turns-skipped', true);
+  divPrompt.querySelector('.message').innerHTML = `${message}  <a href="javascript:void(0)" class="info-skipped-turns">Why?</a>`;
+}
+function popupSkippedTurnsInfo() {
+  popup({ message:`
+    <P style="margin:0 0 8px 0">
+      A turn is automatically skipped when none of a team's units are able to move, attack, or turn.
+      This keeps the game from stalling when a team has no legal action available to it.
+    </P>
+    <P style="margin:0 0 8px 0">
+      Some example causes include:
+    </P>
+    <UL style="margin: 0 0 0 24px">
+      <LI>The team's units are still recovering from a powerful attack made on an earlier turn.</LI>
+      <LI>The team's units are paralyzed or otherwise can't move.</LI>
+    </UL>
+    <P>
+      Skipped turns happen automatically and immediately, so you won't see them play out.
+      You can review what happened by scrubbing through the turn history.
+    </P>
+  `, maxWidth:'400px' });
+}
+
+function resetPrompts() {
   if (game.state.playerRequest === null)
-    divPrompts.innerHTML = '';
+    removePlayerRequestPrompts();
   // Used to clear cancelled requests after they become irrelevant (esp. undo requests)
   else if (game.state.playerRequest.turnId <= game.state.lockedTurnId)
-    divPrompts.innerHTML = '';
+    removePlayerRequestPrompts();
+
+  refreshSkippedTurnsPrompt();
 
   updateChatButton();
+}
+/*
+ * Player request prompts (undo, truce) are the only kind of prompt that
+ * predate the introduction of other prompt kinds (e.g. skipped turns), so
+ * clearing them out must be careful to leave other prompt kinds alone.
+ */
+function removePlayerRequestPrompts() {
+  document.querySelectorAll('#prompts .prompt:not(.turns-skipped)').forEach(divPrompt => divPrompt.remove());
 }
 
 async function showPublicIntro(gameData) {
@@ -1815,8 +1911,8 @@ function updateChatButton() {
   const $button = $('BUTTON[name=chat]');
   const playerId = authClient.playerId;
 
-  const divPrompt = document.querySelector('#prompts .prompt');
-  if (divPrompt && game.state.playerRequest && game.state.playerRequest.status !== 'cancelled')
+  const playerRequest = game.state.playerRequest;
+  if (playerRequest && playerRequest.status !== 'cancelled' && getPrompt(playerRequest.type))
     return $button.addClass('ready').attr('badge', '+');
 
   $button.removeClass('ready').attr('badge', '');
@@ -1995,6 +2091,7 @@ async function startGame() {
         refreshRatedMessage();
       }
       refreshDrawMessage();
+      resetPrompts();
       toggleReplayButtons();
     })
     .on('selectMode-change', event => {
@@ -2139,6 +2236,15 @@ async function startGame() {
     .on('startTurn', resetPrompts)
     .on('endGame', hidePlayerRequest);
 
+  $('#prompts').on('click', event => {
+    if (event.target.classList.contains('info-skipped-turns'))
+      popupSkippedTurnsInfo();
+  });
+
+  // Also check on initial load in case it is already the viewing player's
+  // turn, e.g. after a page refresh or opening a game link.
+  resetPrompts();
+
   resetPlayerBanners();
   toggleUndoButton();
   updateChatButton();
@@ -2190,26 +2296,9 @@ function updatePlayerRequestPrompt(playerRequest, requestor, createIfNeeded) {
   const myTeam = game.myTeam;
   const requestorName = teams.filter(t => t.name === requestor.name).length > 1 ? requestor.color : requestor.name;
 
-  const divPrompts = document.getElementById('prompts');
-  let divPrompt = divPrompts.querySelector(`.prompt.${playerRequest.type}`);
-  if (!divPrompt) {
-    if (!createIfNeeded)
-      return;
-
-    divPrompt = document.createElement('DIV');
-    divPrompt.classList.add('prompt');
-    divPrompt.classList.add(playerRequest.type);
-
-    const spnMessage = document.createElement('SPAN');
-    spnMessage.classList.add('message');
-    divPrompt.appendChild(spnMessage);
-
-    const spnActions = document.createElement('SPAN');
-    spnActions.classList.add('actions');
-    divPrompt.appendChild(spnActions);
-
-    divPrompts.appendChild(divPrompt);
-  }
+  const divPrompt = getPrompt(playerRequest.type, createIfNeeded);
+  if (!divPrompt)
+    return;
 
   let message;
   const buttons = [];
@@ -2344,8 +2433,7 @@ function hidePlayerRequest() {
   if (playerRequestPopup)
     playerRequestPopup.close();
 
-  const divPrompts = document.getElementById('prompts');
-  divPrompts.innerHTML = '';
+  removePlayerRequestPrompts();
 
   updateChatButton();
 }
