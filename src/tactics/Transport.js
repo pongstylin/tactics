@@ -297,7 +297,7 @@ export default class Transport {
           return pointer;
 
         // May undo forcibly skipped turns if something can be undone earlier.
-        if (turn.isAutoSkipped)
+        if (turn.isAutoSkipped || turn.isGameEnded)
           continue;
 
         // May not undo opponent turns without permission.
