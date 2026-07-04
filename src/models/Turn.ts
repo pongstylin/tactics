@@ -237,7 +237,7 @@ export default class Turn extends ActiveModel<TurnEvents> {
   }
   get isAutoSkipped() {
     const actions = this.data.actions;
-    return actions.length > 0 && actions.every(a => a.forced) && [ 'endTurn', 'endGame' ].includes(actions.last.type) && actions.last.forced;
+    return actions.length > 0 && actions.every(a => a.forced) && actions.last.type === 'endTurn';
   }
 
   /*
