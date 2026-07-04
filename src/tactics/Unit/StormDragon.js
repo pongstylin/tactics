@@ -457,6 +457,17 @@ export default class StormDragon extends Unit {
 
     return anim;
   }
+  animDie() {
+    const anim = super.animDie();
+
+    anim
+      .splice(1, {
+        script: () => this._updateFogState(this.frame.alpha),
+        repeat: 7,
+      });
+
+    return anim;
+  }
   drawStreaks(container, target, start, end) {
     // Determine the stops the lightning will make.
     let stops = [

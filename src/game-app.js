@@ -957,18 +957,7 @@ function initMessages(messages) {
   if (gameType.notice)
     messages.push({ content:gameType.notice });
 
-  if (game.state.randomHitChance === false)
-    messages.push({ content:[
-      `This is a <a href="javascript:void(0)" class="info-no-luck">No Luck</a> game.  `,
-      `Tap link for more info.`,
-    ].join('') });
-
-  if (game.state.undoMode === 'loose')
-    messages.push({ content:[
-      `This is a <a href="javascript:void(0)" class="info-practice">Practice</a> game.  `,
-      `Tap link for more info.`,
-    ].join('') });
-  else if (!game.state.rated && game.state.unratedReason) {
+  if (!game.isPracticeMode && !game.state.rated && game.state.unratedReason) {
     let reason;
     switch (game.state.unratedReason) {
       case 'not rated':
@@ -1008,6 +997,23 @@ function initMessages(messages) {
     ].join('') });
   }
 
+  if (game.state.randomHitChance === false)
+    messages.push({ content:[
+      `This is a <a href="javascript:void(0)" class="info-no-luck">No Luck</a> game.  `,
+      `Tap link for more info.`,
+    ].join('') });
+
+  if (game.isPracticeMode)
+    messages.push({ content:[
+      `This is a <a href="javascript:void(0)" class="info-practice">Practice</a> game.  `,
+      `Tap link for more info.`,
+    ].join('') });
+  else if (game.state.undoMode === 'strict')
+    messages.push({ content:[
+      `Undo use is <a href="javascript:void(0)" class="info-undo-restricted">restricted</a> in this game.  `,
+      `Tap link for more info.`,
+    ].join('') });
+
   chatMessages = messages;
   messages.forEach(m => renderMessage(m));
 
@@ -1043,6 +1049,14 @@ function initMessages(messages) {
         of game history as exist.  You can even undo after the game ends!  Practice games do not affect
         your stats.
       `, maxWidth:'400px' });
+    else if (event.target.classList.contains('info-undo-restricted'))
+      popup({ message:`
+        When undo is restricted, you may only undo an action within 5 seconds to correct a misclick.
+        Strict undo mode is enabled in Tournament games to prevent you from simulating various moves
+        without approval by your opponent.  It is also enabled in Blitz games to allow your opponent to
+        see what you are doing as you do it so that when it is their turn, they don't lose precious
+        seconds seeing what you did and planning what to do in response.
+      `, maxWidth:'400px' })
     else if (event.target.classList.contains('info-draw'))
       popup({ message:`
         <P style="margin:0 0 8px 0">
