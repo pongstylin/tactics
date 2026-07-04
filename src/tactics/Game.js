@@ -443,6 +443,9 @@ export default class Game {
   get isPracticeMode() {
     return this.state.isPracticeMode;
   }
+  get isTournamentMode() {
+    return this.state.isTournamentMode;
+  }
   get ofSinglePlayer() {
     if (!this.state.forkOf) return false;
 

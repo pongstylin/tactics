@@ -188,11 +188,11 @@ export default class Transport {
     return this._getData('chatDisabled');
   }
 
-  get isTournamentMode() {
-    return this.undoMode === 'strict' && this.autoSurrender && this.strictFork === true;
-  }
   get isPracticeMode() {
     return this.rated === false && this.undoMode === 'loose';
+  }
+  get isTournamentMode() {
+    return this.undoMode === 'strict' && this.autoSurrender === true && this.strictFork === true;
   }
   get isSimulation() {
     const teams = this.teams;
@@ -529,6 +529,8 @@ export default class Transport {
     const recentTurns = this._data.state.recentTurns;
     const currentTurnId = this.currentTurnId;
     const minTurnId = (tId => {
+      if (this.endedAt)
+        return recentTurns.last.id;
       for (const turn of recentTurns)
         if (turn.id < currentTurnId && this.isMyTeam(turn.team) && turn.isPlayable)
           tId = turn.id;

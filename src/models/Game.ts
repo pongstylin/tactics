@@ -146,7 +146,7 @@ export default class Game extends ActiveModel<GameEvents> {
 
     if (gameOptions.timeLimitName) {
       stateData.timeLimit = timeLimit[gameOptions.timeLimitName].clone();
-      if (gameOptions.rated && stateData.timeLimit.base <= 30)
+      if (gameOptions.undoMode === 'normal' && stateData.timeLimit.base <= 30)
         stateData.undoMode = 'strict';
     }
 
@@ -686,7 +686,7 @@ export default class Game extends ActiveModel<GameEvents> {
     const fromTurnStartedAt = reference[REF_TURN_AT] && new Date(reference[REF_TURN_AT]);
     const fromTurnLimit = reference[REF_TURN_LIMIT];
     const fromActionId = reference.length - REF_ACTION_AT;
-    const fromActionsAt = reference.slice(REF_ACTION_AT).map((d:string) => new Date(d));
+    const fromActionsAt = reference.slice(REF_ACTION_AT).map(d => new Date(d as string));
 
     // locked turn id does not progress in practice games
     // Otherwise, if turns have not progressed, locked turn id hasn't either.
