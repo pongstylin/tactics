@@ -65,21 +65,12 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
       You only need to play about 90% of your games to earn the Storm Dragon unit.  So don't give up!
     `
   } ],
-  [ 20260624, {
-    title: `Big Bug Busted`,
+  [ 20260704, {
+    title: `Enhancement: Auto Skipped Turns Notices`,
     message: `
-      You might have noticed your profile page filling up with lots of "duplicate" relationships.  It doesn't matter if they were
-      friended, muted, or blocked.  You might look at a player's info in a game and see a completely different nickname and think
-      they are using multiple accounts.  No, it was just a bug!  This bug is about 3 months old, but is finally fixed.  Feel free
-      to clean up your relationships and expect it to be sane going forward.
-    `
-  } ],
-  [ 20260627, {
-    title: `Storm Dragon has a new look!`,
-    message: `
-      I think just about everybody thought the Storm Dragon was ugly.  Worse, it looked... distorted.  I attempted to apply
-      an effect to make it look thinner when compared to the Dragon Tyrant to emphasis that it wasn't as tanky.  It just made it
-      look weird.  So, I abandoned that and applied a new visual effect.  Let me know what you think.
+      When turns are auto skipped, the chat will let you know.  This includes cases where the first turn of the game was skipped
+      since all units have first turn wait, which is common in Moderator and Jenkins Jamboree styles.  Now new players might be
+      less confused about seeing you move twice in a row and think you are cheating!
     `
   } ],
 ]))));
