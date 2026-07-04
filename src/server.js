@@ -62,40 +62,8 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
     message: `
       The tournament has officially started.  For those who are participating, you have 40 days to get roughly 40 games played.
       So make sure you are getting the notificactions from Discord when we send you a message and send challenges to your opponents.
-      You only need to play about 90% of your games to earn the Storm Dragon unit.  So don't give up!
+      You only need to play about 90% of your games to earn the new Storm Dragon unit.  So don't give up!
     `
-  } ],
-  [ 3, {
-    message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17</HEADER>
-      <DIV style="margin:8px 8px 0">
-        This release introduces a new unit, but I'm still testing it out.
-        So if you see an unrated game with an unfamiliar dragon avatar camped out in the lobby, come try and kill it.
-        If you fork my games, you can play with the new dragon as well.  Let me know what you think about it.
-        I'm trying to see if it is too overpowered.  Other than that, I fixed many bugs.  Maybe I created a few more.
-        If you see any bugs, please let me know on the <A href="https://discord.gg/juyhghF" target="_blank">Community Discord</A>.
-      </DIV>
-    `,
-    width: '350px',
-  } ],
-  [ 20260517, {
-    message: `
-      <HEADER style="margin:0 8px; font-size:1.2em; font-weight:bold">App Update v2.17 (patch 0)</HEADER>
-      <DIV style="margin:8px 8px 0">
-        Added the Ancient Storm style, invented by Tuge.
-        This style will let you use the new unit so that you can test it with me.
-        If you see any bugs, please let me know on the <A href="https://discord.gg/juyhghF" target="_blank">Community Discord</A>.
-      </DIV>
-    `,
-    width: '350px',
-  } ],
-  [ 20260528, {
-    title: 'Furgon Update!',
-    message: `
-      <DIV style="margin:0 8px">
-        Furgon will no longer transform into a Golden Shrub if there is another Furgon on the board.  Keep this in mind if you play Mob style.  You might want to kill their Furgon before they kill yours.  This change was made to avoid excessively long games.
-      </DIV>
-    `,
   } ],
   [ 20260619, {
     title: 'New Custom Style!',
@@ -105,21 +73,12 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
       </DIV>
     `,
   } ],
-  [ 20260624, {
-    title: `Big Bug Busted`,
+  [ 20260704, {
+    title: `Enhancement: Auto Skipped Turns Notices`,
     message: `
-      You might have noticed your profile page filling up with lots of "duplicate" relationships.  It doesn't matter if they were
-      friended, muted, or blocked.  You might look at a player's info in a game and see a completely different nickname and think
-      they are using multiple accounts.  No, it was just a bug!  This bug is about 3 months old, but is finally fixed.  Feel free
-      to clean up your relationships and expect it to be sane going forward.
-    `
-  } ],
-  [ 20260627, {
-    title: `Storm Dragon has a new look!`,
-    message: `
-      I think just about everybody thought the Storm Dragon was ugly.  Worse, it looked... distorted.  I attempted to apply
-      an effect to make it look thinner when compared to the Dragon Tyrant to emphasis that it wasn't as tanky.  It just made it
-      look weird.  So, I abandoned that and applied a new visual effect.  Let me know what you think.
+      When turns are auto skipped, the chat will let you know.  This includes cases where the first turn of the game was skipped
+      since all units have first turn wait, which is common in Moderator and Jenkins Jamboree styles.  Now new players might be
+      less confused about seeing you move twice in a row and think you are cheating!
     `
   } ],
 ]))));

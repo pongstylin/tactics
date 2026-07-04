@@ -236,17 +236,8 @@ export default class RemoteTransport extends Transport {
 
     return super._onStartTurn(event);
   }
-  /*
-   * We only need enough history to determine undo availability.
-   */
-  _pruneRecentTurns() {
-    const state = this._data.state;
-    const recentTurns = state.recentTurns;
-    const team = this.getTeamForPlayer(authClient.playerId);
-    // Use a minimum of the previous turn id to allow for efficient turn progression.
-    const pointer = this.getUndoPointer(team) || { turnId:state.previousTurnId };
-    while (recentTurns[0].id < pointer.turnId)
-      recentTurns.shift();
+  isMyTeam(team) {
+    return team.playerId === authClient.playerId && !team.bot;
   }
   _watchForDataChanges(gameData) {
     this

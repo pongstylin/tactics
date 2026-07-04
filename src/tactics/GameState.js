@@ -535,11 +535,13 @@ export default class GameState extends TypedEmitter {
     const team = this.getTeamForPlayer(playerId);
     const data = this.getData();
 
-    if (this.startedAt && (!this.endedAt || this.isPracticeMode)) {
-      // Provide enough history so that the client knows if they may undo.
-      const pointer = this.getUndoPointer(team);
-      if (pointer)
-        data.recentTurns = this.turns.slice(pointer.turnId);
+    if (team && this.startedAt && (!this.endedAt || this.isPracticeMode)) {
+      // Observers don't have a team and only need the current turn, which
+      // getData() already provides by default.  For a real team, provide
+      // enough history to determine if they may undo, and how many of
+      // their recent turns, if any, were automatically skipped.
+      const turnId = this.getTeamPreviousPlayableTurnId(team) ?? this.initialTurnId;
+      data.recentTurns = this.turns.slice(turnId);
     }
 
     // Everybody sees the game start and end
