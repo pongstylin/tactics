@@ -184,10 +184,11 @@ var buttons = {
 
     const mode = $button.val();
 
-    if (mode == 'turn' && $button.hasClass('ready')) {
-      $('BUTTON[name=select][value=turn]').removeClass('ready');
-      return game.zoomToTurnOptions();
-    }
+    if (mode === 'turn' && $button.hasClass('ready'))
+      if (game.transformToRestore)
+        return game.zoomFromTurnOptions();
+      else
+        return game.zoomToTurnOptions();
 
     game.selectMode = mode;
   },

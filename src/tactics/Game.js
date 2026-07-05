@@ -1079,6 +1079,15 @@ export default class Game {
 
     return this;
   }
+  zoomFromTurnOptions() {
+    const transformToRestore = this.transformToRestore;
+    if (!transformToRestore) return;
+
+    this._panzoom.transitionToTransform(transformToRestore);
+    this.transformToRestore = null;
+
+    return this;
+  }
 
   delayNotice(notice, priority = false) {
     const delay = 200;
