@@ -101,7 +101,7 @@ export default class ViewSet {
     const [ gameType, playerSets, players ] = await Promise.all([
       typeof inGameType === 'string' ? Tactics.gameClient.getGameType(inGameType).then(gt => Tactics.load(gt.getUnitTypes()).then(() => gt)) : inGameType,
       Tactics.gameClient.getPlayerSets(typeof inGameType === 'string' ? inGameType : inGameType.id),
-      Tactics.authClient.getPlayers([ set.stats.createdBy, set.stats.mostPlayedBy ]),
+      Tactics.authClient.getPlayers([ set.stats?.createdBy, set.stats?.mostPlayedBy ]),
     ]);
 
     this.gameType = gameType;
