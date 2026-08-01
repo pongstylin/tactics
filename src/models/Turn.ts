@@ -220,7 +220,8 @@ export default class Turn extends ActiveModel<TurnEvents> {
     if (actions.length === 0)
       return true;
     // If there are unforced actions, this turn must be playable.
-    if (actions.some(a => !a.forced))
+    // If somebody surrendered in this turn, it must be playable.
+    if (actions.some(a => !a.forced || a.type === 'surrender'))
       return true;
     // If this turn ended the game in a truce, this turn must be playable.
     if (actions.last.type === 'endGame' && actions[0].winnerId === 'truce')
