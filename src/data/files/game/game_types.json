@@ -1106,6 +1106,7 @@
   [
     "ancientStorm",
     {
+      "archived": true,
       "name": "Ancient Storm",
       "description": "<HEADER>The History of Storm Dragons</HEADER><DIV>The Storm Dragons are the very first creatures of the ancient world — the gods’ earliest reptilian prototypes. Forged and tempered by lightning, they possess such immense capacity for power that they can call and absorb lightning to restore their bodies.</DIV><DIV>Compared to the Dragon Tyrants, they have a much slimmer physique, but their glowing metallic exterior can be tightened into impenetrable armor at will. Today, they are exceedingly rare creatures. When the mages discovered the power of the Dragon Tyrants and forged an alliance with them, most of the Storm Dragons were driven to extinction.</DIV>",
       "customizable": true,
@@ -1609,7 +1610,7 @@
       "customizable": true,
       "limits": {
         "tiles": { "start":[0,0], "end":[10,3] },
-        "points": 20,
+        "points": 22,
         "units": {
           "types": [
             ["Scout",             { "max":1 }],
@@ -1630,7 +1631,8 @@
             ["DragonspeakerMage", { "max":1 }],
             ["BeastRider",        { "max":1 }],
             ["GolemAmbusher",     { "max":1 }],
-            ["Berserker",         { "max":1 }]
+            ["Berserker",         { "max":1 }],
+            ["StormDragon",       { "max":1, "points":2 }]
           ]
         }
       },

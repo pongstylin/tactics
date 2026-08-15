@@ -59,11 +59,16 @@ app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new
   [ 20260815, {
     title: `Storm Dragon Release`,
     message: `
-      The tournament is moving on to the final round where the top 3 players will duke it out for the top cash prizes streamed live on Sat, Aug 22nd.
+      <P>The tournament is moving on to the final round where the top 3 players will duke it out for the top cash prizes streamed live on Sat, Aug 22nd.
       At long last, I'm handing out the first Storm Dragons to the most active participants.  Since the Storm Dragon (and other unit changes)
       have changed the meta significantly, I'm also adding the "OG Freestyle" style.  This way you can enjoy the original gameplay.  If you missed
-      out on the Storm Dragon, keep an eye on the announcements to learn how you can earn a Storm Dragon in the future.
-    `
+      out on the Storm Dragon, keep an eye on the announcements to learn how you can earn a Storm Dragon in the future.</P>
+      <P>Did you notice?  With the introduction of OG Freestyle, styles may now customize unit stats and behavior.  If you want to create a custom
+      style to try out a different spin on various units, just ask!</P>
+      <P>I'm also replacing Ancient Storm style by adding the Storm Dragon to Mob style.  Mob is now the only style where anybody may use and learn
+      about the new Storm Dragon unit.</P>
+    `,
+    width: '454px',
   } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
