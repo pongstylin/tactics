@@ -1,4 +1,4 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type TeamSet from '#models/TeamSet.js';
 // @ts-ignore
 import ServerError from '#server/Error.js';
@@ -6,7 +6,7 @@ import GameType from '#tactics/GameType.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
-type TeamSetCardinalityEvents = AbstractEvents & {
+type TeamSetCardinalityEvents = {
   'change:applySet': {},
   'change:optimize': {},
 };
@@ -14,11 +14,11 @@ type TeamSetCardinalityEvents = AbstractEvents & {
 export type Index = { path:string, count:number, disabled:boolean };
 
 export default class TeamSetCardinality extends ActiveModel<TeamSetCardinalityEvents> {
-  public indexes: Map<string, Index>;
+  public indexes!: Map<string, Index>;
 
-  private _gameType:GameType;
+  private _gameType!:GameType;
 
-  protected data: {
+  protected data!: {
     id: string;
     indexes: Index[];
   };

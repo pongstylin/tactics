@@ -34,10 +34,10 @@ export default class TeamSetStats extends ActiveModel {
   // A Date value is the date the player first used this teamSet.
   // A null value means they have not previously used this teamSet.
   // A value of undefined means we haven't loaded the data.  Oops.
-  public playerIds: Map<string, { createdAt:Date, updatedAt:Date, gameCount:number } | null>;
-  public id:string;
+  public playerIds!: Map<string, { createdAt:Date, updatedAt:Date, gameCount:number } | null>;
+  public id!:string;
 
-  protected data: TeamSetStatsData;
+  protected data!: TeamSetStatsData;
 
   constructor(data:Partial<TeamSetStatsData>, props?:ConstructorParameters<typeof ActiveModel>[0]) {
     super(props);

@@ -7,7 +7,7 @@ import Cache from '#utils/Cache.js';
 export default class TeamSetIndex extends ActiveModel implements Iterable<TeamSet> {
   protected static _cache: Cache<string, TeamSetIndex>
 
-  public cardinality:TeamSetCardinality;
+  public cardinality!:TeamSetCardinality;
   public teamSetSearches:WeakSet<TeamSetSearch>;
   private _cursor:object | undefined;
   private _complete:boolean = false;

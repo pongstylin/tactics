@@ -23,7 +23,7 @@
 // @ts-ignore
 import seedrandom from 'seedrandom';
 
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type Game from '#models/Game.js';
 import type GameSession from '#models/GameSession.js';
 import type TeamSet from '#models/TeamSet.js';
@@ -32,7 +32,7 @@ import ServerError from '#server/Error.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
-type TeamEvents = AbstractEvents & {
+type TeamEvents = {
   'change:id': {},
   'change:set': {},
   'change:setVia': {},

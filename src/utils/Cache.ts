@@ -14,6 +14,7 @@ type DeleteReason = 'finalized' | 'collected' | 'rejected' | 'replaced' | 'delet
 type ExternalDeleteReason = Exclude<DeleteReason, 'finalized'>;
 
 type CacheEvents<V> = {
+  set: { key: CacheKey; value: V };
   delete: { key: CacheKey; reason: DeleteReason };
 };
 
@@ -280,6 +281,7 @@ export default class Cache<K extends CacheKey, V extends CacheValue> extends Typ
       const meta:ValueMeta<K, V> = { key, type:'value', value, stackEntry:null };
       this.data.set(key, meta);
     }
+    this.emit('set', { key, value });
     return value;
   }
 

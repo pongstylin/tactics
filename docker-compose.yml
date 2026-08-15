@@ -8,6 +8,27 @@ services:
       - ./src/data/ddb:/home/dynamodblocal/data
     working_dir: '/home/dynamodblocal'
     command: '-jar DynamoDBLocal.jar -sharedDb -dbPath ./data'
+  valkey:
+    container_name: tactics-valkey
+    image: valkey/valkey:8-alpine
+    expose:
+      - '6379'
+    volumes:
+      - ./src/data/valkey:/data
+    # AOF persistence so a dev container restart doesn't silently lose
+    # dirty-queue entries that haven't been drained to DynamoDB yet.
+    command: 'valkey-server --appendonly yes --appendfsync everysec'
+  # Valkey Admin Web Dashboard
+  valkey-admin:
+    image: valkey/valkey-admin:latest
+    container_name: tactics-valkey-admin
+    ports:
+      - "8080:8080"
+    environment:
+      DEPLOYMENT_MODE: Web
+      KEY_VALUE_SIZE_LIMIT_BYTES: 8192
+    depends_on:
+      - valkey
   app:
     image: node:22-alpine
     #build:
@@ -48,6 +69,14 @@ services:
       DDB_TABLE: ${DDB_TABLE-tactics}
       READONLY: ${READONLY-}
 
+      # Valkey Configuration
+      VALKEY_HOST: ${VALKEY_HOST-valkey}
+      VALKEY_PORT: ${VALKEY_PORT-6379}
+      VALKEY_PREFIX: ${VALKEY_PREFIX-tactics}
+      VALKEY_DIRTY_CONSUMER_GROUP: ${VALKEY_DIRTY_CONSUMER_GROUP-ddb-writer}
+      VALKEY_DIRTY_STREAM_MAXLEN: ${VALKEY_DIRTY_STREAM_MAXLEN-1000000}
+      VALKEY_DEFAULT_TTL: ${VALKEY_DEFAULT_TTL-0}
+
       # SSO Configuration
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID-}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET-}
@@ -56,4 +85,5 @@ services:
       FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET-}
     depends_on:
       - dynamodb-local
+      - valkey
     command: ./start.sh

@@ -1,4 +1,4 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type Player from '#models/Player.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
@@ -9,7 +9,7 @@ import { colorFilterMap } from '#tactics/colorMap.js';
 import ServerError from '#server/Error.js';
 import Cache from '#utils/Cache.js';
 
-type PlayerAvatarsEvents = AbstractEvents & {
+type PlayerAvatarsEvents = {
   'change:avatar': {},
   'change:addAvatar': {},
   'change:addUnit': {},

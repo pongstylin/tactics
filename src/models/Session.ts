@@ -1,7 +1,7 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import Cache from '#utils/Cache.js';
 
-type SessionEvents = AbstractEvents & {
+type SessionEvents = {
   'change:idle': { data:{ newValue:number, oldValue:number } },
   'close': {},
 };

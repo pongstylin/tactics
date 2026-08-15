@@ -1,4 +1,4 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import Identity from '#models/Identity.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
@@ -8,7 +8,7 @@ import decancer from '#utils/decancer.js';
 import type { Rank } from '#models/Identity.ts';
 import type Player from '#models/Player.ts';
 
-type IdentitiesEvents = AbstractEvents & {
+type IdentitiesEvents = {
   'change:deleteId': { data:{ identityId:string } },
   'change:add': { data:{ identity:Identity } },
   'change:merge': { data:{ identity:Identity } },

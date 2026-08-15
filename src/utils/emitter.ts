@@ -12,25 +12,32 @@ type Prefixes<S extends string> = S extends `${infer Head}:${infer Tail}`
   : S;
 
 /** All keys of Map whose string key starts with Prefix (including exact match). */
-type KeysWithPrefix<Map, Prefix extends string> = {
+type KeysWithPrefix<Map extends { [K in keyof Map]: object }, Prefix extends string> = {
   [K in keyof Map]: K extends `${Prefix}:${string}` | Prefix ? K : never;
 }[keyof Map];
 
+type EmptyPayload = Record<PropertyKey, never>;
+
+type EventPayload<K extends string, Payload extends object> =
+  [Payload] extends [EmptyPayload]
+    ? { type: K }
+    : Payload & { type: K };
+
 /** An event object: the user-defined payload merged with a `type` discriminant. */
-type TypedEvent<K extends string, Payload> = Payload & { type: K };
+type TypedEvent<K extends string, Payload extends object> = EventPayload<K, Payload>;
 
 /** Union of typed event objects for all keys that start with Prefix. */
-type EventUnder<Map, Prefix extends string> = {
+type EventUnder<Map extends { [K in keyof Map]: object }, Prefix extends string> = {
   [K in KeysWithPrefix<Map, Prefix> & keyof Map]: TypedEvent<K & string, Map[K]>;
 }[KeysWithPrefix<Map, Prefix> & keyof Map];
 
 /** All valid listenable events = leaf events + namespace prefixes + wildcard */
-type ListenableEvent<Map> =
+type ListenableEvent<Map extends { [K in keyof Map]: object }> =
   | '*'
   | { [K in keyof Map]: K extends string ? Prefixes<K> : never }[keyof Map];
 
 /** The event object type a listener receives for a given listenable event. */
-type EventFor<Map, E extends string> =
+type EventFor<Map extends { [K in keyof Map]: object }, E extends string> =
   E extends '*'
     ? EventUnder<Map, string>                                         // wildcard — union of every event object
     : TypedEvent<E & string, E extends keyof Map ? Map[E] : never>   // leaf type, if E is a key (never if not)
@@ -39,7 +46,7 @@ type EventFor<Map, E extends string> =
 type EmitArgs<EventMap extends { [K in keyof EventMap]: object }> = {
   [E in keyof EventMap]:
     | [eventType: E, payload?: EventMap[E]]
-    | [payload: EventMap[E] & { type: E }]
+    | [payload: EventPayload<E & string, EventMap[E]>]
 }[keyof EventMap];
 
 /** All event map entries in EventMap that fall within the given namespace prefix. */

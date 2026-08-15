@@ -1,9 +1,9 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type Team from '#models/Team.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
-type TurnEvents = AbstractEvents & {
+type TurnEvents = {
   'change:startedAt': {},
   'change:drawCounts': {},
   'change:actionId': {},
@@ -27,7 +27,7 @@ interface CreateProps {
 };
 
 export default class Turn extends ActiveModel<TurnEvents> {
-  protected data: {
+  protected data!: {
     // startedAt can be null in a fork game that hasn't started yet
     startedAt: Date | null,
     actions: any[],
@@ -40,10 +40,10 @@ export default class Turn extends ActiveModel<TurnEvents> {
     // e.g. timeBuffer?: number
     [ x:string ]: unknown,
   }
-  public id: number | null;
-  public team: Team | null;
-  protected _isCurrent: boolean;
-  protected _timeLimit: number | null;
+  public id!: number | null;
+  public team!: Team | null;
+  protected _isCurrent!: boolean;
+  protected _timeLimit!: number | null;
 
   constructor(props:{
     isClean?: boolean,

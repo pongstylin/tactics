@@ -44,10 +44,9 @@ interface Object {
   merge<T>(this:T, ...args:T[]): T;
   pick<T, K extends keyof T>(this:T, ...keys: K[]): Pick<T, K>
 };
-
 interface PromiseConstructor {
-  isThenable(value:unknown): value is PromiseLike<unknown>;
-};
+  isThenable<T>(obj:T | PromiseLike<T>): obj is PromiseLike<T>
+}
 
 type UnwrapFunction<T> = T extends (...args: any[]) => infer U ? U : T;
 type Constructor<T> = new (...args: any[]) => T;

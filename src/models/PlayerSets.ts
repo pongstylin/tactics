@@ -1,4 +1,4 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type Player from '#models/Player.js';
 import TeamSet from '#models/TeamSet.js';
 // @ts-ignore
@@ -23,7 +23,7 @@ type PlayerSet = {
   slot: Slot;
   createdAt: Date;
 };
-type PlayerSetsEvents = AbstractEvents & {
+type PlayerSetsEvents = {
   'change:set': {},
   'change:unset': {},
 };

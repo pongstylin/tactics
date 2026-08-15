@@ -1,13 +1,12 @@
-// @ts-ignore
-import { ReParse } from 'reparse';
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import { ReParse, type Production } from 'reparse';
+import ActiveModel from '#models/ActiveModel.js';
 import TeamSet from '#models/TeamSet.js';
 import type TeamSetCardinality from '#models/TeamSetCardinality.js';
 import { Index } from '#models/TeamSetCardinality.js';
 import { defaultStats } from '#models/TeamSetStats.js';
 import Cache from '#utils/Cache.js';
 
-type TeamSetSearchEvents = AbstractEvents & {
+type TeamSetSearchEvents = {
   'getTeamSetIndexCurrentPage': { indexPath:string, resolve:Function, reject:Function },
   'getTeamSetIndexNextPage': { indexPath:string, resolve:Function, reject:Function },
 };
@@ -18,6 +17,16 @@ type GrammarValue = (
   { type:'groups',      groups:string[][]              } |
   { type:'operator',    operator:'or' | 'and'          }
 );
+type Grammar = {
+  values: Production<string[][]>;
+  value: Production<GrammarValue>;
+  count: Production<GrammarValue>;
+  operator: Production<GrammarValue>;
+  token: Production<GrammarValue>;
+  aliasToken: Production<GrammarValue>;
+  quotedToken: Production<GrammarValue>;
+  parenthetical: Production<GrammarValue>;
+};
 
 type TeamSetIndexPage = { truncated:boolean, completed:boolean, teamSets:TeamSet[] };
 
@@ -29,7 +38,7 @@ const aliasMap = new Map<string, GrammarValue>([
   [ 'double\\s+warded', { type:'groups', groups:[ [ 'lw', 'bw' ] ] } ],
 ]);
 
-export const grammar = {
+export const grammar: Grammar = {
   values() {
     const values = this.many(grammar.value) as GrammarValue[];
 
@@ -83,14 +92,14 @@ export const grammar = {
     return this.choice(grammar.aliasToken, grammar.count, grammar.operator, grammar.token, grammar.quotedToken, grammar.parenthetical);
   },
   count() {
-    const choice = this.choice(/^triple/, /^double/, /^single/, /^no/, /^\d+/);
+    const choice = this.choice<string>(/^triple/, /^double/, /^single/, /^no/, /^\d+/);
     const count = choice === 'no' ? 0 : choice === 'single' ? 1 : choice === 'double' ? 2 : choice === 'triple' ? 3 : parseInt(choice);
     this.match(/^\s*/);
     const token = this.choice(grammar.token, grammar.quotedToken);
     return Object.assign(token, { count });
   },
   operator() {
-    return { type:'operator', operator:this.match(/^(?:or|and)/i) };
+    return { type:'operator', operator:this.match(/^(?:or|and)/i).toLowerCase() as 'or' | 'and' };
   },
   token() {
     return { type:'token', tokens:[ this.match(/^\w+/) ] };
@@ -99,10 +108,10 @@ export const grammar = {
     for (const [ alias, value ] of aliasMap)
       if (this.option(new RegExp(`^${alias}`), null))
         return value;
-    this.fail();
+    return this.fail();
   },
   quotedToken() {
-    return { type:'quotedToken', token:[ this.match(/^"([^"]+)"/).split(/\s+/).join(' ') ] };
+    return { type:'quotedToken', token:this.match(/^"([^"]+)"/).split(/\s+/).join(' ') };
   },
   parenthetical() {
     return { type:'groups', groups:this.between(/^\(/, /^\)/, grammar.values) };
@@ -141,7 +150,7 @@ export default class TeamSetSearch extends ActiveModel<TeamSetSearchEvents> {
   }
 
   static get cache() {
-    return this._cache;
+    return this._cache ??= new Cache('TeamSetSearch');
   }
   static parseText(text:string) {
     const groups = new ReParse(text.toLowerCase(), true).start(grammar.values) as string[][];
@@ -219,7 +228,7 @@ export default class TeamSetSearch extends ActiveModel<TeamSetSearchEvents> {
       for (const set of this._cardinality.gameType.config.sets)
         if (!this._teamSets!.concat(page.teamSets).some(ts => ts.id === set.id)) {
           const teamSet = TeamSet.create({ units:set.units, [this.data.metricName]:defaultStats[this.data.metricName] }, set.id);
-          teamSet.cardinality = this._cardinality;
+          teamSet.gameType = this._cardinality.gameType;
           const teamSetFilters = this._getTeamSetFilters(teamSet);
           if (teamSetFilters.has(this._index.path))
             page.teamSets.push(teamSet);
@@ -279,7 +288,7 @@ export class TeamSetSearchGroup extends ActiveModel {
   }
 
   static get cache() {
-    return this._cache;
+    return this._cache ??= new Cache('TeamSetSearchGroup');
   }
 
   get id() {

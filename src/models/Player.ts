@@ -3,7 +3,7 @@ import XRegExp from 'xregexp';
 // @ts-ignore
 import getTextWidth from 'string-pixel-width';
 
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import Session from '#models/Session.js';
 import PlayerDevice from '#models/PlayerDevice.js';
 import type Provider from '#models/Provider.js';
@@ -26,7 +26,7 @@ import config from '#config/server.js';
 // @ts-ignore
 import ServerError from '#server/Error.js';
 
-type PlayerEvents = AbstractEvents & {
+type PlayerEvents = {
   'change:identityId': {},
   'change:verified': {},
   'change:acl': {},
@@ -88,7 +88,7 @@ export default class Player extends ActiveModel<PlayerEvents> {
     createdAt: Date
   }
   static identities: Identities
-  public identity: Identity
+  public identity!: Identity
   public hasAllDevices: boolean = false
 
   constructor(data:Player['data']) {

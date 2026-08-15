@@ -129,6 +129,12 @@ export default class GameSession {
   }
 };
 
+type GameSessionPlayerStaticEvents = {
+  'session:add': { target:GameSessionPlayer, gameSession:GameSession },
+  'session:remove': { target:GameSessionPlayer, gameSession:GameSession },
+};
+const gameSessionPlayerEmitter = new TypedEmitter<GameSessionPlayerStaticEvents>();
+
 /*
  * Every GameSessionPlayer represents a player that is currently connected to the game service.
  * They are connected via one or more game sessions.
@@ -153,6 +159,18 @@ export class GameSessionPlayer {
   }
   static create(player:Player) {
     return this.cache.set(player, () => new GameSessionPlayer(player));
+  }
+  static on(...args:Parameters<typeof gameSessionPlayerEmitter.on>) {
+    gameSessionPlayerEmitter.on(...args);
+  }
+  static once(...args:Parameters<typeof gameSessionPlayerEmitter.once>) {
+    gameSessionPlayerEmitter.once(...args);
+  }
+  static off(...args:Parameters<typeof gameSessionPlayerEmitter.off>) {
+    gameSessionPlayerEmitter.off(...args);
+  }
+  static emit(...args:Parameters<typeof gameSessionPlayerEmitter.emit>) {
+    gameSessionPlayerEmitter.emit(...args);
   }
 
   /*
@@ -192,6 +210,7 @@ export class GameSessionPlayer {
   addSession(gameSession:GameSession) {
     this.data.gameSessions.add(gameSession);
     gameSession.session.once('close', () => this.dropSession(gameSession));
+    GameSessionPlayer.emit('session:add', { target:this, gameSession });
 
     // The player gains an online status if this is their only session.
     if (this.data.gameSessions.size === 1)
@@ -199,6 +218,7 @@ export class GameSessionPlayer {
   }
   dropSession(gameSession:GameSession) {
     this.data.gameSessions.delete(gameSession);
+    GameSessionPlayer.emit('session:remove', { target:this, gameSession });
     // The player might become offline if this was their only session.
     if (this.data.gameSessions.size === 0) {
       GameSessionPlayer.cache.delete(this.data.player);
@@ -232,6 +252,8 @@ type WithTarget<EventMap extends { [K in keyof EventMap]: object }, Prefix exten
 type GameSessionGameStaticEvents = {
   'playerStatus': { target:GameSessionGame, data:EmittedPlayerStatus },
   'sync': { target:GameSessionGame, clientId:string, data:any },
+  'session:add': { target:GameSessionGame, gameSession:GameSession },
+  'session:remove': { target:GameSessionGame, gameSession:GameSession },
 } & WithTarget<GameEvents, 'playerRequest', GameSessionGame>;
 const gameSessionGameEmitter = new TypedEmitter<GameSessionGameStaticEvents>();
 
@@ -300,6 +322,7 @@ export class GameSessionGame {
 
   addSession(gameSession:GameSession, reference:Reference) {
     this.data.gameSessions.set(gameSession, reference);
+    GameSessionGame.emit('session:add', { target:this, gameSession });
     // The player might become active
     // Only emit if others might see
     if (this.data.gameSessions.size > 1)
@@ -309,6 +332,7 @@ export class GameSessionGame {
   }
   dropSession(gameSession:GameSession) {
     this.data.gameSessions.delete(gameSession);
+    GameSessionGame.emit('session:remove', { target:this, gameSession });
     if (this.data.gameSessions.size === 0) {
       this.data.game.removeAllListeners(undefined, this);
       this.data.game.state.removeAllListeners(undefined, this);
@@ -452,7 +476,9 @@ export class GameSessionGameSummaryListGroup {
 
     for (const gsl of gameSummaryLists) {
       this.data.stats.set(gsl, this._getStats(gsl));
-      gsl.on('change', this._onChangeGameSummaryList.bind(this, gsl), this);
+      gsl.on('change:set', this._onChangeGameSummaryList.bind(this, gsl), this);
+      gsl.on('change:prune', this._onChangeGameSummaryList.bind(this, gsl), this);
+      gsl.on('change:delete', this._onChangeGameSummaryList.bind(this, gsl), this);
     }
   }
 
@@ -507,7 +533,7 @@ export class GameSessionGameSummaryListGroup {
     return GameSessionGameSummaryListGroup.cache.has(id);
   }
 
-  _onChangeGameSummaryList(gameSummaryList:GameSummaryList, event:{ data:{ oldSummary?:GameSummary, gameSummary:GameSummary } }) {
+  _onChangeGameSummaryList(gameSummaryList:GameSummaryList, event:{ data:{ oldSummary?:GameSummary | undefined, gameSummary?:GameSummary } }) {
     const wasVisible = this._isGameVisible(event.data.oldSummary);
     const isVisible = this._isGameVisible(event.data.gameSummary);
     const eventType = (
@@ -529,7 +555,7 @@ export class GameSessionGameSummaryListGroup {
     GameSessionGameSummaryListGroup.emit(`game:${eventType}`, {
       target: this,
       gameSummaryList,
-      gameSummary: event.data.gameSummary ?? event.data.oldSummary,
+      gameSummary: (event.data.gameSummary ?? event.data.oldSummary)!,
     });
 
     const stats = this._adjustStats(gameSummaryList, eventType, event.data);
@@ -586,21 +612,21 @@ export class GameSessionGameSummaryListGroup {
 
     return stats;
   }
-  _adjustStats(gsl:GameSummaryList, eventType:'add' | 'change' | 'remove', { gameSummary, oldSummary }:{ gameSummary:GameSummary, oldSummary?:GameSummary }) {
+  _adjustStats(gsl:GameSummaryList, eventType:'add' | 'change' | 'remove', { gameSummary, oldSummary }:{ gameSummary?:GameSummary, oldSummary?:GameSummary | undefined }) {
     const adjustment = { waiting:0, active:0 };
     if (eventType === 'add') {
-      if (!gameSummary.startedAt)
+      if (!gameSummary!.startedAt)
         adjustment.waiting++;
-      else if (!gameSummary.endedAt)
+      else if (!gameSummary!.endedAt)
         adjustment.active++;
     } else if (eventType === 'change') {
       // If not currently started and not previously started, 1 - 1 = 0 (no change)
       // If not currently started and was previuusly started, 1 - 0 = 1 (add, never happens)
       // If currently started and not previously started, 0 - 1 = -1 (sub, game started)
       // If currently started and previously started, 0 + 0 = 0 (no change)
-      const waitingChange = (!gameSummary.startedAt ? 1 : 0) + (!oldSummary!.startedAt ? -1 : 0);
+      const waitingChange = (!gameSummary!.startedAt ? 1 : 0) + (!oldSummary!.startedAt ? -1 : 0);
       const activeChange = (
-        (gameSummary.startedAt && !gameSummary.endedAt ? 1 : 0) +
+        (gameSummary!.startedAt && !gameSummary!.endedAt ? 1 : 0) +
         (oldSummary!.startedAt && !oldSummary!.endedAt ? -1 : 0)
       );
       adjustment.waiting += waitingChange;

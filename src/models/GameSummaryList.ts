@@ -1,14 +1,22 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import GameSummary from '#models/GameSummary.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 import Cache from '#utils/Cache.js';
 
-type GameSummaryListEvents = AbstractEvents & {
+type GameSummaryListEvents = {
   'change:set': { data:{ gameId:string, gameSummary:GameSummary, oldSummary:GameSummary | undefined } },
   'change:prune': { data:{ gameId:string, oldSummary:GameSummary } },
   'change:delete': { data:{ gameId:string, oldSummary:GameSummary } },
 };
+
+// What gets shipped over the wire for a remote node to replay - a single-entry delta, not the
+// whole `gamesSummary` Map. This is why GameSummaryList needs its own _applySync at all: unlike
+// the DDB-backed point-item models, nothing else already ships full state for it.
+type GameSummaryListSyncEvent =
+  | { op:'set', gameId:string, gameSummary:GameSummary }
+  | { op:'prune', gameId:string }
+  | { op:'delete', gameId:string };
 
 export default class GameSummaryList extends ActiveModel<GameSummaryListEvents> {
   protected static _cache: Cache<string, GameSummaryList>
@@ -56,14 +64,10 @@ export default class GameSummaryList extends ActiveModel<GameSummaryListEvents> 
   }
 
   set(gameId:string, gameSummary:GameSummary) {
-    const gamesSummary = this.data.gamesSummary;
-    const oldSummary = gamesSummary.get(gameId);
-    if (oldSummary && gameSummary.equals(oldSummary))
-      return false;
+    const result = this._applySet(gameId, gameSummary);
+    if (!result) return false;
 
-    gamesSummary.set(gameId, gameSummary);
-    this.emit('change:set', { data: { gameId, gameSummary, oldSummary } });
-
+    this.emit('change:set', { data: { gameId, gameSummary, oldSummary:result.oldSummary } });
     return true;
   }
   has(gameId:string) {
@@ -74,25 +78,52 @@ export default class GameSummaryList extends ActiveModel<GameSummaryListEvents> 
   }
   // Call this to prevent the cache size from growing too large
   prune(gameId:string) {
-    const gamesSummary = this.data.gamesSummary;
-    const oldSummary = gamesSummary.get(gameId);
-    if (!oldSummary) return false;
+    const result = this._applyRemove(gameId);
+    if (!result) return false;
 
-    this.data.gamesSummary.delete(gameId);
-    this.emit('change:prune', { data: { gameId, oldSummary } });
-
+    this.emit('change:prune', { data: { gameId, oldSummary:result.oldSummary } });
     return true;
   }
   // Only called when the game is deleted
   delete(gameId:string) {
+    const result = this._applyRemove(gameId);
+    if (!result) return false;
+
+    this.emit('change:delete', { data:{ gameId, oldSummary:result.oldSummary } });
+    return true;
+  }
+
+  /*
+   * Applies a remotely-observed single-entry delta (see GameSummaryListSyncEvent) without
+   * re-emitting the local change:* events - those exist for locally-triggered mutations only
+   * (see set()/prune()/delete() above), and re-emitting them here would incorrectly re-trigger
+   * whatever those cascade to (isClean tracking, persistence sync, etc.) for an update that
+   * didn't actually originate on this node. ActiveModel.sync() still unconditionally emits the
+   * generic 'sync' event after this runs, which is what client-facing listeners should use.
+   */
+  protected _applySync(event:GameSummaryListSyncEvent) {
+    switch (event.op) {
+      case 'set': this._applySet(event.gameId, event.gameSummary); break;
+      case 'prune':
+      case 'delete': this._applyRemove(event.gameId); break;
+    }
+  }
+  private _applySet(gameId:string, gameSummary:GameSummary) {
     const gamesSummary = this.data.gamesSummary;
     const oldSummary = gamesSummary.get(gameId);
-    if (!oldSummary) return false;
+    if (oldSummary && gameSummary.equals(oldSummary))
+      return null;
 
-    this.data.gamesSummary.delete(gameId);
-    this.emit('change:delete', { data:{ gameId, oldSummary } });
+    gamesSummary.set(gameId, gameSummary);
+    return { oldSummary };
+  }
+  private _applyRemove(gameId:string) {
+    const gamesSummary = this.data.gamesSummary;
+    const oldSummary = gamesSummary.get(gameId);
+    if (!oldSummary) return null;
 
-    return true;
+    gamesSummary.delete(gameId);
+    return { oldSummary };
   }
 };
 

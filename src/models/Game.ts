@@ -6,7 +6,7 @@ import timeLimit, { getTurnTimeLimit } from '#config/timeLimit.js';
 import serializer from '#utils/serializer.js';
 import Cache from '#utils/Cache.js';
 
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type GameSession from '#models/GameSession.js';
 import Team from '#models/Team.js';
 import Turn from '#models/Turn.js';
@@ -31,7 +31,7 @@ type WhenDeleted = {
   resolve: (value:any) => void,
   reject: (reason?:any) => void,
 };
-export type GameEvents = AbstractEvents & {
+export type GameEvents = {
   'change:state': {},
   'change:mergeTags': {},
   'change:setRated': {},

@@ -1,4 +1,4 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
@@ -10,7 +10,7 @@ interface Links {
   inactive: Map<string,string>
 }
 
-type ProviderEvents = AbstractEvents & {
+type ProviderEvents = {
   'change:linkPlayerId': {},
   'change:unlinkPlayerId': {},
 };

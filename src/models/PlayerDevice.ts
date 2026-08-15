@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid';
 
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type Session from '#models/Session.js';
 import type Player from '#models/Player.js';
 // @ts-ignore
@@ -11,7 +11,7 @@ import Cache from '#utils/Cache.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
-type PlayerDeviceEvents = AbstractEvents & {
+type PlayerDeviceEvents = {
   'change:name': {},
   'change:token': {},
   'change:nextToken': {},

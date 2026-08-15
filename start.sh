@@ -8,4 +8,4 @@ npm run watch &
 
 echo "Starting app..."
 # Wait for the node server to terminate
-exec node --es-module-specifier-resolution=node --require dotenv/config src/server.js
+exec node --es-module-specifier-resolution=node --require dotenv/config --expose-gc src/server.js

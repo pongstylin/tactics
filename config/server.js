@@ -118,7 +118,7 @@ const config = {
       'game',
       {
         module: '#server/GameService.js',
-        dataAdapterModule: '#data/DynamoDBAdapter/GameAdapter.js',
+        dataAdapterModule: '#data/ValkeyAdapter/GameAdapter.js',
         config: {
           collections: [
             {

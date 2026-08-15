@@ -181,6 +181,26 @@ export default class GameSummary {
     return this.teams.filter(t => t !== winner);
   }
 
+  get playerIds() {
+    return this.teams.filter(t => !!t).map(t => t.playerId);
+  }
+  get setIds() {
+    return this.teams.filter(t => !!t?.set).map(t => t.set!.id);
+  }
+
+  get isReserved() {
+    if (this.data.startedAt)
+      return false;
+
+    return !this.teams.some(t => t === null);
+  }
+  get isPublic() {
+    return this.data.collection && !this.isReserved;
+  }
+  get isPractice() {
+    return !this.data.mode || ![ 'fork', 'practice' ].includes(this.data.mode);
+  }
+
   get isOpen() {
     return !this.data.startedAt && this.data.teams.some(t => t === null);
   }

@@ -494,32 +494,37 @@ export default class DynamoDBAdapter extends FileAdapter {
     return Promise.all(queue.map(op => op.promise.catch(() => {})));
   }
 
+  async _sendBatchGetCommand(keys, { decompress, parse } = { decompress:false, parse:false }) {
+    const rsp = await this._send(new BatchGetCommand({
+      RequestItems: {
+        [TABLE_NAME]: {
+          Keys: keys,
+          ConsistentRead: false,
+        },
+      },
+      ReturnConsumedCapacity: 'NONE',
+    }));
+    const nextKeys = new Map((rsp.UnprocessedKeys[TABLE_NAME] ?? []).map(k => [ keyOfItem(k), k ]));
+    const items = new Map(await Promise.all((rsp.Responses[TABLE_NAME] ?? []).map(async i => (
+      [ keyOfItem(i), parse ? await this._parseItem(i) : decompress ? await this._decompressItem(i) : i ]
+    ))));
+
+    return { nextKeys, items };
+  }
   _getItemBatch(ops) {
     const chunks = [];
     for (let i = 0; i < ops.length; i += 100)
       chunks.push(ops.slice(i, i+100));
 
     return Promise.all(chunks.map(async chunk => {
-      const rsp = await this._send(new BatchGetCommand({
-        RequestItems: {
-          [TABLE_NAME]: {
-            Keys: chunk.map(op => ({
-              PK: op.args[0].PK,
-              SK: op.args[0].SK,
-            })),
-            ConsistentRead: false,
-          },
-        },
-        ReturnConsumedCapacity: 'NONE',
-      }));
-      const keys = new Map((rsp.UnprocessedKeys[TABLE_NAME] ?? []).map(k => [ keyOfItem(k), k ]));
-      const items = new Map((rsp.Responses[TABLE_NAME] ?? []).map(i => [ keyOfItem(i), i ]));
+      const keys = chunk.map(op => op.args[0]);
+      const { nextKeys, items } = await this._sendBatchGetCommand(keys);
 
       for (const op of chunk) {
         const [ key, migrateProps, defaultValue ] = op.args;
         const itemKey = keyOfItem(key);
 
-        if (keys.has(itemKey)) {
+        if (nextKeys.has(itemKey)) {
           op.processing = false;
           this._triggerItemQueue();
           continue;
@@ -655,12 +660,12 @@ export default class DynamoDBAdapter extends FileAdapter {
       });
     });
   }
-  async _parseItem(item, parser = JSON) {
+  async _decompressItem(item) {
     try {
       if (item.D)
-        item.D = parser.parse(await this._decompress(item.D));
+        item.D = await this._decompress(item.D);
       if (item.PD)
-        item.PD = parser.parse(await this._decompress(item.PD));
+        item.PD = await this._decompress(item.PD);
     } catch (error) {
       if (error.code === 'ERR_RING_BUFFER_2') {
         console.log(`Warning: (Retrying) ${error.message}: ${keyOfItem(item)}: ${error.code} (${error.errno})`);
@@ -673,12 +678,20 @@ export default class DynamoDBAdapter extends FileAdapter {
     }
     return item;
   }
-  async _migrate(item, props = {}) {
+  async _parseItem(item, parser = JSON) {
+    await this._decompressItem(item);
+    if (item.D)
+      item.D = parser.parse(item.D);
+    if (item.PD)
+      item.PD = parser.parse(item.PD);
+    return item;
+  }
+  async _migrate(item, props = {}, { parse } = { parse:true }) {
     if (!(item.D ?? item.PD ?? item.PF)) {
       console.log('Item is missing data!', item, new Error().stack);
       throw new ServerError(500, 'Item is malformed');
     }
-    item = await migrateItem.call(this, await this._parseItem(item), props);
+    item = await migrateItem.call(this, parse ? await this._parseItem(item) : item, props);
     return item.D ?? item.PD ? serializer.normalize(item.D ?? item.PD) : item.PF;
   }
 
@@ -796,7 +809,7 @@ export default class DynamoDBAdapter extends FileAdapter {
     if (items.length) {
       const parts = new Map(await Promise.all(items.map(i => this._migrate(i, migrateProps).then(d => [ i.SK, d ]))));
 
-      obj = transform(parts);
+      obj = await transform(parts, items);
     } else {
       obj = await this._loadItemFromFile(key, migrateProps);
       if (!obj) {

@@ -1,11 +1,11 @@
 import { v4 as uuid } from 'uuid';
 
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 import Cache from '#utils/Cache.js';
 
-type RoomEvents = AbstractEvents & {
+type RoomEvents = {
   'change:pushMessage': {},
   'change:seenEvent': {},
 };

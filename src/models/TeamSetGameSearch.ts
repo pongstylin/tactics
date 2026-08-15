@@ -16,7 +16,7 @@ const defaultParams = {
 export default class TeamSetGameSearch implements Iterable<GameSummary> {
   protected static _cache: Cache<string, TeamSetGameSearch>
 
-  public gameType:GameType;
+  public gameType!:GameType;
   private _params:TeamSetGameSearchParams;
   private _cursor:object | undefined;
   private _complete:boolean = false;

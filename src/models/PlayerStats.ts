@@ -1,4 +1,4 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 // @ts-ignore
 import { computeElo } from '#utils/elo.js';
 // @ts-ignore
@@ -11,10 +11,10 @@ import type Team from '#models/Team.ts';
 
 const DEFAULT_RATING = 750.0;
 
-type PlayerStatsEvents = AbstractEvents & {
-  'change:setRating': {},
-  'change:numCompleted': {},
-  'change:numAbandoned': {},
+type PlayerStatsEvents = {
+  'change:setRating': Record<PropertyKey, never>,
+  'change:numCompleted': Record<PropertyKey, never>,
+  'change:numAbandoned': Record<PropertyKey, never>,
   'vs:change:clearWLDStats': { data:{ playerId:string, vsPlayerId:string, vsStats:any } },
   'vs:change:sync': { data:{ playerId:string, vsPlayerId:string, vsStats:any } },
 };
@@ -99,11 +99,11 @@ export default class PlayerStats extends ActiveModel<PlayerStatsEvents> {
     if (!game.state.rated)
       return false;
 
-    const teamsMeta = game.state.teams.map((t:Team) => {
-      const stats = playersStatsMap.get(t.playerId)!;
+    const teamsMeta = game.state.teams.map(t => {
+      const stats = playersStatsMap.get(t!.playerId)!;
       const ratingStats = stats._getRatingInfo(game.state.type!);
 
-      return { id:t.id, stats, ...ratingStats };
+      return { id:t!.id, stats, ...ratingStats };
     });
     teamsMeta.sort((a,b) => game.state.winnerId === a.id ? -1 : game.state.winnerId === b.id ? 1 : 0);
 

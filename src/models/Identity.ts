@@ -1,4 +1,4 @@
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type Player from '#models/Player.js';
 import GameType from '#tactics/GameType.js';
 import { addForteRank } from '#models/PlayerStats.js';
@@ -6,7 +6,7 @@ import Cache from '#utils/Cache.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
-type IdentityEvents = AbstractEvents & {
+type IdentityEvents = {
   'change:name': {},
   'change:admin': {},
   'change:muted': {},
@@ -64,7 +64,7 @@ export default class Identity extends ActiveModel<IdentityEvents> {
     // Used to sync player.identityId when identities are merged.
     playerIds: Set<string>
   }
-  protected gameTypes?: Map<string, GameType>
+  protected gameTypes!: Map<string, GameType>
 
   constructor(data:PickPartial<Identity['data'], keyof ReturnType<typeof getDefaultData>>) {
     super();

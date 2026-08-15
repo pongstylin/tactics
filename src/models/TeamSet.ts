@@ -1,10 +1,9 @@
 // @ts-ignore
 import objectHash from 'object-hash';
 
-import ActiveModel, { type AbstractEvents } from '#models/ActiveModel.js';
+import ActiveModel from '#models/ActiveModel.js';
 import type Game from '#models/Game.js';
-import type Team from '#models/Team.js';
-import type TeamSetCardinality from '#models/TeamSetCardinality.js';
+import type IndexCardinality from '#models/IndexCardinality.js';
 import type TeamSetStats from '#models/TeamSetStats.js';
 import type GameType from '#tactics/GameType.js';
 import unitDataMap, { unitTypeByCode } from '#tactics/unitData.js';
@@ -13,7 +12,7 @@ import { computeElo } from '#utils/elo.js';
 // @ts-ignore
 import serializer from '#utils/serializer.js';
 
-type TeamSetEvents = AbstractEvents & {
+type TeamSetEvents = {
   'stats:change:rating': {},
   'stats:change:gameCount': {},
   'stats:change:playerCount': {},
@@ -39,10 +38,10 @@ export default class TeamSet extends ActiveModel<TeamSetEvents> {
   private _id: string | null;
   private _name: ReturnType<TeamSet['_generateName']> | null = null;
   private _tags: ReturnType<GameType['getTeamSetTags']> | null = null;
-  private _indexPaths: Set<ReturnType<TeamSetCardinality['getIndexPaths']>[number]> | null = null;
   private _stats: TeamSetStats | null = null;
-  // cardinality and gameType is assumed to never be null because they should be set immediately after an object is created.
-  public cardinality: TeamSetCardinality;
+  // gameType is assumed to never be null because it should be set immediately after an object is created.
+  public gameType!: GameType;
+  public cardinality!: IndexCardinality;
 
   protected data: TeamSetData;
 
@@ -131,12 +130,12 @@ export default class TeamSet extends ActiveModel<TeamSetEvents> {
     if (game.state.teams.some(t => (t!.set!.updatedAt ?? new Date(0)) >= game.state.endedAt!))
       throw new Error(`Already applied game: ${game.id}`);
 
-    const teamsMeta = game.state.teams.map((t:Team) => ({
-      id: t.id,
-      playerId: t.playerId!,
-      set: t.set!,
+    const teamsMeta = game.state.teams.map(t => ({
+      id: t!.id,
+      playerId: t!.playerId!,
+      set: t!.set!,
       // This can be null for unrated games
-      rating: t.ratings && t.ratings.get(game.state.type!)![0],
+      rating: t!.ratings && t!.ratings.get(game.state.type!)![0],
     }));
     teamsMeta.sort((a,b) => game.state.winnerId === a.id ? -1 : game.state.winnerId === b.id ? 1 : 0);
 
@@ -171,21 +170,18 @@ export default class TeamSet extends ActiveModel<TeamSetEvents> {
     return true;
   }
 
-  get gameType() {
-    return this.cardinality.gameType;
-  }
   get gameTypeId() {
-    return this.cardinality.gameType.id;
+    return this.gameType.id;
   }
   get config() {
-    return this.cardinality.gameType.config.sets.find(s => s.id === this._id);
+    return this.gameType.config.sets.find(s => s.id === this._id);
   }
   get isFull() {
-    return this.cardinality.gameType.validateSetIsFull(this.data.units);
+    return this.gameType.validateSetIsFull(this.data.units);
   }
 
   get key() {
-    return `${this._id}:${this.cardinality.gameType.id}`;
+    return `${this._id}:${this.gameType.id}`;
   }
   get id() {
     return this._id;
@@ -197,10 +193,7 @@ export default class TeamSet extends ActiveModel<TeamSetEvents> {
     return this.data.units.clone();
   }
   get tags() {
-    return this._tags ??= this.cardinality.gameType.getTeamSetTags(this);
-  }
-  get indexPaths() {
-    return this._indexPaths ??= new Set(this.cardinality.getIndexPaths(this));
+    return this._tags ??= this.gameType.getTeamSetTags(this);
   }
 
   get stats() {
@@ -330,7 +323,6 @@ export default class TeamSet extends ActiveModel<TeamSetEvents> {
     if (this._stats.updatedAt === null) {
       if (!this.config)
         this.createdBy = playerIds.length === 1 ? playerIds[0] : game.createdBy;
-      this.cardinality.applySet(this);
       // Make sure all indexes are saved for a new TeamSet
       this.emit('stats:change:rating');
       this.emit('stats:change:gameCount');
@@ -349,7 +341,7 @@ export default class TeamSet extends ActiveModel<TeamSetEvents> {
         return unit;
       }),
     }, this._id);
-    teamSet.cardinality = this.cardinality;
+    teamSet.gameType = this.gameType;
     teamSet.stats = this._stats;
 
     if (side === 'mirror')
@@ -384,27 +376,19 @@ export default class TeamSet extends ActiveModel<TeamSetEvents> {
     const maxRarity = Math.max(...Array.from(unitTypeByCode.values()).filter(u => u.rarity !== undefined).map(u => u.rarity!));
     const nameParts = [
       (() => {
-        const units:{ name:string, count:number, rarity:number, tagCount:number, tagIndex:any }[] = [];
+        const units:{ name:string, count:number, rarity:number, tagCount:number, indexName:string }[] = [];
         for (const tag of tags) {
           if (tag.type !== 'unit') continue;
           if ([ 'sg', 'lw' ].includes(tag.name) && tag.count === undefined && tags.some(t => t.type === 'type' && t.name === 'turtle')) continue;
-          if (this.cardinality.gameType.id === 'freestyle' && tag.name === 'kn' && tag.count === 3) continue;
-          const tagIndex = `/${tag.type}/${tag.name}` + (tag.count === undefined ? '' : `/${tag.count}`);
+          if (this.gameType.id === 'freestyle' && tag.name === 'kn' && tag.count === 3) continue;
+          const indexName = `${tag.type}:${tag.name}` + (tag.count === undefined ? '' : tag.count);
           const rarity = unitTypeByCode.get(tag.name)!.rarity!;
           units.push({
             name: ((tag.count ?? 1) > 1 ? `${tag.count} ` : '') + unitTypeByCode.get(tag.name)!.shortName + (tag.count === 0 ? 'less' : ''),
-            count: (() => {
-              if (tag.count !== 0)
-                return this.cardinality.indexes.get(tagIndex)?.count ?? 0;
-              // For newly added units to a style, this is more accurate than the zero count index.
-              // Rebuilding the index is still necessary for accurate search.
-              const maxCount = this.cardinality.indexes.get('/')?.count ?? 0;
-              const count = this.cardinality.indexes.get(`/${tag.type}/${tag.name}`)?.count ?? 0;
-              return maxCount - count;
-            })(),
+            count: this.cardinality.indexes.get(indexName)?.count ?? 0,
             rarity: tag.count === 0 ? maxRarity - rarity : rarity,
             tagCount: tag.count ?? 1,
-            tagIndex,
+            indexName,
           });
         }
         if (units.length === 0) return null;
