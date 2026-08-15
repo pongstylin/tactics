@@ -71,6 +71,9 @@ export default class GameType {
   constructor(data) {
     Object.assign(this, data);
 
+    const overrides = this.config.overrides ?? new Map();
+    this._unitDataMap = new Map(Array.from(unitDataMap).map(([k,v]) => [ k, Object.merge(unitDataMap.get(k), overrides.get(k)) ]));
+
     if (this.config.sets) {
       this.config.sets = this.config.sets.filter((set, s) => {
         // The id is necessary for displaying curated set names instead of generated names.
@@ -209,6 +212,15 @@ export default class GameType {
     return this._tagByKeyword = localTagByKeyword;
   }
 
+  getUnitData(unitType, rebuild = false) {
+    if (rebuild) {
+      const overrides = this.config.overrides ?? new Map();
+      return Object.merge(unitDataMap.get(unitType), overrides.get(unitType));
+    }
+
+    return this._unitDataMap.get(unitType);
+  }
+
   getWinningTeams(teams) {
     const losingTeams = this.getLosingTeams(teams);
     // All teams win if all teams lose.  This is a draw.
@@ -284,7 +296,7 @@ export default class GameType {
     stats.points.remaining = stats.points.total - stats.points.used;
 
     for (const unitType of this.getUnitTypes()) {
-      const unitData = unitDataMap.get(unitType);
+      const unitData = this._unitDataMap.get(unitType);
       const unitStats = {
         name: unitData.name,
         type: unitType,
@@ -332,8 +344,20 @@ export default class GameType {
 
     return tiles;
   }
-  applyTeamSetUnitsState(units, degree) {
-    return GameType.applyTeamSetUnitsState(units, degree);
+  applyTeamSetUnitsState(unitsState, degree = 0) {
+    const board = new Board();
+
+    for (const unitState of unitsState) {
+      const unitData = this._unitDataMap.get(unitState.type);
+      const tile = board.getTileRotation(unitState.assignment, degree);
+
+      unitState.assignment = [tile.x, tile.y];
+      unitState.direction = unitData.directional === false ? 'S' : board.getRotation(unitState.direction ?? 'S', degree);
+      if (unitData.waitFirstTurn && !unitState.mRecovery)
+        unitState.mRecovery = 1;
+    }
+
+    return unitsState;
   }
   applyInitialGameState(team) {
     GameType.applyInitialGameState(team, team.id === 0);
@@ -420,7 +444,7 @@ export default class GameType {
     for (let [unitType, unitLimits] of unitTypesLimits) {
       let required = unitLimits.required || 0;
       let unitCount = unitCounts.get(unitType) || 0;
-      let unitTypeName = unitDataMap.get(unitType).name;
+      let unitTypeName = this._unitDataMap.get(unitType).name;
       if (required > unitCount) {
         if (required === 1)
           throw new ServerError(429, `${required} ${unitTypeName} is required`);
@@ -565,9 +589,9 @@ export default class GameType {
 
         const unitCount = unitMap.get(unitType) ?? 0;
         if (unitCount && unitConfig.max === 1)
-          tags.push({ type:'unit', name:unitDataMap.get(unitType).code });
+          tags.push({ type:'unit', name:this._unitDataMap.get(unitType).code });
         else
-          tags.push({ type:'unit', name:unitDataMap.get(unitType).code, count:unitCount });
+          tags.push({ type:'unit', name:this._unitDataMap.get(unitType).code, count:unitCount });
       }
     }
 
@@ -745,6 +769,21 @@ serializer.addType({
               fixedPositions: { type:'boolean' },
             },
             additionalProperties: false,
+          },
+          overrides: {
+            type: 'array',
+            subType: 'Map',
+            items: {
+              type: 'array',
+              items: [
+                { type:'string' },
+                {
+                  type: 'object',
+                  additionalProperties: true,
+                },
+              ],
+              additionalItems: false,
+            },
           },
           endGameCondition: {
             oneOf: [

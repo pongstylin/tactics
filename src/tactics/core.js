@@ -17,6 +17,7 @@ import SetImageRenderer from 'components/SetImageRenderer.js';
 import Progress from 'components/Modal/Progress.js';
 import SetBuilder from 'components/Modal/SetBuilder.js';
 import { colorFilterMap } from 'tactics/colorMap.js';
+import { registerUncloneable } from 'utils/clone.js';
 import Howler, { Howl } from 'utils/howler.js';
 import sleep from 'utils/sleep.js';
 
@@ -26,6 +27,7 @@ const chatClient = clientFactory('chat');
 const pushClient = clientFactory('push');
 
 Howler.mute(!gameConfig.audio);
+registerUncloneable(Howl);
 
 window.Tactics = {
   api,
