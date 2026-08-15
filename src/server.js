@@ -15,7 +15,6 @@ import services, { servicesReady } from '#server/services.js';
 import Timeout from '#server/Timeout.js';
 import useAuth from '#server/useAuth.js';
 import serializer from '#utils/serializer.js';
-import { ComponentsV2Assertions } from 'discord.js';
 
 const app    = createApp();
 const server = createServer(app);
@@ -57,28 +56,13 @@ app.post(`${PATH}/report`, (req, res) => {
   res.send(true);
 });
 app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new Map([
-  [ 20260618, {
-    title: `Storm Dragon Tournament`,
+  [ 20260815, {
+    title: `Storm Dragon Release`,
     message: `
-      The tournament has officially started.  For those who are participating, you have 40 days to get roughly 40 games played.
-      So make sure you are getting the notificactions from Discord when we send you a message and send challenges to your opponents.
-      You only need to play about 90% of your games to earn the new Storm Dragon unit.  So don't give up!
-    `
-  } ],
-  [ 20260619, {
-    title: 'New Custom Style!',
-    message: `
-      <DIV style="margin:0 8px">
-        Dark*Dragon wanted a legends gray style that includes Poison Wisp and Berserker.  Sound interesting to you?  Go try out Gray*Gambit!
-      </DIV>
-    `,
-  } ],
-  [ 20260704, {
-    title: `Enhancement: Auto Skipped Turns Notices`,
-    message: `
-      When turns are auto skipped, the chat will let you know.  This includes cases where the first turn of the game was skipped
-      since all units have first turn wait, which is common in Moderator and Jenkins Jamboree styles.  Now new players might be
-      less confused about seeing you move twice in a row and think you are cheating!
+      The tournament is moving on to the final round where the top 3 players will duke it out for the top cash prizes streamed live on Sat, Aug 22nd.
+      At long last, I'm handing out the first Storm Dragons to the most active participants.  Since the Storm Dragon (and other unit changes)
+      have changed the meta significantly, I'm also adding the "OG Freestyle" style.  This way you can enjoy the original gameplay.  If you missed
+      out on the Storm Dragon, keep an eye on the announcements to learn how you can earn a Storm Dragon in the future.
     `
   } ],
 ]))));
