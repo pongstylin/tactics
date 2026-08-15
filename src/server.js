@@ -15,7 +15,6 @@ import services, { servicesReady } from '#server/services.js';
 import Timeout from '#server/Timeout.js';
 import useAuth from '#server/useAuth.js';
 import serializer from '#utils/serializer.js';
-import { ComponentsV2Assertions } from 'discord.js';
 
 const app    = createApp();
 const server = createServer(app);
@@ -57,22 +56,6 @@ app.post(`${PATH}/report`, (req, res) => {
   res.send(true);
 });
 app.get(`${PATH}/announcements`, (req, res) => res.send(serializer.transform(new Map([
-  [ 20260618, {
-    title: `Storm Dragon Tournament`,
-    message: `
-      The tournament has officially started.  For those who are participating, you have 40 days to get roughly 40 games played.
-      So make sure you are getting the notificactions from Discord when we send you a message and send challenges to your opponents.
-      You only need to play about 90% of your games to earn the Storm Dragon unit.  So don't give up!
-    `
-  } ],
-  [ 20260704, {
-    title: `Enhancement: Auto Skipped Turns Notices`,
-    message: `
-      When turns are auto skipped, the chat will let you know.  This includes cases where the first turn of the game was skipped
-      since all units have first turn wait, which is common in Moderator and Jenkins Jamboree styles.  Now new players might be
-      less confused about seeing you move twice in a row and think you are cheating!
-    `
-  } ],
 ]))));
 app.post(`${PATH}/promote`, async (req, res) => {
   const tokenValue = req.headers.authorization?.replace(/^Bearer /, '');
