@@ -558,8 +558,8 @@ export const unitTypeToIdMap = new Map();
 
 export const unitTypeByCode = new Map(Array.from(unitDataMap.values()).map(ud => [ ud.code, ud ]));
 
-export const getUnitData = (unitType, rebuild) => {
-  const unitData = typeof Tactics !== 'undefined' && Tactics.game ? Tactics.game.gameType.getUnitData(unitType, rebuild) : unitDataMap.get(unitType);
+export const getUnitData = (unitType, gameType = null, rebuild = false) => {
+  const unitData = gameType ? gameType.getUnitData(unitType, rebuild) : unitDataMap.get(unitType);
   if (!unitData)
     throw new Error('No such unit: '+unitType);
   unitData.type = unitType;

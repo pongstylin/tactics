@@ -40,14 +40,14 @@ export default class GameState extends TypedEmitter {
     const board = new Board();
 
     Object.assign(this, {
-      gameType: null,
       teams: data.teams ?? new Array(data.numTeams).fill(null),
       turns: new Array(data.turns?.length ?? data.numTurns).fill(null),
-      _bots: [],
+      _gameType: null,
       _board: board,
       _newActions: [],
       _actions: [],
       _data: data,
+      _bots: [],
     });
 
     if (data.turns)
@@ -80,6 +80,13 @@ export default class GameState extends TypedEmitter {
   /*****************************************************************************
    * Property Accessors
    ****************************************************************************/
+  get gameType() {
+    return this._gameType;
+  }
+  set gameType(gameType) {
+    this._gameType = this._board.gameType = gameType;
+  }
+
   get board() {
     return this._board;
   }

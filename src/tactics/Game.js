@@ -114,7 +114,7 @@ export default class Game {
   }
 
   async init(gameType) {
-    this.gameType = gameType;
+    this.gameType = this._board.gameType = gameType;
 
     const renderer = this._renderer = await PIXI.autoDetectRenderer({
       width: Tactics.width,

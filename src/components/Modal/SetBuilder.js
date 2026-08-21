@@ -58,7 +58,7 @@ export default class SetBuilder extends Modal {
 
     this.on('cancel', this._onCancel.bind(this));
 
-    const board = new Board();
+    const board = new Board(this.gameType);
     board.on('card-tap', () => {
       popup({
         title: 'Set Management Tips',
@@ -282,10 +282,6 @@ export default class SetBuilder extends Modal {
   set gameType(gameType) {
     if (this.data.gameType?.id === gameType.id) return;
 
-    this.root.classList.toggle('isCustomizable', gameType.isCustomizable);
-    this._els.style.textContent = gameType.name;
-    this.data.gameType = gameType;
-
     const board = this._board;
     if (gameType.isCustomizable)
       board.unlock();
@@ -295,6 +291,10 @@ export default class SetBuilder extends Modal {
     if (this._unitPicker)
       this._unitPicker.destroy();
     this._unitPicker = new UnitPicker({ gameType, team:this._team });
+
+    this.root.classList.toggle('isCustomizable', gameType.isCustomizable);
+    this._els.style.textContent = gameType.name;
+    this.data.gameType = board.gameType = gameType;
   }
 
   get set() {
