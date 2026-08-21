@@ -163,7 +163,7 @@
       "overrides": [
         [ "GolemAmbusher", {
           "recovery": 3,
-          "mRadius": 5,
+          "mRadius": 2,
           "aRange": [4, 5]
         } ],
         [ "Berserker", {
