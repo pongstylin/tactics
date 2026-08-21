@@ -7,9 +7,10 @@ const authClient = clientFactory('auth');
 const gameClient = clientFactory('game');
 
 export default class RemoteTransport extends Transport {
-  constructor(gameId, gameData) {
+  constructor(gameId, gameData, gameType) {
     super({
       playerStatus: new Map(),
+      gameType,
     });
 
     gameClient

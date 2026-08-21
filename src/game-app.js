@@ -851,7 +851,7 @@ async function loadTransportAndGame(gameId, gameData) {
 }
 // Must be authorized first or the game already ended
 async function loadTransport(gameId, gameData) {
-  transport = new Tactics.RemoteTransport(gameId, gameData);
+  transport = new Tactics.RemoteTransport(gameId, gameData, gameType);
   await transport.whenReady;
 
   return transport;

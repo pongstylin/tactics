@@ -45,7 +45,7 @@ export default function (unitType, board) {
   const UnitClass = unitClassMap.get(unitType) ?? Unit;
   // Very expedient.  It would be better to not rely on globals.
   // Pass rebuild=true to ensure sounds have howl objects.
-  const unitData = getUnitData(unitType, true);
+  const unitData = getUnitData(unitType, board.gameType, true);
 
   return new UnitClass(unitData, board);
 };

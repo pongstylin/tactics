@@ -6,7 +6,8 @@ import emitter from 'utils/emitter.js';
 export default class Transport {
   constructor(props = {}) {
     Object.assign(this, {
-      board: new Board(),
+      board: new Board(props.gameType),
+      gameType: null,
 
       // Ready means the object is hydrated with game data.
       whenReady: new Promise(),
@@ -482,7 +483,7 @@ export default class Transport {
   }
 
   makeState(units, actions) {
-    const board = new Board();
+    const board = new Board(this.gameType);
     board.setState(units, this.teams.map(t => t.clone()));
     actions.forEach(a => board.applyAction(board.decodeAction(a)));
     return board.getState();

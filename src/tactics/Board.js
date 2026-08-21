@@ -14,7 +14,7 @@ export const ATTACK_TILE_COLOR = 0xFF8800;
 export const TARGET_TILE_COLOR = 0xFF3300;
 
 export default class Board {
-  constructor() {
+  constructor(gameType = null) {
     let tiles = new Array(11*11);
     var sx = 7 - TILE_WIDTH;        // padding-left, 1 tile  wide
     var sy = 3 + TILE_HEIGHT*4 + 1; // padding-top , 4 tiles tall, tweak
@@ -51,6 +51,7 @@ export default class Board {
     });
 
     Object.assign(this, {
+      gameType,
       tiles: tiles,
       pixi: null,
       sprite: null,
