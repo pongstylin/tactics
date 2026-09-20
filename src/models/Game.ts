@@ -297,10 +297,6 @@ export default class Game extends ActiveModel<GameEvents> {
     return changed;
   }
   checkout(team:Team, checkoutAt:Date, lastActiveAt:Date) {
-    // Stop tracking checkout after game ends.
-    if (this.state.endedAt)
-      return false;
-
     let changed = false;
 
     if (!team.checkoutAt || team.checkoutAt < checkoutAt) {

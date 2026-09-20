@@ -3,6 +3,7 @@ import Cache from '#utils/Cache.js';
 
 type SessionEvents = AbstractEvents & {
   'change:idle': { data:{ newValue:number, oldValue:number } },
+  'change:connected': { data:{ newValue:boolean, oldValue:boolean } },
   'close': {},
 };
 
@@ -17,6 +18,7 @@ export default class Session extends ActiveModel<SessionEvents> {
     outbox: [],
     client: any,
     idle: number,
+    connected: boolean,
   };
 
   constructor(data:Session['data']) {
@@ -71,6 +73,16 @@ export default class Session extends ActiveModel<SessionEvents> {
 
     this.data.idle = idle;
     this.emit('change:idle', { data:{ newValue:idle, oldValue:oldIdle } });
+  }
+  get connected() {
+    return this.data.connected;
+  }
+  set connected(connected) {
+    const oldConnected = this.data.connected;
+    if (connected === oldConnected) return;
+
+    this.data.connected = connected;
+    this.emit('change:connected', { data:{ newValue:connected, oldValue:oldConnected } });
   }
 
   close() {

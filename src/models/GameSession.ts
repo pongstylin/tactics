@@ -47,6 +47,7 @@ export default class GameSession {
     sessionPlayer.addSession(this);
 
     session.on('change:idle', this._onIdleChange.bind(this));
+    session.on('change:connected', this._onConnectedChange.bind(this));
 
     return this;
   }
@@ -104,9 +105,11 @@ export default class GameSession {
   }
   closeGame(game:Game) {
     const sessionGame = GameSessionGame.cache.get(game)!;
-    sessionGame.dropSession(this);
 
+    // Delete before dropping for accurate playerStatus.
     this.data.openedGameSessions.delete(sessionGame);
+
+    sessionGame.dropSession(this);
   }
 
   openGameSummaryListGroup(groupPath:string, gsls:GameSummaryList[], filters:Record<string, any>[]) {
@@ -124,6 +127,10 @@ export default class GameSession {
     const oldInactive = oldValue > ACTIVE_LIMIT;
     if (newInactive === oldInactive) return;
 
+    for (const gameSession of this.data.openedGameSessions)
+      gameSession.emitPlayerStatus(this._player.id);
+  }
+  _onConnectedChange() {
     for (const gameSession of this.data.openedGameSessions)
       gameSession.emitPlayerStatus(this._player.id);
   }
@@ -164,7 +171,8 @@ export class GameSessionPlayer {
   get idle() {
     const idle = Math.floor((Date.now() - this.data.player.checkoutAt.getTime()) / 1000);
 
-    return Math.min(idle, ...Array.from(this.data.gameSessions).map(gs => gs.session.idle));
+    const connected = Array.from(this.data.gameSessions).filter(gs => gs.session.connected);
+    return Math.min(idle, ...connected.map(gs => gs.session.idle));
   }
   get openedGames() {
     const openedGames = new Map<Game, Set<GameSession>>();
@@ -361,7 +369,8 @@ export class GameSessionGame {
       const newPlayerStatus = this._getPlayerStatus(playerId);
       if (
         newPlayerStatus.status !== oldPlayerStatus?.status ||
-        newPlayerStatus.deviceType !== oldPlayerStatus?.deviceType
+        newPlayerStatus.deviceType !== oldPlayerStatus?.deviceType ||
+        !!newPlayerStatus.isOpen !== !!oldPlayerStatus?.isOpen
       ) {
         playerStatus.set(playerId, newPlayerStatus);
         GameSessionGame.emit('playerStatus', {
@@ -390,10 +399,16 @@ export class GameSessionGame {
       return { status: 'online' as const, deviceType };
 
     /*
-     * Determine active status with the minimum idle of all clients this player
-     * has connected to this game.
+     * Determine active status with the minimum idle of all connected clients
+     * this player has in this game.
      */
-    const gameSessions = Array.from(sessionPlayer.openedGames.get(game)!);
+    const gameSessions = Array.from(sessionPlayer.openedGames.get(game)!).filter(gs => gs.session.connected);
+    if (!gameSessions.length)
+      return {
+        status: 'online' as const,
+        deviceType,
+        isOpen: true as const,
+      };
     const idle = Math.min(...gameSessions.map(gs => gs.session.idle));
 
     return {
