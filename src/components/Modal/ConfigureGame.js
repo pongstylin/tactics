@@ -888,9 +888,10 @@ export default class ConfigureGame extends Modal {
             messages.push(`They are unranked in this style.`);
         }
 
-        if (gs.mode === 'practice') {
+        if (gs.mode === 'practice' && gameType.isCustomizable) {
           selSet.querySelector('OPTION[value=same]').style.display = '';
-          selSet.querySelector('OPTION[value=mirror]').style.display = '';
+          selSet.querySelector('OPTION[value=mirror]').style.display =
+            gameType.hasFixedSides ? 'none' : '';
         }
       }
 
@@ -991,6 +992,13 @@ export default class ConfigureGame extends Modal {
         await this._toggleFields();
       };
       selType.addEventListener('change', this._groupStyleListener);
+
+      const selectedGs = gameSummaries.find(s => s.type === selType.value) ?? oldest;
+      if (selectedGs.mode === 'practice' && gameType.isCustomizable) {
+        selSet.querySelector('OPTION[value=same]').style.display = '';
+        selSet.querySelector('OPTION[value=mirror]').style.display =
+          gameType.hasFixedSides ? 'none' : '';
+      }
 
     } else if (this.data.view === 'forkGame') {
       const game = this.data.props.game;
@@ -1476,6 +1484,14 @@ export default class ConfigureGame extends Modal {
     selSet.querySelector('OPTION[value=mirror]').style.display = 'none';
     selSet.querySelector('OPTION[value=random]').style.display = gameType.isCustomizable ? '' : 'none';
     selSet.querySelector('OPTION[value=top]').style.display = gameType.isCustomizable ? '' : 'none';
+
+    const gameSummaries = this.data.props?.gameSummaries ?? [];
+    const gs = gameSummaries.find(s => s.type === gameType.id) ?? gameSummaries[0];
+    if (gs?.mode === 'practice' && gameType.isCustomizable) {
+      selSet.querySelector('OPTION[value=same]').style.display = '';
+      selSet.querySelector('OPTION[value=mirror]').style.display =
+        gameType.hasFixedSides ? 'none' : '';
+    }
 
     for (const slot of gameConfig.setsBySlot.keys()) {
       const setOption = selSet.querySelector(`OPTION[value="${slot}"]`);
