@@ -1461,8 +1461,10 @@ async function showSinglePlayerIntro(gameData) {
     <DIV>The blocking system is ${blocking}.</DIV>
   `;
 
-  $('#practice .set').show();
-  $('#practice .mirror').toggle(!gameType.hasFixedSides);
+  if (gameType.isCustomizable) {
+    $('#practice .set').show();
+    $('#practice .mirror').toggle(!gameType.hasFixedSides);
+  }
 
   const $selectSet = $('#practice INPUT[name=setChoice][value=selectSet]');
   const $mySet = $('#practice INPUT[name=setChoice][value=mySet]');
@@ -1566,13 +1568,16 @@ async function showSinglePlayerIntro(gameData) {
 
   return new Promise((resolve, reject) => {
     btnStart.addEventListener('click', async event => {
-      let set = $('#practice INPUT[name=setChoice]:checked').val();
-      if (set === 'selectSet')
-        set = selectSet;
-      else if (set === 'mySet')
-        set = $sets.val();
-      else if (set === 'practice')
-        set = practiceSet;
+      let set;
+      if (gameType.isCustomizable) {
+        set = $('#practice INPUT[name=setChoice]:checked').val();
+        if (set === 'selectSet')
+          set = selectSet;
+        else if (set === 'mySet')
+          set = $sets.val();
+        else if (set === 'practice')
+          set = practiceSet;
+      }
 
       $('#practice').hide();
       progress.message = 'Starting game...';
