@@ -1902,8 +1902,8 @@ export default class GameService extends Service {
     const openedGames = sessionPlayer.openedGames;
     if (!openedGames.has(game)) return gameIdle;
 
-    const sessions = openedGames.get(game);
-    return Math.min(gameIdle, ...Array.from(sessions).map(s => s.session.idle));
+    const sessions = Array.from(openedGames.get(game)).filter(s => s.session.connected);
+    return Math.min(gameIdle, ...sessions.map(s => s.session.idle));
   }
   _getPlayerActivity(player, fromGameId, inPlayerId) {
     // The player must be online

@@ -567,8 +567,10 @@ function closeClient(client, code, reason) {
   if (session)
     if (code === CLOSE_GOING_AWAY || code === CLOSE_SERVER_SHUTDOWN || code === CLOSE_CLIENT_LOGOUT || code > CLOSE_SERVER_TIMEOUT)
       closeSession(session, code);
-    else if (code !== CLOSE_REPLACED)
+    else if (code !== CLOSE_REPLACED) {
+      session.connected = false;
       closedSessionTimeout.add(session.id, session);
+    }
 }
 
 function closeSession(session, code) {
@@ -910,6 +912,7 @@ function onOpenMessage(client, message) {
     outbox: [],
     client,
     idle: 0,
+    connected: true,
   });
 
   client.version = message.body.version;
@@ -958,6 +961,7 @@ function onResumeMessage(client, message) {
   client.session = session;
 
   session.client = client;
+  session.connected = true;
 
   inboundClientTimeout.add(client.id, client);
 
