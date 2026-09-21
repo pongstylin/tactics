@@ -1,7 +1,10 @@
 import OpenAI from 'openai';
 import sleep from './sleep.js';
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI() : null;
+// Guard against this module ever running in a browser bundle. If it were
+// bundled client-side, dotenv-webpack would inline OPENAI_API_KEY as a
+// literal string, exposing it via DevTools. Only initialize server-side.
+const openai = (typeof window === 'undefined' && process.env.OPENAI_API_KEY) ? new OpenAI() : null;
 
 export async function moderationException(text, retries = 3, delay = 1000) {
   if (!openai) return false;
