@@ -360,7 +360,7 @@ export default class Player extends ActiveModel<PlayerEvents> {
     this.identity.lastSeenAt = this.lastSeenAt;
   }
   checkout(client:Session['client'], device:PlayerDevice) {
-    const checkoutAt = new Date(Date.now() - client.session.idle! * 1000);
+    const checkoutAt = new Date(client.session.lastActiveAt.getTime());
     device.checkout(client, checkoutAt);
     if (checkoutAt > this.data.checkoutAt) {
       this.data.checkoutAt = checkoutAt;

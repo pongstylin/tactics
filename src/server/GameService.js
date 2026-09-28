@@ -1677,7 +1677,7 @@ export default class GameService extends Service {
 
     const player = session.player;
     const checkoutAt = new Date();
-    const lastActiveAt = new Date(checkoutAt - client.session.idle * 1000);
+    const lastActiveAt = new Date(client.session.lastActiveAt.getTime());
     for (const team of game.state.teams)
       if (team?.playerId === player.id)
         game.checkout(team, checkoutAt, lastActiveAt);
@@ -1902,7 +1902,7 @@ export default class GameService extends Service {
     const openedGames = sessionPlayer.openedGames;
     if (!openedGames.has(game)) return gameIdle;
 
-    const sessions = Array.from(openedGames.get(game)).filter(s => s.session.connected);
+    const sessions = Array.from(openedGames.get(game));
     return Math.min(gameIdle, ...sessions.map(s => s.session.idle));
   }
   _getPlayerActivity(player, fromGameId, inPlayerId) {

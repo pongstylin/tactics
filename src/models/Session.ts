@@ -17,7 +17,7 @@ export default class Session extends ActiveModel<SessionEvents> {
     lastSentMessageId: number,
     outbox: [],
     client: any,
-    idle: number,
+    lastActiveAt: Date,
     connected: boolean,
   };
 
@@ -65,14 +65,20 @@ export default class Session extends ActiveModel<SessionEvents> {
     this.data.client = client;
   }
   get idle() {
-    return this.data.idle;
+    return Math.floor((Date.now() - this.data.lastActiveAt.getTime()) / 1000);
   }
   set idle(idle) {
-    const oldIdle = this.data.idle;
-    if (idle === oldIdle) return;
+    this.lastActiveAt = new Date(Date.now() - idle * 1000);
+  }
+  get lastActiveAt() {
+    return this.data.lastActiveAt;
+  }
+  set lastActiveAt(lastActiveAt) {
+    const oldIdle = this.data.lastActiveAt ? this.idle : 0;
+    if (lastActiveAt.getTime() === this.data.lastActiveAt?.getTime()) return;
 
-    this.data.idle = idle;
-    this.emit('change:idle', { data:{ newValue:idle, oldValue:oldIdle } });
+    this.data.lastActiveAt = lastActiveAt;
+    this.emit('change:idle', { data:{ newValue:this.idle, oldValue:oldIdle } });
   }
   get connected() {
     return this.data.connected;

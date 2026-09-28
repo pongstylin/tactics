@@ -171,8 +171,7 @@ export class GameSessionPlayer {
   get idle() {
     const idle = Math.floor((Date.now() - this.data.player.checkoutAt.getTime()) / 1000);
 
-    const connected = Array.from(this.data.gameSessions).filter(gs => gs.session.connected);
-    return Math.min(idle, ...connected.map(gs => gs.session.idle));
+    return Math.min(idle, ...Array.from(this.data.gameSessions).map(gs => gs.session.idle));
   }
   get openedGames() {
     const openedGames = new Map<Game, Set<GameSession>>();
@@ -390,29 +389,36 @@ export class GameSessionGame {
       return { status:'offline' as const };
 
     const sessionPlayer = GameSessionPlayer.cache.get(player);
-    if (!sessionPlayer || (game.endedAt && !sessionPlayer.openedGames.has(game)))
+    if (!sessionPlayer)
       return { status:'offline' as const };
 
-    const deviceType = sessionPlayer.isMobile ? 'mobile' as const : undefined;
-
-    if (!sessionPlayer.openedGames.has(game))
-      return { status: 'online' as const, deviceType };
-
     /*
-     * Determine active status with the minimum idle of all connected clients
-     * this player has in this game.
+     * Determine active status with the minimum idle of all clients this player
+     * has in this game.  Idle is kept pure (disconnected sessions included).
+     * Connectedness is applied below as a demotion so a disconnected player
+     * never shows as active (green): active game demotes to online (yellow),
+     * ended game demotes to offline (black).
      */
-    const gameSessions = Array.from(sessionPlayer.openedGames.get(game)!).filter(gs => gs.session.connected);
-    if (!gameSessions.length)
+    const deviceType = sessionPlayer.isMobile ? 'mobile' as const : undefined;
+    const sessions = Array.from(sessionPlayer.openedGames.get(game) ?? new Set<GameSession>());
+    const idle = sessions.length ? Math.min(...sessions.map(gs => gs.session.idle)) : Infinity;
+    const hasConnected = sessions.some(gs => gs.session.connected);
+
+    if (game.endedAt && (idle > ACTIVE_LIMIT || !hasConnected))
+      return { status:'offline' as const };
+
+    if (sessions.length === 0)
+      return { status:'online' as const, deviceType };
+
+    if (idle > ACTIVE_LIMIT || !hasConnected)
       return {
         status: 'online' as const,
         deviceType,
         isOpen: true as const,
       };
-    const idle = Math.min(...gameSessions.map(gs => gs.session.idle));
 
     return {
-      status: idle > ACTIVE_LIMIT ? 'online' as const : 'active' as const,
+      status: 'active' as const,
       deviceType,
       isOpen: true as const,
     };
