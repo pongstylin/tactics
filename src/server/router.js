@@ -911,7 +911,7 @@ function onOpenMessage(client, message) {
     lastSentMessageId: 0,
     outbox: [],
     client,
-    idle: 0,
+    lastActiveAt: new Date(),
     connected: true,
   });
 
