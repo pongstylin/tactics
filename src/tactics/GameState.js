@@ -734,7 +734,11 @@ export default class GameState extends TypedEmitter {
     // us to determine if a given turn is the first playable turn by comparing
     // the turn start date with the game start date.  This is currently used for
     // triggering "Your Turn" notifications at the right times.
-    action.createdAt = currentTurn.isEmpty && [ 'endTurn', 'endGame' ].includes(action.type) && action.forced
+    // Note that this only applies to endTurn actions.  Game-ending actions must
+    // always use the current time.  Backdating an endGame action misorders the
+    // game in player histories and breaks stats guards that compare endedAt
+    // against other timestamps (e.g. TeamSet "already applied" detection).
+    action.createdAt = action.type === 'endTurn' && currentTurn.isEmpty && action.forced
       ? currentTurn.startedAt
       : new Date();
     if (action.type !== 'endGame')
