@@ -1515,9 +1515,15 @@ export default class GameService extends Service {
         if (PlayerStats.updateRatings(game, playersStatsMap, slowMode))
           for (const playerStats of playersStats)
             playersMap.get(playerStats.playerId).identity.setRanks(playerStats.playerId, playerStats.ratings);
+      }
+
+      try {
         TeamSet.applyGame(game);
-      } else
-        TeamSet.applyGame(game);
+      } catch (error) {
+        // Team set stats must never block player stats below.
+        // (e.g. a stale "already applied" guard must not eat head-to-head results)
+        console.error(`_recordGameStats: TeamSet.applyGame failed for game ${game.id}:`, error);
+      }
 
       for (const playerStats of playersStats)
         playerStats.recordGameEnd(game);
