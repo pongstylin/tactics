@@ -94,6 +94,7 @@
     "xregexp": "^5.1.1"
   },
   "overrides": {
-    "undici": "^6.27.0"
+    "undici": "^6.27.0",
+    "fast-uri": "4.1.2"
   }
 }
