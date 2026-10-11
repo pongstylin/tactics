@@ -26,6 +26,7 @@ const config = {
     providers: {
       discord: {
         issuer: {
+          issuer: 'https://discord.com',
           authorization_endpoint: 'https://discord.com/oauth2/authorize',
           token_endpoint: 'https://discord.com/api/oauth2/token',
           userinfo_endpoint: 'https://discord.com/api/users/@me',
