@@ -544,6 +544,18 @@ export default class extends DynamoDBAdapter {
         id: gameId,
         type: 'game',
         name: `game_${gameId}`,
+      }).catch(async error => {
+        if (error.code !== 404)
+          throw error;
+
+        // The game doesn't exist, so any related game summaries are orphaned.
+        try {
+          await this._deleteGameSummaries(gameId);
+        } catch (cleanupError) {
+          console.error(`Failed to delete orphaned game summaries for game ${gameId}`, cleanupError);
+        }
+
+        throw error;
       });
 
       await this._getAllGameTeams(game);
@@ -563,6 +575,38 @@ export default class extends DynamoDBAdapter {
       gameSummaryCache.set(game, GameSummary.create(game));
 
     return game;
+  }
+  /*
+   * Delete every game summary related to a game that no longer exists.
+   * Only cleanup when a cached game summary list contains the game summary.
+   * Game summary children are indexed by game ID, allowing all of them to be
+   * found across player game lists, collections, rated lists, and team set games.
+   */
+  async _deleteGameSummaries(gameId) {
+    const gameSummaryLists = Array.from(GameSummaryList.cache.values());
+    if (!gameSummaryLists.some(gsl => gsl.has(gameId)))
+      return;
+
+    const rsp = await this.query({
+      attributes: [ 'PK', 'SK' ],
+      filters: {
+        GPK1: `game#${gameId}`,
+        GSK1: 'child',
+      },
+    });
+    if (rsp.items.length)
+      await Promise.all(rsp.items.map(item => this.deleteItem({ PK:item.PK, SK:item.SK })));
+
+    for (const gameSummaryList of gameSummaryLists)
+      gameSummaryList.delete(gameId);
+
+    for (const teamSetGameSearch of TeamSetGameSearch.cache.values())
+      if ([ ...teamSetGameSearch ].some(gs => gs.id === gameId))
+        TeamSetGameSearch.cache.delete(teamSetGameSearch.id);
+
+    for (const game of dirtyGamesSummary.keys())
+      if (game.id === gameId)
+        dirtyGamesSummary.delete(game);
   }
   async _getAllGameTeams(game) {
     const parts = await this.getItemParts({
