@@ -52,6 +52,60 @@ export default class ChatService extends Service {
     return room;
   }
 
+  /*
+   * Return the room, creating it from the game when it does not exist.  This
+   * can happen for games that started before chat rooms existed or if the room
+   * was lost.
+   */
+  async _getOrCreateRoom(roomId, client) {
+    let missingRoomError;
+
+    try {
+      return await this.data.getRoom(roomId);
+    } catch (error) {
+      if (error.code !== 404)
+        throw error;
+
+      missingRoomError = error;
+    }
+
+    const game = await this.game.getGame(roomId);
+
+    /*
+     * A room only exists for a game that has started.  Otherwise, the original
+     * room-not-found error is still the correct response.
+     */
+    if (!game.state.startedAt)
+      throw missingRoomError;
+
+    const players = game.state.teams
+      .filter(t => t?.playerId)
+      .map(({ playerId, name }) => ({ id:playerId, name }));
+
+    /*
+     * Don't let a non-participant cause a room to be created.
+     */
+    const playerId = this.clientPara.get(client.id).playerId;
+    if (!players.some(p => p.id === playerId))
+      throw new ServerError(403, 'You are not a participant of this room');
+
+    try {
+      return await this.createRoom(players, {
+        id: roomId,
+        applyRules: !!game.collection,
+      });
+    } catch (error) {
+      /*
+       * The room may have been created by another join that was in progress.
+       */
+      try {
+        return await this.data.getRoom(roomId);
+      } catch {
+        throw error;
+      }
+    }
+  }
+
   dropClient(client) {
     const clientPara = this.clientPara.get(client.id);
     if (!clientPara) return;
@@ -97,11 +151,11 @@ export default class ChatService extends Service {
 
   /*
    * Only room participants can join the room group.  Right now, players cannot
-   * become of a participant of an existing room.  However, when a game starts,
-   * a room is created with the game participants.
+   * become of a participant of an existing room.  If the room does not exist,
+   * it is recreated from the game participants.
    */
   async onJoinRoomGroup(client, groupPath, roomId, resume) {
-    const room = await this.data.getRoom(roomId);
+    const room = await this._getOrCreateRoom(roomId, client);
     // Abort if the client is no longer connected.
     if (client.closed) return;
 

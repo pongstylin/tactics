@@ -1305,6 +1305,14 @@ export default class GameService extends Service {
     return response;
   }
 
+  /*
+   * Public access so other services can load a game with service-level
+   * attachment (e.g. chat room recovery).
+   */
+  async getGame(gameId) {
+    return this._getGame(gameId);
+  }
+
   /*****************************************************************************
    * Private Methods
    ****************************************************************************/
